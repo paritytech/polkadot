@@ -4,7 +4,7 @@ use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
 use polkadot_parachain::primitives::{Id as ParaId, AccountIdConversion};
 use polkadot_runtime_parachains::origin;
-use xcm::v0::{MultiLocation, NetworkId};
+use xcm::v0::{MultiLocation, NetworkId, Order};
 use xcm::opaque::v0::MultiAsset;
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative, ChildParachainConvertsVia,
@@ -98,8 +98,7 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-	pub const KsmLocation: MultiLocation = MultiLocation::Null;
-	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
+	pub const RelayLocation: MultiLocation = MultiLocation::Null;
 	pub const AnyNetwork: NetworkId = NetworkId::Any;
 	pub Ancestry: MultiLocation = MultiLocation::Null;
 	pub UnitWeightCost: Weight = 1_000;
@@ -107,25 +106,24 @@ parameter_types! {
 
 pub type SovereignAccountOf = (
 	ChildParachainConvertsVia<ParaId, AccountId>,
-	AccountId32Aliases<KusamaNetwork, AccountId>,
+	AccountId32Aliases<AnyNetwork, AccountId>,
 );
 
 pub type LocalAssetTransactor =
-	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, SovereignAccountOf, AccountId, ()>;
+	XcmCurrencyAdapter<Balances, IsConcrete<RelayLocation>, SovereignAccountOf, AccountId, ()>;
 
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
 	ChildParachainAsNative<origin::Origin, Origin>,
-	SignedAccountId32AsNative<KusamaNetwork, Origin>,
+	SignedAccountId32AsNative<AnyNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
 parameter_types! {
 	pub const BaseXcmWeight: Weight = 1_000;
-	pub KsmPerSecond: (MultiLocation, u128) = (KsmLocation::get(), 1);
+	pub CurrencyPerSecond: (MultiLocation, u128) = (RelayLocation::get(), 1);
 }
 
-// TODO: stricter than All for inner AllowTopLevelPaidExecutionFrom
 pub type Barrier = (TakeWeightCredit, AllowTopLevelPaidExecutionFrom<All<MultiLocation>>);
 
 pub struct XcmConfig;
@@ -139,11 +137,11 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<KsmPerSecond, ()>;
+	type Trader = FixedRateOfConcreteFungible<CurrencyPerSecond, ()>;
 	type ResponseHandler = ();
 }
 
-pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;
+pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;
 
 impl pallet_xcm::Config for Test {
 	type Event = Event;
@@ -167,17 +165,26 @@ pub(crate) fn last_event() -> Event {
 	System::events().pop().expect("Event expected").event
 }
 
-pub fn new_test_ext() -> sp_io::TestExternalities {
+pub(crate) fn buy_execution<C>(debt: Weight) -> Order<C> {
+	use xcm::opaque::v0::prelude::*;
+	Order::BuyExecution {
+		fees: All,
+		weight: 0,
+		debt,
+		halt_on_error: false,
+		xcm: vec![],
+	}
+}
+
+pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default()
 		.build_storage::<Test>()
 		.unwrap();
 
-	let parachain_acc: AccountId = ParaId::from(PARA_ID).into_account();
-
 	pallet_balances::GenesisConfig::<Test> {
 		balances: vec![
 			(ALICE, INITIAL_BALANCE),
-			(parachain_acc, INITIAL_BALANCE)
+			(ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)
 		],
 	}
 	.assimilate_storage(&mut t)

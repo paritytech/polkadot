@@ -2,75 +2,43 @@ use crate::mock::*;
 use xcm::v0::{Xcm, Junction};
 use xcm::opaque::v0::prelude::*;
 use MultiLocation::*;
-use frame_support::{assert_ok, assert_noop, traits::Currency};
+use frame_support::{assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{Id as ParaId, AccountIdConversion};
-
-#[test]
-fn send_fails_with_bad_origin() {
-    new_test_ext().execute_with(|| {
-		let amount = 5_000_000;
-		let dest_weight = 2_000_000;
-        assert_noop!(XcmPallet::send(Origin::none(), MultiLocation::Null, Xcm::ReserveAssetDeposit {
-            assets: vec![ConcreteFungible { id: Parent.into(), amount }],
-            effects: vec![
-                BuyExecution {
-                    fees: All,
-                    weight: 0,
-                    debt: dest_weight,
-                    halt_on_error: false,
-                    xcm: vec![],
-                },
-                DepositAsset { assets: vec![ All ], dest: Junction::AccountId32 { network: NetworkId::Kusama, id: ALICE.into() }.into() },
-            ]
-        }), frame_support::error::BadOrigin);
-    });
-}
 
 #[test]
 fn send_works() {
     new_test_ext().execute_with(|| {
-		let amount = 5_000_000;
-		let dest_weight = 2_000_000;
-        // TODO: test sending simpler message?
-        // test sending all messages
+		let amount = 10 * ExistentialDeposit::get();
+		let weight = 2 * BaseXcmWeight::get();
+        let dest: MultiLocation = Junction::AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
         assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
-        let dest: MultiLocation = Junction::AccountId32 { network: NetworkId::Kusama, id: ALICE.into() }.into();
         let message =  Xcm::ReserveAssetDeposit {
             assets: vec![ConcreteFungible { id: Parent.into(), amount }],
             effects: vec![
-                BuyExecution {
-                    fees: All,
-                    weight: 0,
-                    debt: dest_weight,
-                    halt_on_error: false,
-                    xcm: vec![],
-                },
+                buy_execution(weight),
                 DepositAsset { assets: vec![ All ], dest: dest.clone() },
             ]
         };
-        assert_ok!(XcmPallet::send(Origin::signed(ALICE), MultiLocation::Null, message.clone()));
+        assert_ok!(XcmPallet::send(Origin::signed(ALICE), RelayLocation::get(), message.clone()));
         assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
-        // why is dest in the `origin_location` spot?
-        assert_eq!(last_event(), Event::XcmPallet(crate::Event::Sent(dest, MultiLocation::Null, message)));
+        assert_eq!(last_event(), Event::XcmPallet(crate::Event::Sent(dest, RelayLocation::get(), message)));
     });
 }
 
 #[test]
 fn teleport_assets_works() {
     new_test_ext().execute_with(|| {
-		let amount = 5_000_000;
-		let dest_weight = 2_000_000;
-        // TODO: test sending simpler message?
+		let amount = 10 * ExistentialDeposit::get();
+		let weight = 2 * BaseXcmWeight::get();
         assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
         assert_ok!(XcmPallet::teleport_assets(
             Origin::signed(ALICE), 
-            MultiLocation::Null,
-            MultiLocation::Null,
+            RelayLocation::get(),
+            RelayLocation::get(), // TODO: other location
             vec![ConcreteFungible { id: Null, amount }],
-            dest_weight,
+            weight,
         ));
-        let fee = 5000000;
-        assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - fee);
+        assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - amount);
         assert_eq!(last_event(), Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(2000u64))));
     });
 }
@@ -78,15 +46,16 @@ fn teleport_assets_works() {
 #[test]
 fn reserve_transfer_assets_works() {
 	new_test_ext().execute_with(|| {
-		let amount = 5_000_000;
-		let dest_weight = 2_000_000;
+		let amount = 10 * ExistentialDeposit::get();
+		let weight = BaseXcmWeight::get();
+        let dest: MultiLocation = Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
         assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			Origin::signed(ALICE),
 			Parachain(PARA_ID).into(),
-			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into(),
+			dest.clone(),
 			vec![ConcreteFungible { id: Null, amount }],
-			dest_weight
+			weight
 		));
         // Alice spent amount
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - amount);
@@ -98,14 +67,8 @@ fn reserve_transfer_assets_works() {
 			vec![(Parachain(PARA_ID).into(), Xcm::ReserveAssetDeposit {
 				assets: vec![ConcreteFungible { id: Parent.into(), amount }],
 				effects: vec![
-					BuyExecution {
-						fees: All,
-						weight: 0,
-						debt: dest_weight,
-						halt_on_error: false,
-						xcm: vec![],
-					},
-					DepositAsset { assets: vec![ All ], dest: Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into() },
+					buy_execution(weight),
+					DepositAsset { assets: vec![ All ], dest },
 				]
 			})]
 		);
@@ -116,20 +79,14 @@ fn reserve_transfer_assets_works() {
 #[test]
 fn execute_works() {
     new_test_ext().execute_with(|| {
-		let amount = 5_000_000;
-		let dest_weight = 2_000_000;
-        // TODO: test sending simpler message?
+		let amount = 10 * ExistentialDeposit::get();
+		let weight = 3 * BaseXcmWeight::get();
+        let dest: MultiLocation = Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
         assert_ok!(XcmPallet::execute(Origin::signed(ALICE), Box::new(Xcm::WithdrawAsset {
             assets: vec![ConcreteFungible { id: Null, amount }],
             effects: vec![
-                BuyExecution {
-                    fees: All,
-                    weight: 0,
-                    debt: dest_weight,
-                    halt_on_error: false,
-                    xcm: vec![],
-                },
-                DepositAsset { assets: vec![ All ], dest: Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into() },
+                buy_execution(weight),
+                DepositAsset { assets: vec![ All ], dest },
             ]
         }), 2_000_000));
         assert_eq!(last_event(), Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(3000))));
