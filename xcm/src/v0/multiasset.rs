@@ -323,9 +323,15 @@ impl From<WildMultiAsset> for MultiAssetFilter {
 	}
 }
 
-impl From<MultiAsset> for MultiAssetFilter {
-	fn from(x: MultiAsset) -> Self {
-		Self::Definite(vec![x].into())
+impl<T: Into<MultiAsset>> From<T> for MultiAssetFilter {
+	fn from(x: T) -> Self {
+		Self::Definite(vec![x.into()].into())
+	}
+}
+
+impl From<Vec<MultiAsset>> for MultiAssetFilter {
+	fn from(x: Vec<MultiAsset>) -> Self {
+		Self::Definite(x.into())
 	}
 }
 

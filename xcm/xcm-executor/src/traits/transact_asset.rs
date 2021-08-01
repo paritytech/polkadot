@@ -181,6 +181,8 @@ impl TransactAsset for Tuple {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use xcm::v0::prelude::*;
+	use MultiLocation::Null;
 
 	pub struct UnimplementedTransactor;
 	impl TransactAsset for UnimplementedTransactor {}
@@ -246,27 +248,27 @@ mod tests {
 	fn defaults_to_asset_not_found() {
 		type MultiTransactor = (UnimplementedTransactor, NotFoundTransactor, UnimplementedTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Err(XcmError::AssetNotFound));
+		assert_eq!(MultiTransactor::deposit_asset(&(Null, 1).into(), &Null), Err(XcmError::AssetNotFound));
 	}
 
 	#[test]
 	fn unimplemented_and_not_found_continue_iteration() {
 		type MultiTransactor = (UnimplementedTransactor, NotFoundTransactor, SuccessfulTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Ok(()));
+		assert_eq!(MultiTransactor::deposit_asset(&(Null, 1).into(), &Null), Ok(()));
 	}
 
 	#[test]
 	fn unexpected_error_stops_iteration() {
 		type MultiTransactor = (OverflowTransactor, SuccessfulTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Err(XcmError::Overflow));
+		assert_eq!(MultiTransactor::deposit_asset(&(Null, 1).into(), &Null), Err(XcmError::Overflow));
 	}
 
 	#[test]
 	fn success_stops_iteration() {
 		type MultiTransactor = (SuccessfulTransactor, OverflowTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Ok(()));
+		assert_eq!(MultiTransactor::deposit_asset(&(Null, 1).into(), &Null), Ok(()));
 	}
 }
