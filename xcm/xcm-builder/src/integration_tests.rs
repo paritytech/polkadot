@@ -8,7 +8,7 @@ use sp_runtime::traits::AccountIdConversion;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 
 use polkadot_parachain::primitives::Id as ParaId;
-use polkadot_runtime_parachains::{configuration, origin, shared, ump};
+use polkadot_runtime_parachains::{configuration, origin, shared};
 use xcm::opaque::v0::{MultiAsset, Response};
 use xcm::v0::{Junction, MultiLocation::{self, *}, NetworkId, Order};
 use xcm_executor::XcmExecutor;
@@ -146,16 +146,6 @@ impl pallet_xcm::Config for Runtime {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 }
 
-parameter_types! {
-	pub const FirstMessageFactorPercent: u64 = 100;
-}
-
-impl ump::Config for Runtime {
-	type Event = Event;
-	type UmpSink = ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
-	type FirstMessageFactorPercent = FirstMessageFactorPercent;
-}
-
 impl origin::Config for Runtime {}
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
@@ -170,7 +160,6 @@ construct_runtime!(
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
-		ParasUmp: ump::{Pallet, Call, Storage, Event},
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>},
 	}
 );
@@ -188,56 +177,12 @@ pub fn kusama_like_with_balances(balances: Vec<(AccountId, Balance)>) -> sp_io::
 	.assimilate_storage(&mut t)
 	.unwrap();
 
-	// use polkadot_primitives::v1::{MAX_CODE_SIZE, MAX_POV_SIZE};
-	// // default parachains host configuration from polkadot's `chain_spec.rs`
-	// kusama::ParachainsConfigurationConfig {
-	// 	config: polkadot_runtime_parachains::configuration::HostConfiguration {
-	// 		validation_upgrade_frequency: 1u32,
-	// 		validation_upgrade_delay: 1,
-	// 		code_retention_period: 1200,
-	// 		max_code_size: MAX_CODE_SIZE,
-	// 		max_pov_size: MAX_POV_SIZE,
-	// 		max_head_data_size: 32 * 1024,
-	// 		group_rotation_frequency: 20,
-	// 		chain_availability_period: 4,
-	// 		thread_availability_period: 4,
-	// 		max_upward_queue_count: 8,
-	// 		max_upward_queue_size: 1024 * 1024,
-	// 		max_downward_message_size: 1024,
-	// 		// this is approximatelly 4ms.
-	// 		//
-	// 		// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
-	// 		// an import since that's a made up number and should be replaced with a constant
-	// 		// obtained by benchmarking anyway.
-	// 		ump_service_total_weight: 4 * 1_000_000_000,
-	// 		max_upward_message_size: 1024 * 1024,
-	// 		max_upward_message_num_per_candidate: 5,
-	// 		hrmp_open_request_ttl: 5,
-	// 		hrmp_sender_deposit: 0,
-	// 		hrmp_recipient_deposit: 0,
-	// 		hrmp_channel_max_capacity: 8,
-	// 		hrmp_channel_max_total_size: 8 * 1024,
-	// 		hrmp_max_parachain_inbound_channels: 4,
-	// 		hrmp_max_parathread_inbound_channels: 4,
-	// 		hrmp_channel_max_message_size: 1024 * 1024,
-	// 		hrmp_max_parachain_outbound_channels: 4,
-	// 		hrmp_max_parathread_outbound_channels: 4,
-	// 		hrmp_max_message_num_per_candidate: 5,
-	// 		dispute_period: 6,
-	// 		no_show_slots: 2,
-	// 		n_delay_tranches: 25,
-	// 		needed_approvals: 2,
-	// 		relay_vrf_modulo_samples: 2,
-	// 		zeroth_delay_tranche_width: 0,
-	// 		..Default::default()
-	// 	},
-	// }.assimilate_storage(&mut t).unwrap();
-
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
 	ext
 }
 
+// Construct a `BuyExecution` order.
 fn buy_execution<C>(debt: Weight) -> Order<C> {
 	use xcm::opaque::v0::prelude::*;
 	Order::BuyExecution {
@@ -249,6 +194,10 @@ fn buy_execution<C>(debt: Weight) -> Order<C> {
 	}
 }
 
+/// Scenario:
+/// A parachain transfers funds on the relaychain to another parachain's account.
+///
+/// Asserts that the parachain accounts are updated as expected.
 #[test]
 fn withdraw_and_deposit_works() {
 	use xcm::opaque::v0::prelude::*;
@@ -274,10 +223,15 @@ fn withdraw_and_deposit_works() {
 		);
 		assert_eq!(r, Outcome::Complete(weight));
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
+		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
 	});
 }
 
+/// Scenario:
+/// A user Alice sends funds from the relaychain to a parachain.
+///
+/// Asserts that the correct XCM is sent and the balances are set as expected.
 #[test]
 fn reserve_transfer_assets_works() {
 	use xcm::opaque::v0::prelude::*;
@@ -285,7 +239,7 @@ fn reserve_transfer_assets_works() {
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let amount =  10 * ExistentialDeposit::get();
-		// We just assume that the destination uses the same base weight for XCM
+		// We just assume that the destination uses the same base weight for XCM for this test. Not checked.
 		let dest_weight = 2 * BaseXcmWeight::get();
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			Origin::signed(ALICE),
@@ -320,6 +274,11 @@ fn reserve_transfer_assets_works() {
 	});
 }
 
+/// Scenario:
+/// A parachain wants to be notified that a transfer worked correctly.
+/// It sends a `QueryHolding` after the deposit to get notified on success.
+///
+/// Asserts that the balances are updated correctly and the expected XCM is sent.
 #[test]
 fn query_holding_works() {
 	use xcm::opaque::v0::prelude::*;
@@ -336,14 +295,41 @@ fn query_holding_works() {
 				assets: vec![ConcreteFungible { id: Null, amount }],
 				effects: vec![
 					buy_execution(weight),
+					Order::DepositAsset {
+						assets: vec![All],
+						dest: OnlyChild.into(), // invalid destination
+					},
+					// is not triggered becasue the deposit fails
 					Order::QueryHolding {
 						query_id,
 						dest: Parachain(PARA_ID).into(),
 						assets: vec![All],
 					},
+				],
+			},
+			weight,
+		);
+		assert_eq!(r, Outcome::Incomplete(weight, XcmError::FailedToTransactAsset("AccountIdConversionFailed")));
+		// there should be no query response sent for the failed deposit
+		assert_eq!(mock::sent_xcm(), vec![]);
+		assert_eq!(Balances::free_balance(para_acc.clone()), INITIAL_BALANCE - amount);
+
+		// now do a successful transfer
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			Parachain(PARA_ID).into(),
+			Xcm::WithdrawAsset {
+				assets: vec![ConcreteFungible { id: Null, amount }],
+				effects: vec![
+					buy_execution(weight),
 					Order::DepositAsset {
 						assets: vec![All],
 						dest: Parachain(other_para_id).into(),
+					},
+					// used to get a notification in case of success
+					Order::QueryHolding {
+						query_id,
+						dest: Parachain(PARA_ID).into(),
+						assets: vec![All],
 					},
 				],
 			},
@@ -352,23 +338,25 @@ fn query_holding_works() {
 		assert_eq!(r, Outcome::Complete(weight));
 		let other_para_acc: AccountId = ParaId::from(other_para_id).into_account();
 		assert_eq!(Balances::free_balance(other_para_acc), amount);
-		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
+		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - 2 * amount);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(
 				Parachain(PARA_ID).into(),
 				Xcm::QueryResponse {
 					query_id,
-					response: Response::Assets(vec![ConcreteFungible {
-						id: Parent.into(),
-						amount
-					}])
+					response: Response::Assets(vec![])
 				}
 			)]
 		);
 	});
 }
 
+/// Scenario:
+/// A parachain wants to move KSM from Kusama to Statemine.
+/// It withdraws funds and then teleports them to the destination.
+///
+/// Asserts that the balances are updated accordingly and the correct XCM is sent.
 #[test]
 fn teleport_to_statemine_works() {
 	use xcm::opaque::v0::prelude::*;
