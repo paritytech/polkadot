@@ -50,7 +50,7 @@ impl<
 	fn reverse_ref(what: impl Borrow<AssetId>) -> result::Result<MultiLocation, ()> {
 		let mut location = Prefix::get();
 		let id = ConvertAssetId::reverse_ref(what)?;
-		location.push_non_parent(Junction::GeneralIndex { id })?;
+		location.push_interior(Junction::GeneralIndex { id })?;
 		Ok(location)
 	}
 }

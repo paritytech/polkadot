@@ -198,7 +198,7 @@ impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry>
 		let mut junctions = Junctions::Null;
 		for _ in 0..location.parent_count() {
 			junctions = junctions.pushed_with(
-				ancestry.take_first_non_parent().unwrap_or(Junction::OnlyChild),
+				ancestry.take_first_interior().unwrap_or(Junction::OnlyChild),
 			)
 			.expect("ancestry is well-formed and has less than 8 non-parent junctions; qed");
 		}
