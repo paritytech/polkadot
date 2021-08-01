@@ -84,8 +84,8 @@ macro_rules! decl_test_relay_chain {
 
 				Self::execute_with(|| {
 					$crate::ump::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
-								origin, msg, max_weight,
-							)
+						origin, msg, max_weight,
+					)
 				})
 			}
 		}
@@ -206,7 +206,6 @@ macro_rules! decl_test_network {
 					$(
 						$crate::X2($crate::Parent, $crate::Parachain(id)) if id == $para_id => {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Xcmp);
-							// TODO: update relay block number
 							let messages = vec![(T::get(), 1, &encoded[..])];
 							let _ = <$parachain>::handle_xcmp_messages(
 								messages.into_iter(),
@@ -230,7 +229,6 @@ macro_rules! decl_test_network {
 					$(
 						$crate::X1($crate::Parachain(id)) if id == $para_id => {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
-							// TODO: update relay block number
 							let messages = vec![(1, encoded)];
 							let _ = <$parachain>::handle_dmp_messages(
 								messages.into_iter(), $crate::Weight::max_value(),
