@@ -85,8 +85,10 @@ struct HostConfiguration {
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
 	pub max_downward_message_size: u32,
-	/// Number of sessions after which an HRMP open channel request expires.
-	pub hrmp_open_request_ttl: u32,
+	/// NOTE: this field is deprecated. Channel open requests became non-expiring. Changing this value
+	/// doesn't have any effect. This field doesn't have an `deprecated` attribute because that would
+	/// trigger warnings coming from macros.
+	pub _hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
 	pub hrmp_sender_deposit: u32,
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
