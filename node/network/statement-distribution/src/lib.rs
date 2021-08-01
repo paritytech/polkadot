@@ -1333,9 +1333,7 @@ async fn handle_incoming_message<'a>(
 
 	match active_head.check_useful_or_unknown(&statement) {
 		Ok(()) => {},
-		Err(DeniedStatement::NotUseful) => {
-			return None
-		},
+		Err(DeniedStatement::NotUseful) => return None,
 		Err(DeniedStatement::UsefulButKnown) => {
 			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await;
 			return None

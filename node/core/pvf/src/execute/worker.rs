@@ -198,15 +198,9 @@ async fn validate_using_artifact(
 	};
 
 	let compiled_artifact = match &artifact {
-		Artifact::PrevalidationErr(msg) => {
-			return Response::format_invalid("prevalidation", msg)
-		},
-		Artifact::PreparationErr(msg) => {
-			return Response::format_invalid("preparation", msg)
-		},
-		Artifact::DidntMakeIt => {
-			return Response::format_invalid("preparation timeout", "")
-		},
+		Artifact::PrevalidationErr(msg) => return Response::format_invalid("prevalidation", msg),
+		Artifact::PreparationErr(msg) => return Response::format_invalid("preparation", msg),
+		Artifact::DidntMakeIt => return Response::format_invalid("preparation timeout", ""),
 
 		Artifact::Compiled { compiled_artifact } => compiled_artifact,
 	};
@@ -218,9 +212,7 @@ async fn validate_using_artifact(
 		//         [`executor_intf::prepare`].
 		crate::executor_intf::execute(compiled_artifact, params, spawner.clone())
 	} {
-		Err(err) => {
-			return Response::format_invalid("execute", &err.to_string())
-		},
+		Err(err) => return Response::format_invalid("execute", &err.to_string()),
 		Ok(d) => d,
 	};
 

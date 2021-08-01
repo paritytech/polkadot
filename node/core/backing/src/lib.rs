@@ -865,9 +865,7 @@ impl CandidateBackingJob {
 			SigningContext { parent_hash: self.parent, session_index: self.session_index };
 
 		let validator_public = match self.table_context.validators.get(validator_index.0 as usize) {
-			None => {
-				return Err(ValidatorIndexOutOfBounds)
-			},
+			None => return Err(ValidatorIndexOutOfBounds),
 			Some(v) => v,
 		};
 

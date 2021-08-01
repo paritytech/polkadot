@@ -209,9 +209,7 @@ pub mod pallet {
 				// We can try to onboard it.
 				Some(Some(_lease_info)) => T::Registrar::make_parachain(para)?,
 				// Otherwise, it does not have a lease.
-				Some(None) | None => {
-					return Err(Error::<T>::ParaNotOnboarding.into())
-				},
+				Some(None) | None => return Err(Error::<T>::ParaNotOnboarding.into()),
 			};
 			Ok(())
 		}

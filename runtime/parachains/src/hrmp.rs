@@ -759,9 +759,8 @@ impl<T: Config> Pallet<T> {
 				// the messages must be sorted in ascending order and there must be no two messages sent
 				// to the same recipient. Thus we can check that every recipient is strictly greater than
 				// the previous one.
-				Some(last_recipient) if out_msg.recipient <= last_recipient => {
-					return Err(OutboundHrmpAcceptanceErr::NotSorted { idx })
-				},
+				Some(last_recipient) if out_msg.recipient <= last_recipient =>
+					return Err(OutboundHrmpAcceptanceErr::NotSorted { idx }),
 				_ => last_recipient = Some(out_msg.recipient),
 			}
 
@@ -769,9 +768,7 @@ impl<T: Config> Pallet<T> {
 
 			let channel = match <Self as Store>::HrmpChannels::get(&channel_id) {
 				Some(channel) => channel,
-				None => {
-					return Err(OutboundHrmpAcceptanceErr::NoSuchChannel { channel_id, idx })
-				},
+				None => return Err(OutboundHrmpAcceptanceErr::NoSuchChannel { channel_id, idx }),
 			};
 
 			let msg_size = out_msg.data.len() as u32;

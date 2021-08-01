@@ -512,9 +512,8 @@ impl<S: SubsystemSender> Interaction<S> {
 							)),
 					}
 				},
-				InteractionPhase::RequestChunks(ref mut from_all) => {
-					break from_all.run(&self.params, &mut self.sender).await
-				},
+				InteractionPhase::RequestChunks(ref mut from_all) =>
+					break from_all.run(&self.params, &mut self.sender).await,
 			}
 		}
 	}

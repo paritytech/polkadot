@@ -987,9 +987,7 @@ fn update_our_view(
 		// If this is the first view update since becoming active, but our view is empty,
 		// there is no need to send anything.
 		match shared.local_view {
-			Some(ref v) if v.check_heads_eq(&new_view) => {
-				return
-			},
+			Some(ref v) if v.check_heads_eq(&new_view) => return,
 			None if live_heads.is_empty() => {
 				shared.local_view = Some(new_view);
 				return
@@ -1040,9 +1038,7 @@ fn handle_peer_messages<M>(
 	metrics: &Metrics,
 ) -> (Vec<NetworkBridgeEvent<M>>, Vec<Rep>) {
 	let peer_data = match peers.get_mut(&peer) {
-		None => {
-			return (Vec::new(), vec![UNCONNECTED_PEERSET_COST])
-		},
+		None => return (Vec::new(), vec![UNCONNECTED_PEERSET_COST]),
 		Some(d) => d,
 	};
 

@@ -1478,14 +1478,13 @@ fn check_and_import_assignment(
 
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(s) => s,
-		None => {
+		None =>
 			return Ok((
 				AssignmentCheckResult::Bad(AssignmentCheckError::UnknownSessionIndex(
 					block_entry.session(),
 				)),
 				Vec::new(),
-			))
-		},
+			)),
 	};
 
 	let (claimed_core_index, assigned_candidate_hash) =
@@ -1502,15 +1501,14 @@ fn check_and_import_assignment(
 
 	let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
 		Some(c) => c,
-		None => {
+		None =>
 			return Ok((
 				AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidate(
 					candidate_index,
 					assigned_candidate_hash,
 				)),
 				Vec::new(),
-			))
-		},
+			)),
 	};
 
 	let res = {

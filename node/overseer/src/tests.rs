@@ -99,12 +99,8 @@ where
 						continue
 					}
 					match ctx.try_recv().await {
-						Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => {
-							break
-						},
-						Ok(Some(_)) => {
-							continue
-						},
+						Ok(Some(FromOverseer::Signal(OverseerSignal::Conclude))) => break,
+						Ok(Some(_)) => continue,
 						Err(_) => return Ok(()),
 						_ => (),
 					}

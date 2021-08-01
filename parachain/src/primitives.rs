@@ -19,10 +19,10 @@
 
 use sp_std::vec::Vec;
 
+use frame_support::weights::Weight;
 use parity_scale_codec::{CompactAs, Decode, Encode};
 use sp_core::{RuntimeDebug, TypeId};
 use sp_runtime::traits::Hash as _;
-use frame_support::weights::Weight;
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};

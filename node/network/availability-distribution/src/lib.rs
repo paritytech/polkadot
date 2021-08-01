@@ -116,9 +116,7 @@ impl AvailabilityDistributionSubsystem {
 					)?;
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-				FromOverseer::Signal(OverseerSignal::Conclude) => {
-					return Ok(())
-				},
+				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::ChunkFetchingRequest(req),
 				} => answer_chunk_request_log(&mut ctx, req, &self.metrics).await,

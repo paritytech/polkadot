@@ -125,9 +125,7 @@ impl GossipSupport {
 					}
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
-				FromOverseer::Signal(OverseerSignal::Conclude) => {
-					return
-				},
+				FromOverseer::Signal(OverseerSignal::Conclude) => return,
 			}
 		}
 	}

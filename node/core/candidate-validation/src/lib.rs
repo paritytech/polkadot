@@ -221,9 +221,7 @@ where
 		.await?;
 
 		match d {
-			Ok(None) | Err(_) => {
-				return Ok(AssumptionCheckOutcome::BadRequest)
-			},
+			Ok(None) | Err(_) => return Ok(AssumptionCheckOutcome::BadRequest),
 			Ok(Some(d)) => d,
 		}
 	};
@@ -307,9 +305,8 @@ where
 				// is not based on the relay parent and is thus invalid.
 				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
 			},
-			AssumptionCheckOutcome::BadRequest => {
-				return Ok(Err(ValidationFailed("Assumption Check: Bad request".into())))
-			},
+			AssumptionCheckOutcome::BadRequest =>
+				return Ok(Err(ValidationFailed("Assumption Check: Bad request".into()))),
 		};
 
 	let validation_result = validate_candidate_exhaustive(
@@ -333,12 +330,9 @@ where
 		.await?
 		{
 			Ok(true) => {},
-			Ok(false) => {
-				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::InvalidOutputs)))
-			},
-			Err(_) => {
-				return Ok(Err(ValidationFailed("Check Validation Outputs: Bad request".into())))
-			},
+			Ok(false) => return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::InvalidOutputs))),
+			Err(_) =>
+				return Ok(Err(ValidationFailed("Check Validation Outputs: Bad request".into()))),
 		}
 	}
 

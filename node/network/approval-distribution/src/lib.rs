@@ -1225,9 +1225,7 @@ impl ApprovalDistribution {
 					tracing::trace!(target: LOG_TARGET, number = %number, "finalized signal");
 					state.handle_block_finalized(number);
 				},
-				FromOverseer::Signal(OverseerSignal::Conclude) => {
-					return
-				},
+				FromOverseer::Signal(OverseerSignal::Conclude) => return,
 			}
 		}
 	}

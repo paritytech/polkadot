@@ -298,9 +298,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 fn prepare_artifact(code: &[u8]) -> Artifact {
 	let blob = match crate::executor_intf::prevalidate(code) {
-		Err(err) => {
-			return Artifact::PrevalidationErr(format!("{:?}", err))
-		},
+		Err(err) => return Artifact::PrevalidationErr(format!("{:?}", err)),
 		Ok(b) => b,
 	};
 
