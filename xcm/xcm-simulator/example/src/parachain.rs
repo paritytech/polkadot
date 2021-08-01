@@ -315,9 +315,7 @@ construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-
 		MsgQueue: mock_msg_queue::{Pallet, Storage, Event<T>},
-
 		PolkadotXcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 	}
 );
