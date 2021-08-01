@@ -19,6 +19,8 @@ mod relay_chain;
 
 use sp_runtime::AccountId32;
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain};
+use polkadot_parachain::primitives::Id as ParaId;
+use sp_runtime::traits::AccountIdConversion;
 
 pub const ALICE: AccountId32 = AccountId32::new([0u8; 32]);
 
@@ -79,10 +81,10 @@ pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 
 pub fn relay_ext() -> sp_io::TestExternalities {
 	use relay_chain::{Runtime, System};
+	let para_account_a: relay_chain::AccountId = ParaId::from(1).into_account();
 
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
-
-	pallet_balances::GenesisConfig::<Runtime> { balances: vec![(ALICE, INITIAL_BALANCE)] }
+	pallet_balances::GenesisConfig::<Runtime> { balances: vec![(ALICE, INITIAL_BALANCE), (para_account_a, INITIAL_BALANCE)] }
 		.assimilate_storage(&mut t)
 		.unwrap();
 
@@ -99,13 +101,14 @@ mod tests {
 	use super::*;
 
 	use codec::Encode;
-	use frame_support::assert_ok;
+	use frame_support::{assert_ok, weights::Weight};
 	use xcm::v0::{
 		Junction::{self, Parachain, Parent},
 		MultiAsset::*,
 		MultiLocation::*,
 		NetworkId, OriginKind,
 		Xcm::*,
+		Order,
 	};
 	use xcm_simulator::TestExt;
 
@@ -210,6 +213,61 @@ mod tests {
 				pallet_balances::Pallet::<parachain::Runtime>::free_balance(&ALICE),
 				INITIAL_BALANCE + 123
 			);
+		});
+	}
+
+	// Helper function for forming buy execution message
+	fn buy_execution<C>(debt: Weight) -> Order<C> {
+		use xcm::opaque::v0::prelude::*;
+		Order::BuyExecution { fees: All, weight: 0, debt, halt_on_error: false, xcm: vec![] }
+	}
+
+	fn last_relay_chain_event() -> relay_chain::Event {
+		relay_chain::System::events().pop().expect("Event expected").event
+	}
+
+	fn last_parachain_event() -> parachain::Event {
+		parachain::System::events().pop().expect("Event expected").event
+	}
+
+	/// Scenario:
+	/// A parachain transfers funds on the relaychain to another parachain's account.
+	///
+	/// Asserts that the parachain accounts are updated as expected.
+	#[test]
+	fn withdraw_and_deposit() {
+		use xcm::opaque::v0::prelude::*;
+		use sp_runtime::traits::AccountIdConversion;
+		use polkadot_parachain::primitives::Id as ParaId;
+		MockNet::reset();
+
+		ParaA::execute_with(|| {
+			let amount = 10;
+			let weight = 3 * relay_chain::BaseXcmWeight::get();
+			let message = WithdrawAsset {
+				assets: vec![ConcreteFungible { id: Null, amount }],
+				effects: vec![
+					buy_execution(weight),
+					Order::DepositAsset {
+						assets: vec![All],
+						dest: Parachain(2).into(),
+					},
+				],
+			};
+			// Send withdraw and deposit
+			assert_ok!(ParachainPalletXcm::send_xcm(
+				Null,
+				X1(Parent),
+				message.clone(),
+			));
+		});
+		
+		Relay::execute_with(|| {
+			let amount = 10;
+			let para_account_one: relay_chain::AccountId = ParaId::from(1).into_account();
+			assert_eq!(relay_chain::Balances::free_balance(para_account_one), INITIAL_BALANCE - amount);
+			let para_account: relay_chain::AccountId = ParaId::from(2).into_account();
+			assert_eq!(relay_chain::Balances::free_balance(para_account), 10);
 		});
 	}
 }
