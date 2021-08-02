@@ -31,7 +31,6 @@ serde = "1.0"
 [features]
 default = ["std"]
 std = [
-	"scale-info/std",
 	"bp-message-dispatch/std",
 	"bp-runtime/std",
 	"codec/std",

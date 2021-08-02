@@ -72,7 +72,6 @@ std = [
 	"scale-info/std",
 	"log/std",
 	"rustc-hex/std",
-	"scale-info/std",
 	"serde_derive",
 	"serde/std",
 	"primitives/std",
