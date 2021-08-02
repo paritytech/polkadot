@@ -1288,7 +1288,10 @@ mod tests {
 			assert_eq!(
 				<Pallet<Test>>::validate_unsigned(
 					source,
-					&ClaimsCall::claim { dest: 1, ethereum_signature: sig::<Test>(&alice(), &1u64.encode(), &[][..]) }
+					&ClaimsCall::claim {
+						dest: 1,
+						ethereum_signature: sig::<Test>(&alice(), &1u64.encode(), &[][..])
+					}
 				),
 				Ok(ValidTransaction {
 					priority: 100,
