@@ -17,7 +17,7 @@
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
 use alloc::vec::Vec;
-use parity_scale_codec::{self, Encode, Decode};
+use parity_scale_codec::{self, Decode, Encode};
 
 /// A global identifier of an account-bearing consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
@@ -41,7 +41,10 @@ pub enum BodyId {
 	Named(Vec<u8>),
 	/// An indexed body.
 	// TODO: parity-scale-codec#262: Change to be a tuple.
-	Index { #[codec(compact)] id: u32 },
+	Index {
+		#[codec(compact)]
+		id: u32,
+	},
 	/// The unambiguous executive body (for Polkadot, this would be the Polkadot council).
 	Executive,
 	/// The unambiguous technical body (for Polkadot, this would be the Technical Committee).
@@ -60,13 +63,31 @@ pub enum BodyPart {
 	/// The body's declaration, under whatever means it decides.
 	Voice,
 	/// A given number of members of the body.
-	Members { #[codec(compact)] count: u32 },
+	Members {
+		#[codec(compact)]
+		count: u32,
+	},
 	/// A given number of members of the body, out of some larger caucus.
-	Fraction { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
+	Fraction {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
 	/// No less than the given proportion of members of the body.
-	AtLeastProportion { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
+	AtLeastProportion {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
 	/// More than than the given proportion of members of the body.
-	MoreThanProportion { #[codec(compact)] nom: u32, #[codec(compact)] denom: u32 },
+	MoreThanProportion {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
 }
 
 impl BodyPart {
@@ -107,7 +128,11 @@ pub enum Junction {
 	///
 	/// May be used when the context is a Frame-based chain and includes e.g. an indices pallet.
 	#[codec(index = 3)]
-	AccountIndex64 { network: NetworkId, #[codec(compact)] index: u64 },
+	AccountIndex64 {
+		network: NetworkId,
+		#[codec(compact)]
+		index: u64,
+	},
 	/// A 20-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
 	/// the context.
 	///
@@ -125,7 +150,10 @@ pub enum Junction {
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
 	#[codec(index = 6)]
-	GeneralIndex { #[codec(compact)] id: u128 },
+	GeneralIndex {
+		#[codec(compact)]
+		id: u128,
+	},
 	/// A nondescript datum acting as a key within the context location.
 	///
 	/// Usage will vary widely owing to its generality.

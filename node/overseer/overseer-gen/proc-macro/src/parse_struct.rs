@@ -15,13 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use proc_macro2::{Span, TokenStream};
-use std::collections::{hash_map::RandomState, HashSet, HashMap};
-use syn::punctuated::Punctuated;
-use syn::spanned::Spanned;
-use syn::parse::{Parse, ParseStream};
+use std::collections::{hash_map::RandomState, HashMap, HashSet};
 use syn::{
-	Attribute, Field, FieldsNamed, Ident, Token, Type, AttrStyle, Path,
-	Error, GenericParam, ItemStruct, Result, Visibility
+	parse::{Parse, ParseStream},
+	punctuated::Punctuated,
+	spanned::Spanned,
+	AttrStyle, Attribute, Error, Field, FieldsNamed, GenericParam, Ident, ItemStruct, Path, Result,
+	Token, Type, Visibility,
 };
 
 use quote::{quote, ToTokens};
@@ -31,7 +31,6 @@ mod kw {
 	syn::custom_keyword!(no_dispatch);
 	syn::custom_keyword!(blocking);
 }
-
 
 #[derive(Clone, Debug)]
 enum SubSysAttrItem {
@@ -64,14 +63,19 @@ impl Parse for SubSysAttrItem {
 impl ToTokens for SubSysAttrItem {
 	fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
 		let ts = match self {
-			Self::Wip(wip) => { quote!{ #wip } }
-			Self::Blocking(blocking) => { quote!{ #blocking } }
-			Self::NoDispatch(no_dispatch) => { quote!{ #no_dispatch } }
+			Self::Wip(wip) => {
+				quote! { #wip }
+			},
+			Self::Blocking(blocking) => {
+				quote! { #blocking }
+			},
+			Self::NoDispatch(no_dispatch) => {
+				quote! { #no_dispatch }
+			},
 		};
 		tokens.extend(ts.into_iter());
 	}
 }
-
 
 /// A field of the struct annotated with
 /// `#[subsystem(no_dispatch, , A | B | C)]`
@@ -106,27 +110,21 @@ fn try_type_to_path(ty: Type, span: Span) -> Result<Path> {
 
 macro_rules! extract_variant {
 	($unique:expr, $variant:ident ; default = $fallback:expr) => {
-		extract_variant!($unique, $variant)
-			.unwrap_or_else(|| { $fallback })
+		extract_variant!($unique, $variant).unwrap_or_else(|| $fallback)
 	};
 	($unique:expr, $variant:ident ; err = $err:expr) => {
-		extract_variant!($unique, $variant)
-			.ok_or_else(|| {
-				Error::new(Span::call_site(), $err)
-			})
+		extract_variant!($unique, $variant).ok_or_else(|| Error::new(Span::call_site(), $err))
 	};
 	($unique:expr, $variant:ident) => {
-		$unique.values()
-			.find_map(|item| {
-				if let SubSysAttrItem:: $variant ( _ ) = item {
-					Some(true)
-				} else {
-					None
-				}
-			})
+		$unique.values().find_map(|item| {
+			if let SubSysAttrItem::$variant(_) = item {
+				Some(true)
+			} else {
+				None
+			}
+		})
 	};
 }
-
 
 pub(crate) struct SubSystemTags {
 	#[allow(dead_code)]
@@ -158,12 +156,19 @@ impl Parse for SubSystemTags {
 
 		let consumes = content.parse::<Path>()?;
 
-		let mut unique = HashMap::<std::mem::Discriminant<SubSysAttrItem>, SubSysAttrItem, RandomState>::default();
+		let mut unique = HashMap::<
+			std::mem::Discriminant<SubSysAttrItem>,
+			SubSysAttrItem,
+			RandomState,
+		>::default();
 		for item in items {
 			if let Some(first) = unique.insert(std::mem::discriminant(&item), item.clone()) {
-				let mut e = Error::new(item.span(), format!("Duplicate definition of subsystem attribute found"));
+				let mut e = Error::new(
+					item.span(),
+					format!("Duplicate definition of subsystem attribute found"),
+				);
 				e.combine(Error::new(first.span(), "previously defined here."));
-				return Err(e);
+				return Err(e)
 			}
 		}
 
@@ -228,10 +233,7 @@ impl OverseerInfo {
 	}
 
 	pub(crate) fn variant_names(&self) -> Vec<Ident> {
-		self.subsystems
-			.iter()
-			.map(|ssf| ssf.generic.clone())
-			.collect::<Vec<_>>()
+		self.subsystems.iter().map(|ssf| ssf.generic.clone()).collect::<Vec<_>>()
 	}
 
 	pub(crate) fn variant_names_without_wip(&self) -> Vec<Ident> {
@@ -272,13 +274,8 @@ impl OverseerInfo {
 		self.baggage
 			.iter()
 			.map(|bag| {
-				let BaggageField {
-					vis,
-					field_ty,
-					field_name,
-					..
-				} = bag;
-				quote!{ #vis #field_name: #field_ty }
+				let BaggageField { vis, field_ty, field_name, .. } = bag;
+				quote! { #vis #field_name: #field_ty }
 			})
 			.collect::<Vec<TokenStream>>()
 	}
@@ -330,7 +327,11 @@ pub(crate) struct OverseerGuts {
 }
 
 impl OverseerGuts {
-	pub(crate) fn parse_fields(name: Ident, baggage_generics: HashSet<Ident>, fields: FieldsNamed) -> Result<Self> {
+	pub(crate) fn parse_fields(
+		name: Ident,
+		baggage_generics: HashSet<Ident>,
+		fields: FieldsNamed,
+	) -> Result<Self> {
 		let n = fields.named.len();
 		let mut subsystems = Vec::with_capacity(n);
 		let mut baggage = Vec::with_capacity(n);
@@ -340,14 +341,16 @@ impl OverseerGuts {
 		// for the builder pattern besides other places.
 		let mut unique_subsystem_idents = HashSet::<Ident>::new();
 		for Field { attrs, vis, ident, ty, .. } in fields.named.into_iter() {
-			let mut consumes = attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
-				let span = attr.path.span();
-				attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
-					let attr_tokens = attr.tokens.clone();
-					(attr_tokens, span)
-				})
-			});
-			let ident = ident.ok_or_else(|| Error::new(ty.span(), "Missing identifier for member. BUG"))?;
+			let mut consumes =
+				attrs.iter().filter(|attr| attr.style == AttrStyle::Outer).filter_map(|attr| {
+					let span = attr.path.span();
+					attr.path.get_ident().filter(|ident| *ident == "subsystem").map(move |_ident| {
+						let attr_tokens = attr.tokens.clone();
+						(attr_tokens, span)
+					})
+				});
+			let ident =
+				ident.ok_or_else(|| Error::new(ty.span(), "Missing identifier for member. BUG"))?;
 
 			if let Some((attr_tokens, span)) = consumes.next() {
 				if let Some((_attr_tokens2, span2)) = consumes.next() {
@@ -355,7 +358,7 @@ impl OverseerGuts {
 						let mut err = Error::new(span, "The first subsystem annotation is at");
 						err.combine(Error::new(span2, "but another here for the same field."));
 						err
-					});
+					})
 				}
 				let mut consumes_paths = Vec::with_capacity(attrs.len());
 				let attr_tokens = attr_tokens.clone();
@@ -363,9 +366,17 @@ impl OverseerGuts {
 				consumes_paths.push(variant.consumes);
 
 				let field_ty = try_type_to_path(ty, span)?;
-				let generic = field_ty.get_ident().ok_or_else(|| Error::new(field_ty.span(), "Must be an identifier, not a path."))?.clone();
+				let generic = field_ty
+					.get_ident()
+					.ok_or_else(|| {
+						Error::new(field_ty.span(), "Must be an identifier, not a path.")
+					})?
+					.clone();
 				if let Some(previous) = unique_subsystem_idents.get(&generic) {
-					let mut e = Error::new(generic.span(), format!("Duplicate subsystem names `{}`", generic));
+					let mut e = Error::new(
+						generic.span(),
+						format!("Duplicate subsystem names `{}`", generic),
+					);
 					e.combine(Error::new(previous.span(), "previously defined here."));
 					return Err(e)
 				}
@@ -381,7 +392,10 @@ impl OverseerGuts {
 				});
 			} else {
 				let field_ty = try_type_to_path(ty, ident.span())?;
-				let generic = field_ty.get_ident().map(|ident| baggage_generics.contains(ident)).unwrap_or_default();
+				let generic = field_ty
+					.get_ident()
+					.map(|ident| baggage_generics.contains(ident))
+					.unwrap_or_default();
 				baggage.push(BaggageField { field_name: ident, generic, field_ty, vis });
 			}
 		}
@@ -411,21 +425,23 @@ impl Parse for OverseerGuts {
 								baggage_generic_idents.insert(param.ident.clone());
 								param.eq_token = None;
 								param.default = None;
-							}
-							_ => {}
+							},
+							_ => {},
 						}
 						generic
 					})
 					.collect();
 
 				Self::parse_fields(name, baggage_generic_idents, named)
-			}
-			syn::Fields::Unit => {
-				Err(Error::new(ds.fields.span(), "Must be a struct with named fields. Not an unit struct."))
-			}
-			syn::Fields::Unnamed(unnamed) => {
-				Err(Error::new(unnamed.span(), "Must be a struct with named fields. Not an unnamed fields struct."))
-			}
+			},
+			syn::Fields::Unit => Err(Error::new(
+				ds.fields.span(),
+				"Must be a struct with named fields. Not an unit struct.",
+			)),
+			syn::Fields::Unnamed(unnamed) => Err(Error::new(
+				unnamed.span(),
+				"Must be a struct with named fields. Not an unnamed fields struct.",
+			)),
 		}
 	}
 }

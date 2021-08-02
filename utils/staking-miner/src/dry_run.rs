@@ -62,7 +62,7 @@ fn find_threshold<T: EPM::Config>(ext: &mut Ext, count: usize) {
 			None => {
 				println!("requested truncation to {} voters but had only {}", count, voters.len());
 				println!("smallest current voter: {:?}", voters.last());
-			}
+			},
 		}
 	})
 }

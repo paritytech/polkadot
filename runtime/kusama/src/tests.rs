@@ -17,12 +17,11 @@
 //! Tests for the Kusama Runtime Configuration
 
 use crate::*;
-use frame_support::weights::WeightToFeePolynomial;
-use sp_runtime::FixedPointNumber;
-use frame_support::weights::GetDispatchInfo;
-use parity_scale_codec::Encode;
+use frame_support::weights::{GetDispatchInfo, WeightToFeePolynomial};
 use pallet_transaction_payment::Multiplier;
+use parity_scale_codec::Encode;
 use separator::Separatable;
+use sp_runtime::FixedPointNumber;
 
 #[test]
 fn remove_keys_weight_is_sensible() {
@@ -40,16 +39,18 @@ fn sample_size_is_sensible() {
 	let max_weight: Weight = RocksDbWeight::get().reads_writes(samples.into(), samples.into());
 	// Max sample cleanup should be no more than half the total block weight.
 	assert!(max_weight * 2 < BlockWeights::get().max_block);
-	assert!(<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
+	assert!(
+		<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 <
+			BlockWeights::get().max_block
+	);
 }
 
 #[test]
 fn payout_weight_portion() {
 	use pallet_staking::WeightInfo;
-	let payout_weight =
-		<Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
-			MaxNominatorRewardedPerValidator::get(),
-		) as f64;
+	let payout_weight = <Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
+		MaxNominatorRewardedPerValidator::get(),
+	) as f64;
 	let block_weight = BlockWeights::get().max_block as f64;
 
 	println!(
@@ -78,7 +79,10 @@ fn block_cost() {
 #[ignore]
 fn transfer_cost_min_multiplier() {
 	let min_multiplier = runtime_common::MinimumMultiplier::get();
-	let call = <pallet_balances::Call<Runtime>>::transfer_keep_alive(Default::default(), Default::default());
+	let call = <pallet_balances::Call<Runtime>>::transfer_keep_alive(
+		Default::default(),
+		Default::default(),
+	);
 	let info = call.get_dispatch_info();
 	// convert to outer call.
 	let call = Call::Balances(call);
@@ -133,37 +137,34 @@ fn nominator_limit() {
 
 #[test]
 fn compute_inflation_should_give_sensible_results() {
-	assert_eq!(pallet_staking_reward_fn::compute_inflation(
-		Perquintill::from_percent(75),
-		Perquintill::from_percent(75),
-		Perquintill::from_percent(5),
-	), Perquintill::one());
-	assert_eq!(pallet_staking_reward_fn::compute_inflation(
-		Perquintill::from_percent(50),
-		Perquintill::from_percent(75),
-		Perquintill::from_percent(5),
-	), Perquintill::from_rational(2u64, 3u64));
-	assert_eq!(pallet_staking_reward_fn::compute_inflation(
-		Perquintill::from_percent(80),
-		Perquintill::from_percent(75),
-		Perquintill::from_percent(5),
-	), Perquintill::from_rational(1u64, 2u64));
+	assert_eq!(
+		pallet_staking_reward_fn::compute_inflation(
+			Perquintill::from_percent(75),
+			Perquintill::from_percent(75),
+			Perquintill::from_percent(5),
+		),
+		Perquintill::one()
+	);
+	assert_eq!(
+		pallet_staking_reward_fn::compute_inflation(
+			Perquintill::from_percent(50),
+			Perquintill::from_percent(75),
+			Perquintill::from_percent(5),
+		),
+		Perquintill::from_rational(2u64, 3u64)
+	);
+	assert_eq!(
+		pallet_staking_reward_fn::compute_inflation(
+			Perquintill::from_percent(80),
+			Perquintill::from_percent(75),
+			Perquintill::from_percent(5),
+		),
+		Perquintill::from_rational(1u64, 2u64)
+	);
 }
 
 #[test]
 fn era_payout_should_give_sensible_results() {
-	assert_eq!(era_payout(
-		75,
-		100,
-		Perquintill::from_percent(10),
-		Perquintill::one(),
-		0,
-	), (10, 0));
-	assert_eq!(era_payout(
-		80,
-		100,
-		Perquintill::from_percent(10),
-		Perquintill::one(),
-		0,
-	), (6, 4));
+	assert_eq!(era_payout(75, 100, Perquintill::from_percent(10), Perquintill::one(), 0,), (10, 0));
+	assert_eq!(era_payout(80, 100, Perquintill::from_percent(10), Perquintill::one(), 0,), (6, 4));
 }

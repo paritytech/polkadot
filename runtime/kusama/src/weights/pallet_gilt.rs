@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/kusama/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -43,7 +42,7 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `pallet_gilt`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_gilt::WeightInfo for WeightInfo<T> {
-	fn place_bid(l: u32, ) -> Weight {
+	fn place_bid(l: u32) -> Weight {
 		(57_179_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((195_000 as Weight).saturating_mul(l as Weight))
@@ -55,7 +54,7 @@ impl<T: frame_system::Config> pallet_gilt::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn retract_bid(l: u32, ) -> Weight {
+	fn retract_bid(l: u32) -> Weight {
 		(57_082_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((166_000 as Weight).saturating_mul(l as Weight))
@@ -73,10 +72,9 @@ impl<T: frame_system::Config> pallet_gilt::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
 	fn pursue_target_noop() -> Weight {
-		(3_347_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+		(3_347_000 as Weight).saturating_add(T::DbWeight::get().reads(1 as Weight))
 	}
-	fn pursue_target_per_item(b: u32, ) -> Weight {
+	fn pursue_target_per_item(b: u32) -> Weight {
 		(56_853_000 as Weight)
 			// Standard Error: 1_000
 			.saturating_add((10_238_000 as Weight).saturating_mul(b as Weight))
@@ -84,7 +82,7 @@ impl<T: frame_system::Config> pallet_gilt::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(b as Weight)))
 	}
-	fn pursue_target_per_queue(q: u32, ) -> Weight {
+	fn pursue_target_per_queue(q: u32) -> Weight {
 		(23_272_000 as Weight)
 			// Standard Error: 5_000
 			.saturating_add((16_821_000 as Weight).saturating_mul(q as Weight))

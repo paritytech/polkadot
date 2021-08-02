@@ -16,9 +16,9 @@
 
 //! The emergency-solution command.
 
-use crate::{prelude::*, SharedConfig, Error};
-use std::io::Write;
+use crate::{prelude::*, Error, SharedConfig};
 use codec::Encode;
+use std::io::Write;
 
 macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 	/// Execute the emergency-solution command.

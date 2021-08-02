@@ -18,9 +18,9 @@
 
 use core::{convert::TryFrom, mem, result};
 
-use parity_scale_codec::{self, Decode, Encode, Input, Output};
 use super::Junction;
 use crate::VersionedMultiLocation;
+use parity_scale_codec::{self, Decode, Encode, Input, Output};
 
 /// A relative path between state-bearing consensus systems.
 ///
@@ -59,9 +59,9 @@ impl Default for MultiLocation {
 impl Encode for MultiLocation {
 	fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
 		// 255 items max, but we cannot return an error, so we truncate silently.
-		let parents = self.parents.min(
-			MAX_MULTILOCATION_LENGTH.saturating_sub(self.interior.len()) as u8,
-		);
+		let parents = self
+			.parents
+			.min(MAX_MULTILOCATION_LENGTH.saturating_sub(self.interior.len()) as u8);
 		let count = parents.saturating_add(self.interior.len() as u8);
 		dest.push_byte(count);
 		for _ in 0..parents {
@@ -91,9 +91,10 @@ impl Decode for MultiLocation {
 				let mut bytes = [b].to_vec();
 				loop {
 					if let Ok(junction) = Junction::decode(&mut &bytes[..]) {
-						interior = interior.pushed_with(junction)
+						interior = interior
+							.pushed_with(junction)
 							.map_err(|_| parity_scale_codec::Error::from("Interior too long"))?;
-						break;
+						break
 					} else {
 						// a single byte may not be enough to decode a `Junction`, so keep reading
 						// the next byte until a `Junction` can successfully be decoded
@@ -116,18 +117,12 @@ impl MultiLocation {
 		if parents as usize + junctions.len() > MAX_MULTILOCATION_LENGTH {
 			return Err(())
 		}
-		Ok(MultiLocation {
-			parents,
-			interior: junctions,
-		})
+		Ok(MultiLocation { parents, interior: junctions })
 	}
 
 	/// Creates a new `MultiLocation` with 0 parents and a `Null` interior.
 	pub const fn empty() -> MultiLocation {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::Null,
-		}
+		MultiLocation { parents: 0, interior: Junctions::Null }
 	}
 
 	/// Creates a new `MultiLocation` with the specified number of parents and a `Null` interior.
@@ -136,19 +131,13 @@ impl MultiLocation {
 		if parents as usize > MAX_MULTILOCATION_LENGTH {
 			return Err(())
 		}
-		Ok(MultiLocation {
-			parents,
-			interior: Junctions::Null,
-		})
+		Ok(MultiLocation { parents, interior: Junctions::Null })
 	}
 
 	/// Creates a new `MultiLocation` with no parents and a single `Parachain` interior junction
 	/// specified by `para_id`.
 	pub const fn with_parachain_interior(para_id: u32) -> MultiLocation {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X1(Junction::Parachain(para_id)),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X1(Junction::Parachain(para_id)) }
 	}
 
 	/// Whether or not the `MultiLocation` has no parents and has a `Null` interior.
@@ -192,10 +181,7 @@ impl MultiLocation {
 	pub fn split_first_interior(self) -> (MultiLocation, Option<Junction>) {
 		let MultiLocation { parents, interior: junctions } = self;
 		let (suffix, first) = junctions.split_first();
-		let multilocation = MultiLocation {
-			parents,
-			interior: suffix,
-		};
+		let multilocation = MultiLocation { parents, interior: suffix };
 		(multilocation, first)
 	}
 
@@ -204,10 +190,7 @@ impl MultiLocation {
 	pub fn split_last(self) -> (MultiLocation, Option<Junction>) {
 		let MultiLocation { parents, interior: junctions } = self;
 		let (prefix, last) = junctions.split_last();
-		let multilocation = MultiLocation {
-			parents,
-			interior: prefix,
-		};
+		let multilocation = MultiLocation { parents, interior: prefix };
 		(multilocation, last)
 	}
 
@@ -225,8 +208,14 @@ impl MultiLocation {
 		let mut n = Junctions::Null;
 		mem::swap(&mut self.interior, &mut n);
 		match n.pushed_with(new) {
-			Ok(result) => { self.interior = result; Ok(()) }
-			Err(old) => { self.interior = old; Err(()) }
+			Ok(result) => {
+				self.interior = result;
+				Ok(())
+			},
+			Err(old) => {
+				self.interior = old;
+				Err(())
+			},
 		}
 	}
 
@@ -235,8 +224,14 @@ impl MultiLocation {
 		let mut n = Junctions::Null;
 		mem::swap(&mut self.interior, &mut n);
 		match n.pushed_front_with(new) {
-			Ok(result) => { self.interior = result; Ok(()) }
-			Err(old) => { self.interior = old; Err(()) }
+			Ok(result) => {
+				self.interior = result;
+				Ok(())
+			},
+			Err(old) => {
+				self.interior = old;
+				Err(())
+			},
 		}
 	}
 
@@ -246,10 +241,7 @@ impl MultiLocation {
 		if self.len() >= MAX_MULTILOCATION_LENGTH {
 			return Err(self)
 		}
-		Ok(MultiLocation {
-			parents: self.parents.saturating_add(1),
-			..self
-		})
+		Ok(MultiLocation { parents: self.parents.saturating_add(1), ..self })
 	}
 
 	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with the original value of
@@ -272,7 +264,10 @@ impl MultiLocation {
 		}
 		Ok(MultiLocation {
 			parents: self.parents,
-			interior: self.interior.pushed_front_with(new).expect("length is less than max length; qed"),
+			interior: self
+				.interior
+				.pushed_front_with(new)
+				.expect("length is less than max length; qed"),
 		})
 	}
 
@@ -359,7 +354,7 @@ impl MultiLocation {
 				let mut suffix = prefix;
 				core::mem::swap(self, &mut suffix);
 				Err(suffix)
-			}
+			},
 		}
 	}
 
@@ -379,7 +374,9 @@ impl MultiLocation {
 	pub fn prepend_with(&mut self, mut prefix: MultiLocation) -> Result<(), MultiLocation> {
 		let self_parents = self.parent_count();
 		let prepend_len = (self_parents as isize - prefix.interior.len() as isize).abs() as usize;
-		if self.interior.len() + prefix.parent_count() as usize + prepend_len > MAX_MULTILOCATION_LENGTH {
+		if self.interior.len() + prefix.parent_count() as usize + prepend_len >
+			MAX_MULTILOCATION_LENGTH
+		{
 			return Err(prefix)
 		}
 
@@ -406,88 +403,64 @@ impl MultiLocation {
 
 impl From<Junctions> for MultiLocation {
 	fn from(junctions: Junctions) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: junctions,
-		}
+		MultiLocation { parents: 0, interior: junctions }
 	}
 }
 
 impl From<Junction> for MultiLocation {
 	fn from(x: Junction) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X1(x),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X1(x) }
 	}
 }
 
 impl From<()> for MultiLocation {
 	fn from(_: ()) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::Null,
-		}
+		MultiLocation { parents: 0, interior: Junctions::Null }
 	}
 }
 impl From<(Junction,)> for MultiLocation {
 	fn from(x: (Junction,)) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X1(x.0),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X1(x.0) }
 	}
 }
 impl From<(Junction, Junction)> for MultiLocation {
 	fn from(x: (Junction, Junction)) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X2(x.0, x.1),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X2(x.0, x.1) }
 	}
 }
 impl From<(Junction, Junction, Junction)> for MultiLocation {
 	fn from(x: (Junction, Junction, Junction)) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X3(x.0, x.1, x.2),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X3(x.0, x.1, x.2) }
 	}
 }
 impl From<(Junction, Junction, Junction, Junction)> for MultiLocation {
 	fn from(x: (Junction, Junction, Junction, Junction)) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X4(x.0, x.1, x.2, x.3),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X4(x.0, x.1, x.2, x.3) }
 	}
 }
 impl From<(Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
 	fn from(x: (Junction, Junction, Junction, Junction, Junction)) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X5(x.0, x.1, x.2, x.3, x.4),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X5(x.0, x.1, x.2, x.3, x.4) }
 	}
 }
 impl From<(Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
 	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X6(x.0, x.1, x.2, x.3, x.4, x.5),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X6(x.0, x.1, x.2, x.3, x.4, x.5) }
 	}
 }
-impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
+impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction)>
+	for MultiLocation
+{
 	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X7(x.0, x.1, x.2, x.3, x.4, x.5, x.6),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X7(x.0, x.1, x.2, x.3, x.4, x.5, x.6) }
 	}
 }
-impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
+impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)>
+	for MultiLocation
+{
+	fn from(
+		x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction),
+	) -> Self {
 		MultiLocation {
 			parents: 0,
 			interior: Junctions::X8(x.0, x.1, x.2, x.3, x.4, x.5, x.6, x.7),
@@ -497,82 +470,55 @@ impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction,
 
 impl From<[Junction; 0]> for MultiLocation {
 	fn from(_: [Junction; 0]) -> Self {
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::Null,
-		}
+		MultiLocation { parents: 0, interior: Junctions::Null }
 	}
 }
 impl From<[Junction; 1]> for MultiLocation {
 	fn from(x: [Junction; 1]) -> Self {
 		let [x0] = x;
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X1(x0),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X1(x0) }
 	}
 }
 impl From<[Junction; 2]> for MultiLocation {
 	fn from(x: [Junction; 2]) -> Self {
 		let [x0, x1] = x;
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X2(x0, x1),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X2(x0, x1) }
 	}
 }
 impl From<[Junction; 3]> for MultiLocation {
 	fn from(x: [Junction; 3]) -> Self {
 		let [x0, x1, x2] = x;
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X3(x0, x1, x2),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X3(x0, x1, x2) }
 	}
 }
 impl From<[Junction; 4]> for MultiLocation {
 	fn from(x: [Junction; 4]) -> Self {
 		let [x0, x1, x2, x3] = x;
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X4(x0, x1, x2, x3),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X4(x0, x1, x2, x3) }
 	}
 }
 impl From<[Junction; 5]> for MultiLocation {
 	fn from(x: [Junction; 5]) -> Self {
 		let [x0, x1, x2, x3, x4] = x;
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X5(x0, x1, x2, x3, x4),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X5(x0, x1, x2, x3, x4) }
 	}
 }
 impl From<[Junction; 6]> for MultiLocation {
 	fn from(x: [Junction; 6]) -> Self {
 		let [x0, x1, x2, x3, x4, x5] = x;
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X6(x0, x1, x2, x3, x4, x5),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X6(x0, x1, x2, x3, x4, x5) }
 	}
 }
 impl From<[Junction; 7]> for MultiLocation {
 	fn from(x: [Junction; 7]) -> Self {
 		let [x0, x1, x2, x3, x4, x5, x6] = x;
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X7(x0, x1, x2, x3, x4, x5, x6),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X7(x0, x1, x2, x3, x4, x5, x6) }
 	}
 }
 impl From<[Junction; 8]> for MultiLocation {
 	fn from(x: [Junction; 8]) -> Self {
 		let [x0, x1, x2, x3, x4, x5, x6, x7] = x;
-		MultiLocation {
-			parents: 0,
-			interior: Junctions::X8(x0, x1, x2, x3, x4, x5, x6, x7),
-		}
+		MultiLocation { parents: 0, interior: Junctions::X8(x0, x1, x2, x3, x4, x5, x6, x7) }
 	}
 }
 
@@ -688,11 +634,11 @@ impl Junctions {
 			Junctions::X1(a) => (Junctions::Null, Some(a)),
 			Junctions::X2(a, b) => (Junctions::X1(b), Some(a)),
 			Junctions::X3(a, b, c) => (Junctions::X2(b, c), Some(a)),
-			Junctions::X4(a, b, c ,d) => (Junctions::X3(b, c, d), Some(a)),
-			Junctions::X5(a, b, c ,d, e) => (Junctions::X4(b, c, d, e), Some(a)),
-			Junctions::X6(a, b, c ,d, e, f) => (Junctions::X5(b, c, d, e, f), Some(a)),
-			Junctions::X7(a, b, c ,d, e, f, g) => (Junctions::X6(b, c, d, e, f, g), Some(a)),
-			Junctions::X8(a, b, c ,d, e, f, g, h) => (Junctions::X7(b, c, d, e, f, g, h), Some(a)),
+			Junctions::X4(a, b, c, d) => (Junctions::X3(b, c, d), Some(a)),
+			Junctions::X5(a, b, c, d, e) => (Junctions::X4(b, c, d, e), Some(a)),
+			Junctions::X6(a, b, c, d, e, f) => (Junctions::X5(b, c, d, e, f), Some(a)),
+			Junctions::X7(a, b, c, d, e, f, g) => (Junctions::X6(b, c, d, e, f, g), Some(a)),
+			Junctions::X8(a, b, c, d, e, f, g, h) => (Junctions::X7(b, c, d, e, f, g, h), Some(a)),
 		}
 	}
 
@@ -704,7 +650,7 @@ impl Junctions {
 			Junctions::X1(a) => (Junctions::Null, Some(a)),
 			Junctions::X2(a, b) => (Junctions::X1(a), Some(b)),
 			Junctions::X3(a, b, c) => (Junctions::X2(a, b), Some(c)),
-			Junctions::X4(a, b, c ,d) => (Junctions::X3(a, b, c), Some(d)),
+			Junctions::X4(a, b, c, d) => (Junctions::X3(a, b, c), Some(d)),
 			Junctions::X5(a, b, c, d, e) => (Junctions::X4(a, b, c, d), Some(e)),
 			Junctions::X6(a, b, c, d, e, f) => (Junctions::X5(a, b, c, d, e), Some(f)),
 			Junctions::X7(a, b, c, d, e, f, g) => (Junctions::X6(a, b, c, d, e, f), Some(g)),
@@ -932,13 +878,16 @@ impl TryFrom<VersionedMultiLocation> for MultiLocation {
 
 #[cfg(test)]
 mod tests {
-	use parity_scale_codec::{Decode, Encode};
 	use super::{Junctions::*, MultiLocation};
 	use crate::opaque::v0::{Junction::*, NetworkId::Any};
+	use parity_scale_codec::{Decode, Encode};
 
 	#[test]
 	fn encode_and_decode_works() {
-		let m = MultiLocation { parents: 1, interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }) };
+		let m = MultiLocation {
+			parents: 1,
+			interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }),
+		};
 		let encoded = m.encode();
 		assert_eq!(encoded, [3, 0, 1, 168, 3, 0, 92].to_vec());
 		let decoded = MultiLocation::decode(&mut &encoded[..]);
@@ -947,7 +896,10 @@ mod tests {
 
 	#[test]
 	fn match_and_split_works() {
-		let m = MultiLocation { parents: 1, interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }) };
+		let m = MultiLocation {
+			parents: 1,
+			interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }),
+		};
 		assert_eq!(m.match_and_split(&MultiLocation { parents: 1, interior: Null }), None);
 		assert_eq!(
 			m.match_and_split(&MultiLocation { parents: 1, interior: X1(Parachain(42)) }),
@@ -961,7 +913,13 @@ mod tests {
 		let acc = AccountIndex64 { network: Any, index: 23 };
 		let mut m = MultiLocation { parents: 1, interior: X1(Parachain(42)) };
 		assert_eq!(m.append_with(MultiLocation::from(X2(PalletInstance(3), acc.clone()))), Ok(()));
-		assert_eq!(m, MultiLocation { parents: 1, interior: X3(Parachain(42), PalletInstance(3), acc.clone()) });
+		assert_eq!(
+			m,
+			MultiLocation {
+				parents: 1,
+				interior: X3(Parachain(42), PalletInstance(3), acc.clone())
+			}
+		);
 
 		// cannot append to create overly long multilocation
 		let acc = AccountIndex64 { network: Any, index: 23 };
@@ -972,9 +930,18 @@ mod tests {
 
 	#[test]
 	fn prepend_with_works() {
-		let mut m = MultiLocation { parents: 1, interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }) };
+		let mut m = MultiLocation {
+			parents: 1,
+			interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }),
+		};
 		assert_eq!(m.prepend_with(MultiLocation { parents: 1, interior: X1(OnlyChild) }), Ok(()));
-		assert_eq!(m, MultiLocation { parents: 1, interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }) });
+		assert_eq!(
+			m,
+			MultiLocation {
+				parents: 1,
+				interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 })
+			}
+		);
 
 		// cannot prepend to create overly long multilocation
 		let mut m = MultiLocation { parents: 253, interior: X1(Parachain(42)) };

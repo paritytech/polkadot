@@ -22,23 +22,22 @@
 
 #![deny(missing_docs)]
 
-
 use std::pin::Pin;
 
-use serde::{Serialize, Deserialize};
 use futures::Future;
 use parity_scale_codec::{Decode, Encode};
+use serde::{Deserialize, Serialize};
 
-pub use sp_core::traits::SpawnNamed;
 pub use sp_consensus_babe::{
-	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots as BabeAllowedSlots,
+	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 };
+pub use sp_core::traits::SpawnNamed;
 
 use polkadot_primitives::v1::{
 	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
-	PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
-	ValidatorIndex, SessionIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
+	ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
 };
 
 pub use polkadot_parachain::primitives::BlockData;
@@ -48,8 +47,8 @@ pub mod approval;
 /// Disputes related types.
 pub mod disputes;
 pub use disputes::{
-	SignedDisputeStatement, UncheckedDisputeMessage, DisputeMessage, CandidateVotes, InvalidDisputeVote, ValidDisputeVote,
-	DisputeMessageCheckError,
+	CandidateVotes, DisputeMessage, DisputeMessageCheckError, InvalidDisputeVote,
+	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
 };
 
 /// The bomb limit for decompressing code blobs.
@@ -230,7 +229,9 @@ pub struct CollationResult {
 
 impl CollationResult {
 	/// Convert into the inner values.
-	pub fn into_inner(self) -> (Collation, Option<futures::channel::oneshot::Sender<SignedFullStatement>>) {
+	pub fn into_inner(
+		self,
+	) -> (Collation, Option<futures::channel::oneshot::Sender<SignedFullStatement>>) {
 		(self.collation, self.result_sender)
 	}
 }
@@ -242,7 +243,10 @@ impl CollationResult {
 ///
 /// Returns an optional [`CollationResult`].
 pub type CollatorFn = Box<
-	dyn Fn(Hash, &PersistedValidationData) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
+	dyn Fn(
+			Hash,
+			&PersistedValidationData,
+		) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
 		+ Send
 		+ Sync,
 >;
@@ -287,8 +291,7 @@ pub struct ErasureChunk {
 #[cfg(not(target_os = "unknown"))]
 pub fn maybe_compress_pov(pov: PoV) -> PoV {
 	let PoV { block_data: BlockData(raw) } = pov;
-	let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
-		.unwrap_or(raw);
+	let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT).unwrap_or(raw);
 
 	let pov = PoV { block_data: BlockData(raw) };
 	pov
