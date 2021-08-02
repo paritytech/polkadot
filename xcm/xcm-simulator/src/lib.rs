@@ -173,9 +173,6 @@ use sp_std::collections::vec_deque::VecDeque;
 thread_local! {
 	pub static PARA_MESSAGE_BUS: RefCell<VecDeque<(ParaId, MultiLocation, Xcm<()>)>>
 		= RefCell::new(VecDeque::new());
-}
-
-thread_local! {
 	pub static RELAY_MESSAGE_BUS: RefCell<VecDeque<(MultiLocation, Xcm<()>)>>
 		= RefCell::new(VecDeque::new());
 }
