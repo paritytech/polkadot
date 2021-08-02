@@ -317,8 +317,7 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 			} else {
 				vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
 					.expect("Pallet always has name; qed.")
-					.to_string()
-				]
+					.to_string()]
 			},
 			..Default::default()
 		}))
@@ -339,7 +338,10 @@ fn mine_unchecked<T: EPM::Config>(
 	ext.execute_with(|| {
 		let (solution, _) = <EPM::Pallet<T>>::mine_solution(iterations)?;
 		if do_feasibility {
-			let _ = <EPM::Pallet<T>>::feasibility_check(solution.clone(), EPM::ElectionCompute::Signed)?;
+			let _ = <EPM::Pallet<T>>::feasibility_check(
+				solution.clone(),
+				EPM::ElectionCompute::Signed,
+			)?;
 		}
 		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
 		Ok((solution, witness as u32))
@@ -357,7 +359,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.len() == 0 {
 				println!("target = {:?}", (who, stake, targets));
-				return;
+				return
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -386,7 +388,10 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 
 #[tokio::main]
 async fn main() {
-	env_logger::Builder::from_default_env().format_module_path(true).format_level(true).init();
+	env_logger::Builder::from_default_env()
+		.format_module_path(true)
+		.format_level(true)
+		.init();
 	let Opt { shared, command } = Opt::from_args();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", shared.uri);
 
@@ -405,7 +410,7 @@ async fn main() {
 					why
 				);
 				std::thread::sleep(std::time::Duration::from_millis(2500));
-			}
+			},
 		}
 	};
 
@@ -422,7 +427,7 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Polkadot;
 			}
-		}
+		},
 		"kusama" | "kusama-dev" => {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::KusamaAccount,
@@ -432,7 +437,7 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Kusama;
 			}
-		}
+		},
 		"westend" => {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
@@ -442,11 +447,11 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Westend;
 			}
-		}
+		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return;
-		}
+			return
+		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 

@@ -18,21 +18,19 @@
 
 use super::*;
 use polkadot_node_subsystem::{
-	jaeger, ActivatedLeaf, LeafStatus,
+	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
+	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
+use sp_consensus_babe::{AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch};
 use sp_keyring::Sr25519Keyring;
-use sp_consensus_babe::{
-	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots,
-};
 use test_helpers::mock::make_ferdie_keystore;
 
-use std::sync::Arc;
-use std::time::Duration;
 use assert_matches::assert_matches;
-use futures::{Future, executor, future};
+use futures::{executor, future, Future};
+use std::{sync::Arc, time::Duration};
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<GossipSupportMessage>;
 
@@ -53,14 +51,17 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
 
-		executor::block_on(future::join(async move {
-			let mut overseer = test_fut.await;
-			overseer
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.timeout(TIMEOUT)
-				.await
-				.expect("Conclude send timeout");
-		}, subsystem));
+		executor::block_on(future::join(
+			async move {
+				let mut overseer = test_fut.await;
+				overseer
+					.send(FromOverseer::Signal(OverseerSignal::Conclude))
+					.timeout(TIMEOUT)
+					.await
+					.expect("Conclude send timeout");
+			},
+			subsystem,
+		));
 	}
 
 	state
@@ -68,10 +69,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 const TIMEOUT: Duration = Duration::from_millis(100);
 
-async fn overseer_signal_active_leaves(
-	overseer: &mut VirtualOverseer,
-	leaf: Hash,
-) {
+async fn overseer_signal_active_leaves(overseer: &mut VirtualOverseer, leaf: Hash) {
 	let leaf = ActivatedLeaf {
 		hash: leaf,
 		number: 0xdeadcafe,
@@ -79,20 +77,16 @@ async fn overseer_signal_active_leaves(
 		span: Arc::new(jaeger::Span::Disabled),
 	};
 	overseer
-		.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(leaf))))
+		.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+			leaf,
+		))))
 		.timeout(TIMEOUT)
 		.await
 		.expect("signal send timeout");
 }
 
-async fn overseer_recv(
-	overseer: &mut VirtualOverseer,
-) -> AllMessages {
-	let msg = overseer
-		.recv()
-		.timeout(TIMEOUT)
-		.await
-		.expect("msg recv timeout");
+async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
+	let msg = overseer.recv().timeout(TIMEOUT).await.expect("msg recv timeout");
 
 	msg
 }
@@ -368,7 +362,9 @@ fn test_matrix_neighbors() {
 		(9, 10, vec![0, 3, 6]),
 		(10, 11, vec![1, 4, 7, 9]),
 		(7, 11, vec![1, 4, 6, 8, 10]),
-	].into_iter() {
+	]
+	.into_iter()
+	{
 		let mut result: Vec<_> = matrix_neighbors(our_index, len).collect();
 		result.sort();
 		assert_eq!(result, expected);

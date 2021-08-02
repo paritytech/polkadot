@@ -14,12 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::convert::TryFrom;
-use std::collections::HashSet;
+use std::{collections::HashSet, convert::TryFrom};
 
-pub use sc_network::{ReputationChange, PeerId};
+pub use sc_network::{PeerId, ReputationChange};
 
-use polkadot_node_network_protocol::{WrongVariant, ObservedRole, OurView, View};
+use polkadot_node_network_protocol::{ObservedRole, OurView, View, WrongVariant};
 use polkadot_primitives::v1::AuthorityDiscoveryId;
 
 /// Events from network.
@@ -67,21 +66,23 @@ impl<M> NetworkBridgeEvent<M> {
 	/// in which case the clone can be expensive and it only clones if the message type can
 	/// be focused.
 	pub fn focus<'a, T>(&'a self) -> Result<NetworkBridgeEvent<T>, WrongVariant>
-		where T: 'a + Clone, &'a T: TryFrom<&'a M, Error = WrongVariant>
+	where
+		T: 'a + Clone,
+		&'a T: TryFrom<&'a M, Error = WrongVariant>,
 	{
 		Ok(match *self {
-			NetworkBridgeEvent::PeerMessage(ref peer, ref msg)
-				=> NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
-			NetworkBridgeEvent::PeerConnected(ref peer, ref role, ref authority_id)
-				=> NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
-			NetworkBridgeEvent::PeerDisconnected(ref peer)
-				=> NetworkBridgeEvent::PeerDisconnected(peer.clone()),
-			NetworkBridgeEvent::NewGossipTopology(ref peers)
-				=> NetworkBridgeEvent::NewGossipTopology(peers.clone()),
-			NetworkBridgeEvent::PeerViewChange(ref peer, ref view)
-				=> NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
-			NetworkBridgeEvent::OurViewChange(ref view)
-				=> NetworkBridgeEvent::OurViewChange(view.clone()),
+			NetworkBridgeEvent::PeerMessage(ref peer, ref msg) =>
+				NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
+			NetworkBridgeEvent::PeerConnected(ref peer, ref role, ref authority_id) =>
+				NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
+			NetworkBridgeEvent::PeerDisconnected(ref peer) =>
+				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
+			NetworkBridgeEvent::NewGossipTopology(ref peers) =>
+				NetworkBridgeEvent::NewGossipTopology(peers.clone()),
+			NetworkBridgeEvent::PeerViewChange(ref peer, ref view) =>
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
+			NetworkBridgeEvent::OurViewChange(ref view) =>
+				NetworkBridgeEvent::OurViewChange(view.clone()),
 		})
 	}
 }

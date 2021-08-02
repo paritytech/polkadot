@@ -19,15 +19,13 @@ use futures::{future::Either, FutureExt, StreamExt, TryFutureExt};
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_subsystem::{
-	messages::AvailabilityDistributionMessage, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError,
-	overseer,
+	messages::AvailabilityDistributionMessage, overseer, FromOverseer, OverseerSignal,
+	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-use error::Fatal;
-use error::{Result, log_error};
+use error::{log_error, Fatal, Result};
 
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
@@ -70,19 +68,15 @@ where
 			.map_err(|e| SubsystemError::with_origin("availability-distribution", e))
 			.boxed();
 
-		SpawnedSubsystem {
-			name: "availability-distribution-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "availability-distribution-subsystem", future }
 	}
 }
 
 impl AvailabilityDistributionSubsystem {
-
 	/// Create a new instance of the availability distribution.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		let runtime = RuntimeInfo::new(Some(keystore));
-		Self { runtime,  metrics }
+		Self { runtime, metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
@@ -103,44 +97,41 @@ impl AvailabilityDistributionSubsystem {
 
 			// Handle task messages sending:
 			let message = match action {
-				Either::Left(subsystem_msg) => {
-					subsystem_msg.map_err(|e| Fatal::IncomingMessageChannel(e))?
-				}
+				Either::Left(subsystem_msg) =>
+					subsystem_msg.map_err(|e| Fatal::IncomingMessageChannel(e))?,
 				Either::Right(from_task) => {
 					let from_task = from_task.ok_or(Fatal::RequesterExhausted)?;
 					ctx.send_message(from_task).await;
-					continue;
-				}
+					continue
+				},
 			};
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					log_error(
-						requester.get_mut().update_fetching_heads(&mut ctx, &mut self.runtime, update).await,
-						"Error in Requester::update_fetching_heads"
+						requester
+							.get_mut()
+							.update_fetching_heads(&mut ctx, &mut self.runtime, update)
+							.await,
+						"Error in Requester::update_fetching_heads",
 					)?;
-				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
-				FromOverseer::Signal(OverseerSignal::Conclude) => {
-					return Ok(());
-				}
+				},
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
+				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::ChunkFetchingRequest(req),
-				} => {
-					answer_chunk_request_log(&mut ctx, req, &self.metrics).await
-				}
+				} => answer_chunk_request_log(&mut ctx, req, &self.metrics).await,
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::PoVFetchingRequest(req),
-				} => {
-					answer_pov_request_log(&mut ctx, req, &self.metrics).await
-				}
+				} => answer_pov_request_log(&mut ctx, req, &self.metrics).await,
 				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::FetchPoV {
-						relay_parent,
-						from_validator,
-						candidate_hash,
-						pov_hash,
-						tx,
-					},
+					msg:
+						AvailabilityDistributionMessage::FetchPoV {
+							relay_parent,
+							from_validator,
+							candidate_hash,
+							pov_hash,
+							tx,
+						},
 				} => {
 					log_error(
 						pov_requester::fetch_pov(
@@ -151,10 +142,11 @@ impl AvailabilityDistributionSubsystem {
 							candidate_hash,
 							pov_hash,
 							tx,
-						).await,
-						"pov_requester::fetch_pov"
+						)
+						.await,
+						"pov_requester::fetch_pov",
 					)?;
-				}
+				},
 			}
 		}
 	}

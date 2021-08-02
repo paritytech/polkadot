@@ -19,13 +19,13 @@
 
 use sp_std::vec::Vec;
 
-use parity_scale_codec::{Encode, Decode, CompactAs};
+use frame_support::weights::Weight;
+use parity_scale_codec::{CompactAs, Decode, Encode};
 use sp_core::{RuntimeDebug, TypeId};
 use sp_runtime::traits::Hash as _;
-use frame_support::weights::Weight;
 
 #[cfg(feature = "std")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "std")]
 use sp_core::bytes;
@@ -39,9 +39,11 @@ use polkadot_core_primitives::{Hash, OutboundHrmpMessage};
 pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
-#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From)]
+#[derive(
+	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From,
+)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash, MallocSizeOf))]
-pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
+pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 #[cfg(feature = "std")]
 impl HeadData {
@@ -117,11 +119,22 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec
 
 /// Unique identifier of a parachain.
 #[derive(
-	Clone, CompactAs, Copy, Decode, Default, Encode, Eq,
-	Hash, Ord, PartialEq, PartialOrd, RuntimeDebug,
+	Clone,
+	CompactAs,
+	Copy,
+	Decode,
+	Default,
+	Encode,
+	Eq,
+	Hash,
+	Ord,
+	PartialEq,
+	PartialOrd,
+	RuntimeDebug,
 )]
-#[cfg_attr(feature = "std", derive(
-	serde::Serialize, serde::Deserialize, derive_more::Display, MallocSizeOf)
+#[cfg_attr(
+	feature = "std",
+	derive(serde::Serialize, serde::Deserialize, derive_more::Display, MallocSizeOf)
 )]
 pub struct Id(u32);
 
@@ -130,11 +143,15 @@ impl TypeId for Id {
 }
 
 impl From<Id> for u32 {
-	fn from(x: Id) -> Self { x.0 }
+	fn from(x: Id) -> Self {
+		x.0
+	}
 }
 
 impl From<u32> for Id {
-	fn from(x: u32) -> Self { Id(x) }
+	fn from(x: u32) -> Self {
+		Id(x)
+	}
 }
 
 impl From<usize> for Id {
@@ -237,11 +254,15 @@ impl TypeId for Sibling {
 }
 
 impl From<Sibling> for u32 {
-	fn from(x: Sibling) -> Self { x.0.into() }
+	fn from(x: Sibling) -> Self {
+		x.0.into()
+	}
 }
 
 impl From<u32> for Sibling {
-	fn from(x: u32) -> Self { Sibling(x.into()) }
+	fn from(x: u32) -> Self {
+		Sibling(x.into())
+	}
 }
 
 impl IsSystem for Sibling {
@@ -282,14 +303,16 @@ impl<'a> parity_scale_codec::Input for TrailingZeroInput<'a> {
 /// zeroes to fill AccountId.
 impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 	fn into_account(&self) -> T {
-		(b"para", self).using_encoded(|b|
-			T::decode(&mut TrailingZeroInput(b))
-		).unwrap_or_default()
+		(b"para", self)
+			.using_encoded(|b| T::decode(&mut TrailingZeroInput(b)))
+			.unwrap_or_default()
 	}
 
 	fn try_from_account(x: &T) -> Option<Self> {
 		x.using_encoded(|d| {
-			if &d[0..4] != b"para" { return None }
+			if &d[0..4] != b"para" {
+				return None
+			}
 			let mut cursor = &d[4..];
 			let result = Decode::decode(&mut cursor).ok()?;
 			if cursor.iter().all(|x| *x == 0) {

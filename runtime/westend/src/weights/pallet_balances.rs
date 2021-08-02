@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/westend/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 

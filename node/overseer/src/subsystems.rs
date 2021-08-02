@@ -19,16 +19,12 @@
 //! In the future, everything should be set up using the generated
 //! overseer builder pattern instead.
 
+use crate::{AllMessages, OverseerSignal};
 use polkadot_node_subsystem_types::errors::SubsystemError;
-use polkadot_overseer_gen::{
-	MapSubsystem, SubsystemContext,
-	Subsystem,
-	SpawnedSubsystem,
-	FromOverseer,
-};
 use polkadot_overseer_all_subsystems_gen::AllSubsystemsGen;
-use crate::OverseerSignal;
-use crate::AllMessages;
+use polkadot_overseer_gen::{
+	FromOverseer, MapSubsystem, SpawnedSubsystem, Subsystem, SubsystemContext,
+};
 
 /// A dummy subsystem that implements [`Subsystem`] for all
 /// types of messages. Used for tests or as a placeholder.
@@ -37,7 +33,11 @@ pub struct DummySubsystem;
 
 impl<Context> Subsystem<Context, SubsystemError> for DummySubsystem
 where
-	Context: SubsystemContext<Signal=OverseerSignal, Error=SubsystemError, AllMessages=AllMessages>,
+	Context: SubsystemContext<
+		Signal = OverseerSignal,
+		Error = SubsystemError,
+		AllMessages = AllMessages,
+	>,
 {
 	fn start(self, mut ctx: Context) -> SpawnedSubsystem<SubsystemError> {
 		let future = Box::pin(async move {
@@ -51,19 +51,15 @@ where
 							"Discarding a message sent from overseer {:?}",
 							overseer_msg
 						);
-						continue;
-					}
+						continue
+					},
 				}
 			}
 		});
 
-		SpawnedSubsystem {
-			name: "dummy-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "dummy-subsystem", future }
 	}
 }
-
 
 /// This struct is passed as an argument to create a new instance of an [`Overseer`].
 ///
@@ -75,9 +71,27 @@ where
 /// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
 #[derive(Debug, Clone, AllSubsystemsGen)]
 pub struct AllSubsystems<
-	CV = (), CB = (), SD = (), AD = (), AR = (), BS = (), BD = (), P = (),
-	RA = (), AS = (), NB = (), CA = (), CG = (), CP = (), ApD = (), ApV = (),
-	GS = (), DC = (), DP = (), DD = (), CS = (),
+	CV = (),
+	CB = (),
+	SD = (),
+	AD = (),
+	AR = (),
+	BS = (),
+	BD = (),
+	P = (),
+	RA = (),
+	AS = (),
+	NB = (),
+	CA = (),
+	CG = (),
+	CP = (),
+	ApD = (),
+	ApV = (),
+	GS = (),
+	DC = (),
+	DP = (),
+	DD = (),
+	CS = (),
 > {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
@@ -187,7 +201,31 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DC, DP
 	}
 
 	/// Reference every individual subsystem.
-	pub fn as_ref(&self) -> AllSubsystems<&'_ CV, &'_ CB, &'_ SD, &'_ AD, &'_ AR, &'_ BS, &'_ BD, &'_ P, &'_ RA, &'_ AS, &'_ NB, &'_ CA, &'_ CG, &'_ CP, &'_ ApD, &'_ ApV, &'_ GS, &'_ DC, &'_ DP, &'_ DD, &'_ CS> {
+	pub fn as_ref(
+		&self,
+	) -> AllSubsystems<
+		&'_ CV,
+		&'_ CB,
+		&'_ SD,
+		&'_ AD,
+		&'_ AR,
+		&'_ BS,
+		&'_ BD,
+		&'_ P,
+		&'_ RA,
+		&'_ AS,
+		&'_ NB,
+		&'_ CA,
+		&'_ CG,
+		&'_ CP,
+		&'_ ApD,
+		&'_ ApV,
+		&'_ GS,
+		&'_ DC,
+		&'_ DP,
+		&'_ DD,
+		&'_ CS,
+	> {
 		AllSubsystems {
 			candidate_validation: &self.candidate_validation,
 			candidate_backing: &self.candidate_backing,
@@ -214,30 +252,32 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DC, DP
 	}
 
 	/// Map each subsystem.
-	pub fn map_subsystems<Mapper>(self, mapper: Mapper)
-		-> AllSubsystems<
-			<Mapper as MapSubsystem<CV>>::Output,
-			<Mapper as MapSubsystem<CB>>::Output,
-			<Mapper as MapSubsystem<SD>>::Output,
-			<Mapper as MapSubsystem<AD>>::Output,
-			<Mapper as MapSubsystem<AR>>::Output,
-			<Mapper as MapSubsystem<BS>>::Output,
-			<Mapper as MapSubsystem<BD>>::Output,
-			<Mapper as MapSubsystem<P>>::Output,
-			<Mapper as MapSubsystem<RA>>::Output,
-			<Mapper as MapSubsystem<AS>>::Output,
-			<Mapper as MapSubsystem<NB>>::Output,
-			<Mapper as MapSubsystem<CA>>::Output,
-			<Mapper as MapSubsystem<CG>>::Output,
-			<Mapper as MapSubsystem<CP>>::Output,
-			<Mapper as MapSubsystem<ApD>>::Output,
-			<Mapper as MapSubsystem<ApV>>::Output,
-			<Mapper as MapSubsystem<GS>>::Output,
-			<Mapper as MapSubsystem<DC>>::Output,
-			<Mapper as MapSubsystem<DP>>::Output,
-			<Mapper as MapSubsystem<DD>>::Output,
-			<Mapper as MapSubsystem<CS>>::Output,
-		>
+	pub fn map_subsystems<Mapper>(
+		self,
+		mapper: Mapper,
+	) -> AllSubsystems<
+		<Mapper as MapSubsystem<CV>>::Output,
+		<Mapper as MapSubsystem<CB>>::Output,
+		<Mapper as MapSubsystem<SD>>::Output,
+		<Mapper as MapSubsystem<AD>>::Output,
+		<Mapper as MapSubsystem<AR>>::Output,
+		<Mapper as MapSubsystem<BS>>::Output,
+		<Mapper as MapSubsystem<BD>>::Output,
+		<Mapper as MapSubsystem<P>>::Output,
+		<Mapper as MapSubsystem<RA>>::Output,
+		<Mapper as MapSubsystem<AS>>::Output,
+		<Mapper as MapSubsystem<NB>>::Output,
+		<Mapper as MapSubsystem<CA>>::Output,
+		<Mapper as MapSubsystem<CG>>::Output,
+		<Mapper as MapSubsystem<CP>>::Output,
+		<Mapper as MapSubsystem<ApD>>::Output,
+		<Mapper as MapSubsystem<ApV>>::Output,
+		<Mapper as MapSubsystem<GS>>::Output,
+		<Mapper as MapSubsystem<DC>>::Output,
+		<Mapper as MapSubsystem<DP>>::Output,
+		<Mapper as MapSubsystem<DD>>::Output,
+		<Mapper as MapSubsystem<CS>>::Output,
+	>
 	where
 		Mapper: MapSubsystem<CV>,
 		Mapper: MapSubsystem<CB>,
@@ -262,27 +302,81 @@ impl<CV, CB, SD, AD, AR, BS, BD, P, RA, AS, NB, CA, CG, CP, ApD, ApV, GS, DC, DP
 		Mapper: MapSubsystem<CS>,
 	{
 		AllSubsystems {
-			candidate_validation: <Mapper as MapSubsystem<CV>>::map_subsystem(&mapper, self.candidate_validation),
-			candidate_backing: <Mapper as MapSubsystem<CB>>::map_subsystem(&mapper, self.candidate_backing),
-			statement_distribution: <Mapper as MapSubsystem<SD>>::map_subsystem(&mapper, self.statement_distribution),
-			availability_distribution: <Mapper as MapSubsystem<AD>>::map_subsystem(&mapper, self.availability_distribution),
-			availability_recovery: <Mapper as MapSubsystem<AR>>::map_subsystem(&mapper, self.availability_recovery),
-			bitfield_signing: <Mapper as MapSubsystem<BS>>::map_subsystem(&mapper, self.bitfield_signing),
-			bitfield_distribution: <Mapper as MapSubsystem<BD>>::map_subsystem(&mapper, self.bitfield_distribution),
+			candidate_validation: <Mapper as MapSubsystem<CV>>::map_subsystem(
+				&mapper,
+				self.candidate_validation,
+			),
+			candidate_backing: <Mapper as MapSubsystem<CB>>::map_subsystem(
+				&mapper,
+				self.candidate_backing,
+			),
+			statement_distribution: <Mapper as MapSubsystem<SD>>::map_subsystem(
+				&mapper,
+				self.statement_distribution,
+			),
+			availability_distribution: <Mapper as MapSubsystem<AD>>::map_subsystem(
+				&mapper,
+				self.availability_distribution,
+			),
+			availability_recovery: <Mapper as MapSubsystem<AR>>::map_subsystem(
+				&mapper,
+				self.availability_recovery,
+			),
+			bitfield_signing: <Mapper as MapSubsystem<BS>>::map_subsystem(
+				&mapper,
+				self.bitfield_signing,
+			),
+			bitfield_distribution: <Mapper as MapSubsystem<BD>>::map_subsystem(
+				&mapper,
+				self.bitfield_distribution,
+			),
 			provisioner: <Mapper as MapSubsystem<P>>::map_subsystem(&mapper, self.provisioner),
 			runtime_api: <Mapper as MapSubsystem<RA>>::map_subsystem(&mapper, self.runtime_api),
-			availability_store: <Mapper as MapSubsystem<AS>>::map_subsystem(&mapper, self.availability_store),
-			network_bridge: <Mapper as MapSubsystem<NB>>::map_subsystem(&mapper, self.network_bridge),
+			availability_store: <Mapper as MapSubsystem<AS>>::map_subsystem(
+				&mapper,
+				self.availability_store,
+			),
+			network_bridge: <Mapper as MapSubsystem<NB>>::map_subsystem(
+				&mapper,
+				self.network_bridge,
+			),
 			chain_api: <Mapper as MapSubsystem<CA>>::map_subsystem(&mapper, self.chain_api),
-			collation_generation: <Mapper as MapSubsystem<CG>>::map_subsystem(&mapper, self.collation_generation),
-			collator_protocol: <Mapper as MapSubsystem<CP>>::map_subsystem(&mapper, self.collator_protocol),
-			approval_distribution: <Mapper as MapSubsystem<ApD>>::map_subsystem(&mapper, self.approval_distribution),
-			approval_voting: <Mapper as MapSubsystem<ApV>>::map_subsystem(&mapper, self.approval_voting),
-			gossip_support: <Mapper as MapSubsystem<GS>>::map_subsystem(&mapper, self.gossip_support),
-			dispute_coordinator: <Mapper as MapSubsystem<DC>>::map_subsystem(&mapper, self.dispute_coordinator),
-			dispute_participation: <Mapper as MapSubsystem<DP>>::map_subsystem(&mapper, self.dispute_participation),
-			dispute_distribution: <Mapper as MapSubsystem<DD>>::map_subsystem(&mapper, self.dispute_distribution),
-			chain_selection: <Mapper as MapSubsystem<CS>>::map_subsystem(&mapper, self.chain_selection),
+			collation_generation: <Mapper as MapSubsystem<CG>>::map_subsystem(
+				&mapper,
+				self.collation_generation,
+			),
+			collator_protocol: <Mapper as MapSubsystem<CP>>::map_subsystem(
+				&mapper,
+				self.collator_protocol,
+			),
+			approval_distribution: <Mapper as MapSubsystem<ApD>>::map_subsystem(
+				&mapper,
+				self.approval_distribution,
+			),
+			approval_voting: <Mapper as MapSubsystem<ApV>>::map_subsystem(
+				&mapper,
+				self.approval_voting,
+			),
+			gossip_support: <Mapper as MapSubsystem<GS>>::map_subsystem(
+				&mapper,
+				self.gossip_support,
+			),
+			dispute_coordinator: <Mapper as MapSubsystem<DC>>::map_subsystem(
+				&mapper,
+				self.dispute_coordinator,
+			),
+			dispute_participation: <Mapper as MapSubsystem<DP>>::map_subsystem(
+				&mapper,
+				self.dispute_participation,
+			),
+			dispute_distribution: <Mapper as MapSubsystem<DD>>::map_subsystem(
+				&mapper,
+				self.dispute_distribution,
+			),
+			chain_selection: <Mapper as MapSubsystem<CS>>::map_subsystem(
+				&mapper,
+				self.chain_selection,
+			),
 		}
 	}
 }
