@@ -23,5 +23,6 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"frame-support/std",
+	"scale-info/std",
 	"sp-std/std",
 ]
