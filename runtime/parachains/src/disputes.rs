@@ -17,6 +17,7 @@
 //! Runtime component for handling disputes of parachain candidates.
 
 use crate::{
+	shared,
 	configuration::{self, HostConfiguration},
 	initializer::SessionChangeNotification,
 	session_info,
@@ -31,7 +32,7 @@ use primitives::v1::{
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::{
-	traits::{AppVerify, One, Saturating, Zero},
+	traits::{AppVerify, Saturating},
 	DispatchError, RuntimeDebug, SaturatedConversion,
 };
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
@@ -116,10 +117,10 @@ pub trait DisputesHandler<BlockNumber> {
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError>;
 
 	/// Note that the given candidate has been included.
-	fn note_included(
+	fn process_included(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-		included_in: BlockNumber,
+		revert_to: BlockNumber,
 	);
 
 	/// Whether the given candidate could be invalid, i.e. there is an ongoing
@@ -151,10 +152,10 @@ impl<BlockNumber> DisputesHandler<BlockNumber> for () {
 		Ok(Vec::new())
 	}
 
-	fn note_included(
+	fn process_included(
 		_session: SessionIndex,
 		_candidate_hash: CandidateHash,
-		_included_in: BlockNumber,
+		_revert_to: BlockNumber,
 	) {
 	}
 
@@ -186,12 +187,12 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 		pallet::Pallet::<T>::provide_multi_dispute_data(statement_sets)
 	}
 
-	fn note_included(
+	fn process_included(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-		included_in: T::BlockNumber,
+		revert_to: T::BlockNumber,
 	) {
-		pallet::Pallet::<T>::note_included(session, candidate_hash, included_in)
+		pallet::Pallet::<T>::process_included(session, candidate_hash, revert_to);
 	}
 
 	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
@@ -241,18 +242,6 @@ pub mod pallet {
 		Blake2_128Concat,
 		CandidateHash,
 		DisputeState<T::BlockNumber>,
-	>;
-
-	/// All included blocks on the chain, as well as the block number in this chain that
-	/// should be reverted back to if the candidate is disputed and determined to be invalid.
-	#[pallet::storage]
-	pub(super) type Included<T: Config> = StorageDoubleMap<
-		_,
-		Twox64Concat,
-		SessionIndex,
-		Blake2_128Concat,
-		CandidateHash,
-		T::BlockNumber,
 	>;
 
 	/// Maps session indices to a vector indicating the number of potentially-spam disputes
@@ -565,7 +554,11 @@ impl<T: Config> Pallet<T> {
 				dispute.concluded_at = Some(now);
 				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
 
-				if <Included<T>>::contains_key(&session_index, &candidate_hash) {
+				let is_local = <shared::Pallet<T>>::is_included_candidate(
+					&session_index,
+					&candidate_hash,
+				);
+				if is_local {
 					// Local disputes don't count towards spam.
 
 					weight += T::DbWeight::get().reads_writes(1, 1);
@@ -632,7 +625,7 @@ impl<T: Config> Pallet<T> {
 
 				// This is larger, and will be extracted to the `shared` module for more proper pruning.
 				// TODO: https://github.com/paritytech/polkadot/issues/3469
-				<Included<T>>::remove_prefix(to_prune, None);
+				shared::Pallet::<T>::prune_included_candidates(to_prune);
 				SpamSlots::<T>::remove(to_prune);
 			}
 
@@ -787,7 +780,7 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// Apply spam slot changes. Bail early if too many occupied.
-		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
+		let is_local = <shared::Pallet<T>>::is_included_candidate(&set.session, &set.candidate_hash);
 		if !is_local {
 			let mut spam_slots: Vec<u32> =
 				SpamSlots::<T>::get(&set.session).unwrap_or_else(|| vec![0; n_validators]);
@@ -919,7 +912,10 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// Apply spam slot changes. Bail early if too many occupied.
-		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
+		let is_local = <shared::Pallet<T>>::is_included_candidate(
+			&set.session,
+			&set.candidate_hash,
+		);
 		if !is_local {
 			let mut spam_slots: Vec<u32> =
 				SpamSlots::<T>::get(&set.session).unwrap_or_else(|| vec![0; n_validators]);
@@ -993,7 +989,10 @@ impl<T: Config> Pallet<T> {
 
 		// Freeze if just concluded against some local candidate
 		if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-			if let Some(revert_to) = <Included<T>>::get(&set.session, &set.candidate_hash) {
+			if let Some((revert_to, _)) = <shared::Pallet<T>>::get_included_candidate(
+				&set.session,
+				&set.candidate_hash,
+			) {
 				Self::revert_and_freeze(revert_to);
 			}
 		}
@@ -1006,19 +1005,11 @@ impl<T: Config> Pallet<T> {
 		<Disputes<T>>::iter().collect()
 	}
 
-	pub(crate) fn note_included(
+	pub(crate) fn process_included(
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-		included_in: T::BlockNumber,
+		revert_to: T::BlockNumber,
 	) {
-		if included_in.is_zero() {
-			return
-		}
-
-		let revert_to = included_in - One::one();
-
-		<Included<T>>::insert(&session, &candidate_hash, revert_to);
-
 		// If we just included a block locally which has a live dispute, decrement spam slots
 		// for any involved validators, if the dispute is not already confirmed by f + 1.
 		if let Some(state) = <Disputes<T>>::get(&session, candidate_hash) {
@@ -1120,6 +1111,7 @@ fn check_signature(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use primitives::v1::CoreIndex;
 	use crate::mock::{
 		new_test_ext, AccountId, AllPallets, Initializer, MockGenesisConfig, System, Test,
 		PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
@@ -1168,6 +1160,21 @@ mod tests {
 					new_session.3.map(|q| q.into_iter()),
 				);
 			}
+		}
+	}
+
+	fn include_candidate(session: SessionIndex, candidate_hash: &CandidateHash, block_number: BlockNumber) {
+		if let Some(revert_to) = shared::Pallet::<Test>::note_included_candidate(
+			session,
+			candidate_hash.clone(),
+			block_number,
+			CoreIndex(0),
+		) {
+			Pallet::<Test>::process_included(
+				session,
+				candidate_hash.clone(),
+				revert_to,
+			);
 		}
 	}
 
@@ -1469,13 +1476,13 @@ mod tests {
 			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
 
 			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
-			Pallet::<Test>::note_included(0, candidate_hash.clone(), 0);
-			Pallet::<Test>::note_included(1, candidate_hash.clone(), 1);
-			Pallet::<Test>::note_included(2, candidate_hash.clone(), 2);
-			Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
-			Pallet::<Test>::note_included(4, candidate_hash.clone(), 4);
-			Pallet::<Test>::note_included(5, candidate_hash.clone(), 5);
-			Pallet::<Test>::note_included(6, candidate_hash.clone(), 5);
+			include_candidate(0, &candidate_hash, 0);
+			include_candidate(1, &candidate_hash, 1);
+			include_candidate(2, &candidate_hash, 2);
+			include_candidate(3, &candidate_hash, 3);
+			include_candidate(4, &candidate_hash, 4);
+			include_candidate(5, &candidate_hash, 5);
+			include_candidate(6, &candidate_hash, 5);
 
 			run_to_block(7, |b| {
 				// a new session at each block
@@ -1485,13 +1492,13 @@ mod tests {
 			// current session is 7,
 			// we keep for dispute_period + 1 session and we remove in on_finalize
 			// thus we keep info for session 3, 4, 5, 6, 7.
-			assert_eq!(Included::<Test>::iter_prefix(0).count(), 0);
-			assert_eq!(Included::<Test>::iter_prefix(1).count(), 0);
-			assert_eq!(Included::<Test>::iter_prefix(2).count(), 0);
-			assert_eq!(Included::<Test>::iter_prefix(3).count(), 1);
-			assert_eq!(Included::<Test>::iter_prefix(4).count(), 1);
-			assert_eq!(Included::<Test>::iter_prefix(5).count(), 1);
-			assert_eq!(Included::<Test>::iter_prefix(6).count(), 1);
+			assert_eq!(shared::Pallet::<Test>::included_candidates_iter_prefix(0).count(), 0);
+			assert_eq!(shared::Pallet::<Test>::included_candidates_iter_prefix(1).count(), 0);
+			assert_eq!(shared::Pallet::<Test>::included_candidates_iter_prefix(2).count(), 0);
+			assert_eq!(shared::Pallet::<Test>::included_candidates_iter_prefix(3).count(), 1);
+			assert_eq!(shared::Pallet::<Test>::included_candidates_iter_prefix(4).count(), 1);
+			assert_eq!(shared::Pallet::<Test>::included_candidates_iter_prefix(5).count(), 1);
+			assert_eq!(shared::Pallet::<Test>::included_candidates_iter_prefix(6).count(), 1);
 		});
 	}
 
@@ -1593,7 +1600,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_freeze_on_note_included() {
+	fn test_freeze_on_process_included() {
 		new_test_ext(Default::default()).execute_with(|| {
 			let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
 
@@ -1623,7 +1630,7 @@ mod tests {
 			}];
 			assert!(Pallet::<Test>::provide_multi_dispute_data(stmts).is_ok());
 
-			Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
+			include_candidate(3, &candidate_hash, 3);
 			assert_eq!(Frozen::<Test>::get(), Some(2));
 		});
 	}
@@ -1640,7 +1647,7 @@ mod tests {
 
 			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
 
-			Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
+			include_candidate(3, &candidate_hash, 3);
 
 			// v0 votes for 3
 			let stmts = vec![DisputeStatementSet {
@@ -1669,7 +1676,7 @@ mod tests {
 	// * provide_multi_dispute: with success scenario
 	// * disputes: correctness of datas
 	// * could_be_invalid: correctness of datas
-	// * note_included: decrement spam correctly
+	// * process_included: decrement spam correctly
 	// * spam slots: correctly incremented and decremented
 	// * ensure rewards and punishment are correctly called.
 	#[test]
@@ -1945,7 +1952,7 @@ mod tests {
 
 			// Ensure inclusion removes spam slots
 			assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 0, 1]));
-			Pallet::<Test>::note_included(4, candidate_hash.clone(), 4);
+			include_candidate(4, &candidate_hash, 4);
 			assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 0, 0]));
 
 			// Ensure the reward_validator function was correctly called

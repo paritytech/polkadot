@@ -20,8 +20,9 @@
 //! dependent on any of the other pallets.
 
 use frame_support::pallet_prelude::*;
-use primitives::v1::{SessionIndex, ValidatorId, ValidatorIndex};
+use primitives::v1::{CandidateHash, CoreIndex, SessionIndex, ValidatorId, ValidatorIndex};
 use sp_std::vec::Vec;
+use sp_runtime::traits::{One, Zero};
 
 use rand::{seq::SliceRandom, SeedableRng};
 use rand_chacha::ChaCha20Rng;
@@ -63,6 +64,18 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn active_validator_keys)]
 	pub(super) type ActiveValidatorKeys<T: Config> = StorageValue<_, Vec<ValidatorId>, ValueQuery>;
+
+	/// All included blocks on the chain, mapped to the core index the candidate was assigned to
+	/// and the block number in this chain that should be reverted back to if the candidate is
+	/// disputed and determined to be invalid.
+	#[pallet::storage]
+	#[pallet::getter(fn included_candidates)]
+	pub(super) type IncludedCandidates<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat, SessionIndex,
+		Blake2_128Concat, CandidateHash,
+		(T::BlockNumber, CoreIndex),
+	>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -112,6 +125,51 @@ impl<T: Config> Pallet<T> {
 	/// Return the session index that should be used for any future scheduled changes.
 	pub fn scheduled_session() -> SessionIndex {
 		Self::session_index().saturating_add(SESSION_DELAY)
+	}
+
+	/// Records an included candidate, returning the block height that should be reverted to if the
+	/// block is found to be invalid. This method will return `None` if and only if `included_in`
+	/// is zero.
+	pub(crate) fn note_included_candidate(
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+		included_in: T::BlockNumber,
+		core_index: CoreIndex,
+	) -> Option<T::BlockNumber> {
+		if included_in.is_zero() { return None }
+
+		let revert_to = included_in - One::one();
+		<IncludedCandidates<T>>::insert(&session, &candidate_hash, (revert_to, core_index));
+
+		Some(revert_to)
+	}
+
+	/// Returns true if a candidate hash exists for the given session and candidate hash.
+	pub(crate) fn is_included_candidate(
+		session: &SessionIndex,
+		candidate_hash: &CandidateHash,
+	) -> bool {
+		<IncludedCandidates<T>>::contains_key(session, candidate_hash)
+	}
+
+	/// Returns the revert-to height and core index for a given candidate, if one exists.
+	pub(crate) fn get_included_candidate(
+		session: &SessionIndex,
+		candidate_hash: &CandidateHash,
+	) -> Option<(T::BlockNumber, CoreIndex)> {
+		<IncludedCandidates<T>>::get(session, candidate_hash)
+	}
+
+	/// Prunes all candidates that were included in the `to_prune` session.
+	pub(crate) fn prune_included_candidates(to_prune: SessionIndex) {
+		<IncludedCandidates<T>>::remove_prefix(to_prune, None);
+	}
+
+	#[cfg(test)]
+	pub(crate) fn included_candidates_iter_prefix(
+		session: SessionIndex,
+	) -> impl Iterator<Item=(CandidateHash, (T::BlockNumber, CoreIndex))> {
+		<IncludedCandidates<T>>::iter_prefix(session)
 	}
 
 	/// Test function for setting the current session index.
@@ -225,6 +283,62 @@ mod tests {
 				ParasShared::active_validator_indices(),
 				vec![ValidatorIndex(4), ValidatorIndex(1),]
 			);
+		});
+	}
+
+	#[test]
+	fn note_included_candidate_ignores_block_zero() {
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			let session = 1;
+			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+			assert!(ParasShared::note_included_candidate(session, candidate_hash, 0, CoreIndex(0)).is_none());
+			assert!(!ParasShared::is_included_candidate(&session, &candidate_hash));
+			assert!(ParasShared::get_included_candidate(&session, &candidate_hash).is_none());
+		});
+	}
+
+	#[test]
+	fn note_included_candidate_stores_block_non_zero_with_revert_to_minus_one() {
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			let session = 1;
+			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+			let block_number = 1;
+			let core_index = CoreIndex(2);
+			assert_eq!(
+				ParasShared::note_included_candidate(session, candidate_hash, block_number, core_index),
+				Some(block_number - 1),
+			);
+			assert!(ParasShared::is_included_candidate(&session, &candidate_hash));
+			assert_eq!(
+				ParasShared::get_included_candidate(&session, &candidate_hash),
+				Some((block_number - 1, core_index)),
+			);
+		});
+	}
+
+	#[test]
+	fn prune_included_candidate_removes_all_candidates_with_same_session() {
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			let candidate_hash1 = CandidateHash(sp_core::H256::repeat_byte(1));
+			let candidate_hash2 = CandidateHash(sp_core::H256::repeat_byte(2));
+			let candidate_hash3 = CandidateHash(sp_core::H256::repeat_byte(3));
+
+			assert!(ParasShared::note_included_candidate(1, candidate_hash1, 1, CoreIndex(0)).is_some());
+			assert!(ParasShared::note_included_candidate(1, candidate_hash2, 1, CoreIndex(0)).is_some());
+			assert!(ParasShared::note_included_candidate(2, candidate_hash3, 2, CoreIndex(0)).is_some());
+
+			assert_eq!(ParasShared::included_candidates_iter_prefix(1).count(), 2);
+			assert_eq!(ParasShared::included_candidates_iter_prefix(2).count(), 1);
+
+			ParasShared::prune_included_candidates(1);
+
+			assert_eq!(ParasShared::included_candidates_iter_prefix(1).count(), 0);
+			assert_eq!(ParasShared::included_candidates_iter_prefix(2).count(), 1);
+
+			ParasShared::prune_included_candidates(2);
+
+			assert_eq!(ParasShared::included_candidates_iter_prefix(1).count(), 0);
+			assert_eq!(ParasShared::included_candidates_iter_prefix(2).count(), 0);
 		});
 	}
 }

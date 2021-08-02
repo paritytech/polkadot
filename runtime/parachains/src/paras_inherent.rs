@@ -211,8 +211,22 @@ pub mod pallet {
 
 			// Inform the disputes module of all included candidates.
 			let now = <frame_system::Pallet<T>>::block_number();
-			for (_, candidate_hash) in &freed_concluded {
-				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
+			for (core_index, candidate_hash) in &freed_concluded {
+				let revert_to = match shared::Pallet::<T>::note_included_candidate(
+					current_session,
+					*candidate_hash,
+					now,
+					*core_index,
+				) {
+					Some(revert_to) => revert_to,
+					None => continue,
+				};
+
+				T::DisputesHandler::process_included(
+					current_session,
+					*candidate_hash,
+					revert_to,
+				);
 			}
 
 			// Handle timeouts for any availability core work.
