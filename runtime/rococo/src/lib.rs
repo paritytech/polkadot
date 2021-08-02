@@ -624,7 +624,7 @@ pub type XcmRouter = (
 
 use xcm::v0::prelude::*;
 parameter_types! {
-	pub const Rococo: MultiAssetFilter = Wild(AllOf(WildFungible, Concrete(RocLocation::get())));
+	pub const Rococo: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(RocLocation::get()) });
 	pub const RococoForTick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(100)));
 	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(110)));
 	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(120)));

@@ -235,12 +235,12 @@ impl Assets {
 		let mut taken = Assets::new();
 		match mask {
 			MultiAssetFilter::Wild(All) => return Ok(self.swapped(Assets::new())),
-			MultiAssetFilter::Wild(AllOf(WildFungible, id)) => {
+			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) => {
 				if let Some((id, amount)) = self.fungible.remove_entry(&id) {
 					taken.fungible.insert(id, amount);
 				}
 			},
-			MultiAssetFilter::Wild(AllOf(WildNonFungible, id)) => {
+			MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id }) => {
 				let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
 				non_fungible.into_iter().for_each(|(c, instance)| {
 					if c == id {
@@ -351,12 +351,12 @@ impl Assets {
 		let mut masked = Assets::new();
 		match mask {
 			MultiAssetFilter::Wild(All) => return self.clone(),
-			MultiAssetFilter::Wild(AllOf(WildFungible, id)) => {
+			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) => {
 				if let Some(&amount) = self.fungible.get(&id) {
 					masked.fungible.insert(id.clone(), amount);
 				}
 			},
-			MultiAssetFilter::Wild(AllOf(WildNonFungible, id)) => {
+			MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id }) => {
 				self.non_fungible.iter().for_each(|(ref c, ref instance)| {
 					if c == id {
 						masked.non_fungible.insert((c.clone(), instance.clone()));
