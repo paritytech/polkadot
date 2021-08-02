@@ -900,7 +900,16 @@ parameter_types! {
 
 /// The type used to represent the kinds of proxying allowed.
 #[derive(
-	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug, MaxEncodedLen,
+	Copy,
+	Clone,
+	Eq,
+	PartialEq,
+	Ord,
+	PartialOrd,
+	Encode,
+	Decode,
+	RuntimeDebug,
+	MaxEncodedLen,
 	scale_info::TypeInfo,
 )]
 pub enum ProxyType {
@@ -1001,7 +1010,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) | Call::Utility(..)
 			),
 			ProxyType::CancelProxy =>
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement {..})),
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. })),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {

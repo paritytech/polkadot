@@ -41,8 +41,7 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(
-	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From,
-	TypeInfo,
+	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash, MallocSizeOf))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
@@ -56,7 +55,9 @@ impl HeadData {
 }
 
 /// Parachain validation code.
-#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo)]
+#[derive(
+	Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
+)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
@@ -232,7 +233,7 @@ impl sp_std::ops::Sub<u32> for Id {
 }
 
 #[derive(
-	Clone, Copy, Default, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug, TypeInfo
+	Clone, Copy, Default, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug, TypeInfo,
 )]
 pub struct Sibling(pub Id);
 

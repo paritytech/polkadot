@@ -19,9 +19,9 @@
 use alloc::vec::Vec;
 use core::{convert::TryFrom, result};
 
-use scale_info::TypeInfo;
 use super::{MultiLocation, VersionedMultiAsset};
 use parity_scale_codec::{self, Decode, Encode};
+use scale_info::TypeInfo;
 
 /// A general identifier for an instance of a non-fungible asset class.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]

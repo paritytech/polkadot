@@ -266,7 +266,13 @@ impl<Call> SignedExtensions<Call> {
 
 impl<Call> sp_runtime::traits::SignedExtension for SignedExtensions<Call>
 where
-	Call: parity_scale_codec::Codec + sp_std::fmt::Debug + Sync + Send + Clone + Eq + PartialEq
+	Call: parity_scale_codec::Codec
+		+ sp_std::fmt::Debug
+		+ Sync
+		+ Send
+		+ Clone
+		+ Eq
+		+ PartialEq
 		+ scale_info::StaticTypeInfo,
 	Call: Dispatchable,
 {

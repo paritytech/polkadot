@@ -313,7 +313,7 @@ impl<T: Config> ProvideInherent for Module<T> {
 	}
 
 	fn is_inherent(call: &Self::Call) -> bool {
-		matches!(call, Call::enter {..})
+		matches!(call, Call::enter { .. })
 	}
 }
 
@@ -426,13 +426,17 @@ mod tests {
 				System::set_block_consumed_resources(used_block_weight, 0);
 
 				// execute the paras inherent
-				let post_info = Call::<Test>::enter { data: ParachainsInherentData {
-					bitfields: signed_bitfields,
-					backed_candidates,
-					disputes: Vec::new(),
-					parent_header: default_header(),
-				}}
-					.dispatch_bypass_filter(None.into()).unwrap_err().post_info;
+				let post_info = Call::<Test>::enter {
+					data: ParachainsInherentData {
+						bitfields: signed_bitfields,
+						backed_candidates,
+						disputes: Vec::new(),
+						parent_header: default_header(),
+					},
+				}
+				.dispatch_bypass_filter(None.into())
+				.unwrap_err()
+				.post_info;
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
 				// call has returned the appropriate post-dispatch weight for refund, and trust
@@ -472,13 +476,16 @@ mod tests {
 				System::set_block_consumed_resources(used_block_weight, 0);
 
 				// execute the paras inherent
-				let post_info = Call::<Test>::enter { data: ParachainsInherentData {
-					bitfields: signed_bitfields,
-					backed_candidates,
-					disputes: Vec::new(),
-					parent_header: header,
-				}}
-					.dispatch_bypass_filter(None.into()).unwrap();
+				let post_info = Call::<Test>::enter {
+					data: ParachainsInherentData {
+						bitfields: signed_bitfields,
+						backed_candidates,
+						disputes: Vec::new(),
+						parent_header: header,
+					},
+				}
+				.dispatch_bypass_filter(None.into())
+				.unwrap();
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
 				// call has returned the appropriate post-dispatch weight for refund, and trust

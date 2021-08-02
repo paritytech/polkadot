@@ -473,7 +473,7 @@ pub mod pallet {
 				// <weight>
 				// The weight of this logic is included in the `claim` dispatchable.
 				// </weight>
-				Call::claim { dest: account, ethereum_signature} => {
+				Call::claim { dest: account, ethereum_signature } => {
 					let data = account.using_encoded(to_ascii_hex);
 					(Self::eth_recover(&ethereum_signature, &data, &[][..]), None)
 				},
@@ -1035,7 +1035,9 @@ mod tests {
 	fn valid_attest_transactions_are_free() {
 		new_test_ext().execute_with(|| {
 			let p = PrevalidateAttests::<Test>::new();
-			let c = Call::Claims(ClaimsCall::attest { statement: StatementKind::Saft.to_text().to_vec() });
+			let c = Call::Claims(ClaimsCall::attest {
+				statement: StatementKind::Saft.to_text().to_vec(),
+			});
 			let di = c.get_dispatch_info();
 			assert_eq!(di.pays_fee, Pays::No);
 			let r = p.validate(&42, &c, &di, 20);
@@ -1047,11 +1049,15 @@ mod tests {
 	fn invalid_attest_transactions_are_recognised() {
 		new_test_ext().execute_with(|| {
 			let p = PrevalidateAttests::<Test>::new();
-			let c = Call::Claims(ClaimsCall::attest { statement: StatementKind::Regular.to_text().to_vec() });
+			let c = Call::Claims(ClaimsCall::attest {
+				statement: StatementKind::Regular.to_text().to_vec(),
+			});
 			let di = c.get_dispatch_info();
 			let r = p.validate(&42, &c, &di, 20);
 			assert!(r.is_err());
-			let c = Call::Claims(ClaimsCall::attest { statement: StatementKind::Saft.to_text().to_vec() });
+			let c = Call::Claims(ClaimsCall::attest {
+				statement: StatementKind::Saft.to_text().to_vec(),
+			});
 			let di = c.get_dispatch_info();
 			let r = p.validate(&69, &c, &di, 20);
 			assert!(r.is_err());
@@ -1293,15 +1299,28 @@ mod tests {
 				})
 			);
 			assert_eq!(
-				<Pallet<Test>>::validate_unsigned(source, &ClaimsCall::claim { dest: 0, ethereum_signature: EcdsaSignature([0; 65]) }),
+				<Pallet<Test>>::validate_unsigned(
+					source,
+					&ClaimsCall::claim { dest: 0, ethereum_signature: EcdsaSignature([0; 65]) }
+				),
 				InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()).into(),
 			);
 			assert_eq!(
-				<Pallet<Test>>::validate_unsigned(source, &ClaimsCall::claim { dest: 1, ethereum_signature: sig::<Test>(&bob(), &1u64.encode(), &[][..]) }),
+				<Pallet<Test>>::validate_unsigned(
+					source,
+					&ClaimsCall::claim {
+						dest: 1,
+						ethereum_signature: sig::<Test>(&bob(), &1u64.encode(), &[][..])
+					}
+				),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 			let s = sig::<Test>(&dave(), &1u64.encode(), StatementKind::Regular.to_text());
-			let call = ClaimsCall::claim_attest { dest: 1, ethereum_signature: s, statement: StatementKind::Regular.to_text().to_vec() };
+			let call = ClaimsCall::claim_attest {
+				dest: 1,
+				ethereum_signature: s,
+				statement: StatementKind::Regular.to_text().to_vec(),
+			};
 			assert_eq!(
 				<Pallet<Test>>::validate_unsigned(source, &call),
 				Ok(ValidTransaction {
@@ -1315,28 +1334,43 @@ mod tests {
 			assert_eq!(
 				<Pallet<Test>>::validate_unsigned(
 					source,
-					&ClaimsCall::claim_attest { dest: 1, ethereum_signature: EcdsaSignature([0; 65]),
-					statement: StatementKind::Regular.to_text().to_vec() }
+					&ClaimsCall::claim_attest {
+						dest: 1,
+						ethereum_signature: EcdsaSignature([0; 65]),
+						statement: StatementKind::Regular.to_text().to_vec()
+					}
 				),
 				InvalidTransaction::Custom(ValidityError::InvalidEthereumSignature.into()).into(),
 			);
 
 			let s = sig::<Test>(&bob(), &1u64.encode(), StatementKind::Regular.to_text());
-			let call = ClaimsCall::claim_attest { dest: 1, ethereum_signature: s, statement: StatementKind::Regular.to_text().to_vec() };
+			let call = ClaimsCall::claim_attest {
+				dest: 1,
+				ethereum_signature: s,
+				statement: StatementKind::Regular.to_text().to_vec(),
+			};
 			assert_eq!(
 				<Pallet<Test>>::validate_unsigned(source, &call),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 
 			let s = sig::<Test>(&dave(), &1u64.encode(), StatementKind::Saft.to_text());
-			let call = ClaimsCall::claim_attest { dest: 1, ethereum_signature: s, statement: StatementKind::Regular.to_text().to_vec() };
+			let call = ClaimsCall::claim_attest {
+				dest: 1,
+				ethereum_signature: s,
+				statement: StatementKind::Regular.to_text().to_vec(),
+			};
 			assert_eq!(
 				<Pallet<Test>>::validate_unsigned(source, &call),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 
 			let s = sig::<Test>(&dave(), &1u64.encode(), StatementKind::Saft.to_text());
-			let call = ClaimsCall::claim_attest { dest: 1, ethereum_signature: s, statement: StatementKind::Saft.to_text().to_vec() };
+			let call = ClaimsCall::claim_attest {
+				dest: 1,
+				ethereum_signature: s,
+				statement: StatementKind::Saft.to_text().to_vec(),
+			};
 			assert_eq!(
 				<Pallet<Test>>::validate_unsigned(source, &call),
 				InvalidTransaction::Custom(ValidityError::InvalidStatement.into()).into(),
