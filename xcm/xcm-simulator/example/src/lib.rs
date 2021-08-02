@@ -138,8 +138,6 @@ mod tests {
 			));
 		});
 
-		RelayChainXcmRouter::process_messages().unwrap();
-
 		ParaA::execute_with(|| {
 			use parachain::{Event, System};
 			assert!(System::events()
@@ -166,8 +164,6 @@ mod tests {
 				},
 			));
 		});
-
-		ParachainXcmRouter::<parachain::MsgQueue>::process_messages().unwrap();
 
 		Relay::execute_with(|| {
 			use relay_chain::{Event, System};
@@ -196,8 +192,6 @@ mod tests {
 			));
 		});
 
-		ParachainXcmRouter::<parachain::MsgQueue>::process_messages().unwrap();
-
 		ParaB::execute_with(|| {
 			use parachain::{Event, System};
 			assert!(System::events()
@@ -225,8 +219,6 @@ mod tests {
 			let para_account_a = ParaId::from(1).into_account();
 			assert_eq!(parachain::Balances::free_balance(&para_account_a), INITIAL_BALANCE + 123);
 		});
-
-		RelayChainXcmRouter::process_messages().unwrap();
 
 		ParaA::execute_with(|| {
 			use xcm::opaque::v0::NetworkId;
@@ -355,7 +347,7 @@ mod tests {
 						assets: vec![All],
 						dest: Parachain(2).into(), // valid destination
 					},
-					Order::QueryHolding { query_id, dest: Parachain(2).into(), assets: vec![All] },
+					Order::QueryHolding { query_id, dest: Parachain(1).into(), assets: vec![All] },
 				],
 			};
 			// Send withdraw and deposit with query holding
@@ -377,7 +369,7 @@ mod tests {
 		});
 
 		// Check that QueryResponse message was received
-		ParaB::execute_with(|| {
+		ParaA::execute_with(|| {
 			use xcm::opaque::v0::Response::Assets;
 			assert_eq!(
 				parachain::MsgQueue::received_dmp(),
