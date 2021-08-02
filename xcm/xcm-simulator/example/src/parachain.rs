@@ -37,12 +37,8 @@ use polkadot_parachain::primitives::{
 };
 use xcm::{
 	v0::{
-		Error as XcmError, ExecuteXcm,
-		Junction::Parachain,
-		Junctions::X1,
-		MultiAsset,
-		MultiLocation,
-		NetworkId, Outcome, Xcm,
+		Error as XcmError, ExecuteXcm, Junction::Parachain, Junctions::X1, MultiAsset,
+		MultiLocation, NetworkId, Outcome, Xcm,
 	},
 	VersionedXcm,
 };

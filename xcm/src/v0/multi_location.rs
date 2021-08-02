@@ -128,10 +128,7 @@ impl MultiLocation {
 	/// Creates a new `MultiLocation` with the specified number of parents in the `P` const generic
 	/// parameter and a `Null` interior.
 	pub const fn with_parents_const<const P: u8>() -> MultiLocation {
-		MultiLocation {
-			parents: P,
-			interior: Junctions::Null,
-		}
+		MultiLocation { parents: P, interior: Junctions::Null }
 	}
 
 	/// Creates a new `MultiLocation` with the specified number of parents and a `Null` interior.

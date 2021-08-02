@@ -46,7 +46,7 @@ use runtime_parachains::{
 
 use xcm::v0::{
 	Junction::Parachain,
-    Junctions::{Null, X1},
+	Junctions::{Null, X1},
 	MultiAsset::{self, AllConcreteFungible},
 	MultiLocation, NetworkId, Xcm,
 };
