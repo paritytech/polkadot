@@ -20,9 +20,6 @@ pub use codec::{Decode, Encode};
 pub use paste;
 
 pub use frame_support::{traits::Get, weights::Weight};
-pub use sp_io::TestExternalities;
-pub use sp_std::{cell::RefCell, marker::PhantomData};
-
 pub use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
 pub use polkadot_parachain::primitives::{
 	DmpMessageHandler as DmpMessageHandlerT, Id as ParaId, XcmpMessageFormat,
@@ -32,6 +29,8 @@ pub use polkadot_runtime_parachains::{
 	dmp,
 	ump::{self, MessageId, UmpSink, XcmSink},
 };
+pub use sp_io::TestExternalities;
+pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
 pub use xcm::{v0::prelude::*, VersionedXcm};
 pub use xcm_executor::XcmExecutor;
 
@@ -92,8 +91,8 @@ macro_rules! decl_test_relay_chain {
 
 				Self::execute_with(|| {
 					$crate::ump::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
-						origin, msg, max_weight,
-					)
+								origin, msg, max_weight,
+							)
 				})
 			}
 		}
@@ -181,8 +180,6 @@ macro_rules! __impl_ext {
 		}
 	};
 }
-
-use sp_std::collections::vec_deque::VecDeque;
 
 thread_local! {
 	pub static PARA_MESSAGE_BUS: RefCell<VecDeque<(ParaId, MultiLocation, Xcm<()>)>>

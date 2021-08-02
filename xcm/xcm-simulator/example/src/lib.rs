@@ -307,8 +307,6 @@ mod tests {
 
 		// First send a message which fails on the relay chain
 		ParaA::execute_with(|| {
-			//let para_account_b: relay_chain::AccountId = ParaId::from(2).into_account();
-			let query_id = 1234;
 			let message = WithdrawAsset {
 				assets: vec![ConcreteFungible { id: Null, amount: send_amount }],
 				effects: vec![
@@ -318,7 +316,11 @@ mod tests {
 						dest: OnlyChild.into(), // invalid destination
 					},
 					// is not triggered because the deposit fails
-					Order::QueryHolding { query_id, dest: Parachain(2).into(), assets: vec![All] },
+					Order::QueryHolding {
+						query_id: query_id_set,
+						dest: Parachain(2).into(),
+						assets: vec![All],
+					},
 				],
 			};
 			// Send withdraw and deposit with query holding
