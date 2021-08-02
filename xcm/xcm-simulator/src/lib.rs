@@ -210,6 +210,9 @@ macro_rules! decl_test_network {
 			}
 		}
 
+		/// Process any XCMs in the message buses.
+		///
+		/// Called automatically by `TestExt::execute_with`.
 		fn process_messages() -> $crate::XcmResult {
 			process_relay_messages()?;
 			process_para_messages()
@@ -218,6 +221,7 @@ macro_rules! decl_test_network {
 		/// XCM router for parachain.
 		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
 
+		/// Process all messages originating from parachains.
 		fn process_para_messages() -> $crate::XcmResult {
 			use $crate::{UmpSink, XcmpMessageHandlerT};
 
@@ -278,6 +282,7 @@ macro_rules! decl_test_network {
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
 
+		/// Process all messages originating from the relay chain.
 		fn process_relay_messages() -> $crate::XcmResult {
 			use $crate::DmpMessageHandlerT;
 
