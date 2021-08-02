@@ -21,6 +21,7 @@ default = ["std"]
 std = [
 	"bp-runtime/std",
 	"codec/std",
+	"scale-info/std",
 	"frame-support/std",
 	"sp-std/std",
 ]

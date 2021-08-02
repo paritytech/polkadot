@@ -27,6 +27,7 @@ default = ["std"]
 runtime-benchmarks = []
 std = [
 	"parity-scale-codec/std",
+	"scale-info/std",
 	"xcm/std",
 	"xcm-executor/std",
 	"sp-std/std",

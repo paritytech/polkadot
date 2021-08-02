@@ -101,6 +101,7 @@ std = [
 	"primitives/std",
 	"rustc-hex/std",
 	"parity-scale-codec/std",
+	"scale-info/std",
 	"inherents/std",
 	"sp-core/std",
 	"sp-api/std",

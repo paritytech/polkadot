@@ -41,6 +41,7 @@ std = [
 	"codec/std",
 	"frame-support/std",
 	"hash-db/std",
+	"scale-info/std",
 	"pallet-bridge-dispatch/std",
 	"pallet-bridge-grandpa/std",
 	"pallet-bridge-messages/std",

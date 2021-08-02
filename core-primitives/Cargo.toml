@@ -19,6 +19,7 @@ std = [
 	"sp-core/std",
 	"sp-runtime/std",
 	"sp-std/std",
+	"scale-info/std",
 	"parity-scale-codec/std",
 	"parity-util-mem",
 ]
