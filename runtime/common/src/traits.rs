@@ -16,12 +16,12 @@
 
 //! Traits used across pallets for Polkadot.
 
-use sp_std::vec::*;
-use primitives::v1::{HeadData, ValidationCode, Id as ParaId};
 use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency},
 };
+use primitives::v1::{HeadData, Id as ParaId, ValidationCode};
+use sp_std::vec::*;
 
 /// Parachain registration API.
 pub trait Registrar {
@@ -128,7 +128,10 @@ pub trait Leaser {
 
 	/// Return the amount of balance currently held in reserve on `leaser`'s account for leasing `para`. This won't
 	/// go down outside of a lease period.
-	fn deposit_held(para: ParaId, leaser: &Self::AccountId) -> <Self::Currency as Currency<Self::AccountId>>::Balance;
+	fn deposit_held(
+		para: ParaId,
+		leaser: &Self::AccountId,
+	) -> <Self::Currency as Currency<Self::AccountId>>::Balance;
 
 	/// The lease period. This is constant, but can't be a `const` due to it being a runtime configurable quantity.
 	fn lease_period() -> Self::LeasePeriod;
@@ -141,7 +144,7 @@ pub trait Leaser {
 	fn already_leased(
 		para_id: ParaId,
 		first_period: Self::LeasePeriod,
-		last_period: Self::LeasePeriod
+		last_period: Self::LeasePeriod,
 	) -> bool;
 }
 
@@ -204,7 +207,10 @@ pub trait Auctioneer {
 	/// This can only happen when there isn't already an auction in progress. Accepts the `duration`
 	/// of this auction and the `lease_period_index` of the initial lease period of the four that
 	/// are to be auctioned.
-	fn new_auction(duration: Self::BlockNumber, lease_period_index: Self::LeasePeriod) -> DispatchResult;
+	fn new_auction(
+		duration: Self::BlockNumber,
+		lease_period_index: Self::LeasePeriod,
+	) -> DispatchResult;
 
 	/// Given the current block number, return the current auction status.
 	fn auction_status(now: Self::BlockNumber) -> AuctionStatus<Self::BlockNumber>;

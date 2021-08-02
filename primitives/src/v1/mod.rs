@@ -16,36 +16,35 @@
 
 //! `V1` Primitives.
 
-use sp_std::prelude::*;
-use sp_std::collections::btree_map::BTreeMap;
-use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
+use parity_scale_codec::{Decode, Encode};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
+use application_crypto::KeyTypeId;
+use inherents::InherentIdentifier;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Header as HeaderT};
-use inherents::InherentIdentifier;
 use sp_arithmetic::traits::{BaseArithmetic, Saturating};
-use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
 // Export some core primitives.
 pub use polkadot_core_primitives::v1::{
-	BlockNumber, Moment, Signature, AccountPublic, AccountId, AccountIndex, ChainId, Hash, Nonce,
-	Balance, Header, Block, BlockId, UncheckedExtrinsic, Remark, DownwardMessage,
-	InboundDownwardMessage, CandidateHash, InboundHrmpMessage, OutboundHrmpMessage,
+	AccountId, AccountIndex, AccountPublic, Balance, Block, BlockId, BlockNumber, CandidateHash,
+	ChainId, DownwardMessage, Hash, Header, InboundDownwardMessage, InboundHrmpMessage, Moment,
+	Nonce, OutboundHrmpMessage, Remark, Signature, UncheckedExtrinsic,
 };
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	Id, LOWEST_USER_ID, LOWEST_PUBLIC_ID, HrmpChannelId, UpwardMessage, HeadData, ValidationCode, ValidationCodeHash,
+	HeadData, HrmpChannelId, Id, UpwardMessage, ValidationCode, ValidationCodeHash,
+	LOWEST_PUBLIC_ID, LOWEST_USER_ID,
 };
 
 // Export some basic parachain primitives from v0.
 pub use crate::v0::{
-	CollatorId, CollatorSignature, PARACHAIN_KEY_TYPE_ID, ValidatorId, ValidatorIndex,
-	ValidatorSignature, SigningContext,  ValidityAttestation,
-	CompactStatement,
+	CollatorId, CollatorSignature, CompactStatement, SigningContext, ValidatorId, ValidatorIndex,
+	ValidatorSignature, ValidityAttestation, PARACHAIN_KEY_TYPE_ID,
 };
 
 #[cfg(feature = "std")]
@@ -53,23 +52,23 @@ use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
 
 // More exports from v0 for std.
 #[cfg(feature = "std")]
-pub use crate::v0::{ValidatorPair, CollatorPair};
+pub use crate::v0::{CollatorPair, ValidatorPair};
 
-pub use sp_staking::SessionIndex;
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 pub use sp_consensus_slots::Slot;
+pub use sp_staking::SessionIndex;
 
 /// Signed data.
 mod signed;
-pub use signed::{Signed, UncheckedSigned, EncodeAs};
+pub use signed::{EncodeAs, Signed, UncheckedSigned};
 
 /// A declarations of storage keys where an external observer can find some interesting data.
 pub mod well_known_keys {
-	use super::{Id, HrmpChannelId};
+	use super::{HrmpChannelId, Id};
 	use hex_literal::hex;
+	use parity_scale_codec::Encode as _;
 	use sp_io::hashing::twox_64;
 	use sp_std::prelude::*;
-	use parity_scale_codec::Encode as _;
 
 	// A note on generating these magic values below:
 	//
@@ -105,7 +104,8 @@ pub mod well_known_keys {
 		let prefix = hex!["f5207f03cfdce586301014700e2c2593fad157e461d71fd4c1f936839a5f1f3e"];
 
 		para_id.using_encoded(|para_id: &[u8]| {
-			prefix.as_ref()
+			prefix
+				.as_ref()
 				.iter()
 				.chain(twox_64(para_id).iter())
 				.chain(para_id.iter())
@@ -121,7 +121,8 @@ pub mod well_known_keys {
 		let prefix = hex!["6a0da05ca59913bc38a8630590f2627cb6604cff828a6e3f579ca6c59ace013d"];
 
 		channel.using_encoded(|channel: &[u8]| {
-			prefix.as_ref()
+			prefix
+				.as_ref()
 				.iter()
 				.chain(twox_64(channel).iter())
 				.chain(channel.iter())
@@ -137,7 +138,8 @@ pub mod well_known_keys {
 		let prefix = hex!["6a0da05ca59913bc38a8630590f2627c1d3719f5b0b12c7105c073c507445948"];
 
 		para_id.using_encoded(|para_id: &[u8]| {
-			prefix.as_ref()
+			prefix
+				.as_ref()
 				.iter()
 				.chain(twox_64(para_id).iter())
 				.chain(para_id.iter())
@@ -153,7 +155,8 @@ pub mod well_known_keys {
 		let prefix = hex!["6a0da05ca59913bc38a8630590f2627cf12b746dcf32e843354583c9702cc020"];
 
 		para_id.using_encoded(|para_id: &[u8]| {
-			prefix.as_ref()
+			prefix
+				.as_ref()
 				.iter()
 				.chain(twox_64(para_id).iter())
 				.chain(para_id.iter())
@@ -170,7 +173,8 @@ pub mod well_known_keys {
 		let prefix = hex!["63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5"];
 
 		para_id.using_encoded(|para_id: &[u8]| {
-			prefix.as_ref()
+			prefix
+				.as_ref()
 				.iter()
 				.chain(twox_64(para_id).iter())
 				.chain(para_id.iter())
@@ -179,7 +183,6 @@ pub mod well_known_keys {
 		})
 	}
 }
-
 
 /// Unique identifier for the Parachains Inherent
 pub const PARACHAINS_INHERENT_IDENTIFIER: InherentIdentifier = *b"parachn0";
@@ -338,7 +341,10 @@ impl<H> CandidateReceipt<H> {
 	}
 
 	/// Computes the blake2-256 hash of the receipt.
-	pub fn hash(&self) -> CandidateHash where H: Encode {
+	pub fn hash(&self) -> CandidateHash
+	where
+		H: Encode,
+	{
 		CandidateHash(BlakeTwo256::hash_of(self))
 	}
 }
@@ -386,12 +392,18 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 	///
 	/// This computes the canonical hash, not the hash of the directly encoded data.
 	/// Thus this is a shortcut for `candidate.to_plain().hash()`.
-	pub fn hash(&self) -> CandidateHash where H: Encode {
+	pub fn hash(&self) -> CandidateHash
+	where
+		H: Encode,
+	{
 		self.to_plain().hash()
 	}
 
 	/// Does this committed candidate receipt corresponds to the given [`CandidateReceipt`]?
-	pub fn corresponds_to(&self, receipt: &CandidateReceipt<H>) -> bool where H: PartialEq {
+	pub fn corresponds_to(&self, receipt: &CandidateReceipt<H>) -> bool
+	where
+		H: PartialEq,
+	{
 		receipt.descriptor == self.descriptor && receipt.commitments_hash == self.commitments.hash()
 	}
 }
@@ -406,7 +418,9 @@ impl Ord for CommittedCandidateReceipt {
 	fn cmp(&self, other: &Self) -> sp_std::cmp::Ordering {
 		// TODO: compare signatures or something more sane
 		// https://github.com/paritytech/polkadot/issues/222
-		self.descriptor().para_id.cmp(&other.descriptor().para_id)
+		self.descriptor()
+			.para_id
+			.cmp(&other.descriptor().para_id)
 			.then_with(|| self.commitments.head_data.cmp(&other.commitments.head_data))
 	}
 }
@@ -475,7 +489,6 @@ impl CandidateCommitments {
 	}
 }
 
-
 /// A bitfield concerning availability of backed candidates.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
@@ -485,7 +498,6 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
 		AvailabilityBitfield(inner)
 	}
 }
-
 
 /// A signed compact statement, suitable to be sent to the chain.
 pub type SignedStatement = Signed<CompactStatement>;
@@ -519,12 +531,18 @@ impl<H> BackedCandidate<H> {
 	}
 
 	/// Compute this candidate's hash.
-	pub fn hash(&self) -> CandidateHash where H: Clone + Encode {
+	pub fn hash(&self) -> CandidateHash
+	where
+		H: Clone + Encode,
+	{
 		self.candidate.hash()
 	}
 
 	/// Get this candidate's receipt.
-	pub fn receipt(&self) -> CandidateReceipt<H> where H: Clone {
+	pub fn receipt(&self) -> CandidateReceipt<H>
+	where
+		H: Clone,
+	{
 		self.candidate.to_plain()
 	}
 }
@@ -557,7 +575,10 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 	let hash = backed.candidate.hash();
 
 	let mut signed = 0;
-	for ((val_in_group_idx, _), attestation) in backed.validator_indices.iter().enumerate()
+	for ((val_in_group_idx, _), attestation) in backed
+		.validator_indices
+		.iter()
+		.enumerate()
 		.filter(|(_, signed)| **signed)
 		.zip(backed.validity_votes.iter())
 	{
@@ -644,8 +665,12 @@ impl GroupRotationInfo {
 	///
 	/// `core_index` should be less than `cores`, which is capped at `u32::max()`.
 	pub fn group_for_core(&self, core_index: CoreIndex, cores: usize) -> GroupIndex {
-		if self.group_rotation_frequency == 0 { return GroupIndex(core_index.0) }
-		if cores == 0 { return GroupIndex(0) }
+		if self.group_rotation_frequency == 0 {
+			return GroupIndex(core_index.0)
+		}
+		if cores == 0 {
+			return GroupIndex(0)
+		}
 
 		let cores = sp_std::cmp::min(cores, u32::MAX as usize);
 		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
@@ -662,8 +687,12 @@ impl GroupRotationInfo {
 	///
 	/// `core_index` should be less than `cores`, which is capped at `u32::max()`.
 	pub fn core_for_group(&self, group_index: GroupIndex, cores: usize) -> CoreIndex {
-		if self.group_rotation_frequency == 0 { return CoreIndex(group_index.0) }
-		if cores == 0 { return CoreIndex(0) }
+		if self.group_rotation_frequency == 0 {
+			return CoreIndex(group_index.0)
+		}
+		if cores == 0 {
+			return CoreIndex(0)
+		}
 
 		let cores = sp_std::cmp::min(cores, u32::MAX as usize);
 		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
@@ -694,17 +723,15 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 	/// is 10 and the rotation frequency is 5, this should return 15.
 	pub fn next_rotation_at(&self) -> N {
 		let cycle_once = self.now + self.group_rotation_frequency;
-		cycle_once - (
-			cycle_once.saturating_sub(self.session_start_block) % self.group_rotation_frequency
-		)
+		cycle_once -
+			(cycle_once.saturating_sub(self.session_start_block) % self.group_rotation_frequency)
 	}
 
 	/// Returns the block number of the last rotation before or including the current block. If the
 	/// current block is 10 and the rotation frequency is 5, this should return 10.
 	pub fn last_rotation_at(&self) -> N {
-		self.now - (
-			self.now.saturating_sub(self.session_start_block) % self.group_rotation_frequency
-		)
+		self.now -
+			(self.now.saturating_sub(self.session_start_block) % self.group_rotation_frequency)
 	}
 }
 
@@ -713,7 +740,6 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 #[cfg_attr(feature = "std", derive(Debug, PartialEq, MallocSizeOf))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	// NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
-
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
 	pub next_up_on_available: Option<ScheduledCore>,
@@ -861,10 +887,7 @@ pub struct ApprovalVote(pub CandidateHash);
 
 impl ApprovalVote {
 	/// Yields the signing payload for this approval vote.
-	pub fn signing_payload(
-		&self,
-		session_index: SessionIndex,
-	) -> Vec<u8> {
+	pub fn signing_payload(&self, session_index: SessionIndex) -> Vec<u8> {
 		const MAGIC: [u8; 4] = *b"APPR";
 
 		(MAGIC, &self.0, session_index).encode()
@@ -1037,14 +1060,14 @@ pub enum ConsensusLog {
 	/// In practice, these are issued when on-chain logic has detected an
 	/// invalid parachain block within its own chain, due to a dispute.
 	#[codec(index = 4)]
-	Revert(BlockNumber)
+	Revert(BlockNumber),
 }
 
 impl ConsensusLog {
 	/// Attempt to convert a reference to a generic digest item into a consensus log.
-	pub fn from_digest_item<H>(digest_item: &runtime_primitives::DigestItem<H>)
-		-> Result<Option<Self>, parity_scale_codec::Error>
-	{
+	pub fn from_digest_item<H>(
+		digest_item: &runtime_primitives::DigestItem<H>,
+	) -> Result<Option<Self>, parity_scale_codec::Error> {
 		match digest_item {
 			runtime_primitives::DigestItem::Consensus(id, encoded) if id == &POLKADOT_ENGINE_ID =>
 				Ok(Some(Self::decode(&mut &encoded[..])?)),
@@ -1075,36 +1098,24 @@ pub enum DisputeStatement {
 impl DisputeStatement {
 	/// Get the payload data for this type of dispute statement.
 	pub fn payload_data(&self, candidate_hash: CandidateHash, session: SessionIndex) -> Vec<u8> {
-		 match *self {
-			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) => {
-				ExplicitDisputeStatement {
-					valid: true,
-					candidate_hash,
-					session,
-				}.signing_payload()
-			},
-			DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(inclusion_parent)) => {
-				CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
-					session_index: session,
-					parent_hash: inclusion_parent,
-				})
-			},
-			DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent)) => {
+		match *self {
+			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) =>
+				ExplicitDisputeStatement { valid: true, candidate_hash, session }.signing_payload(),
+			DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(
+				inclusion_parent,
+			)) => CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
+				session_index: session,
+				parent_hash: inclusion_parent,
+			}),
+			DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent)) =>
 				CompactStatement::Valid(candidate_hash).signing_payload(&SigningContext {
 					session_index: session,
 					parent_hash: inclusion_parent,
-				})
-			},
-			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) => {
-				ApprovalVote(candidate_hash).signing_payload(session)
-			},
-			DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit) => {
-				ExplicitDisputeStatement {
-					valid: false,
-					candidate_hash,
-					session,
-				}.signing_payload()
-			},
+				}),
+			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) =>
+				ApprovalVote(candidate_hash).signing_payload(session),
+			DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit) =>
+				ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
 		}
 	}
 
@@ -1118,7 +1129,7 @@ impl DisputeStatement {
 	) -> Result<(), ()> {
 		let payload = self.payload_data(candidate_hash, session);
 
-		if validator_signature.verify(&payload[..] , &validator_public) {
+		if validator_signature.verify(&payload[..], &validator_public) {
 			Ok(())
 		} else {
 			Err(())
@@ -1246,11 +1257,8 @@ mod tests {
 
 	#[test]
 	fn group_rotation_info_calculations() {
-		let info = GroupRotationInfo {
-			session_start_block: 10u32,
-			now: 15,
-			group_rotation_frequency: 5,
-		};
+		let info =
+			GroupRotationInfo { session_start_block: 10u32, now: 15, group_rotation_frequency: 5 };
 
 		assert_eq!(info.next_rotation_at(), 20);
 		assert_eq!(info.last_rotation_at(), 15);
@@ -1258,7 +1266,6 @@ mod tests {
 
 	#[test]
 	fn group_for_core_is_core_for_group() {
-
 		for cores in 1..=256 {
 			for rotations in 0..(cores * 2) {
 				let info = GroupRotationInfo {
@@ -1273,7 +1280,6 @@ mod tests {
 				}
 			}
 		}
-
 	}
 
 	#[test]
