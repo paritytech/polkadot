@@ -14,7 +14,7 @@ In particular this subsystem is responsible for:
   happens after a candidate is backed.
 - Fetch `PoV` from validators, when requested via `FetchPoV` message from
   backing (`pov_requester` module).
--`
+
 The backing subsystem is responsible of making available data available in the
 local `Availability Store` upon validation. This subsystem will serve any
 network requests by querying that store.
