@@ -95,15 +95,8 @@ impl Requester {
 	where
 		Context: SubsystemContext,
 	{
-		tracing::trace!(
-			target: LOG_TARGET,
-			?update,
-			"Update fetching heads"
-		);
-		let ActiveLeavesUpdate {
-			activated,
-			deactivated,
-		} = update;
+		tracing::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
+		let ActiveLeavesUpdate { activated, deactivated } = update;
 		// Order is important! We need to handle `activated`, prior to `deactivated`,
 		// otherwise we might cancel still needed jobs.
 		// We don't use an early return `?` in order to handle `deactivated` properly.
