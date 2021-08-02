@@ -278,6 +278,7 @@ macro_rules! decl_test_network {
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
 
+		/// Process all messages originating from the relay chain.
 		fn process_relay_messages() -> $crate::XcmResult {
 			use $crate::DmpMessageHandlerT;
 
