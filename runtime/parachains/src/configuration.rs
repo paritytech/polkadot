@@ -1013,6 +1013,11 @@ mod tests {
 				new_config.max_upward_message_num_per_candidate,
 			)
 			.unwrap();
+			Configuration::set_hrmp_sender_deposit(
+				Origin::root(),
+				new_config.hrmp_sender_deposit,
+			)
+			.unwrap();
 			Configuration::set_hrmp_recipient_deposit(
 				Origin::root(),
 				new_config.hrmp_recipient_deposit,
