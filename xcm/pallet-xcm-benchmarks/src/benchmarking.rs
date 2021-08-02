@@ -106,6 +106,11 @@ fn account_id_junction<T: Config>(index: u32) -> Junction {
 	Junction::AccountId32 { network: NetworkId::Any, id }
 }
 
+// Thoughts:
+//
+// All XCMs should have all of their internals as parameter, regardless of it being used or not.
+// This is because some implementations might need them and depend upon them, and some might not.
+
 // Rationale:
 //
 // Benchmarks ending with _fungible typically indicate the case where there is only one asset in
