@@ -26,6 +26,6 @@ mod pool;
 mod queue;
 mod worker;
 
-pub use queue::{ToQueue, FromQueue, start as start_queue};
 pub use pool::start as start_pool;
+pub use queue::{start as start_queue, FromQueue, ToQueue};
 pub use worker::worker_entrypoint;

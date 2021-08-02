@@ -16,24 +16,24 @@
 
 //! Implements the Chain Selection Subsystem.
 
-use polkadot_primitives::v1::{BlockNumber, Hash, Header, ConsensusLog};
 use polkadot_node_primitives::BlockWeight;
 use polkadot_node_subsystem::{
-	overseer, SubsystemContext, SubsystemError, SpawnedSubsystem,
-	OverseerSignal, FromOverseer,
-	messages::{ChainSelectionMessage, ChainApiMessage},
 	errors::ChainApiError,
+	messages::{ChainApiMessage, ChainSelectionMessage},
+	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
+use polkadot_primitives::v1::{BlockNumber, ConsensusLog, Hash, Header};
 
+use futures::{channel::oneshot, future::Either, prelude::*};
 use kvdb::KeyValueDB;
 use parity_scale_codec::Error as CodecError;
-use futures::channel::oneshot;
-use futures::prelude::*;
 
-use std::time::{UNIX_EPOCH, Duration,SystemTime};
-use std::sync::Arc;
+use std::{
+	sync::Arc,
+	time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
-use crate::backend::{Backend, OverlayedBackend, BackendWriteOp};
+use crate::backend::{Backend, BackendWriteOp, OverlayedBackend};
 
 mod backend;
 mod db_backend;
@@ -107,16 +107,19 @@ struct LeafEntry {
 
 impl PartialOrd for LeafEntry {
 	fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-		let ord = self.weight.cmp(&other.weight)
-				.then(self.block_number.cmp(&other.block_number));
+		let ord = self.weight.cmp(&other.weight).then(self.block_number.cmp(&other.block_number));
 
-		if !matches!(ord, std::cmp::Ordering::Equal) { Some(ord) } else { None }
+		if !matches!(ord, std::cmp::Ordering::Equal) {
+			Some(ord)
+		} else {
+			None
+		}
 	}
 }
 
 #[derive(Debug, Default, Clone)]
 struct LeafEntrySet {
-	inner: Vec<LeafEntry>
+	inner: Vec<LeafEntry>,
 }
 
 impl LeafEntrySet {
@@ -126,14 +129,16 @@ impl LeafEntrySet {
 			Some(i) => {
 				self.inner.remove(i);
 				true
-			}
+			},
 		}
 	}
 
 	fn insert(&mut self, new: LeafEntry) {
 		let mut pos = None;
 		for (i, e) in self.inner.iter().enumerate() {
-			if e == &new { return }
+			if e == &new {
+				return
+			}
 			if e < &new {
 				pos = Some(i);
 				break
@@ -237,14 +242,14 @@ impl Clock for SystemClock {
 				);
 
 				0
-			}
+			},
 		}
 	}
 }
 
 /// The interval, in seconds to check for stagnant blocks.
 #[derive(Debug, Clone)]
-pub struct StagnantCheckInterval(Duration);
+pub struct StagnantCheckInterval(Option<Duration>);
 
 impl Default for StagnantCheckInterval {
 	fn default() -> Self {
@@ -255,28 +260,37 @@ impl Default for StagnantCheckInterval {
 		// between 2 validators is D + 5s.
 		const DEFAULT_STAGNANT_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 
-		StagnantCheckInterval(DEFAULT_STAGNANT_CHECK_INTERVAL)
+		StagnantCheckInterval(Some(DEFAULT_STAGNANT_CHECK_INTERVAL))
 	}
 }
 
 impl StagnantCheckInterval {
 	/// Create a new stagnant-check interval wrapping the given duration.
 	pub fn new(interval: Duration) -> Self {
-		StagnantCheckInterval(interval)
+		StagnantCheckInterval(Some(interval))
+	}
+
+	/// Create a `StagnantCheckInterval` which never triggers.
+	pub fn never() -> Self {
+		StagnantCheckInterval(None)
 	}
 
 	fn timeout_stream(&self) -> impl Stream<Item = ()> {
-		let interval = self.0;
-		let mut delay = futures_timer::Delay::new(interval);
+		match self.0 {
+			Some(interval) => Either::Left({
+				let mut delay = futures_timer::Delay::new(interval);
 
-		futures::stream::poll_fn(move |cx| {
-			let poll = delay.poll_unpin(cx);
-			if poll.is_ready() {
-				delay.reset(interval)
-			}
+				futures::stream::poll_fn(move |cx| {
+					let poll = delay.poll_unpin(cx);
+					if poll.is_ready() {
+						delay.reset(interval)
+					}
 
-			poll.map(Some)
-		})
+					poll.map(Some)
+				})
+			}),
+			None => Either::Right(futures::stream::pending()),
+		}
 	}
 }
 
@@ -299,10 +313,7 @@ impl ChainSelectionSubsystem {
 	/// Create a new instance of the subsystem with the given config
 	/// and key-value store.
 	pub fn new(config: Config, db: Arc<dyn KeyValueDB>) -> Self {
-		ChainSelectionSubsystem {
-			config,
-			db,
-		}
+		ChainSelectionSubsystem { config, db }
 	}
 }
 
@@ -318,12 +329,7 @@ where
 		);
 
 		SpawnedSubsystem {
-			future: run(
-				ctx,
-				backend,
-				self.config.stagnant_check_interval,
-				Box::new(SystemClock),
-			)
+			future: run(ctx, backend, self.config.stagnant_check_interval, Box::new(SystemClock))
 				.map(Ok)
 				.boxed(),
 			name: "chain-selection-subsystem",
@@ -336,31 +342,25 @@ async fn run<Context, B>(
 	mut backend: B,
 	stagnant_check_interval: StagnantCheckInterval,
 	clock: Box<dyn Clock + Send + Sync>,
-)
-	where
-		Context: SubsystemContext<Message = ChainSelectionMessage>,
-		Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
-		B: Backend,
+) where
+	Context: SubsystemContext<Message = ChainSelectionMessage>,
+	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
+	B: Backend,
 {
 	loop {
-		let res = run_iteration(
-			&mut ctx,
-			&mut backend,
-			&stagnant_check_interval,
-			&*clock,
-		).await;
+		let res = run_iteration(&mut ctx, &mut backend, &stagnant_check_interval, &*clock).await;
 		match res {
 			Err(e) => {
 				e.trace();
 
 				if let Error::Subsystem(SubsystemError::Context(_)) = e {
-					break;
+					break
 				}
-			}
+			},
 			Ok(()) => {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
-				break;
-			}
+				break
+			},
 		}
 	}
 }
@@ -375,12 +375,11 @@ async fn run_iteration<Context, B>(
 	backend: &mut B,
 	stagnant_check_interval: &StagnantCheckInterval,
 	clock: &(dyn Clock + Sync),
-)
-	-> Result<(), Error>
-	where
-		Context: SubsystemContext<Message = ChainSelectionMessage>,
-		Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
-		B: Backend,
+) -> Result<(), Error>
+where
+	Context: SubsystemContext<Message = ChainSelectionMessage>,
+	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
+	B: Backend,
 {
 	let mut stagnant_check_stream = stagnant_check_interval.timeout_stream();
 	loop {
@@ -451,15 +450,11 @@ async fn fetch_finalized(
 
 	match hash_rx.await?? {
 		None => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				number,
-				"Missing hash for finalized block number"
-			);
+			tracing::warn!(target: LOG_TARGET, number, "Missing hash for finalized block number");
 
 			return Ok(None)
-		}
-		Some(h) => Ok(Some((h, number)))
+		},
+		Some(h) => Ok(Some((h, number))),
 	}
 }
 
@@ -502,13 +497,9 @@ async fn handle_active_leaf(
 
 	let header = match fetch_header(ctx, hash).await? {
 		None => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				?hash,
-				"Missing header for new head",
-			);
+			tracing::warn!(target: LOG_TARGET, ?hash, "Missing header for new head",);
 			return Ok(Vec::new())
-		}
+		},
 		Some(h) => h,
 	};
 
@@ -518,7 +509,8 @@ async fn handle_active_leaf(
 		hash,
 		&header,
 		lower_bound,
-	).await?;
+	)
+	.await?;
 
 	let mut overlay = OverlayedBackend::new(backend);
 
@@ -535,8 +527,8 @@ async fn handle_active_leaf(
 
 				// If we don't know the weight, we can't import the block.
 				// And none of its descendants either.
-				break;
-			}
+				break
+			},
 			Some(w) => w,
 		};
 
@@ -560,7 +552,9 @@ async fn handle_active_leaf(
 // Ignores logs with number >= the block header number.
 fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
 	let number = header.number;
-	let mut logs = header.digest.logs()
+	let mut logs = header
+		.digest
+		.logs()
 		.iter()
 		.enumerate()
 		.filter_map(|(i, d)| match ConsensusLog::from_digest_item(d) {
@@ -574,7 +568,7 @@ fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
 				);
 
 				None
-			}
+			},
 			Ok(Some(ConsensusLog::Revert(b))) if b < number => Some(b),
 			Ok(Some(ConsensusLog::Revert(b))) => {
 				tracing::warn!(
@@ -586,7 +580,7 @@ fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
 				);
 
 				None
-			}
+			},
 			Ok(_) => None,
 		})
 		.collect::<Vec<_>>();
@@ -602,27 +596,18 @@ fn handle_finalized_block(
 	finalized_hash: Hash,
 	finalized_number: BlockNumber,
 ) -> Result<(), Error> {
-	let ops = crate::tree::finalize_block(
-		&*backend,
-		finalized_hash,
-		finalized_number,
-	)?.into_write_ops();
+	let ops =
+		crate::tree::finalize_block(&*backend, finalized_hash, finalized_number)?.into_write_ops();
 
 	backend.write(ops)
 }
 
 // Handle an approved block event.
-fn handle_approved_block(
-	backend: &mut impl Backend,
-	approved_block: Hash,
-) -> Result<(), Error> {
+fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Result<(), Error> {
 	let ops = {
 		let mut overlay = OverlayedBackend::new(&*backend);
 
-		crate::tree::approve_block(
-			&mut overlay,
-			approved_block,
-		)?;
+		crate::tree::approve_block(&mut overlay, approved_block)?;
 
 		overlay.into_write_ops()
 	};
@@ -630,15 +615,9 @@ fn handle_approved_block(
 	backend.write(ops)
 }
 
-fn detect_stagnant(
-	backend: &mut impl Backend,
-	now: Timestamp,
-) -> Result<(), Error> {
+fn detect_stagnant(backend: &mut impl Backend, now: Timestamp) -> Result<(), Error> {
 	let ops = {
-		let overlay = crate::tree::detect_stagnant(
-			&*backend,
-			now,
-		)?;
+		let overlay = crate::tree::detect_stagnant(&*backend, now)?;
 
 		overlay.into_write_ops()
 	};
@@ -652,9 +631,7 @@ async fn load_leaves(
 	ctx: &mut impl SubsystemContext,
 	backend: &impl Backend,
 ) -> Result<Vec<Hash>, Error> {
-	let leaves: Vec<_> = backend.load_leaves()?
-		.into_hashes_descending()
-		.collect();
+	let leaves: Vec<_> = backend.load_leaves()?.into_hashes_descending().collect();
 
 	if leaves.is_empty() {
 		Ok(fetch_finalized(ctx).await?.map_or(Vec::new(), |(h, _)| vec![h]))

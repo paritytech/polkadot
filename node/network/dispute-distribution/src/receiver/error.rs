@@ -19,9 +19,8 @@
 
 use thiserror::Error;
 
-use polkadot_node_network_protocol::PeerId;
-use polkadot_node_network_protocol::request_response::request::ReceiveError;
-use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
+use polkadot_node_network_protocol::{request_response::request::ReceiveError, PeerId};
+use polkadot_node_subsystem_util::{runtime, unwrap_non_fatal, Fault};
 
 use crate::LOG_TARGET;
 
@@ -100,9 +99,7 @@ pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them
-pub fn log_error(result: Result<()>)
-	-> std::result::Result<(), Fatal>
-{
+pub fn log_error(result: Result<()>) -> std::result::Result<(), Fatal> {
 	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
 		tracing::warn!(target: LOG_TARGET, error = ?error);
 	}

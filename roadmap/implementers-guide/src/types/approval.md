@@ -1,10 +1,10 @@
 # Approval Types
 
-## AssignmentId
+## `AssignmentId`
 
 The public key of a keypair used by a validator for determining assignments to approve included parachain candidates.
 
-## AssignmentCert
+## `AssignmentCert`
 
 An `AssignmentCert`, short for Assignment Certificate, is a piece of data provided by a validator to prove that they have been selected to perform secondary approval checks on an included candidate.
 
@@ -28,9 +28,9 @@ struct AssignmentCert {
 }
 ```
 
-> TODO: RelayEquivocation cert. Probably can only be broadcast to chains that have handled an equivocation report.
+> TODO: `RelayEquivocation` cert. Probably can only be broadcast to chains that have handled an equivocation report.
 
-## IndirectAssignmentCert
+## `IndirectAssignmentCert`
 
 An assignment cert which refers to the candidate under which the assignment is relevant by block hash.
 
@@ -43,7 +43,7 @@ struct IndirectAssignmentCert {
 }
 ```
 
-## ApprovalVote
+## `ApprovalVote`
 
 A vote of approval on a candidate.
 
@@ -51,7 +51,7 @@ A vote of approval on a candidate.
 struct ApprovalVote(Hash);
 ```
 
-## SignedApprovalVote
+## `SignedApprovalVote`
 
 An approval vote signed with a validator's key. This should be verifiable under the `ValidatorId` corresponding to the `ValidatorIndex` of the session, which should be implicit from context.
 
@@ -63,7 +63,7 @@ struct SignedApprovalVote {
 }
 ```
 
-## IndirectSignedApprovalVote
+## `IndirectSignedApprovalVote`
 
 A signed approval vote which references the candidate indirectly via the block. If there exists a look-up to the candidate hash from the block hash and candidate index, then this can be transformed into a `SignedApprovalVote`.
 
@@ -80,9 +80,9 @@ struct IndirectSignedApprovalVote {
 }
 ```
 
-## CheckedAssignmentCert
+## `CheckedAssignmentCert`
 
-An assignment cert which has checked both the VRF and the validity of the implied assignment according to the selection criteria rules of the protocol. This type should be declared in such a way as to be instantiable only when the checks have actually been done. Fields should be accessible via getters, not direct struct access.
+An assignment cert which has checked both the VRF and the validity of the implied assignment according to the selection criteria rules of the protocol. This type should be declared in such a way as to be instantiatable only when the checks have actually been done. Fields should be accessible via getters, not direct struct access.
 
 ```rust
 struct CheckedAssignmentCert {
@@ -94,7 +94,7 @@ struct CheckedAssignmentCert {
 }
 ```
 
-## DelayTranche
+## `DelayTranche`
 
 ```rust
 type DelayTranche = u32;

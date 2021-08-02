@@ -6,14 +6,14 @@ Fortunately, most of that work is handled by other subsystems; this subsystem is
 
 ## Protocol
 
-Input: [DisputeParticipationMessage][DisputeParticipationMessage]
+Input: [`DisputeParticipationMessage`][DisputeParticipationMessage]
 
 Output:
-  - [RuntimeApiMessage][RuntimeApiMessage]
-  - [CandidateValidationMessage][CandidateValidationMessage]
-  - [AvailabilityRecoveryMessage][AvailabilityRecoveryMessage]
-  - [AvailabilityStoreMessage][AvailabilityStoreMessage]
-  - [ChainApiMessage][ChainApiMessage]
+  - [`RuntimeApiMessage`][RuntimeApiMessage]
+  - [`CandidateValidationMessage`][CandidateValidationMessage]
+  - [`AvailabilityRecoveryMessage`][AvailabilityRecoveryMessage]
+  - [`AvailabilityStoreMessage`][AvailabilityStoreMessage]
+  - [`ChainApiMessage`][ChainApiMessage]
 
 ## Functionality
 
@@ -57,7 +57,7 @@ Conclude.
 
 This requires the parameters `{ candidate_receipt, candidate_hash, session, voted_indices }` as well as a choice of either `Valid` or `Invalid`.
 
-Invoke [`DisputeCoordinatorMessage::IssueLocalStatement`][DisputeCoordinatorMessage] with `is_valid` according to the parametrization.
+Invoke [`DisputeCoordinatorMessage::IssueLocalStatement`][DisputeCoordinatorMessage] with `is_valid` according to the parameterization,.
 
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
 [DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message

@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/kusama/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -44,8 +43,7 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo for WeightInfo<T> {
 	fn on_initialize_nothing() -> Weight {
-		(22_984_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
+		(22_984_000 as Weight).saturating_add(T::DbWeight::get().reads(8 as Weight))
 	}
 	fn on_initialize_open_signed() -> Weight {
 		(83_667_000 as Weight)
@@ -62,19 +60,19 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn elect_queued(_v: u32, _t: u32, _a: u32, _d: u32, ) -> Weight {
+	fn elect_queued(_v: u32, _t: u32, _a: u32, _d: u32) -> Weight {
 		(8_641_847_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
-	fn submit(c: u32, ) -> Weight {
+	fn submit(c: u32) -> Weight {
 		(84_430_000 as Weight)
 			// Standard Error: 146_000
 			.saturating_add((2_758_000 as Weight).saturating_mul(c as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn submit_unsigned(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
+	fn submit_unsigned(v: u32, t: u32, a: u32, d: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 13_000
 			.saturating_add((4_805_000 as Weight).saturating_mul(v as Weight))
@@ -87,7 +85,7 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 			.saturating_add(T::DbWeight::get().reads(7 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn feasibility_check(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
+	fn feasibility_check(v: u32, t: u32, a: u32, d: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 8_000
 			.saturating_add((4_729_000 as Weight).saturating_mul(v as Weight))

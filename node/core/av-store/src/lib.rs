@@ -16,41 +16,36 @@
 
 //! Implements a `AvailabilityStoreSubsystem`.
 
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 #![warn(missing_docs)]
 
-use std::collections::{HashMap, HashSet, BTreeSet};
-use std::io;
-use std::sync::Arc;
-use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
+use std::{
+	collections::{BTreeSet, HashMap, HashSet},
+	io,
+	sync::Arc,
+	time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
+};
 
-use parity_scale_codec::{Encode, Decode, Input, Error as CodecError};
-use futures::{select, channel::oneshot, future, FutureExt};
+use futures::{channel::oneshot, future, select, FutureExt};
 use futures_timer::Delay;
-use kvdb::{KeyValueDB, DBTransaction};
+use kvdb::{DBTransaction, KeyValueDB};
+use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
-use polkadot_primitives::v1::{
-	Hash, BlockNumber, CandidateEvent, ValidatorIndex, CandidateHash,
-	CandidateReceipt, Header,
-};
-use polkadot_node_primitives::{
-	ErasureChunk, AvailableData,
-};
-use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, SubsystemError,
-	SubsystemContext, SpawnedSubsystem,
-	overseer,
-	ActiveLeavesUpdate,
-	errors::{ChainApiError, RuntimeApiError},
-};
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
+use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},
 };
-use polkadot_subsystem::messages::{
-	AvailabilityStoreMessage, ChainApiMessage,
+use polkadot_primitives::v1::{
+	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
 };
-use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
+use polkadot_subsystem::{
+	errors::{ChainApiError, RuntimeApiError},
+	messages::{AvailabilityStoreMessage, ChainApiMessage},
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	SubsystemError,
+};
 
 #[cfg(test)]
 mod tests;
@@ -126,7 +121,9 @@ impl Encode for BEBlockNumber {
 
 impl Decode for BEBlockNumber {
 	fn decode<I: Input>(value: &mut I) -> Result<Self, CodecError> {
-		<[u8; std::mem::size_of::<BlockNumber>()]>::decode(value).map(BlockNumber::from_be_bytes).map(Self)
+		<[u8; std::mem::size_of::<BlockNumber>()]>::decode(value)
+			.map(BlockNumber::from_be_bytes)
+			.map(Self)
 	}
 }
 
@@ -143,7 +140,7 @@ enum State {
 	Unfinalized(BETimestamp, Vec<(BEBlockNumber, Hash)>),
 	/// Candidate data has appeared in a finalized block and did so at the given time.
 	#[codec(index = 2)]
-	Finalized(BETimestamp)
+	Finalized(BETimestamp),
 }
 
 // Meta information about a candidate.
@@ -163,12 +160,12 @@ fn query_inner<D: Decode>(
 		Ok(Some(raw)) => {
 			let res = D::decode(&mut &raw[..])?;
 			Ok(Some(res))
-		}
+		},
 		Ok(None) => Ok(None),
 		Err(e) => {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "Error reading from the availability store");
 			Err(e.into())
-		}
+		},
 	}
 }
 
@@ -193,11 +190,7 @@ fn load_available_data(
 	query_inner(db, config.col_data, &key)
 }
 
-fn delete_available_data(
-	tx: &mut DBTransaction,
-	config: &Config,
-	hash: &CandidateHash,
-) {
+fn delete_available_data(tx: &mut DBTransaction, config: &Config, hash: &CandidateHash) {
 	let key = (AVAILABLE_PREFIX, hash).encode();
 
 	tx.delete(config.col_data, &key[..])
@@ -247,12 +240,7 @@ fn load_meta(
 	query_inner(db, config.col_meta, &key)
 }
 
-fn write_meta(
-	tx: &mut DBTransaction,
-	config: &Config,
-	hash: &CandidateHash,
-	meta: &CandidateMeta,
-) {
+fn write_meta(tx: &mut DBTransaction, config: &Config, hash: &CandidateHash, meta: &CandidateMeta) {
 	let key = (META_PREFIX, hash).encode();
 
 	tx.put_vec(config.col_meta, &key, meta.encode());
@@ -263,11 +251,7 @@ fn delete_meta(tx: &mut DBTransaction, config: &Config, hash: &CandidateHash) {
 	tx.delete(config.col_meta, &key[..])
 }
 
-fn delete_unfinalized_height(
-	tx: &mut DBTransaction,
-	config: &Config,
-	block_number: BlockNumber,
-) {
+fn delete_unfinalized_height(tx: &mut DBTransaction, config: &Config, block_number: BlockNumber) {
 	let prefix = (UNFINALIZED_PREFIX, BEBlockNumber(block_number)).encode();
 	tx.delete_prefix(config.col_meta, &prefix);
 }
@@ -279,12 +263,8 @@ fn delete_unfinalized_inclusion(
 	block_hash: &Hash,
 	candidate_hash: &CandidateHash,
 ) {
-	let key = (
-		UNFINALIZED_PREFIX,
-		BEBlockNumber(block_number),
-		block_hash,
-		candidate_hash,
-	).encode();
+	let key =
+		(UNFINALIZED_PREFIX, BEBlockNumber(block_number), block_hash, candidate_hash).encode();
 
 	tx.delete(config.col_meta, &key[..]);
 }
@@ -338,7 +318,7 @@ fn pruning_range(now: impl Into<BETimestamp>) -> (Vec<u8>, Vec<u8>) {
 
 fn decode_unfinalized_key(s: &[u8]) -> Result<(BlockNumber, Hash, CandidateHash), CodecError> {
 	if !s.starts_with(UNFINALIZED_PREFIX) {
-		return Err("missing magic string".into());
+		return Err("missing magic string".into())
 	}
 
 	<(BEBlockNumber, Hash, CandidateHash)>::decode(&mut &s[UNFINALIZED_PREFIX.len()..])
@@ -347,7 +327,7 @@ fn decode_unfinalized_key(s: &[u8]) -> Result<(BlockNumber, Hash, CandidateHash)
 
 fn decode_pruning_key(s: &[u8]) -> Result<(Duration, CandidateHash), CodecError> {
 	if !s.starts_with(PRUNE_BY_TIME_PREFIX) {
-		return Err("missing magic string".into());
+		return Err("missing magic string".into())
 	}
 
 	<(BETimestamp, CandidateHash)>::decode(&mut &s[PRUNE_BY_TIME_PREFIX.len()..])
@@ -389,8 +369,8 @@ impl Error {
 	fn trace(&self) {
 		match self {
 			// don't spam the log with spurious errors
-			Self::RuntimeApi(_) |
-			Self::Oneshot(_) => tracing::debug!(target: LOG_TARGET, err = ?self),
+			Self::RuntimeApi(_) | Self::Oneshot(_) =>
+				tracing::debug!(target: LOG_TARGET, err = ?self),
 			// it's worth reporting otherwise
 			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
 		}
@@ -457,11 +437,7 @@ pub struct AvailabilityStoreSubsystem {
 
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
-	pub fn new(
-		db: Arc<dyn KeyValueDB>,
-		config: Config,
-		metrics: Metrics,
-	) -> Self {
+	pub fn new(db: Arc<dyn KeyValueDB>, config: Config, metrics: Metrics) -> Self {
 		Self::with_pruning_config_and_clock(
 			db,
 			config,
@@ -530,14 +506,9 @@ where
 	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(self, ctx)
-			.map(|_| Ok(()))
-			.boxed();
+		let future = run(self, ctx).map(|_| Ok(())).boxed();
 
-		SpawnedSubsystem {
-			name: "availability-store-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "availability-store-subsystem", future }
 	}
 }
 
@@ -555,12 +526,12 @@ where
 				e.trace();
 
 				if let Error::Subsystem(SubsystemError::Context(_)) = e {
-					break;
+					break
 				}
-			}
+			},
 			Ok(true) => {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
-				break;
+				break
 			},
 			Ok(false) => continue,
 		}
@@ -571,8 +542,7 @@ async fn run_iteration<Context>(
 	ctx: &mut Context,
 	subsystem: &mut AvailabilityStoreSubsystem,
 	mut next_pruning: &mut future::Fuse<Delay>,
-)
-	-> Result<bool, Error>
+) -> Result<bool, Error>
 where
 	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
 	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
@@ -634,9 +604,7 @@ where
 	let block_header = {
 		let (tx, rx) = oneshot::channel();
 
-		ctx.send_message(
-			ChainApiMessage::BlockHeader(activated, tx)
-		).await;
+		ctx.send_message(ChainApiMessage::BlockHeader(activated, tx)).await;
 
 		match rx.await?? {
 			None => return Ok(()),
@@ -647,13 +615,12 @@ where
 
 	let new_blocks = util::determine_new_blocks(
 		ctx.sender(),
-		|hash| -> Result<bool, Error> {
-			Ok(subsystem.known_blocks.is_known(hash))
-		},
+		|hash| -> Result<bool, Error> { Ok(subsystem.known_blocks.is_known(hash)) },
 		activated,
 		&block_header,
 		subsystem.finalized_number.unwrap_or(block_number.saturating_sub(1)),
-	).await?;
+	)
+	.await?;
 
 	// determine_new_blocks is descending in block height
 	for (hash, header) in new_blocks.into_iter().rev() {
@@ -669,7 +636,8 @@ where
 			now,
 			hash,
 			header,
-		).await?;
+		)
+		.await?;
 		subsystem.known_blocks.insert(hash, block_number);
 		subsystem.db.write(tx)?;
 	}
@@ -691,18 +659,12 @@ where
 	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
 	Context: overseer::SubsystemContext<Message = AvailabilityStoreMessage>,
 {
-
-	let candidate_events = util::request_candidate_events(
-		hash,
-		ctx.sender(),
-	).await.await??;
+	let candidate_events = util::request_candidate_events(hash, ctx.sender()).await.await??;
 
 	// We need to request the number of validators based on the parent state,
 	// as that is the number of validators used to create this block.
-	let n_validators = util::request_validators(
-		header.parent_hash,
-		ctx.sender(),
-	).await.await??.len();
+	let n_validators =
+		util::request_validators(header.parent_hash, ctx.sender()).await.await??.len();
 
 	for event in candidate_events {
 		match event {
@@ -716,7 +678,7 @@ where
 					n_validators,
 					receipt,
 				)?;
-			}
+			},
 			CandidateEvent::CandidateIncluded(receipt, _head, _core_index, _group_index) => {
 				note_block_included(
 					db,
@@ -726,8 +688,8 @@ where
 					(header.number, hash),
 					receipt,
 				)?;
-			}
-			_ => {}
+			},
+			_ => {},
 		}
 	}
 
@@ -745,11 +707,7 @@ fn note_block_backed(
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
-	tracing::debug!(
-		target: LOG_TARGET,
-		?candidate_hash,
-		"Candidate backed",
-	);
+	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate backed",);
 
 	if load_meta(db, config, &candidate_hash)?.is_none() {
 		let meta = CandidateMeta {
@@ -771,7 +729,7 @@ fn note_block_included(
 	db: &Arc<dyn KeyValueDB>,
 	db_transaction: &mut DBTransaction,
 	config: &Config,
-	pruning_config:&PruningConfig,
+	pruning_config: &PruningConfig,
 	block: (BlockNumber, Hash),
 	candidate: CandidateReceipt,
 ) -> Result<(), Error> {
@@ -786,15 +744,11 @@ fn note_block_included(
 				?candidate_hash,
 				"Candidate included without being backed?",
 			);
-		}
+		},
 		Some(mut meta) => {
 			let be_block = (BEBlockNumber(block.0), block.1);
 
-			tracing::debug!(
-				target: LOG_TARGET,
-				?candidate_hash,
-				"Candidate included",
-			);
+			tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate included",);
 
 			meta.state = match meta.state {
 				State::Unavailable(at) => {
@@ -803,20 +757,20 @@ fn note_block_included(
 					delete_pruning_key(db_transaction, config, prune_at, &candidate_hash);
 
 					State::Unfinalized(at, vec![be_block])
-				}
+				},
 				State::Unfinalized(at, mut within) => {
 					if let Err(i) = within.binary_search(&be_block) {
 						within.insert(i, be_block);
 						State::Unfinalized(at, within)
 					} else {
-						return Ok(());
+						return Ok(())
 					}
-				}
+				},
 				State::Finalized(_at) => {
 					// This should never happen as a candidate would have to be included after
 					// finality.
 					return Ok(())
-				}
+				},
 			};
 
 			write_unfinalized_block_contains(
@@ -827,7 +781,7 @@ fn note_block_included(
 				&candidate_hash,
 			);
 			write_meta(db_transaction, config, &candidate_hash, &meta);
-		}
+		},
 	}
 
 	Ok(())
@@ -837,9 +791,9 @@ macro_rules! peek_num {
 	($iter:ident) => {
 		match $iter.peek() {
 			Some((k, _)) => decode_unfinalized_key(&k[..]).ok().map(|(b, _, _)| b),
-			None => None
+			None => None,
 		}
-	}
+	};
 }
 
 async fn process_block_finalized<Context>(
@@ -863,7 +817,9 @@ where
 		// as it is not `Send`. That is why we create the iterator once within this loop, drop it,
 		// do an asynchronous request, and then instantiate the exact same iterator again.
 		let batch_num = {
-			let mut iter = subsystem.db.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
+			let mut iter = subsystem
+				.db
+				.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
 				.take_while(|(k, _)| &k[..] < &end_prefix[..])
 				.peekable();
 
@@ -873,7 +829,9 @@ where
 			}
 		};
 
-		if batch_num < next_possible_batch { continue } // sanity.
+		if batch_num < next_possible_batch {
+			continue
+		} // sanity.
 		next_possible_batch = batch_num + 1;
 
 		let batch_finalized_hash = if batch_num == finalized_number {
@@ -884,19 +842,22 @@ where
 
 			match rx.await?? {
 				None => {
-					tracing::warn!(target: LOG_TARGET,
+					tracing::warn!(
+						target: LOG_TARGET,
 						"Availability store was informed that block #{} is finalized, \
 						but chain API has no finalized hash.",
 						batch_num,
 					);
 
 					break
-				}
+				},
 				Some(h) => h,
 			}
 		};
 
-		let iter = subsystem.db.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
+		let iter = subsystem
+			.db
+			.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
 			.take_while(|(k, _)| &k[..] < &end_prefix[..])
 			.peekable();
 
@@ -907,13 +868,7 @@ where
 
 		delete_unfinalized_height(&mut db_transaction, &subsystem.config, batch_num);
 
-		update_blocks_at_finalized_height(
-			&subsystem,
-			&mut db_transaction,
-			batch,
-			batch_num,
-			now,
-		)?;
+		update_blocks_at_finalized_height(&subsystem, &mut db_transaction, batch, batch_num, now)?;
 
 		// We need to write at the end of the loop so the prefix iterator doesn't pick up the same values again
 		// in the next iteration. Another unfortunate effect of having to re-initialize the iterator.
@@ -936,14 +891,14 @@ fn load_all_at_finalized_height(
 	// Load all candidates that were included at this height.
 	loop {
 		match peek_num!(iter) {
-			None => break, // end of iterator.
+			None => break,                         // end of iterator.
 			Some(n) if n != block_number => break, // end of batch.
-			_ => {}
+			_ => {},
 		}
 
 		let (k, _v) = iter.next().expect("`peek` used to check non-empty; qed");
-		let (_, block_hash, candidate_hash) = decode_unfinalized_key(&k[..])
-			.expect("`peek_num` checks validity of key; qed");
+		let (_, block_hash, candidate_hash) =
+			decode_unfinalized_key(&k[..]).expect("`peek_num` checks validity of key; qed");
 
 		if block_hash == finalized_hash {
 			candidates.insert(candidate_hash, true);
@@ -971,8 +926,8 @@ fn update_blocks_at_finalized_height(
 					candidate_hash,
 				);
 
-				continue;
-			}
+				continue
+			},
 			Some(c) => c,
 		};
 
@@ -985,7 +940,7 @@ fn update_blocks_at_finalized_height(
 					// iterating over the candidate here indicates that `State` should
 					// be `Unfinalized`.
 					delete_pruning_key(db_transaction, &subsystem.config, at, &candidate_hash);
-				}
+				},
 				State::Unfinalized(_, blocks) => {
 					for (block_num, block_hash) in blocks.iter().cloned() {
 						// this exact height is all getting cleared out anyway.
@@ -999,7 +954,7 @@ fn update_blocks_at_finalized_height(
 							);
 						}
 					}
-				}
+				},
 			}
 
 			meta.state = State::Finalized(now.into());
@@ -1014,7 +969,7 @@ fn update_blocks_at_finalized_height(
 			);
 		} else {
 			meta.state = match meta.state {
-				State::Finalized(_) => continue, // sanity.
+				State::Finalized(_) => continue,   // sanity.
 				State::Unavailable(_) => continue, // sanity.
 				State::Unfinalized(at, mut blocks) => {
 					// Clear out everything at this height.
@@ -1035,7 +990,7 @@ fn update_blocks_at_finalized_height(
 					} else {
 						State::Unfinalized(at, blocks)
 					}
-				}
+				},
 			};
 
 			// Update the meta entry.
@@ -1053,20 +1008,22 @@ fn process_message(
 	match msg {
 		AvailabilityStoreMessage::QueryAvailableData(candidate, tx) => {
 			let _ = tx.send(load_available_data(&subsystem.db, &subsystem.config, &candidate)?);
-		}
+		},
 		AvailabilityStoreMessage::QueryDataAvailability(candidate, tx) => {
-			let a = load_meta(&subsystem.db, &subsystem.config, &candidate)?.map_or(false, |m| m.data_available);
+			let a = load_meta(&subsystem.db, &subsystem.config, &candidate)?
+				.map_or(false, |m| m.data_available);
 			let _ = tx.send(a);
-		}
+		},
 		AvailabilityStoreMessage::QueryChunk(candidate, validator_index, tx) => {
 			let _timer = subsystem.metrics.time_get_chunk();
-			let _ = tx.send(load_chunk(&subsystem.db, &subsystem.config, &candidate, validator_index)?);
-		}
+			let _ =
+				tx.send(load_chunk(&subsystem.db, &subsystem.config, &candidate, validator_index)?);
+		},
 		AvailabilityStoreMessage::QueryAllChunks(candidate, tx) => {
 			match load_meta(&subsystem.db, &subsystem.config, &candidate)? {
 				None => {
 					let _ = tx.send(Vec::new());
-				}
+				},
 				Some(meta) => {
 					let mut chunks = Vec::new();
 
@@ -1086,64 +1043,61 @@ fn process_message(
 									index,
 									"No chunk found for set bit in meta"
 								);
-							}
+							},
 						}
 					}
 
 					let _ = tx.send(chunks);
-				}
+				},
 			}
-		}
+		},
 		AvailabilityStoreMessage::QueryChunkAvailability(candidate, validator_index, tx) => {
-			let a = load_meta(&subsystem.db, &subsystem.config, &candidate)?
-				.map_or(false, |m|
-					*m.chunks_stored.get(validator_index.0 as usize).as_deref().unwrap_or(&false)
-				);
+			let a = load_meta(&subsystem.db, &subsystem.config, &candidate)?.map_or(false, |m| {
+				*m.chunks_stored.get(validator_index.0 as usize).as_deref().unwrap_or(&false)
+			});
 			let _ = tx.send(a);
-		}
-		AvailabilityStoreMessage::StoreChunk {
-			candidate_hash,
-			chunk,
-			tx,
-		} => {
+		},
+		AvailabilityStoreMessage::StoreChunk { candidate_hash, chunk, tx } => {
 			subsystem.metrics.on_chunks_received(1);
 			let _timer = subsystem.metrics.time_store_chunk();
 
 			match store_chunk(&subsystem.db, &subsystem.config, candidate_hash, chunk) {
 				Ok(true) => {
 					let _ = tx.send(Ok(()));
-				}
+				},
 				Ok(false) => {
 					let _ = tx.send(Err(()));
-				}
+				},
 				Err(e) => {
 					let _ = tx.send(Err(()));
 					return Err(e)
-				}
+				},
 			}
-		}
-		AvailabilityStoreMessage::StoreAvailableData(candidate, _our_index, n_validators, available_data, tx) => {
+		},
+		AvailabilityStoreMessage::StoreAvailableData(
+			candidate,
+			_our_index,
+			n_validators,
+			available_data,
+			tx,
+		) => {
 			subsystem.metrics.on_chunks_received(n_validators as _);
 
 			let _timer = subsystem.metrics.time_store_available_data();
 
-			let res = store_available_data(
-				&subsystem,
-				candidate,
-				n_validators as _,
-				available_data,
-			);
+			let res =
+				store_available_data(&subsystem, candidate, n_validators as _, available_data);
 
 			match res {
 				Ok(()) => {
 					let _ = tx.send(Ok(()));
-				}
+				},
 				Err(e) => {
 					let _ = tx.send(Err(()));
 					return Err(e)
-				}
+				},
 			}
-		}
+		},
 	}
 
 	Ok(())
@@ -1170,7 +1124,7 @@ fn store_chunk(
 
 			write_chunk(&mut tx, config, &candidate_hash, chunk.index, &chunk);
 			write_meta(&mut tx, config, &candidate_hash, &meta);
-		}
+		},
 		None => return Ok(false), // out of bounds.
 	}
 
@@ -1197,7 +1151,7 @@ fn store_available_data(
 	let mut meta = match load_meta(&subsystem.db, &subsystem.config, &candidate_hash)? {
 		Some(m) => {
 			if m.data_available {
-				return Ok(()); // already stored.
+				return Ok(()) // already stored.
 			}
 
 			m
@@ -1214,20 +1168,19 @@ fn store_available_data(
 				data_available: false,
 				chunks_stored: BitVec::new(),
 			}
-		}
+		},
 	};
 
 	let chunks = erasure::obtain_chunks_v1(n_validators, &available_data)?;
 	let branches = erasure::branches(chunks.as_ref());
 
-	let erasure_chunks = chunks.iter()
-		.zip(branches.map(|(proof, _)| proof))
-		.enumerate()
-		.map(|(index, (chunk, proof))| ErasureChunk {
+	let erasure_chunks = chunks.iter().zip(branches.map(|(proof, _)| proof)).enumerate().map(
+		|(index, (chunk, proof))| ErasureChunk {
 			chunk: chunk.clone(),
 			proof,
 			index: ValidatorIndex(index as u32),
-		});
+		},
+	);
 
 	for chunk in erasure_chunks {
 		write_chunk(&mut tx, &subsystem.config, &candidate_hash, chunk.index, &chunk);
@@ -1236,16 +1189,12 @@ fn store_available_data(
 	meta.data_available = true;
 	meta.chunks_stored = bitvec::bitvec![BitOrderLsb0, u8; 1; n_validators];
 
-	write_meta(&mut tx, &subsystem.config,  &candidate_hash, &meta);
+	write_meta(&mut tx, &subsystem.config, &candidate_hash, &meta);
 	write_available_data(&mut tx, &subsystem.config, &candidate_hash, &available_data);
 
 	subsystem.db.write(tx)?;
 
-	tracing::debug!(
-		target: LOG_TARGET,
-		?candidate_hash,
-		"Stored data and chunks",
-	);
+	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Stored data and chunks",);
 
 	Ok(())
 }
@@ -1255,7 +1204,8 @@ fn prune_all(db: &Arc<dyn KeyValueDB>, config: &Config, clock: &dyn Clock) -> Re
 	let (range_start, range_end) = pruning_range(now);
 
 	let mut tx = DBTransaction::new();
-	let iter = db.iter_with_prefix(config.col_meta, &range_start[..])
+	let iter = db
+		.iter_with_prefix(config.col_meta, &range_start[..])
 		.take_while(|(k, _)| &k[..] < &range_end[..]);
 
 	for (k, _v) in iter {
@@ -1334,7 +1284,9 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `process_block_finalized` which observes on drop.
-	fn time_process_block_finalized(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	fn time_process_block_finalized(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.process_block_finalized.start_timer())
 	}
 
@@ -1375,66 +1327,52 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			pruning: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_av_store_pruning",
-						"Time spent within `av_store::prune_all`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_av_store_pruning",
+					"Time spent within `av_store::prune_all`",
+				))?,
 				registry,
 			)?,
 			process_block_finalized: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_av_store_process_block_finalized",
-						"Time spent within `av_store::process_block_finalized`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_av_store_process_block_finalized",
+					"Time spent within `av_store::process_block_finalized`",
+				))?,
 				registry,
 			)?,
 			block_activated: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_av_store_block_activated",
-						"Time spent within `av_store::process_block_activated`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_av_store_block_activated",
+					"Time spent within `av_store::process_block_activated`",
+				))?,
 				registry,
 			)?,
 			process_message: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_av_store_process_message",
-						"Time spent within `av_store::process_message`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_av_store_process_message",
+					"Time spent within `av_store::process_message`",
+				))?,
 				registry,
 			)?,
 			store_available_data: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_av_store_store_available_data",
-						"Time spent within `av_store::store_available_data`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_av_store_store_available_data",
+					"Time spent within `av_store::store_available_data`",
+				))?,
 				registry,
 			)?,
 			store_chunk: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_av_store_store_chunk",
-						"Time spent within `av_store::store_chunk`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_av_store_store_chunk",
+					"Time spent within `av_store::store_chunk`",
+				))?,
 				registry,
 			)?,
 			get_chunk: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_av_store_get_chunk",
-						"Time spent fetching requested chunks.`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_av_store_get_chunk",
+					"Time spent fetching requested chunks.`",
+				))?,
 				registry,
 			)?,
 		};

@@ -23,27 +23,38 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, LeafStatus};
 use polkadot_node_primitives::approval::{
-	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
-	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
+	AssignmentCert, AssignmentCertKind, DelayTranche, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
+};
+use polkadot_node_subsystem::{
+	messages::{AllMessages, ApprovalVotingMessage, AssignmentCheckResult},
+	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage, AssignmentCheckResult};
 use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_overseer::HeadSupportsParachains;
+use polkadot_primitives::v1::{CandidateEvent, CoreIndex, GroupIndex, Header, ValidatorSignature};
+use std::time::Duration;
 
+use assert_matches::assert_matches;
 use parking_lot::Mutex;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use sp_keystore::CryptoStore;
-use assert_matches::assert_matches;
-
-use super::import::tests::{
-	BabeEpoch, BabeEpochConfiguration, AllowedSlots, Digest, garbage_vrf, DigestItem, PreDigest,
-	SecondaryVRFPreDigest, CompatibleDigestItem,
+use std::{
+	pin::Pin,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
 };
-use super::approval_db::v1::StoredBlockRange;
-use super::backend::BackendWriteOp;
+
+use super::{
+	approval_db::v1::StoredBlockRange,
+	backend::BackendWriteOp,
+	import::tests::{
+		garbage_vrf, AllowedSlots, BabeEpoch, BabeEpochConfiguration, CompatibleDigestItem, Digest,
+		DigestItem, PreDigest, SecondaryVRFPreDigest,
+	},
+};
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
 
@@ -93,7 +104,15 @@ fn make_sync_oracle(val: bool) -> (Box<dyn SyncOracle + Send>, TestSyncOracleHan
 		done_syncing_receiver: rx,
 	};
 
-	(Box::new(oracle), handle)
+	(
+		TestSyncOracle { flag: flag.clone(), done_syncing_sender: Arc::new(Mutex::new(Some(tx))) },
+		TestSyncOracleHandle { flag, done_syncing_receiver: rx },
+	)
+}
+
+fn done_syncing_oracle() -> Box<dyn SyncOracle + Send> {
+	let (oracle, _) = make_sync_oracle(false);
+	Box::new(oracle)
 }
 
 #[cfg(test)]
@@ -102,9 +121,7 @@ pub mod test_constants {
 	const DATA_COL: u32 = 0;
 	pub(crate) const NUM_COLUMNS: u32 = 1;
 
-	pub(crate) const TEST_CONFIG: DatabaseConfig = DatabaseConfig {
-		col_data: DATA_COL,
-	};
+	pub(crate) const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_data: DATA_COL };
 }
 
 struct MockSupportsParachains;
@@ -214,7 +231,11 @@ where
 		_keystore: &LocalKeystore,
 		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 		_config: &criteria::Config,
-		_leaving_cores: Vec<(CandidateHash, polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
+		_leaving_cores: Vec<(
+			CandidateHash,
+			polkadot_primitives::v1::CoreIndex,
+			polkadot_primitives::v1::GroupIndex,
+		)>,
 	) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
 		self.0()
 	}
@@ -232,10 +253,12 @@ where
 	}
 }
 
-impl<F> MockAssignmentCriteria<
-	fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
-	F,
-> {
+impl<F>
+	MockAssignmentCriteria<
+		fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
+		F,
+	>
+{
 	fn check_only(f: F) -> Self {
 		MockAssignmentCriteria(Default::default, f)
 	}
@@ -264,10 +287,7 @@ impl Backend for TestStoreInner {
 		Ok(self.candidate_entries.get(candidate_hash).cloned())
 	}
 
-	fn load_blocks_at_height(
-		&self,
-		height: &BlockNumber,
-	) -> SubsystemResult<Vec<Hash>> {
+	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
 		Ok(self.blocks_at_height.get(height).cloned().unwrap_or_default())
 	}
 
@@ -284,31 +304,33 @@ impl Backend for TestStoreInner {
 	}
 
 	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
-		where I: IntoIterator<Item = BackendWriteOp>
+	where
+		I: IntoIterator<Item = BackendWriteOp>,
 	{
 		for op in ops {
 			match op {
 				BackendWriteOp::WriteStoredBlockRange(stored_block_range) => {
 					self.stored_block_range = Some(stored_block_range);
-				}
+				},
 				BackendWriteOp::WriteBlocksAtHeight(h, blocks) => {
 					self.blocks_at_height.insert(h, blocks);
-				}
+				},
 				BackendWriteOp::DeleteBlocksAtHeight(h) => {
 					let _ = self.blocks_at_height.remove(&h);
-				}
+				},
 				BackendWriteOp::WriteBlockEntry(block_entry) => {
 					self.block_entries.insert(block_entry.block_hash(), block_entry);
-				}
+				},
 				BackendWriteOp::DeleteBlockEntry(hash) => {
 					let _ = self.block_entries.remove(&hash);
-				}
+				},
 				BackendWriteOp::WriteCandidateEntry(candidate_entry) => {
-					self.candidate_entries.insert(candidate_entry.candidate_receipt().hash(), candidate_entry);
-				}
+					self.candidate_entries
+						.insert(candidate_entry.candidate_receipt().hash(), candidate_entry);
+				},
 				BackendWriteOp::DeleteCandidateEntry(candidate_hash) => {
 					let _ = self.candidate_entries.remove(&candidate_hash);
-				}
+				},
 			}
 		}
 
@@ -372,10 +394,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
 	let out = inout.to_output();
 
-	AssignmentCert {
-		kind,
-		vrf: (VRFOutput(out), VRFProof(proof)),
-	}
+	AssignmentCert { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
 }
 
 fn sign_approval(
@@ -485,29 +504,27 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 			Metrics::default(),
 		),
 		clock.clone(),
-		assignment_criteria,
-		backend,
+		Box::new(MockAssignmentCriteria::check_only(move || Ok(assigned_tranche))),
+		store,
 	);
 
-	let test_fut = test(TestHarness {
-		virtual_overseer,
-		clock,
-		sync_oracle_handle,
-	});
+	let test_fut = test(TestHarness { virtual_overseer, clock });
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(subsystem);
 
-	futures::executor::block_on(future::join(async move {
-		let mut overseer = test_fut.await;
-		overseer_signal(&mut overseer, OverseerSignal::Conclude).await;
-	}, subsystem)).1.unwrap();
+	futures::executor::block_on(future::join(
+		async move {
+			let mut overseer = test_fut.await;
+			overseer_signal(&mut overseer, OverseerSignal::Conclude).await;
+		},
+		subsystem,
+	))
+	.1
+	.unwrap();
 }
 
-async fn overseer_send(
-	overseer: &mut VirtualOverseer,
-	msg: FromOverseer<ApprovalVotingMessage>,
-) {
+async fn overseer_send(overseer: &mut VirtualOverseer, msg: FromOverseer<ApprovalVotingMessage>) {
 	tracing::trace!("Sending message:\n{:?}", &msg);
 	overseer
 		.send(msg)
@@ -516,9 +533,7 @@ async fn overseer_send(
 		.expect(&format!("{:?} is enough for sending messages.", TIMEOUT));
 }
 
-async fn overseer_recv(
-	overseer: &mut VirtualOverseer,
-) -> AllMessages {
+async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 	let msg = overseer_recv_with_timeout(overseer, TIMEOUT)
 		.await
 		.expect(&format!("{:?} is enough to receive messages.", TIMEOUT));
@@ -533,17 +548,11 @@ async fn overseer_recv_with_timeout(
 	timeout: Duration,
 ) -> Option<AllMessages> {
 	tracing::trace!("Waiting for message...");
-	overseer
-		.recv()
-		.timeout(timeout)
-		.await
+	overseer.recv().timeout(timeout).await
 }
 
 const TIMEOUT: Duration = Duration::from_millis(2000);
-async fn overseer_signal(
-	overseer: &mut VirtualOverseer,
-	signal: OverseerSignal,
-) {
+async fn overseer_signal(overseer: &mut VirtualOverseer, signal: OverseerSignal) {
 	overseer
 		.send(FromOverseer::Signal(signal))
 		.timeout(TIMEOUT)
@@ -1382,7 +1391,9 @@ fn subsystem_rejects_assignment_with_unknown_candidate() {
 
 		assert_eq!(
 			rx.await,
-			Ok(AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(candidate_index))),
+			Ok(AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(
+				candidate_index
+			))),
 		);
 
 		virtual_overseer
@@ -2353,17 +2364,21 @@ where
 			let expect_chain_approved = 3 * (i + 1) > n_validators;
 			let rx = check_and_import_approval(
 				&mut virtual_overseer,
-				block_hash,
-				candidate_index,
-				ValidatorIndex(validator_index),
-				candidate_hash,
-				1,
-				expect_chain_approved,
-				true,
-				Some(sign_approval(validators[validator_index as usize].clone(), candidate_hash, 1))
-			).await;
-			assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
-		}
+				FromOverseer::Communication {
+					msg: ApprovalVotingMessage::CheckAndImportAssignment(
+						IndirectAssignmentCert {
+							block_hash: head,
+							validator: 0u32.into(),
+							cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
+								sample: 0,
+							}),
+						},
+						0u32,
+						tx,
+					),
+				},
+			)
+			.await;
 
 		let debug = false;
 		if debug {
