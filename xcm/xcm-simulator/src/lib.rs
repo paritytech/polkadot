@@ -218,6 +218,7 @@ macro_rules! decl_test_network {
 		/// XCM router for parachain.
 		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
 
+		/// Process all messages originating from parachains.
 		fn process_para_messages() -> $crate::XcmResult {
 			use $crate::{UmpSink, XcmpMessageHandlerT};
 
