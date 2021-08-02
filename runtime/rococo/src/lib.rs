@@ -419,7 +419,6 @@ where
 }
 
 parameter_types! {
-	pub const QueueSize: usize = 2;
 	pub const MaxRetries: u32 = 3;
 }
 
