@@ -89,6 +89,19 @@ mod handle_new_activations {
 		ScheduledCore { para_id: para_id.into(), collator: None }
 	}
 
+	async fn handle_new_activations<Context: SubsystemContext>(
+		config: Arc<CollationGenerationConfig>,
+		activated: impl IntoIterator<Item = Hash>,
+		ctx: &mut Context,
+		metrics: Metrics,
+		sender: &mpsc::Sender<AllMessages>,
+	) -> crate::error::Result<()> {
+		for activated in activated {
+			handle_new_activation(config.clone(), activated, ctx, metrics.clone(), sender).await?;
+		}
+		Ok(())
+	}
+
 	#[test]
 	fn requests_availability_per_relay_parent() {
 		let activated_hashes: Vec<Hash> =
