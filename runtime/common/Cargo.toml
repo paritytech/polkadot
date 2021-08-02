@@ -69,6 +69,7 @@ no_std = []
 std = [
 	"bitvec/std",
 	"parity-scale-codec/std",
+	"scale-info/std",
 	"log/std",
 	"rustc-hex/std",
 	"serde_derive",

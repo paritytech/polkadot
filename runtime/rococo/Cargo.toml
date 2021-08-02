@@ -95,6 +95,7 @@ std = [
 	"bp-wococo/std",
 	"bridge-runtime-common/std",
 	"parity-scale-codec/std",
+	"scale-info/std",
 	"frame-executive/std",
 	"pallet-authority-discovery/std",
 	"pallet-authorship/std",

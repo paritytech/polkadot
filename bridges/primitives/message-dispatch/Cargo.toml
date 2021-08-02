@@ -22,5 +22,6 @@ std = [
 	"bp-runtime/std",
 	"codec/std",
 	"frame-support/std",
+	"scale-info/std",
 	"sp-std/std",
 ]

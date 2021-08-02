@@ -27,6 +27,7 @@ default = ["std"]
 wasm-api = []
 std = [
 	"parity-scale-codec/std",
+	"scale-info/std",
 	"serde/std",
 	"sp-std/std",
 	"sp-runtime/std",

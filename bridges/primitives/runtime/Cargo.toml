@@ -33,6 +33,7 @@ std = [
 	"frame-support/std",
 	"hash-db/std",
 	"num-traits/std",
+	"scale-info/std",
 	"sp-core/std",
 	"sp-io/std",
 	"sp-runtime/std",

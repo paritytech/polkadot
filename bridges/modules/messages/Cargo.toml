@@ -48,6 +48,7 @@ std = [
 	"frame-system/std",
 	"log/std",
 	"num-traits/std",
+	"scale-info/std",
 	"serde",
 	"sp-core/std",
 	"sp-runtime/std",

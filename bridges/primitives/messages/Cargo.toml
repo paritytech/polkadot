@@ -30,6 +30,7 @@ std = [
 	"codec/std",
 	"frame-support/std",
 	"frame-system/std",
+	"scale-info/std",
 	"serde",
-	"sp-std/std"
+	"sp-std/std",
 ]
