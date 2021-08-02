@@ -221,7 +221,33 @@ mod tests {
 		});
 
 		ParaA::execute_with(|| {
-			// free execution, full amount received
+			use xcm::opaque::v0::NetworkId;
+			use xcm_simulator::{BuyExecution, DepositAsset};
+			// check message received
+			let expected_message = (
+				X1(Parent),
+				ReserveAssetDeposit {
+					assets: vec![ConcreteFungible { id: X1(Parent), amount: 123 }],
+					effects: vec![
+						BuyExecution {
+							fees: All,
+							weight: 0,
+							debt: 123,
+							halt_on_error: false,
+							xcm: vec![],
+						},
+						DepositAsset {
+							assets: vec![All],
+							dest: X1(Junction::AccountId32 {
+								network: NetworkId::Any,
+								id: ALICE.into(),
+							}),
+						},
+					],
+				},
+			);
+			assert_eq!(parachain::MsgQueue::received_dmp(), vec![expected_message]);
+			// check message execution with full amount received
 			assert_eq!(
 				pallet_balances::Pallet::<parachain::Runtime>::free_balance(&ALICE),
 				INITIAL_BALANCE + 123
@@ -286,7 +312,7 @@ mod tests {
 						assets: vec![All],
 						dest: OnlyChild.into(), // invalid destination
 					},
-					// is not triggered becasue the deposit fails
+					// is not triggered because the deposit fails
 					Order::QueryHolding { query_id, dest: Parachain(2).into(), assets: vec![All] },
 				],
 			};
@@ -306,7 +332,6 @@ mod tests {
 			// but deposit did not execute
 			let para_account_b: relay_chain::AccountId = ParaId::from(2).into_account();
 			assert_eq!(relay_chain::Balances::free_balance(para_account_b), 0);
-			assert_eq!(relay_chain::sent_xcm(), vec![]);
 		});
 
 		// Now send a message which fully succeeds on the relay chain
@@ -329,7 +354,7 @@ mod tests {
 			assert_ok!(ParachainPalletXcm::send_xcm(Null, X1(Parent), message.clone(),));
 		});
 
-		// Check that transfer was executed and response message was sent
+		// Check that transfer was executed
 		Relay::execute_with(|| {
 			let spent = 20;
 			let para_account_a: relay_chain::AccountId = ParaId::from(1).into_account();
@@ -341,7 +366,15 @@ mod tests {
 			// and deposit did execute
 			let para_account_b: relay_chain::AccountId = ParaId::from(2).into_account();
 			assert_eq!(relay_chain::Balances::free_balance(para_account_b), 10);
-			assert_eq!(relay_chain::sent_xcm(), vec![]);
+		});
+
+		// Check that QueryResponse message was received
+		ParaB::execute_with(|| {
+			use xcm::opaque::v0::Response::Assets;
+			assert_eq!(
+				parachain::MsgQueue::received_dmp(),
+				vec![(X1(Parent), QueryResponse { query_id: 1234, response: Assets(vec![]) })]
+			);
 		});
 	}
 }

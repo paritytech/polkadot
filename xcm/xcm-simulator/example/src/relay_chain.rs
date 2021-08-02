@@ -26,11 +26,7 @@ use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared, ump};
-use sp_std::cell::RefCell;
-use xcm::{
-	opaque::v0::{Result as XcmResult, SendXcm, Xcm},
-	v0::{MultiAsset, MultiLocation, NetworkId},
-};
+use xcm::v0::{MultiAsset, MultiLocation, NetworkId};
 use xcm_builder::{
 	AccountId32Aliases, AllowUnpaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
@@ -124,20 +120,6 @@ parameter_types! {
 pub type XcmRouter = super::RelayChainXcmRouter;
 pub type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
 
-thread_local! {
-	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm)>> = RefCell::new(Vec::new());
-}
-pub(crate) fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
-	SENT_XCM.with(|q| (*q.borrow()).clone())
-}
-pub struct TestSendXcm;
-impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
-		Ok(())
-	}
-}
-
 pub struct XcmConfig;
 impl Config for XcmConfig {
 	type Call = Call;
@@ -158,7 +140,7 @@ pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNe
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmRouter = (XcmRouter, TestSendXcm);
+	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmExecuteFilter = ();
