@@ -38,9 +38,10 @@ use polkadot_parachain::primitives::{
 use xcm::{
 	v0::{
 		Error as XcmError, ExecuteXcm,
-		Junction::{Parachain, Parent},
+		Junction::Parachain,
+		Junctions::X1,
 		MultiAsset,
-		MultiLocation::{self, X1},
+		MultiLocation,
 		NetworkId, Outcome, Xcm,
 	},
 	VersionedXcm,
@@ -110,7 +111,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const KsmLocation: MultiLocation = MultiLocation::with_parents(1).expect("well-formed XCM; qed");
+	pub const KsmLocation: MultiLocation = MultiLocation::with_parents_const::<1>();
 	pub const RelayNetwork: NetworkId = NetworkId::Kusama;
 	pub Ancestry: MultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
 }
@@ -129,7 +130,7 @@ pub type XcmOriginToCallOrigin = (
 
 parameter_types! {
 	pub const UnitWeightCost: Weight = 1;
-	pub KsmPerSecond: (MultiLocation, u128) = (X1(Parent), 1);
+	pub KsmPerSecond: (MultiLocation, u128) = (MultiLocation::with_parents(1).unwrap(), 1);
 }
 
 pub type LocalAssetTransactor =
@@ -219,8 +220,8 @@ pub mod mock_msg_queue {
 			let hash = Encode::using_encoded(&xcm, T::Hashing::hash);
 			let (result, event) = match Xcm::<T::Call>::try_from(xcm) {
 				Ok(xcm) => {
-					let location = (Parent, Parachain(sender.into()));
-					match T::XcmExecutor::execute_xcm(location.into(), xcm, max_weight) {
+					let location = MultiLocation::new(1, X1(Parachain(sender.into()))).unwrap();
+					match T::XcmExecutor::execute_xcm(location, xcm, max_weight) {
 						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
 						Outcome::Complete(w) => (Ok(w), Event::Success(Some(hash))),
 						// As far as the caller is concerned, this was dispatched without error, so
@@ -275,7 +276,11 @@ pub mod mock_msg_queue {
 						Self::deposit_event(Event::UnsupportedVersion(id));
 					},
 					Ok(Ok(x)) => {
-						let outcome = T::XcmExecutor::execute_xcm(Parent.into(), x, limit);
+						let outcome = T::XcmExecutor::execute_xcm(
+							MultiLocation::with_parents(1).unwrap(),
+							x,
+							limit,
+						);
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
 					},
 				}

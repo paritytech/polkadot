@@ -125,6 +125,15 @@ impl MultiLocation {
 		MultiLocation { parents: 0, interior: Junctions::Null }
 	}
 
+	/// Creates a new `MultiLocation` with the specified number of parents in the `P` const generic
+	/// parameter and a `Null` interior.
+	pub const fn with_parents_const<const P: u8>() -> MultiLocation {
+		MultiLocation {
+			parents: P,
+			interior: Junctions::Null,
+		}
+	}
+
 	/// Creates a new `MultiLocation` with the specified number of parents and a `Null` interior.
 	/// Returns an error if `parents` is greater than `MAX_MULTILOCATION_LENGTH`.
 	pub const fn with_parents(parents: u8) -> result::Result<MultiLocation, ()> {
