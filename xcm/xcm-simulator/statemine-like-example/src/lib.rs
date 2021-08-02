@@ -16,18 +16,22 @@
 
 mod karura_like;
 mod kusama_like;
+mod moonriver_like;
 mod statemine_like;
 
 use sp_runtime::AccountId32;
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain};
-use polkadot_parachain::primitives::Id as ParaId;
+use polkadot_parachain::primitives::{Id as ParaId, Sibling};
 use sp_runtime::traits::AccountIdConversion;
+use xcm_builder::SiblingParachainConvertsVia;
+use xcm_executor::traits::Convert;
 
 pub const ALICE: AccountId32 = AccountId32::new([42u8; 32]);
 pub const INITIAL_BALANCE: u128 = 1_000_000_000;
 
-pub const KARURA_ID: u32 = 2000;
 pub const STATEMINE_ID: u32 = 1000;
+pub const KARURA_ID: u32 = 2000;
+pub const MOONRIVER_ID: u32 = 3000;
 
 decl_test_parachain! {
 	pub struct KaruraLike {
@@ -47,6 +51,15 @@ decl_test_relay_chain! {
 }
 
 decl_test_parachain! {
+	pub struct MoonriverLike {
+		Runtime = moonriver_like::Runtime,
+		XcmpMessageHandler = moonriver_like::MsgQueue,
+		DmpMessageHandler = moonriver_like::MsgQueue,
+		new_ext = moonriver_like_ext(MOONRIVER_ID),
+	}
+}
+
+decl_test_parachain! {
 	pub struct StatemineLike {
 		Runtime = statemine_like::Runtime,
 		XcmpMessageHandler = statemine_like::MsgQueue,
@@ -61,6 +74,7 @@ decl_test_network! {
 		parachains = vec![
 			(STATEMINE_ID, StatemineLike),
 			(KARURA_ID, KaruraLike),
+			(MOONRIVER_ID, MoonriverLike),
 		],
 	}
 }
@@ -91,12 +105,14 @@ pub fn kusama_like_ext() -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
 	let karura_acc: AccountId = ParaId::from(KARURA_ID).into_account();
+	let moonriver_acc: AccountId = ParaId::from(MOONRIVER_ID).into_account();
 	let statemine_acc: AccountId = ParaId::from(STATEMINE_ID).into_account();
 
 	let balances = vec![
 		(ALICE, INITIAL_BALANCE),
 		(statemine_acc, INITIAL_BALANCE),
 		(karura_acc, INITIAL_BALANCE),
+		(moonriver_acc, INITIAL_BALANCE),
 	];
 
 	pallet_balances::GenesisConfig::<Runtime> {
@@ -107,6 +123,27 @@ pub fn kusama_like_ext() -> sp_io::TestExternalities {
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
+	ext
+}
+
+pub fn moonriver_like_ext(para_id: u32) -> sp_io::TestExternalities {
+	use moonriver_like::{MsgQueue, Runtime, System};
+
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+
+	let balances = vec![
+		(ALICE, INITIAL_BALANCE)
+	];
+
+	pallet_balances::GenesisConfig::<Runtime> { balances }
+		.assimilate_storage(&mut t)
+		.unwrap();
+
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| {
+		System::set_block_number(1);
+		MsgQueue::set_para_id(para_id.into());
+	});
 	ext
 }
 
@@ -161,6 +198,11 @@ mod tests {
 		}
 	}
 
+	fn statemine_acc_for(para_id: u32) -> statemine_like::AccountId {
+		SiblingParachainConvertsVia::<Sibling, statemine_like::AccountId>::convert(
+			X2(Parent, Parachain(para_id))).unwrap()
+	}
+
 	/// Scenario:
 	/// A parachain wants to move KSM from Kusama to Statemine.
 	/// It withdraws funds and then teleports them to the destination.
@@ -199,12 +241,86 @@ mod tests {
 		});
 
 		StatemineLike::execute_with(|| {
-			use polkadot_parachain::primitives::Sibling;
-			use xcm_builder::SiblingParachainConvertsVia;
-			use xcm_executor::traits::Convert;
-			let karura_acc = SiblingParachainConvertsVia::<Sibling, statemine_like::AccountId>::convert(
-				X2(Parent, Parachain(KARURA_ID))).unwrap();
-			assert_eq!(statemine_like::Balances::free_balance(karura_acc), amount);
+			assert_eq!(statemine_like::Balances::free_balance(statemine_acc_for(KARURA_ID)), amount);
+		});
+	}
+
+	/// Scenario:
+	/// A chain wants to move funds to another parachain in an asset where Statemine acts as the reserve.
+	#[test]
+	fn reserve_based_transfer_works() {
+		use statemine_like::Assets as StatemineAssets;
+		use statemine_like::Origin as StatemineOrigin;
+		use moonriver_like::Assets as MoonriverAssets;
+		use moonriver_like::Origin as MoonriverOrigin;
+		use frame_support::traits::Currency;
+
+		let ed = statemine_like::ExistentialDeposit::get();
+		let amount =  10 * ed;
+		let ksm_amount = 1 * kusama_like::UNITS;
+
+		let asset_id = 1;
+		// setup asset ownwership:
+		// Karura owns both native and asset tokens in its sovereign account on Statemine.
+		StatemineLike::execute_with(|| {
+			assert_ok!(StatemineAssets::force_create(
+				StatemineOrigin::root(), asset_id, ALICE, true /* is_sufficient */, ed));
+
+			assert_ok!(StatemineAssets::mint(StatemineOrigin::signed(ALICE), asset_id, statemine_acc_for(KARURA_ID), 2 * amount));
+
+			assert_eq!(StatemineAssets::balance(asset_id, statemine_acc_for(KARURA_ID)), 2 * amount);
+			assert_eq!(StatemineAssets::balance(asset_id, statemine_acc_for(MOONRIVER_ID)), 0);
+
+			statemine_like::Balances::make_free_balance_be(&statemine_acc_for(KARURA_ID), ksm_amount);
+		});
+
+		MoonriverLike::execute_with(|| {
+			assert_ok!(MoonriverAssets::force_create(
+				MoonriverOrigin::root(), asset_id, ALICE, true /* is_sufficient */, ed));
+
+			assert_ok!(MoonriverAssets::mint(MoonriverOrigin::signed(ALICE), asset_id, ALICE, 2 * amount));
+		});
+
+		KaruraLike::execute_with(|| {
+			let weight = 3 * statemine_like::UnitWeightCost::get();
+			let message = Xcm::WithdrawAsset {
+				assets: vec![ConcreteFungible { id: Parent.into(), amount: ksm_amount }],
+				effects: vec![
+					Order::BuyExecution {
+						fees: All,
+						weight,
+						debt: weight,
+						halt_on_error: false,
+						xcm: vec![Xcm::TransferReserveAsset {
+							assets: vec![ConcreteFungible { id: GeneralIndex{ id: asset_id.into() }.into(), amount }.into()],
+							dest: X2(Parent, Parachain(MOONRIVER_ID)),
+							effects: vec![Order::DepositAsset {
+								assets: vec![All],
+								dest: Null,
+							}],
+						}],
+					},
+				]
+			};
+			assert_ok!(KaruraPalletXcm::send_xcm(
+				Null,
+				X2(Parent, Parachain(STATEMINE_ID)),
+				message.clone(),
+			));
+		});
+
+		StatemineLike::execute_with(|| {
+			assert_eq!(StatemineAssets::balance(asset_id, statemine_acc_for(KARURA_ID)), amount);
+			assert_eq!(StatemineAssets::balance(asset_id, statemine_acc_for(MOONRIVER_ID)), amount);
+		});
+
+		MoonriverLike::execute_with(|| {
+			let self_account: moonriver_like::AccountId = moonriver_like::NullIsDefault::convert(
+				MultiLocation::Null).unwrap();
+			assert_eq!(
+				MoonriverAssets::balance(asset_id, self_account),
+				amount
+			);
 		});
 	}
 }

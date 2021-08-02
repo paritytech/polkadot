@@ -14,7 +14,23 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Statemine-like runtime mock.
+// Copyright 2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Parachain runtime mock.
 
 use codec::{Decode, Encode};
 use frame_support::{
@@ -48,7 +64,7 @@ use xcm::{
 use xcm_builder::{
 	AccountId32Aliases, AllowUnpaidExecutionFrom, CurrencyAdapter as XcmCurrencyAdapter,
 	EnsureXcmOrigin, FixedRateOfConcreteFungible, FixedWeightBounds, IsConcrete, LocationInverter,
-	NativeAsset, ParentIsDefault, SiblingParachainConvertsVia, SignedAccountId32AsNative,
+	NativeAsset, SiblingParachainConvertsVia, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation,
 };
 use xcm_executor::{Config, XcmExecutor};
@@ -56,8 +72,8 @@ use xcm_executor::{Config, XcmExecutor};
 pub type AccountId = AccountId32;
 pub type Balance = u128;
 
-// copied from Statemine
-pub const EXISTENTIAL_DEPOSIT: Balance = CENTS / 10;
+// Copied from Statemine
+pub const EXISTENTIAL_DEPOSIT: Balance = 0;
 pub const UNITS: Balance = 1_000_000_000_000;
 pub const CENTS: Balance = UNITS / 30_000;
 pub const MILLICENTS: Balance = CENTS / 1_000;
@@ -155,12 +171,36 @@ parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::X1(Parent);
 	pub const RelayNetwork: NetworkId = NetworkId::Kusama;
 	pub Ancestry: MultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
-	pub const Local: MultiLocation = MultiLocation::Null;
+	pub const StatemineLocation: MultiLocation = MultiLocation::X2(Parent, Parachain(super::STATEMINE_ID));
 	pub CheckingAccount: AccountId = PolkadotXcm::check_account();
 }
 
+use sp_std::borrow::Borrow;
+use xcm_executor::traits::Convert;
+/// An empty `MultiLocation::Null` is mapped to the default for `AccountId` (all zeroes).
+pub struct NullIsDefault<AccountId>(PhantomData<AccountId>);
+impl<
+	AccountId: Default + Eq + Clone,
+> Convert<MultiLocation, AccountId> for NullIsDefault<AccountId> {
+	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
+		if let &MultiLocation::Null = location.borrow() {
+			Ok(AccountId::default())
+		} else {
+			Err(())
+		}
+	}
+
+	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
+		if who.borrow() == &AccountId::default() {
+			Ok(MultiLocation::Null)
+		} else {
+			Err(())
+		}
+	}
+}
+
 pub type LocationToAccountId = (
-	ParentIsDefault<AccountId>,
+	NullIsDefault<AccountId>,
 	SiblingParachainConvertsVia<Sibling, AccountId>,
 	AccountId32Aliases<RelayNetwork, AccountId>,
 );
@@ -197,7 +237,7 @@ pub type FungiblesTransactor = FungiblesAdapter<
 	Assets,
 	// Use this currency when it is a fungible asset matching the given location or name:
 	(
-		ConvertedConcreteAssetId<AssetId, Balance, AsPrefixedGeneralIndex<Local, AssetId, JustTry>, JustTry>,
+		ConvertedConcreteAssetId<AssetId, Balance, AsPrefixedGeneralIndex<StatemineLocation, AssetId, JustTry>, JustTry>,
 	),
 	// Do a simple punn to convert an AccountId32 MultiLocation into a native chain account ID:
 	LocationToAccountId,
@@ -216,14 +256,26 @@ pub type LocalAssetTransactor = (
 pub type XcmRouter = super::ParachainXcmRouter<MsgQueue>;
 pub type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
 
+use xcm_executor::traits::FilterAssetLocation;
+pub struct StatemineAsset;
+impl FilterAssetLocation for StatemineAsset {
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+		let statemine = MultiLocation::X2(Parent, Parachain(super::STATEMINE_ID));
+		origin == &statemine
+			&& matches!(asset, MultiAsset::ConcreteFungible { ref id, .. }
+				if id.match_and_split(&statemine).is_some()
+			)
+	}
+}
+
 pub struct XcmConfig;
 impl Config for XcmConfig {
 	type Call = Call;
 	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = XcmOriginToCallOrigin;
-	type IsReserve = NativeAsset;
-	type IsTeleporter = NativeAsset;
+	type IsReserve = (NativeAsset, StatemineAsset);
+	type IsTeleporter = ();
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
