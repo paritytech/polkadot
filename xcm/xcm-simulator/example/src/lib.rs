@@ -212,4 +212,42 @@ mod tests {
 			);
 		});
 	}
+
+	#[test]
+	fn recursion_limit_works() {
+		use parachain::{Event, System};
+		MockNet::reset();
+
+		ParaA::execute_with(|| {
+			let msg = WithdrawAsset { assets: vec![All], effects: vec![] };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+
+			let origin = parachain::Origin::signed(ALICE);
+
+			assert_ok!(ParachainPalletXcm::execute(origin, Box::new(msg), 1_000_000_000));
+
+			assert!(System::events()
+				.iter()
+				.any(|r| matches!(
+					r.event,
+					Event::PolkadotXcm(pallet_xcm::Event::Attempted(
+						xcm::v0::Outcome::Incomplete(_, xcm::v0::Error::RecursionLimitReached))),
+					)
+				)
+			);
+		});
+
+	}
 }
