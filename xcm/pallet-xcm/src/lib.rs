@@ -23,7 +23,6 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use sp_std::{prelude::*, marker::PhantomData, convert::TryInto, boxed::Box, vec};
 use frame_support::traits::{Contains, EnsureOrigin, Filter, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
 use sp_std::{boxed::Box, convert::TryInto, marker::PhantomData, prelude::*, vec};
