@@ -16,7 +16,7 @@
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
-use super::{MultiAsset, MultiLocation, Xcm};
+use super::{GetWeight, MultiAsset, MultiLocation, Weight, Xcm, XcmWeightInfo};
 use alloc::vec::Vec;
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
@@ -149,6 +149,21 @@ impl<Call> Order<Call> {
 				let xcm = xcm.into_iter().map(Xcm::from).collect();
 				BuyExecution { fees, weight, debt, halt_on_error, xcm }
 			},
+		}
+	}
+}
+
+impl<W: XcmWeightInfo, Call> GetWeight<W> for Order<Call> {
+	fn weight(&self) -> Weight {
+		match self {
+			Order::Null => W::order_null(),
+			Order::DepositAsset { .. } => W::order_deposit_asset(),
+			Order::DepositReserveAsset { .. } => W::order_deposit_reserved_asset(),
+			Order::ExchangeAsset { .. } => W::order_exchange_asset(),
+			Order::InitiateReserveWithdraw { .. } => W::order_initiate_reserve_withdraw(),
+			Order::InitiateTeleport { .. } => W::order_initiate_teleport(),
+			Order::QueryHolding { .. } => W::order_query_holding(),
+			Order::BuyExecution { .. } => W::order_buy_execution(),
 		}
 	}
 }

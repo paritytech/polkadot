@@ -31,7 +31,7 @@ pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use multi_asset::{AssetInstance, MultiAsset};
 pub use multi_location::MultiLocation;
 pub use order::Order;
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
+pub use traits::{Error, ExecuteXcm, GetWeight, Outcome, Result, SendXcm, Weight, XcmWeightInfo};
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
@@ -325,6 +325,24 @@ impl<Call> Xcm<Call> {
 		match self {
 			WithdrawAsset { effects, .. } => effects,
 			_ => &[],
+		}
+	}
+}
+
+impl<W: XcmWeightInfo, Call> GetWeight<W> for Xcm<Call> {
+	fn weight(&self) -> Weight {
+		match self {
+			Xcm::WithdrawAsset { .. } => W::xcm_withdraw_asset(),
+			Xcm::ReserveAssetDeposit { .. } => W::xcm_reserve_asset_deposit(),
+			Xcm::TeleportAsset { .. } => W::xcm_teleport_asset(),
+			Xcm::QueryResponse { .. } => W::xcm_query_response(),
+			Xcm::TransferAsset { .. } => W::xcm_transfer_asset(),
+			Xcm::TransferReserveAsset { .. } => W::xcm_transfer_reserved_asset(),
+			Xcm::Transact { .. } => W::xcm_transact(),
+			Xcm::HrmpNewChannelOpenRequest { .. } => W::xcm_hrmp_channel_open_request(),
+			Xcm::HrmpChannelAccepted { .. } => W::xcm_hrmp_channel_accepted(),
+			Xcm::HrmpChannelClosing { .. } => W::xcm_hrmp_channel_closing(),
+			Xcm::RelayedFrom { .. } => W::xcm_relayed_from(),
 		}
 	}
 }
