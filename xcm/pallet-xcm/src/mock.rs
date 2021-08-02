@@ -71,7 +71,7 @@ impl SendXcm for TestSendXcm {
 		Ok(())
 	}
 }
-/// Sender that returns error if X3 junction and stops routing
+/// Sender that returns error if `X3` junction and stops routing
 pub struct TestSendXcmErr;
 impl SendXcm for TestSendXcmErr {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
