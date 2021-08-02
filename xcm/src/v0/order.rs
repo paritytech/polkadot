@@ -153,17 +153,22 @@ impl<Call> Order<Call> {
 	}
 }
 
-impl<W: XcmWeightInfo, Call> GetWeight<W> for Order<Call> {
+impl<W: XcmWeightInfo<()>> GetWeight<W> for Order<()> {
 	fn weight(&self) -> Weight {
 		match self {
 			Order::Null => W::order_null(),
-			Order::DepositAsset { .. } => W::order_deposit_asset(),
-			Order::DepositReserveAsset { .. } => W::order_deposit_reserved_asset(),
-			Order::ExchangeAsset { .. } => W::order_exchange_asset(),
-			Order::InitiateReserveWithdraw { .. } => W::order_initiate_reserve_withdraw(),
-			Order::InitiateTeleport { .. } => W::order_initiate_teleport(),
-			Order::QueryHolding { .. } => W::order_query_holding(),
-			Order::BuyExecution { .. } => W::order_buy_execution(),
+			Order::DepositAsset { assets, dest } => W::order_deposit_asset(assets, dest),
+			Order::DepositReserveAsset { assets, dest, effects } =>
+				W::order_deposit_reserved_asset(assets, dest, effects),
+			Order::ExchangeAsset { give, receive } => W::order_exchange_asset(give, receive),
+			Order::InitiateReserveWithdraw { assets, reserve, effects } =>
+				W::order_initiate_reserve_withdraw(assets, reserve, effects),
+			Order::InitiateTeleport { assets, dest, effects } =>
+				W::order_initiate_teleport(assets, dest, effects),
+			Order::QueryHolding { query_id, dest, assets } =>
+				W::order_query_holding(query_id, dest, assets),
+			Order::BuyExecution { fees, weight, debt, halt_on_error, xcm } =>
+				W::order_buy_execution(fees, weight, debt, halt_on_error, xcm),
 		}
 	}
 }

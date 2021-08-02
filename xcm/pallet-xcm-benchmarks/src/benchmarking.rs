@@ -60,11 +60,9 @@ fn create_holding(
 			}
 			.into()
 		})
-		.chain((0..non_fungibles_count).map(|i| {
-			MultiAsset::ConcreteNonFungible {
-				class: MultiLocation::X1(Junction::GeneralIndex { id: i as u128 }),
-				instance: asset_instance_from(i),
-			}
+		.chain((0..non_fungibles_count).map(|i| MultiAsset::ConcreteNonFungible {
+			class: MultiLocation::X1(Junction::GeneralIndex { id: i as u128 }),
+			instance: asset_instance_from(i),
 		}))
 		.collect::<Vec<_>>()
 		.into()
@@ -231,72 +229,44 @@ benchmarks! {
 	order_buy_execution_fungible {}: {} verify {}
 	order_buy_execution_fungibles {}: {} verify {}
 
-
-	// Xcm::WithdrawAsset notes: There are two components to this benchmark:
-	// 1. based on the asset type, the complexity of withdraw could be different.
-	// 2. based on the length of the assets being withdraw, the complexity of insertion into the
-	//    holding increases per operation.
-	//
-	// The worse case of the latter is if all assets are of one type (fungible, or non-fungible),
-	// since that will incur the maximum insertion cost.
-	//
-	// The former entirely depends on the asset type.
 	xcm_withdraw_asset_fungible {
-		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
-		let xcm = if T::fungibles_asset(0, 0).is_some() {
-			let (asset, _) = T::fungible_asset(1).unwrap();
-			<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
-			// check one of the assets of origin.
-			assert!(!T::FungibleTransactAsset::balance(&account::<T>(1)).is_zero());
-			Xcm::WithdrawAsset::<OverArchingCallOf<T>> { assets: vec![asset], effects: vec![] }
-		} else {
-			Xcm::TransferAsset { assets: Default::default(), dest: origin.clone() }
+		for n in 0 .. 100;
+		let amount = T::FungiblesTransactAsset::minimum_balance();
+		for i in 0 .. n {
+			let user = account::<T>(1337);
+			assert_ok!(T::FungibleTransactAsset::mint_into(user, amount));
+			assert_eq!(T::FungiblesTransactAsset::balance_of(user), amount);
+
+			let multi_asset = T::get_id()
+		}
+
+		let xcm = Xcm::WithdrawAsset {
+			assets: vec![multi_asset], // this is not full complexity
+			effects: vec![],
 		};
+
 	}: {
-		if T::fungible_asset(0).is_some() {
-			assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
-		}
+		let holding = T::XcmExecutor::execute_and_return_holding(xcm)?;
 	} verify {
-		if T::fungible_asset(0).is_some() {
-			// check one of the assets of origin.
-			assert!(T::FungibleTransactAsset::balance(&account::<T>(1)).is_zero());
-		}
+		assert!(T::FungiblesTransactAsset::balance_of(user).is_zero());
+		assert!(holding.contains(multi_asset, amount));
 	}
-	xcm_withdraw_asset_fungibles {
-		// number of fungible assets, regardless of `fungible`
-		let a in 0..MAX_ASSETS;
-		// number of non-fungible assets.
-		let b in 0..0; // TODO: make this work.
 
-		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
-		let xcm = if T::fungibles_asset(0, 0).is_some() {
-			let assets = (1..=a).map(|i| {
-				let (asset, _) = T::fungibles_asset(i, i).unwrap();
-				<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
-				asset
-			})
-			.chain((0..b).map(|i| unreachable!()))
-			.collect::<Vec<_>>();
-
-			if a > 0 {
-				// check one of the assets of origin.
-				assert!(!T::FungiblesTransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
+	Xcm::WithdrawAsset { assest } => {
+		assets.iter().map(|a| (a, Lookup::lookup(a))).for_each(|(asset, type)| {
+			match type {
+				AssetType::Fungible =>
 			}
-
-			Xcm::WithdrawAsset::<OverArchingCallOf<T>> { assets, effects: vec![] }
-		} else {
-			Xcm::TransferAsset { assets: Default::default(), dest: origin.clone() }
-		};
-	}: {
-		if T::fungibles_asset(0, 0).is_some() {
-			assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
-		}
-	} verify {
-		if T::fungibles_asset(0, 0).is_some() {
-			// check one of the assets of origin. All assets must have been withdrawn.
-			assert!(T::FungiblesTransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
-		}
+		})
 	}
+
+	xcm_withdraw_asset_fungibles {
+		let n in 0 .. 1000;
+
+		let user
+
+		for n
+	}: {} verify {}
 
 	xcm_reserve_asset_deposit {}: {} verify {}
 	xcm_teleport_asset {}: {} verify {}

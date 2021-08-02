@@ -329,20 +329,25 @@ impl<Call> Xcm<Call> {
 	}
 }
 
-impl<W: XcmWeightInfo, Call> GetWeight<W> for Xcm<Call> {
+impl<W: XcmWeightInfo<()>> GetWeight<W> for Xcm<()> {
 	fn weight(&self) -> Weight {
 		match self {
-			Xcm::WithdrawAsset { .. } => W::xcm_withdraw_asset(),
-			Xcm::ReserveAssetDeposit { .. } => W::xcm_reserve_asset_deposit(),
-			Xcm::TeleportAsset { .. } => W::xcm_teleport_asset(),
-			Xcm::QueryResponse { .. } => W::xcm_query_response(),
-			Xcm::TransferAsset { .. } => W::xcm_transfer_asset(),
-			Xcm::TransferReserveAsset { .. } => W::xcm_transfer_reserved_asset(),
-			Xcm::Transact { .. } => W::xcm_transact(),
-			Xcm::HrmpNewChannelOpenRequest { .. } => W::xcm_hrmp_channel_open_request(),
-			Xcm::HrmpChannelAccepted { .. } => W::xcm_hrmp_channel_accepted(),
-			Xcm::HrmpChannelClosing { .. } => W::xcm_hrmp_channel_closing(),
-			Xcm::RelayedFrom { .. } => W::xcm_relayed_from(),
+			Xcm::WithdrawAsset { assets, effects } => W::xcm_withdraw_asset(assets, effects),
+			Xcm::ReserveAssetDeposit { assets, effects } =>
+				W::xcm_reserve_asset_deposit(assets, effects),
+			Xcm::TeleportAsset { assets, effects } => W::xcm_teleport_asset(assets, effects),
+			Xcm::QueryResponse { query_id, response } => W::xcm_query_response(query_id, response),
+			Xcm::TransferAsset { assets, dest } => W::xcm_transfer_asset(assets, dest),
+			Xcm::TransferReserveAsset { assets, dest, effects } =>
+				W::xcm_transfer_reserved_asset(&assets, dest, effects),
+			Xcm::Transact { origin_type, require_weight_at_most, call } =>
+				W::xcm_transact(origin_type, require_weight_at_most, call),
+			Xcm::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				W::xcm_hrmp_channel_open_request(sender, max_message_size, max_capacity),
+			Xcm::HrmpChannelAccepted { recipient } => W::xcm_hrmp_channel_accepted(recipient),
+			Xcm::HrmpChannelClosing { initiator, sender, recipient } =>
+				W::xcm_hrmp_channel_closing(initiator, sender, recipient),
+			Xcm::RelayedFrom { who, message } => W::xcm_relayed_from(who, message),
 		}
 	}
 }

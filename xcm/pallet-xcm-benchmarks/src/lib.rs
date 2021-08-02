@@ -48,16 +48,14 @@ pub mod pallet {
 		/// you don't really want to support this type of asset.
 		///
 		/// A fungible asset always has an amount, return that too.
-		fn fungible_asset(_amount: u32) -> Option<(MultiAsset, u128)> {
-			None
-		}
+		fn get_id() -> MultiAsset;
 		/// Same as `fungible_asset`, but for an asset of multiple instances.
-		fn fungibles_asset(_amount: u32, _id: u32) -> Option<(MultiAsset, u128)> {
-			None
-		}
+		// fn fungibles_asset(_amount: u32, _id: u32) -> Option<(MultiAsset, u128)> {
+		// 	None
+		// }
 
-		type FungibleTransactAsset: frame_support::traits::fungible::Inspect<Self::AccountId>;
-		type FungiblesTransactAsset: frame_support::traits::fungibles::Inspect<Self::AccountId>;
+		type FungibleTransactAsset: frame_support::traits::fungible::Mutate<Self::AccountId>;
+		// type FungiblesTransactAsset: frame_support::traits::fungibles::Inspect<Self::AccountId>;
 		// type NonFungibleTransactAsset: traits::tokens::nonfungible::Inspect<Self::AccountId>;
 		// type NonFungiblesTransactAsset: traits::tokens::nonfungibles::Inspect<Self::AccountId>;
 	}
