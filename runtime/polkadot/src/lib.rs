@@ -802,7 +802,6 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where Call: 
 
 parameter_types! {
 	pub const ParathreadDeposit: Balance = 500 * DOLLARS;
-	pub const QueueSize: usize = 2;
 	pub const MaxRetries: u32 = 3;
 }
 

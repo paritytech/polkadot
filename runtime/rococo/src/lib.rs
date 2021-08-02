@@ -426,7 +426,6 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 }
 
 parameter_types! {
-	pub const QueueSize: usize = 2;
 	pub const MaxRetries: u32 = 3;
 }
 
