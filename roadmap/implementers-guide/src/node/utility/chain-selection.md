@@ -10,7 +10,7 @@ This subsystem needs to update its information on the unfinalized chain:
   * On every `ChainSelectionMessage::Approve`
   * Periodically, to detect stagnation.
 
-Simple implementations of these updates do O(n_unfinalized_blocks) disk operations. If the amount of unfinalized blocks is relatively small, the updates should not take very much time. However, in cases where there are hundreds or thousands of unfinalized blocks the naive implementations of these update algorithms would have to be replaced with more sophisticated versions.
+Simple implementations of these updates do `O(n_unfinalized_blocks)` disk operations. If the amount of unfinalized blocks is relatively small, the updates should not take very much time. However, in cases where there are hundreds or thousands of unfinalized blocks the naive implementations of these update algorithms would have to be replaced with more sophisticated versions.
 
 ### `OverseerSignal::ActiveLeavesUpdate`
 

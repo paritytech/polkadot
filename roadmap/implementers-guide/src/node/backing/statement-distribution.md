@@ -8,20 +8,20 @@ The Statement Distribution Subsystem is responsible for distributing statements 
 
 Input:
 
-- NetworkBridgeUpdate(update)
-- StatementDistributionMessage
+- `NetworkBridgeUpdate(update)`
+- `StatementDistributionMessage`
 
 Output:
 
-- NetworkBridge::SendMessage(`[PeerId]`, message)
-- NetworkBridge::SendRequests (StatementFetching)
-- NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
+- `NetworkBridge::SendMessage(PeerId, message)`
+- `NetworkBridge::SendRequests(StatementFetching)`
+- `NetworkBridge::ReportPeer(PeerId, cost_or_benefit)`
 
 ## Functionality
 
 Implemented as a gossip protocol. Handle updates to our view and peers' views. Neighbor packets are used to inform peers which chain heads we are interested in data for.
 
-It is responsible for distributing signed statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to [Misbehavior Arbitration](../utility/misbehavior-arbitration.md). During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes. On receiving a signed statement from a peer in the same backing group, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the [Candidate Backing subsystem](candidate-backing.md) to handle the validator's statement. On receiving `StatementDistributionMessage::Share` we make sure to send messages to our backing group in addition to random other peers, to ensure a fast backing process and getting all statements quickly for distribtution.
+It is responsible for distributing signed statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to [Misbehavior Arbitration](../utility/misbehavior-arbitration.md). During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes. On receiving a signed statement from a peer in the same backing group, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the [Candidate Backing subsystem](candidate-backing.md) to handle the validator's statement. On receiving `StatementDistributionMessage::Share` we make sure to send messages to our backing group in addition to random other peers, to ensure a fast backing process and getting all statements quickly for distribution.
 
 Track equivocating validators and stop accepting information from them. Establish a data-dependency order:
 
@@ -71,7 +71,7 @@ The simple approach is to say that we only receive up to two `Seconded` statemen
 
 With that in mind, this simple approach has a caveat worth digging deeper into.
 
-First: We may be aware of two equivocated `Seconded` statements issued by a validator. A totally honest peer of ours can also be aware of one or two different `Seconded` statements issued by the same validator. And yet another peer may be aware of one or two _more_ `Seconded` statements. And so on. This interacts badly with pre-emptive sending logic. Upon sending a `Seconded` statement to a peer, we will want to pre-emptively follow up with all statements relative to that candidate. Waiting for acknowledgement introduces latency at every hop, so that is best avoided. What can happen is that upon receipt of the `Seconded` statement, the peer will discard it as it falls beyond the bound of 2 that it is allowed to store. It cannot store anything in memory about discarded candidates as that would introduce a DoS vector. Then, the peer would receive from us all of the statements pertaining to that candidate, which, from its perspective, would be undesired - they are data-dependent on the `Seconded` statement we sent them, but they have erased all record of that from their memory. Upon receiving a potential flood of undesired statements, this 100% honest peer may choose to disconnect from us. In this way, an adversary may be able to partition the network with careful distribution of equivocated `Seconded` statements.
+First: We may be aware of two equivocated `Seconded` statements issued by a validator. A totally honest peer of ours can also be aware of one or two different `Seconded` statements issued by the same validator. And yet another peer may be aware of one or two _more_ `Seconded` statements. And so on. This interacts badly with pre-emptive sending logic. Upon sending a `Seconded` statement to a peer, we will want to pre-emptively follow up with all statements relative to that candidate. Waiting for acknowledgment introduces latency at every hop, so that is best avoided. What can happen is that upon receipt of the `Seconded` statement, the peer will discard it as it falls beyond the bound of 2 that it is allowed to store. It cannot store anything in memory about discarded candidates as that would introduce a DoS vector. Then, the peer would receive from us all of the statements pertaining to that candidate, which, from its perspective, would be undesired - they are data-dependent on the `Seconded` statement we sent them, but they have erased all record of that from their memory. Upon receiving a potential flood of undesired statements, this 100% honest peer may choose to disconnect from us. In this way, an adversary may be able to partition the network with careful distribution of equivocated `Seconded` statements.
 
 The fix is to track, per-peer, the hashes of up to 4 candidates per validator (per relay-parent) that the peer is aware of. It is 4 because we may send them 2 and they may send us 2 different ones. We track the data that they are aware of as the union of things we have sent them and things they have sent us. If we receive a 1st or 2nd `Seconded` statement from a peer, we note it in the peer's known candidates even if we do disregard the data locally. And then, upon receipt of any data dependent on that statement, we do not reduce that peer's standing in our eyes, as the data was not undesired.
 
