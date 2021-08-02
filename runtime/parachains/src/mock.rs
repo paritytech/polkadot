@@ -16,23 +16,19 @@
 
 //! Mocks for all the traits.
 
-use sp_io::TestExternalities;
-use sp_core::H256;
-use sp_runtime::traits::{
-	BlakeTwo256, IdentityLookup,
-};
-use primitives::v1::{
-	AuthorityDiscoveryId, Balance, BlockNumber, Header, ValidatorIndex, SessionIndex,
-};
-use frame_support::parameter_types;
-use frame_support::traits::GenesisBuild;
-use frame_support_test::TestRandomness;
-use std::cell::RefCell;
-use std::collections::HashMap;
 use crate::{
-	inclusion, scheduler, dmp, ump, hrmp, session_info, paras, configuration,
-	initializer, shared, disputes,
+	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, scheduler, session_info,
+	shared, ump,
 };
+use frame_support::{parameter_types, traits::GenesisBuild};
+use frame_support_test::TestRandomness;
+use primitives::v1::{
+	AuthorityDiscoveryId, Balance, BlockNumber, Header, SessionIndex, ValidatorIndex,
+};
+use sp_core::H256;
+use sp_io::TestExternalities;
+use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
+use std::{cell::RefCell, collections::HashMap};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -114,16 +110,16 @@ impl crate::initializer::Config for Test {
 	type ForceOrigin = frame_system::EnsureRoot<u64>;
 }
 
-impl crate::configuration::Config for Test { }
+impl crate::configuration::Config for Test {}
 
-impl crate::shared::Config for Test { }
+impl crate::shared::Config for Test {}
 
 impl crate::paras::Config for Test {
 	type Origin = Origin;
 	type Event = Event;
 }
 
-impl crate::dmp::Config for Test { }
+impl crate::dmp::Config for Test {}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;
@@ -157,7 +153,7 @@ thread_local! {
 impl crate::disputes::RewardValidators for Test {
 	fn reward_dispute_statement(
 		session: SessionIndex,
-		validators: impl IntoIterator<Item=ValidatorIndex>
+		validators: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		REWARD_VALIDATORS.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
 	}
@@ -166,7 +162,7 @@ impl crate::disputes::RewardValidators for Test {
 impl crate::disputes::PunishValidators for Test {
 	fn punish_for_invalid(
 		session: SessionIndex,
-		validators: impl IntoIterator<Item=ValidatorIndex>,
+		validators: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_FOR
 			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
@@ -174,7 +170,7 @@ impl crate::disputes::PunishValidators for Test {
 
 	fn punish_against_valid(
 		session: SessionIndex,
-		validators: impl IntoIterator<Item=ValidatorIndex>,
+		validators: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_AGAINST
 			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
@@ -182,14 +178,14 @@ impl crate::disputes::PunishValidators for Test {
 
 	fn punish_inconclusive(
 		session: SessionIndex,
-		validators: impl IntoIterator<Item=ValidatorIndex>,
+		validators: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_INCONCLUSIVE
 			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
 	}
 }
 
-impl crate::scheduler::Config for Test { }
+impl crate::scheduler::Config for Test {}
 
 impl crate::inclusion::Config for Test {
 	type Event = Event;
@@ -197,9 +193,9 @@ impl crate::inclusion::Config for Test {
 	type RewardValidators = TestRewardValidators;
 }
 
-impl crate::paras_inherent::Config for Test { }
+impl crate::paras_inherent::Config for Test {}
 
-impl crate::session_info::Config for Test { }
+impl crate::session_info::Config for Test {}
 
 thread_local! {
 	pub static DISCOVERY_AUTHORITIES: RefCell<Vec<AuthorityDiscoveryId>> = RefCell::new(Vec::new());

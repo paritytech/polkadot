@@ -16,43 +16,52 @@
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
-use core::{result, convert::TryFrom, fmt::Debug};
-use derivative::Derivative;
-use alloc::vec::Vec;
-use parity_scale_codec::{self, Encode, Decode};
 use crate::{DoubleEncoded, VersionedXcm};
+use alloc::vec::Vec;
+use core::{convert::TryFrom, fmt::Debug, result};
+use derivative::Derivative;
+use parity_scale_codec::{self, Decode, Encode};
 
 mod junction;
 mod multi_location;
+pub mod multiasset;
 mod order;
-mod traits;
-pub mod multiasset;	// the new multiasset.
+mod traits; // the new multiasset.
 
-pub use junction::{Junction, NetworkId, BodyId, BodyPart};
-pub use multiasset::{
-	AssetId, AssetInstance, MultiAsset, MultiAssets, MultiAssetFilter, Fungibility, WildMultiAsset, WildFungibility
-};
+pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use multi_location::MultiLocation;
+pub use multiasset::{
+	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
+	WildFungibility, WildMultiAsset,
+};
 pub use order::Order;
-pub use traits::{Error, Result, SendXcm, ExecuteXcm, Outcome};
+pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
-	pub use super::junction::{Junction::*, NetworkId::{self, *}, BodyId, BodyPart};
-	pub use super::multiasset::{
-		MultiAssets, MultiAsset,
-		AssetId::{self, *},
-		AssetInstance::{self, *},
-		MultiAssetFilter::{self, *},
-		Fungibility::{self, *},
-		WildMultiAsset::{self, *},
-		WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
+	pub use super::{
+		junction::{
+			BodyId, BodyPart,
+			Junction::*,
+			NetworkId::{self, *},
+		},
+		multi_location::MultiLocation::{self, *},
+		multiasset::{
+			AssetId::{self, *},
+			AssetInstance::{self, *},
+			Fungibility::{self, *},
+			MultiAsset,
+			MultiAssetFilter::{self, *},
+			MultiAssets,
+			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
+			WildMultiAsset::{self, *},
+		},
+		opaque,
+		order::Order::{self, *},
+		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
+		OriginKind, Response,
+		Xcm::{self, *},
 	};
-	pub use super::multi_location::MultiLocation::{self, *};
-	pub use super::order::Order::{self, *};
-	pub use super::traits::{Error as XcmError, Result as XcmResult, SendXcm, ExecuteXcm, Outcome};
-	pub use super::{Xcm::{self, *}, OriginKind, Response};
-	pub use super::opaque;
 }
 
 // TODO: #2841 #XCMENCODE Efficient encodings for MultiAssets, Vec<Order>, using initial byte values 128+ to encode
@@ -159,7 +168,11 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 3)]
-	QueryResponse { #[codec(compact)] query_id: u64, response: Response },
+	QueryResponse {
+		#[codec(compact)]
+		query_id: u64,
+		response: Response,
+	},
 
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
 	/// ownership of `dest` within this consensus system.
@@ -221,9 +234,12 @@ pub enum Xcm<Call> {
 	/// Kind: *System Notification*
 	#[codec(index = 7)]
 	HrmpNewChannelOpenRequest {
-		#[codec(compact)] sender: u32,
-		#[codec(compact)] max_message_size: u32,
-		#[codec(compact)] max_capacity: u32,
+		#[codec(compact)]
+		sender: u32,
+		#[codec(compact)]
+		max_message_size: u32,
+		#[codec(compact)]
+		max_capacity: u32,
 	},
 
 	/// A message to notify about that a previously sent open channel request has been accepted by
@@ -237,7 +253,8 @@ pub enum Xcm<Call> {
 	/// Errors:
 	#[codec(index = 8)]
 	HrmpChannelAccepted {
-		#[codec(compact)] recipient: u32,
+		#[codec(compact)]
+		recipient: u32,
 	},
 
 	/// A message to notify that the other party in an open channel decided to close it. In particular,
@@ -252,9 +269,12 @@ pub enum Xcm<Call> {
 	/// Errors:
 	#[codec(index = 9)]
 	HrmpChannelClosing {
-		#[codec(compact)] initiator: u32,
-		#[codec(compact)] sender: u32,
-		#[codec(compact)] recipient: u32,
+		#[codec(compact)]
+		initiator: u32,
+		#[codec(compact)]
+		sender: u32,
+		#[codec(compact)]
+		recipient: u32,
 	},
 
 	/// A message to indicate that the embedded XCM is actually arriving on behalf of some consensus
@@ -267,10 +287,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 10)]
-	RelayedFrom {
-		who: MultiLocation,
-		message: alloc::boxed::Box<Xcm<Call>>,
-	},
+	RelayedFrom { who: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
 }
 
 impl<Call> From<Xcm<Call>> for VersionedXcm<Call> {
@@ -289,32 +306,33 @@ impl<Call> TryFrom<VersionedXcm<Call>> for Xcm<Call> {
 }
 
 impl<Call> Xcm<Call> {
-	pub fn into<C>(self) -> Xcm<C> { Xcm::from(self) }
+	pub fn into<C>(self) -> Xcm<C> {
+		Xcm::from(self)
+	}
 	pub fn from<C>(xcm: Xcm<C>) -> Self {
 		use Xcm::*;
 		match xcm {
-			WithdrawAsset { assets, effects }
-			=> WithdrawAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
-			ReserveAssetDeposited { assets, effects }
-			=> ReserveAssetDeposited { assets, effects: effects.into_iter().map(Order::into).collect() },
-			TeleportAsset { assets, effects }
-			=> TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
-			QueryResponse { query_id: u64, response }
-			=> QueryResponse { query_id: u64, response },
-			TransferAsset { assets, dest }
-			=> TransferAsset { assets, dest },
-			TransferReserveAsset { assets, dest, effects }
-			=> TransferReserveAsset { assets, dest, effects },
-			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity}
-			=> HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity},
-			HrmpChannelAccepted { recipient}
-			=> HrmpChannelAccepted { recipient},
-			HrmpChannelClosing { initiator, sender, recipient}
-			=> HrmpChannelClosing { initiator, sender, recipient},
-			Transact { origin_type, require_weight_at_most, call}
-			=> Transact { origin_type, require_weight_at_most, call: call.into() },
-			RelayedFrom { who, message }
-			=> RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
+			WithdrawAsset { assets, effects } =>
+				WithdrawAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
+			ReserveAssetDeposited { assets, effects } => ReserveAssetDeposited {
+				assets,
+				effects: effects.into_iter().map(Order::into).collect(),
+			},
+			TeleportAsset { assets, effects } =>
+				TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
+			QueryResponse { query_id: u64, response } => QueryResponse { query_id: u64, response },
+			TransferAsset { assets, dest } => TransferAsset { assets, dest },
+			TransferReserveAsset { assets, dest, effects } =>
+				TransferReserveAsset { assets, dest, effects },
+			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
+			HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
+			HrmpChannelClosing { initiator, sender, recipient } =>
+				HrmpChannelClosing { initiator, sender, recipient },
+			Transact { origin_type, require_weight_at_most, call } =>
+				Transact { origin_type, require_weight_at_most, call: call.into() },
+			RelayedFrom { who, message } =>
+				RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
 		}
 	}
 }

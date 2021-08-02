@@ -18,10 +18,15 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	initializer,
 };
-use sp_std::{prelude::*, fmt, marker::PhantomData, convert::TryFrom};
-use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
 use frame_support::pallet_prelude::*;
 use primitives::v1::{Id as ParaId, UpwardMessage};
+use sp_std::{
+	collections::{btree_map::BTreeMap, vec_deque::VecDeque},
+	convert::TryFrom,
+	fmt,
+	marker::PhantomData,
+	prelude::*,
+};
 use xcm::v0::Outcome;
 
 pub use pallet::*;
@@ -46,13 +51,21 @@ pub trait UmpSink {
 	/// it did not begin processing a message since it would otherwise exceed `max_weight`.
 	///
 	/// See the trait docs for more details.
-	fn process_upward_message(origin: ParaId, msg: &[u8], max_weight: Weight) -> Result<Weight, (MessageId, Weight)>;
+	fn process_upward_message(
+		origin: ParaId,
+		msg: &[u8],
+		max_weight: Weight,
+	) -> Result<Weight, (MessageId, Weight)>;
 }
 
 /// An implementation of a sink that just swallows the message without consuming any weight. Returns
 /// `Some(0)` indicating that no messages existed for it to process.
 impl UmpSink for () {
-	fn process_upward_message(_: ParaId, _: &[u8], _: Weight) -> Result<Weight, (MessageId, Weight)> {
+	fn process_upward_message(
+		_: ParaId,
+		_: &[u8],
+		_: Weight,
+	) -> Result<Weight, (MessageId, Weight)> {
 		Ok(0)
 	}
 }
@@ -66,13 +79,19 @@ pub type MessageId = [u8; 32];
 pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
 
 impl<XcmExecutor: xcm::v0::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
-	fn process_upward_message(origin: ParaId, data: &[u8], max_weight: Weight) -> Result<Weight, (MessageId, Weight)> {
-		use xcm::VersionedXcm;
-		use xcm::v0::{Xcm, Junction, MultiLocation, Error as XcmError};
+	fn process_upward_message(
+		origin: ParaId,
+		data: &[u8],
+		max_weight: Weight,
+	) -> Result<Weight, (MessageId, Weight)> {
+		use xcm::{
+			v0::{Error as XcmError, Junction, MultiLocation, Xcm},
+			VersionedXcm,
+		};
 
 		let id = sp_io::hashing::blake2_256(&data[..]);
-		let maybe_msg = VersionedXcm::<C::Call>::decode(&mut &data[..])
-			.map(Xcm::<C::Call>::try_from);
+		let maybe_msg =
+			VersionedXcm::<C::Call>::decode(&mut &data[..]).map(Xcm::<C::Call>::try_from);
 		match maybe_msg {
 			Err(_) => {
 				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
@@ -92,9 +111,9 @@ impl<XcmExecutor: xcm::v0::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<X
 						let weight_used = outcome.weight_used();
 						Pallet::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
 						Ok(weight_used)
-					}
+					},
 				}
-			}
+			},
 		}
 	}
 }
@@ -102,23 +121,10 @@ impl<XcmExecutor: xcm::v0::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<X
 /// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
 /// criteria rules.
 pub enum AcceptanceCheckErr {
-	MoreMessagesThanPermitted {
-		sent: u32,
-		permitted: u32,
-	},
-	MessageSize {
-		idx: u32,
-		msg_size: u32,
-		max_size: u32,
-	},
-	CapacityExceeded {
-		count: u32,
-		limit: u32,
-	},
-	TotalSizeExceeded {
-		total_size: u32,
-		limit: u32,
-	},
+	MoreMessagesThanPermitted { sent: u32, permitted: u32 },
+	MessageSize { idx: u32, msg_size: u32, max_size: u32 },
+	CapacityExceeded { count: u32, limit: u32 },
+	TotalSizeExceeded { total_size: u32, limit: u32 },
 }
 
 impl fmt::Debug for AcceptanceCheckErr {
@@ -129,11 +135,7 @@ impl fmt::Debug for AcceptanceCheckErr {
 				"more upward messages than permitted by config ({} > {})",
 				sent, permitted,
 			),
-			AcceptanceCheckErr::MessageSize {
-				idx,
-				msg_size,
-				max_size,
-			} => write!(
+			AcceptanceCheckErr::MessageSize { idx, msg_size, max_size } => write!(
 				fmt,
 				"upward message idx {} larger than permitted by config ({} > {})",
 				idx, msg_size, max_size,
@@ -204,13 +206,8 @@ pub mod pallet {
 	///
 	/// The messages are processed in FIFO order.
 	#[pallet::storage]
-	pub type RelayDispatchQueues<T: Config> = StorageMap<
-		_,
-		Twox64Concat,
-		ParaId,
-		VecDeque<UpwardMessage>,
-		ValueQuery
-	>;
+	pub type RelayDispatchQueues<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, VecDeque<UpwardMessage>, ValueQuery>;
 
 	/// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 	///
@@ -226,13 +223,8 @@ pub mod pallet {
 	// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
 	// the format will require migration of parachains.
 	#[pallet::storage]
-	pub type RelayDispatchQueueSize<T: Config> = StorageMap<
-		_,
-		Twox64Concat,
-		ParaId,
-		(u32, u32),
-		ValueQuery
-	>;
+	pub type RelayDispatchQueueSize<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, (u32, u32), ValueQuery>;
 
 	/// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
 	///
@@ -311,7 +303,7 @@ impl<T: Config> Pallet<T> {
 			return Err(AcceptanceCheckErr::MoreMessagesThanPermitted {
 				sent: upward_messages.len() as u32,
 				permitted: config.max_upward_message_num_per_candidate,
-			});
+			})
 		}
 
 		let (mut para_queue_count, mut para_queue_size) =
@@ -324,7 +316,7 @@ impl<T: Config> Pallet<T> {
 					idx: idx as u32,
 					msg_size,
 					max_size: config.max_upward_message_size,
-				});
+				})
 			}
 			para_queue_count += 1;
 			para_queue_size += msg_size;
@@ -336,13 +328,13 @@ impl<T: Config> Pallet<T> {
 			return Err(AcceptanceCheckErr::CapacityExceeded {
 				count: para_queue_count,
 				limit: config.max_upward_queue_count,
-			});
+			})
 		}
 		if para_queue_size > config.max_upward_queue_size {
 			return Err(AcceptanceCheckErr::TotalSizeExceeded {
 				total_size: para_queue_size,
 				limit: config.max_upward_queue_size,
-			});
+			})
 		}
 
 		Ok(())
@@ -364,10 +356,13 @@ impl<T: Config> Pallet<T> {
 				v.extend(upward_messages.into_iter())
 			});
 
-			<Self as Store>::RelayDispatchQueueSize::mutate(&para, |(ref mut cnt, ref mut size)| {
-				*cnt += extra_count;
-				*size += extra_size;
-			});
+			<Self as Store>::RelayDispatchQueueSize::mutate(
+				&para,
+				|(ref mut cnt, ref mut size)| {
+					*cnt += extra_count;
+					*size += extra_size;
+				},
+			);
 
 			<Self as Store>::NeedsDispatch::mutate(|v| {
 				if let Err(i) = v.binary_search(&para) {
@@ -398,7 +393,7 @@ impl<T: Config> Pallet<T> {
 				// preferred weight for the dispatching stage.
 				//
 				// if so - bail.
-				break;
+				break
 			}
 			let max_weight = if weight_used == 0 {
 				// we increase the amount of weight that we're allowed to use on the first message to try to prevent
@@ -411,7 +406,11 @@ impl<T: Config> Pallet<T> {
 			// dequeue the next message from the queue of the dispatchee
 			let (upward_message, became_empty) = queue_cache.dequeue::<T>(dispatchee);
 			if let Some(upward_message) = upward_message {
-				match T::UmpSink::process_upward_message(dispatchee, &upward_message[..], max_weight) {
+				match T::UmpSink::process_upward_message(
+					dispatchee,
+					&upward_message[..],
+					max_weight,
+				) {
 					Ok(used) => weight_used += used,
 					Err((id, required)) => {
 						// we process messages in order and don't drop them if we run out of weight, so need to break
@@ -478,11 +477,7 @@ impl QueueCache {
 		let cache_entry = self.0.entry(para).or_insert_with(|| {
 			let queue = <Pallet<T> as Store>::RelayDispatchQueues::get(&para);
 			let (count, total_size) = <Pallet<T> as Store>::RelayDispatchQueueSize::get(&para);
-			QueueCacheEntry {
-				queue,
-				count,
-				total_size,
-			}
+			QueueCacheEntry { queue, count, total_size }
 		});
 		let upward_message = cache_entry.queue.pop_front();
 		if let Some(ref msg) = upward_message {
@@ -499,15 +494,7 @@ impl QueueCache {
 		// NOTE we use an explicit method here instead of Drop impl because it has unwanted semantics
 		// within runtime. It is dangerous to use because of double-panics and flushing on a panic
 		// is not necessary as well.
-		for (
-			para,
-			QueueCacheEntry {
-				queue,
-				count,
-				total_size,
-			},
-		) in self.0
-		{
+		for (para, QueueCacheEntry { queue, count, total_size }) in self.0 {
 			if queue.is_empty() {
 				// remove the entries altogether.
 				<Pallet<T> as Store>::RelayDispatchQueues::remove(&para);
@@ -551,15 +538,12 @@ impl NeedsDispatchCursor {
 					// let's select 0 as the starting index as a safe bet.
 					debug_assert!(false);
 					0
-				}
+				},
 			},
 			None => 0,
 		};
 
-		Self {
-			needs_dispatch,
-			index: initial_index,
-		}
+		Self { needs_dispatch, index: initial_index }
 	}
 
 	/// Returns the item the cursor points to.
@@ -570,7 +554,7 @@ impl NeedsDispatchCursor {
 	/// Moves the cursor to the next item.
 	fn advance(&mut self) {
 		if self.needs_dispatch.is_empty() {
-			return;
+			return
 		}
 		self.index = (self.index + 1) % self.needs_dispatch.len();
 	}
@@ -578,7 +562,7 @@ impl NeedsDispatchCursor {
 	/// Removes the item under the cursor.
 	fn remove(&mut self) {
 		if self.needs_dispatch.is_empty() {
-			return;
+			return
 		}
 		let _ = self.needs_dispatch.remove(self.index);
 
@@ -615,10 +599,9 @@ pub(crate) mod mock_sink {
 	//! 2. All messages expected by the probe must be received by the time of dropping it. Unreceived
 	//!    messages will lead to a panic while dropping a probe.
 
-	use super::{UmpSink, UpwardMessage, ParaId, MessageId};
-	use std::cell::RefCell;
-	use std::collections::vec_deque::VecDeque;
+	use super::{MessageId, ParaId, UmpSink, UpwardMessage};
 	use frame_support::weights::Weight;
+	use std::{cell::RefCell, collections::vec_deque::VecDeque};
 
 	#[derive(Debug)]
 	struct UmpExpectation {
@@ -634,25 +617,30 @@ pub(crate) mod mock_sink {
 
 	pub struct MockUmpSink;
 	impl UmpSink for MockUmpSink {
-		fn process_upward_message(actual_origin: ParaId, actual_msg: &[u8], _max_weight: Weight) -> Result<Weight, (MessageId, Weight)> {
-			Ok(HOOK.with(|opt_hook| opt_hook.borrow_mut().as_mut().map(|hook| {
-				let UmpExpectation {
-					expected_origin,
-					expected_msg,
-					mock_weight,
-				} = match hook.pop_front() {
-					Some(expectation) => expectation,
-					None => {
-						panic!(
+		fn process_upward_message(
+			actual_origin: ParaId,
+			actual_msg: &[u8],
+			_max_weight: Weight,
+		) -> Result<Weight, (MessageId, Weight)> {
+			Ok(HOOK
+				.with(|opt_hook| {
+					opt_hook.borrow_mut().as_mut().map(|hook| {
+						let UmpExpectation { expected_origin, expected_msg, mock_weight } =
+							match hook.pop_front() {
+								Some(expectation) => expectation,
+								None => {
+									panic!(
 							"The probe is active but didn't expect the message:\n\n\t{:?}.",
 							actual_msg,
 						);
-					}
-				};
-				assert_eq!(expected_origin, actual_origin);
-				assert_eq!(expected_msg, &actual_msg[..]);
-				mock_weight
-			})).unwrap_or(0))
+								},
+							};
+						assert_eq!(expected_origin, actual_origin);
+						assert_eq!(expected_msg, &actual_msg[..]);
+						mock_weight
+					})
+				})
+				.unwrap_or(0))
 		}
 	}
 
@@ -684,15 +672,11 @@ pub(crate) mod mock_sink {
 			mock_weight: Weight,
 		) {
 			HOOK.with(|opt_hook| {
-				opt_hook
-					.borrow_mut()
-					.as_mut()
-					.unwrap()
-					.push_back(UmpExpectation {
-						expected_origin,
-						expected_msg,
-						mock_weight,
-					})
+				opt_hook.borrow_mut().as_mut().unwrap().push_back(UmpExpectation {
+					expected_origin,
+					expected_msg,
+					mock_weight,
+				})
 			});
 		}
 	}
@@ -727,9 +711,8 @@ pub(crate) mod mock_sink {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-	use super::mock_sink::Probe;
-	use crate::mock::{Configuration, Ump, new_test_ext, MockGenesisConfig};
+	use super::{mock_sink::Probe, *};
+	use crate::mock::{new_test_ext, Configuration, MockGenesisConfig, Ump};
 	use std::collections::HashSet;
 
 	struct GenesisConfigBuilder {
@@ -761,8 +744,7 @@ mod tests {
 			config.max_upward_message_num_per_candidate = self.max_upward_message_num_per_candidate;
 			config.max_upward_queue_count = self.max_upward_queue_count;
 			config.max_upward_queue_size = self.max_upward_queue_size;
-			config.ump_service_total_weight =
-				self.ump_service_total_weight;
+			config.ump_service_total_weight = self.ump_service_total_weight;
 			genesis
 		}
 	}
@@ -811,9 +793,8 @@ mod tests {
 		let queue_sizes_set = <Ump as Store>::RelayDispatchQueueSize::iter()
 			.map(|(k, _)| k)
 			.collect::<HashSet<ParaId>>();
-		let needs_dispatch_set = <Ump as Store>::NeedsDispatch::get()
-			.into_iter()
-			.collect::<HashSet<ParaId>>();
+		let needs_dispatch_set =
+			<Ump as Store>::NeedsDispatch::get().into_iter().collect::<HashSet<ParaId>>();
 		assert_eq!(queue_contents_set, queue_sizes_set);
 		assert_eq!(queue_contents_set, needs_dispatch_set);
 
@@ -823,11 +804,7 @@ mod tests {
 		}
 
 		// `NeedsDispatch` is always sorted.
-		assert!(
-			<Ump as Store>::NeedsDispatch::get()
-				.windows(2)
-				.all(|xs| xs[0] <= xs[1])
-		);
+		assert!(<Ump as Store>::NeedsDispatch::get().windows(2).all(|xs| xs[0] <= xs[1]));
 	}
 
 	#[test]
@@ -872,11 +849,7 @@ mod tests {
 		let q_msg = b"we are Q".to_vec();
 
 		new_test_ext(
-			GenesisConfigBuilder {
-				ump_service_total_weight: 500,
-				..Default::default()
-			}
-			.build(),
+			GenesisConfigBuilder { ump_service_total_weight: 500, ..Default::default() }.build(),
 		)
 		.execute_with(|| {
 			queue_upward_msg(q, q_msg.clone());
@@ -946,11 +919,7 @@ mod tests {
 		let b_msg_1 = vec![4, 5, 6];
 
 		new_test_ext(
-			GenesisConfigBuilder {
-				ump_service_total_weight: 900,
-				..Default::default()
-			}
-			.build(),
+			GenesisConfigBuilder { ump_service_total_weight: 900, ..Default::default() }.build(),
 		)
 		.execute_with(|| {
 			// We want to test here an edge case, where we remove the queue with the highest
@@ -982,8 +951,8 @@ mod tests {
 		// Make sure that the relay dispatch queue size storage entry is accessible via well known
 		// keys and is decodable into a (u32, u32).
 
-		use primitives::v1::well_known_keys;
 		use parity_scale_codec::Decode as _;
+		use primitives::v1::well_known_keys;
 
 		let a = ParaId::from(228);
 		let msg = vec![1, 2, 3];
@@ -991,9 +960,11 @@ mod tests {
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 			queue_upward_msg(a, msg);
 
-			let raw_queue_size = sp_io::storage::get(&well_known_keys::relay_dispatch_queue_size(a))
-				.expect("enqueing a message should create the dispatch queue\
-				and it should be accessible via the well known keys");
+			let raw_queue_size =
+				sp_io::storage::get(&well_known_keys::relay_dispatch_queue_size(a)).expect(
+					"enqueing a message should create the dispatch queue\
+				and it should be accessible via the well known keys",
+				);
 			let (cnt, size) = <(u32, u32)>::decode(&mut &raw_queue_size[..])
 				.expect("the dispatch queue size should be decodable into (u32, u32)");
 

@@ -22,27 +22,23 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_subsystem::{
-	SubsystemError, SubsystemResult,
-	FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext,
-	errors::RuntimeApiError,
-	messages::{
-		RuntimeApiMessage, RuntimeApiRequest as Request,
-	},
-	overseer,
-};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
+use polkadot_subsystem::{
+	errors::RuntimeApiError,
+	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
+	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
+	SubsystemResult,
+};
 
 use sp_api::ProvideRuntimeApi;
 use sp_authority_discovery::AuthorityDiscoveryApi;
-use sp_core::traits::SpawnNamed;
 use sp_consensus_babe::BabeApi;
+use sp_core::traits::SpawnNamed;
 
-use futures::{prelude::*, stream::FuturesUnordered, channel::oneshot, select};
-use std::{sync::Arc, collections::VecDeque, pin::Pin};
 use cache::{RequestResult, RequestResultCache};
+use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
+use std::{collections::VecDeque, pin::Pin, sync::Arc};
 
 mod cache;
 
@@ -75,7 +71,11 @@ pub struct RuntimeApiSubsystem<Client> {
 
 impl<Client> RuntimeApiSubsystem<Client> {
 	/// Create a new Runtime API subsystem wrapping the given client and metrics.
-	pub fn new(client: Arc<Client>, metrics: Metrics, spawn_handle: impl SpawnNamed + 'static) -> Self {
+	pub fn new(
+		client: Arc<Client>,
+		metrics: Metrics,
+		spawn_handle: impl SpawnNamed + 'static,
+	) -> Self {
 		RuntimeApiSubsystem {
 			client,
 			metrics,
@@ -87,21 +87,20 @@ impl<Client> RuntimeApiSubsystem<Client> {
 	}
 }
 
-impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for RuntimeApiSubsystem<Client> where
+impl<Client, Context> overseer::Subsystem<Context, SubsystemError> for RuntimeApiSubsystem<Client>
+where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage>,
 	Context: overseer::SubsystemContext<Message = RuntimeApiMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		SpawnedSubsystem {
-			future: run(ctx, self).boxed(),
-			name: "runtime-api-subsystem",
-		}
+		SpawnedSubsystem { future: run(ctx, self).boxed(), name: "runtime-api-subsystem" }
 	}
 }
 
-impl<Client> RuntimeApiSubsystem<Client> where
+impl<Client> RuntimeApiSubsystem<Client>
+where
 	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 {
@@ -117,26 +116,31 @@ impl<Client> RuntimeApiSubsystem<Client> where
 				self.requests_cache.cache_validator_groups(relay_parent, groups),
 			AvailabilityCores(relay_parent, cores) =>
 				self.requests_cache.cache_availability_cores(relay_parent, cores),
-			PersistedValidationData(relay_parent, para_id, assumption, data) =>
-				self.requests_cache.cache_persisted_validation_data((relay_parent, para_id, assumption), data),
-			CheckValidationOutputs(relay_parent, para_id, commitments, b) =>
-				self.requests_cache.cache_check_validation_outputs((relay_parent, para_id, commitments), b),
+			PersistedValidationData(relay_parent, para_id, assumption, data) => self
+				.requests_cache
+				.cache_persisted_validation_data((relay_parent, para_id, assumption), data),
+			CheckValidationOutputs(relay_parent, para_id, commitments, b) => self
+				.requests_cache
+				.cache_check_validation_outputs((relay_parent, para_id, commitments), b),
 			SessionIndexForChild(relay_parent, session_index) =>
 				self.requests_cache.cache_session_index_for_child(relay_parent, session_index),
-			ValidationCode(relay_parent, para_id, assumption, code) =>
-				self.requests_cache.cache_validation_code((relay_parent, para_id, assumption), code),
+			ValidationCode(relay_parent, para_id, assumption, code) => self
+				.requests_cache
+				.cache_validation_code((relay_parent, para_id, assumption), code),
 			ValidationCodeByHash(_relay_parent, validation_code_hash, code) =>
 				self.requests_cache.cache_validation_code_by_hash(validation_code_hash, code),
-			CandidatePendingAvailability(relay_parent, para_id, candidate) =>
-				self.requests_cache.cache_candidate_pending_availability((relay_parent, para_id), candidate),
+			CandidatePendingAvailability(relay_parent, para_id, candidate) => self
+				.requests_cache
+				.cache_candidate_pending_availability((relay_parent, para_id), candidate),
 			CandidateEvents(relay_parent, events) =>
 				self.requests_cache.cache_candidate_events(relay_parent, events),
 			SessionInfo(_relay_parent, session_index, info) =>
 				self.requests_cache.cache_session_info(session_index, info),
 			DmqContents(relay_parent, para_id, messages) =>
 				self.requests_cache.cache_dmq_contents((relay_parent, para_id), messages),
-			InboundHrmpChannelsContents(relay_parent, para_id, contents) =>
-				self.requests_cache.cache_inbound_hrmp_channel_contents((relay_parent, para_id), contents),
+			InboundHrmpChannelsContents(relay_parent, para_id, contents) => self
+				.requests_cache
+				.cache_inbound_hrmp_channel_contents((relay_parent, para_id), contents),
 			CurrentBabeEpoch(relay_parent, epoch) =>
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
 		}
@@ -169,12 +173,12 @@ impl<Client> RuntimeApiSubsystem<Client> where
 		}
 
 		match request {
-			Request::Authorities(sender) => query!(authorities(), sender)
-				.map(|sender| Request::Authorities(sender)),
-			Request::Validators(sender) => query!(validators(), sender)
-				.map(|sender| Request::Validators(sender)),
-			Request::ValidatorGroups(sender) => query!(validator_groups(), sender)
-				.map(|sender| Request::ValidatorGroups(sender)),
+			Request::Authorities(sender) =>
+				query!(authorities(), sender).map(|sender| Request::Authorities(sender)),
+			Request::Validators(sender) =>
+				query!(validators(), sender).map(|sender| Request::Validators(sender)),
+			Request::ValidatorGroups(sender) =>
+				query!(validator_groups(), sender).map(|sender| Request::ValidatorGroups(sender)),
 			Request::AvailabilityCores(sender) => query!(availability_cores(), sender)
 				.map(|sender| Request::AvailabilityCores(sender)),
 			Request::PersistedValidationData(para, assumption, sender) =>
@@ -183,9 +187,8 @@ impl<Client> RuntimeApiSubsystem<Client> where
 			Request::CheckValidationOutputs(para, commitments, sender) =>
 				query!(check_validation_outputs(para, commitments), sender)
 					.map(|sender| Request::CheckValidationOutputs(para, commitments, sender)),
-			Request::SessionIndexForChild(sender) =>
-				query!(session_index_for_child(), sender)
-					.map(|sender| Request::SessionIndexForChild(sender)),
+			Request::SessionIndexForChild(sender) => query!(session_index_for_child(), sender)
+				.map(|sender| Request::SessionIndexForChild(sender)),
 			Request::ValidationCode(para, assumption, sender) =>
 				query!(validation_code(para, assumption), sender)
 					.map(|sender| Request::ValidationCode(para, assumption, sender)),
@@ -195,18 +198,17 @@ impl<Client> RuntimeApiSubsystem<Client> where
 			Request::CandidatePendingAvailability(para, sender) =>
 				query!(candidate_pending_availability(para), sender)
 					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
-			Request::CandidateEvents(sender) => query!(candidate_events(), sender)
-				.map(|sender| Request::CandidateEvents(sender)),
+			Request::CandidateEvents(sender) =>
+				query!(candidate_events(), sender).map(|sender| Request::CandidateEvents(sender)),
 			Request::SessionInfo(index, sender) => query!(session_info(index), sender)
 				.map(|sender| Request::SessionInfo(index, sender)),
-			Request::DmqContents(id, sender) => query!(dmq_contents(id), sender)
-				.map(|sender| Request::DmqContents(id, sender)),
+			Request::DmqContents(id, sender) =>
+				query!(dmq_contents(id), sender).map(|sender| Request::DmqContents(id, sender)),
 			Request::InboundHrmpChannelsContents(id, sender) =>
 				query!(inbound_hrmp_channels_contents(id), sender)
 					.map(|sender| Request::InboundHrmpChannelsContents(id, sender)),
 			Request::CurrentBabeEpoch(sender) =>
-				query!(current_babe_epoch(), sender)
-					.map(|sender| Request::CurrentBabeEpoch(sender)),
+				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
 		}
 	}
 
@@ -224,14 +226,10 @@ impl<Client> RuntimeApiSubsystem<Client> where
 		};
 
 		let request = async move {
-			let result = make_runtime_api_request(
-				client,
-				metrics,
-				relay_parent,
-				request,
-			);
+			let result = make_runtime_api_request(client, metrics, relay_parent, request);
 			let _ = sender.send(result);
-		}.boxed();
+		}
+		.boxed();
 
 		if self.active_requests.len() >= MAX_PARALLEL_REQUESTS {
 			self.waiting_requests.push_back((request, receiver));
@@ -271,7 +269,8 @@ impl<Client> RuntimeApiSubsystem<Client> where
 async fn run<Client, Context>(
 	mut ctx: Context,
 	mut subsystem: RuntimeApiSubsystem<Client>,
-) -> SubsystemResult<()> where
+) -> SubsystemResult<()>
+where
 	Client: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Client::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage>,
@@ -323,12 +322,14 @@ where
 		Request::Authorities(sender) => query!(Authorities, authorities(), sender),
 		Request::Validators(sender) => query!(Validators, validators(), sender),
 		Request::ValidatorGroups(sender) => query!(ValidatorGroups, validator_groups(), sender),
-		Request::AvailabilityCores(sender) => query!(AvailabilityCores, availability_cores(), sender),
+		Request::AvailabilityCores(sender) =>
+			query!(AvailabilityCores, availability_cores(), sender),
 		Request::PersistedValidationData(para, assumption, sender) =>
 			query!(PersistedValidationData, persisted_validation_data(para, assumption), sender),
 		Request::CheckValidationOutputs(para, commitments, sender) =>
 			query!(CheckValidationOutputs, check_validation_outputs(para, commitments), sender),
-		Request::SessionIndexForChild(sender) => query!(SessionIndexForChild, session_index_for_child(), sender),
+		Request::SessionIndexForChild(sender) =>
+			query!(SessionIndexForChild, session_index_for_child(), sender),
 		Request::ValidationCode(para, assumption, sender) =>
 			query!(ValidationCode, validation_code(para, assumption), sender),
 		Request::ValidationCodeByHash(validation_code_hash, sender) =>
@@ -338,7 +339,8 @@ where
 		Request::CandidateEvents(sender) => query!(CandidateEvents, candidate_events(), sender),
 		Request::SessionInfo(index, sender) => query!(SessionInfo, session_info(index), sender),
 		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), sender),
-		Request::InboundHrmpChannelsContents(id, sender) => query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
+		Request::InboundHrmpChannelsContents(id, sender) =>
+			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
 		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
 	}
 }
@@ -365,12 +367,15 @@ impl Metrics {
 	}
 
 	fn on_cached_request(&self) {
-		self.0.as_ref()
+		self.0
+			.as_ref()
 			.map(|metrics| metrics.chain_api_requests.with_label_values(&["cached"]).inc());
 	}
 
 	/// Provide a timer for `make_runtime_api_request` which observes on drop.
-	fn time_make_runtime_api_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	fn time_make_runtime_api_request(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.make_runtime_api_request.start_timer())
 	}
 }
@@ -389,12 +394,10 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			make_runtime_api_request: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_runtime_api_make_runtime_api_request",
-						"Time spent within `runtime_api::make_runtime_api_request`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_runtime_api_make_runtime_api_request",
+					"Time spent within `runtime_api::make_runtime_api_request`",
+				))?,
 				registry,
 			)?,
 		};

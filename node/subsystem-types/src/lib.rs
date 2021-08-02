@@ -22,23 +22,22 @@
 
 #![warn(missing_docs)]
 
-use std::{sync::Arc, fmt};
+use std::{fmt, sync::Arc};
 
-pub use polkadot_primitives::v1::{Hash, BlockNumber};
+pub use polkadot_primitives::v1::{BlockNumber, Hash};
 use smallvec::SmallVec;
 
 pub mod errors;
 pub mod messages;
 
-pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
+pub use polkadot_node_jaeger as jaeger;
 
 /// How many slots are stack-reserved for active leaves updates
 ///
 /// If there are fewer than this number of slots, then we've wasted some stack space.
 /// If there are greater than this number of slots, then we fall back to a heap vector.
 const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
-
 
 /// The status of an activated leaf.
 #[derive(Debug, Clone)]
@@ -118,9 +117,9 @@ impl PartialEq for ActiveLeavesUpdate {
 	///
 	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
 	fn eq(&self, other: &Self) -> bool {
-		self.activated.as_ref().map(|a| a.hash) == other.activated.as_ref().map(|a| a.hash)
-			&& self.deactivated.len() == other.deactivated.len()
-			&& self.deactivated.iter().all(|a| other.deactivated.contains(a))
+		self.activated.as_ref().map(|a| a.hash) == other.activated.as_ref().map(|a| a.hash) &&
+			self.deactivated.len() == other.deactivated.len() &&
+			self.deactivated.iter().all(|a| other.deactivated.contains(a))
 	}
 }
 
