@@ -1090,9 +1090,13 @@ pub type Executive = frame_executive::Executive<
 	AllPallets,
 	(
 		RemoveCollectiveFlip,
-		MigratePalletVersionToStorageVersion,
+		// Needs to be before pallet version to storage version migration because it look into the
+		// storage version to determine if it is already up to date.
 		CouncilStoragePrefixMigration,
+		// Needs to be before pallet version to storage version migration because it look into the
+		// storage version to determine if it is already up to date.
 		TechnicalCommitteeStoragePrefixMigration,
+		MigratePalletVersionToStorageVersion,
 	),
 >;
 /// The payload being signed in transactions.
