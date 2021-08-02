@@ -82,19 +82,18 @@ impl SyncOracle for TestSyncOracle {
 }
 
 // val - result of `is_major_syncing`.
-fn make_sync_oracle(val: bool) -> (TestSyncOracle, TestSyncOracleHandle) {
+fn make_sync_oracle(val: bool) -> (Box<dyn SyncOracle + Send>, TestSyncOracleHandle) {
 	let (tx, rx) = oneshot::channel();
 	let flag = Arc::new(AtomicBool::new(val));
+	let oracle = TestSyncOracle {
+		flag,
+		done_syncing_sender: Arc::new(Mutex::new(Some(tx))),
+	};
+	let handle = TestSyncOracleHandle {
+		done_syncing_receiver: rx,
+	};
 
-	(
-		TestSyncOracle {
-			flag: flag.clone(),
-			done_syncing_sender: Arc::new(Mutex::new(Some(tx))),
-		},
-		TestSyncOracleHandle {
-			done_syncing_receiver: rx,
-		}
-	)
+	(Box::new(oracle), handle)
 }
 
 #[cfg(test)]
@@ -208,7 +207,7 @@ struct MockAssignmentCriteria<Compute, Check>(Compute, Check);
 impl<Compute, Check> AssignmentCriteria for MockAssignmentCriteria<Compute, Check>
 where
 	Compute: Fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
-	Check: Fn(ValidatorIndex) -> Result<DelayTranche, criteria::InvalidAssignment>
+	Check: Fn(ValidatorIndex) -> Result<DelayTranche, criteria::InvalidAssignment>,
 {
 	fn compute_assignments(
 		&self,
@@ -243,14 +242,14 @@ impl<F> MockAssignmentCriteria<
 }
 
 #[derive(Default, Clone)]
-struct TestStore {
+struct TestStoreInner {
 	stored_block_range: Option<StoredBlockRange>,
 	blocks_at_height: HashMap<BlockNumber, Vec<Hash>>,
 	block_entries: HashMap<Hash, BlockEntry>,
 	candidate_entries: HashMap<CandidateHash, CandidateEntry>,
 }
 
-impl Backend for TestStore {
+impl Backend for TestStoreInner {
 	fn load_block_entry(
 		&self,
 		block_hash: &Hash,
@@ -317,18 +316,12 @@ impl Backend for TestStore {
 	}
 }
 
-#[derive(Clone)]
-pub(super) struct SharedTestStore<T: Backend> {
-	pub(super) store: Arc<Mutex<T>>
+#[derive(Default, Clone)]
+pub struct TestStore {
+	store: Arc<Mutex<TestStoreInner>>
 }
 
-impl<T: Backend> SharedTestStore<T> {
-	pub(super) fn new(store: T) -> Self {
-		Self { store: Arc::new(Mutex::new(store)) }
-	}
-}
-
-impl<T: Backend> Backend for SharedTestStore<T> {
+impl Backend for TestStore {
 	fn load_block_entry(
 		&self,
 		block_hash: &Hash,
@@ -395,24 +388,80 @@ fn sign_approval(
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalVotingMessage>;
 
+#[derive(Default)]
+struct HarnessConfigBuilder {
+	sync_oracle: Option<(Box<dyn SyncOracle + Send>, TestSyncOracleHandle)>,
+	clock: Option<MockClock>,
+	backend: Option<TestStore>,
+	assignment_criteria: Option<Box<dyn AssignmentCriteria + Send + Sync + 'static>>,
+}
+
+impl HarnessConfigBuilder {
+	pub fn assignment_criteria(
+		&mut self,
+		assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync + 'static>,
+	) -> &mut Self {
+		self.assignment_criteria = Some(assignment_criteria);
+		self
+	}
+
+	pub fn build(&mut self) -> HarnessConfig {
+		let (sync_oracle, sync_oracle_handle) = self.sync_oracle
+			.take()
+			.unwrap_or_else(|| make_sync_oracle(false));
+
+		let assignment_criteria = self.assignment_criteria
+			.take()
+			.unwrap_or_else(|| Box::new(MockAssignmentCriteria::check_only(|_| Ok(0))));
+
+		HarnessConfig {
+			sync_oracle,
+			sync_oracle_handle,
+			clock: self.clock.take().unwrap_or_else(|| MockClock::new(0)),
+			backend: self.backend.take().unwrap_or_else(|| TestStore::default()),
+			assignment_criteria,
+		}
+	}
+}
+
+struct HarnessConfig {
+	sync_oracle: Box<dyn SyncOracle + Send>,
+	sync_oracle_handle: TestSyncOracleHandle,
+	clock: MockClock,
+	backend: TestStore,
+	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync + 'static>,
+}
+
+impl HarnessConfig {
+	pub fn backend(&self) -> TestStore {
+		self.backend.clone()
+	}
+}
+
+impl Default for HarnessConfig {
+	fn default() -> Self {
+		HarnessConfigBuilder::default().build()
+	}
+}
+
 struct TestHarness {
 	virtual_overseer: VirtualOverseer,
 	clock: Box<MockClock>,
-}
-
-#[derive(Default)]
-struct HarnessConfig {
-	tick_start: Tick,
-	assigned_tranche: DelayTranche,
+	sync_oracle_handle: TestSyncOracleHandle,
 }
 
 fn test_harness<T: Future<Output = VirtualOverseer>>(
-	sync_oracle: Box<dyn SyncOracle + Send>,
-	mock_clock: MockClock,
-	store: impl Backend,
-	assignment_criteria: impl AssignmentCriteria + Send + Sync + 'static,
+	config: HarnessConfig,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
+	let HarnessConfig {
+		sync_oracle,
+		sync_oracle_handle,
+		clock,
+		backend,
+		assignment_criteria,
+	} = config;
+
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
 
@@ -422,7 +471,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		Some(&Sr25519Keyring::Alice.to_seed()),
 	);
 
-	let clock = Box::new(mock_clock);
+	let clock = Box::new(clock);
 	let subsystem = run(
 		context,
 		ApprovalVotingSubsystem::with_config(
@@ -436,13 +485,14 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 			Metrics::default(),
 		),
 		clock.clone(),
-		Box::new(assignment_criteria),
-		store,
+		assignment_criteria,
+		backend,
 	);
 
 	let test_fut = test(TestHarness {
 		virtual_overseer,
 		clock,
+		sync_oracle_handle,
 	});
 
 	futures::pin_mut!(test_fut);
@@ -501,23 +551,12 @@ async fn overseer_signal(
 		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
 }
 
-fn make_harness_input() -> (MockClock, impl AssignmentCriteria) {
-	let HarnessConfig {
-		tick_start,
-		assigned_tranche,
-	} = Default::default();
-	let mock_clock = MockClock::new(tick_start);
-	let assignment_criteria = MockAssignmentCriteria::check_only(move |_| { Ok(assigned_tranche) });
-	(mock_clock, assignment_criteria)
-}
-
 #[test]
 fn subsystem_rejects_bad_assignment_ok_criteria() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -568,16 +607,16 @@ fn subsystem_rejects_bad_assignment_ok_criteria() {
 
 #[test]
 fn subsystem_rejects_bad_assignment_err_criteria() {
-	let (oracle, _handle) = make_sync_oracle(false);
-
-	let mock_clock = MockClock::new(0);
-	let assignment_criteria = MockAssignmentCriteria::check_only(move |_| {
+	let assignment_criteria = Box::new(MockAssignmentCriteria::check_only(move |_| {
 		Err(criteria::InvalidAssignment)
-	});
-
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	}));
+	let config = HarnessConfigBuilder::default()
+		.assignment_criteria(assignment_criteria)
+		.build();
+	test_harness(config, |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -613,11 +652,10 @@ fn subsystem_rejects_bad_assignment_err_criteria() {
 
 #[test]
 fn blank_subsystem_act_on_bad_block() {
-	let (oracle, handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -642,7 +680,7 @@ fn blank_subsystem_act_on_bad_block() {
 			}
 		).await;
 
-		handle.await_mode_switch().await;
+		sync_oracle_handle.await_mode_switch().await;
 
 		assert_matches!(
 			rx.await,
@@ -659,12 +697,12 @@ fn blank_subsystem_act_on_bad_block() {
 
 #[test]
 fn subsystem_rejects_approval_if_no_candidate_entry() {
-	let store = SharedTestStore::new(TestStore::default());
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
+	let config = HarnessConfig::default();
+	let store = config.backend();
+	test_harness(config, |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -713,11 +751,10 @@ fn subsystem_rejects_approval_if_no_candidate_entry() {
 
 #[test]
 fn subsystem_rejects_approval_if_no_block_entry() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -752,11 +789,10 @@ fn subsystem_rejects_approval_if_no_block_entry() {
 
 #[test]
 fn subsystem_rejects_approval_before_assignment() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -808,17 +844,17 @@ fn subsystem_rejects_approval_before_assignment() {
 
 #[test]
 fn subsystem_rejects_assignment_in_future() {
-	let (oracle, _handle) = make_sync_oracle(false);
-
-	let tick_start = 0;
-	let assigned_tranche = TICK_TOO_FAR_IN_FUTURE as DelayTranche;
-	let mock_clock = MockClock::new(tick_start);
-	let assignment_criteria = MockAssignmentCriteria::check_only(move |_| { Ok(assigned_tranche) });
-
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	let assignment_criteria = Box::new(MockAssignmentCriteria::check_only(|_| {
+		Ok(TICK_TOO_FAR_IN_FUTURE as _)
+	}));
+	let config = HarnessConfigBuilder::default()
+		.assignment_criteria(assignment_criteria)
+		.build();
+	test_harness(config, |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			clock,
+			sync_oracle_handle: _sync_oracle_handle,
 		} = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
@@ -862,11 +898,10 @@ fn subsystem_rejects_assignment_in_future() {
 
 #[test]
 fn subsystem_accepts_duplicate_assignment() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -908,11 +943,10 @@ fn subsystem_accepts_duplicate_assignment() {
 
 #[test]
 fn subsystem_rejects_assignment_with_unknown_candidate() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -948,11 +982,10 @@ fn subsystem_rejects_assignment_with_unknown_candidate() {
 
 #[test]
 fn subsystem_accepts_and_imports_approval_after_assignment() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -1008,12 +1041,11 @@ fn subsystem_accepts_and_imports_approval_after_assignment() {
 
 #[test]
 fn subsystem_second_approval_import_only_schedules_wakeups() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			clock,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -1091,12 +1123,11 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 
 #[test]
 fn subsystem_assignment_import_updates_candidate_entry_and_schedules_wakeup() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			clock,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -1132,12 +1163,11 @@ fn subsystem_assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 
 #[test]
 fn subsystem_process_wakeup_schedules_wakeup() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			clock,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -1169,7 +1199,7 @@ fn subsystem_process_wakeup_schedules_wakeup() {
 
 		// Activate the wakeup present above, and sleep to allow process_wakeups to execute..
 		clock.inner.lock().wakeup_all(20);
-		async_std::task::sleep(std::time::Duration::from_millis(100)).await;
+		futures_timer::Delay::new(Duration::from_millis(100)).await;
 
 		// The wakeup should have been rescheduled.
 		assert!(clock.inner.lock().has_wakeup(20));
@@ -1591,9 +1621,7 @@ async fn import_block(
 fn linear_import_act_on_leaf() {
 	let session = 3u32;
 
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			..
@@ -1644,11 +1672,10 @@ fn linear_import_act_on_leaf() {
 fn forkful_import_at_same_height_act_on_leaf() {
 	let session = 3u32;
 
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -1706,16 +1733,13 @@ fn forkful_import_at_same_height_act_on_leaf() {
 
 #[test]
 fn import_checked_approval_updates_entries_and_schedules() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let store = SharedTestStore::new(TestStore::default());
-	let mock_clock = MockClock::new(0);
-	let assignment_criteria = MockAssignmentCriteria::check_only(|_| {
-		Ok(0)
-	});
-	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
+	let config = HarnessConfig::default();
+	let store = config.backend();
+	test_harness(config, |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			clock,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -1811,7 +1835,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 		);
 
 		// Sleep to ensure we get a consistent read on the database.
-		async_std::task::sleep(std::time::Duration::from_millis(100)).await;
+		futures_timer::Delay::new(Duration::from_millis(100)).await;
 
 		// The candidate should not yet be approved and a wakeup should be scheduled on the first
 		// approval.
@@ -1851,7 +1875,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 		// that may not be the reality from the database's perspective. This could be avoided
 		// entirely by having replies processed after database writes, but that would constitute a
 		// larger refactor and incur a performance penalty.
-		async_std::task::sleep(std::time::Duration::from_millis(100)).await;
+		futures_timer::Delay::new(Duration::from_millis(100)).await;
 
 		// The candidate should now be approved.
 		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
@@ -1864,12 +1888,12 @@ fn import_checked_approval_updates_entries_and_schedules() {
 
 #[test]
 fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	let store = SharedTestStore::new(TestStore::default());
-	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
+	let config = HarnessConfig::default();
+	let store = config.backend();
+	test_harness(config, |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -1978,7 +2002,7 @@ fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
 			assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
 
 			// Sleep to get a consistent read on the database.
-			async_std::task::sleep(std::time::Duration::from_millis(200)).await;
+			futures_timer::Delay::new(Duration::from_millis(200)).await;
 
 			let block_entry = store.load_block_entry(&block_hash).unwrap().unwrap();
 			assert_eq!(block_entry.is_fully_approved(), expect_block_approved);
@@ -2006,11 +2030,10 @@ fn approved_ancestor_test(
 	skip_approval: impl Fn(BlockNumber) -> bool,
 	approved_height: BlockNumber,
 ) {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, assignment_criteria) = make_harness_input();
-	test_harness(Box::new(oracle), mock_clock, TestStore::default(), assignment_criteria, |test_harness| async move {
+	test_harness(HarnessConfig::default(), |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -2124,10 +2147,7 @@ fn approved_ancestor_test(
 
 #[test]
 fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, _) = make_harness_input();
-	let store = SharedTestStore::new(TestStore::default());
-	let assignment_criteria = MockAssignmentCriteria(|| {
+	let assignment_criteria = Box::new(MockAssignmentCriteria(|| {
 			let mut assignments = HashMap::new();
 			let _ = assignments.insert(CoreIndex(0), approval_db::v1::OurAssignment {
 				cert: garbage_assignment_cert(
@@ -2140,12 +2160,17 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 			assignments
 		},
 		|_| Ok(0),
-	);
+	));
+	let config = HarnessConfigBuilder::default()
+		.assignment_criteria(assignment_criteria)
+		.build();
+	let store = config.backend();
 
-	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
+	test_harness(config, |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			clock,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -2222,7 +2247,7 @@ async fn should_trigger_assignment(
 		assert!(clock.inner.lock().has_wakeup(slot_to_tick(slot) + tranche_offset));
 		clock.inner.lock().wakeup_all(slot_to_tick(slot) + tranche_offset);
 
-		async_std::task::sleep(std::time::Duration::from_millis(200)).await;
+		futures_timer::Delay::new(Duration::from_millis(200)).await;
 
 		assert!(clock.inner.lock().has_wakeup(slot_to_tick(slot + 1) + tranche_offset));
 		clock.inner.lock().wakeup_all(slot_to_tick(slot + 1) + tranche_offset);
@@ -2239,7 +2264,7 @@ async fn should_trigger_assignment(
 
 		assert_eq!(clock.inner.lock().wakeups.len(), 0);
 
-		async_std::task::sleep(std::time::Duration::from_millis(200)).await;
+		futures_timer::Delay::new(Duration::from_millis(200)).await;
 
 		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
 		let our_assignment = candidate_entry
@@ -2273,11 +2298,7 @@ where
 		should_be_triggered,
 	} = config;
 
-	let (oracle, _handle) = make_sync_oracle(false);
-	let (mock_clock, _) = make_harness_input();
-	let store = SharedTestStore::new(TestStore::default());
-
-	let assignment_criteria = MockAssignmentCriteria(move || {
+	let assignment_criteria = Box::new(MockAssignmentCriteria(move || {
 			let mut assignments = HashMap::new();
 			let _ = assignments.insert(CoreIndex(0), approval_db::v1::OurAssignment {
 				cert: garbage_assignment_cert(
@@ -2290,12 +2311,17 @@ where
 			assignments
 		},
 		assign_validator_tranche,
-	);
+	));
+	let config = HarnessConfigBuilder::default()
+		.assignment_criteria(assignment_criteria)
+		.build();
+	let store = config.backend();
 
-	test_harness(Box::new(oracle), mock_clock, store.clone(), assignment_criteria, |test_harness| async move {
+	test_harness(config, |test_harness| async move {
 		let TestHarness {
 			mut virtual_overseer,
 			clock,
+			sync_oracle_handle: _sync_oracle_handle,
 			..
 		} = test_harness;
 
@@ -2371,7 +2397,7 @@ where
 			return virtual_overseer
 		}
 
-		async_std::task::sleep(std::time::Duration::from_millis(200)).await;
+		futures_timer::Delay::new(Duration::from_millis(200)).await;
 
 		for tick in ticks {
 			// Assert that this tick is the next to wake up, requiring the test harness to encode
@@ -2379,7 +2405,7 @@ where
 			assert_eq!(Some(tick), clock.inner.lock().next_wakeup());
 
 			clock.inner.lock().set_tick(tick);
-			async_std::task::sleep(std::time::Duration::from_millis(100)).await;
+			futures_timer::Delay::new(Duration::from_millis(100)).await;
 
 			// Assert that Alice's assignment is triggered at the correct tick.
 			let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
@@ -2401,7 +2427,7 @@ where
 async fn step_until_done(clock: &MockClock) {
 	let mut relevant_ticks = Vec::new();
 	loop {
-		async_std::task::sleep(std::time::Duration::from_millis(200)).await;
+		futures_timer::Delay::new(Duration::from_millis(200)).await;
 		let mut clock = clock.inner.lock();
 		if let Some(tick) = clock.next_wakeup() {
 			println!("TICK: {:?}", tick);
