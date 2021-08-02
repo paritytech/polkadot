@@ -238,16 +238,13 @@ mod tests {
 
 			assert_ok!(ParachainPalletXcm::execute(origin, Box::new(msg), 1_000_000_000));
 
-			assert!(System::events()
-				.iter()
-				.any(|r| matches!(
-					r.event,
-					Event::PolkadotXcm(pallet_xcm::Event::Attempted(
-						xcm::v0::Outcome::Incomplete(_, xcm::v0::Error::RecursionLimitReached))),
-					)
-				)
-			);
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				Event::PolkadotXcm(pallet_xcm::Event::Attempted(xcm::v0::Outcome::Incomplete(
+					_,
+					xcm::v0::Error::RecursionLimitReached
+				))),
+			)));
 		});
-
 	}
 }
