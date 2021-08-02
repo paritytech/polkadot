@@ -42,7 +42,7 @@ pub use config::Config;
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 /// The maximum recursion limit for `execute_xcm` and `execute_effects`.
-pub const MAX_RECURSION_LIMIT: usize = 10;
+pub const MAX_RECURSION_LIMIT: u32 = 10;
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	fn execute_xcm_in_credit(
@@ -113,7 +113,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		weight_credit: &mut Weight,
 		maybe_shallow_weight: Option<Weight>,
 		trader: &mut Config::Trader,
-		num_recursions: usize,
+		num_recursions: u32,
 	) -> Result<Weight, XcmError> {
 		if num_recursions > MAX_RECURSION_LIMIT {
 			return Err(XcmError::RecursionLimitReached)
@@ -280,7 +280,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		holding: &mut Assets,
 		effect: Order<Config::Call>,
 		trader: &mut Config::Trader,
-		num_recursions: usize,
+		num_recursions: u32,
 	) -> Result<Weight, XcmError> {
 		log::trace!(
 			target: "xcm::execute_effects",
