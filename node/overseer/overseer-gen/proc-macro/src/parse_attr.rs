@@ -15,12 +15,14 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use proc_macro2::Span;
-use std::collections::{hash_map::RandomState, HashMap};
-use syn::parse::{Parse, ParseBuffer};
-use syn::punctuated::Punctuated;
-use syn::spanned::Spanned;
-use syn::{Error, Ident, LitInt, Path, Result, Token};
 use quote::{quote, ToTokens};
+use std::collections::{hash_map::RandomState, HashMap};
+use syn::{
+	parse::{Parse, ParseBuffer},
+	punctuated::Punctuated,
+	spanned::Spanned,
+	Error, Ident, LitInt, Path, Result, Token,
+};
 
 mod kw {
 	syn::custom_keyword!(event);
@@ -33,62 +35,45 @@ mod kw {
 	syn::custom_keyword!(message_capacity);
 }
 
-
 #[derive(Clone, Debug)]
 enum OverseerAttrItem {
-	ExternEventType {
-		tag: kw::event,
-		eq_token: Token![=],
-		value: Path
-	},
-	ExternNetworkType {
-		tag: kw::network,
-		eq_token: Token![=],
-		value: Path
-	},
-	ExternOverseerSignalType {
-		tag: kw::signal,
-		eq_token: Token![=],
-		value: Path
-	},
-	ExternErrorType {
-		tag: kw::error,
-		eq_token: Token![=],
-		value: Path
-	},
-	OutgoingType {
-		tag: kw::outgoing,
-		eq_token: Token![=],
-		value: Path
-	},
-	MessageWrapperName {
-		tag: kw::gen,
-		eq_token: Token![=],
-		value: Ident
-	},
-	SignalChannelCapacity {
-		tag: kw::signal_capacity,
-		eq_token: Token![=],
-		value: usize
-	},
-	MessageChannelCapacity {
-		tag: kw::message_capacity,
-		eq_token: Token![=],
-		value: usize
-	},
+	ExternEventType { tag: kw::event, eq_token: Token![=], value: Path },
+	ExternNetworkType { tag: kw::network, eq_token: Token![=], value: Path },
+	ExternOverseerSignalType { tag: kw::signal, eq_token: Token![=], value: Path },
+	ExternErrorType { tag: kw::error, eq_token: Token![=], value: Path },
+	OutgoingType { tag: kw::outgoing, eq_token: Token![=], value: Path },
+	MessageWrapperName { tag: kw::gen, eq_token: Token![=], value: Ident },
+	SignalChannelCapacity { tag: kw::signal_capacity, eq_token: Token![=], value: usize },
+	MessageChannelCapacity { tag: kw::message_capacity, eq_token: Token![=], value: usize },
 }
 
 impl ToTokens for OverseerAttrItem {
 	fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
 		let ts = match self {
-			Self::ExternEventType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
-			Self::ExternNetworkType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
-			Self::ExternOverseerSignalType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
-			Self::ExternErrorType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
-			Self::OutgoingType { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
-			Self::MessageWrapperName { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
-			Self::SignalChannelCapacity { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
-			Self::MessageChannelCapacity { tag, eq_token, value } => { quote!{ #tag #eq_token, #value } }
+			Self::ExternEventType { tag, eq_token, value } => {
+				quote! { #tag #eq_token, #value }
+			},
+			Self::ExternNetworkType { tag, eq_token, value } => {
+				quote! { #tag #eq_token, #value }
+			},
+			Self::ExternOverseerSignalType { tag, eq_token, value } => {
+				quote! { #tag #eq_token, #value }
+			},
+			Self::ExternErrorType { tag, eq_token, value } => {
+				quote! { #tag #eq_token, #value }
+			},
+			Self::OutgoingType { tag, eq_token, value } => {
+				quote! { #tag #eq_token, #value }
+			},
+			Self::MessageWrapperName { tag, eq_token, value } => {
+				quote! { #tag #eq_token, #value }
+			},
+			Self::SignalChannelCapacity { tag, eq_token, value } => {
+				quote! { #tag #eq_token, #value }
+			},
+			Self::MessageChannelCapacity { tag, eq_token, value } => {
+				quote! { #tag #eq_token, #value }
+			},
 		};
 		tokens.extend(ts.into_iter());
 	}
@@ -137,7 +122,7 @@ impl Parse for OverseerAttrItem {
 			Ok(OverseerAttrItem::SignalChannelCapacity {
 				tag: input.parse::<kw::signal_capacity>()?,
 				eq_token: input.parse()?,
-				value: input.parse::<LitInt>()?.base10_parse::<usize>()?
+				value: input.parse::<LitInt>()?.base10_parse::<usize>()?,
 			})
 		} else if lookahead.peek(kw::message_capacity) {
 			Ok(OverseerAttrItem::MessageChannelCapacity {
@@ -169,42 +154,47 @@ pub(crate) struct AttrArgs {
 
 macro_rules! extract_variant {
 	($unique:expr, $variant:ident ; default = $fallback:expr) => {
-		extract_variant!($unique, $variant)
-			.unwrap_or_else(|| { $fallback })
+		extract_variant!($unique, $variant).unwrap_or_else(|| $fallback)
 	};
 	($unique:expr, $variant:ident ; err = $err:expr) => {
-		extract_variant!($unique, $variant)
-			.ok_or_else(|| {
-				Error::new(Span::call_site(), $err)
-			})
+		extract_variant!($unique, $variant).ok_or_else(|| Error::new(Span::call_site(), $err))
 	};
 	($unique:expr, $variant:ident) => {
-		$unique.values()
-			.find_map(|item| {
-				if let OverseerAttrItem:: $variant { value, ..} = item {
-					Some(value.clone())
-				} else {
-					None
-				}
-			})
+		$unique.values().find_map(|item| {
+			if let OverseerAttrItem::$variant { value, .. } = item {
+				Some(value.clone())
+			} else {
+				None
+			}
+		})
 	};
 }
 
 impl Parse for AttrArgs {
 	fn parse(input: &ParseBuffer) -> Result<Self> {
-		let items: Punctuated<OverseerAttrItem, Token![,]> = input.parse_terminated(OverseerAttrItem::parse)?;
+		let items: Punctuated<OverseerAttrItem, Token![,]> =
+			input.parse_terminated(OverseerAttrItem::parse)?;
 
-		let mut unique = HashMap::<std::mem::Discriminant<OverseerAttrItem>, OverseerAttrItem, RandomState>::default();
+		let mut unique = HashMap::<
+			std::mem::Discriminant<OverseerAttrItem>,
+			OverseerAttrItem,
+			RandomState,
+		>::default();
 		for item in items {
 			if let Some(first) = unique.insert(std::mem::discriminant(&item), item.clone()) {
-				let mut e = Error::new(item.span(), format!("Duplicate definition of overseer generation type found"));
+				let mut e = Error::new(
+					item.span(),
+					format!("Duplicate definition of overseer generation type found"),
+				);
 				e.combine(Error::new(first.span(), "previously defined here."));
-				return Err(e);
+				return Err(e)
 			}
 		}
 
-		let signal_channel_capacity = extract_variant!(unique, SignalChannelCapacity; default = 64_usize);
-		let message_channel_capacity = extract_variant!(unique, MessageChannelCapacity; default = 1024_usize);
+		let signal_channel_capacity =
+			extract_variant!(unique, SignalChannelCapacity; default = 64_usize);
+		let message_channel_capacity =
+			extract_variant!(unique, MessageChannelCapacity; default = 1024_usize);
 
 		let error = extract_variant!(unique, ExternErrorType; err = "Must declare the overseer error type via `error=..`.")?;
 		let event = extract_variant!(unique, ExternEventType; err = "Must declare the overseer event type via `event=..`.")?;

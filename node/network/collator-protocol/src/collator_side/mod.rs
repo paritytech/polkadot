@@ -14,44 +14,49 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::{HashMap, HashSet, VecDeque}, pin::Pin, time::Duration};
+use std::{
+	collections::{HashMap, HashSet, VecDeque},
+	pin::Pin,
+	time::Duration,
+};
 
-use futures::{FutureExt, StreamExt, channel::oneshot, stream::FuturesUnordered, select, Future};
+use futures::{channel::oneshot, select, stream::FuturesUnordered, Future, FutureExt, StreamExt};
 use sp_core::Pair;
 
+use polkadot_node_network_protocol::{
+	peer_set::PeerSet,
+	request_response::{
+		request::OutgoingResponse,
+		v1::{CollationFetchingRequest, CollationFetchingResponse},
+		IncomingRequest,
+	},
+	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
+};
+use polkadot_node_primitives::{PoV, SignedFullStatement, Statement};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
+	TimeoutExt,
+};
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState, GroupIndex, Hash,
-	Id as ParaId,
+	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState,
+	GroupIndex, Hash, Id as ParaId,
 };
 use polkadot_subsystem::{
-	overseer,
-	FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, jaeger,
-	messages::{
-		CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage,
-	},
+	jaeger,
+	messages::{CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage},
+	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext,
 };
-use polkadot_node_network_protocol::{
-	OurView, PeerId, UnifiedReputationChange as Rep, View, peer_set::PeerSet,
-	request_response::{
-		IncomingRequest, request::OutgoingResponse, v1::{CollationFetchingRequest, CollationFetchingResponse}
-	},
-	v1 as protocol_v1,
-};
-use polkadot_node_subsystem_util::{
-	TimeoutExt,
-	metrics::{self, prometheus},
-	runtime::{RuntimeInfo, get_availability_cores, get_group_rotation_info}
-};
-use polkadot_node_primitives::{SignedFullStatement, Statement, PoV};
 
-use crate::error::{Fatal, NonFatal, log_error};
-use super::{LOG_TARGET,  Result};
+use super::{Result, LOG_TARGET};
+use crate::error::{log_error, Fatal, NonFatal};
 
 #[cfg(test)]
 mod tests;
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
-const COST_APPARENT_FLOOD: Rep = Rep::CostMinor("Message received when previous one was still being processed");
+const COST_APPARENT_FLOOD: Rep =
+	Rep::CostMinor("Message received when previous one was still being processed");
 
 /// Time after starting an upload to a validator we will start another one to the next validator,
 /// even if the upload was not finished yet.
@@ -102,9 +107,9 @@ struct MetricsInner {
 }
 
 impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry)
-		-> std::result::Result<Self, prometheus::PrometheusError>
-	{
+	fn try_register(
+		registry: &prometheus::Registry,
+	) -> std::result::Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			advertisements_made: prometheus::register(
 				prometheus::Counter::new(
@@ -128,12 +133,10 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			process_msg: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_collator_protocol_collator_process_msg",
-						"Time spent within `collator_protocol_collator::process_msg`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_collator_protocol_collator_process_msg",
+					"Time spent within `collator_protocol_collator::process_msg`",
+				))?,
 				registry,
 			)?,
 		};
@@ -157,8 +160,11 @@ struct ValidatorGroup {
 
 impl ValidatorGroup {
 	/// Returns `true` if we should advertise our collation to the given peer.
-	fn should_advertise_to(&self, peer_ids: &HashMap<PeerId, AuthorityDiscoveryId>, peer: &PeerId)
-		-> bool {
+	fn should_advertise_to(
+		&self,
+		peer_ids: &HashMap<PeerId, AuthorityDiscoveryId>,
+		peer: &PeerId,
+	) -> bool {
 		match peer_ids.get(peer) {
 			Some(discovery_id) => !self.advertised_to.contains(discovery_id),
 			None => false,
@@ -166,7 +172,11 @@ impl ValidatorGroup {
 	}
 
 	/// Should be called after we advertised our collation to the given `peer` to keep track of it.
-	fn advertised_to_peer(&mut self, peer_ids: &HashMap<PeerId, AuthorityDiscoveryId>, peer: &PeerId) {
+	fn advertised_to_peer(
+		&mut self,
+		peer_ids: &HashMap<PeerId, AuthorityDiscoveryId>,
+		peer: &PeerId,
+	) {
 		if let Some(validator_id) = peer_ids.get(peer) {
 			self.advertised_to.insert(validator_id.clone());
 		}
@@ -175,10 +185,7 @@ impl ValidatorGroup {
 
 impl From<HashSet<AuthorityDiscoveryId>> for ValidatorGroup {
 	fn from(discovery_ids: HashSet<AuthorityDiscoveryId>) -> Self {
-		Self {
-			discovery_ids,
-			advertised_to: HashSet::new(),
-		}
+		Self { discovery_ids, advertised_to: HashSet::new() }
 	}
 }
 
@@ -229,7 +236,8 @@ struct WaitingCollationFetches {
 	waiting_peers: HashSet<PeerId>,
 }
 
-type ActiveCollationFetches = FuturesUnordered<Pin<Box<dyn Future<Output = (Hash, PeerId)> + Send + 'static>>>;
+type ActiveCollationFetches =
+	FuturesUnordered<Pin<Box<dyn Future<Output = (Hash, PeerId)> + Send + 'static>>>;
 
 struct State {
 	/// Our network peer id.
@@ -344,12 +352,12 @@ where
 			"distribute collation message parent is outside of our view",
 		);
 
-		return Ok(());
+		return Ok(())
 	}
 
 	// We have already seen collation for this relay parent.
 	if state.collations.contains_key(&relay_parent) {
-		return Ok(());
+		return Ok(())
 	}
 
 	// Determine which core the para collated-on is assigned to.
@@ -365,12 +373,12 @@ where
 			);
 
 			return Ok(())
-		}
+		},
 	};
 
 	// Determine the group on that core and the next group on that core.
 	let (current_validators, next_validators) =
-		determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent,).await?;
+		determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
 
 	if current_validators.validators.is_empty() && next_validators.validators.is_empty() {
 		tracing::warn!(
@@ -379,7 +387,7 @@ where
 			"there are no validators assigned to core",
 		);
 
-		return Ok(());
+		return Ok(())
 	}
 
 	tracing::debug!(
@@ -394,16 +402,19 @@ where
 		"Accepted collation, connecting to validators."
 	);
 
-	let validator_group: HashSet<_> = current_validators.validators.iter().map(Clone::clone).collect();
+	let validator_group: HashSet<_> =
+		current_validators.validators.iter().map(Clone::clone).collect();
 
 	// Issue a discovery request for the validators of the current group and the next group:
 	connect_to_validators(
 		ctx,
-		current_validators.validators
+		current_validators
+			.validators
 			.into_iter()
 			.chain(next_validators.validators.into_iter())
 			.collect(),
-	).await;
+	)
+	.await;
 
 	state.our_validators_groups.insert(relay_parent, validator_group.into());
 
@@ -411,7 +422,9 @@ where
 		state.collation_result_senders.insert(receipt.hash(), result_sender);
 	}
 
-	state.collations.insert(relay_parent, Collation { receipt, pov, status: CollationStatus::Created });
+	state
+		.collations
+		.insert(relay_parent, Collation { receipt, pov, status: CollationStatus::Created });
 
 	let interested = state.peers_interested_in_leaf(&relay_parent);
 	// Make sure already connected peers get collations:
@@ -438,7 +451,7 @@ where
 	for (idx, core) in cores.iter().enumerate() {
 		if let CoreState::Scheduled(occupied) = core {
 			if occupied.para_id == para_id {
-				return Ok(Some(((idx as u32).into(), cores.len())));
+				return Ok(Some(((idx as u32).into(), cores.len())))
 			}
 		}
 	}
@@ -470,7 +483,8 @@ where
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 {
 	let session_index = runtime.get_session_index(ctx.sender(), relay_parent).await?;
-	let info = &runtime.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
+	let info = &runtime
+		.get_session_info_by_index(ctx.sender(), relay_parent, session_index)
 		.await?
 		.session_info;
 	tracing::debug!(target: LOG_TARGET, ?session_index, "Received session info");
@@ -478,34 +492,31 @@ where
 	let rotation_info = get_group_rotation_info(ctx, relay_parent).await?;
 
 	let current_group_index = rotation_info.group_for_core(core_index, cores);
-	let current_validators = groups.get(current_group_index.0 as usize).map(|v| v.as_slice()).unwrap_or_default();
+	let current_validators = groups
+		.get(current_group_index.0 as usize)
+		.map(|v| v.as_slice())
+		.unwrap_or_default();
 
 	let next_group_idx = (current_group_index.0 as usize + 1) % groups.len();
 	let next_validators = groups.get(next_group_idx).map(|v| v.as_slice()).unwrap_or_default();
 
 	let validators = &info.discovery_keys;
 
-	let current_validators = current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
-	let next_validators = next_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
+	let current_validators =
+		current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
+	let next_validators =
+		next_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 
-	let current_validators = GroupValidators {
-		group: current_group_index,
-		validators: current_validators,
-	};
-	let next_validators = GroupValidators {
-		group: GroupIndex(next_group_idx as u32),
-		validators: next_validators,
-	};
+	let current_validators =
+		GroupValidators { group: current_group_index, validators: current_validators };
+	let next_validators =
+		GroupValidators { group: GroupIndex(next_group_idx as u32), validators: next_validators };
 
 	Ok((current_validators, next_validators))
 }
 
 /// Issue a `Declare` collation message to the given `peer`.
-async fn declare<Context>(
-	ctx: &mut Context,
-	state: &mut State,
-	peer: PeerId,
-)
+async fn declare<Context>(ctx: &mut Context, state: &mut State, peer: PeerId)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
@@ -519,21 +530,17 @@ where
 			state.collator_pair.sign(&declare_signature_payload),
 		);
 
-		ctx.send_message(
-			NetworkBridgeMessage::SendCollationMessage(
-				vec![peer],
-				protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
-			)
-		).await;
+		ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
+			vec![peer],
+			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+		))
+		.await;
 	}
 }
 
 /// Issue a connection request to a set of validators and
 /// revoke the previous connection request.
-async fn connect_to_validators<Context>(
-	ctx: &mut Context,
-	validator_ids: Vec<AuthorityDiscoveryId>,
-)
+async fn connect_to_validators<Context>(ctx: &mut Context, validator_ids: Vec<AuthorityDiscoveryId>)
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
@@ -542,8 +549,11 @@ where
 	// will reissue a new request on new collation
 	let (failed, _) = oneshot::channel();
 	ctx.send_message(NetworkBridgeMessage::ConnectToValidators {
-		validator_ids, peer_set: PeerSet::Collation, failed,
-	}).await;
+		validator_ids,
+		peer_set: PeerSet::Collation,
+		failed,
+	})
+	.await;
 }
 
 /// Advertise collation to the given `peer`.
@@ -555,12 +565,12 @@ async fn advertise_collation<Context>(
 	state: &mut State,
 	relay_parent: Hash,
 	peer: PeerId,
-)
-where
+) where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 {
-	let should_advertise = state.our_validators_groups
+	let should_advertise = state
+		.our_validators_groups
 		.get(&relay_parent)
 		.map(|g| g.should_advertise_to(&state.peer_ids, &peer))
 		.unwrap_or(false);
@@ -583,7 +593,7 @@ where
 				"Not advertising collation as we already advertised it to this validator.",
 			);
 			return
-		}
+		},
 		(Some(collation), true) => {
 			tracing::debug!(
 				target: LOG_TARGET,
@@ -595,16 +605,13 @@ where
 		},
 	}
 
-	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(
-		relay_parent,
-	);
+	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent);
 
-	ctx.send_message(
-		NetworkBridgeMessage::SendCollationMessage(
-			vec![peer.clone()],
-			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
-		)
-	).await;
+	ctx.send_message(NetworkBridgeMessage::SendCollationMessage(
+		vec![peer.clone()],
+		protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+	))
+	.await;
 
 	if let Some(validators) = state.our_validators_groups.get_mut(&relay_parent) {
 		validators.advertised_to_peer(&state.peer_ids, &peer);
@@ -631,10 +638,12 @@ where
 	match msg {
 		CollateOn(id) => {
 			state.collating_on = Some(id);
-		}
+		},
 		DistributeCollation(receipt, pov, result_sender) => {
-			let _span1 = state.span_per_relay_parent
-				.get(&receipt.descriptor.relay_parent).map(|s| s.child("distributing-collation"));
+			let _span1 = state
+				.span_per_relay_parent
+				.get(&receipt.descriptor.relay_parent)
+				.map(|s| s.child("distributing-collation"));
 			let _span2 = jaeger::Span::new(&pov, "distributing-collation");
 			match state.collating_on {
 				Some(id) if receipt.descriptor.para_id != id => {
@@ -646,32 +655,28 @@ where
 						collating_on = %id,
 						"DistributeCollation for unexpected para_id",
 					);
-				}
+				},
 				Some(id) => {
-					distribute_collation(ctx, runtime, state, id, receipt, pov, result_sender).await?;
-				}
+					distribute_collation(ctx, runtime, state, id, receipt, pov, result_sender)
+						.await?;
+				},
 				None => {
 					tracing::warn!(
 						target: LOG_TARGET,
 						para_id = %receipt.descriptor.para_id,
 						"DistributeCollation message while not collating on any",
 					);
-				}
+				},
 			}
-		}
+		},
 		ReportCollator(_) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"ReportCollator message is not expected on the collator side of the protocol",
 			);
-		}
+		},
 		NetworkBridgeUpdateV1(event) => {
-			if let Err(e) = handle_network_msg(
-				ctx,
-				runtime,
-				state,
-				event,
-			).await {
+			if let Err(e) = handle_network_msg(ctx, runtime, state, event).await {
 				tracing::warn!(
 					target: LOG_TARGET,
 					err = ?e,
@@ -680,11 +685,16 @@ where
 			}
 		},
 		CollationFetchingRequest(incoming) => {
-			let _span = state.span_per_relay_parent.get(&incoming.payload.relay_parent).map(|s| s.child("request-collation"));
+			let _span = state
+				.span_per_relay_parent
+				.get(&incoming.payload.relay_parent)
+				.map(|s| s.child("request-collation"));
 			match state.collating_on {
-				Some(our_para_id) => {
+				Some(our_para_id) =>
 					if our_para_id == incoming.payload.para_id {
-						let (receipt, pov) = if let Some(collation) = state.collations.get_mut(&incoming.payload.relay_parent) {
+						let (receipt, pov) = if let Some(collation) =
+							state.collations.get_mut(&incoming.payload.relay_parent)
+						{
 							collation.status.advance_to_requested();
 							(collation.receipt.clone(), collation.pov.clone())
 						} else {
@@ -694,23 +704,28 @@ where
 								"received a `RequestCollation` for a relay parent we don't have collation stored.",
 							);
 
-							return Ok(());
+							return Ok(())
 						};
 
 						state.metrics.on_collation_sent_requested();
 
 						let _span = _span.as_ref().map(|s| s.child("sending"));
 
-						let waiting = state.waiting_collation_fetches.entry(incoming.payload.relay_parent).or_default();
+						let waiting = state
+							.waiting_collation_fetches
+							.entry(incoming.payload.relay_parent)
+							.or_default();
 
 						if !waiting.waiting_peers.insert(incoming.peer) {
 							tracing::debug!(
 								target: LOG_TARGET,
 								"Dropping incoming request as peer has a request in flight already."
 							);
-							ctx.send_message(
-								NetworkBridgeMessage::ReportPeer(incoming.peer, COST_APPARENT_FLOOD)
-							).await;
+							ctx.send_message(NetworkBridgeMessage::ReportPeer(
+								incoming.peer,
+								COST_APPARENT_FLOOD,
+							))
+							.await;
 							return Ok(())
 						}
 
@@ -727,17 +742,16 @@ where
 							our_para_id = %our_para_id,
 							"received a `CollationFetchingRequest` for unexpected para_id",
 						);
-					}
-				}
+					},
 				None => {
 					tracing::warn!(
 						target: LOG_TARGET,
 						for_para_id = %incoming.payload.para_id,
 						"received a `RequestCollation` while not collating on any para",
 					);
-				}
+				},
 			}
-		}
+		},
 		_ => {},
 	}
 
@@ -763,24 +777,24 @@ async fn send_collation(
 	};
 
 	if let Err(_) = request.send_outgoing_response(response) {
-		tracing::warn!(
-			target: LOG_TARGET,
-			"Sending collation response failed",
-		);
+		tracing::warn!(target: LOG_TARGET, "Sending collation response failed",);
 	}
 
-	state.active_collation_fetches.push(async move {
-		let r = rx.timeout(MAX_UNSHARED_UPLOAD_TIME).await;
-		if r.is_none() {
-			tracing::debug!(
-				target: LOG_TARGET,
-				?relay_parent,
-				?peer_id,
-				"Sending collation to validator timed out, carrying on with next validator."
-			);
+	state.active_collation_fetches.push(
+		async move {
+			let r = rx.timeout(MAX_UNSHARED_UPLOAD_TIME).await;
+			if r.is_none() {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?relay_parent,
+					?peer_id,
+					"Sending collation to validator timed out, carrying on with next validator."
+				);
+			}
+			(relay_parent, peer_id)
 		}
-		(relay_parent, peer_id)
-	}.boxed());
+		.boxed(),
+	);
 
 	state.metrics.on_collation_sent();
 }
@@ -808,10 +822,9 @@ where
 			);
 
 			// If we are declared to, this is another collator, and we should disconnect.
-			ctx.send_message(
-				NetworkBridgeMessage::DisconnectPeer(origin, PeerSet::Collation)
-			).await;
-		}
+			ctx.send_message(NetworkBridgeMessage::DisconnectPeer(origin, PeerSet::Collation))
+				.await;
+		},
 		AdvertiseCollation(_) => {
 			tracing::trace!(
 				target: LOG_TARGET,
@@ -819,15 +832,16 @@ where
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 
-			ctx.send_message(
-				NetworkBridgeMessage::ReportPeer(origin.clone(), COST_UNEXPECTED_MESSAGE)
-			).await;
+			ctx.send_message(NetworkBridgeMessage::ReportPeer(
+				origin.clone(),
+				COST_UNEXPECTED_MESSAGE,
+			))
+			.await;
 
 			// If we are advertised to, this is another collator, and we should disconnect.
-			ctx.send_message(
-				NetworkBridgeMessage::DisconnectPeer(origin, PeerSet::Collation)
-			).await;
-		}
+			ctx.send_message(NetworkBridgeMessage::DisconnectPeer(origin, PeerSet::Collation))
+				.await;
+		},
 		CollationSeconded(relay_parent, statement) => {
 			if !matches!(statement.unchecked_payload(), Statement::Seconded(_)) {
 				tracing::warn!(
@@ -837,12 +851,13 @@ where
 					"Collation seconded message received with none-seconded statement.",
 				);
 			} else {
-				let statement = runtime.check_signature(ctx.sender(), relay_parent, statement)
+				let statement = runtime
+					.check_signature(ctx.sender(), relay_parent, statement)
 					.await?
 					.map_err(NonFatal::InvalidStatementSignature)?;
 
-				let removed = state.collation_result_senders
-					.remove(&statement.payload().candidate_hash());
+				let removed =
+					state.collation_result_senders.remove(&statement.payload().candidate_hash());
 
 				if let Some(sender) = removed {
 					tracing::trace!(
@@ -854,7 +869,7 @@ where
 					let _ = sender.send(statement);
 				}
 			}
-		}
+		},
 	}
 
 	Ok(())
@@ -866,8 +881,7 @@ async fn handle_peer_view_change<Context>(
 	state: &mut State,
 	peer_id: PeerId,
 	view: View,
-)
-where
+) where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 {
@@ -899,12 +913,7 @@ where
 		PeerConnected(peer_id, observed_role, maybe_authority) => {
 			// If it is possible that a disconnected validator would attempt a reconnect
 			// it should be handled here.
-			tracing::trace!(
-				target: LOG_TARGET,
-				?peer_id,
-				?observed_role,
-				"Peer connected",
-			);
+			tracing::trace!(target: LOG_TARGET, ?peer_id, ?observed_role, "Peer connected",);
 			if let Some(authority) = maybe_authority {
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -916,49 +925,33 @@ where
 
 				declare(ctx, state, peer_id).await;
 			}
-		}
+		},
 		PeerViewChange(peer_id, view) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				?peer_id,
-				?view,
-				"Peer view change",
-			);
+			tracing::trace!(target: LOG_TARGET, ?peer_id, ?view, "Peer view change",);
 			handle_peer_view_change(ctx, state, peer_id, view).await;
-		}
+		},
 		PeerDisconnected(peer_id) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				?peer_id,
-				"Peer disconnected",
-			);
+			tracing::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected",);
 			state.peer_views.remove(&peer_id);
 			state.peer_ids.remove(&peer_id);
-		}
+		},
 		OurViewChange(view) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				?view,
-				"Own view change",
-			);
+			tracing::trace!(target: LOG_TARGET, ?view, "Own view change",);
 			handle_our_view_change(state, view).await?;
-		}
+		},
 		PeerMessage(remote, msg) => {
 			handle_incoming_peer_message(ctx, runtime, state, remote, msg).await?;
-		}
+		},
 		NewGossipTopology(..) => {
 			// impossibru!
-		}
+		},
 	}
 
 	Ok(())
 }
 
 /// Handles our view changes.
-async fn handle_our_view_change(
-	state: &mut State,
-	view: OurView,
-) -> Result<()> {
+async fn handle_our_view_change(state: &mut State, view: OurView) -> Result<()> {
 	for removed in state.view.difference(&view) {
 		tracing::debug!(target: LOG_TARGET, relay_parent = ?removed, "Removing relay parent because our view changed.");
 
@@ -983,7 +976,7 @@ async fn handle_our_view_change(
 					candidate_hash = ?collation.receipt.hash(),
 					pov_hash = ?collation.pov.hash(),
 					"Collation was requested.",
-				)
+				),
 			}
 		}
 		state.our_validators_groups.remove(removed);
@@ -1005,7 +998,7 @@ pub(crate) async fn run<Context>(
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>
+	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 {
 	use OverseerSignal::*;
 

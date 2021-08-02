@@ -19,11 +19,9 @@
 
 use thiserror::Error;
 
-
-use polkadot_node_subsystem_util::{Fault, runtime};
-use polkadot_subsystem::SubsystemError;
 use polkadot_node_primitives::disputes::DisputeMessageCheckError;
-
+use polkadot_node_subsystem_util::{runtime, Fault};
+use polkadot_subsystem::SubsystemError;
 
 #[derive(Debug, Error)]
 #[error(transparent)]

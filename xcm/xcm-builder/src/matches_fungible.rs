@@ -16,10 +16,10 @@
 
 //! Various implementations for the `MatchesFungible` trait.
 
-use sp_std::{marker::PhantomData, convert::TryFrom};
-use sp_runtime::traits::CheckedConversion;
-use xcm::v0::{MultiAsset, MultiLocation};
 use frame_support::traits::Get;
+use sp_runtime::traits::CheckedConversion;
+use sp_std::{convert::TryFrom, marker::PhantomData};
+use xcm::v0::{MultiAsset, MultiLocation};
 use xcm_executor::traits::MatchesFungible;
 
 /// Converts a `MultiAsset` into balance `B` if it is a concrete fungible with an id equal to that
