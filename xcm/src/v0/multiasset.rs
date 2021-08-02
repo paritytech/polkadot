@@ -16,7 +16,7 @@
 
 //! Cross-Consensus Message format asset data structures.
 //!
-//! This encompasses four types for repesenting assets:
+//! This encompasses four types for representing assets:
 //! - `MultiAsset`: A description of a single asset, either an instance of a non-fungible or some amount of a fungible.
 //! - `MultiAssets`: A collection of `MultiAsset`s. These are stored in a `Vec` and sorted with fungibles first.
 //! - `Wild`: A single asset wildcard, this can either be "all" assets, or all assets of a specific kind.
@@ -184,7 +184,7 @@ impl MultiAsset {
 
 
 
-/// A vec of MultiAssets. There may be no duplicate fungible items in here and when decoding, they must be sorted.
+/// A `Vec` of `MultiAsset`s. There may be no duplicate fungible items in here and when decoding, they must be sorted.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode)]
 pub struct MultiAssets(Vec<MultiAsset>);
 
@@ -221,7 +221,7 @@ impl MultiAssets {
 		Self(Vec::new())
 	}
 
-	/// Add some asset onto the multiasset list. This is quite a laborious operation since it maintains the ordering.
+	/// Add some asset onto the list. This is quite a laborious operation since it maintains the ordering.
 	pub fn push(&mut self, a: MultiAsset) {
 		if let Fungibility::Fungible(ref amount) = a.fun {
 			for asset in self.0.iter_mut().filter(|x| x.id == a.id) {
@@ -274,7 +274,7 @@ pub enum WildFungibility {
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum WildMultiAsset {
-	/// All assets in the holding register, up to usize individual assets (different instances of non-fungibles could
+	/// All assets in the holding register, up to `usize` individual assets (different instances of non-fungibles could
 	/// as separate assets).
 	All,
 	// TODO: AllOf { fun: WildFungibility, id: AssetId }
