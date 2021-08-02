@@ -26,7 +26,7 @@ use parity_scale_codec::{self, Decode, Encode};
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-#[scale_info(skip_type_params(Call))]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub enum Order<Call> {
 	/// Do nothing. Not generally used.
 	#[codec(index = 0)]
