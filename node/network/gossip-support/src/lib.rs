@@ -119,9 +119,11 @@ impl GossipSupport {
 				})) => {
 					tracing::trace!(target: LOG_TARGET, "active leaves signal");
 
-					let leaves = activated.into_iter().map(|a| a.hash);
-					if let Err(e) = state.handle_active_leaves(&mut ctx, &keystore, leaves).await {
-						tracing::debug!(target: LOG_TARGET, error = ?e);
+					if let Some(activated) = activated {
+						let h = activated.hash;
+						if let Err(e) = state.handle_active_leaf(&mut ctx, &keystore, h).await {
+							tracing::debug!(target: LOG_TARGET, error = ?e);
+						}
 					}
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
@@ -258,49 +260,46 @@ impl State {
 	/// 1. Determine if the current session index has changed.
 	/// 2. If it has, determine relevant validators
 	///    and issue a connection request.
-	async fn handle_active_leaves<Context>(
+	async fn handle_active_leaf<Context>(
 		&mut self,
 		ctx: &mut Context,
 		keystore: &SyncCryptoStorePtr,
-		leaves: impl Iterator<Item = Hash>,
+		leaf: Hash,
 	) -> Result<(), util::Error>
 	where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
-		for leaf in leaves {
-			let current_index =
-				util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
-			let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
-			let force_request = since_failure >= BACKOFF_DURATION;
-			let leaf_session = Some((current_index, leaf));
-			let maybe_new_session = match self.last_session_index {
-				Some(i) if current_index <= i => None,
-				_ => leaf_session,
-			};
+		let current_index =
+			util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
+		let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
+		let force_request = since_failure >= BACKOFF_DURATION;
+		let leaf_session = Some((current_index, leaf));
+		let maybe_new_session = match self.last_session_index {
+			Some(i) if current_index <= i => None,
+			_ => leaf_session,
+		};
 
-			let maybe_issue_connection =
-				if force_request { leaf_session } else { maybe_new_session };
+		let maybe_issue_connection = if force_request { leaf_session } else { maybe_new_session };
 
-			if let Some((session_index, relay_parent)) = maybe_issue_connection {
-				let is_new_session = maybe_new_session.is_some();
-				if is_new_session {
-					tracing::debug!(
-						target: LOG_TARGET,
-						%session_index,
-						"New session detected",
-					);
-				}
+		if let Some((session_index, relay_parent)) = maybe_issue_connection {
+			let is_new_session = maybe_new_session.is_some();
+			if is_new_session {
+				tracing::debug!(
+					target: LOG_TARGET,
+					%session_index,
+					"New session detected",
+				);
+			}
 
-				let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
-				let our_index = ensure_i_am_an_authority(keystore, &authorities).await?;
+			let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
+			let our_index = ensure_i_am_an_authority(keystore, &authorities).await?;
 
-				self.issue_connection_request(ctx, authorities.clone()).await?;
+			self.issue_connection_request(ctx, authorities.clone()).await?;
 
-				if is_new_session {
-					self.last_session_index = Some(session_index);
-					update_gossip_topology(ctx, our_index, authorities, relay_parent).await?;
-				}
+			if is_new_session {
+				self.last_session_index = Some(session_index);
+				update_gossip_topology(ctx, our_index, authorities, relay_parent).await?;
 			}
 		}
 

@@ -348,7 +348,7 @@ async fn run<Context, B>(
 	B: Backend,
 {
 	loop {
-		let res = run_iteration(&mut ctx, &mut backend, &stagnant_check_interval, &*clock).await;
+		let res = run_until_error(&mut ctx, &mut backend, &stagnant_check_interval, &*clock).await;
 		match res {
 			Err(e) => {
 				e.trace();
@@ -370,7 +370,7 @@ async fn run<Context, B>(
 //
 // A return value of `Ok` indicates that an exit should be made, while non-fatal errors
 // lead to another call to this function.
-async fn run_iteration<Context, B>(
+async fn run_until_error<Context, B>(
 	ctx: &mut Context,
 	backend: &mut B,
 	stagnant_check_interval: &StagnantCheckInterval,
@@ -391,7 +391,7 @@ where
 						return Ok(())
 					}
 					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-						for leaf in update.activated {
+						if let Some(leaf) = update.activated {
 							let write_ops = handle_active_leaf(
 								ctx,
 								&*backend,

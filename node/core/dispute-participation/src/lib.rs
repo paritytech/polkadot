@@ -139,7 +139,7 @@ where
 }
 
 fn update_state(state: &mut State, update: ActiveLeavesUpdate) {
-	for active in update.activated {
+	if let Some(active) = update.activated {
 		if state.recent_block.map_or(true, |s| active.number > s.0) {
 			state.recent_block = Some((active.number, active.hash));
 		}

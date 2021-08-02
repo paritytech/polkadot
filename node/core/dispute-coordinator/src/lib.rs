@@ -335,13 +335,9 @@ where
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-				handle_new_activations(
-					ctx,
-					&mut overlay_db,
-					&mut state,
-					update.activated.into_iter().map(|a| a.hash),
-				)
-				.await?;
+				if let Some(activated) = update.activated {
+					handle_new_leaf(ctx, &mut overlay_db, &mut state, activated.hash).await?;
+				}
 				if !state.recovery_state.complete() {
 					handle_startup(ctx, &mut overlay_db, &mut state).await?;
 				}
@@ -461,52 +457,48 @@ where
 	Ok(())
 }
 
-async fn handle_new_activations(
+async fn handle_new_leaf(
 	ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
 	          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	state: &mut State,
-	new_activations: impl IntoIterator<Item = Hash>,
+	new_leaf: Hash,
 ) -> Result<(), Error> {
-	for new_leaf in new_activations {
-		let block_header = {
-			let (tx, rx) = oneshot::channel();
+	let block_header = {
+		let (tx, rx) = oneshot::channel();
 
-			ctx.send_message(ChainApiMessage::BlockHeader(new_leaf, tx)).await;
+		ctx.send_message(ChainApiMessage::BlockHeader(new_leaf, tx)).await;
 
-			match rx.await?? {
-				None => continue,
-				Some(header) => header,
-			}
-		};
-
-		match state
-			.rolling_session_window
-			.cache_session_info_for_head(ctx, new_leaf, &block_header)
-			.await
-		{
-			Err(e) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					err = ?e,
-					"Failed to update session cache for disputes",
-				);
-
-				continue
-			},
-			Ok(SessionWindowUpdate::Initialized { window_end, .. }) |
-			Ok(SessionWindowUpdate::Advanced { new_window_end: window_end, .. }) => {
-				let session = window_end;
-				if state.highest_session.map_or(true, |s| s < session) {
-					tracing::trace!(target: LOG_TARGET, session, "Observed new session. Pruning",);
-
-					state.highest_session = Some(session);
-
-					db::v1::note_current_session(overlay_db, session)?;
-				}
-			},
-			_ => {},
+		match rx.await?? {
+			None => return Ok(()),
+			Some(header) => header,
 		}
+	};
+
+	match state
+		.rolling_session_window
+		.cache_session_info_for_head(ctx, new_leaf, &block_header)
+		.await
+	{
+		Err(e) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				err = ?e,
+				"Failed to update session cache for disputes",
+			);
+		},
+		Ok(SessionWindowUpdate::Initialized { window_end, .. }) |
+		Ok(SessionWindowUpdate::Advanced { new_window_end: window_end, .. }) => {
+			let session = window_end;
+			if state.highest_session.map_or(true, |s| s < session) {
+				tracing::trace!(target: LOG_TARGET, session, "Observed new session. Pruning",);
+
+				state.highest_session = Some(session);
+
+				db::v1::note_current_session(overlay_db, session)?;
+			}
+		},
+		_ => {},
 	}
 
 	Ok(())

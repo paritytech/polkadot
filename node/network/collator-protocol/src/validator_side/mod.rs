@@ -937,13 +937,12 @@ async fn process_incoming_peer_message<Context>(
 /// A leaf has become inactive so we want to
 ///   - Cancel all ongoing collation requests that are on top of that leaf.
 ///   - Remove all stored collations relevant to that leaf.
-async fn remove_relay_parent(state: &mut State, relay_parent: Hash) -> Result<()> {
+fn remove_relay_parent(state: &mut State, relay_parent: Hash) {
 	state.requested_collations.retain(|k, _| k.relay_parent != relay_parent);
 
 	state.pending_candidates.retain(|k, _| k != &relay_parent);
 
 	state.collations_per_relay_parent.remove(&relay_parent);
-	Ok(())
 }
 
 /// Our view has changed.
@@ -975,7 +974,7 @@ where
 	let removed = old_view.difference(&state.view).cloned().collect::<Vec<_>>();
 
 	for removed in removed.iter().cloned() {
-		remove_relay_parent(state, removed).await?;
+		remove_relay_parent(state, removed);
 		state.span_per_relay_parent.remove(&removed);
 	}
 
