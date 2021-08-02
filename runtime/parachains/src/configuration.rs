@@ -92,7 +92,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
 	pub hrmp_max_parathread_outbound_channels: u32,
 	/// NOTE: this field is deprecated. Channel open requests became non-expiring. Changing this value
-	/// doesn't have any effect. This field doesn't have an `deprecated` attribute because that would
+	/// doesn't have any effect. This field doesn't have a `deprecated` attribute because that would
 	/// trigger warnings coming from macros.
 	pub _hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
