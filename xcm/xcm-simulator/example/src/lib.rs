@@ -138,6 +138,8 @@ mod tests {
 			));
 		});
 
+		RelayChainXcmRouter::process_messages().unwrap();
+
 		ParaA::execute_with(|| {
 			use parachain::{Event, System};
 			assert!(System::events()
@@ -164,6 +166,8 @@ mod tests {
 				},
 			));
 		});
+
+		ParachainXcmRouter::<parachain::MsgQueue>::process_messages().unwrap();
 
 		Relay::execute_with(|| {
 			use relay_chain::{Event, System};
@@ -192,6 +196,8 @@ mod tests {
 			));
 		});
 
+		ParachainXcmRouter::<parachain::MsgQueue>::process_messages().unwrap();
+
 		ParaB::execute_with(|| {
 			use parachain::{Event, System};
 			assert!(System::events()
@@ -219,6 +225,8 @@ mod tests {
 			let para_account_a = ParaId::from(1).into_account();
 			assert_eq!(parachain::Balances::free_balance(&para_account_a), INITIAL_BALANCE + 123);
 		});
+
+		RelayChainXcmRouter::process_messages().unwrap();
 
 		ParaA::execute_with(|| {
 			use xcm::opaque::v0::NetworkId;
