@@ -93,10 +93,10 @@ pub use polkadot_client::{
 	RuntimeApiCollection,
 };
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
-pub use consensus_common::{Proposal, SelectChain, BlockImport, block_validation::Chain};
+pub use consensus_common::{Proposal, SelectChain, block_validation::Chain};
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
-pub use sc_consensus::LongestChain;
+pub use sc_consensus::{BlockImport, LongestChain};
 pub use sc_executor::NativeExecutionDispatch;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error as SubstrateServiceError, RuntimeGenesis,
@@ -324,7 +324,7 @@ fn new_partial<RuntimeApi, Executor>(
 ) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
-		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
+		sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
 		(
 			impl Fn(
@@ -696,14 +696,16 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 		config.network.extra_sets.extend(peer_sets_info(is_authority));
 	}
 
-	config.network.request_response_protocols.push(sc_finality_grandpa_warp_sync::request_response_config_for_chain(
-		&config, task_manager.spawn_handle(), backend.clone(), import_setup.1.shared_authority_set().clone(),
-	));
 	let request_multiplexer = {
 		let (multiplexer, configs) = RequestMultiplexer::new();
 		config.network.request_response_protocols.extend(configs);
 		multiplexer
 	};
+
+	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
+			backend.clone(),
+			import_setup.1.shared_authority_set().clone(),
+	));
 
 	let (network, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
@@ -714,6 +716,7 @@ pub fn new_full<RuntimeApi, Executor, OverseerGenerator>(
 			import_queue,
 			on_demand: None,
 			block_announce_validator_builder: None,
+			warp_sync: Some(warp_sync),
 		})?;
 
 	if config.offchain_worker.enabled {
@@ -1136,6 +1139,11 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
+	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
+			backend.clone(),
+			grandpa_link.shared_authority_set().clone(),
+	));
+
 	let (network, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
@@ -1145,6 +1153,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
 			import_queue,
 			on_demand: Some(on_demand.clone()),
 			block_announce_validator_builder: None,
+			warp_sync: Some(warp_sync),
 		})?;
 
 	let enable_grandpa = !config.disable_grandpa;
@@ -1214,7 +1223,7 @@ pub fn new_chain_ops(
 	(
 		Arc<Client>,
 		Arc<FullBackend>,
-		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
+		sc_consensus::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
 		TaskManager,
 	),
 	Error
