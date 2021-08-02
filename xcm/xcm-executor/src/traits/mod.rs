@@ -17,13 +17,13 @@
 //! Various traits used in configuring the executor.
 
 mod conversion;
-pub use conversion::{InvertLocation, ConvertOrigin, Convert, JustTry, Identity, Encoded, Decoded};
+pub use conversion::{Convert, ConvertOrigin, Decoded, Encoded, Identity, InvertLocation, JustTry};
 mod filter_asset_location;
-pub use filter_asset_location::{FilterAssetLocation};
+pub use filter_asset_location::FilterAssetLocation;
 mod matches_fungible;
-pub use matches_fungible::{MatchesFungible};
+pub use matches_fungible::MatchesFungible;
 mod matches_fungibles;
-pub use matches_fungibles::{MatchesFungibles, Error};
+pub use matches_fungibles::{Error, MatchesFungibles};
 mod on_response;
 pub use on_response::OnResponse;
 mod should_execute;

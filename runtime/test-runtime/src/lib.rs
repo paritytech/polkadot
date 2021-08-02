@@ -21,70 +21,65 @@
 #![recursion_limit = "256"]
 
 use pallet_transaction_payment::CurrencyAdapter;
-use sp_std::prelude::*;
-use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::Encode;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
-use polkadot_runtime_parachains::configuration as parachains_configuration;
-use polkadot_runtime_parachains::shared as parachains_shared;
-use polkadot_runtime_parachains::inclusion as parachains_inclusion;
-use polkadot_runtime_parachains::paras_inherent as parachains_paras_inherent;
-use polkadot_runtime_parachains::initializer as parachains_initializer;
-use polkadot_runtime_parachains::session_info as parachains_session_info;
-use polkadot_runtime_parachains::paras as parachains_paras;
-use polkadot_runtime_parachains::dmp as parachains_dmp;
-use polkadot_runtime_parachains::ump as parachains_ump;
-use polkadot_runtime_parachains::hrmp as parachains_hrmp;
-use polkadot_runtime_parachains::scheduler as parachains_scheduler;
-use polkadot_runtime_parachains::disputes as parachains_disputes;
-use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
+use polkadot_runtime_parachains::{
+	configuration as parachains_configuration, disputes as parachains_disputes,
+	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
+	initializer as parachains_initializer, paras as parachains_paras,
+	paras_inherent as parachains_paras_inherent, runtime_api_impl::v1 as runtime_impl,
+	scheduler as parachains_scheduler, session_info as parachains_session_info,
+	shared as parachains_shared, ump as parachains_ump,
+};
 
+use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
+use beefy_primitives::crypto::AuthorityId as BeefyId;
+use frame_support::{construct_runtime, parameter_types, traits::KeyOwnerProofSystem};
+use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
+use pallet_mmr_primitives as mmr;
+use pallet_session::historical as session_historical;
+use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
+use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	InboundDownwardMessage, InboundHrmpMessage, SessionInfo as SessionInfoData,
+	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+	SessionInfo as SessionInfoData, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
+	ValidatorIndex,
 };
 use runtime_common::{
-	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
-	BlockHashCount, BlockWeights, BlockLength,
+	claims, paras_sudo_wrapper, BlockHashCount, BlockLength, BlockWeights, SlowAdjustingFeeUpdate,
 };
+use sp_core::OpaqueMetadata;
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, Perbill, KeyTypeId,
-	transaction_validity::{TransactionValidity, TransactionSource},
+	create_runtime_str,
 	curve::PiecewiseLinear,
+	generic, impl_opaque_keys,
 	traits::{
-		BlakeTwo256, Block as BlockT, StaticLookup, OpaqueKeys, ConvertInto,
-		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
+		BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT, OpaqueKeys,
+		SaturatedConversion, StaticLookup, Verify,
 	},
+	transaction_validity::{TransactionSource, TransactionValidity},
+	ApplyExtrinsicResult, KeyTypeId, Perbill,
 };
-use sp_version::RuntimeVersion;
-use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
+use sp_staking::SessionIndex;
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
-use sp_core::OpaqueMetadata;
-use sp_staking::SessionIndex;
-use frame_support::{parameter_types, construct_runtime, traits::KeyOwnerProofSystem};
-use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
-use pallet_session::historical as session_historical;
-use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
-use beefy_primitives::crypto::AuthorityId as BeefyId;
-use pallet_mmr_primitives as mmr;
+use sp_version::RuntimeVersion;
 
+pub use pallet_balances::Call as BalancesCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
+pub use pallet_sudo::Call as SudoCall;
+pub use pallet_timestamp::Call as TimestampCall;
+pub use paras_sudo_wrapper::Call as ParasSudoWrapperCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-pub use pallet_timestamp::Call as TimestampCall;
-pub use pallet_balances::Call as BalancesCall;
-pub use paras_sudo_wrapper::Call as ParasSudoWrapperCall;
-pub use pallet_sudo::Call as SudoCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
-use constants::{time::*, currency::*, fee::*};
+use constants::{currency::*, fee::*, time::*};
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -105,16 +100,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
 	babe_primitives::BabeEpochConfiguration {
 		c: PRIMARY_PROBABILITY,
-		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots
+		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 	};
 
 /// Native version.
 #[cfg(any(feature = "std", test))]
 pub fn native_version() -> NativeVersion {
-	NativeVersion {
-		runtime_version: VERSION,
-		can_author_with: Default::default(),
-	}
+	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
 sp_api::decl_runtime_apis! {
@@ -155,7 +147,8 @@ impl frame_system::Config for Runtime {
 	type OnSetCode = ();
 }
 
-impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
 	Call: From<C>,
 {
 	type OverarchingCall = Call;
@@ -339,7 +332,8 @@ impl pallet_staking::Config for Runtime {
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
-	type ElectionProvider = frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
+	type ElectionProvider =
+		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type GenesisElectionProvider =
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type WeightInfo = ();
@@ -364,7 +358,8 @@ impl pallet_grandpa::Config for Runtime {
 	type WeightInfo = ();
 }
 
-impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
+where
 	Call: From<LocalCall>,
 {
 	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
@@ -373,30 +368,29 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 		account: AccountId,
 		nonce: <Runtime as frame_system::Config>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
-		let period = BlockHashCount::get()
-			.checked_next_power_of_two()
-			.map(|c| c / 2)
-			.unwrap_or(2) as u64;
+		let period =
+			BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
 
-		let current_block = System::block_number()
-			.saturated_into::<u64>()
-			.saturating_sub(1);
+		let current_block = System::block_number().saturated_into::<u64>().saturating_sub(1);
 		let tip = 0;
 		let extra: SignedExtra = (
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
-			frame_system::CheckMortality::<Runtime>::from(generic::Era::mortal(period, current_block)),
+			frame_system::CheckMortality::<Runtime>::from(generic::Era::mortal(
+				period,
+				current_block,
+			)),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
-		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
-			log::warn!("Unable to create signed payload: {:?}", e);
-		}).ok()?;
-		let signature = raw_payload.using_encoded(|payload| {
-			C::sign(payload, public)
-		})?;
+		let raw_payload = SignedPayload::new(call, extra)
+			.map_err(|e| {
+				log::warn!("Unable to create signed payload: {:?}", e);
+			})
+			.ok()?;
+		let signature = raw_payload.using_encoded(|payload| C::sign(payload, public))?;
 		let (call, extra, _) = raw_payload.deconstruct();
 		let address = Indices::unlookup(account);
 		Some((call, (address, signature, extra)))
@@ -571,12 +565,18 @@ pub type SignedExtra = (
 	frame_system::CheckMortality<Runtime>,
 	frame_system::CheckNonce<Runtime>,
 	frame_system::CheckWeight<Runtime>,
-	pallet_transaction_payment::ChargeTransactionPayment::<Runtime>,
+	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPallets>;
+pub type Executive = frame_executive::Executive<
+	Runtime,
+	Block,
+	frame_system::ChainContext<Runtime>,
+	Runtime,
+	AllPallets,
+>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 

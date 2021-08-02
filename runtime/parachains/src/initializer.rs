@@ -19,15 +19,15 @@
 //!
 //! This module can throw fatal errors if session-change notifications are received after initialization.
 
-use sp_std::prelude::*;
-use primitives::v1::{ValidatorId, SessionIndex, ConsensusLog, BlockNumber};
-use frame_support::traits::{Randomness, OneSessionHandler};
-use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
 	disputes::DisputesHandler,
-	shared, paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
+	dmp, hrmp, inclusion, paras, scheduler, session_info, shared, ump,
 };
+use frame_support::traits::{OneSessionHandler, Randomness};
+use parity_scale_codec::{Decode, Encode};
+use primitives::v1::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
+use sp_std::prelude::*;
 
 pub use pallet::*;
 
@@ -70,9 +70,9 @@ struct BufferedSessionChange {
 
 #[frame_support::pallet]
 pub mod pallet {
+	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use super::*;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -97,7 +97,6 @@ pub mod pallet {
 		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
 	}
 
-
 	/// Whether the parachains modules have been initialized within this block.
 	///
 	/// Semantically a `bool`, but this guarantees it should never hit the trie,
@@ -117,7 +116,8 @@ pub mod pallet {
 	/// However this is a `Vec` regardless to handle various edge cases that may occur at runtime
 	/// upgrade boundaries or if governance intervenes.
 	#[pallet::storage]
-	pub(super) type BufferedSessionChanges<T: Config> = StorageValue<_, Vec<BufferedSessionChange>, ValueQuery>;
+	pub(super) type BufferedSessionChanges<T: Config> =
+		StorageValue<_, Vec<BufferedSessionChange>, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -165,11 +165,8 @@ pub mod pallet {
 			// next block will observe the next session.
 			//
 			// Note that we only apply the last session as all others lasted less than a block (weirdly).
-			if let Some(BufferedSessionChange {
-				session_index,
-				validators,
-				queued,
-			}) = BufferedSessionChanges::<T>::take().pop()
+			if let Some(BufferedSessionChange { session_index, validators, queued }) =
+				BufferedSessionChanges::<T>::take().pop()
 			{
 				Self::apply_new_session(session_index, validators, queued);
 			}
@@ -250,8 +247,8 @@ impl<T: Config> Pallet<T> {
 		session_index: SessionIndex,
 		validators: I,
 		queued: Option<I>,
-	)
-		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
+	) where
+		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
 	{
 		let validators: Vec<_> = validators.map(|(_, v)| v).collect();
 		let queued: Vec<_> = if let Some(queued) = queued {
@@ -264,13 +261,10 @@ impl<T: Config> Pallet<T> {
 			// Genesis session should be immediately enacted.
 			Self::apply_new_session(0, validators, queued);
 		} else {
-			BufferedSessionChanges::<T>::mutate(|v| v.push(BufferedSessionChange {
-				validators,
-				queued,
-				session_index,
-			}));
+			BufferedSessionChanges::<T>::mutate(|v| {
+				v.push(BufferedSessionChange { validators, queued, session_index })
+			});
 		}
-
 	}
 
 	// Allow to trigger on_new_session in tests, this is needed as long as pallet_session is not
@@ -281,8 +275,8 @@ impl<T: Config> Pallet<T> {
 		session_index: SessionIndex,
 		validators: I,
 		queued: Option<I>,
-	)
-		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
+	) where
+		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
 	{
 		Self::on_new_session(changed, session_index, validators, queued)
 	}
@@ -296,29 +290,31 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pal
 	type Key = ValidatorId;
 
 	fn on_genesis_session<'a, I: 'a>(validators: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	where
+		I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
 	{
 		<Pallet<T>>::on_new_session(false, 0, validators, None);
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	where
+		I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
 	{
 		let session_index = <pallet_session::Pallet<T>>::current_index();
 		<Pallet<T>>::on_new_session(changed, session_index, validators, Some(queued));
 	}
 
-	fn on_disabled(_i: usize) { }
+	fn on_disabled(_i: usize) {}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use primitives::v1::{Id as ParaId};
 	use crate::mock::{
-		new_test_ext,
-		Initializer, System, Dmp, Paras, Configuration, SessionInfo, MockGenesisConfig,
+		new_test_ext, Configuration, Dmp, Initializer, MockGenesisConfig, Paras, SessionInfo,
+		System,
 	};
+	use primitives::v1::Id as ParaId;
 
 	use frame_support::{
 		assert_ok,
@@ -409,26 +405,24 @@ mod tests {
 			validation_code: Default::default(),
 		};
 
-		new_test_ext(
-			MockGenesisConfig {
-				configuration: crate::configuration::GenesisConfig {
-					config: crate::configuration::HostConfiguration {
-						max_downward_message_size: 1024,
-						..Default::default()
-					},
-				},
-				paras: crate::paras::GenesisConfig {
-					paras: vec![
-						(a, mock_genesis.clone()),
-						(b, mock_genesis.clone()),
-						(c, mock_genesis.clone()),
-					],
+		new_test_ext(MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: crate::configuration::HostConfiguration {
+					max_downward_message_size: 1024,
 					..Default::default()
 				},
+			},
+			paras: crate::paras::GenesisConfig {
+				paras: vec![
+					(a, mock_genesis.clone()),
+					(b, mock_genesis.clone()),
+					(c, mock_genesis.clone()),
+				],
 				..Default::default()
-			}
-		).execute_with(|| {
-
+			},
+			..Default::default()
+		})
+		.execute_with(|| {
 			// enqueue downward messages to A, B and C.
 			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), a, vec![1, 2, 3]));
 			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), b, vec![4, 5, 6]));

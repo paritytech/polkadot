@@ -30,7 +30,7 @@ pub mod currency {
 
 /// Time and blocks.
 pub mod time {
-	use primitives::v0::{Moment, BlockNumber};
+	use primitives::v0::{BlockNumber, Moment};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	frame_support::parameter_types! {
@@ -48,13 +48,13 @@ pub mod time {
 
 /// Fee-related.
 pub mod fee {
-	pub use sp_runtime::Perbill;
+	use frame_support::weights::{
+		WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
+	};
 	use primitives::v0::Balance;
 	use runtime_common::ExtrinsicBaseWeight;
-	use frame_support::weights::{
-		WeightToFeePolynomial, WeightToFeeCoefficient, WeightToFeeCoefficients,
-	};
 	use smallvec::smallvec;
+	pub use sp_runtime::Perbill;
 
 	/// The block saturation level. Fees will be updates based on this value.
 	pub const TARGET_BLOCK_FULLNESS: Perbill = Perbill::from_percent(25);
@@ -88,10 +88,12 @@ pub mod fee {
 
 #[cfg(test)]
 mod tests {
-	use frame_support::weights::{WeightToFeePolynomial, DispatchClass};
+	use super::{
+		currency::{CENTS, DOLLARS, MILLICENTS},
+		fee::WeightToFee,
+	};
+	use frame_support::weights::{DispatchClass, WeightToFeePolynomial};
 	use runtime_common::BlockWeights;
-	use super::fee::WeightToFee;
-	use super::currency::{CENTS, DOLLARS, MILLICENTS};
 
 	#[test]
 	// This function tests that the fee for `MaximumBlockWeight` of weight is correct

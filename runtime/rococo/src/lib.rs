@@ -20,87 +20,78 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
-use pallet_transaction_payment::CurrencyAdapter;
-use sp_std::prelude::*;
-use sp_std::collections::btree_map::BTreeMap;
-use parity_scale_codec::{Encode, Decode, MaxEncodedLen};
-use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	GroupRotationInfo, CoreState, Id, ValidationCode, ValidationCodeHash, CandidateEvent,
-	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
-	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
-	SessionInfo as SessionInfoData,
-};
-use runtime_common::{
-	SlowAdjustingFeeUpdate, impls::ToAuthor, BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
-};
-use runtime_parachains::{
-	self,
-	runtime_api_impl::v1 as runtime_api_impl,
-};
+use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
+use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use frame_support::{
-	PalletId, construct_runtime, parameter_types,
+	construct_runtime, parameter_types,
 	traits::{All, Filter, IsInVec, KeyOwnerProofSystem, OnRuntimeUpgrade, Randomness},
 	weights::Weight,
+	PalletId,
 };
+use frame_system::EnsureRoot;
+use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_mmr_primitives as mmr;
+use pallet_session::historical as session_historical;
+use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use primitives::v1::{
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage, Moment,
+	Nonce, OccupiedCoreAssumption, PersistedValidationData, SessionInfo as SessionInfoData,
+	Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+};
+use runtime_common::{
+	auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper, slots, xcm_sender,
+	BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
+};
+use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
+use sp_core::{OpaqueMetadata, RuntimeDebug};
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill,
-	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
-		self, Keccak256, BlakeTwo256, Block as BlockT, OpaqueKeys, AccountIdLookup,
-		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
+		self, AccountIdLookup, BlakeTwo256, Block as BlockT, Extrinsic as ExtrinsicT, Keccak256,
+		OpaqueKeys, SaturatedConversion, Verify,
 	},
+	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
+	ApplyExtrinsicResult, KeyTypeId, Perbill,
 };
-use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
+use sp_staking::SessionIndex;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
-use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
-use sp_core::{OpaqueMetadata, RuntimeDebug};
-use sp_staking::SessionIndex;
-use pallet_session::historical as session_historical;
-use beefy_primitives::crypto::AuthorityId as BeefyId;
-use beefy_primitives::mmr::MmrLeafVersion;
-use pallet_mmr_primitives as mmr;
-use frame_system::EnsureRoot;
-use runtime_common::{paras_sudo_wrapper, paras_registrar, xcm_sender, auctions, crowdloan, slots};
 
-use runtime_parachains::origin as parachains_origin;
-use runtime_parachains::configuration as parachains_configuration;
-use runtime_parachains::shared as parachains_shared;
-use runtime_parachains::inclusion as parachains_inclusion;
-use runtime_parachains::paras_inherent as parachains_paras_inherent;
-use runtime_parachains::initializer as parachains_initializer;
-use runtime_parachains::session_info as parachains_session_info;
-use runtime_parachains::paras as parachains_paras;
-use runtime_parachains::dmp as parachains_dmp;
-use runtime_parachains::ump as parachains_ump;
-use runtime_parachains::hrmp as parachains_hrmp;
-use runtime_parachains::scheduler as parachains_scheduler;
+use runtime_parachains::{
+	configuration as parachains_configuration, dmp as parachains_dmp, hrmp as parachains_hrmp,
+	inclusion as parachains_inclusion, initializer as parachains_initializer,
+	origin as parachains_origin, paras as parachains_paras,
+	paras_inherent as parachains_paras_inherent, scheduler as parachains_scheduler,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+};
 
-use bridge_runtime_common::messages::{MessageBridge, source::estimate_message_dispatch_and_delivery_fee};
+use bridge_runtime_common::messages::{
+	source::estimate_message_dispatch_and_delivery_fee, MessageBridge,
+};
 
 pub use pallet_balances::Call as BalancesCall;
 
 use polkadot_parachain::primitives::Id as ParaId;
 
-use xcm::v0::{Xcm, MultiLocation, NetworkId, BodyId};
-use xcm_executor::XcmExecutor;
-use xcm_builder::{
-	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
-	CurrencyAdapter as XcmCurrencyAdapter, ChildParachainAsNative, SignedAccountId32AsNative,
-	ChildSystemParachainAsSuperuser, LocationInverter, IsConcrete, FixedWeightBounds,
-	BackingToPlurality, SignedToAccountId32, UsingComponents,
-};
-use constants::{time::*, currency::*, fee::*};
+use constants::{currency::*, fee::*, time::*};
 use frame_support::traits::InstanceFilter;
+use xcm::v0::{BodyId, MultiLocation, NetworkId, Xcm};
+use xcm_builder::{
+	AccountId32Aliases, BackingToPlurality, ChildParachainAsNative, ChildParachainConvertsVia,
+	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
+	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, UsingComponents,
+};
+use xcm_executor::XcmExecutor;
 
+mod bridge_messages;
 /// Constant values used within the runtime.
 pub mod constants;
-mod bridge_messages;
 mod validator_manager;
 
 // Make the WASM binary available.
@@ -125,16 +116,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
 	babe_primitives::BabeEpochConfiguration {
 		c: PRIMARY_PROBABILITY,
-		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots
+		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 	};
 
 /// Native version.
 #[cfg(any(feature = "std", test))]
 pub fn native_version() -> NativeVersion {
-	NativeVersion {
-		runtime_version: VERSION,
-		can_author_with: Default::default(),
-	}
+	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
 /// The address format for describing accounts.
@@ -163,9 +151,9 @@ pub struct MigratePalletVersionToStorageVersion;
 
 impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<AllPalletsWithSystem>(
-			&RocksDbWeight::get()
-		)
+		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
+			AllPalletsWithSystem,
+		>(&RocksDbWeight::get())
 	}
 }
 
@@ -323,7 +311,8 @@ parameter_types! {
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
 /// format of the chain.
-impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
+where
 	Call: From<LocalCall>,
 {
 	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
@@ -334,10 +323,8 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		use sp_runtime::traits::StaticLookup;
 		// take the biggest period possible.
-		let period = BlockHashCount::get()
-			.checked_next_power_of_two()
-			.map(|c| c / 2)
-			.unwrap_or(2) as u64;
+		let period =
+			BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
 
 		let current_block = System::block_number()
 			.saturated_into::<u64>()
@@ -349,17 +336,20 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
-			frame_system::CheckMortality::<Runtime>::from(generic::Era::mortal(period, current_block)),
+			frame_system::CheckMortality::<Runtime>::from(generic::Era::mortal(
+				period,
+				current_block,
+			)),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
-		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
-			log::warn!("Unable to create signed payload: {:?}", e);
-		}).ok()?;
-		let signature = raw_payload.using_encoded(|payload| {
-			C::sign(payload, public)
-		})?;
+		let raw_payload = SignedPayload::new(call, extra)
+			.map_err(|e| {
+				log::warn!("Unable to create signed payload: {:?}", e);
+			})
+			.ok()?;
+		let signature = raw_payload.using_encoded(|payload| C::sign(payload, public))?;
 		let (call, extra, _) = raw_payload.deconstruct();
 		let address = <Runtime as frame_system::Config>::Lookup::unlookup(account);
 		Some((call, (address, signature, extra)))
@@ -374,7 +364,9 @@ impl frame_system::offchain::SigningTypes for Runtime {
 /// Special `FullIdentificationOf` implementation that is returning for every input `Some(Default::default())`.
 pub struct FullIdentificationOf;
 impl sp_runtime::traits::Convert<AccountId, Option<()>> for FullIdentificationOf {
-	fn convert(_: AccountId) -> Option<()> { Some(Default::default()) }
+	fn convert(_: AccountId) -> Option<()> {
+		Some(Default::default())
+	}
 }
 
 impl pallet_session::historical::Config for Runtime {
@@ -418,7 +410,8 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = ();
 }
 
-impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
 	Call: From<C>,
 {
 	type OverarchingCall = Call;
@@ -466,7 +459,9 @@ parameter_types! {
 /// Special `ValidatorIdOf` implementation that is just returning the input as result.
 pub struct ValidatorIdOf;
 impl sp_runtime::traits::Convert<AccountId, Option<AccountId>> for ValidatorIdOf {
-	fn convert(a: AccountId) -> Option<AccountId> { Some(a) }
+	fn convert(a: AccountId) -> Option<AccountId> {
+		Some(a)
+	}
 }
 
 impl pallet_session::Config for Runtime {
@@ -542,8 +537,11 @@ impl pallet_grandpa::Config for Runtime {
 		GrandpaId,
 	)>>::IdentificationTuple;
 
-	type HandleEquivocation =
-		pallet_grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
+	type HandleEquivocation = pallet_grandpa::EquivocationHandler<
+		Self::KeyOwnerIdentification,
+		Offences,
+		ReportLongevity,
+	>;
 
 	type WeightInfo = ();
 }
@@ -568,8 +566,8 @@ impl parachains_shared::Config for Runtime {}
 /// Special `RewardValidators` that does nothing ;)
 pub struct RewardValidators;
 impl runtime_parachains::inclusion::RewardValidators for RewardValidators {
-	fn reward_backing(_: impl IntoIterator<Item=ValidatorIndex>) {}
-	fn reward_bitfields(_: impl IntoIterator<Item=ValidatorIndex>) {}
+	fn reward_backing(_: impl IntoIterator<Item = ValidatorIndex>) {}
+	fn reward_bitfields(_: impl IntoIterator<Item = ValidatorIndex>) {}
 }
 
 impl parachains_inclusion::Config for Runtime {
@@ -590,24 +588,21 @@ parameter_types! {
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
-pub type SovereignAccountOf = (
-	ChildParachainConvertsVia<ParaId, AccountId>,
-	AccountId32Aliases<RococoNetwork, AccountId>,
-);
+pub type SovereignAccountOf =
+	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<RococoNetwork, AccountId>);
 
-pub type LocalAssetTransactor =
-	XcmCurrencyAdapter<
-		// Use this currency:
-		Balances,
-		// Use this currency when it is a fungible asset matching the given location or name:
-		IsConcrete<RocLocation>,
-		// We can convert the MultiLocations with our converter above:
-		SovereignAccountOf,
-		// Our chain's account ID type (we can't get away without mentioning it explicitly):
-		AccountId,
-		// It's a native asset so we keep track of the teleports to maintain total issuance.
-		CheckAccount,
-	>;
+pub type LocalAssetTransactor = XcmCurrencyAdapter<
+	// Use this currency:
+	Balances,
+	// Use this currency when it is a fungible asset matching the given location or name:
+	IsConcrete<RocLocation>,
+	// We can convert the MultiLocations with our converter above:
+	SovereignAccountOf,
+	// Our chain's account ID type (we can't get away without mentioning it explicitly):
+	AccountId,
+	// It's a native asset so we keep track of the teleports to maintain total issuance.
+	CheckAccount,
+>;
 
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
@@ -627,7 +622,12 @@ pub type XcmRouter = (
 	xcm_sender::ChildParachainRouter<Runtime>,
 );
 
-use xcm::v0::{MultiAsset, MultiAsset::AllConcreteFungible, MultiLocation::{Null, X1}, Junction::Parachain};
+use xcm::v0::{
+	Junction::Parachain,
+	MultiAsset,
+	MultiAsset::AllConcreteFungible,
+	MultiLocation::{Null, X1},
+};
 parameter_types! {
 	pub const RococoForTick: (MultiAsset, MultiLocation) =
 		(AllConcreteFungible { id: Null }, X1(Parachain(100)));
@@ -655,11 +655,11 @@ parameter_types! {
 		];
 }
 
-use xcm_builder::{TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom};
+use xcm_builder::{AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, TakeWeightCredit};
 pub type Barrier = (
 	TakeWeightCredit,
 	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
-	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,	// <- Trusted parachains get free execution
+	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>, // <- Trusted parachains get free execution
 );
 
 pub struct XcmConfig;
@@ -692,11 +692,15 @@ pub type LocalOriginToLocation = (
 );
 
 pub struct OnlyWithdrawTeleportForAccounts;
-impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdrawTeleportForAccounts {
+impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)>
+	for OnlyWithdrawTeleportForAccounts
+{
 	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
 		use xcm::v0::{
-			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
-			MultiAsset::{All, ConcreteFungible}, Junction::{AccountId32, Plurality},
+			Junction::{AccountId32, Plurality},
+			MultiAsset::{All, ConcreteFungible},
+			Order::{BuyExecution, DepositAsset, InitiateTeleport},
+			Xcm::WithdrawAsset,
 		};
 		match origin {
 			// Root and collective are allowed to execute anything.
@@ -731,7 +735,7 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdra
 						)
 					)
 				)
-			}
+			},
 			// Nobody else is allowed to execute anything.
 			_ => false,
 		}
@@ -821,9 +825,7 @@ impl pallet_beefy_mmr::ParachainHeadsProvider for ParasProvider {
 	fn parachain_heads() -> Vec<(u32, Vec<u8>)> {
 		Paras::parachains()
 			.into_iter()
-			.filter_map(|id| {
-				Paras::para_head(&id).map(|head| (id.into(), head.0))
-			})
+			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
 			.collect()
 	}
 }
@@ -942,12 +944,13 @@ impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runt
 
 	type TargetHeaderChain = crate::bridge_messages::RococoAtWococo;
 	type LaneMessageVerifier = crate::bridge_messages::ToRococoMessageVerifier;
-	type MessageDeliveryAndDispatchPayment = pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
-		Runtime,
-		pallet_balances::Pallet<Runtime>,
-		crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
-		RootAccountForPayments,
-	>;
+	type MessageDeliveryAndDispatchPayment =
+		pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
+			Runtime,
+			pallet_balances::Pallet<Runtime>,
+			crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
+			RootAccountForPayments,
+		>;
 	type OnDeliveryConfirmed = ();
 
 	type SourceHeaderChain = crate::bridge_messages::RococoAtWococo;
@@ -976,12 +979,13 @@ impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runt
 
 	type TargetHeaderChain = crate::bridge_messages::WococoAtRococo;
 	type LaneMessageVerifier = crate::bridge_messages::ToWococoMessageVerifier;
-	type MessageDeliveryAndDispatchPayment = pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
-		Runtime,
-		pallet_balances::Pallet<Runtime>,
-		crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
-		RootAccountForPayments,
-	>;
+	type MessageDeliveryAndDispatchPayment =
+		pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
+			Runtime,
+			pallet_balances::Pallet<Runtime>,
+			crate::bridge_messages::GetDeliveryConfirmationTransactionFee,
+			RootAccountForPayments,
+		>;
 	type OnDeliveryConfirmed = ();
 
 	type SourceHeaderChain = crate::bridge_messages::WococoAtRococo;
@@ -991,7 +995,9 @@ impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runt
 impl Randomness<Hash, BlockNumber> for ParentHashRandomness {
 	fn random(subject: &[u8]) -> (Hash, BlockNumber) {
 		(
-			(System::parent_hash(), subject).using_encoded(sp_io::hashing::blake2_256).into(),
+			(System::parent_hash(), subject)
+				.using_encoded(sp_io::hashing::blake2_256)
+				.into(),
 			System::block_number(),
 		)
 	}
@@ -1074,19 +1080,24 @@ parameter_types! {
 }
 
 /// The type used to represent the kinds of proxying allowed.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug, MaxEncodedLen)]
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug, MaxEncodedLen,
+)]
 pub enum ProxyType {
 	Any,
 	CancelProxy,
 }
-impl Default for ProxyType { fn default() -> Self { Self::Any } }
+impl Default for ProxyType {
+	fn default() -> Self {
+		Self::Any
+	}
+}
 impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			ProxyType::CancelProxy => matches!(c,
-				Call::Proxy(pallet_proxy::Call::reject_announcement(..))
-			)
+			ProxyType::CancelProxy =>
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..))),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {

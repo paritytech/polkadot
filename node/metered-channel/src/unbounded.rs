@@ -16,13 +16,15 @@
 
 //! Metered variant of unbounded mpsc channels to be able to extract metrics.
 
-use futures::{channel::mpsc, task::Poll, task::Context, stream::Stream};
+use futures::{
+	channel::mpsc,
+	stream::Stream,
+	task::{Context, Poll},
+};
 
-use std::result;
-use std::pin::Pin;
+use std::{pin::Pin, result};
 
 use super::Meter;
-
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn unbounded<T>() -> (UnboundedMeteredSender<T>, UnboundedMeteredReceiver<T>) {
@@ -61,7 +63,7 @@ impl<T> Stream for UnboundedMeteredReceiver<T> {
 			Poll::Ready(x) => {
 				self.meter.note_received();
 				Poll::Ready(x)
-			}
+			},
 			other => other,
 		}
 	}
@@ -84,7 +86,7 @@ impl<T> UnboundedMeteredReceiver<T> {
 			Some(x) => {
 				self.meter.note_received();
 				Ok(Some(x))
-			}
+			},
 			None => Ok(None),
 		}
 	}
@@ -95,7 +97,6 @@ impl<T> futures::stream::FusedStream for UnboundedMeteredReceiver<T> {
 		self.inner.is_terminated()
 	}
 }
-
 
 /// The sender component, tracking the number of items
 /// sent across it.

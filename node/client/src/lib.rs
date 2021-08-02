@@ -19,17 +19,21 @@
 //! Provides the [`AbstractClient`] trait that is a super trait that combines all the traits the client implements.
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
 
-use std::sync::Arc;
-use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
-use sp_blockchain::HeaderBackend;
-use sp_runtime::{
-	Justifications, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
+use polkadot_primitives::v1::{
+	AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce, ParachainHost,
 };
-use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator, AuxStore, UsageProvider};
-use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
-use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance, Header, BlockNumber, Hash};
-use sp_consensus::BlockStatus;
+use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
 use sc_executor::native_executor_instance;
+use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
+use sp_blockchain::HeaderBackend;
+use sp_consensus::BlockStatus;
+use sp_runtime::{
+	generic::{BlockId, SignedBlock},
+	traits::{BlakeTwo256, Block as BlockT},
+	Justifications,
+};
+use sp_storage::{ChildInfo, PrefixedStorageKey, StorageData, StorageKey};
+use std::sync::Arc;
 
 pub type FullBackend = sc_service::TFullBackend<Block>;
 
@@ -84,7 +88,8 @@ pub trait RuntimeApiCollection:
 	+ beefy_primitives::BeefyApi<Block>
 where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{}
+{
+}
 
 impl<Api> RuntimeApiCollection for Api
 where
@@ -103,47 +108,47 @@ where
 		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
 		+ beefy_primitives::BeefyApi<Block>,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{}
+{
+}
 
 /// Trait that abstracts over all available client implementations.
 ///
 /// For a concrete type there exists [`Client`].
 pub trait AbstractClient<Block, Backend>:
-	BlockchainEvents<Block> + Sized + Send + Sync
+	BlockchainEvents<Block>
+	+ Sized
+	+ Send
+	+ Sync
 	+ ProvideRuntimeApi<Block>
 	+ HeaderBackend<Block>
-	+ CallApiAt<
-		Block,
-		StateBackend = Backend::State
-	>
+	+ CallApiAt<Block, StateBackend = Backend::State>
 	+ AuxStore
 	+ UsageProvider<Block>
-	where
-		Block: BlockT,
-		Backend: BackendT<Block>,
-		Backend::State: sp_api::StateBackend<BlakeTwo256>,
-		Self::Api: RuntimeApiCollection<StateBackend = Backend::State>,
-{}
+where
+	Block: BlockT,
+	Backend: BackendT<Block>,
+	Backend::State: sp_api::StateBackend<BlakeTwo256>,
+	Self::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+{
+}
 
 impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
-	where
-		Block: BlockT,
-		Backend: BackendT<Block>,
-		Backend::State: sp_api::StateBackend<BlakeTwo256>,
-		Client: BlockchainEvents<Block>
-			+ ProvideRuntimeApi<Block>
-			+ HeaderBackend<Block>
-			+ AuxStore
-			+ UsageProvider<Block>
-			+ Sized
-			+ Send
-			+ Sync
-			+ CallApiAt<
-				Block,
-				StateBackend = Backend::State
-			>,
-		Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
-{}
+where
+	Block: BlockT,
+	Backend: BackendT<Block>,
+	Backend::State: sp_api::StateBackend<BlakeTwo256>,
+	Client: BlockchainEvents<Block>
+		+ ProvideRuntimeApi<Block>
+		+ HeaderBackend<Block>
+		+ AuxStore
+		+ UsageProvider<Block>
+		+ Sized
+		+ Send
+		+ Sync
+		+ CallApiAt<Block, StateBackend = Backend::State>,
+	Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+{
+}
 
 /// Execute something with the client instance.
 ///
@@ -162,12 +167,12 @@ pub trait ExecuteWithClient {
 
 	/// Execute whatever should be executed with the given client instance.
 	fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
-		where
-			<Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-			Backend: sc_client_api::Backend<Block> + 'static,
-			Backend::State: sp_api::StateBackend<BlakeTwo256>,
-			Api: crate::RuntimeApiCollection<StateBackend = Backend::State>,
-			Client: AbstractClient<Block, Backend, Api = Api> + 'static;
+	where
+		<Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+		Backend: sc_client_api::Backend<Block> + 'static,
+		Backend::State: sp_api::StateBackend<BlakeTwo256>,
+		Api: crate::RuntimeApiCollection<StateBackend = Backend::State>,
+		Client: AbstractClient<Block, Backend, Api = Api> + 'static;
 }
 
 /// A handle to a Polkadot client instance.
@@ -244,7 +249,7 @@ impl UsageProvider<Block> for Client {
 impl sc_client_api::BlockBackend<Block> for Client {
 	fn block_body(
 		&self,
-		id: &BlockId<Block>
+		id: &BlockId<Block>,
 	) -> sp_blockchain::Result<Option<Vec<<Block as BlockT>::Extrinsic>>> {
 		with_client! {
 			self,
@@ -275,10 +280,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn justifications(
-		&self,
-		id: &BlockId<Block>
-	) -> sp_blockchain::Result<Option<Justifications>> {
+	fn justifications(&self, id: &BlockId<Block>) -> sp_blockchain::Result<Option<Justifications>> {
 		with_client! {
 			self,
 			client,
@@ -290,7 +292,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 
 	fn block_hash(
 		&self,
-		number: NumberFor<Block>
+		number: NumberFor<Block>,
 	) -> sp_blockchain::Result<Option<<Block as BlockT>::Hash>> {
 		with_client! {
 			self,
@@ -303,7 +305,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 
 	fn indexed_transaction(
 		&self,
-		id: &<Block as BlockT>::Hash
+		id: &<Block as BlockT>::Hash,
 	) -> sp_blockchain::Result<Option<Vec<u8>>> {
 		with_client! {
 			self,
@@ -316,7 +318,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 
 	fn block_indexed_body(
 		&self,
-		id: &BlockId<Block>
+		id: &BlockId<Block>,
 	) -> sp_blockchain::Result<Option<Vec<Vec<u8>>>> {
 		with_client! {
 			self,
@@ -390,7 +392,9 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 		id: &BlockId<Block>,
 		prefix: Option<&'a StorageKey>,
 		start_key: Option<&StorageKey>,
-	) -> sp_blockchain::Result<KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>> {
+	) -> sp_blockchain::Result<
+		KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+	> {
 		with_client! {
 			self,
 			client,
@@ -436,7 +440,9 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 		child_info: ChildInfo,
 		prefix: Option<&'a StorageKey>,
 		start_key: Option<&StorageKey>,
-	) -> sp_blockchain::Result<KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>> {
+	) -> sp_blockchain::Result<
+		KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+	> {
 		with_client! {
 			self,
 			client,
