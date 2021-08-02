@@ -42,23 +42,23 @@ pub fn validator_groups<T: initializer::Config>() -> (
 ) {
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 
-	let groups = <scheduler::Module<T>>::validator_groups();
-	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
+	let groups = <scheduler::Pallet<T>>::validator_groups();
+	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
 
 	(groups, rotation_info)
 }
 
 /// Implementation for the `availability_cores` function of the runtime API.
 pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
-	let cores = <scheduler::Module<T>>::availability_cores();
+	let cores = <scheduler::Pallet<T>>::availability_cores();
 	let parachains = <paras::Pallet<T>>::parachains();
 	let config = <configuration::Pallet<T>>::config();
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
-	<scheduler::Module<T>>::clear();
-	<scheduler::Module<T>>::schedule(Vec::new(), now);
+	<scheduler::Pallet<T>>::clear();
+	<scheduler::Pallet<T>>::schedule(Vec::new(), now);
 
-	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
+	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
 
 	let time_out_at = |backed_in_number, availability_period| {
 		let time_out_at = backed_in_number + availability_period;
@@ -81,7 +81,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	};
 
 	let group_responsible_for = |backed_in_number, core_index| {
-		match <scheduler::Module<T>>::group_assigned_to_core(core_index, backed_in_number) {
+		match <scheduler::Pallet<T>>::group_assigned_to_core(core_index, backed_in_number) {
 			Some(g) => g,
 			None =>  {
 				log::warn!(
@@ -106,7 +106,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
+						next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(
 							CoreIndex(i as u32)
 						),
 						occupied_since: backed_in_number,
@@ -114,7 +114,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 							backed_in_number,
 							config.chain_availability_period,
 						),
-						next_up_on_time_out: <scheduler::Module<T>>::next_up_on_time_out(
+						next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(
 							CoreIndex(i as u32)
 						),
 						availability: pending_availability.availability_votes().clone(),
@@ -134,7 +134,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
+						next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(
 							CoreIndex(i as u32)
 						),
 						occupied_since: backed_in_number,
@@ -142,7 +142,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 							backed_in_number,
 							config.thread_availability_period,
 						),
-						next_up_on_time_out: <scheduler::Module<T>>::next_up_on_time_out(
+						next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(
 							CoreIndex(i as u32)
 						),
 						availability: pending_availability.availability_votes().clone(),
@@ -160,7 +160,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	}).collect();
 
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
-	for scheduled in <scheduler::Module<T>>::scheduled() {
+	for scheduled in <scheduler::Pallet<T>>::scheduled() {
 		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(ScheduledCore {
 			para_id: scheduled.para_id,
 			collator: scheduled.required_collator().map(|c| c.clone()),
@@ -239,7 +239,7 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 /// Gets next, current and some historical authority ids using `session_info` module.
 pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
 	let current_session_index = session_index_for_child::<T>();
-	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
+	let earliest_stored_session = <session_info::Pallet<T>>::earliest_stored_session();
 
 	// Due to `max_validators`, the `SessionInfo` stores only the validators who are actively
 	// selected to participate in parachain consensus. We'd like all authorities for the current
@@ -250,7 +250,7 @@ pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discover
 	// Due to disputes, we'd like to remain connected to authorities of the previous few sessions.
 	// For this, we don't need anyone other than the validators actively participating in consensus.
 	for session_index in earliest_stored_session..current_session_index {
-		let info = <session_info::Module<T>>::session_info(session_index);
+		let info = <session_info::Pallet<T>>::session_info(session_index);
 		if let Some(mut info) = info {
 			authority_ids.append(&mut info.discovery_keys);
 		}
@@ -308,7 +308,7 @@ where
 
 /// Get the session info for the given session, if stored.
 pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<SessionInfo> {
-	<session_info::Module<T>>::session_info(index)
+	<session_info::Pallet<T>>::session_info(index)
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.

@@ -148,11 +148,11 @@ decl_module! {
 
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
-			let expected_bits = <scheduler::Module<T>>::availability_cores().len();
+			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
 				signed_bitfields,
-				<scheduler::Module<T>>::core_para,
+				<scheduler::Pallet<T>>::core_para,
 			)?;
 
 			// Inform the disputes module of all included candidates.
@@ -162,7 +162,7 @@ decl_module! {
 			}
 
 			// Handle timeouts for any availability core work.
-			let availability_pred = <scheduler::Module<T>>::availability_timeout_predicate();
+			let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
 			let freed_timeout = if let Some(pred) = availability_pred {
 				<inclusion::Pallet<T>>::collect_pending(pred)
 			} else {
@@ -177,8 +177,8 @@ decl_module! {
 
 			freed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 
-			<scheduler::Module<T>>::clear();
-			<scheduler::Module<T>>::schedule(
+			<scheduler::Pallet<T>>::clear();
+			<scheduler::Pallet<T>>::schedule(
 				freed,
 				<frame_system::Pallet<T>>::block_number(),
 			);
@@ -202,12 +202,12 @@ decl_module! {
 			let occupied = <inclusion::Pallet<T>>::process_candidates(
 				parent_storage_root,
 				backed_candidates,
-				<scheduler::Module<T>>::scheduled(),
-				<scheduler::Module<T>>::group_validators,
+				<scheduler::Pallet<T>>::scheduled(),
+				<scheduler::Pallet<T>>::group_validators,
 			)?;
 
 			// Note which of the scheduled cores were actually occupied by a backed candidate.
-			<scheduler::Module<T>>::occupied(&occupied);
+			<scheduler::Pallet<T>>::occupied(&occupied);
 
 			// Give some time slice to dispatch pending upward messages.
 			<ump::Pallet<T>>::process_pending_upward_messages();
