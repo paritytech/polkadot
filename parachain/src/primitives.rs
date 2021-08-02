@@ -22,6 +22,7 @@ use sp_std::vec::Vec;
 use parity_scale_codec::{Encode, Decode, CompactAs};
 use sp_core::{RuntimeDebug, TypeId};
 use sp_runtime::traits::Hash as _;
+use frame_support::weights::Weight;
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -317,6 +318,59 @@ pub struct HrmpChannelId {
 
 /// A message from a parachain to its Relay Chain.
 pub type UpwardMessage = Vec<u8>;
+
+/// Something that should be called when a downward message is received.
+pub trait DmpMessageHandler {
+	/// Handle some incoming DMP messages (note these are individual XCM messages).
+	///
+	/// Also, process messages up to some `max_weight`.
+	fn handle_dmp_messages(
+		iter: impl Iterator<Item = (RelayChainBlockNumber, Vec<u8>)>,
+		max_weight: Weight,
+	) -> Weight;
+}
+impl DmpMessageHandler for () {
+	fn handle_dmp_messages(
+		iter: impl Iterator<Item = (RelayChainBlockNumber, Vec<u8>)>,
+		_max_weight: Weight,
+	) -> Weight {
+		iter.for_each(drop);
+		0
+	}
+}
+
+/// The aggregate XCMP message format.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
+pub enum XcmpMessageFormat {
+	/// Encoded `VersionedXcm` messages, all concatenated.
+	ConcatenatedVersionedXcm,
+	/// Encoded `Vec<u8>` messages, all concatenated.
+	ConcatenatedEncodedBlob,
+	/// One or more channel control signals; these should be interpreted immediately upon receipt
+	/// from the relay-chain.
+	Signals,
+}
+
+/// Something that should be called for each batch of messages received over XCMP.
+pub trait XcmpMessageHandler {
+	/// Handle some incoming XCMP messages (note these are the big one-per-block aggregate
+	/// messages).
+	///
+	/// Also, process messages up to some `max_weight`.
+	fn handle_xcmp_messages<'a, I: Iterator<Item = (Id, RelayChainBlockNumber, &'a [u8])>>(
+		iter: I,
+		max_weight: Weight,
+	) -> Weight;
+}
+impl XcmpMessageHandler for () {
+	fn handle_xcmp_messages<'a, I: Iterator<Item = (Id, RelayChainBlockNumber, &'a [u8])>>(
+		iter: I,
+		_max_weight: Weight,
+	) -> Weight {
+		for _ in iter {}
+		0
+	}
+}
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
