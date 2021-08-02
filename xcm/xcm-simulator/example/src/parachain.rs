@@ -175,6 +175,12 @@ pub mod mock_msg_queue {
 	#[pallet::getter(fn parachain_id)]
 	pub(super) type ParachainId<T: Config> = StorageValue<_, ParaId, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn received_dmp)]
+	/// A queue of received DMP messages
+	pub(super) type ReceivedDmp<T: Config> =
+		StorageValue<_, Vec<(MultiLocation, Xcm<T::Call>)>, ValueQuery>;
+
 	impl<T: Config> Get<ParaId> for Pallet<T> {
 		fn get() -> ParaId {
 			Self::parachain_id()
@@ -187,7 +193,7 @@ pub mod mock_msg_queue {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		// XCMP
-		/// Some XCM was executed ok.
+		/// Some XCM was executed OK.
 		Success(Option<T::Hash>),
 		/// Some XCM failed.
 		Fail(Option<T::Hash>, XcmError),
@@ -275,7 +281,8 @@ pub mod mock_msg_queue {
 						Self::deposit_event(Event::UnsupportedVersion(id));
 					},
 					Ok(Ok(x)) => {
-						let outcome = T::XcmExecutor::execute_xcm(Parent.into(), x, limit);
+						let outcome = T::XcmExecutor::execute_xcm(Parent.into(), x.clone(), limit);
+						<ReceivedDmp<T>>::mutate(|y| y.push((Parent.into(), x)));
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
 					},
 				}
