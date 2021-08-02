@@ -765,6 +765,18 @@ pub mod pallet {
 			Ok(())
 		}
 	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn integrity_test() {
+			assert_eq!(
+				&ActiveConfig::<T>::hashed_key(),
+				primitives::v1::well_known_keys::ACTIVE_CONFIG,
+				"`well_known_keys::ACTIVE_CONFIG` doesn't match key of `ActiveConfig`! Make sure that the name of the\
+				 configuration pallet is `Configuration` in the runtime!",
+			);
+		}
+	}
 }
 
 impl<T: Config> Pallet<T> {

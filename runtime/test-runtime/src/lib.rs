@@ -529,7 +529,7 @@ construct_runtime! {
 		Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>},
 
 		// Parachains runtime modules
-		ParachainsConfiguration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
+		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
