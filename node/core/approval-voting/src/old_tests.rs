@@ -14,36 +14,34 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::*;
-use super::approval_db::v1::Config;
-use super::backend::{Backend, BackendWriteOp};
-use polkadot_primitives::v1::{
-	CandidateDescriptor, CoreIndex, GroupIndex, ValidatorSignature,
-	DisputeStatement, ValidDisputeStatementKind,
+use super::{
+	approval_db::v1::Config,
+	backend::{Backend, BackendWriteOp},
+	*,
 };
 use polkadot_node_primitives::approval::{
-	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
-	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
+	AssignmentCert, AssignmentCertKind, DelayTranche, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
 };
-use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_node_subsystem::messages::{AllMessages, HighestApprovedAncestorBlock};
+use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+use polkadot_primitives::v1::{
+	CandidateDescriptor, CoreIndex, DisputeStatement, GroupIndex, ValidDisputeStatementKind,
+	ValidatorSignature,
+};
 use sp_core::testing::TaskExecutor;
 
-use parking_lot::Mutex;
-use bitvec::order::Lsb0 as BitOrderLsb0;
-use std::pin::Pin;
-use std::sync::Arc;
-use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use assert_matches::assert_matches;
+use bitvec::order::Lsb0 as BitOrderLsb0;
+use parking_lot::Mutex;
+use sp_keyring::sr25519::Keyring as Sr25519Keyring;
+use std::{pin::Pin, sync::Arc};
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
 
 const DATA_COL: u32 = 0;
 const NUM_COLUMNS: u32 = 1;
 
-const TEST_CONFIG: Config = Config {
-	col_data: DATA_COL,
-};
+const TEST_CONFIG: Config = Config { col_data: DATA_COL };
 
 fn make_db() -> DbBackend {
 	let db_writer: Arc<dyn KeyValueDB> = Arc::new(kvdb_memorydb::create(NUM_COLUMNS));
@@ -51,9 +49,9 @@ fn make_db() -> DbBackend {
 }
 
 fn overlay_txn<T, F>(db: &mut T, mut f: F)
-	where
-		T: Backend,
-		F: FnMut(&mut OverlayedBackend<'_, T>)
+where
+	T: Backend,
+	F: FnMut(&mut OverlayedBackend<'_, T>),
 {
 	let mut overlay_db = OverlayedBackend::new(db);
 	f(&mut overlay_db);
@@ -109,10 +107,8 @@ impl MockClockInner {
 	fn wakeup_all(&mut self, up_to: Tick) {
 		// This finds the position of the first wakeup after
 		// the given tick, or the end of the map.
-		let drain_up_to = self.wakeups.binary_search_by_key(
-			&(up_to + 1),
-			|w| w.0,
-		).unwrap_or_else(|i| i);
+		let drain_up_to =
+			self.wakeups.binary_search_by_key(&(up_to + 1), |w| w.0).unwrap_or_else(|i| i);
 
 		for (_, wakeup) in self.wakeups.drain(..drain_up_to) {
 			let _ = wakeup.send(());
@@ -131,10 +127,7 @@ impl MockClockInner {
 	fn register_wakeup(&mut self, tick: Tick, pre_emptive: bool) -> oneshot::Receiver<()> {
 		let (tx, rx) = oneshot::channel();
 
-		let pos = self.wakeups.binary_search_by_key(
-			&tick,
-			|w| w.0,
-		).unwrap_or_else(|i| i);
+		let pos = self.wakeups.binary_search_by_key(&tick, |w| w.0).unwrap_or_else(|i| i);
 
 		self.wakeups.insert(pos, (tick, tx));
 
@@ -153,14 +146,18 @@ struct MockAssignmentCriteria<Compute, Check>(Compute, Check);
 impl<Compute, Check> AssignmentCriteria for MockAssignmentCriteria<Compute, Check>
 where
 	Compute: Fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
-	Check: Fn() -> Result<DelayTranche, criteria::InvalidAssignment>
+	Check: Fn() -> Result<DelayTranche, criteria::InvalidAssignment>,
 {
 	fn compute_assignments(
 		&self,
 		_keystore: &LocalKeystore,
 		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 		_config: &criteria::Config,
-		_leaving_cores: Vec<(CandidateHash, polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
+		_leaving_cores: Vec<(
+			CandidateHash,
+			polkadot_primitives::v1::CoreIndex,
+			polkadot_primitives::v1::GroupIndex,
+		)>,
 	) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
 		self.0()
 	}
@@ -178,10 +175,12 @@ where
 	}
 }
 
-impl<F> MockAssignmentCriteria<
-	fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
-	F,
-> {
+impl<F>
+	MockAssignmentCriteria<
+		fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
+		F,
+	>
+{
 	fn check_only(f: F) -> Self {
 		MockAssignmentCriteria(Default::default, f)
 	}
@@ -193,7 +192,7 @@ fn blank_state() -> State {
 		keystore: Arc::new(LocalKeystore::in_memory()),
 		slot_duration_millis: SLOT_DURATION_MILLIS,
 		clock: Box::new(MockClock::default()),
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| { Ok(0) })),
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
 	}
 }
 
@@ -216,10 +215,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
 	let out = inout.to_output();
 
-	AssignmentCert {
-		kind,
-		vrf: (VRFOutput(out), VRFProof(proof)),
-	}
+	AssignmentCert { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
 }
 
 fn sign_approval(
@@ -274,31 +270,29 @@ fn some_state(config: StateConfig, db: &mut DbBackend) -> State {
 
 	let state = State {
 		clock: Box::new(MockClock::new(tick)),
-		..single_session_state(session_index, SessionInfo {
-			validators: validators.iter().map(|v| v.public().into()).collect(),
-			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
-			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
-			validator_groups: validator_groups.clone(),
-			n_cores: validator_groups.len() as _,
-			zeroth_delay_tranche_width: 5,
-			relay_vrf_modulo_samples: 3,
-			n_delay_tranches: 50,
-			no_show_slots,
-			needed_approvals,
-			..Default::default()
-		})
+		..single_session_state(
+			session_index,
+			SessionInfo {
+				validators: validators.iter().map(|v| v.public().into()).collect(),
+				discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
+				assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
+				validator_groups: validator_groups.clone(),
+				n_cores: validator_groups.len() as _,
+				zeroth_delay_tranche_width: 5,
+				relay_vrf_modulo_samples: 3,
+				n_delay_tranches: 50,
+				no_show_slots,
+				needed_approvals,
+				..Default::default()
+			},
+		)
 	};
 	let core_index = 0.into();
 
 	let block_hash = Hash::repeat_byte(0x01);
 	let candidate_hash = candidate_hash.unwrap_or_else(|| CandidateHash(Hash::repeat_byte(0xCC)));
 
-	add_block(
-		db,
-		block_hash,
-		session_index,
-		slot,
-	);
+	add_block(db, block_hash, session_index, slot);
 
 	add_candidate_to_block(
 		db,
@@ -313,23 +307,23 @@ fn some_state(config: StateConfig, db: &mut DbBackend) -> State {
 	state
 }
 
-fn add_block(
-	db: &mut DbBackend,
-	block_hash: Hash,
-	session: SessionIndex,
-	slot: Slot,
-) {
-	overlay_txn(db, |overlay_db| overlay_db.write_block_entry(approval_db::v1::BlockEntry {
-		block_hash,
-		parent_hash: Default::default(),
-		block_number: 0,
-		session,
-		slot,
-		candidates: Vec::new(),
-		relay_vrf_story: Default::default(),
-		approved_bitfield: Default::default(),
-		children: Default::default(),
-	}.into()));
+fn add_block(db: &mut DbBackend, block_hash: Hash, session: SessionIndex, slot: Slot) {
+	overlay_txn(db, |overlay_db| {
+		overlay_db.write_block_entry(
+			approval_db::v1::BlockEntry {
+				block_hash,
+				parent_hash: Default::default(),
+				block_number: 0,
+				session,
+				slot,
+				candidates: Vec::new(),
+				relay_vrf_story: Default::default(),
+				approved_bitfield: Default::default(),
+				children: Default::default(),
+			}
+			.into(),
+		)
+	});
 }
 
 fn add_candidate_to_block(
@@ -343,13 +337,16 @@ fn add_candidate_to_block(
 ) {
 	let mut block_entry = db.load_block_entry(&block_hash).unwrap().unwrap();
 
-	let mut candidate_entry = db.load_candidate_entry(&candidate_hash).unwrap()
-		.unwrap_or_else(|| approval_db::v1::CandidateEntry {
-			session: block_entry.session(),
-			block_assignments: Default::default(),
-			candidate: candidate_receipt.unwrap_or_default(),
-			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
-		}.into());
+	let mut candidate_entry =
+		db.load_candidate_entry(&candidate_hash).unwrap().unwrap_or_else(|| {
+			approval_db::v1::CandidateEntry {
+				session: block_entry.session(),
+				block_assignments: Default::default(),
+				candidate: candidate_receipt.unwrap_or_default(),
+				approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			}
+			.into()
+		});
 
 	block_entry.add_candidate(core, candidate_hash);
 
@@ -362,7 +359,8 @@ fn add_candidate_to_block(
 			our_approval_sig: None,
 			assignments: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 			approved: false,
-		}.into(),
+		}
+		.into(),
 	);
 
 	overlay_txn(db, |overlay_db| {
@@ -377,12 +375,15 @@ fn import_assignment<F>(
 	block_hash: &Hash,
 	validator_index: ValidatorIndex,
 	mut f: F,
-)
-	where F: FnMut(&mut CandidateEntry)
+) where
+	F: FnMut(&mut CandidateEntry),
 {
 	let mut candidate_entry = db.load_candidate_entry(candidate_hash).unwrap().unwrap();
-	candidate_entry.approval_entry_mut(block_hash).unwrap()
-		.import_assignment(0, validator_index, 0);
+	candidate_entry.approval_entry_mut(block_hash).unwrap().import_assignment(
+		0,
+		validator_index,
+		0,
+	);
 
 	f(&mut candidate_entry);
 
@@ -395,20 +396,21 @@ fn set_our_assignment<F>(
 	block_hash: &Hash,
 	tranche: DelayTranche,
 	mut f: F,
-)
-	where F: FnMut(&mut CandidateEntry)
+) where
+	F: FnMut(&mut CandidateEntry),
 {
 	let mut candidate_entry = db.load_candidate_entry(&candidate_hash).unwrap().unwrap();
 	let approval_entry = candidate_entry.approval_entry_mut(&block_hash).unwrap();
 
-	approval_entry.set_our_assignment(approval_db::v1::OurAssignment {
-		cert: garbage_assignment_cert(
-			AssignmentCertKind::RelayVRFModulo { sample: 0 }
-		),
-		tranche,
-		validator_index: ValidatorIndex(0),
-		triggered: false,
-	}.into());
+	approval_entry.set_our_assignment(
+		approval_db::v1::OurAssignment {
+			cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
+			tranche,
+			validator_index: ValidatorIndex(0),
+			triggered: false,
+		}
+		.into(),
+	);
 
 	f(&mut candidate_entry);
 
@@ -423,16 +425,12 @@ fn rejects_bad_assignment() {
 	let assignment_good = IndirectAssignmentCert {
 		block_hash,
 		validator: ValidatorIndex(0),
-		cert: garbage_assignment_cert(
-			AssignmentCertKind::RelayVRFModulo {
-				sample: 0,
-			},
-		),
+		cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 	};
-	let mut state = some_state(StateConfig {
-		candidate_hash: Some(candidate_hash),
-		..Default::default()
-	}, &mut db);
+	let mut state = some_state(
+		StateConfig { candidate_hash: Some(candidate_hash), ..Default::default() },
+		&mut db,
+	);
 	let candidate_index = 0;
 
 	let mut overlay_db = OverlayedBackend::new(&db);
@@ -441,7 +439,8 @@ fn rejects_bad_assignment() {
 		&mut overlay_db,
 		assignment_good.clone(),
 		candidate_index,
-	).unwrap();
+	)
+	.unwrap();
 	assert_eq!(res.0, AssignmentCheckResult::Accepted);
 	// Check that the assignment's been imported.
 	assert_eq!(res.1.len(), 1);
@@ -456,20 +455,12 @@ fn rejects_bad_assignment() {
 	let assignment = IndirectAssignmentCert {
 		block_hash: unknown_hash,
 		validator: ValidatorIndex(0),
-		cert: garbage_assignment_cert(
-			AssignmentCertKind::RelayVRFModulo {
-				sample: 0,
-			},
-		),
+		cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 	};
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let res = check_and_import_assignment(
-		&mut state,
-		&mut overlay_db,
-		assignment,
-		candidate_index,
-	).unwrap();
+	let res = check_and_import_assignment(&mut state, &mut overlay_db, assignment, candidate_index)
+		.unwrap();
 	assert_eq!(res.0, AssignmentCheckResult::Bad(AssignmentCheckError::UnknownBlock(unknown_hash)));
 	assert_eq!(overlay_db.into_write_ops().count(), 0);
 
@@ -477,21 +468,21 @@ fn rejects_bad_assignment() {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
 			Err(criteria::InvalidAssignment)
 		})),
-		..some_state(StateConfig {
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		..some_state(
+			StateConfig { candidate_hash: Some(candidate_hash), ..Default::default() },
+			&mut db,
+		)
 	};
 
 	// same assignment, but this time rejected
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let res = check_and_import_assignment(
-		&mut state,
-		&mut overlay_db,
-		assignment_good,
-		candidate_index,
-	).unwrap();
-	assert_eq!(res.0, AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(ValidatorIndex(0))));
+	let res =
+		check_and_import_assignment(&mut state, &mut overlay_db, assignment_good, candidate_index)
+			.unwrap();
+	assert_eq!(
+		res.0,
+		AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(ValidatorIndex(0)))
+	);
 	assert_eq!(overlay_db.into_write_ops().count(), 0);
 }
 
@@ -504,11 +495,7 @@ fn rejects_assignment_in_future() {
 	let assignment = IndirectAssignmentCert {
 		block_hash,
 		validator: ValidatorIndex(0),
-		cert: garbage_assignment_cert(
-			AssignmentCertKind::RelayVRFModulo {
-				sample: 0,
-			},
-		),
+		cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 	};
 
 	let tick = 9;
@@ -516,11 +503,10 @@ fn rejects_assignment_in_future() {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(move || {
 			Ok((tick + 20) as _)
 		})),
-		..some_state(StateConfig {
-			tick,
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		..some_state(
+			StateConfig { tick, candidate_hash: Some(candidate_hash), ..Default::default() },
+			&mut db,
+		)
 	};
 
 	let mut overlay_db = OverlayedBackend::new(&db);
@@ -529,7 +515,8 @@ fn rejects_assignment_in_future() {
 		&mut overlay_db,
 		assignment.clone(),
 		candidate_index,
-	).unwrap();
+	)
+	.unwrap();
 	assert_eq!(res.0, AssignmentCheckResult::TooFarInFuture);
 
 	let write_ops = overlay_db.into_write_ops().collect::<Vec<BackendWriteOp>>();
@@ -541,11 +528,10 @@ fn rejects_assignment_in_future() {
 		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(move || {
 			Ok((tick + 20 - 1) as _)
 		})),
-		..some_state(StateConfig {
-			tick,
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		..some_state(
+			StateConfig { tick, candidate_hash: Some(candidate_hash), ..Default::default() },
+			&mut db,
+		)
 	};
 
 	let mut overlay_db = OverlayedBackend::new(&db);
@@ -554,16 +540,14 @@ fn rejects_assignment_in_future() {
 		&mut overlay_db,
 		assignment.clone(),
 		candidate_index,
-	).unwrap();
+	)
+	.unwrap();
 	assert_eq!(res.0, AssignmentCheckResult::Accepted);
 
 	let write_ops = overlay_db.into_write_ops().collect::<Vec<BackendWriteOp>>();
 	assert_eq!(write_ops.len(), 1);
 
-	assert_matches!(
-		write_ops.get(0).unwrap(),
-		BackendWriteOp::WriteCandidateEntry(..)
-	);
+	assert_matches!(write_ops.get(0).unwrap(), BackendWriteOp::WriteCandidateEntry(..));
 }
 
 #[test]
@@ -574,11 +558,7 @@ fn rejects_assignment_with_unknown_candidate() {
 	let assignment = IndirectAssignmentCert {
 		block_hash,
 		validator: ValidatorIndex(0),
-		cert: garbage_assignment_cert(
-			AssignmentCertKind::RelayVRFModulo {
-				sample: 0,
-			},
-		),
+		cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 	};
 
 	let mut state = some_state(Default::default(), &mut db);
@@ -589,8 +569,12 @@ fn rejects_assignment_with_unknown_candidate() {
 		&mut overlay_db,
 		assignment.clone(),
 		candidate_index,
-	).unwrap();
-	assert_eq!(res.0, AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(candidate_index)));
+	)
+	.unwrap();
+	assert_eq!(
+		res.0,
+		AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(candidate_index))
+	);
 	assert_eq!(overlay_db.into_write_ops().count(), 0);
 }
 
@@ -604,21 +588,15 @@ fn assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 	let assignment = IndirectAssignmentCert {
 		block_hash,
 		validator: ValidatorIndex(0),
-		cert: garbage_assignment_cert(
-			AssignmentCertKind::RelayVRFModulo {
-				sample: 0,
-			},
-		),
+		cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 	};
 
 	let mut state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
+		..some_state(
+			StateConfig { candidate_hash: Some(candidate_hash), ..Default::default() },
+			&mut db,
+		)
 	};
 
 	let mut overlay_db = OverlayedBackend::new(&db);
@@ -627,7 +605,8 @@ fn assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 		&mut overlay_db,
 		assignment.clone(),
 		candidate_index,
-	).unwrap();
+	)
+	.unwrap();
 
 	assert_eq!(res, AssignmentCheckResult::Accepted);
 	assert_eq!(actions.len(), 1);
@@ -664,13 +643,11 @@ fn rejects_approval_before_assignment() {
 	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 
 	let state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
+		..some_state(
+			StateConfig { candidate_hash: Some(candidate_hash), ..Default::default() },
+			&mut db,
+		)
 	};
 
 	let vote = IndirectSignedApprovalVote {
@@ -681,13 +658,8 @@ fn rejects_approval_before_assignment() {
 	};
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let (actions, res) = check_and_import_approval(
-		&state,
-		&mut overlay_db,
-		&Metrics(None),
-		vote,
-		|r| r
-	).unwrap();
+	let (actions, res) =
+		check_and_import_approval(&state, &mut overlay_db, &Metrics(None), vote, |r| r).unwrap();
 
 	assert_eq!(res, ApprovalCheckResult::Bad(ApprovalCheckError::NoAssignment(ValidatorIndex(0))));
 	assert!(actions.is_empty());
@@ -701,13 +673,11 @@ fn rejects_approval_if_no_candidate_entry() {
 	let candidate_hash = CandidateReceipt::<Hash>::default().hash();
 
 	let state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
+		..some_state(
+			StateConfig { candidate_hash: Some(candidate_hash), ..Default::default() },
+			&mut db,
+		)
 	};
 
 	let vote = IndirectSignedApprovalVote {
@@ -717,19 +687,16 @@ fn rejects_approval_if_no_candidate_entry() {
 		signature: sign_approval(Sr25519Keyring::Alice, candidate_hash, 1),
 	};
 
-
 	overlay_txn(&mut db, |overlay_db| overlay_db.delete_candidate_entry(&candidate_hash));
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let (actions, res) = check_and_import_approval(
-		&state,
-		&mut overlay_db,
-		&Metrics(None),
-		vote,
-		|r| r
-	).unwrap();
+	let (actions, res) =
+		check_and_import_approval(&state, &mut overlay_db, &Metrics(None), vote, |r| r).unwrap();
 
-	assert_eq!(res, ApprovalCheckResult::Bad(ApprovalCheckError::InvalidCandidate(0, candidate_hash)));
+	assert_eq!(
+		res,
+		ApprovalCheckResult::Bad(ApprovalCheckError::InvalidCandidate(0, candidate_hash))
+	);
 	assert!(actions.is_empty());
 	assert_eq!(overlay_db.into_write_ops().count(), 0);
 }
@@ -742,13 +709,11 @@ fn rejects_approval_if_no_block_entry() {
 	let validator_index = ValidatorIndex(0);
 
 	let state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
+		..some_state(
+			StateConfig { candidate_hash: Some(candidate_hash), ..Default::default() },
+			&mut db,
+		)
 	};
 
 	let vote = IndirectSignedApprovalVote {
@@ -763,13 +728,8 @@ fn rejects_approval_if_no_block_entry() {
 	overlay_txn(&mut db, |overlay_db| overlay_db.delete_block_entry(&block_hash));
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let (actions, res) = check_and_import_approval(
-		&state,
-		&mut overlay_db,
-		&Metrics(None),
-		vote,
-		|r| r
-	).unwrap();
+	let (actions, res) =
+		check_and_import_approval(&state, &mut overlay_db, &Metrics(None), vote, |r| r).unwrap();
 
 	assert_eq!(res, ApprovalCheckResult::Bad(ApprovalCheckError::UnknownBlock(block_hash)));
 	assert!(actions.is_empty());
@@ -785,16 +745,24 @@ fn accepts_and_imports_approval_after_assignment() {
 
 	let candidate_index = 0;
 	let state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
-			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
-			needed_approvals: 2,
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
+		..some_state(
+			StateConfig {
+				validators: vec![
+					Sr25519Keyring::Alice,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+				],
+				validator_groups: vec![
+					vec![ValidatorIndex(0), ValidatorIndex(1)],
+					vec![ValidatorIndex(2)],
+				],
+				needed_approvals: 2,
+				candidate_hash: Some(candidate_hash),
+				..Default::default()
+			},
+			&mut db,
+		)
 	};
 
 	let vote = IndirectSignedApprovalVote {
@@ -807,13 +775,8 @@ fn accepts_and_imports_approval_after_assignment() {
 	import_assignment(&mut db, &candidate_hash, &block_hash, validator_index, |_| {});
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let (actions, res) = check_and_import_approval(
-		&state,
-		&mut overlay_db,
-		&Metrics(None),
-		vote,
-		|r| r
-	).unwrap();
+	let (actions, res) =
+		check_and_import_approval(&state, &mut overlay_db, &Metrics(None), vote, |r| r).unwrap();
 
 	assert_eq!(res, ApprovalCheckResult::Accepted);
 
@@ -858,16 +821,24 @@ fn second_approval_import_only_schedules_wakeups() {
 
 	let candidate_index = 0;
 	let state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
-			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
-			needed_approvals: 2,
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
+		..some_state(
+			StateConfig {
+				validators: vec![
+					Sr25519Keyring::Alice,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+				],
+				validator_groups: vec![
+					vec![ValidatorIndex(0), ValidatorIndex(1)],
+					vec![ValidatorIndex(2)],
+				],
+				needed_approvals: 2,
+				candidate_hash: Some(candidate_hash),
+				..Default::default()
+			},
+			&mut db,
+		)
 	};
 
 	let vote = IndirectSignedApprovalVote {
@@ -884,13 +855,9 @@ fn second_approval_import_only_schedules_wakeups() {
 	// There is only one assignment, so nothing to schedule if we double-import.
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let (actions, res) = check_and_import_approval(
-		&state,
-		&mut overlay_db,
-		&Metrics(None),
-		vote.clone(),
-		|r| r
-	).unwrap();
+	let (actions, res) =
+		check_and_import_approval(&state, &mut overlay_db, &Metrics(None), vote.clone(), |r| r)
+			.unwrap();
 
 	assert_eq!(res, ApprovalCheckResult::Accepted);
 	assert!(actions.is_empty());
@@ -901,13 +868,8 @@ fn second_approval_import_only_schedules_wakeups() {
 	import_assignment(&mut db, &candidate_hash, &block_hash, validator_index_b, |_| {});
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let (actions, res) = check_and_import_approval(
-		&state,
-		&mut overlay_db,
-		&Metrics(None),
-		vote,
-		|r| r
-	).unwrap();
+	let (actions, res) =
+		check_and_import_approval(&state, &mut overlay_db, &Metrics(None), vote, |r| r).unwrap();
 
 	assert_eq!(res, ApprovalCheckResult::Accepted);
 	assert_eq!(actions.len(), 1);
@@ -928,16 +890,24 @@ fn import_checked_approval_updates_entries_and_schedules() {
 	let validator_index_b = ValidatorIndex(1);
 
 	let state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
-			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
-			needed_approvals: 2,
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
+		..some_state(
+			StateConfig {
+				validators: vec![
+					Sr25519Keyring::Alice,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+				],
+				validator_groups: vec![
+					vec![ValidatorIndex(0), ValidatorIndex(1)],
+					vec![ValidatorIndex(2)],
+				],
+				needed_approvals: 2,
+				candidate_hash: Some(candidate_hash),
+				..Default::default()
+			},
+			&mut db,
+		)
 	};
 
 	import_assignment(&mut db, &candidate_hash, &block_hash, validator_index_a, |_| {});
@@ -1026,9 +996,7 @@ fn assignment_triggered_by_all_with_less_than_threshold() {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
 			our_assignment: Some(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
+				cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 				tranche: 1,
 				validator_index: ValidatorIndex(4),
 				triggered: false,
@@ -1043,14 +1011,16 @@ fn assignment_triggered_by_all_with_less_than_threshold() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-		}.into()
+		}
+		.into()
 	};
 
 	// 1-of-4
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, ValidatorIndex(0), 0);
+	candidate_entry.approval_entry_mut(&block_hash).unwrap().import_assignment(
+		0,
+		ValidatorIndex(0),
+		0,
+	);
 
 	candidate_entry.mark_approval(ValidatorIndex(0));
 
@@ -1072,9 +1042,7 @@ fn assignment_not_triggered_by_all_with_threshold() {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
 			our_assignment: Some(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
+				cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 				tranche: 1,
 				validator_index: ValidatorIndex(4),
 				triggered: false,
@@ -1089,19 +1057,22 @@ fn assignment_not_triggered_by_all_with_threshold() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-		}.into()
+		}
+		.into()
 	};
 
 	// 2-of-4
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, ValidatorIndex(0), 0);
+	candidate_entry.approval_entry_mut(&block_hash).unwrap().import_assignment(
+		0,
+		ValidatorIndex(0),
+		0,
+	);
 
-	candidate_entry
-		.approval_entry_mut(&block_hash)
-		.unwrap()
-		.import_assignment(0, ValidatorIndex(1), 0);
+	candidate_entry.approval_entry_mut(&block_hash).unwrap().import_assignment(
+		0,
+		ValidatorIndex(1),
+		0,
+	);
 
 	candidate_entry.mark_approval(ValidatorIndex(0));
 	candidate_entry.mark_approval(ValidatorIndex(1));
@@ -1124,9 +1095,7 @@ fn assignment_not_triggered_if_already_triggered() {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
 			our_assignment: Some(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
+				cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 				tranche: 1,
 				validator_index: ValidatorIndex(4),
 				triggered: true,
@@ -1141,7 +1110,8 @@ fn assignment_not_triggered_if_already_triggered() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-		}.into()
+		}
+		.into()
 	};
 
 	let tranche_now = 1;
@@ -1162,9 +1132,7 @@ fn assignment_not_triggered_by_exact() {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
 			our_assignment: Some(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
+				cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 				tranche: 1,
 				validator_index: ValidatorIndex(4),
 				triggered: false,
@@ -1179,7 +1147,8 @@ fn assignment_not_triggered_by_exact() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-		}.into()
+		}
+		.into()
 	};
 
 	let tranche_now = 1;
@@ -1201,9 +1170,7 @@ fn assignment_not_triggered_more_than_maximum() {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
 			our_assignment: Some(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
+				cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 				tranche: maximum_broadcast + 1,
 				validator_index: ValidatorIndex(4),
 				triggered: false,
@@ -1218,7 +1185,8 @@ fn assignment_not_triggered_more_than_maximum() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-		}.into()
+		}
+		.into()
 	};
 
 	let tranche_now = 50;
@@ -1245,9 +1213,7 @@ fn assignment_triggered_if_at_maximum() {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
 			our_assignment: Some(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
+				cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 				tranche: maximum_broadcast,
 				validator_index: ValidatorIndex(4),
 				triggered: false,
@@ -1262,7 +1228,8 @@ fn assignment_triggered_if_at_maximum() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-		}.into()
+		}
+		.into()
 	};
 
 	let tranche_now = maximum_broadcast;
@@ -1289,9 +1256,7 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before() {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
 			our_assignment: Some(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
+				cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 				tranche: maximum_broadcast,
 				validator_index: ValidatorIndex(4),
 				triggered: false,
@@ -1306,7 +1271,8 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-		}.into()
+		}
+		.into()
 	};
 
 	let tranche_now = 9;
@@ -1333,9 +1299,7 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 			tranches: Vec::new(),
 			backing_group: GroupIndex(0),
 			our_assignment: Some(approval_db::v1::OurAssignment {
-				cert: garbage_assignment_cert(
-					AssignmentCertKind::RelayVRFModulo { sample: 0 }
-				),
+				cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 				tranche: maximum_broadcast,
 				validator_index: ValidatorIndex(4),
 				triggered: false,
@@ -1350,7 +1314,8 @@ fn assignment_not_triggered_if_at_maximum_but_clock_is_before_with_drift() {
 			session: 1,
 			block_assignments: vec![(block_hash, approval_entry)].into_iter().collect(),
 			approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; 4],
-		}.into()
+		}
+		.into()
 	};
 
 	let tranche_now = 10;
@@ -1467,16 +1432,24 @@ fn import_checked_approval_sets_one_block_bit_at_a_time() {
 	let validator_index_b = ValidatorIndex(1);
 
 	let state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
-			validator_groups: vec![vec![ValidatorIndex(0), ValidatorIndex(1)], vec![ValidatorIndex(2)]],
-			needed_approvals: 2,
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
+		..some_state(
+			StateConfig {
+				validators: vec![
+					Sr25519Keyring::Alice,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+				],
+				validator_groups: vec![
+					vec![ValidatorIndex(0), ValidatorIndex(1)],
+					vec![ValidatorIndex(2)],
+				],
+				needed_approvals: 2,
+				candidate_hash: Some(candidate_hash),
+				..Default::default()
+			},
+			&mut db,
+		)
 	};
 
 	add_candidate_to_block(
@@ -1586,12 +1559,7 @@ fn approved_ancestor_all_approved() {
 	let session_index = 1;
 
 	let add_block = |db: &mut DbBackend, block_hash, approved| {
-		add_block(
-			db,
-			block_hash,
-			session_index,
-			slot,
-		);
+		add_block(db, block_hash, session_index, slot);
 
 		let mut block_entry = db.load_block_entry(&block_hash).unwrap().unwrap();
 		block_entry.add_candidate(CoreIndex(0), candidate_hash);
@@ -1662,12 +1630,7 @@ fn approved_ancestor_missing_approval() {
 	let session_index = 1;
 
 	let add_block = |db: &mut DbBackend, block_hash, approved| {
-		add_block(
-			db,
-			block_hash,
-			session_index,
-			slot,
-		);
+		add_block(db, block_hash, session_index, slot);
 
 		let mut block_entry = db.load_block_entry(&block_hash).unwrap().unwrap();
 		block_entry.add_candidate(CoreIndex(0), candidate_hash);
@@ -1733,28 +1696,23 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 	let session_index = 1;
 
 	let state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
-		..some_state(StateConfig {
-			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
-			validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
-			needed_approvals: 2,
-			session_index,
-			slot,
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
+		..some_state(
+			StateConfig {
+				validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
+				validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
+				needed_approvals: 2,
+				session_index,
+				slot,
+				candidate_hash: Some(candidate_hash),
+				..Default::default()
+			},
+			&mut db,
+		)
 	};
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let actions = process_wakeup(
-		&state,
-		&mut overlay_db,
-		block_hash,
-		candidate_hash,
-		1,
-	).unwrap();
+	let actions = process_wakeup(&state, &mut overlay_db, block_hash, candidate_hash, 1).unwrap();
 
 	assert!(actions.is_empty());
 	assert_eq!(overlay_db.into_write_ops().count(), 0);
@@ -1762,13 +1720,7 @@ fn process_wakeup_trigger_assignment_launch_approval() {
 	set_our_assignment(&mut db, &candidate_hash, &block_hash, 0, |_| {});
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let actions = process_wakeup(
-		&state,
-		&mut overlay_db,
-		block_hash,
-		candidate_hash,
-		1,
-	).unwrap();
+	let actions = process_wakeup(&state, &mut overlay_db, block_hash, candidate_hash, 1).unwrap();
 
 	assert_eq!(actions.len(), 2);
 
@@ -1820,30 +1772,25 @@ fn process_wakeup_schedules_wakeup() {
 	let session_index = 1;
 
 	let state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(10)
-		})),
-		..some_state(StateConfig {
-			validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
-			validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
-			needed_approvals: 2,
-			session_index,
-			slot,
-			candidate_hash: Some(candidate_hash),
-			..Default::default()
-		}, &mut db)
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(10))),
+		..some_state(
+			StateConfig {
+				validators: vec![Sr25519Keyring::Alice, Sr25519Keyring::Bob],
+				validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
+				needed_approvals: 2,
+				session_index,
+				slot,
+				candidate_hash: Some(candidate_hash),
+				..Default::default()
+			},
+			&mut db,
+		)
 	};
 
 	set_our_assignment(&mut db, &candidate_hash, &block_hash, 10, |_| {});
 
 	let mut overlay_db = OverlayedBackend::new(&db);
-	let actions = process_wakeup(
-		&state,
-		&mut overlay_db,
-		block_hash,
-		candidate_hash,
-		1,
-	).unwrap();
+	let actions = process_wakeup(&state, &mut overlay_db, block_hash, candidate_hash, 1).unwrap();
 
 	assert_eq!(actions.len(), 1);
 	assert_matches!(
@@ -1858,14 +1805,10 @@ fn process_wakeup_schedules_wakeup() {
 }
 
 #[test]
-fn triggered_assignment_leads_to_recovery_and_validation() {
-
-}
+fn triggered_assignment_leads_to_recovery_and_validation() {}
 
 #[test]
-fn finalization_event_prunes() {
-
-}
+fn finalization_event_prunes() {}
 
 #[test]
 fn local_approval_import_always_updates_approval_entry() {
@@ -1884,18 +1827,11 @@ fn local_approval_import_always_updates_approval_entry() {
 	};
 
 	let state = State {
-		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| {
-			Ok(0)
-		})),
+		assignment_criteria: Box::new(MockAssignmentCriteria::check_only(|| Ok(0))),
 		..some_state(state_config.clone(), &mut db)
 	};
 
-	add_block(
-		&mut db,
-		block_hash_2,
-		state_config.session_index,
-		state_config.slot,
-	);
+	add_block(&mut db, block_hash_2, state_config.session_index, state_config.slot);
 
 	add_candidate_to_block(
 		&mut db,

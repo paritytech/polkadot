@@ -17,31 +17,28 @@
 //! Pallet to handle parathread/parachain registration and related fund management.
 //! In essence this is a simple wrapper around `paras`.
 
-use sp_std::{prelude::*, result};
 use frame_support::{
-	ensure,
 	dispatch::DispatchResult,
-	traits::{Get, Currency, ReservableCurrency},
+	ensure,
 	pallet_prelude::Weight,
+	traits::{Currency, Get, ReservableCurrency},
 };
 use frame_system::{self, ensure_root, ensure_signed};
-use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData, LOWEST_PUBLIC_ID,
-};
+use primitives::v1::{HeadData, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID};
 use runtime_parachains::{
-	paras::{
-		self,
-		ParaGenesisArgs,
-	},
-	configuration,
-	ensure_parachain,
+	configuration, ensure_parachain,
+	paras::{self, ParaGenesisArgs},
 	Origin, ParaLifecycle,
 };
+use sp_std::{prelude::*, result};
 
-use crate::traits::{Registrar, OnSwap};
-use parity_scale_codec::{Encode, Decode};
-use sp_runtime::{RuntimeDebug, traits::{Saturating, CheckedSub}};
+use crate::traits::{OnSwap, Registrar};
 pub use pallet::*;
+use parity_scale_codec::{Decode, Encode};
+use sp_runtime::{
+	traits::{CheckedSub, Saturating},
+	RuntimeDebug,
+};
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 pub struct ParaInfo<Account, Balance> {
@@ -66,18 +63,28 @@ pub trait WeightInfo {
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
-	fn reserve() -> Weight { 0 }
-	fn register() -> Weight { 0 }
-	fn force_register() -> Weight { 0 }
-	fn deregister() -> Weight { 0 }
-	fn swap() -> Weight { 0 }
+	fn reserve() -> Weight {
+		0
+	}
+	fn register() -> Weight {
+		0
+	}
+	fn force_register() -> Weight {
+		0
+	}
+	fn deregister() -> Weight {
+		0
+	}
+	fn swap() -> Weight {
+		0
+	}
 }
 
 #[frame_support::pallet]
 pub mod pallet {
+	use super::*;
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use super::*;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -161,7 +168,8 @@ pub mod pallet {
 	/// The given account ID is responsible for registering the code and initial head data, but may only do
 	/// so if it isn't yet registered. (After that, it's up to governance to do so.)
 	#[pallet::storage]
-	pub type Paras<T: Config> = StorageMap<_, Twox64Concat, ParaId, ParaInfo<T::AccountId, BalanceOf<T>>>;
+	pub type Paras<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, ParaInfo<T::AccountId, BalanceOf<T>>>;
 
 	/// The next free `ParaId`.
 	#[pallet::storage]
@@ -363,8 +371,12 @@ impl<T: Config> Registrar for Pallet<T> {
 	// Upgrade a registered parathread into a parachain.
 	fn make_parachain(id: ParaId) -> DispatchResult {
 		// Para backend should think this is a parathread...
-		ensure!(paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread), Error::<T>::NotParathread);
-		runtime_parachains::schedule_parathread_upgrade::<T>(id).map_err(|_| Error::<T>::CannotUpgrade)?;
+		ensure!(
+			paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parathread),
+			Error::<T>::NotParathread
+		);
+		runtime_parachains::schedule_parathread_upgrade::<T>(id)
+			.map_err(|_| Error::<T>::CannotUpgrade)?;
 		// Once a para has upgraded to a parachain, it can no longer be managed by the owner.
 		// Intentionally, the flag stays with the para even after downgrade.
 		Self::apply_lock(id);
@@ -374,8 +386,12 @@ impl<T: Config> Registrar for Pallet<T> {
 	// Downgrade a registered para into a parathread.
 	fn make_parathread(id: ParaId) -> DispatchResult {
 		// Para backend should think this is a parachain...
-		ensure!(paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parachain), Error::<T>::NotParachain);
-		runtime_parachains::schedule_parachain_downgrade::<T>(id).map_err(|_| Error::<T>::CannotDowngrade)?;
+		ensure!(
+			paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parachain),
+			Error::<T>::NotParachain
+		);
+		runtime_parachains::schedule_parachain_downgrade::<T>(id)
+			.map_err(|_| Error::<T>::CannotDowngrade)?;
 		Ok(())
 	}
 
@@ -397,9 +413,7 @@ impl<T: Config> Registrar for Pallet<T> {
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn execute_pending_transitions() {
 		use runtime_parachains::shared;
-		shared::Pallet::<T>::set_session_index(
-			shared::Pallet::<T>::scheduled_session()
-		);
+		shared::Pallet::<T>::set_session_index(shared::Pallet::<T>::scheduled_session());
 		paras::Pallet::<T>::test_on_new_session();
 	}
 }
@@ -407,23 +421,28 @@ impl<T: Config> Registrar for Pallet<T> {
 impl<T: Config> Pallet<T> {
 	/// Ensure the origin is one of Root, the `para` owner, or the `para` itself.
 	/// If the origin is the `para` owner, the `para` must be unlocked.
-	fn ensure_root_para_or_owner(origin: <T as frame_system::Config>::Origin, id: ParaId) -> DispatchResult {
-		ensure_signed(origin.clone()).map_err(|e| e.into())
-		.and_then(|who| -> DispatchResult {
-			let para_info = Paras::<T>::get(id).ok_or(Error::<T>::NotRegistered)?;
-			ensure!(!para_info.locked, Error::<T>::ParaLocked);
-			ensure!(para_info.manager == who, Error::<T>::NotOwner);
-			Ok(())
-		})
-		.or_else(|_| -> DispatchResult {
-			// Else check if para origin...
-			let caller_id = ensure_parachain(<T as Config>::Origin::from(origin.clone()))?;
-			ensure!(caller_id == id, Error::<T>::NotOwner);
-			Ok(())
-		}).or_else(|_| -> DispatchResult {
-			// Check if root...
-			ensure_root(origin.clone()).map_err(|e| e.into())
-		})
+	fn ensure_root_para_or_owner(
+		origin: <T as frame_system::Config>::Origin,
+		id: ParaId,
+	) -> DispatchResult {
+		ensure_signed(origin.clone())
+			.map_err(|e| e.into())
+			.and_then(|who| -> DispatchResult {
+				let para_info = Paras::<T>::get(id).ok_or(Error::<T>::NotRegistered)?;
+				ensure!(!para_info.locked, Error::<T>::ParaLocked);
+				ensure!(para_info.manager == who, Error::<T>::NotOwner);
+				Ok(())
+			})
+			.or_else(|_| -> DispatchResult {
+				// Else check if para origin...
+				let caller_id = ensure_parachain(<T as Config>::Origin::from(origin.clone()))?;
+				ensure!(caller_id == id, Error::<T>::NotOwner);
+				Ok(())
+			})
+			.or_else(|_| -> DispatchResult {
+				// Check if root...
+				ensure_root(origin.clone()).map_err(|e| e.into())
+			})
 	}
 
 	fn do_reserve(
@@ -436,11 +455,7 @@ impl<T: Config> Pallet<T> {
 
 		let deposit = deposit_override.unwrap_or_else(T::ParaDeposit::get);
 		<T as Config>::Currency::reserve(&who, deposit)?;
-		let info = ParaInfo {
-			manager: who.clone(),
-			deposit,
-			locked: false,
-		};
+		let info = ParaInfo { manager: who.clone(), deposit, locked: false };
 
 		Paras::<T>::insert(id, info);
 		Self::deposit_event(Event::<T>::Reserved(id, who));
@@ -466,11 +481,8 @@ impl<T: Config> Pallet<T> {
 			Default::default()
 		};
 		ensure!(paras::Pallet::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
-		let (genesis, deposit) = Self::validate_onboarding_data(
-			genesis_head,
-			validation_code,
-			false
-		)?;
+		let (genesis, deposit) =
+			Self::validate_onboarding_data(genesis_head, validation_code, false)?;
 		let deposit = deposit_override.unwrap_or(deposit);
 
 		if let Some(additional) = deposit.checked_sub(&deposited) {
@@ -478,11 +490,7 @@ impl<T: Config> Pallet<T> {
 		} else if let Some(rebate) = deposited.checked_sub(&deposit) {
 			<T as Config>::Currency::unreserve(&who, rebate);
 		};
-		let info = ParaInfo {
-			manager: who.clone(),
-			deposit,
-			locked: false,
-		};
+		let info = ParaInfo { manager: who.clone(), deposit, locked: false };
 
 		Paras::<T>::insert(id, info);
 		// We check above that para has no lifecycle, so this should not fail.
@@ -497,9 +505,10 @@ impl<T: Config> Pallet<T> {
 		match paras::Pallet::<T>::lifecycle(id) {
 			// Para must be a parathread, or not exist at all.
 			Some(ParaLifecycle::Parathread) | None => {},
-			_ => return Err(Error::<T>::NotParathread.into())
+			_ => return Err(Error::<T>::NotParathread.into()),
 		}
-		runtime_parachains::schedule_para_cleanup::<T>(id).map_err(|_| Error::<T>::CannotDeregister)?;
+		runtime_parachains::schedule_para_cleanup::<T>(id)
+			.map_err(|_| Error::<T>::CannotDeregister)?;
 
 		if let Some(info) = Paras::<T>::take(&id) {
 			<T as Config>::Currency::unreserve(&info.manager, info.deposit);
@@ -520,45 +529,40 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		let config = configuration::Pallet::<T>::config();
 		ensure!(validation_code.0.len() <= config.max_code_size as usize, Error::<T>::CodeTooLarge);
-		ensure!(genesis_head.0.len() <= config.max_head_data_size as usize, Error::<T>::HeadDataTooLarge);
+		ensure!(
+			genesis_head.0.len() <= config.max_head_data_size as usize,
+			Error::<T>::HeadDataTooLarge
+		);
 
 		let per_byte_fee = T::DataDepositPerByte::get();
 		let deposit = T::ParaDeposit::get()
-			.saturating_add(
-				per_byte_fee.saturating_mul((genesis_head.0.len() as u32).into())
-			).saturating_add(
-				per_byte_fee.saturating_mul((validation_code.0.len() as u32).into())
-			);
+			.saturating_add(per_byte_fee.saturating_mul((genesis_head.0.len() as u32).into()))
+			.saturating_add(per_byte_fee.saturating_mul((validation_code.0.len() as u32).into()));
 
-		Ok((ParaGenesisArgs {
-			genesis_head,
-			validation_code,
-			parachain,
-		}, deposit))
+		Ok((ParaGenesisArgs { genesis_head, validation_code, parachain }, deposit))
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use sp_io::TestExternalities;
-	use sp_core::H256;
-	use sp_runtime::{
-		traits::{
-			BlakeTwo256, IdentityLookup,
-		}, Perbill,
-	};
-	use primitives::v1::{Balance, BlockNumber, Header};
-	use frame_system::limits;
+	use crate::{paras_registrar, traits::Registrar as RegistrarTrait};
 	use frame_support::{
-		traits::{OnInitialize, OnFinalize, GenesisBuild},
-		assert_ok, assert_noop, parameter_types,
+		assert_noop, assert_ok,
 		error::BadOrigin,
+		parameter_types,
+		traits::{GenesisBuild, OnFinalize, OnInitialize},
 	};
-	use runtime_parachains::{configuration, shared};
+	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
-	use crate::traits::Registrar as RegistrarTrait;
-	use crate::paras_registrar;
+	use primitives::v1::{Balance, BlockNumber, Header};
+	use runtime_parachains::{configuration, shared};
+	use sp_core::H256;
+	use sp_io::TestExternalities;
+	use sp_runtime::{
+		traits::{BlakeTwo256, IdentityLookup},
+		Perbill,
+	};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 	type Block = frame_system::mocking::MockBlock<Test>;
@@ -636,7 +640,7 @@ mod tests {
 		type Event = Event;
 	}
 
-	impl configuration::Config for Test { }
+	impl configuration::Config for Test {}
 
 	parameter_types! {
 		pub const ParaDeposit: Balance = 10;
@@ -661,17 +665,18 @@ mod tests {
 		GenesisBuild::<Test>::assimilate_storage(
 			&configuration::GenesisConfig {
 				config: configuration::HostConfiguration {
-					max_code_size: 2 * 1024 * 1024, // 2 MB
+					max_code_size: 2 * 1024 * 1024,      // 2 MB
 					max_head_data_size: 1 * 1024 * 1024, // 1 MB
 					..Default::default()
-				}
+				},
 			},
-			&mut t
-		).unwrap();
+			&mut t,
+		)
+		.unwrap();
 
-		pallet_balances::GenesisConfig::<Test> {
-			balances: vec![(1, 10_000_000), (2, 10_000_000)],
-		}.assimilate_storage(&mut t).unwrap();
+		pallet_balances::GenesisConfig::<Test> { balances: vec![(1, 10_000_000), (2, 10_000_000)] }
+			.assimilate_storage(&mut t)
+			.unwrap();
 
 		t.into()
 	}
@@ -691,7 +696,7 @@ mod tests {
 			// Session change every 3 blocks.
 			if (b + 1) % BLOCKS_PER_SESSION == 0 {
 				shared::Pallet::<Test>::set_session_index(
-					shared::Pallet::<Test>::session_index() + 1
+					shared::Pallet::<Test>::session_index() + 1,
 				);
 				Parachains::test_on_new_session();
 			}
@@ -765,10 +770,7 @@ mod tests {
 			assert!(Parachains::is_parathread(para_id));
 			assert!(!Parachains::is_parachain(para_id));
 			// Deregister it
-			assert_ok!(Registrar::deregister(
-				Origin::root(),
-				para_id,
-			));
+			assert_ok!(Registrar::deregister(Origin::root(), para_id,));
 			run_to_session(8);
 			// It is nothing
 			assert!(!Parachains::is_parathread(para_id));
@@ -794,7 +796,8 @@ mod tests {
 			assert!(Parachains::is_parathread(para_id));
 			assert_eq!(
 				Balances::reserved_balance(&1),
-				<Test as Config>::ParaDeposit::get() + 64 * <Test as Config>::DataDepositPerByte::get()
+				<Test as Config>::ParaDeposit::get() +
+					64 * <Test as Config>::DataDepositPerByte::get()
 			);
 		});
 	}
@@ -804,22 +807,28 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			let para_id = LOWEST_PUBLIC_ID;
 
-			assert_noop!(Registrar::register(
-				Origin::signed(1),
-				para_id,
-				test_genesis_head(max_head_size() as usize),
-				test_validation_code(max_code_size() as usize),
-			), Error::<Test>::NotReserved);
+			assert_noop!(
+				Registrar::register(
+					Origin::signed(1),
+					para_id,
+					test_genesis_head(max_head_size() as usize),
+					test_validation_code(max_code_size() as usize),
+				),
+				Error::<Test>::NotReserved
+			);
 
 			// Successfully register para
 			assert_ok!(Registrar::reserve(Origin::signed(1)));
 
-			assert_noop!(Registrar::register(
-				Origin::signed(2),
-				para_id,
-				test_genesis_head(max_head_size() as usize),
-				test_validation_code(max_code_size() as usize),
-			), Error::<Test>::NotOwner);
+			assert_noop!(
+				Registrar::register(
+					Origin::signed(2),
+					para_id,
+					test_genesis_head(max_head_size() as usize),
+					test_validation_code(max_code_size() as usize),
+				),
+				Error::<Test>::NotOwner
+			);
 
 			assert_ok!(Registrar::register(
 				Origin::signed(1),
@@ -833,32 +842,44 @@ mod tests {
 			assert_ok!(Registrar::deregister(Origin::root(), para_id));
 
 			// Can't do it again
-			assert_noop!(Registrar::register(
-				Origin::signed(1),
-				para_id,
-				test_genesis_head(max_head_size() as usize),
-				test_validation_code(max_code_size() as usize),
-			), Error::<Test>::NotReserved);
+			assert_noop!(
+				Registrar::register(
+					Origin::signed(1),
+					para_id,
+					test_genesis_head(max_head_size() as usize),
+					test_validation_code(max_code_size() as usize),
+				),
+				Error::<Test>::NotReserved
+			);
 
 			// Head Size Check
 			assert_ok!(Registrar::reserve(Origin::signed(2)));
-			assert_noop!(Registrar::register(
-				Origin::signed(2),
-				para_id + 1,
-				test_genesis_head((max_head_size() + 1) as usize),
-				test_validation_code(max_code_size() as usize),
-			), Error::<Test>::HeadDataTooLarge);
+			assert_noop!(
+				Registrar::register(
+					Origin::signed(2),
+					para_id + 1,
+					test_genesis_head((max_head_size() + 1) as usize),
+					test_validation_code(max_code_size() as usize),
+				),
+				Error::<Test>::HeadDataTooLarge
+			);
 
 			// Code Size Check
-			assert_noop!(Registrar::register(
-				Origin::signed(2),
-				para_id + 1,
-				test_genesis_head(max_head_size() as usize),
-				test_validation_code((max_code_size() + 1) as usize),
-			), Error::<Test>::CodeTooLarge);
+			assert_noop!(
+				Registrar::register(
+					Origin::signed(2),
+					para_id + 1,
+					test_genesis_head(max_head_size() as usize),
+					test_validation_code((max_code_size() + 1) as usize),
+				),
+				Error::<Test>::CodeTooLarge
+			);
 
 			// Needs enough funds for deposit
-			assert_noop!(Registrar::reserve(Origin::signed(1337)), BalancesError::<Test, _>::InsufficientBalance);
+			assert_noop!(
+				Registrar::reserve(Origin::signed(1337)),
+				BalancesError::<Test, _>::InsufficientBalance
+			);
 		});
 	}
 
@@ -877,10 +898,7 @@ mod tests {
 			));
 			run_to_session(2);
 			assert!(Parachains::is_parathread(para_id));
-			assert_ok!(Registrar::deregister(
-				Origin::root(),
-				para_id,
-			));
+			assert_ok!(Registrar::deregister(Origin::root(), para_id,));
 			run_to_session(4);
 			assert!(paras::Pallet::<Test>::lifecycle(para_id).is_none());
 			assert_eq!(Balances::reserved_balance(&1), 0);
@@ -903,17 +921,14 @@ mod tests {
 			run_to_session(2);
 			assert!(Parachains::is_parathread(para_id));
 			// Owner check
-			assert_noop!(Registrar::deregister(
-				Origin::signed(2),
-				para_id,
-			), BadOrigin);
+			assert_noop!(Registrar::deregister(Origin::signed(2), para_id,), BadOrigin);
 			assert_ok!(Registrar::make_parachain(para_id));
 			run_to_session(4);
 			// Cant directly deregister parachain
-			assert_noop!(Registrar::deregister(
-				Origin::root(),
-				para_id,
-			), Error::<Test>::NotParathread);
+			assert_noop!(
+				Registrar::deregister(Origin::root(), para_id,),
+				Error::<Test>::NotParathread
+			);
 		});
 	}
 
@@ -951,22 +966,17 @@ mod tests {
 			assert!(Parachains::is_parathread(para_2));
 
 			// Both paras initiate a swap
-			assert_ok!(Registrar::swap(
-				para_origin(para_1),
-				para_1,
-				para_2,
-			));
-			assert_ok!(Registrar::swap(
-				para_origin(para_2),
-				para_2,
-				para_1,
-			));
+			assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
+			assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
 
 			run_to_session(6);
 
 			// Deregister a parathread that was originally a parachain
 			assert_eq!(Parachains::lifecycle(para_1), Some(ParaLifecycle::Parathread));
-			assert_ok!(Registrar::deregister(runtime_parachains::Origin::Parachain(para_1).into(), para_1));
+			assert_ok!(Registrar::deregister(
+				runtime_parachains::Origin::Parachain(para_1).into(),
+				para_1
+			));
 
 			run_to_block(21);
 
@@ -1010,14 +1020,14 @@ mod tests {
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
-	use super::{*, Pallet as Registrar};
-	use frame_system::RawOrigin;
+	use super::{Pallet as Registrar, *};
+	use crate::traits::Registrar as RegistrarT;
 	use frame_support::assert_ok;
-	use sp_runtime::traits::Bounded;
-	use crate::traits::{Registrar as RegistrarT};
+	use frame_system::RawOrigin;
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
+	use sp_runtime::traits::Bounded;
 
-	use frame_benchmarking::{account, benchmarks, whitelisted_caller, impl_benchmark_test_suite};
+	use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whitelisted_caller};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1034,8 +1044,13 @@ mod benchmarking {
 		let caller: T::AccountId = whitelisted_caller();
 		T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
-		assert_ok!(Registrar::<T>::register(RawOrigin::Signed(caller).into(), para, genesis_head, validation_code));
-		return para;
+		assert_ok!(Registrar::<T>::register(
+			RawOrigin::Signed(caller).into(),
+			para,
+			genesis_head,
+			validation_code
+		));
+		return para
 	}
 
 	fn para_origin(id: u32) -> ParaOrigin {
@@ -1044,9 +1059,7 @@ mod benchmarking {
 
 	// This function moves forward to the next scheduled session for parachain lifecycle upgrades.
 	fn next_scheduled_session<T: Config>() {
-		shared::Pallet::<T>::set_session_index(
-			shared::Pallet::<T>::scheduled_session()
-		);
+		shared::Pallet::<T>::set_session_index(shared::Pallet::<T>::scheduled_session());
 		paras::Pallet::<T>::test_on_new_session();
 	}
 

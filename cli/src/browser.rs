@@ -24,12 +24,15 @@ pub fn start_client(chain_spec: String, log_level: String) -> Result<Client, JsV
 	start_inner(chain_spec, log_level).map_err(|err| JsValue::from_str(&err.to_string()))
 }
 
-fn start_inner(chain_spec: String, log_directives: String) -> Result<Client, Box<dyn std::error::Error>> {
+fn start_inner(
+	chain_spec: String,
+	log_directives: String,
+) -> Result<Client, Box<dyn std::error::Error>> {
 	set_console_error_panic_hook();
 	init_logging(&log_directives)?;
 
-	let chain_spec =
-		service::PolkadotChainSpec::from_json_bytes(chain_spec.as_bytes().to_vec()).map_err(|e| format!("{:?}", e))?;
+	let chain_spec = service::PolkadotChainSpec::from_json_bytes(chain_spec.as_bytes().to_vec())
+		.map_err(|e| format!("{:?}", e))?;
 	let config = browser_configuration(chain_spec)?;
 
 	info!("Polkadot browser node");
@@ -40,7 +43,8 @@ fn start_inner(chain_spec: String, log_directives: String) -> Result<Client, Box
 	info!("👤 Role: {}", config.display_role());
 
 	// Create the service. This is the most heavy initialization step.
-	let (task_manager, rpc_handlers) = service::build_light(config).map_err(|e| format!("{:?}", e))?;
+	let (task_manager, rpc_handlers) =
+		service::build_light(config).map_err(|e| format!("{:?}", e))?;
 
 	Ok(browser_utils::start_client(task_manager, rpc_handlers))
 }

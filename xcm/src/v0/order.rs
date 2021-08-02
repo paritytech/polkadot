@@ -16,14 +16,14 @@
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
+use super::{MultiAsset, MultiLocation, Xcm};
 use alloc::vec::Vec;
 use derivative::Derivative;
-use parity_scale_codec::{self, Encode, Decode};
-use super::{MultiAsset, MultiLocation, Xcm};
+use parity_scale_codec::{self, Decode, Encode};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Derivative, Encode, Decode)]
-#[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum Order<Call> {
@@ -77,7 +77,11 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 4)]
-	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order<()>> },
+	InitiateReserveWithdraw {
+		assets: Vec<MultiAsset>,
+		reserve: MultiLocation,
+		effects: Vec<Order<()>>,
+	},
 
 	/// Remove the asset(s) (`assets`) from holding and send a `TeleportAsset` XCM message to a destination location.
 	///
@@ -99,14 +103,25 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 6)]
-	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
+	QueryHolding {
+		#[codec(compact)]
+		query_id: u64,
+		dest: MultiLocation,
+		assets: Vec<MultiAsset>,
+	},
 
 	/// Pay for the execution of some XCM with up to `weight` picoseconds of execution time, paying for this with
 	/// up to `fees` from the holding account.
 	///
 	/// Errors:
 	#[codec(index = 7)]
-	BuyExecution { fees: MultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<Xcm<Call>> },
+	BuyExecution {
+		fees: MultiAsset,
+		weight: u64,
+		debt: u64,
+		halt_on_error: bool,
+		xcm: Vec<Xcm<Call>>,
+	},
 }
 
 pub mod opaque {
@@ -114,23 +129,22 @@ pub mod opaque {
 }
 
 impl<Call> Order<Call> {
-	pub fn into<C>(self) -> Order<C> { Order::from(self) }
+	pub fn into<C>(self) -> Order<C> {
+		Order::from(self)
+	}
 	pub fn from<C>(order: Order<C>) -> Self {
 		use Order::*;
 		match order {
 			Null => Null,
-			DepositAsset { assets, dest }
-				=> DepositAsset { assets, dest },
-			DepositReserveAsset { assets, dest, effects }
-				=> DepositReserveAsset { assets, dest, effects },
-			ExchangeAsset { give, receive }
-				=> ExchangeAsset { give, receive },
-			InitiateReserveWithdraw { assets, reserve, effects }
-				=> InitiateReserveWithdraw { assets, reserve, effects },
-			InitiateTeleport { assets, dest, effects }
-				=> InitiateTeleport { assets, dest, effects },
-			QueryHolding { query_id, dest, assets }
-				=> QueryHolding { query_id, dest, assets },
+			DepositAsset { assets, dest } => DepositAsset { assets, dest },
+			DepositReserveAsset { assets, dest, effects } =>
+				DepositReserveAsset { assets, dest, effects },
+			ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
+			InitiateReserveWithdraw { assets, reserve, effects } =>
+				InitiateReserveWithdraw { assets, reserve, effects },
+			InitiateTeleport { assets, dest, effects } =>
+				InitiateTeleport { assets, dest, effects },
+			QueryHolding { query_id, dest, assets } => QueryHolding { query_id, dest, assets },
 			BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				let xcm = xcm.into_iter().map(Xcm::from).collect();
 				BuyExecution { fees, weight, debt, halt_on_error, xcm }
