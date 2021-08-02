@@ -28,17 +28,16 @@ use xcm_executor::traits::MatchesFungible;
 /// # Example
 ///
 /// ```
-/// use xcm::v0::{MultiAsset, MultiLocation, Junction};
+/// use xcm::v0::prelude::*;
 /// use xcm_builder::IsConcrete;
 /// use xcm_executor::traits::MatchesFungible;
 ///
 /// frame_support::parameter_types! {
-/// 	pub TargetLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
+/// 	pub TargetLocation: MultiLocation = X1(Parent);
 /// }
 ///
 /// # fn main() {
-/// let id = MultiLocation::X1(Junction::Parent);
-/// let asset = MultiAsset::ConcreteFungible { id, amount: 999u128 };
+/// let asset = (X1(Parent), 999).into();
 /// // match `asset` if it is a concrete asset in `TargetLocation`.
 /// assert_eq!(<IsConcrete<TargetLocation> as MatchesFungible<u128>>::matches_fungible(&asset), Some(999));
 /// # }
@@ -59,7 +58,7 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 /// # Example
 ///
 /// ```
-/// use xcm::v0::{MultiAsset};
+/// use xcm::v0::prelude::*;
 /// use xcm_builder::IsAbstract;
 /// use xcm_executor::traits::MatchesFungible;
 ///
@@ -68,7 +67,7 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 /// }
 ///
 /// # fn main() {
-/// let asset = MultiAsset::AbstractFungible { id: vec![7u8], amount: 999u128 };
+/// let asset = (vec![7u8], 999).into();
 /// // match `asset` if it is a concrete asset in `TargetLocation`.
 /// assert_eq!(<IsAbstract<TargetLocation> as MatchesFungible<u128>>::matches_fungible(&asset), Some(999));
 /// # }
