@@ -271,7 +271,7 @@ impl IsSystem for Sibling {
 	}
 }
 
-/// This type can be converted into and possibly from an AccountId (which itself is generic).
+/// This type can be converted into and possibly from an [`AccountId`] (which itself is generic).
 pub trait AccountIdConversion<AccountId>: Sized {
 	/// Convert into an account ID. This is infallible.
 	fn into_account(&self) -> AccountId;
@@ -300,7 +300,7 @@ impl<'a> parity_scale_codec::Input for TrailingZeroInput<'a> {
 }
 
 /// Format is b"para" ++ encode(parachain ID) ++ 00.... where 00... is indefinite trailing
-/// zeroes to fill AccountId.
+/// zeroes to fill [`AccountId`].
 impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 	fn into_account(&self) -> T {
 		(b"para", self)

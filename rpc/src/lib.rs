@@ -90,7 +90,7 @@ pub struct FullDeps<C, P, SC, B> {
 	pub client: Arc<C>,
 	/// Transaction pool instance.
 	pub pool: Arc<P>,
-	/// The SelectChain Strategy
+	/// The [`SelectChain`] Strategy
 	pub select_chain: SC,
 	/// A copy of the chain spec.
 	pub chain_spec: Box<dyn sc_chain_spec::ChainSpec>,
