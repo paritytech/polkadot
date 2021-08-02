@@ -420,7 +420,6 @@ where
 }
 
 parameter_types! {
-	// pub const QueueSize: usize = 2; // TODO: [AJ] this is apparently unused, can we remove?
 	pub const MaxRetries: u32 = 3;
 }
 
