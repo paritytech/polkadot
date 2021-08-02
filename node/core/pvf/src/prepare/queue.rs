@@ -16,14 +16,12 @@
 
 //! A queue that handles requests for PVF preparation.
 
-use super::{
-	pool::{self, Worker},
-};
-use crate::{LOG_TARGET, Priority, Pvf, artifacts::ArtifactId};
-use futures::{Future, SinkExt, channel::mpsc, stream::StreamExt as _};
-use std::collections::{HashMap, VecDeque};
-use async_std::path::PathBuf;
+use super::pool::{self, Worker};
+use crate::{artifacts::ArtifactId, Priority, Pvf, LOG_TARGET};
 use always_assert::{always, never};
+use async_std::path::PathBuf;
+use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
+use std::collections::{HashMap, VecDeque};
 
 /// A request to pool.
 #[derive(Debug)]
@@ -35,10 +33,7 @@ pub enum ToQueue {
 	/// [`ToQueue::Amend`].
 	Enqueue { priority: Priority, pvf: Pvf },
 	/// Amends the priority for the given [`ArtifactId`] if it is running. If it's not, then it's noop.
-	Amend {
-		priority: Priority,
-		artifact_id: ArtifactId,
-	},
+	Amend { priority: Priority, artifact_id: ArtifactId },
 }
 
 /// A response from queue.
@@ -62,11 +57,7 @@ struct Limits {
 impl Limits {
 	/// Returns `true` if the queue is allowed to request one more worker.
 	fn can_afford_one_more(&self, spawned_num: usize, critical: bool) -> bool {
-		let cap = if critical {
-			self.hard_capacity
-		} else {
-			self.soft_capacity
-		};
+		let cap = if critical { self.hard_capacity } else { self.soft_capacity };
 		spawned_num < cap
 	}
 
@@ -179,10 +170,7 @@ impl Queue {
 			from_pool_rx,
 			cache_path,
 			spawn_inflight: 0,
-			limits: Limits {
-				hard_capacity,
-				soft_capacity,
-			},
+			limits: Limits { hard_capacity, soft_capacity },
 			jobs: slotmap::SlotMap::with_key(),
 			unscheduled: Unscheduled::default(),
 			artifact_id_to_job: HashMap::new(),
@@ -194,7 +182,7 @@ impl Queue {
 		macro_rules! break_if_fatal {
 			($expr:expr) => {
 				if let Err(Fatal) = $expr {
-					break;
+					break
 				}
 			};
 		}
@@ -215,13 +203,10 @@ async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fat
 	match to_queue {
 		ToQueue::Enqueue { priority, pvf } => {
 			handle_enqueue(queue, priority, pvf).await?;
-		}
-		ToQueue::Amend {
-			priority,
-			artifact_id,
-		} => {
+		},
+		ToQueue::Amend { priority, artifact_id } => {
 			handle_amend(queue, priority, artifact_id).await?;
-		}
+		},
 	}
 	Ok(())
 }
@@ -241,14 +226,10 @@ async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Resu
 			"duplicate `enqueue` command received for {:?}",
 			artifact_id,
 		);
-		return Ok(());
+		return Ok(())
 	}
 
-	let job = queue.jobs.insert(JobData {
-		priority,
-		pvf,
-		worker: None,
-	});
+	let job = queue.jobs.insert(JobData { priority, pvf, worker: None });
 	queue.artifact_id_to_job.insert(artifact_id, job);
 
 	if let Some(available) = find_idle_worker(queue) {
@@ -264,12 +245,7 @@ async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: Pvf) -> Resu
 }
 
 fn find_idle_worker(queue: &mut Queue) -> Option<Worker> {
-	queue
-		.workers
-		.iter()
-		.filter(|(_, data)| data.is_idle())
-		.map(|(k, _)| k)
-		.next()
+	queue.workers.iter().filter(|(_, data)| data.is_idle()).map(|(k, _)| k).next()
 }
 
 async fn handle_amend(
@@ -336,8 +312,8 @@ async fn handle_worker_concluded(
 					// Assume the conditions holds, then this never is not hit;
 					// qed.
 					never!("never_none, {}", stringify!($expr));
-					return Ok(());
-				}
+					return Ok(())
+				},
 			}
 		};
 	}
@@ -388,10 +364,7 @@ async fn handle_worker_concluded(
 			spawn_extra_worker(queue, false).await?;
 		}
 	} else {
-		if queue
-			.limits
-			.should_cull(queue.workers.len() + queue.spawn_inflight)
-		{
+		if queue.limits.should_cull(queue.workers.len() + queue.spawn_inflight) {
 			// We no longer need services of this worker. Kill it.
 			queue.workers.remove(worker);
 			send_pool(&mut queue.to_pool_tx, pool::ToPool::Kill(worker)).await?;
@@ -412,20 +385,16 @@ async fn handle_worker_rip(queue: &mut Queue, worker: Worker) -> Result<(), Fata
 	if let Some(WorkerData { job: Some(job), .. }) = worker_data {
 		// This is an edge case where the worker ripped after we sent assignment but before it
 		// was received by the pool.
-		let priority = queue
-			.jobs
-			.get(job)
-			.map(|data| data.priority)
-			.unwrap_or_else(|| {
-				// job is inserted upon enqueue and removed on concluded signal;
-				// this is enclosed in the if statement that narrows the situation to before
-				// conclusion;
-				// that means that the job still exists and is known;
-				// this path cannot be hit;
-				// qed.
-				never!("the job of the ripped worker must be known but it is not");
-				Priority::Normal
-			});
+		let priority = queue.jobs.get(job).map(|data| data.priority).unwrap_or_else(|| {
+			// job is inserted upon enqueue and removed on concluded signal;
+			// this is enclosed in the if statement that narrows the situation to before
+			// conclusion;
+			// that means that the job still exists and is known;
+			// this path cannot be hit;
+			// qed.
+			never!("the job of the ripped worker must be known but it is not");
+			Priority::Normal
+		});
 		queue.unscheduled.readd(priority, job);
 	}
 
@@ -500,11 +469,7 @@ pub fn start(
 	cache_path: PathBuf,
 	to_pool_tx: mpsc::Sender<pool::ToPool>,
 	from_pool_rx: mpsc::UnboundedReceiver<pool::FromPool>,
-) -> (
-	mpsc::Sender<ToQueue>,
-	mpsc::UnboundedReceiver<FromQueue>,
-	impl Future<Output = ()>,
-) {
+) -> (mpsc::Sender<ToQueue>, mpsc::UnboundedReceiver<FromQueue>, impl Future<Output = ()>) {
 	let (to_queue_tx, to_queue_rx) = mpsc::channel(150);
 	let (from_queue_tx, from_queue_rx) = mpsc::unbounded();
 
@@ -524,11 +489,11 @@ pub fn start(
 
 #[cfg(test)]
 mod tests {
-	use slotmap::SlotMap;
-	use assert_matches::assert_matches;
-	use futures::{FutureExt, future::BoxFuture};
-	use std::task::Poll;
 	use super::*;
+	use assert_matches::assert_matches;
+	use futures::{future::BoxFuture, FutureExt};
+	use slotmap::SlotMap;
+	use std::task::Poll;
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn pvf(descriminator: u32) -> Pvf {
@@ -549,7 +514,7 @@ mod tests {
 			}
 
 			if let Poll::Ready(r) = futures::poll!(&mut *fut) {
-				break r;
+				break r
 			}
 
 			if futures::poll!(&mut *task).is_ready() {
@@ -597,37 +562,21 @@ mod tests {
 		}
 
 		fn send_queue(&mut self, to_queue: ToQueue) {
-			self.to_queue_tx
-				.send(to_queue)
-				.now_or_never()
-				.unwrap()
-				.unwrap();
+			self.to_queue_tx.send(to_queue).now_or_never().unwrap().unwrap();
 		}
 
 		async fn poll_and_recv_from_queue(&mut self) -> FromQueue {
 			let from_queue_rx = &mut self.from_queue_rx;
-			run_until(
-				&mut self.run,
-				async { from_queue_rx.next().await.unwrap() }.boxed(),
-			)
-			.await
+			run_until(&mut self.run, async { from_queue_rx.next().await.unwrap() }.boxed()).await
 		}
 
 		fn send_from_pool(&mut self, from_pool: pool::FromPool) {
-			self.from_pool_tx
-				.send(from_pool)
-				.now_or_never()
-				.unwrap()
-				.unwrap();
+			self.from_pool_tx.send(from_pool).now_or_never().unwrap().unwrap();
 		}
 
 		async fn poll_and_recv_to_pool(&mut self) -> pool::ToPool {
 			let to_pool_rx = &mut self.to_pool_rx;
-			run_until(
-				&mut self.run,
-				async { to_pool_rx.next().await.unwrap() }.boxed(),
-			)
-			.await
+			run_until(&mut self.run, async { to_pool_rx.next().await.unwrap() }.boxed()).await
 		}
 
 		async fn poll_ensure_to_pool_is_empty(&mut self) {
@@ -655,10 +604,7 @@ mod tests {
 	async fn properly_concludes() {
 		let mut test = Test::new(2, 2);
 
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Background,
-			pvf: pvf(1),
-		});
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Background, pvf: pvf(1) });
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
 		let w = test.workers.insert(());
@@ -675,18 +621,9 @@ mod tests {
 	async fn dont_spawn_over_soft_limit_unless_critical() {
 		let mut test = Test::new(2, 3);
 
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
-			pvf: pvf(1),
-		});
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
-			pvf: pvf(2),
-		});
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
-			pvf: pvf(3),
-		});
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(2) });
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(3) });
 
 		// Receive only two spawns.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -699,27 +636,15 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Spawned(w2));
 
 		// Get two start works.
-		assert_matches!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::StartWork { .. }
-		);
-		assert_matches!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::StartWork { .. }
-		);
+		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
+		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		test.send_from_pool(pool::FromPool::Concluded(w1, false));
 
-		assert_matches!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::StartWork { .. }
-		);
+		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		// Enqueue a critical job.
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Critical,
-			pvf: pvf(4),
-		});
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Critical, pvf: pvf(4) });
 
 		// 2 out of 2 are working, but there is a critical job incoming. That means that spawning
 		// another worker is warranted.
@@ -730,23 +655,14 @@ mod tests {
 	async fn cull_unwanted() {
 		let mut test = Test::new(1, 2);
 
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
-			pvf: pvf(1),
-		});
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		let w1 = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w1));
-		assert_matches!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::StartWork { .. }
-		);
+		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		// Enqueue a critical job, which warrants spawning over the soft limit.
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Critical,
-			pvf: pvf(2),
-		});
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Critical, pvf: pvf(2) });
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
 		// However, before the new worker had a chance to spawn, the first worker finishes with its
@@ -764,47 +680,29 @@ mod tests {
 	async fn bump_prio_on_urgency_change() {
 		let mut test = Test::new(2, 2);
 
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Background,
-			pvf: pvf(1),
-		});
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Background, pvf: pvf(1) });
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
 		let w = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w));
 
-		assert_matches!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::StartWork { .. }
-		);
+		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 		test.send_queue(ToQueue::Amend {
 			priority: Priority::Normal,
 			artifact_id: pvf(1).as_artifact_id(),
 		});
 
-		assert_eq!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::BumpPriority(w)
-		);
+		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::BumpPriority(w));
 	}
 
 	#[async_std::test]
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
 
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
-			pvf: pvf(1),
-		});
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
-			pvf: pvf(2),
-		});
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
-			pvf: pvf(3),
-		});
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(2) });
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(3) });
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -815,14 +713,8 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Spawned(w1));
 		test.send_from_pool(pool::FromPool::Spawned(w2));
 
-		assert_matches!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::StartWork { .. }
-		);
-		assert_matches!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::StartWork { .. }
-		);
+		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
+		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		// Conclude worker 1 and rip it.
 		test.send_from_pool(pool::FromPool::Concluded(w1, true));
@@ -840,20 +732,14 @@ mod tests {
 	async fn doesnt_resurrect_ripped_worker_if_no_work() {
 		let mut test = Test::new(2, 2);
 
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
-			pvf: pvf(1),
-		});
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
 		let w1 = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w1));
 
-		assert_matches!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::StartWork { .. }
-		);
+		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		test.send_from_pool(pool::FromPool::Concluded(w1, true));
 		test.poll_ensure_to_pool_is_empty().await;
@@ -863,10 +749,7 @@ mod tests {
 	async fn rip_for_start_work() {
 		let mut test = Test::new(2, 2);
 
-		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
-			pvf: pvf(1),
-		});
+		test.send_queue(ToQueue::Enqueue { priority: Priority::Normal, pvf: pvf(1) });
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
@@ -875,10 +758,7 @@ mod tests {
 
 		// Now, to the interesting part. After the queue normally issues the start_work command to
 		// the pool, before receiving the command the queue may report that the worker ripped.
-		assert_matches!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::StartWork { .. }
-		);
+		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 		test.send_from_pool(pool::FromPool::Rip(w1));
 
 		// In this case, the pool should spawn a new worker and request it to work on the item.
@@ -886,9 +766,6 @@ mod tests {
 
 		let w2 = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w2));
-		assert_matches!(
-			test.poll_and_recv_to_pool().await,
-			pool::ToPool::StartWork { .. }
-		);
+		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 	}
 }

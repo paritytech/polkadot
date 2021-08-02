@@ -19,11 +19,9 @@
 //!
 //! See https://w3f.github.io/parachain-implementers-guide/runtime/session_info.html.
 
+use crate::{configuration, paras, scheduler, shared, util::take_active_subset};
+use frame_support::{pallet_prelude::*, traits::OneSessionHandler};
 use primitives::v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
-use frame_support::pallet_prelude::*;
-use frame_support::traits::OneSessionHandler;
-use crate::{configuration, paras, scheduler, shared};
-use crate::util::take_active_subset;
 use sp_std::vec::Vec;
 
 pub use pallet::*;
@@ -51,7 +49,8 @@ pub mod pallet {
 	/// Note that this API is private due to it being prone to 'off-by-one' at session boundaries.
 	/// When in doubt, use `Sessions` API instead.
 	#[pallet::storage]
-	pub(super) type AssignmentKeysUnsafe<T: Config> = StorageValue<_, Vec<AssignmentId>, ValueQuery>;
+	pub(super) type AssignmentKeysUnsafe<T: Config> =
+		StorageValue<_, Vec<AssignmentId>, ValueQuery>;
 
 	/// The earliest session for which previous session info is stored.
 	#[pallet::storage]
@@ -82,7 +81,7 @@ impl<T: pallet_authority_discovery::Config> AuthorityDiscoveryConfig for T {
 impl<T: Config> Pallet<T> {
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
-		notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>
+		notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>,
 	) {
 		let config = <configuration::Pallet<T>>::config();
 
@@ -104,7 +103,8 @@ impl<T: Config> Pallet<T> {
 		let new_session_index = notification.session_index;
 		let old_earliest_stored_session = EarliestStoredSession::<T>::get();
 		let new_earliest_stored_session = new_session_index.saturating_sub(dispute_period);
-		let new_earliest_stored_session = core::cmp::max(new_earliest_stored_session, old_earliest_stored_session);
+		let new_earliest_stored_session =
+			core::cmp::max(new_earliest_stored_session, old_earliest_stored_session);
 		// remove all entries from `Sessions` from the previous value up to the new value
 		// avoid a potentially heavy loop when introduced on a live chain
 		if old_earliest_stored_session != 0 || Sessions::<T>::get(0).is_some() {
@@ -150,33 +150,35 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pal
 	type Key = AssignmentId;
 
 	fn on_genesis_session<'a, I: 'a>(_validators: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	where
+		I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
 	{
-
 	}
 
 	fn on_new_session<'a, I: 'a>(_changed: bool, validators: I, _queued: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	where
+		I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
 	{
 		let assignment_keys: Vec<_> = validators.map(|(_, v)| v).collect();
 		AssignmentKeysUnsafe::<T>::set(assignment_keys);
 	}
 
-	fn on_disabled(_i: usize) { }
+	fn on_disabled(_i: usize) {}
 }
-
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{
-		new_test_ext, Configuration, SessionInfo, System, MockGenesisConfig,
-		Origin, ParasShared, Test
+	use crate::{
+		configuration::HostConfiguration,
+		initializer::SessionChangeNotification,
+		mock::{
+			new_test_ext, Configuration, MockGenesisConfig, Origin, ParasShared, SessionInfo,
+			System, Test,
+		},
 	};
-	use crate::initializer::SessionChangeNotification;
-	use crate::configuration::HostConfiguration;
-	use primitives::v1::{BlockNumber, ValidatorId, ValidatorIndex};
 	use keyring::Sr25519Keyring;
+	use primitives::v1::{BlockNumber, ValidatorId, ValidatorIndex};
 
 	fn run_to_block(
 		to: BlockNumber,
@@ -190,9 +192,7 @@ mod tests {
 			Configuration::initializer_finalize();
 
 			if let Some(notification) = new_session(b + 1) {
-				Configuration::initializer_on_new_session(
-					&notification.session_index,
-				);
+				Configuration::initializer_on_new_session(&notification.session_index);
 				ParasShared::initializer_on_new_session(
 					notification.session_index,
 					notification.random_seed,
@@ -234,20 +234,14 @@ mod tests {
 
 	fn session_changes(n: BlockNumber) -> Option<SessionChangeNotification<BlockNumber>> {
 		if n % 10 == 0 {
-			Some(SessionChangeNotification {
-				session_index: n / 10,
-				..Default::default()
-			})
+			Some(SessionChangeNotification { session_index: n / 10, ..Default::default() })
 		} else {
 			None
 		}
 	}
 
 	fn new_session_every_block(n: BlockNumber) -> Option<SessionChangeNotification<BlockNumber>> {
-		Some(SessionChangeNotification{
-			session_index: n,
-			..Default::default()
-		})
+		Some(SessionChangeNotification { session_index: n, ..Default::default() })
 	}
 
 	#[test]
@@ -333,20 +327,17 @@ mod tests {
 
 		let active_set = vec![ValidatorIndex(4), ValidatorIndex(0), ValidatorIndex(2)];
 
-		let unscrambled_validators: Vec<ValidatorId>
-			= unscrambled.iter().map(|v| v.public().into()).collect();
-		let unscrambled_discovery: Vec<AuthorityDiscoveryId>
-			= unscrambled.iter().map(|v| v.public().into()).collect();
-		let unscrambled_assignment: Vec<AssignmentId>
-			= unscrambled.iter().map(|v| v.public().into()).collect();
+		let unscrambled_validators: Vec<ValidatorId> =
+			unscrambled.iter().map(|v| v.public().into()).collect();
+		let unscrambled_discovery: Vec<AuthorityDiscoveryId> =
+			unscrambled.iter().map(|v| v.public().into()).collect();
+		let unscrambled_assignment: Vec<AssignmentId> =
+			unscrambled.iter().map(|v| v.public().into()).collect();
 
 		let validators = take_active_subset(&active_set, &unscrambled_validators);
 
 		new_test_ext(genesis_config()).execute_with(|| {
-			ParasShared::set_active_validators_with_indices(
-				active_set.clone(),
-				validators.clone(),
-			);
+			ParasShared::set_active_validators_with_indices(active_set.clone(), validators.clone());
 
 			assert_eq!(ParasShared::active_validator_indices(), active_set);
 

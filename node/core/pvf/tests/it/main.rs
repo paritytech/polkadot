@@ -14,10 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_core_pvf::{Pvf, ValidationHost, start, Config, InvalidCandidate, ValidationError};
-use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
-use parity_scale_codec::Encode as _;
 use async_std::sync::Mutex;
+use parity_scale_codec::Encode as _;
+use polkadot_node_core_pvf::{
+	start, Config, InvalidCandidate, Pvf, ValidationError, ValidationHost,
+};
+use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
 
 mod adder;
 mod worker_common;
@@ -44,10 +46,7 @@ impl TestHost {
 		f(&mut config);
 		let (host, task) = start(config);
 		let _ = async_std::task::spawn(task);
-		Self {
-			_cache_dir: cache_dir,
-			host: Mutex::new(host),
-		}
+		Self { _cache_dir: cache_dir, host: Mutex::new(host) }
 	}
 
 	async fn validate_candidate(
@@ -57,7 +56,8 @@ impl TestHost {
 	) -> Result<ValidationResult, ValidationError> {
 		let (result_tx, result_rx) = futures::channel::oneshot::channel();
 
-		let code = sp_maybe_compressed_blob::decompress(code, 16 * 1024 * 1024).expect("Compression works");
+		let code = sp_maybe_compressed_blob::decompress(code, 16 * 1024 * 1024)
+			.expect("Compression works");
 
 		self.host
 			.lock()
@@ -91,7 +91,7 @@ async fn terminates_on_timeout() {
 		.await;
 
 	match result {
-		Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)) => {}
+		Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)) => {},
 		r => panic!("{:?}", r),
 	}
 }
@@ -124,8 +124,8 @@ async fn parallel_execution() {
 	// total time should be < 2 x EXECUTION_TIMEOUT_SEC
 	const EXECUTION_TIMEOUT_SEC: u64 = 3;
 	assert!(
-		std::time::Instant::now().duration_since(start)
-			< std::time::Duration::from_secs(EXECUTION_TIMEOUT_SEC * 2)
+		std::time::Instant::now().duration_since(start) <
+			std::time::Duration::from_secs(EXECUTION_TIMEOUT_SEC * 2)
 	);
 }
 

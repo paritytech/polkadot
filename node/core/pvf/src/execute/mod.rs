@@ -23,5 +23,5 @@
 mod queue;
 mod worker;
 
-pub use queue::{ToQueue, start};
+pub use queue::{start, ToQueue};
 pub use worker::worker_entrypoint;

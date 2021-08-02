@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/kusama/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -48,7 +47,7 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn manage_lease_period_start(c: u32, t: u32, ) -> Weight {
+	fn manage_lease_period_start(c: u32, t: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 17_000
 			.saturating_add((16_401_000 as Weight).saturating_mul(c as Weight))
