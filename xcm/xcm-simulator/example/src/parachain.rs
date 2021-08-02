@@ -110,7 +110,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const KsmLocation: MultiLocation = MultiLocation::X1(Parent);
+	pub const KsmLocation: MultiLocation = MultiLocation::with_parents(1).expect("well-formed XCM; qed");
 	pub const RelayNetwork: NetworkId = NetworkId::Kusama;
 	pub Ancestry: MultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
 }
