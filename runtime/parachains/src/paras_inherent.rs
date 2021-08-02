@@ -27,14 +27,16 @@ use crate::{
 	scheduler::{self, FreedReason},
 	shared, ump,
 };
-use frame_support::inherent::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
-use frame_support::pallet_prelude::*;
+use frame_support::{
+	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
+	pallet_prelude::*,
+};
 use frame_system::pallet_prelude::*;
-use sp_runtime::traits::Header as HeaderT;
-use sp_std::prelude::*;
 use primitives::v1::{
 	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
 };
+use sp_runtime::traits::Header as HeaderT;
+use sp_std::prelude::*;
 
 pub use pallet::*;
 
@@ -97,47 +99,41 @@ pub mod pallet {
 		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			let mut inherent_data: ParachainsInherentData<T::Header>
-				= match data.get_data(&Self::INHERENT_IDENTIFIER)
-			{
-				Ok(Some(d)) => d,
-				Ok(None) => return None,
-				Err(_) => {
-					log::warn!(
-						target: LOG_TARGET,
-						"ParachainsInherentData failed to decode",
-					);
+			let mut inherent_data: ParachainsInherentData<T::Header> =
+				match data.get_data(&Self::INHERENT_IDENTIFIER) {
+					Ok(Some(d)) => d,
+					Ok(None) => return None,
+					Err(_) => {
+						log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode",);
 
-					return None;
-				}
-			};
+						return None
+					},
+				};
 
 			// filter out any unneeded dispute statements
 			T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
 
 			// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 			// See github.com/paritytech/polkadot/issues/1327
-			let inherent_data = match Self::enter(
-				frame_system::RawOrigin::None.into(),
-				inherent_data.clone(),
-			) {
-				Ok(_) => inherent_data,
-				Err(err) => {
-					log::warn!(
+			let inherent_data =
+				match Self::enter(frame_system::RawOrigin::None.into(), inherent_data.clone()) {
+					Ok(_) => inherent_data,
+					Err(err) => {
+						log::warn!(
 						target: LOG_TARGET,
 						"dropping signed_bitfields and backed_candidates because they produced \
 						an invalid paras inherent: {:?}",
 						err,
 					);
 
-					ParachainsInherentData {
-						bitfields: Vec::new(),
-						backed_candidates: Vec::new(),
-						disputes: Vec::new(),
-						parent_header: inherent_data.parent_header,
-					}
-				}
-			};
+						ParachainsInherentData {
+							bitfields: Vec::new(),
+							backed_candidates: Vec::new(),
+							disputes: Vec::new(),
+							parent_header: inherent_data.parent_header,
+						}
+					},
+				};
 
 			Some(Call::enter(inherent_data))
 		}
@@ -182,16 +178,15 @@ pub mod pallet {
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
-					return Ok(Some(
-						MINIMAL_INCLUSION_INHERENT_WEIGHT
-					).into());
+					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
 				}
 
-				let any_current_session_disputes = fresh_disputes.iter()
-					.any(|(s, _)| s == &current_session);
+				let any_current_session_disputes =
+					fresh_disputes.iter().any(|(s, _)| s == &current_session);
 
 				if any_current_session_disputes {
-					let current_session_disputes: Vec<_> = fresh_disputes.iter()
+					let current_session_disputes: Vec<_> = fresh_disputes
+						.iter()
 						.filter(|(s, _)| s == &current_session)
 						.map(|(_, c)| *c)
 						.collect();
@@ -229,7 +224,8 @@ pub mod pallet {
 			};
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
-			let mut freed = freed_disputed.into_iter()
+			let mut freed = freed_disputed
+				.into_iter()
 				.chain(freed_concluded.into_iter().map(|(c, _hash)| (c, FreedReason::Concluded)))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
 				.collect::<Vec<_>>();
@@ -237,10 +233,7 @@ pub mod pallet {
 			freed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 
 			<scheduler::Pallet<T>>::clear();
-			<scheduler::Pallet<T>>::schedule(
-				freed,
-				<frame_system::Pallet<T>>::block_number(),
-			);
+			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
@@ -276,8 +269,9 @@ pub mod pallet {
 
 			Ok(Some(
 				MINIMAL_INCLUSION_INHERENT_WEIGHT +
-				(backed_candidates_len * BACKED_CANDIDATE_WEIGHT)
-			).into())
+					(backed_candidates_len * BACKED_CANDIDATE_WEIGHT),
+			)
+			.into())
 		}
 	}
 }
