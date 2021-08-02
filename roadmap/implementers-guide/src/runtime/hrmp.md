@@ -156,8 +156,8 @@ Candidate Enactment:
         1. Decrement `C.msg_count`
         1. Decrement `C.total_size` by `M`'s payload size.
     1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
-    > NOTE: That collecting digests can be inefficient and the time it takes grows very fast. Thanks to the aggresive
-    > parametrization this shouldn't be a big of a deal.
+    > NOTE: That collecting digests can be inefficient and the time it takes grows very fast. Thanks to the aggressive
+    > parameterization this shouldn't be a big of a deal.
     > If that becomes a problem consider introducing an extra dictionary which says at what block the given sender
     > sent a message to the recipient.
 
