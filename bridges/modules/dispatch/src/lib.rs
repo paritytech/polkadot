@@ -397,7 +397,7 @@ mod tests {
 	#![allow(clippy::from_over_into)]
 
 	use super::*;
-	use frame_support::{parameter_types, weights::Weight, dispatch::GetDispatchInfo};
+	use frame_support::{dispatch::GetDispatchInfo, parameter_types, weights::Weight};
 	use frame_system::{EventRecord, Phase};
 	use scale_info::TypeInfo;
 	use sp_core::H256;
@@ -604,7 +604,10 @@ mod tests {
 			let call_weight = call.get_dispatch_info().weight;
 			let mut message = prepare_root_message(call);
 			message.weight = 7;
-			assert!(call_weight != 7, "needed for test to actually trigger a weight mismatch");
+			assert!(
+				call_weight != 7,
+				"needed for test to actually trigger a weight mismatch"
+			);
 
 			System::set_block_number(1);
 			let result = Dispatch::dispatch(SOURCE_CHAIN_ID, TARGET_CHAIN_ID, id, Ok(message), |_, _| unreachable!());

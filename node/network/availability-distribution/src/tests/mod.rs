@@ -27,7 +27,7 @@ use super::*;
 
 mod state;
 /// State for test harnesses.
-use state::{TestState, TestHarness};
+use state::{TestHarness, TestState};
 
 /// Mock data useful for testing.
 pub(crate) mod mock;
@@ -60,9 +60,7 @@ fn test_harness<T: Future<Output = ()>>(
 #[test]
 fn check_basic() {
 	let state = TestState::default();
-	test_harness(state.keystore.clone(), move |harness| {
-		state.run(harness)
-	});
+	test_harness(state.keystore.clone(), move |harness| state.run(harness));
 }
 
 /// Check whether requester tries all validators in group.
@@ -75,9 +73,7 @@ fn check_fetch_tries_all() {
 		v.push(None);
 		v.push(None);
 	}
-	test_harness(state.keystore.clone(), move |harness| {
-		state.run(harness)
-	});
+	test_harness(state.keystore.clone(), move |harness| state.run(harness));
 }
 
 /// Check whether requester tries all validators in group
@@ -87,10 +83,9 @@ fn check_fetch_tries_all() {
 #[test]
 fn check_fetch_retry() {
 	let mut state = TestState::default();
-	state.cores.insert(
-		state.relay_chain[2],
-		state.cores.get(&state.relay_chain[1]).unwrap().clone(),
-	);
+	state
+		.cores
+		.insert(state.relay_chain[2], state.cores.get(&state.relay_chain[1]).unwrap().clone());
 	// We only care about the first three blocks.
 	// 1. scheduled
 	// 2. occupied
@@ -98,19 +93,17 @@ fn check_fetch_retry() {
 	state.relay_chain.truncate(3);
 
 	// Get rid of unused valid chunks:
-	let valid_candidate_hashes: HashSet<_> = state.cores
+	let valid_candidate_hashes: HashSet<_> = state
+		.cores
 		.get(&state.relay_chain[1])
 		.iter()
 		.flat_map(|v| v.iter())
-		.filter_map(|c| {
-			match c {
-				CoreState::Occupied(core) => Some(core.candidate_hash),
-				_ => None,
-			}
+		.filter_map(|c| match c {
+			CoreState::Occupied(core) => Some(core.candidate_hash),
+			_ => None,
 		})
 		.collect();
 	state.valid_chunks.retain(|(ch, _)| valid_candidate_hashes.contains(ch));
-
 
 	for (_, v) in state.chunks.iter_mut() {
 		// This should still succeed as cores are still pending availability on next block.
@@ -120,7 +113,5 @@ fn check_fetch_retry() {
 		v.push(None);
 		v.push(None);
 	}
-	test_harness(state.keystore.clone(), move |harness| {
-		state.run(harness)
-	});
+	test_harness(state.keystore.clone(), move |harness| state.run(harness));
 }

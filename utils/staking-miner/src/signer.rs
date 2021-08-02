@@ -66,8 +66,9 @@ pub(crate) async fn read_signer_uri<
 
 	let pair = Pair::from_string(&uri, None)?;
 	let account = T::AccountId::from(pair.public());
-	let _info =
-		get_account_info::<T>(&client, &account, None).await?.ok_or(Error::AccountDoesNotExists)?;
+	let _info = get_account_info::<T>(&client, &account, None)
+		.await?
+		.ok_or(Error::AccountDoesNotExists)?;
 	log::info!(target: LOG_TARGET, "loaded account {:?}, info: {:?}", &account, _info);
 	Ok(Signer { account, pair, uri: uri.to_string() })
 }

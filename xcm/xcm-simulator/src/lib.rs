@@ -62,6 +62,7 @@ pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 }
 
 #[macro_export]
+#[rustfmt::skip]
 macro_rules! decl_test_relay_chain {
 	(
 		pub struct $name:ident {

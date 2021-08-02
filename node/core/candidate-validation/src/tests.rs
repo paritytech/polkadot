@@ -15,12 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use assert_matches::assert_matches;
+use futures::executor;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v1::{HeadData, UpwardMessage};
 use sp_core::testing::TaskExecutor;
-use futures::executor;
-use assert_matches::assert_matches;
 use sp_keyring::Sr25519Keyring;
 
 fn collator_sign(descriptor: &mut CandidateDescriptor, collator: Sr25519Keyring) {
@@ -54,11 +54,9 @@ fn correctly_checks_included_assumption() {
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data(
-		&mut ctx,
-		&candidate,
-		OccupiedCoreAssumption::Included,
-	).remote_handle();
+	let (check_fut, check_result) =
+		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
+			.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -118,11 +116,9 @@ fn correctly_checks_timed_out_assumption() {
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data(
-		&mut ctx,
-		&candidate,
-		OccupiedCoreAssumption::TimedOut,
-	).remote_handle();
+	let (check_fut, check_result) =
+		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::TimedOut)
+			.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -180,11 +176,9 @@ fn check_is_bad_request_if_no_validation_data() {
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data(
-		&mut ctx,
-		&candidate,
-		OccupiedCoreAssumption::Included,
-	).remote_handle();
+	let (check_fut, check_result) =
+		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
+			.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -226,11 +220,9 @@ fn check_is_bad_request_if_no_validation_code() {
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data(
-		&mut ctx,
-		&candidate,
-		OccupiedCoreAssumption::TimedOut,
-	).remote_handle();
+	let (check_fut, check_result) =
+		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::TimedOut)
+			.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -284,11 +276,9 @@ fn check_does_not_match() {
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data(
-		&mut ctx,
-		&candidate,
-		OccupiedCoreAssumption::Included,
-	).remote_handle();
+	let (check_fut, check_result) =
+		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
+			.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -321,9 +311,7 @@ struct MockValidatorBackend {
 
 impl MockValidatorBackend {
 	fn with_hardcoded_result(result: Result<WasmValidationResult, ValidationError>) -> Self {
-		Self {
-			result,
-		}
+		Self { result }
 	}
 }
 
@@ -332,7 +320,7 @@ impl ValidationBackend for MockValidatorBackend {
 	async fn validate_candidate(
 		&mut self,
 		_raw_validation_code: Vec<u8>,
-		_params: ValidationParams
+		_params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		self.result.clone()
 	}
@@ -352,12 +340,8 @@ fn candidate_validation_ok_is_ok() {
 	descriptor.validation_code_hash = validation_code.hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check = perform_basic_checks(
-		&descriptor,
-		validation_data.max_pov_size,
-		&pov,
-		&validation_code,
-	);
+	let check =
+		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
 	assert!(check.is_ok());
 
 	let validation_result = WasmValidationResult {
@@ -402,18 +386,14 @@ fn candidate_validation_bad_return_is_invalid() {
 	descriptor.validation_code_hash = validation_code.hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check = perform_basic_checks(
-		&descriptor,
-		validation_data.max_pov_size,
-		&pov,
-		&validation_code,
-	);
+	let check =
+		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(
-			Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbigiousWorkerDeath))
-		),
+		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
+			WasmInvalidCandidate::AmbigiousWorkerDeath,
+		))),
 		validation_data,
 		validation_code,
 		descriptor,
@@ -438,18 +418,14 @@ fn candidate_validation_timeout_is_internal_error() {
 	descriptor.validation_code_hash = validation_code.hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check = perform_basic_checks(
-		&descriptor,
-		validation_data.max_pov_size,
-		&pov,
-		&validation_code,
-	);
+	let check =
+		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(
-			Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)),
-		),
+		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
+			WasmInvalidCandidate::HardTimeout,
+		))),
 		validation_data,
 		validation_code,
 		descriptor,
@@ -473,18 +449,14 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	descriptor.validation_code_hash = ValidationCode(vec![1; 16]).hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check = perform_basic_checks(
-		&descriptor,
-		validation_data.max_pov_size,
-		&pov,
-		&validation_code,
-	);
+	let check =
+		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
 	assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 
 	let v = executor::block_on(validate_candidate_exhaustive(
-		MockValidatorBackend::with_hardcoded_result(
-			Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)),
-		),
+		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
+			WasmInvalidCandidate::HardTimeout,
+		))),
 		validation_data,
 		validation_code,
 		descriptor,
@@ -504,10 +476,7 @@ fn compressed_code_works() {
 	let head_data = HeadData(vec![1, 1, 1]);
 
 	let raw_code = vec![2u8; 16];
-	let validation_code = sp_maybe_compressed_blob::compress(
-		&raw_code,
-		VALIDATION_CODE_BOMB_LIMIT,
-	)
+	let validation_code = sp_maybe_compressed_blob::compress(&raw_code, VALIDATION_CODE_BOMB_LIMIT)
 		.map(ValidationCode)
 		.unwrap();
 
@@ -546,12 +515,10 @@ fn code_decompression_failure_is_invalid() {
 	let head_data = HeadData(vec![1, 1, 1]);
 
 	let raw_code = vec![2u8; VALIDATION_CODE_BOMB_LIMIT + 1];
-	let validation_code = sp_maybe_compressed_blob::compress(
-		&raw_code,
-		VALIDATION_CODE_BOMB_LIMIT + 1,
-	)
-		.map(ValidationCode)
-		.unwrap();
+	let validation_code =
+		sp_maybe_compressed_blob::compress(&raw_code, VALIDATION_CODE_BOMB_LIMIT + 1)
+			.map(ValidationCode)
+			.unwrap();
 
 	let mut descriptor = CandidateDescriptor::default();
 	descriptor.pov_hash = pov.hash();
@@ -578,25 +545,17 @@ fn code_decompression_failure_is_invalid() {
 	))
 	.unwrap();
 
-	assert_matches!(
-		v,
-		Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
-	);
+	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)));
 }
 
 #[test]
 fn pov_decompression_failure_is_invalid() {
-	let validation_data = PersistedValidationData {
-		max_pov_size: POV_BOMB_LIMIT as u32,
-		..Default::default()
-	 };
+	let validation_data =
+		PersistedValidationData { max_pov_size: POV_BOMB_LIMIT as u32, ..Default::default() };
 	let head_data = HeadData(vec![1, 1, 1]);
 
 	let raw_block_data = vec![2u8; POV_BOMB_LIMIT + 1];
-	let pov = sp_maybe_compressed_blob::compress(
-		&raw_block_data,
-		POV_BOMB_LIMIT + 1,
-	)
+	let pov = sp_maybe_compressed_blob::compress(&raw_block_data, POV_BOMB_LIMIT + 1)
 		.map(|raw| PoV { block_data: BlockData(raw) })
 		.unwrap();
 
@@ -627,8 +586,5 @@ fn pov_decompression_failure_is_invalid() {
 	))
 	.unwrap();
 
-	assert_matches!(
-		v,
-		Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
-	);
+	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)));
 }

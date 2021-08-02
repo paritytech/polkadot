@@ -14,26 +14,33 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-pub use sp_std::{fmt::Debug, marker::PhantomData, cell::RefCell};
-pub use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-pub use parity_scale_codec::{Encode, Decode};
-pub use xcm::v0::{
-	SendXcm, MultiLocation::*, Junction::*, MultiAsset, Xcm, Order, Result as XcmResult, Error as XcmError,
-	OriginKind, MultiLocation, Junction, opaque,
+pub use crate::{
+	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
+	FixedRateOfConcreteFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
 };
 pub use frame_support::{
+	dispatch::{
+		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, Parameter, Weight,
+	},
 	ensure, parameter_types,
-	dispatch::{Dispatchable, Parameter, Weight, DispatchError, DispatchResultWithPostInfo, DispatchInfo},
-	weights::{PostDispatchInfo, GetDispatchInfo},
 	sp_runtime::DispatchErrorWithPostInfo,
-	traits::{Get, Contains, IsInVec},
+	traits::{Contains, Get, IsInVec},
+	weights::{GetDispatchInfo, PostDispatchInfo},
+};
+pub use parity_scale_codec::{Decode, Encode};
+pub use sp_std::{
+	cell::RefCell,
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+	fmt::Debug,
+	marker::PhantomData,
+};
+pub use xcm::v0::{
+	opaque, Error as XcmError, Junction, Junction::*, MultiAsset, MultiLocation, MultiLocation::*,
+	Order, OriginKind, Result as XcmResult, SendXcm, Xcm,
 };
 pub use xcm_executor::{
-	Assets, Config, traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse}
-};
-pub use crate::{
-	TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, FixedWeightBounds,
-	FixedRateOfConcreteFungible, AllowKnownQueryResponses, LocationInverter,
+	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
+	Assets, Config,
 };
 
 pub enum TestOrigin {
@@ -62,20 +69,18 @@ impl Dispatchable for TestCall {
 	fn dispatch(self, origin: Self::Origin) -> DispatchResultWithPostInfo {
 		let mut post_info = PostDispatchInfo::default();
 		post_info.actual_weight = match self {
-			TestCall::OnlyRoot(_, maybe_actual)
-			| TestCall::OnlySigned(_, maybe_actual, _)
-			| TestCall::OnlyParachain(_, maybe_actual, _)
-			| TestCall::Any(_, maybe_actual)
-			=> maybe_actual,
+			TestCall::OnlyRoot(_, maybe_actual) |
+			TestCall::OnlySigned(_, maybe_actual, _) |
+			TestCall::OnlyParachain(_, maybe_actual, _) |
+			TestCall::Any(_, maybe_actual) => maybe_actual,
 		};
 		if match (&origin, &self) {
 			(TestOrigin::Parachain(i), TestCall::OnlyParachain(_, _, Some(j))) => i == j,
 			(TestOrigin::Signed(i), TestCall::OnlySigned(_, _, Some(j))) => i == j,
-			(TestOrigin::Root, TestCall::OnlyRoot(..))
-			| (TestOrigin::Parachain(_), TestCall::OnlyParachain(_, _, None))
-			| (TestOrigin::Signed(_), TestCall::OnlySigned(_, _, None))
-			| (_, TestCall::Any(..))
-			=> true,
+			(TestOrigin::Root, TestCall::OnlyRoot(..)) |
+			(TestOrigin::Parachain(_), TestCall::OnlyParachain(_, _, None)) |
+			(TestOrigin::Signed(_), TestCall::OnlySigned(_, _, None)) |
+			(_, TestCall::Any(..)) => true,
 			_ => false,
 		} {
 			Ok(post_info)
@@ -88,13 +93,12 @@ impl Dispatchable for TestCall {
 impl GetDispatchInfo for TestCall {
 	fn get_dispatch_info(&self) -> DispatchInfo {
 		let weight = *match self {
-			TestCall::OnlyRoot(estimate, ..)
-			| TestCall::OnlyParachain(estimate, ..)
-			| TestCall::OnlySigned(estimate, ..)
-			| TestCall::Any(estimate, ..)
-			=> estimate,
+			TestCall::OnlyRoot(estimate, ..) |
+			TestCall::OnlyParachain(estimate, ..) |
+			TestCall::OnlySigned(estimate, ..) |
+			TestCall::Any(estimate, ..) => estimate,
 		};
-		DispatchInfo { weight, .. Default::default() }
+		DispatchInfo { weight, ..Default::default() }
 	}
 }
 
@@ -119,11 +123,7 @@ pub fn assets(who: u64) -> Vec<MultiAsset> {
 	ASSETS.with(|a| a.borrow().get(&who).map_or(vec![], |a| a.clone().into()))
 }
 pub fn add_asset(who: u64, what: MultiAsset) {
-	ASSETS.with(|a| a.borrow_mut()
-		.entry(who)
-		.or_insert(Assets::new())
-		.saturating_subsume(what)
-	);
+	ASSETS.with(|a| a.borrow_mut().entry(who).or_insert(Assets::new()).saturating_subsume(what));
 }
 
 pub struct TestAssetTransactor;
@@ -136,15 +136,15 @@ impl TransactAsset for TestAssetTransactor {
 
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
 		let who = to_account(who.clone()).map_err(|_| XcmError::LocationCannotHold)?;
-		ASSETS.with(|a| a.borrow_mut()
-			.get_mut(&who)
-			.ok_or(XcmError::NotWithdrawable)?
-			.try_take(what.clone())
-			.map_err(|()| XcmError::NotWithdrawable)
-		)
+		ASSETS.with(|a| {
+			a.borrow_mut()
+				.get_mut(&who)
+				.ok_or(XcmError::NotWithdrawable)?
+				.try_take(what.clone())
+				.map_err(|()| XcmError::NotWithdrawable)
+		})
 	}
 }
-
 
 pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 	Ok(match l {
@@ -164,14 +164,17 @@ pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 
 pub struct TestOriginConverter;
 impl ConvertOrigin<TestOrigin> for TestOriginConverter {
-	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<TestOrigin, MultiLocation> {
+	fn convert_origin(
+		origin: MultiLocation,
+		kind: OriginKind,
+	) -> Result<TestOrigin, MultiLocation> {
 		use OriginKind::*;
 		match (kind, origin) {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
 			(Native, X1(Parachain(id))) => Ok(TestOrigin::Parachain(id)),
 			(Native, X1(Parent)) => Ok(TestOrigin::Relay),
-			(Native, X1(AccountIndex64 {index, ..})) => Ok(TestOrigin::Signed(index)),
+			(Native, X1(AccountIndex64 { index, .. })) => Ok(TestOrigin::Signed(index)),
 			(_, origin) => Err(origin),
 		}
 	}
@@ -191,17 +194,15 @@ pub fn add_teleporter(from: MultiLocation, asset: MultiAsset) {
 pub struct TestIsReserve;
 impl FilterAssetLocation for TestIsReserve {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
-		IS_RESERVE.with(|r| r.borrow().get(origin)
-			.map_or(false, |v| v.iter().any(|a| a.contains(asset)))
-		)
+		IS_RESERVE
+			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.contains(asset))))
 	}
 }
 pub struct TestIsTeleporter;
 impl FilterAssetLocation for TestIsTeleporter {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
-		IS_TELEPORTER.with(|r| r.borrow().get(origin)
-			.map_or(false, |v| v.iter().any(|a| a.contains(asset)))
-		)
+		IS_TELEPORTER
+			.with(|r| r.borrow().get(origin).map_or(false, |v| v.iter().any(|a| a.contains(asset))))
 	}
 }
 
@@ -223,28 +224,25 @@ impl OnResponse for TestResponseHandler {
 	}
 	fn on_response(_origin: MultiLocation, query_id: u64, response: xcm::v0::Response) -> Weight {
 		QUERIES.with(|q| {
-			q.borrow_mut()
-				.entry(query_id)
-				.and_modify(|v| if matches!(*v, ResponseSlot::Expecting(..)) {
+			q.borrow_mut().entry(query_id).and_modify(|v| {
+				if matches!(*v, ResponseSlot::Expecting(..)) {
 					*v = ResponseSlot::Received(response);
-				});
+				}
+			});
 		});
 		10
 	}
 }
 pub fn expect_response(query_id: u64, from: MultiLocation) {
-	QUERIES.with(|q| q.borrow_mut()
-		.insert(query_id, ResponseSlot::Expecting(from))
-	);
+	QUERIES.with(|q| q.borrow_mut().insert(query_id, ResponseSlot::Expecting(from)));
 }
 pub fn response(query_id: u64) -> Option<Response> {
-	QUERIES.with(|q| q.borrow()
-		.get(&query_id)
-		.and_then(|v| match v {
+	QUERIES.with(|q| {
+		q.borrow().get(&query_id).and_then(|v| match v {
 			ResponseSlot::Received(r) => Some(r.clone()),
 			_ => None,
 		})
-	)
+	})
 }
 
 parameter_types! {

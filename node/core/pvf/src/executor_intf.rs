@@ -16,16 +16,14 @@
 
 //! Interface to the Substrate Executor
 
-use std::any::{TypeId, Any};
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, Semantics, DeterministicStackLimit};
-use sp_core::{
-	storage::{ChildInfo, TrackedStorageKey},
-};
+use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
+use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use sp_wasm_interface::HostFunctions as _;
+use std::any::{Any, TypeId};
 
 const CONFIG: Config = Config {
 	// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
@@ -95,9 +93,7 @@ pub unsafe fn execute(
 			CONFIG,
 			HostFunctions::host_functions(),
 		)?;
-		runtime
-			.new_instance()?
-			.call(InvokeMethod::Export("validate_block"), params)
+		runtime.new_instance()?.call(InvokeMethod::Export("validate_block"), params)
 	})?
 }
 

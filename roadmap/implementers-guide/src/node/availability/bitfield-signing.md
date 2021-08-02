@@ -10,8 +10,8 @@ There is no dedicated input mechanism for bitfield signing. Instead, Bitfield Si
 
 Output:
 
-- BitfieldDistribution::DistributeBitfield: distribute a locally signed bitfield
-- AvailabilityStore::QueryChunk(CandidateHash, validator_index, response_channel)
+- `BitfieldDistribution::DistributeBitfield`: distribute a locally signed bitfield
+- `AvailabilityStore::QueryChunk(CandidateHash, validator_index, response_channel)`
 
 ## Functionality
 

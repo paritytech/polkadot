@@ -35,16 +35,19 @@
 
 #![cfg(feature = "full-node")]
 
-use polkadot_primitives::v1::{
-	Hash, BlockNumber, Block as PolkadotBlock, Header as PolkadotHeader,
-};
-use polkadot_subsystem::messages::{ApprovalVotingMessage, HighestApprovedAncestorBlock, ChainSelectionMessage, DisputeCoordinatorMessage};
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use futures::channel::oneshot;
-use consensus_common::{Error as ConsensusError, SelectChain};
-use std::sync::Arc;
-use polkadot_overseer::{AllMessages, Handle, OverseerHandle};
 use super::{HeaderProvider, HeaderProviderProvider};
+use consensus_common::{Error as ConsensusError, SelectChain};
+use futures::channel::oneshot;
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_overseer::{AllMessages, Handle, OverseerHandle};
+use polkadot_primitives::v1::{
+	Block as PolkadotBlock, BlockNumber, Hash, Header as PolkadotHeader,
+};
+use polkadot_subsystem::messages::{
+	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
+	HighestApprovedAncestorBlock,
+};
+use std::sync::Arc;
 
 /// The maximum amount of unfinalized blocks we are willing to allow due to approval checking
 /// or disputes.
@@ -106,36 +109,24 @@ impl Metrics {
 }
 
 /// A chain-selection implementation which provides safety for relay chains.
-pub struct SelectRelayChainWithFallback<
-	B: sc_client_api::Backend<PolkadotBlock>,
-> {
+pub struct SelectRelayChainWithFallback<B: sc_client_api::Backend<PolkadotBlock>> {
 	// A fallback to use in case the overseer is disconnected.
 	//
 	// This is used on relay chains which have not yet enabled
 	// parachains as well as situations where the node is offline.
 	fallback: sc_consensus::LongestChain<B, PolkadotBlock>,
-	selection: SelectRelayChain<
-		B,
-		Handle,
-	>,
+	selection: SelectRelayChain<B, Handle>,
 }
 
 impl<B> Clone for SelectRelayChainWithFallback<B>
 where
 	B: sc_client_api::Backend<PolkadotBlock>,
-	SelectRelayChain<
-		B,
-		Handle,
-	>: Clone,
+	SelectRelayChain<B, Handle>: Clone,
 {
 	fn clone(&self) -> Self {
-		Self {
-			fallback: self.fallback.clone(),
-			selection: self.selection.clone(),
-		}
+		Self { fallback: self.fallback.clone(), selection: self.selection.clone() }
 	}
 }
-
 
 impl<B> SelectRelayChainWithFallback<B>
 where
@@ -146,11 +137,7 @@ where
 	pub fn new(backend: Arc<B>, overseer: Handle, metrics: Metrics) -> Self {
 		SelectRelayChainWithFallback {
 			fallback: sc_consensus::LongestChain::new(backend.clone()),
-			selection: SelectRelayChain::new(
-				backend,
-				overseer,
-				metrics,
-			),
+			selection: SelectRelayChain::new(backend, overseer, metrics),
 		}
 	}
 }
@@ -161,14 +148,10 @@ where
 {
 	/// Given an overseer handle, this connects the [`SelectRelayChainWithFallback`]'s
 	/// internal handle and its clones to the same overseer.
-	pub fn connect_to_overseer(
-		&mut self,
-		handle: OverseerHandle,
-	) {
+	pub fn connect_to_overseer(&mut self, handle: OverseerHandle) {
 		self.selection.overseer.connect_to_overseer(handle);
 	}
 }
-
 
 #[async_trait::async_trait]
 impl<B> SelectChain<PolkadotBlock> for SelectRelayChainWithFallback<B>
@@ -202,7 +185,6 @@ where
 	}
 }
 
-
 /// A chain-selection implementation which provides safety for relay chains
 /// but does not handle situations where the overseer is not yet connected.
 pub struct SelectRelayChain<B, OH> {
@@ -219,24 +201,17 @@ where
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
 	pub fn new(backend: Arc<B>, overseer: OH, metrics: Metrics) -> Self {
-		SelectRelayChain {
-			backend,
-			overseer,
-			metrics,
-		}
+		SelectRelayChain { backend, overseer, metrics }
 	}
 
 	fn block_header(&self, hash: Hash) -> Result<PolkadotHeader, ConsensusError> {
 		match HeaderProvider::header(self.backend.header_provider(), hash) {
 			Ok(Some(header)) => Ok(header),
-			Ok(None) => Err(ConsensusError::ChainLookup(format!(
-				"Missing header with hash {:?}",
-				hash,
-			))),
+			Ok(None) =>
+				Err(ConsensusError::ChainLookup(format!("Missing header with hash {:?}", hash,))),
 			Err(e) => Err(ConsensusError::ChainLookup(format!(
 				"Lookup failed for header with hash {:?}: {:?}",
-				hash,
-				e,
+				hash, e,
 			))),
 		}
 	}
@@ -244,14 +219,11 @@ where
 	fn block_number(&self, hash: Hash) -> Result<BlockNumber, ConsensusError> {
 		match HeaderProvider::number(self.backend.header_provider(), hash) {
 			Ok(Some(number)) => Ok(number),
-			Ok(None) => Err(ConsensusError::ChainLookup(format!(
-				"Missing number with hash {:?}",
-				hash,
-			))),
+			Ok(None) =>
+				Err(ConsensusError::ChainLookup(format!("Missing number with hash {:?}", hash,))),
 			Err(e) => Err(ConsensusError::ChainLookup(format!(
 				"Lookup failed for number with hash {:?}: {:?}",
-				hash,
-				e,
+				hash, e,
 			))),
 		}
 	}
@@ -281,7 +253,6 @@ enum Error {
 	EmptyLeaves,
 }
 
-
 /// Decoupling trait for the overseer handle.
 ///
 /// Required for testing purposes.
@@ -297,7 +268,6 @@ impl OverseerHandleT for Handle {
 	}
 }
 
-
 #[async_trait::async_trait]
 impl<B, OH> SelectChain<PolkadotBlock> for SelectRelayChain<B, OH>
 where
@@ -311,10 +281,8 @@ where
 
 		self.overseer
 			.clone()
-			.send_msg(
-				ChainSelectionMessage::Leaves(tx),
-				std::any::type_name::<Self>(),
-			).await;
+			.send_msg(ChainSelectionMessage::Leaves(tx), std::any::type_name::<Self>())
+			.await;
 
 		rx.await
 			.map_err(Error::OverseerDisconnected)
@@ -326,12 +294,12 @@ where
 		// The Chain Selection subsystem is supposed to treat the finalized
 		// block as the best leaf in the case that there are no viable
 		// leaves, so this should not happen in practice.
-		let best_leaf = self.leaves()
+		let best_leaf = self
+			.leaves()
 			.await?
 			.first()
 			.ok_or_else(|| ConsensusError::Other(Box::new(Error::EmptyLeaves)))?
 			.clone();
-
 
 		self.block_header(best_leaf)
 	}
@@ -354,12 +322,15 @@ where
 
 		let subchain_head = {
 			let (tx, rx) = oneshot::channel();
-			overseer.send_msg(
-				ChainSelectionMessage::BestLeafContaining(target_hash, tx),
-				std::any::type_name::<Self>(),
-			).await;
+			overseer
+				.send_msg(
+					ChainSelectionMessage::BestLeafContaining(target_hash, tx),
+					std::any::type_name::<Self>(),
+				)
+				.await;
 
-			let best = rx.await
+			let best = rx
+				.await
 				.map_err(Error::OverseerDisconnected)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
@@ -385,7 +356,7 @@ where
 							"`finality_target` max number is less than target number",
 						);
 					}
-					return Ok(Some(target_hash));
+					return Ok(Some(target_hash))
 				}
 				// find the current number.
 				let subchain_header = self.block_header(subchain_head)?;
@@ -393,15 +364,17 @@ where
 				if subchain_header.number <= max {
 					subchain_head
 				} else {
-					let (ancestor_hash, _) = crate::grandpa_support::walk_backwards_to_target_block(
-						self.backend.header_provider(),
-						max,
-						&subchain_header,
-					).map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
+					let (ancestor_hash, _) =
+						crate::grandpa_support::walk_backwards_to_target_block(
+							self.backend.header_provider(),
+							max,
+							&subchain_header,
+						)
+						.map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
 
 					ancestor_hash
 				}
-			}
+			},
 		};
 
 		let initial_leaf = subchain_head;
@@ -409,31 +382,30 @@ where
 
 		// 2. Constrain according to `ApprovedAncestor`.
 		let (subchain_head, subchain_number, subchain_block_descriptions) = {
-
 			let (tx, rx) = oneshot::channel();
-			overseer.send_msg(
-				ApprovalVotingMessage::ApprovedAncestor(
-					subchain_head,
-					target_number,
-					tx,
-				),
-				std::any::type_name::<Self>(),
-			).await;
+			overseer
+				.send_msg(
+					ApprovalVotingMessage::ApprovedAncestor(subchain_head, target_number, tx),
+					std::any::type_name::<Self>(),
+				)
+				.await;
 
-			match rx.await
+			match rx
+				.await
 				.map_err(Error::OverseerDisconnected)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?
 			{
 				// No approved ancestors means target hash is maximal vote.
 				None => (target_hash, target_number, Vec::new()),
-				Some(HighestApprovedAncestorBlock {
-					number, hash, descriptions
-				}) => (hash, number, descriptions),
+				Some(HighestApprovedAncestorBlock { number, hash, descriptions }) =>
+					(hash, number, descriptions),
 			}
 		};
 
 		// Prevent sending flawed data to the dispute-coordinator.
-		if Some(subchain_block_descriptions.len() as _) != subchain_number.checked_sub(target_number) {
+		if Some(subchain_block_descriptions.len() as _) !=
+			subchain_number.checked_sub(target_number)
+		{
 			tracing::error!(
 				LOG_TARGET,
 				present_block_descriptions = subchain_block_descriptions.len(),
@@ -441,7 +413,7 @@ where
 				subchain_number,
 				"Mismatch of anticipated block descriptions and block number difference.",
 			);
-			return Ok(Some(target_hash));
+			return Ok(Some(target_hash))
 		}
 
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
@@ -449,14 +421,18 @@ where
 
 		// 3. Constrain according to disputes:
 		let (tx, rx) = oneshot::channel();
-		overseer.send_msg(DisputeCoordinatorMessage::DetermineUndisputedChain{
-				base_number: target_number,
-				block_descriptions: subchain_block_descriptions,
-				tx,
-			},
-			std::any::type_name::<Self>(),
-		).await;
-		let (subchain_number, subchain_head) = rx.await
+		overseer
+			.send_msg(
+				DisputeCoordinatorMessage::DetermineUndisputedChain {
+					base_number: target_number,
+					block_descriptions: subchain_block_descriptions,
+					tx,
+				},
+				std::any::type_name::<Self>(),
+			)
+			.await;
+		let (subchain_number, subchain_head) = rx
+			.await
 			.map_err(Error::OverseerDisconnected)
 			.map_err(|e| ConsensusError::Other(Box::new(e)))?
 			.unwrap_or_else(|| (subchain_number, subchain_head));
@@ -481,7 +457,8 @@ where
 					self.backend.header_provider(),
 					safe_target,
 					&initial_leaf_header,
-				).map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
+				)
+				.map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
 
 				Ok(Some(forced_target))
 			}

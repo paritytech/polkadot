@@ -24,20 +24,16 @@
 //! The sender is responsible for getting our vote out, see [`sender`]. The receiver handles
 //! incoming [`DisputeRequest`]s and offers spam protection, see [`receiver`].
 
-use futures::channel::{mpsc};
-use futures::{FutureExt, StreamExt, TryFutureExt};
+use futures::{channel::mpsc, FutureExt, StreamExt, TryFutureExt};
 
 use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_primitives::DISPUTE_WINDOW;
+use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 use polkadot_subsystem::{
-	overseer, messages::DisputeDistributionMessage, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	messages::DisputeDistributionMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemError,
-};
-use polkadot_node_subsystem_util::{
-	runtime,
-	runtime::RuntimeInfo,
 };
 
 /// ## The sender [`DisputeSender`]
@@ -85,8 +81,7 @@ use self::receiver::DisputesReceiver;
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-use error::{Fatal, FatalResult};
-use error::{Result, log_error};
+use error::{log_error, Fatal, FatalResult, Result};
 
 #[cfg(test)]
 mod tests;
@@ -119,7 +114,8 @@ impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for DisputeDistri
 where
 	Context: SubsystemContext<Message = DisputeDistributionMessage>
 		+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
-		+ Sync + Send,
+		+ Sync
+		+ Send,
 	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -128,10 +124,7 @@ where
 			.map_err(|e| SubsystemError::with_origin("dispute-distribution", e))
 			.boxed();
 
-		SpawnedSubsystem {
-			name: "dispute-distribution-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "dispute-distribution-subsystem", future }
 	}
 }
 
@@ -155,7 +148,8 @@ where
 	where
 		Context: SubsystemContext<Message = DisputeDistributionMessage>
 			+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
-			+ Sync + Send,
+			+ Sync
+			+ Send,
 	{
 		loop {
 			let message = MuxedMessage::receive(&mut ctx, &mut self.sender_rx).await;
@@ -168,52 +162,43 @@ where
 								Ok(SignalResult::Continue) => Ok(()),
 								Err(f) => Err(f),
 							}
-						}
+						},
 						FromOverseer::Communication { msg } =>
 							self.handle_subsystem_message(&mut ctx, msg).await,
 					};
 					log_error(result, "on FromOverseer")?;
-				}
+				},
 				MuxedMessage::Sender(result) => {
-					self.disputes_sender.on_task_message(
-						result.ok_or(Fatal::SenderExhausted)?
-					)
-					.await;
-				}
+					self.disputes_sender
+						.on_task_message(result.ok_or(Fatal::SenderExhausted)?)
+						.await;
+				},
 			}
 		}
 	}
 
 	/// Handle overseer signals.
-	async fn handle_signals<Context: SubsystemContext> (
+	async fn handle_signals<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context,
 		signal: OverseerSignal,
-	) -> Result<SignalResult>
-	{
+	) -> Result<SignalResult> {
 		match signal {
-			OverseerSignal::Conclude =>
-				return Ok(SignalResult::Conclude),
+			OverseerSignal::Conclude => return Ok(SignalResult::Conclude),
 			OverseerSignal::ActiveLeaves(update) => {
-				self.disputes_sender.update_leaves(
-					ctx,
-					&mut self.runtime,
-					update
-				)
-				.await?;
-			}
-			OverseerSignal::BlockFinalized(_,_) => {}
+				self.disputes_sender.update_leaves(ctx, &mut self.runtime, update).await?;
+			},
+			OverseerSignal::BlockFinalized(_, _) => {},
 		};
 		Ok(SignalResult::Continue)
 	}
 
 	/// Handle `DisputeDistributionMessage`s.
-	async fn handle_subsystem_message<Context: SubsystemContext> (
+	async fn handle_subsystem_message<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context,
-		msg: DisputeDistributionMessage
-	) -> Result<()>
-	{
+		msg: DisputeDistributionMessage,
+	) -> Result<()> {
 		match msg {
 			DisputeDistributionMessage::SendDispute(dispute_msg) =>
 				self.disputes_sender.start_sender(ctx, &mut self.runtime, dispute_msg).await?,
@@ -223,14 +208,12 @@ where
 					ctx.sender().clone(),
 					receiver,
 					self.authority_discovery.clone(),
-					self.metrics.clone()
+					self.metrics.clone(),
 				);
 
-				ctx
-					.spawn("disputes-receiver", receiver.run().boxed(),)
+				ctx.spawn("disputes-receiver", receiver.run().boxed())
 					.map_err(Fatal::SpawnTask)?;
 			},
-
 		}
 		Ok(())
 	}
@@ -247,7 +230,8 @@ enum MuxedMessage {
 
 impl MuxedMessage {
 	async fn receive(
-		ctx: &mut (impl SubsystemContext<Message = DisputeDistributionMessage> + overseer::SubsystemContext<Message = DisputeDistributionMessage>),
+		ctx: &mut (impl SubsystemContext<Message = DisputeDistributionMessage>
+		          + overseer::SubsystemContext<Message = DisputeDistributionMessage>),
 		from_sender: &mut mpsc::Receiver<TaskFinish>,
 	) -> Self {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
