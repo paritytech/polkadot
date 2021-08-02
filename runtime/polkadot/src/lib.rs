@@ -1007,7 +1007,7 @@ impl InstanceFilter<Call> for ProxyType {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..)),
 			ProxyType::IdentityJudgement => matches!(
 				c,
-				Call::Identity(pallet_identity::Call::provide_judgement(..)) | Call::Utility(..)
+				Call::Identity(pallet_identity::Call::provide_judgement {..}) | Call::Utility(..)
 			),
 			ProxyType::CancelProxy =>
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. })),
