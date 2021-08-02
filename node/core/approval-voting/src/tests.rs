@@ -15,13 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use std::time::Duration;
-use polkadot_overseer::HeadSupportsParachains;
-use polkadot_primitives::v1::{
-	CoreIndex, GroupIndex, ValidatorSignature, Header, CandidateEvent,
-	Id as ParaId,
-};
-use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, LeafStatus};
 use polkadot_node_primitives::approval::{
 	AssignmentCert, AssignmentCertKind, DelayTranche, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
 };
@@ -32,7 +25,9 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_overseer::HeadSupportsParachains;
-use polkadot_primitives::v1::{CandidateEvent, CoreIndex, GroupIndex, Header, ValidatorSignature};
+use polkadot_primitives::v1::{
+	CandidateEvent, CoreIndex, GroupIndex, Header, ValidatorSignature, Id as ParaId,
+};
 use std::time::Duration;
 
 use assert_matches::assert_matches;
@@ -104,15 +99,7 @@ fn make_sync_oracle(val: bool) -> (Box<dyn SyncOracle + Send>, TestSyncOracleHan
 		done_syncing_receiver: rx,
 	};
 
-	(
-		TestSyncOracle { flag: flag.clone(), done_syncing_sender: Arc::new(Mutex::new(Some(tx))) },
-		TestSyncOracleHandle { flag, done_syncing_receiver: rx },
-	)
-}
-
-fn done_syncing_oracle() -> Box<dyn SyncOracle + Send> {
-	let (oracle, _) = make_sync_oracle(false);
-	Box::new(oracle)
+	(Box::new(oracle), handle)
 }
 
 #[cfg(test)]
@@ -504,11 +491,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 			Metrics::default(),
 		),
 		clock.clone(),
-		Box::new(MockAssignmentCriteria::check_only(move || Ok(assigned_tranche))),
-		store,
+		assignment_criteria,
+		backend,
 	);
 
-	let test_fut = test(TestHarness { virtual_overseer, clock });
+	let test_fut = test(TestHarness { virtual_overseer, clock, sync_oracle_handle });
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(subsystem);
@@ -2138,7 +2125,9 @@ fn approved_ancestor_test(
 		);
 
 		let approved_hash = block_hashes[approved_height as usize - 1];
-		assert_eq!(rx.await.unwrap(), Some((approved_hash, approved_height)));
+		let HighestApprovedAncestorBlock { hash, number, .. } = rx.await.unwrap().unwrap();
+		assert_eq!(approved_hash, hash);
+		assert_eq!(number, approved_height);
 
 		virtual_overseer
 	});
@@ -2364,21 +2353,17 @@ where
 			let expect_chain_approved = 3 * (i + 1) > n_validators;
 			let rx = check_and_import_approval(
 				&mut virtual_overseer,
-				FromOverseer::Communication {
-					msg: ApprovalVotingMessage::CheckAndImportAssignment(
-						IndirectAssignmentCert {
-							block_hash: head,
-							validator: 0u32.into(),
-							cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
-								sample: 0,
-							}),
-						},
-						0u32,
-						tx,
-					),
-				},
-			)
-			.await;
+				block_hash,
+				candidate_index,
+				ValidatorIndex(validator_index),
+				candidate_hash,
+				1,
+				expect_chain_approved,
+				true,
+				Some(sign_approval(validators[validator_index as usize].clone(), candidate_hash, 1))
+			).await;
+			assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
+		}
 
 		let debug = false;
 		if debug {
