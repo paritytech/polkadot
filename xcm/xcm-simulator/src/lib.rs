@@ -210,6 +210,9 @@ macro_rules! decl_test_network {
 			}
 		}
 
+		/// Process any XCMs in the message buses.
+		///
+		/// Called automatically by `TestExt::execute_with`.
 		fn process_messages() -> $crate::XcmResult {
 			process_relay_messages()?;
 			process_para_messages()
