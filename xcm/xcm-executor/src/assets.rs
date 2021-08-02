@@ -35,6 +35,14 @@ pub struct Assets {
 	pub non_fungible: BTreeSet<(AssetId, AssetInstance)>,
 }
 
+impl From<MultiAsset> for Assets {
+	fn from(asset: MultiAsset) -> Assets {
+		let mut result = Self::default();
+		result.subsume(asset);
+		result
+	}
+}
+
 impl From<Vec<MultiAsset>> for Assets {
 	fn from(assets: Vec<MultiAsset>) -> Assets {
 		let mut result = Self::default();
@@ -60,14 +68,6 @@ impl From<Assets> for Vec<MultiAsset> {
 impl From<Assets> for MultiAssets {
 	fn from(a: Assets) -> Self {
 		a.into_assets_iter().collect::<Vec<MultiAsset>>().into()
-	}
-}
-
-impl From<MultiAsset> for Assets {
-	fn from(asset: MultiAsset) -> Assets {
-		let mut result = Self::default();
-		result.subsume(asset);
-		result
 	}
 }
 

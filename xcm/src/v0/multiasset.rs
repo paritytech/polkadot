@@ -209,6 +209,12 @@ impl From<Vec<MultiAsset>> for MultiAssets {
 	}
 }
 
+impl<T: Into<MultiAsset>> From<T> for MultiAssets {
+	fn from(x: T) -> Self {
+		Self(vec![x.into()])
+	}
+}
+
 impl MultiAssets {
 	/// A new (empty) value.
 	pub fn new() -> Self {

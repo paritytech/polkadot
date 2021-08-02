@@ -30,7 +30,7 @@ pub use xcm_executor::{
 };
 pub use crate::{
 	TakeWeightCredit, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, FixedWeightBounds,
-	FixedRateOfConcreteFungible, AllowKnownQueryResponses, LocationInverter,
+	FixedRateOfFungible, AllowKnownQueryResponses, LocationInverter,
 };
 
 pub enum TestOrigin {
@@ -253,7 +253,7 @@ parameter_types! {
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
-	pub static WeightPrice: (MultiLocation, u128) = (Null, 1_000_000_000_000);
+	pub static WeightPrice: (AssetId, u128) = (Null.into(), 1_000_000_000_000);
 }
 
 pub type TestBarrier = (
@@ -274,6 +274,6 @@ impl Config for TestConfig {
 	type LocationInverter = LocationInverter<TestAncestry>;
 	type Barrier = TestBarrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall>;
-	type Trader = FixedRateOfConcreteFungible<WeightPrice, ()>;
+	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
 }

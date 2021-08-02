@@ -51,7 +51,7 @@ pub mod prelude {
 	pub use super::multi_location::MultiLocation::{self, *};
 	pub use super::order::Order::{self, *};
 	pub use super::traits::{Error as XcmError, Result as XcmResult, SendXcm, ExecuteXcm, Outcome};
-	pub use super::{Xcm::{self, *}, OriginKind};
+	pub use super::{Xcm::{self, *}, OriginKind, Response};
 	pub use super::opaque;
 }
 
