@@ -21,7 +21,6 @@ use xcm::v0::{Error, MultiAsset, MultiLocation, Xcm};
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {
-	const MAX_WEIGHT: Weight;
 	/// Return the minimum amount of weight that an attempted execution of this message would definitely
 	/// consume.
 	///

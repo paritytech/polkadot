@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::pallet_prelude::*;
+use frame_support::{dispatch::GetDispatchInfo, pallet_prelude::*};
 use sp_runtime::traits::Saturating;
-use xcm::v0::{Order, Xcm};
+use xcm::v0::{GetWeight, Order, Xcm};
 use xcm_executor::traits::WeightBounds;
 
 pub trait WeightInfo {
@@ -106,61 +106,79 @@ impl<T: frame_system::Config> WeightInfo for XcmWeight<T> {
 	}
 }
 
-struct FinalXcmWeight<W, Call>(PhantomData<(W, Call)>);
-impl<W: WeightInfo, Call> WeightBounds<Call> for FinalXcmWeight<W, Call> {
-	const MAX_WEIGHT: Weight = 1_000_000;
-
-	fn shallow(message: &mut Xcm<Call>) -> Result<Weight, ()> {
-		let mut weight = 0;
-		let xcm_weight = Self::xcm_weight(message)?;
-		weight.saturating_accrue(xcm_weight);
-		let effects = message.effects();
-		let effects_weight = Self::effects_weight(effects)?;
-		weight.saturating_accrue(effects_weight);
-		Ok(weight)
-	}
-
-	fn deep(_message: &mut Xcm<Call>) -> Result<Weight, ()> {
-		Err(()) // implement this
-	}
-}
-
-impl<W: WeightInfo, Call> FinalXcmWeight<W, Call> {
-	fn xcm_weight(message: &mut Xcm<Call>) -> Result<Weight, ()> {
+struct FinalXcmWeight<W, C>(PhantomData<(W, C)>);
+impl<W, C> WeightBounds<C> for FinalXcmWeight<W, C>
+where
+	W: WeightInfo,
+	C: Decode + GetDispatchInfo,
+	Xcm<C>: GetWeight<W>,
+	Order<C>: GetWeight<W>,
+{
+	fn shallow(message: &mut Xcm<C>) -> Result<Weight, ()> {
 		let weight = match message {
-			Xcm::WithdrawAsset { .. } => W::xcm_withdraw_asset(),
-			Xcm::ReserveAssetDeposit { .. } => W::xcm_reserve_asset_deposit(),
-			Xcm::TeleportAsset { .. } => W::xcm_teleport_asset(),
-			Xcm::QueryResponse { .. } => W::xcm_query_response(),
-			Xcm::TransferAsset { .. } => W::xcm_transfer_asset(),
-			Xcm::TransferReserveAsset { .. } => W::xcm_transfer_reserved_asset(),
-			Xcm::Transact { .. } => W::xcm_transact(),
-			Xcm::HrmpNewChannelOpenRequest { .. } => W::xcm_hrmp_channel_open_request(),
-			Xcm::HrmpChannelAccepted { .. } => W::xcm_hrmp_channel_accepted(),
-			Xcm::HrmpChannelClosing { .. } => W::xcm_hrmp_channel_closing(),
-			Xcm::RelayedFrom { .. } => W::xcm_relayed_from(),
+			Xcm::RelayedFrom { ref mut message, .. } => {
+				let relay_message_weight = Self::shallow(message.as_mut())?;
+				message.weight().saturating_add(relay_message_weight)
+			},
+			// These XCM
+			Xcm::WithdrawAsset { effects, .. } |
+			Xcm::ReserveAssetDeposit { effects, .. } |
+			Xcm::TeleportAsset { effects, .. } => {
+				let inner: Weight = effects.iter_mut().map(|effect| effect.weight()).sum();
+				message.weight().saturating_add(inner)
+			},
+			// The shallow weight of `Transact` is the full weight of the message, thus there is no
+			// deeper weight.
+			Xcm::Transact { call, .. } => {
+				let call_weight = call.ensure_decoded()?.get_dispatch_info().weight;
+				message.weight().saturating_add(call_weight)
+			},
+			// These
+			Xcm::QueryResponse { .. } |
+			Xcm::TransferAsset { .. } |
+			Xcm::TransferReserveAsset { .. } |
+			Xcm::HrmpNewChannelOpenRequest { .. } |
+			Xcm::HrmpChannelAccepted { .. } |
+			Xcm::HrmpChannelClosing { .. } => message.weight(),
 		};
+
 		Ok(weight)
 	}
-	fn effects_weight(effects: &[Order<Call>]) -> Result<Weight, ()> {
-		let mut weight = 0;
-		for order in effects {
-			if weight >= Self::MAX_WEIGHT {
-				return Err(())
-			}
-			let new_weight = match order {
-				Order::Null => W::order_null(),
-				Order::DepositAsset { .. } => W::order_deposit_asset(),
-				Order::DepositReserveAsset { .. } => W::order_deposit_reserved_asset(),
-				Order::ExchangeAsset { .. } => W::order_exchange_asset(),
-				Order::InitiateReserveWithdraw { .. } => W::order_initiate_reserve_withdraw(),
-				Order::InitiateTeleport { .. } => W::order_initiate_teleport(),
-				Order::QueryHolding { .. } => W::order_query_holding(),
-				Order::BuyExecution { .. } => W::order_buy_execution(),
-			};
-			// TODO loop effects
-			weight.saturating_accrue(new_weight);
-		}
+
+	fn deep(message: &mut Xcm<C>) -> Result<Weight, ()> {
+		let weight = match message {
+			// `RelayFrom` needs to account for the deep weight of the internal message.
+			Xcm::RelayedFrom { ref mut message, .. } => Self::deep(message.as_mut())?,
+			// These XCM have internal effects which are not accounted for in the `shallow` weight.
+			Xcm::WithdrawAsset { effects, .. } |
+			Xcm::ReserveAssetDeposit { effects, .. } |
+			Xcm::TeleportAsset { effects, .. } => {
+				let mut extra = 0;
+				for effect in effects.iter_mut() {
+					match effect {
+						Order::BuyExecution { xcm, .. } =>
+							for message in xcm.iter_mut() {
+								extra.saturating_accrue({
+									let shallow = Self::shallow(message)?;
+									let deep = Self::deep(message)?;
+									shallow.saturating_add(deep)
+								});
+							},
+						_ => {},
+					}
+				}
+				extra
+			},
+			// These XCM do not have any deeper weight.
+			Xcm::Transact { .. } |
+			Xcm::QueryResponse { .. } |
+			Xcm::TransferAsset { .. } |
+			Xcm::TransferReserveAsset { .. } |
+			Xcm::HrmpNewChannelOpenRequest { .. } |
+			Xcm::HrmpChannelAccepted { .. } |
+			Xcm::HrmpChannelClosing { .. } => 0,
+		};
+
 		Ok(weight)
 	}
 }

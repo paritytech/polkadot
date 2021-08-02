@@ -29,14 +29,14 @@ use xcm_executor::{
 
 pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
-	const MAX_WEIGHT: Weight = Weight::MAX; // TODO put a real value
-
 	fn shallow(message: &mut Xcm<C>) -> Result<Weight, ()> {
 		Ok(match message {
 			Xcm::Transact { call, .. } =>
 				call.ensure_decoded()?.get_dispatch_info().weight.saturating_add(T::get()),
+
 			Xcm::RelayedFrom { ref mut message, .. } =>
 				T::get().saturating_add(Self::shallow(message.as_mut())?),
+
 			Xcm::WithdrawAsset { effects, .. } |
 			Xcm::ReserveAssetDeposit { effects, .. } |
 			Xcm::TeleportAsset { effects, .. } => {

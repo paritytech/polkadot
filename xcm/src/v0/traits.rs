@@ -17,7 +17,7 @@
 //! Cross-Consensus Message format data structures.
 
 use core::result;
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 
 use super::{MultiLocation, Xcm};
 
@@ -258,4 +258,33 @@ impl SendXcm for Tuple {
 		)* );
 		Err(Error::CannotReachDestination(destination, message))
 	}
+}
+
+// The info needed to weight an XCM.
+pub trait XcmWeightInfo {
+	fn send_xcm() -> Weight;
+	fn order_null() -> Weight;
+	fn order_deposit_asset() -> Weight;
+	fn order_deposit_reserved_asset() -> Weight;
+	fn order_exchange_asset() -> Weight;
+	fn order_initiate_reserve_withdraw() -> Weight;
+	fn order_initiate_teleport() -> Weight;
+	fn order_query_holding() -> Weight;
+	fn order_buy_execution() -> Weight;
+	fn xcm_withdraw_asset() -> Weight;
+	fn xcm_reserve_asset_deposit() -> Weight;
+	fn xcm_teleport_asset() -> Weight;
+	fn xcm_query_response() -> Weight;
+	fn xcm_transfer_asset() -> Weight;
+	fn xcm_transfer_reserved_asset() -> Weight;
+	fn xcm_transact() -> Weight;
+	fn xcm_hrmp_channel_open_request() -> Weight;
+	fn xcm_hrmp_channel_accepted() -> Weight;
+	fn xcm_hrmp_channel_closing() -> Weight;
+	fn xcm_relayed_from() -> Weight;
+}
+
+// A simple trait to get the weight of some object.
+pub trait GetWeight<W> {
+	fn weight(&self) -> Weight;
 }
