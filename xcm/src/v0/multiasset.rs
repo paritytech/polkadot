@@ -90,7 +90,7 @@ impl AssetId {
 	/// Use the value of `self` along with a `fun` fungibility specifier to create the corresponding `WildMultiAsset`
 	/// wildcard (`AllOf`) value.
 	pub fn into_wild(self, fun: WildFungibility) -> WildMultiAsset {
-		WildMultiAsset::AllOf(fun, self)
+		WildMultiAsset::AllOf { fun, id: self }
 	}
 }
 
@@ -277,10 +277,9 @@ pub enum WildMultiAsset {
 	/// All assets in the holding register, up to `usize` individual assets (different instances of non-fungibles could
 	/// as separate assets).
 	All,
-	// TODO: AllOf { fun: WildFungibility, id: AssetId }
 	/// All assets in the holding register of a given fungibility and ID. If operating on non-fungibles, then a limit
 	/// is provided for the maximum amount of matching instances.
-	AllOf(WildFungibility, AssetId),
+	AllOf { fun: WildFungibility, id: AssetId },
 }
 
 impl WildMultiAsset {
@@ -291,7 +290,7 @@ impl WildMultiAsset {
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use WildMultiAsset::*;
 		match self {
-			AllOf(fun, id) => inner.fun.is_kind(*fun) && &inner.id == id,
+			AllOf { fun, id } => inner.fun.is_kind(*fun) && &inner.id == id,
 			All => true,
 		}
 	}
@@ -300,7 +299,7 @@ impl WildMultiAsset {
 	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		use WildMultiAsset::*;
 		match self {
-			AllOf(_, ref mut id) => id.reanchor(prepend).map_err(|_| ()),
+			AllOf { ref mut id, .. } => id.reanchor(prepend).map_err(|_| ()),
 			_ => Ok(()),
 		}
 	}
@@ -308,7 +307,7 @@ impl WildMultiAsset {
 
 impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset {
 	fn from((id, fun): (A, B)) -> WildMultiAsset {
-		WildMultiAsset::AllOf(fun.into(), id.into())
+		WildMultiAsset::AllOf { fun: fun.into(), id: id.into() }
 	}
 }
 
