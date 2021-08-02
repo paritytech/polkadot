@@ -25,7 +25,7 @@ use polkadot_primitives::v1::{BlockNumber, Hash};
 
 use std::collections::HashMap;
 
-use crate::{Error, LeafEntrySet, BlockEntry, Timestamp};
+use crate::{BlockEntry, Error, LeafEntrySet, Timestamp};
 
 pub(super) enum BackendWriteOp {
 	WriteBlockEntry(BlockEntry),
@@ -47,8 +47,10 @@ pub(super) trait Backend {
 	fn load_stagnant_at(&self, timestamp: Timestamp) -> Result<Vec<Hash>, Error>;
 	/// Load all stagnant lists up to and including the given Unix timestamp
 	/// in ascending order.
-	fn load_stagnant_at_up_to(&self, up_to: Timestamp)
-		-> Result<Vec<(Timestamp, Vec<Hash>)>, Error>;
+	fn load_stagnant_at_up_to(
+		&self,
+		up_to: Timestamp,
+	) -> Result<Vec<(Timestamp, Vec<Hash>)>, Error>;
 	/// Load the earliest kept block number.
 	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error>;
 	/// Load blocks by number.
@@ -56,7 +58,8 @@ pub(super) trait Backend {
 
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
 	fn write<I>(&mut self, ops: I) -> Result<(), Error>
-		where I: IntoIterator<Item = BackendWriteOp>;
+	where
+		I: IntoIterator<Item = BackendWriteOp>;
 }
 
 /// An in-memory overlay over the backend.
@@ -98,7 +101,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 	pub(super) fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error> {
 		if let Some(val) = self.blocks_by_number.get(&number) {
-			return Ok(val.as_ref().map_or(Vec::new(), Clone::clone));
+			return Ok(val.as_ref().map_or(Vec::new(), Clone::clone))
 		}
 
 		self.inner.load_blocks_by_number(number)
@@ -114,7 +117,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 	pub(super) fn load_stagnant_at(&self, timestamp: Timestamp) -> Result<Vec<Hash>, Error> {
 		if let Some(val) = self.stagnant_at.get(&timestamp) {
-			return Ok(val.as_ref().map_or(Vec::new(), Clone::clone));
+			return Ok(val.as_ref().map_or(Vec::new(), Clone::clone))
 		}
 
 		self.inner.load_stagnant_at(timestamp)
@@ -188,17 +191,15 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 /// return true if `ancestor` is in `head`'s chain.
 ///
 /// If the ancestor is an older finalized block, this will return `false`.
-fn contains_ancestor(
-	backend: &impl Backend,
-	head: Hash,
-	ancestor: Hash,
-) -> Result<bool, Error> {
+fn contains_ancestor(backend: &impl Backend, head: Hash, ancestor: Hash) -> Result<bool, Error> {
 	let mut current_hash = head;
 	loop {
-		if current_hash == ancestor { return Ok(true) }
+		if current_hash == ancestor {
+			return Ok(true)
+		}
 		match backend.load_block_entry(&current_hash)? {
-			Some(e) => { current_hash = e.parent_hash }
-			None => break
+			Some(e) => current_hash = e.parent_hash,
+			None => break,
 		}
 	}
 

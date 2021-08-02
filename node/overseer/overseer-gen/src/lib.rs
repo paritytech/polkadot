@@ -63,38 +63,33 @@
 pub use polkadot_overseer_gen_proc_macro::overlord;
 
 #[doc(hidden)]
-pub use tracing;
-#[doc(hidden)]
 pub use metered;
 #[doc(hidden)]
 pub use polkadot_node_primitives::SpawnNamed;
+#[doc(hidden)]
+pub use tracing;
 
+#[doc(hidden)]
+pub use async_trait::async_trait;
 #[doc(hidden)]
 pub use futures::{
 	self,
-	select,
-	StreamExt,
-	FutureExt,
-	poll,
-	future::{
-		Fuse, Future, BoxFuture
-	},
-	stream::{
-		self, select, FuturesUnordered,
-	},
-	task::{
-		Poll, Context,
-	},
 	channel::{mpsc, oneshot},
+	future::{BoxFuture, Fuse, Future},
+	poll, select,
+	stream::{self, select, FuturesUnordered},
+	task::{Context, Poll},
+	FutureExt, StreamExt,
 };
 #[doc(hidden)]
 pub use std::pin::Pin;
-#[doc(hidden)]
-pub use async_trait::async_trait;
 
+use std::sync::{
+	atomic::{self, AtomicUsize},
+	Arc,
+};
 #[doc(hidden)]
 pub use std::time::Duration;
-use std::sync::{Arc, atomic::{self, AtomicUsize}};
 
 #[doc(hidden)]
 pub use futures_timer::Delay;
@@ -102,7 +97,6 @@ pub use futures_timer::Delay;
 pub use polkadot_node_network_protocol::WrongVariant;
 
 use std::fmt;
-
 
 #[cfg(test)]
 mod tests;
@@ -134,14 +128,11 @@ pub enum ToOverseer {
 impl fmt::Debug for ToOverseer {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::SpawnJob{ name, .. } => writeln!(f, "SpawnJob{{ {}, ..}}", name),
-			Self::SpawnBlockingJob{ name, .. } => writeln!(f, "SpawnBlockingJob{{ {}, ..}}", name),
+			Self::SpawnJob { name, .. } => writeln!(f, "SpawnJob{{ {}, ..}}", name),
+			Self::SpawnBlockingJob { name, .. } => writeln!(f, "SpawnBlockingJob{{ {}, ..}}", name),
 		}
 	}
-
 }
-
-
 
 /// A helper trait to map a subsystem to smth. else.
 pub trait MapSubsystem<T> {
@@ -152,7 +143,10 @@ pub trait MapSubsystem<T> {
 	fn map_subsystem(&self, sub: T) -> Self::Output;
 }
 
-impl<F, T, U> MapSubsystem<T> for F where F: Fn(T) -> U {
+impl<F, T, U> MapSubsystem<T> for F
+where
+	F: Fn(T) -> U,
+{
 	type Output = U;
 
 	fn map_subsystem(&self, sub: T) -> U {
@@ -178,10 +172,7 @@ pub struct MessagePacket<T> {
 
 /// Create a packet from its parts.
 pub fn make_packet<T>(signals_received: usize, message: T) -> MessagePacket<T> {
-	MessagePacket {
-		signals_received,
-		message,
-	}
+	MessagePacket { signals_received, message }
 }
 
 /// Incoming messages from both the bounded and unbounded channel.
@@ -189,7 +180,6 @@ pub type SubsystemIncomingMessages<M> = self::stream::Select<
 	self::metered::MeteredReceiver<MessagePacket<M>>,
 	self::metered::UnboundedMeteredReceiver<MessagePacket<M>>,
 >;
-
 
 /// Watermark to track the received signals.
 #[derive(Debug, Default, Clone)]
@@ -208,8 +198,6 @@ impl SignalsReceived {
 	}
 }
 
-
-
 /// A trait to support the origin annotation
 /// such that errors across subsystems can be easier tracked.
 pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
@@ -227,12 +215,8 @@ pub trait AnnotateErrorOrigin: 'static + Send + Sync + std::error::Error {
 ///
 /// In essence it's just a new type wrapping a `BoxFuture`.
 pub struct SpawnedSubsystem<E>
-	where
-		E: std::error::Error
-			+ Send
-			+ Sync
-			+ 'static
-			+ From<self::OverseerError>,
+where
+	E: std::error::Error + Send + Sync + 'static + From<self::OverseerError>,
 {
 	/// Name of the subsystem being spawned.
 	pub name: &'static str,
@@ -274,7 +258,8 @@ pub enum OverseerError {
 		/// An additional annotation tag for the origin of `source`.
 		origin: &'static str,
 		/// The wrapped error. Marked as source for tracking the error chain.
-		#[source] source: Box<dyn 'static + std::error::Error + Send + Sync>
+		#[source]
+		source: Box<dyn 'static + std::error::Error + Send + Sync>,
 	},
 }
 
@@ -302,7 +287,6 @@ impl SubsystemMeters {
 		}
 	}
 }
-
 
 /// Set of readouts of the `Meter`s of a subsystem.
 pub struct SubsystemMeterReadouts {
@@ -377,7 +361,7 @@ pub trait SubsystemContext: Send + 'static {
 	/// The sender type as provided by `sender()` and underlying.
 	type Sender: SubsystemSender<Self::AllMessages> + Send + 'static;
 	/// The error type.
-	type Error: ::std::error::Error + ::std::convert::From< OverseerError > + Sync + Send + 'static;
+	type Error: ::std::error::Error + ::std::convert::From<OverseerError> + Sync + Send + 'static;
 
 	/// Try to asynchronously receive a message.
 	///
@@ -392,7 +376,7 @@ pub trait SubsystemContext: Send + 'static {
 	fn spawn(
 		&mut self,
 		name: &'static str,
-		s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>
+		s: ::std::pin::Pin<Box<dyn crate::Future<Output = ()> + Send>>,
 	) -> Result<(), Self::Error>;
 
 	/// Spawn a blocking child task on the executor's dedicated thread pool.
@@ -404,22 +388,24 @@ pub trait SubsystemContext: Send + 'static {
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	async fn send_message<X>(&mut self, msg: X)
-		where
-			Self::AllMessages: From<X>,
-			X: Send,
+	where
+		Self::AllMessages: From<X>,
+		X: Send,
 	{
 		self.sender().send_message(<Self::AllMessages>::from(msg)).await
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
 	async fn send_messages<X, T>(&mut self, msgs: T)
-		where
-			T: IntoIterator<Item = X> + Send,
-			T::IntoIter: Send,
-			Self::AllMessages: From<X>,
-			X: Send,
+	where
+		T: IntoIterator<Item = X> + Send,
+		T::IntoIter: Send,
+		Self::AllMessages: From<X>,
+		X: Send,
 	{
-		self.sender().send_messages(msgs.into_iter().map(|x| <Self::AllMessages>::from(x))).await
+		self.sender()
+			.send_messages(msgs.into_iter().map(|x| <Self::AllMessages>::from(x)))
+			.await
 	}
 
 	/// Send a message using the unbounded connection.
@@ -449,9 +435,8 @@ where
 	E: std::error::Error + Send + Sync + 'static + From<self::OverseerError>,
 {
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
-	fn start(self, ctx: Ctx) -> SpawnedSubsystem < E >;
+	fn start(self, ctx: Ctx) -> SpawnedSubsystem<E>;
 }
-
 
 /// Sender end of a channel to interface with a subsystem.
 #[async_trait::async_trait]
@@ -461,7 +446,9 @@ pub trait SubsystemSender<Message>: Send + Clone + 'static {
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
 	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = Message> + Send, T::IntoIter: Send;
+	where
+		T: IntoIterator<Item = Message> + Send,
+		T::IntoIter: Send;
 
 	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
 	/// type.
@@ -488,27 +475,27 @@ pub trait TimeoutExt: Future {
 	where
 		Self: Sized,
 	{
-		Timeout {
-			future: self,
-			delay: Delay::new(duration),
-		}
+		Timeout { future: self, delay: Delay::new(duration) }
 	}
 }
 
-impl<F> TimeoutExt for F where F: Future{}
+impl<F> TimeoutExt for F where F: Future {}
 
-impl<F> Future for Timeout<F> where F: Future {
+impl<F> Future for Timeout<F>
+where
+	F: Future,
+{
 	type Output = Option<F::Output>;
 
 	fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
 		let this = self.project();
 
 		if this.delay.poll(ctx).is_ready() {
-			return Poll::Ready(None);
+			return Poll::Ready(None)
 		}
 
 		if let Poll::Ready(output) = this.future.poll(ctx) {
-			return Poll::Ready(Some(output));
+			return Poll::Ready(Some(output))
 		}
 
 		Poll::Pending

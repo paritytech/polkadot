@@ -21,20 +21,19 @@
 //! as it has no initialization logic and its finalization logic depends only on the details of
 //! this module.
 
-use sp_std::prelude::*;
-use sp_runtime::traits::Header as HeaderT;
-use primitives::v1::{
-	BackedCandidate, PARACHAINS_INHERENT_IDENTIFIER, InherentData as ParachainsInherentData,
-};
-use frame_support::inherent::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
-use frame_support::pallet_prelude::*;
-use frame_system::pallet_prelude::*;
 use crate::{
 	disputes::DisputesHandler,
 	inclusion,
 	scheduler::{self, FreedReason},
-	shared,
-	ump,
+	shared, ump,
+};
+use frame_support::inherent::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
+use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::*;
+use sp_runtime::traits::Header as HeaderT;
+use sp_std::prelude::*;
+use primitives::v1::{
+	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
 };
 
 pub use pallet::*;
@@ -309,7 +308,7 @@ fn limit_backed_candidates<T: Config>(
 					return false
 				}
 
-				code_upgrades +=1;
+				code_upgrades += 1;
 			}
 
 			true
@@ -318,7 +317,9 @@ fn limit_backed_candidates<T: Config>(
 
 	// the weight of the paras inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
-	if frame_system::Pallet::<T>::block_weight().total() > <T as frame_system::Config>::BlockWeights::get().max_block {
+	if frame_system::Pallet::<T>::block_weight().total() >
+		<T as frame_system::Config>::BlockWeights::get().max_block
+	{
 		Vec::new()
 	} else {
 		backed_candidates
@@ -329,9 +330,7 @@ fn limit_backed_candidates<T: Config>(
 mod tests {
 	use super::*;
 
-	use crate::mock::{
-		new_test_ext, System, MockGenesisConfig, Test
-	};
+	use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
 
 	mod limit_backed_candidates {
 		use super::*;
@@ -349,7 +348,8 @@ mod tests {
 		fn does_not_truncate_on_exactly_full_block() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let backed_candidates = vec![BackedCandidate::default()];
-				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
 				System::set_block_consumed_resources(max_block_weight, 0);
 				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 1);
@@ -360,7 +360,8 @@ mod tests {
 		fn truncates_on_over_full_block() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let backed_candidates = vec![BackedCandidate::default()];
-				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
 				System::set_block_consumed_resources(max_block_weight + 1, 0);
 				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 0);
@@ -371,7 +372,8 @@ mod tests {
 		fn all_backed_candidates_get_truncated() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let backed_candidates = vec![BackedCandidate::default(); 10];
-				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
 				System::set_block_consumed_resources(max_block_weight + 1, 0);
 				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 0);
@@ -392,9 +394,7 @@ mod tests {
 	mod paras_inherent_weight {
 		use super::*;
 
-		use crate::mock::{
-			new_test_ext, System, MockGenesisConfig, Test
-		};
+		use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
 		use primitives::v1::Header;
 
 		use frame_support::traits::UnfilteredDispatchable;
@@ -429,7 +429,8 @@ mod tests {
 					(backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT);
 
 				// we've used half the block weight; there's plenty of margin
-				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				let used_block_weight = max_block_weight / 2;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
@@ -440,7 +441,9 @@ mod tests {
 					disputes: Vec::new(),
 					parent_header: default_header(),
 				})
-					.dispatch_bypass_filter(None.into()).unwrap_err().post_info;
+				.dispatch_bypass_filter(None.into())
+				.unwrap_err()
+				.post_info;
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
 				// call has returned the appropriate post-dispatch weight for refund, and trust
@@ -474,7 +477,8 @@ mod tests {
 				let expected_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
 
 				// oops, looks like this mandatory call pushed the block weight over the limit
-				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				let used_block_weight = max_block_weight + 1;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
@@ -485,15 +489,13 @@ mod tests {
 					disputes: Vec::new(),
 					parent_header: header,
 				})
-					.dispatch_bypass_filter(None.into()).unwrap();
+				.dispatch_bypass_filter(None.into())
+				.unwrap();
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
 				// call has returned the appropriate post-dispatch weight for refund, and trust
 				// Substrate to do the right thing with that information.
-				assert_eq!(
-					post_info.actual_weight.unwrap(),
-					expected_weight,
-				);
+				assert_eq!(post_info.actual_weight.unwrap(), expected_weight,);
 			});
 		}
 	}

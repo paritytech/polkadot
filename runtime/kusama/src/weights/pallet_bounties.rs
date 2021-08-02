@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/kusama/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -43,7 +42,7 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `pallet_bounties`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_bounties::WeightInfo for WeightInfo<T> {
-	fn propose_bounty(d: u32, ) -> Weight {
+	fn propose_bounty(d: u32) -> Weight {
 		(43_276_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((1_000 as Weight).saturating_mul(d as Weight))
@@ -95,7 +94,7 @@ impl<T: frame_system::Config> pallet_bounties::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn spend_funds(b: u32, ) -> Weight {
+	fn spend_funds(b: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 14_000
 			.saturating_add((60_142_000 as Weight).saturating_mul(b as Weight))

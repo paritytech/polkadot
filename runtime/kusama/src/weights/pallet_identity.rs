@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/kusama/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -43,14 +42,14 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `pallet_identity`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
-	fn add_registrar(r: u32, ) -> Weight {
+	fn add_registrar(r: u32) -> Weight {
 		(21_339_000 as Weight)
 			// Standard Error: 2_000
 			.saturating_add((236_000 as Weight).saturating_mul(r as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn set_identity(r: u32, x: u32, ) -> Weight {
+	fn set_identity(r: u32, x: u32) -> Weight {
 		(50_839_000 as Weight)
 			// Standard Error: 14_000
 			.saturating_add((223_000 as Weight).saturating_mul(r as Weight))
@@ -59,7 +58,7 @@ impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn set_subs_new(s: u32, ) -> Weight {
+	fn set_subs_new(s: u32) -> Weight {
 		(40_807_000 as Weight)
 			// Standard Error: 1_000
 			.saturating_add((6_374_000 as Weight).saturating_mul(s as Weight))
@@ -68,7 +67,7 @@ impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(s as Weight)))
 	}
-	fn set_subs_old(p: u32, ) -> Weight {
+	fn set_subs_old(p: u32) -> Weight {
 		(40_924_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((2_059_000 as Weight).saturating_mul(p as Weight))
@@ -76,7 +75,7 @@ impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(p as Weight)))
 	}
-	fn clear_identity(r: u32, s: u32, x: u32, ) -> Weight {
+	fn clear_identity(r: u32, s: u32, x: u32) -> Weight {
 		(51_123_000 as Weight)
 			// Standard Error: 7_000
 			.saturating_add((110_000 as Weight).saturating_mul(r as Weight))
@@ -88,7 +87,7 @@ impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(s as Weight)))
 	}
-	fn request_judgement(r: u32, x: u32, ) -> Weight {
+	fn request_judgement(r: u32, x: u32) -> Weight {
 		(53_230_000 as Weight)
 			// Standard Error: 5_000
 			.saturating_add((223_000 as Weight).saturating_mul(r as Weight))
@@ -97,7 +96,7 @@ impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn cancel_request(r: u32, x: u32, ) -> Weight {
+	fn cancel_request(r: u32, x: u32) -> Weight {
 		(48_425_000 as Weight)
 			// Standard Error: 6_000
 			.saturating_add((161_000 as Weight).saturating_mul(r as Weight))
@@ -106,28 +105,28 @@ impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn set_fee(r: u32, ) -> Weight {
+	fn set_fee(r: u32) -> Weight {
 		(8_028_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((202_000 as Weight).saturating_mul(r as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn set_account_id(r: u32, ) -> Weight {
+	fn set_account_id(r: u32) -> Weight {
 		(8_682_000 as Weight)
 			// Standard Error: 1_000
 			.saturating_add((203_000 as Weight).saturating_mul(r as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn set_fields(r: u32, ) -> Weight {
+	fn set_fields(r: u32) -> Weight {
 		(8_010_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((203_000 as Weight).saturating_mul(r as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn provide_judgement(r: u32, x: u32, ) -> Weight {
+	fn provide_judgement(r: u32, x: u32) -> Weight {
 		(34_291_000 as Weight)
 			// Standard Error: 5_000
 			.saturating_add((203_000 as Weight).saturating_mul(r as Weight))
@@ -136,7 +135,7 @@ impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn kill_identity(r: u32, s: u32, x: u32, ) -> Weight {
+	fn kill_identity(r: u32, s: u32, x: u32) -> Weight {
 		(62_644_000 as Weight)
 			// Standard Error: 6_000
 			.saturating_add((111_000 as Weight).saturating_mul(r as Weight))
@@ -148,28 +147,28 @@ impl<T: frame_system::Config> pallet_identity::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(s as Weight)))
 	}
-	fn add_sub(s: u32, ) -> Weight {
+	fn add_sub(s: u32) -> Weight {
 		(54_234_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((154_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn rename_sub(s: u32, ) -> Weight {
+	fn rename_sub(s: u32) -> Weight {
 		(16_622_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((21_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn remove_sub(s: u32, ) -> Weight {
+	fn remove_sub(s: u32) -> Weight {
 		(55_325_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((138_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn quit_sub(s: u32, ) -> Weight {
+	fn quit_sub(s: u32) -> Weight {
 		(34_002_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((138_000 as Weight).saturating_mul(s as Weight))

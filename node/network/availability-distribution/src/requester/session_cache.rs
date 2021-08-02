@@ -34,7 +34,6 @@ use crate::{
 ///
 /// It should be ensured that a cached session stays live in the cache as long as we might need it.
 pub struct SessionCache {
-
 	/// Look up cached sessions by `SessionIndex`.
 	///
 	/// Note: Performance of fetching is really secondary here, but we need to ensure we are going
@@ -110,12 +109,11 @@ impl SessionCache {
 
 		if let Some(o_info) = self.session_info_cache.get(&session_index) {
 			tracing::trace!(target: LOG_TARGET, session_index, "Got session from lru");
-				return Ok(Some(with_info(o_info)));
+			return Ok(Some(with_info(o_info)))
 		}
 
-		if let Some(info) = self
-			.query_info_from_runtime(ctx, runtime, parent, session_index)
-			.await?
+		if let Some(info) =
+			self.query_info_from_runtime(ctx, runtime, parent, session_index).await?
 		{
 			tracing::trace!(target: LOG_TARGET, session_index, "Calling `with_info`");
 			let r = with_info(&info);
@@ -132,7 +130,7 @@ impl SessionCache {
 	/// Not being able to report bad validators is not fatal, so we should not shutdown the
 	/// subsystem on this.
 	pub fn report_bad_log(&mut self, report: BadValidators) {
-		if let Err(err) =  self.report_bad(report) {
+		if let Err(err) = self.report_bad(report) {
 			tracing::warn!(
 				target: LOG_TARGET,
 				err = ?err,
@@ -150,10 +148,9 @@ impl SessionCache {
 			.session_info_cache
 			.get_mut(&report.session_index)
 			.ok_or(NonFatal::NoSuchCachedSession)?;
-		let group = session
-			.validator_groups
-			.get_mut(report.group_index.0 as usize)
-			.expect("A bad validator report must contain a valid group for the reported session. qed.");
+		let group = session.validator_groups.get_mut(report.group_index.0 as usize).expect(
+			"A bad validator report must contain a valid group for the reported session. qed.",
+		);
 		let bad_set = report.bad_validators.iter().collect::<HashSet<_>>();
 
 		// Get rid of bad boys:
@@ -212,12 +209,7 @@ impl SessionCache {
 				})
 				.collect();
 
-			let info = SessionInfo {
-				validator_groups,
-				our_index,
-				session_index,
-				our_group,
-			};
+			let info = SessionInfo { validator_groups, our_index, session_index, our_group };
 			return Ok(Some(info))
 		}
 		return Ok(None)

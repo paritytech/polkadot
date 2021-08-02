@@ -14,16 +14,19 @@
 
 //! Large statement responding background task logic.
 
-use futures::{SinkExt, StreamExt, channel::{mpsc, oneshot}, stream::FuturesUnordered};
+use futures::{
+	channel::{mpsc, oneshot},
+	stream::FuturesUnordered,
+	SinkExt, StreamExt,
+};
 
 use polkadot_node_network_protocol::{
-	PeerId, UnifiedReputationChange as Rep,
 	request_response::{
-		IncomingRequest, MAX_PARALLEL_STATEMENT_REQUESTS, request::OutgoingResponse,
-		v1::{
-			StatementFetchingRequest, StatementFetchingResponse
-		},
+		request::OutgoingResponse,
+		v1::{StatementFetchingRequest, StatementFetchingResponse},
+		IncomingRequest, MAX_PARALLEL_STATEMENT_REQUESTS,
 	},
+	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
 
@@ -38,10 +41,9 @@ pub enum ResponderMessage {
 		requesting_peer: PeerId,
 		relay_parent: Hash,
 		candidate_hash: CandidateHash,
-		tx: oneshot::Sender<CommittedCandidateReceipt>
+		tx: oneshot::Sender<CommittedCandidateReceipt>,
 	},
 }
-
 
 /// A fetching task, taking care of fetching large statements via request/response.
 ///
@@ -74,56 +76,41 @@ pub async fn respond(
 
 		let raw = match receiver.next().await {
 			None => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					"Shutting down request responder"
-				);
+				tracing::debug!(target: LOG_TARGET, "Shutting down request responder");
 				return
-			}
+			},
 			Some(v) => v,
 		};
 
-		let req =
-			match IncomingRequest::<StatementFetchingRequest>::try_from_raw(
-				raw,
-				vec![COST_INVALID_REQUEST],
-			) {
+		let req = match IncomingRequest::<StatementFetchingRequest>::try_from_raw(
+			raw,
+			vec![COST_INVALID_REQUEST],
+		) {
 			Err(err) => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?err,
-					"Decoding request failed"
-				);
+				tracing::debug!(target: LOG_TARGET, ?err, "Decoding request failed");
 				continue
-			}
+			},
 			Ok(payload) => payload,
 		};
 
 		let (tx, rx) = oneshot::channel();
-		if let Err(err) = sender.feed(
-			ResponderMessage::GetData {
+		if let Err(err) = sender
+			.feed(ResponderMessage::GetData {
 				requesting_peer: req.peer,
 				relay_parent: req.payload.relay_parent,
 				candidate_hash: req.payload.candidate_hash,
 				tx,
-			}
-		).await {
-			tracing::debug!(
-				target: LOG_TARGET,
-				?err,
-				"Shutting down responder"
-			);
+			})
+			.await
+		{
+			tracing::debug!(target: LOG_TARGET, ?err, "Shutting down responder");
 			return
 		}
 		let response = match rx.await {
 			Err(err) => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?err,
-					"Requested data not found."
-				);
+				tracing::debug!(target: LOG_TARGET, ?err, "Requested data not found.");
 				Err(())
-			}
+			},
 			Ok(v) => Ok(StatementFetchingResponse::Statement(v)),
 		};
 		let (pending_sent_tx, pending_sent_rx) = oneshot::channel();
@@ -134,10 +121,7 @@ pub async fn respond(
 		};
 		pending_out.push(pending_sent_rx);
 		if let Err(_) = req.send_outgoing_response(response) {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"Sending response failed"
-			);
+			tracing::debug!(target: LOG_TARGET, "Sending response failed");
 		}
 	}
 }
