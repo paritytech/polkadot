@@ -174,7 +174,7 @@ fn polkadot_testnet_genesis(
 		},
 		vesting: runtime::VestingConfig { vesting: vec![] },
 		sudo: runtime::SudoConfig { key: root_key },
-		configuration: runtime::ParachainsConfigurationConfig {
+		configuration: runtime::ConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 10u32,
 				validation_upgrade_delay: 5,
