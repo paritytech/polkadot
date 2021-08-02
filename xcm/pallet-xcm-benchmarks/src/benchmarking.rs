@@ -16,7 +16,7 @@
 
 use crate::*;
 use codec::Encode;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::benchmarks;
 use frame_support::{
 	assert_ok,
 	traits::{fungible::Inspect as FungibleInspect, fungibles::Inspect as FungiblesInspect},
@@ -61,16 +61,20 @@ fn create_holding(
 			.into()
 		})
 		.chain((0..non_fungibles_count).map(|i| {
-			let bytes = i.encode();
-			let mut instance = [0u8; 4];
-			instance.copy_from_slice(&bytes);
 			MultiAsset::ConcreteNonFungible {
 				class: MultiLocation::X1(Junction::GeneralIndex { id: i as u128 }),
-				instance: AssetInstance::Array4(instance),
+				instance: asset_instance_from(i),
 			}
 		}))
 		.collect::<Vec<_>>()
 		.into()
+}
+
+fn asset_instance_from(x: u32) -> AssetInstance {
+	let bytes = x.encode();
+	let mut instance = [0u8; 4];
+	instance.copy_from_slice(&bytes);
+	AssetInstance::Array4(instance)
 }
 
 /// wrapper to execute single order. Can be any hack, for now we just do a noop-xcm with a single
@@ -85,7 +89,7 @@ fn execute_order<T: Config>(
 
 /// Execute an xcm.
 fn execute_xcm<T: Config>(origin: MultiLocation, xcm: Xcm<XcmCallOf<T>>) -> Outcome {
-	ExecutorOf::<T>::execute_xcm(origin, xcm, 999_999) // TODO: what should be the weight be?
+	ExecutorOf::<T>::execute_xcm(origin, xcm, 999_999_999_999) // TODO: very large weight to ensure all benchmarks execute, sensible?
 }
 
 fn account<T: Config>(index: u32) -> T::AccountId {
@@ -102,6 +106,15 @@ fn account_id_junction<T: Config>(index: u32) -> Junction {
 	Junction::AccountId32 { network: NetworkId::Any, id }
 }
 
+// Rationale:
+//
+// Benchmarks ending with _fungible typically indicate the case where there is only one asset in
+// the order/xcm, and it is fungible. Typically, an order/xcm that is being weighed with such a
+// benchmark will have a `asset: Vec<_>` of length one.
+//
+// Benchmarks ending with fungibles_per_asset imply that this benchmark is for the case of a chain
+// with multiple asset types (thus the name `fungibles`). Such a benchmark will still only work
+// with one asset, and it is meant to be summed
 benchmarks! {
 	where_clause { where
 		T::XcmConfig: xcm_executor::Config<Call = OverArchingCallOf<T>>,
@@ -138,63 +151,64 @@ benchmarks! {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	}
 
-	order_deposit_asset_fungible_per_asset {
-		let amount_balance = T::FungibleTransactAsset::minimum_balance() * 4u32.into();
-		let amount: u128 = amount_balance.try_into().unwrap();
-
-		// This is the asset that we want to get from the holding and deposit, which should exist
-		// among the assets that `create_holding` is generating
-		let asset_multi_location = MultiLocation::Null;
-		let asset = MultiAsset::ConcreteFungible { id: MultiLocation::Null , amount };
-
-		let order = Order::<OverArchingCallOf<T>>::DepositAsset {
-			assets: vec![asset.clone()],
-			dest: MultiLocation::X1(account_id_junction::<T>(77)),
-		};
+	order_deposit_asset_fungible {
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let (holding, order) = if let Some((asset, amount)) = T::fungible_asset(1) {
+			let order = Order::<OverArchingCallOf<T>>::DepositAsset {
+				assets: vec![asset.clone()],
+				dest: MultiLocation::X1(account_id_junction::<T>(77)),
+			};
 
-		// generate the holding with a bunch of stuff..
-		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
-		// .. and the specific asset that we want to take out.
-		holding.saturating_subsume(asset);
+			// generate the holding with a bunch of stuff..
+			let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+			// .. and the specific asset that we want to take out.
+			holding.saturating_subsume(asset);
+			assert!(T::FungibleTransactAsset::balance(&account::<T>(77)).is_zero());
+
+			(holding, order)
+		} else {
+			// just put some mock values in there.
+			(Default::default(), Order::<OverArchingCallOf<T>>::Null)
+		};
 	}: {
-		assert_ok!(execute_order::<T>(origin, holding, order));
+		if T::fungible_asset(1).is_some() {
+			assert_ok!(execute_order::<T>(origin, holding, order));
+		}
 	} verify {
-		assert_eq!(
-			T::FungibleTransactAsset::balance(&account::<T>(77)),
-			amount_balance
-		)
+		if T::fungible_asset(1).is_some() {
+			assert!(!T::FungibleTransactAsset::balance(&account::<T>(77)).is_zero())
+		}
 	}
+
 	order_deposit_asset_fungibles_per_asset {
 		// create one asset with our desired id.
-		let asset_id = HOLDING_FUNGIBLES / 2;
-		let amount_balance = T::FungiblesTransactAsset::minimum_balance(asset_id.into()) * 4u32.into();
-		let amount: u128 = amount_balance.try_into().unwrap();
-		// assert!(!amount.is_zero(), "amount should never be zero");
-		// TODO: we should try and command here the asset to be created, but that's kinda non-trivial.
-
-		let asset = MultiAsset::ConcreteFungible {
-			id: MultiLocation::X1(Junction::GeneralIndex { id: 0u128 }),
-			amount,
-		};
-		let order = Order::<OverArchingCallOf<T>>::DepositAsset {
-			assets: vec![ asset ],
-			dest: MultiLocation::X1(account_id_junction::<T>(77)),
-		};
+		let asset_id = 9;
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
-		let holding: Assets = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+
+		let (holding, order) = if let Some((asset, amount)) = T::fungibles_asset(1, asset_id) {
+			let order = Order::<OverArchingCallOf<T>>::DepositAsset {
+				assets: vec![ asset.clone() ],
+				dest: MultiLocation::X1(account_id_junction::<T>(2)),
+			};
+			let mut holding: Assets = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+			holding.saturating_subsume(asset);
+			assert!(T::FungibleTransactAsset::balance(&account::<T>(2)).is_zero());
+
+			(holding, order)
+		} else {
+			(Default::default(), Order::<OverArchingCallOf<T>>::Null)
+		};
 	}: {
-		assert_ok!(execute_order::<T>(origin, holding, order));
+		if T::fungibles_asset(1, asset_id).is_some() {
+			assert_ok!(execute_order::<T>(origin, holding, order));
+		}
 	} verify {
-		assert_eq!(
-			T::FungiblesTransactAsset::balance(asset_id.into(), &account::<T>(77)),
-			T::FungiblesTransactAsset::minimum_balance(asset_id.into()) * 4u32.into(),
-		)
+		if T::fungibles_asset(1, asset_id).is_some() {
+			assert!(!T::FungiblesTransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero())
+		}
 	}
 
-	order_deposit_reserved_asset_fungible {
-
-	}: {} verify {}
+	order_deposit_reserved_asset_fungible {}: {} verify {}
 	order_deposit_reserved_asset_fungibles {}: {} verify {}
 
 	order_exchange_asset_fungible {}: {} verify {}
@@ -212,61 +226,131 @@ benchmarks! {
 	order_buy_execution_fungible {}: {} verify {}
 	order_buy_execution_fungibles {}: {} verify {}
 
-	// base XCM messages.
-	xcm_withdraw_asset {}: {} verify {}
+
+	// Xcm::WithdrawAsset notes: There are two components to this benchmark:
+	// 1. based on the asset type, the complexity of withdraw could be different.
+	// 2. based on the length of the assets being withdraw, the complexity of insertion into the
+	//    holding increases per operation.
+	//
+	// The worse case of the latter is if all assets are of one type (fungible, or non-fungible),
+	// since that will incur the maximum insertion cost.
+	//
+	// The former entirely depends on the asset type.
+	xcm_withdraw_asset_fungible {
+		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
+		let xcm = if T::fungibles_asset(0, 0).is_some() {
+			let (asset, _) = T::fungible_asset(1).unwrap();
+			<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+			// check one of the assets of origin.
+			assert!(!T::FungibleTransactAsset::balance(&account::<T>(1)).is_zero());
+			Xcm::WithdrawAsset::<OverArchingCallOf<T>> { assets: vec![asset], effects: vec![] }
+		} else {
+			Xcm::TransferAsset { assets: Default::default(), dest: origin.clone() }
+		};
+	}: {
+		if T::fungible_asset(0).is_some() {
+			assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		}
+	} verify {
+		if T::fungible_asset(0).is_some() {
+			// check one of the assets of origin.
+			assert!(T::FungibleTransactAsset::balance(&account::<T>(1)).is_zero());
+		}
+	}
+	xcm_withdraw_asset_fungibles {
+		// number of fungible assets, regardless of `fungible`
+		let a in 0..MAX_ASSETS;
+		// number of non-fungible assets.
+		let b in 0..0; // TODO: make this work.
+
+		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
+		let xcm = if T::fungibles_asset(0, 0).is_some() {
+			let assets = (1..=a).map(|i| {
+				let (asset, _) = T::fungibles_asset(i, i).unwrap();
+				<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+				asset
+			})
+			.chain((0..b).map(|i| unreachable!()))
+			.collect::<Vec<_>>();
+
+			if a > 0 {
+				// check one of the assets of origin.
+				assert!(!T::FungiblesTransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
+			}
+
+			Xcm::WithdrawAsset::<OverArchingCallOf<T>> { assets, effects: vec![] }
+		} else {
+			Xcm::TransferAsset { assets: Default::default(), dest: origin.clone() }
+		};
+	}: {
+		if T::fungibles_asset(0, 0).is_some() {
+			assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		}
+	} verify {
+		if T::fungibles_asset(0, 0).is_some() {
+			// check one of the assets of origin. All assets must have been withdrawn.
+			assert!(T::FungiblesTransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
+		}
+	}
+
 	xcm_reserve_asset_deposit {}: {} verify {}
 	xcm_teleport_asset {}: {} verify {}
 	xcm_query_response {}: {} verify {}
 	xcm_transfer_asset_fungible {
-		let amount_balance = T::FungibleTransactAsset::minimum_balance() * 4u32.into();
-		let amount: u128 = amount_balance.try_into().unwrap();
-
 		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
-		let asset = MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount };
-		<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+		let dest = account_id_junction::<T>(2).into();
 
-		let dest = (account_id_junction::<T>(2)).into();
-		let assets = vec![ asset ];
-		let xcm = Xcm::TransferAsset { assets, dest };
+		let xcm = if let Some((asset, amount)) = T::fungible_asset(1) {
+			<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+			let assets = vec![ asset ];
+			assert!(T::FungibleTransactAsset::balance(&account::<T>(2)).is_zero());
+			Xcm::TransferAsset { assets, dest }
+		} else {
+			Xcm::TransferAsset { assets: Default::default(), dest }
+		};
 	}: {
-		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		if T::fungible_asset(1).is_some() {
+			assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		}
 	} verify {
-		assert_eq!(
-			T::FungibleTransactAsset::balance(&account::<T>(2)),
-			amount_balance,
-		)
+		if T::fungible_asset(1).is_some() {
+			assert!(!T::FungibleTransactAsset::balance(&account::<T>(2)).is_zero());
+		}
 	}
-	xcm_transfer_asset_fungibles {
-		let a in 1..MAX_ASSETS;
-		// TODO: incorporate Gav's note on the fact that the type of asset in the holding will affect the worse
-		// case.
+	xcm_transfer_asset_fungibles_per_asset {
 		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
-
-		let assets = (0..a).map(|_| {
-			let amount_balance = T::FungiblesTransactAsset::minimum_balance(a.into()) * 4u32.into();
-			let amount: u128 = amount_balance.try_into().unwrap();
-			MultiAsset::ConcreteFungible {
-				id: MultiLocation::X1(Junction::GeneralIndex { id: a as u128 }),
-				amount,
-			}
-		}).collect::<Vec<_>>();
-
 		let dest = (account_id_junction::<T>(2)).into();
-		let xcm = Xcm::TransferAsset { assets, dest };
+		let asset_id = 9;
+
+		let xcm = if let Some((asset, amount)) = T::fungibles_asset(1, asset_id) {
+			// Note that we deposit a new asset with twice the amount into the sender to prevent it
+			// being dying.
+			<AssetTransactorOf<T>>::deposit_asset(
+				&T::fungibles_asset(2, asset_id)
+					.expect("call to fungibles_asset has already returned `Some`, this must work")
+					.0,
+				&origin
+			).unwrap();
+
+			assert!(T::FungiblesTransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
+			assert!(!T::FungiblesTransactAsset::balance(asset_id.into(), &account::<T>(1)).is_zero());
+
+			Xcm::TransferAsset { assets: vec![asset], dest }
+		} else {
+			Xcm::TransferAsset { assets: Default::default(), dest }
+		};
 	}: {
-		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		if T::fungibles_asset(0, 0).is_some() {
+			assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		}
 	} verify {
-		for asset_id in 0..a {
-			assert_eq!(
-				T::FungiblesTransactAsset::balance(asset_id.into(), &account::<T>(2)),
-				T::FungiblesTransactAsset::minimum_balance(asset_id.into()) * 4u32.into(),
-			)
+		if T::fungibles_asset(0, 0).is_some() {
+			assert!(!T::FungiblesTransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
 		}
 	}
 
 	xcm_transfer_reserved_asset_fungible {}: {} verify {}
 	xcm_transfer_reserved_asset_fungibles {}: {} verify {}
-	xcm_transfer_reserved_asset_fungible_non {}: {} verify {}
 
 	xcm_transact {}: {} verify {}
 	xcm_hrmp_channel_open_request {}: {} verify {}
@@ -280,29 +364,53 @@ mod benchmark_tests {
 	use super::*;
 
 	#[test]
-	fn order_deposit_asset_fungible_per_asset() {
+	fn order_deposit_asset_fungible() {
 		crate::mock_fungible::new_test_ext().execute_with(|| {
-			test_benchmark_order_deposit_asset_fungible_per_asset::<crate::mock_fungible::Test>();
+			test_bench_by_name::<crate::mock_fungible::Test>(b"order_deposit_asset_fungible")
+				.unwrap();
 		})
 	}
 
 	#[test]
 	fn order_deposit_asset_fungibles_per_asset() {
 		crate::mock_fungibles::new_test_ext().execute_with(|| {
-			test_benchmark_order_deposit_asset_fungibles_per_asset::<crate::mock_fungibles::Test>();
+			test_bench_by_name::<crate::mock_fungibles::Test>(
+				b"order_deposit_asset_fungibles_per_asset",
+			)
+			.unwrap();
 		})
 	}
 
 	#[test]
 	fn xcm_transfer_asset_fungible() {
 		crate::mock_fungible::new_test_ext().execute_with(|| {
-			test_benchmark_xcm_transfer_asset_fungible::<crate::mock_fungible::Test>();
+			test_bench_by_name::<crate::mock_fungible::Test>(b"xcm_transfer_asset_fungible")
+				.unwrap();
 		})
 	}
 	#[test]
-	fn xcm_transfer_asset_fungibles() {
+	fn xcm_transfer_asset_fungibles_per_asset() {
 		crate::mock_fungibles::new_test_ext().execute_with(|| {
-			test_benchmark_xcm_transfer_asset_fungibles::<crate::mock_fungibles::Test>();
+			test_bench_by_name::<crate::mock_fungibles::Test>(
+				b"xcm_transfer_asset_fungibles_per_asset",
+			)
+			.unwrap();
+		})
+	}
+
+	#[test]
+	fn xcm_withdraw_asset_fungible() {
+		crate::mock_fungible::new_test_ext().execute_with(|| {
+			test_bench_by_name::<crate::mock_fungible::Test>(b"xcm_withdraw_asset_fungible")
+				.unwrap();
+		})
+	}
+
+	#[test]
+	fn xcm_withdraw_asset_fungibles() {
+		crate::mock_fungibles::new_test_ext().execute_with(|| {
+			test_bench_by_name::<crate::mock_fungibles::Test>(b"xcm_withdraw_asset_fungibles")
+				.unwrap();
 		})
 	}
 }

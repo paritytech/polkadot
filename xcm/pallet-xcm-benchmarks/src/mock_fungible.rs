@@ -17,16 +17,15 @@
 //! A mock runtime for xcm benchmarking.
 
 use crate as pallet_xcm_benchmarks;
-use crate::{mock_shared::*, *};
-use frame_support::{parameter_types, traits::Contains, weights::Weight};
+use crate::mock_shared::*;
+use frame_support::parameter_types;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
-use xcm::opaque::v0::{prelude::XcmResult, Junction, MultiAsset, MultiLocation, Response, Xcm};
-use xcm_executor::AssetId;
+use xcm::opaque::v0::{MultiAsset, MultiLocation};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -104,7 +103,6 @@ impl xcm_executor::traits::MatchesFungible<u64> for MatchAnyFungible {
 	fn matches_fungible(m: &MultiAsset) -> Option<u64> {
 		use sp_runtime::traits::SaturatedConversion;
 		match m {
-			// TODO:
 			MultiAsset::ConcreteFungible { amount, .. } => Some((*amount).saturated_into::<u64>()),
 			_ => None,
 		}
@@ -141,6 +139,13 @@ impl xcm_executor::Config for XcmConfig {
 
 impl pallet_xcm_benchmarks::Config for Test {
 	type XcmConfig = XcmConfig;
+
+	fn fungible_asset(amount: u32) -> Option<(MultiAsset, u128)> {
+		let amount = <Balances as frame_support::traits::fungible::Inspect<u64>>::minimum_balance()
+			as u128 * amount as u128;
+		Some((MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount }, amount))
+	}
+
 	type FungibleTransactAsset = Balances;
 	type FungiblesTransactAsset = crate::AsFungibles<u64, u32, Balances>;
 }

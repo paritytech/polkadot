@@ -18,7 +18,6 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::Codec;
 pub use pallet::*;
 use xcm::v0::MultiAsset;
 
@@ -35,6 +34,8 @@ pub mod weights;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use crate::MultiAsset;
+
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The XCM configurations.
@@ -43,9 +44,22 @@ pub mod pallet {
 		/// `TransactAsset` is implemented.
 		type XcmConfig: xcm_executor::Config;
 
+		/// Give me a fungible asset that your asset transactor is going to accept. Give me none if
+		/// you don't really want to support this type of asset.
+		///
+		/// A fungible asset always has an amount, return that too.
+		fn fungible_asset(_amount: u32) -> Option<(MultiAsset, u128)> {
+			None
+		}
+		/// Same as `fungible_asset`, but for an asset of multiple instances.
+		fn fungibles_asset(_amount: u32, _id: u32) -> Option<(MultiAsset, u128)> {
+			None
+		}
+
 		type FungibleTransactAsset: frame_support::traits::fungible::Inspect<Self::AccountId>;
 		type FungiblesTransactAsset: frame_support::traits::fungibles::Inspect<Self::AccountId>;
-		// type NonFungiblesTransactAsset: frame_support::traits::fungibles::Inspect<Self::AccountId>;
+		// type NonFungibleTransactAsset: traits::tokens::nonfungible::Inspect<Self::AccountId>;
+		// type NonFungiblesTransactAsset: traits::tokens::nonfungibles::Inspect<Self::AccountId>;
 	}
 
 	// transact asset that works with balances and asset
@@ -60,9 +74,9 @@ pub mod pallet {
 // With this, we measure all weights per asset, so NONE of the benchmarks need to have a component
 // that is the number of assets, that's pretty pointless. You need to iterate the `Vec<MultiAsset>`
 // down the road
-enum AssetWeightType {
+enum AssetTransactorType {
 	Fungible,    // Balances
-	Fungibles,   // assets,
+	Fungibles,   // Assets,
 	NonFungible, // Uniques
 }
 

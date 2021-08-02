@@ -18,15 +18,17 @@
 
 use crate as pallet_xcm_benchmarks;
 use crate::{mock_shared::*, *};
-use frame_support::{parameter_types, traits::Contains, weights::Weight};
+use frame_support::{parameter_types, traits::Contains};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup},
+	traits::{BlakeTwo256, IdentityLookup, Zero},
 	BuildStorage,
 };
-use xcm::opaque::v0::{prelude::XcmResult, Junction, MultiAsset, MultiLocation, Response, Xcm};
-use xcm_executor::AssetId;
+use xcm::{
+	opaque::v0::{MultiAsset, MultiLocation},
+	v0::Junction,
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -50,6 +52,7 @@ parameter_types! {
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(1024);
 }
+
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::AllowAll;
 	type BlockWeights = ();
@@ -129,13 +132,10 @@ impl xcm_executor::traits::MatchesFungibles<u32, u64> for MatchAnyFungibles {
 		//                                                     ^^ TODO: this error is too out of scope.
 		use sp_runtime::traits::SaturatedConversion;
 		match m {
-			// TODO:
-			MultiAsset::ConcreteFungible { amount, .. } => Ok(
-				(
-					0,
-					(*amount).saturated_into::<u64>(),
-				)
-			),
+			MultiAsset::ConcreteFungible {
+				amount,
+				id: MultiLocation::X1(Junction::GeneralIndex { id }),
+			} => Ok(((*id).saturated_into(), (*amount).saturated_into::<u64>())),
 			_ => Err(xcm_executor::traits::Error::AssetNotFound),
 		}
 	}
@@ -169,8 +169,29 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = DevNull;
 }
 
+use frame_support::traits::fungibles::Inspect;
 impl pallet_xcm_benchmarks::Config for Test {
 	type XcmConfig = XcmConfig;
+
+	fn fungibles_asset(amount: u32, id: u32) -> Option<(MultiAsset, u128)> {
+		// create this asset, if it does not exists.
+		if <Assets as Inspect<u64>>::minimum_balance(id).is_zero() {
+			assert!(!ExistentialDeposit::get().is_zero());
+			let root = frame_system::RawOrigin::Root.into();
+			assert!(Assets::force_create(root, id, 777, true, ExistentialDeposit::get(),).is_ok());
+			assert!(!<Assets as Inspect<u64>>::minimum_balance(id).is_zero());
+		}
+
+		let amount = <Assets as Inspect<u64>>::minimum_balance(id) as u128 * amount as u128;
+		Some((
+			MultiAsset::ConcreteFungible {
+				id: MultiLocation::X1(Junction::GeneralIndex { id: id.into() }),
+				amount,
+			},
+			amount,
+		))
+	}
+
 	type FungibleTransactAsset = Balances;
 	type FungiblesTransactAsset = Assets;
 }

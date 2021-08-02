@@ -14,17 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate as pallet_xcm_benchmarks;
 use crate::*;
-use frame_support::{parameter_types, traits::Contains, weights::Weight};
-use sp_core::H256;
-use sp_runtime::{
-	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage,
-};
-use xcm::opaque::v0::{prelude::XcmResult, Junction, MultiAsset, MultiLocation, Response, Xcm};
-use xcm_executor::AssetId;
+use frame_support::{parameter_types, weights::Weight};
+use xcm::opaque::v0::{prelude::XcmResult, Junction, MultiLocation, Response, Xcm};
 
 pub struct YesItShould<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> xcm_executor::traits::ShouldExecute for YesItShould<T> {

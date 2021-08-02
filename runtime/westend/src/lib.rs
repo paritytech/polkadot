@@ -1452,14 +1452,23 @@ sp_api::impl_runtime_apis! {
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 
-			use frame_support::traits::fungible::Inspect as FungibleInspect;
-			use frame_support::traits::fungibles::Inspect as FungiblesInspect;
-			use frame_support::traits::tokens::{DepositConsequence, WithdrawConsequence};
+			use pallet_xcm_benchmarks::AsFungibles;
+			use xcm::v0::MultiAsset;
 
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type FungibleTransactAsset = Balances;
-				type FungiblesTransactAsset = AsFungibles<Balances>;
+
+				fn fungible_asset(amount: u32) -> Option<(MultiAsset, u128)> {
+					let amount: Balance = amount.into();
+					let amount = ExistentialDeposit::get() * amount;
+					Some((MultiAsset::ConcreteFungible { id: WndLocation::get(), amount }, amount))
+				}
+
+				// We pass in this adapter for the fungibles stuff, so our weights for fungibles
+				// will be quite similar to fungible, understandably. We don't need these weights
+				// anyways, westend does not have or use fungibles..
+				type FungiblesTransactAsset = AsFungibles<AccountId, u32, Balances>;
 			}
 			type XcmPalletBenchmarks= pallet_xcm_benchmarks::Pallet::<Runtime>;
 
