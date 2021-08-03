@@ -14,10 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{
-	assert_ok,
-	weights::Weight,
-};
+use frame_support::weights::Weight;
 
 use sp_runtime::traits::AccountIdConversion;
 
@@ -26,12 +23,14 @@ use polkadot_parachain::primitives::Id as ParaId;
 
 use xcm::opaque::v0::prelude::*;
 use xcm::opaque::v0::{Response};
-use xcm::v0::{Junction, MultiLocation::*, Order};
+use xcm::v0::{MultiLocation::*, Order};
 use xcm_executor::XcmExecutor;
 
 use crate::mock;
 
-use crate::integration_mock::{AccountId, Balances, BaseXcmWeight, ExistentialDeposit, kusama_like_with_balances, Origin, XcmConfig, XcmPallet};
+use crate::integration_mock::{
+	AccountId, Balances, BaseXcmWeight, ExistentialDeposit, kusama_like_with_balances, XcmConfig
+};
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
 pub const PARA_ID: u32 = 2000;
@@ -167,6 +166,9 @@ fn query_holding_works() {
 /// A parachain wants to move KSM from Kusama to Statemine.
 /// It withdraws funds and then teleports them to the destination.
 ///
+/// This way of moving funds from a relay to a parachain will only work for trusted chains.
+/// Reserve based transfer should be used to move KSM to a community parachain.
+///
 /// Asserts that the balances are updated accordingly and the correct XCM is sent.
 #[test]
 fn teleport_to_statemine_works() {
@@ -177,8 +179,8 @@ fn teleport_to_statemine_works() {
 		let statemine_id = 1000;
 		let amount =  10 * ExistentialDeposit::get();
 		let teleport_effects = vec![
-			buy_execution(0),
-			Order::DepositAsset { assets: vec![All], dest: Parachain(PARA_ID).into() },
+			buy_execution(5), // unchecked mock value
+			Order::DepositAsset { assets: vec![All], dest: X2(Parent, Parachain(PARA_ID)) },
 		];
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
@@ -205,6 +207,55 @@ fn teleport_to_statemine_works() {
 				Xcm::TeleportAsset {
 					assets: vec![ConcreteFungible { id: Parent.into(), amount }],
 					effects: teleport_effects,
+				}
+			)]
+		);
+	});
+}
+
+/// Scenario:
+/// A parachain wants to move KSM from Kusama to the parachain.
+/// It withdraws funds and then deposits them into the reserve account of the destination chain.
+/// to the destination.
+///
+/// Asserts that the balances are updated accordingly and the correct XCM is sent.
+#[test]
+fn reserve_based_transfer_works() {
+	use xcm::opaque::v0::prelude::*;
+	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
+	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
+	kusama_like_with_balances(balances).execute_with(|| {
+		let other_para_id = 3000;
+		let amount =  10 * ExistentialDeposit::get();
+		let transfer_effects = vec![
+			buy_execution(5), // unchecked mock value
+			Order::DepositAsset { assets: vec![All], dest: X2(Parent, Parachain(PARA_ID)) },
+		];
+		let weight = 3 * BaseXcmWeight::get();
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			Parachain(PARA_ID).into(),
+			Xcm::WithdrawAsset {
+				assets: vec![ConcreteFungible { id: Null, amount }],
+				effects: vec![
+					buy_execution(weight),
+					Order::DepositReserveAsset {
+						assets: vec![All],
+						dest: Parachain(other_para_id).into(),
+						effects: transfer_effects.clone(),
+					},
+				],
+			},
+			weight,
+		);
+		assert_eq!(r, Outcome::Complete(weight));
+		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
+		assert_eq!(
+			mock::sent_xcm(),
+			vec![(
+				Parachain(other_para_id).into(),
+				Xcm::ReserveAssetDeposit {
+					assets: vec![ConcreteFungible { id: Parent.into(), amount }],
+					effects: transfer_effects,
 				}
 			)]
 		);
