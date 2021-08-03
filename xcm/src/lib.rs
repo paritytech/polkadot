@@ -32,7 +32,9 @@ pub mod v1;
 mod double_encoded;
 pub use double_encoded::DoubleEncoded;
 
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Unsupported {}
+impl Encode for Unsupported {}
 impl Decode for Unsupported {
 	fn decode<I: Input>(_: &mut I) -> Result<Self, CodecError> {
 		Err("Not decodable".into())
@@ -51,7 +53,7 @@ pub enum VersionedXcm<Call> {
 
 impl<Call> From<v1::Xcm<Call>> for VersionedXcm<Call> {
 	fn from(x: v1::Xcm<Call>) -> Self {
-		VersionedXcm::V0(x)
+		VersionedXcm::V1(x)
 	}
 }
 
@@ -68,9 +70,9 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v1::Xcm<Call> {
 pub mod opaque {
 	pub mod v1 {
 		// Everything from v0
-		pub use crate::v0::*;
+		pub use crate::v1::*;
 		// Then override with the opaque types in v0
-		pub use crate::v0::opaque::{Order, Xcm};
+		pub use crate::v1::opaque::{Order, Xcm};
 	}
 
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.

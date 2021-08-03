@@ -16,9 +16,9 @@
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
-use crate::{DoubleEncoded, VersionedXcm};
+use crate::DoubleEncoded;
 use alloc::vec::Vec;
-use core::{convert::TryFrom, fmt::Debug, result};
+use core::fmt::Debug;
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
