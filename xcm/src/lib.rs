@@ -23,9 +23,9 @@
 #![no_std]
 extern crate alloc;
 
-use core::{result::Result, convert::TryFrom};
+use core::{convert::TryFrom, result::Result};
 use derivative::Derivative;
-use parity_scale_codec::{Decode, Encode, Input, Error as CodecError};
+use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
 pub mod v1;
 

@@ -23,17 +23,17 @@ use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
 mod junction;
-mod multilocation;
 pub mod multiasset;
+mod multilocation;
 mod order;
 mod traits; // the new multiasset.
 
 pub use junction::{BodyId, BodyPart, Junction, NetworkId};
-pub use multilocation::MultiLocation;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
 };
+pub use multilocation::MultiLocation;
 pub use order::Order;
 pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
@@ -45,7 +45,6 @@ pub mod prelude {
 			Junction::*,
 			NetworkId::{self, *},
 		},
-		multilocation::MultiLocation::{self, *},
 		multiasset::{
 			AssetId::{self, *},
 			AssetInstance::{self, *},
@@ -56,6 +55,7 @@ pub mod prelude {
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
 		},
+		multilocation::MultiLocation::{self, *},
 		opaque,
 		order::Order::{self, *},
 		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
