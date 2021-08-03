@@ -21,7 +21,11 @@ use crate::{
 };
 use codec::Encode;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
-use frame_support::{assert_ok, traits::fungibles::Inspect, weights::Weight};
+use frame_support::{
+	assert_ok,
+	traits::fungibles::{Inspect, Mutate},
+	weights::Weight,
+};
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
 use xcm::{
@@ -114,26 +118,34 @@ benchmarks! {
 	xcm_reserve_asset_deposit {}: {} verify {}
 	xcm_teleport_asset {}: {} verify {}
 	xcm_transfer_asset_per_asset {
+		let a in 1..MAX_ASSETS+1;
+
 		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
 		let dest = (account_id_junction::<T>(2)).into();
-		let asset_id = 9;
 
-		let asset = T::get_multi_asset(asset_id);
-		// Note that we deposit a new asset with twice the amount into the sender to prevent it
-		// being dying.
-		<AssetTransactorOf<T>>::deposit_asset(
-			&T::get_multi_asset(asset_id), // TODO: @shawntabrizi this won't work now. We need amount.
-			&origin
-		).unwrap();
+		let assets = (1..a).map(|asset_id| {
+			let asset = T::get_multi_asset(asset_id);
+			// Note that we deposit a new asset with twice the amount into the sender to prevent it
+			// being dying.
+			let amount = T::TransactAsset::minimum_balance(asset_id.into()) * 2u32.into();
+			assert_ok!(T::TransactAsset::mint_into(asset_id.into(), &account::<T>(1), amount));
 
-		assert!(T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
-		assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(1)).is_zero());
+			// verify accounts funded
+			assert!(T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
+			assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(1)).is_zero());
 
-		let xcm = Xcm::TransferAsset { assets: vec![asset], dest };
+			// return asset
+			asset
+		})
+		.collect::<Vec<_>>();
+
+		let xcm = Xcm::TransferAsset { assets, dest };
 	}: {
 		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
 	} verify {
-		assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
+		for asset_id in 1..a {
+			assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
+		}
 	}
 	xcm_transfer_reserved_asset {}: {} verify {}
 }
