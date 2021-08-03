@@ -187,7 +187,7 @@ pub mod mock_msg_queue {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		// XCMP
-		/// Some XCM was executed ok.
+		/// Some XCM was executed OK.
 		Success(Option<T::Hash>),
 		/// Some XCM failed.
 		Fail(Option<T::Hash>, XcmError),
