@@ -18,6 +18,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(test)]
+mod mock;
+#[cfg(test)]
+mod tests;
+
 use codec::{Decode, Encode};
 use frame_support::traits::{Contains, EnsureOrigin, Filter, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
