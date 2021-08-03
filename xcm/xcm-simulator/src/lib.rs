@@ -39,13 +39,20 @@ pub trait TestExt {
 	fn new_ext() -> sp_io::TestExternalities;
 	/// Resets the state of the test environment.
 	fn reset_ext();
-	/// Execute some code in the context of the test externalities, with manual
-	/// message processing which requires calling `process_messages()`.
+	/// Execute code in the context of the test externalities, without automatic
+	/// message processing. All messages in the message buses can be processed
+	/// by calling `Self::process_all_messages()`.
 	fn execute_without_auto_dispatch<R>(execute: impl FnOnce() -> R) -> R;
+	/// Process all messages in the message buses
+	fn process_all_messages();
 	/// Execute some code in the context of the test externalities, with
-	/// automatic processing of messages.
+	/// automatic message processing.
 	/// Messages are dispatched once the passed closure completes.
-	fn execute_with<R>(execute: impl FnOnce() -> R) -> R;
+	fn execute_with<R>(execute: impl FnOnce() -> R) -> R {
+		let result = Self::execute_without_auto_dispatch(execute);
+		Self::process_all_messages();
+		result
+	}
 }
 
 pub enum MessageKind {
@@ -172,14 +179,12 @@ macro_rules! __impl_ext {
 				$ext_name.with(|v| v.borrow_mut().execute_with(execute))
 			}
 
-			fn execute_with<R>(execute: impl FnOnce() -> R) -> R {
-				let result = $ext_name.with(|v| v.borrow_mut().execute_with(execute));
+			fn process_all_messages() {
 				while exists_messages_in_any_bus() {
 					if let Err(xcm_error) = process_messages() {
 						panic!("Message processing failure: {:?}", xcm_error);
 					}
 				}
-				result
 			}
 		}
 	};
