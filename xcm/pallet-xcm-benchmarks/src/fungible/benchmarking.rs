@@ -15,21 +15,40 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{account_id_junction, execute_order, execute_xcm, OverArchingCallOf, XcmCallOf};
+use crate::{
+	account, account_id_junction, create_holding, execute_order, execute_xcm, AssetTransactorOf,
+	OverArchingCallOf, XcmCallOf,
+};
 use codec::Encode;
-use frame_benchmarking::benchmarks_instance_pallet;
-use frame_support::assert_ok;
+use frame_benchmarking::{benchmarks_instance_pallet, impl_benchmark_test_suite};
+use frame_support::{assert_ok, instances::Instance1, traits::fungible::Inspect};
+use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
-use xcm::{opaque::v0::MultiLocation, v0::Order};
+use xcm::{
+	opaque::v0::MultiLocation,
+	v0::{Order, Xcm},
+};
 use xcm_executor::{traits::TransactAsset, Assets};
 
 // TODO: def. needs to be become a config, might also want to use bounded vec.
 const MAX_ASSETS: u32 = 25;
+
 /// The number of fungible assets in the holding.
 const HOLDING_FUNGIBLES: u32 = 99;
 const HOLDING_NON_FUNGIBLES: u32 = 99;
 
 benchmarks_instance_pallet! {
+	where_clause { where
+		<
+			<
+				T::TransactAsset
+				as
+				Inspect<T::AccountId>
+			>::Balance
+			as
+			TryInto<u128>
+		>::Error: sp_std::fmt::Debug,
+	}
 	send_xcm {}: {}
 
 	order_null {
@@ -39,7 +58,29 @@ benchmarks_instance_pallet! {
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	}
-	order_deposit_asset {}: {} verify {}
+
+	order_deposit_asset {
+		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let asset = T::get_multi_asset();
+		let order = Order::<XcmCallOf<T>>::DepositAsset {
+			assets: vec![asset.clone()],
+			dest: MultiLocation::X1(account_id_junction::<T>(77)),
+		};
+
+		let amount: u128 = T::TransactAsset::minimum_balance().try_into().unwrap();
+		// generate the holding with a bunch of stuff..
+		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+		// .. and the specific asset that we want to take out.
+		holding.saturating_subsume(asset);
+		// our dest must have no balance initially.
+		assert!(T::TransactAsset::balance(&account::<T>(77)).is_zero());
+	}: {
+		assert_ok!(execute_order::<T>(origin, holding, order));
+	} verify {
+		// sender should have received some asset.
+		assert!(!T::TransactAsset::balance(&account::<T>(77)).is_zero())
+	}
+
 	order_deposit_reserved_asset {}: {} verify {}
 	order_exchange_asset {}: {} verify {}
 	order_initiate_reserve_withdraw {}: {} verify {}
@@ -47,10 +88,50 @@ benchmarks_instance_pallet! {
 	order_query_holding {}: {} verify {}
 	order_buy_execution {}: {} verify {}
 
-	xcm_withdraw_asset {}: {} verify {}
+	xcm_withdraw_asset {
+		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
+		let asset = T::get_multi_asset();
+		<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+
+		// TODO that this is sum-optimal. We should ideally populate the holding account, but we
+		// can't, nor does it make sense. Insertion of assets into holding gets worse over time (log
+		// of n), and we can't really capture this yet. We could still make a wrapper for
+		// execute_xcm and hack around this. It will be like
+		//
+		// `fn execute_xcm_with_holding(xcm, holding)`
+		//
+		// and it will execute the xcm, assuming that the holding was already set. This only makes
+		// sense by our assumption of xcm's being weighed by each of their asset. If you have 3
+		// assets, while benchmarking the third, you artificially set some values into the holding,
+		// which reflect the state of the holding after executing the previous two xcms.
+
+		// check the assets of origin.
+		assert!(!T::TransactAsset::balance(&account::<T>(1)).is_zero());
+		// TODO: probably we can and should just use the opaque xcm/order types.
+		let xcm = Xcm::WithdrawAsset::<XcmCallOf<T>> { assets: vec![asset], effects: vec![] };
+	}: {
+		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+	} verify {
+		// check one of the assets of origin.
+		assert!(T::TransactAsset::balance(&account::<T>(1)).is_zero());
+	}
 	xcm_reserve_asset_deposit {}: {} verify {}
 	xcm_teleport_asset {}: {} verify {}
-	xcm_transfer_asset {}: {} verify {}
+	xcm_transfer_asset {
+		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
+		let dest = account_id_junction::<T>(2).into();
+
+		let asset = T::get_multi_asset();
+		<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+		let assets = vec![ asset ];
+		assert!(T::TransactAsset::balance(&account::<T>(2)).is_zero());
+		let xcm = Xcm::TransferAsset { assets, dest };
+	}: {
+		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+	} verify {
+		assert!(!T::TransactAsset::balance(&account::<T>(2)).is_zero());
+	}
+
 	xcm_transfer_reserved_asset {}: {} verify {}
 
 	// xcm_query_response {}: {} verify {}
@@ -61,15 +142,9 @@ benchmarks_instance_pallet! {
 	// xcm_relayed_from {}: {} verify {}
 }
 
-#[cfg(test)]
-mod benchmark_tests {
-	use super::mock::{new_test_ext, Test};
-	use super::*;
-
-	#[test]
-	fn order_deposit_asset_fungible() {
-		new_test_ext().execute_with(|| {
-			test_bench_by_name::<Test>(b"order_null").unwrap();
-		})
-	}
-}
+// TODO: this macro cannot be called alone, fix it in substrate.
+impl_benchmark_test_suite!(
+	Pallet,
+	crate::fungible::mock::new_test_ext(),
+	crate::fungible::mock::Test
+);

@@ -1,17 +1,22 @@
 mod pallet_balances;
 mod xcm_generic;
 
+use pallet_assets::WeightInfo as PalletAssets;
 use pallet_balances::WeightInfo as PalletBalances;
+
 use xcm_generic::WeightInfo as XcmGeneric;
 
 pub enum AssetTypes {
 	Balances,
+	Assets,
+	Unknown,
 }
 
 impl From<MultiAsset> for AssetTypes {
 	fn from(asset: MultiAsset) -> Self {
-		match self {
-			_ => Balances,
+		match asset {
+			ConcreteFungible => Balances,
+			_ => Assets,
 		}
 	}
 }
@@ -25,9 +30,11 @@ impl XcmWeightInfo for WestendXcmWeight {
 		XcmGeneric::order_null()
 	}
 	fn order_deposit_asset(assets: Vec<MultiAsset>, dest: MultiLocation) -> Weight {
-		assets.iter().map(|asset| asset.into()).map(|asset_type| match asset_type {
-			AssetType::Balances => PalletBalances::order_deposit_asset(),
-		})
+		// assets.weight()
+		// assets.iter().map(|asset| asset.into()).map(|asset_type| match asset_type {
+		// 	AssetType::Balances => PalletBalances::order_deposit_asset(),
+		// 	AssetType::Assets => PalletAsset::order_deposit_asset()
+		// })
 	}
 	fn order_deposit_reserved_asset(
 		assets: Vec<MultiAsset>,

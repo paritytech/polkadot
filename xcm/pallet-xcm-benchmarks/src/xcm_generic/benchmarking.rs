@@ -17,7 +17,7 @@
 use super::*;
 use crate::{account_id_junction, execute_order, execute_xcm, OverArchingCallOf, XcmCallOf};
 use codec::Encode;
-use frame_benchmarking::benchmarks;
+use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::{assert_ok, traits::fungible::Inspect as FungibleInspect, weights::Weight};
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
@@ -36,24 +36,6 @@ const HOLDING_NON_FUNGIBLES: u32 = 99;
 
 benchmarks! {
 	send_xcm {}: {}
-
-	// orders.
-	order_null {
-		let order = Order::<XcmCallOf<T>>::Null;
-		let origin = MultiLocation::X1(account_id_junction::<T>(1));
-		let holding = Assets::default();
-	}: {
-		assert_ok!(execute_order::<T>(origin, holding, order));
-	}
-
-	order_deposit_asset {}: {} verify {}
-	order_deposit_reserved_asset {}: {} verify {}
-	order_exchange_asset {}: {} verify {}
-	order_initiate_reserve_withdraw {}: {} verify {}
-	order_initiate_teleport {}: {} verify {}
-	order_query_holding {}: {} verify {}
-	order_buy_execution {}: {} verify {}
-
 	xcm_withdraw_asset {}: {} verify {}
 	xcm_reserve_asset_deposit {}: {} verify {}
 	xcm_teleport_asset {}: {} verify {}
@@ -61,15 +43,8 @@ benchmarks! {
 	xcm_transfer_reserved_asset {}: {} verify {}
 }
 
-#[cfg(test)]
-mod benchmark_tests {
-	use super::mock::{new_test_ext, Test};
-	use super::*;
-
-	#[test]
-	fn order_deposit_asset_fungible() {
-		new_test_ext().execute_with(|| {
-			test_bench_by_name::<Test>(b"order_null").unwrap();
-		})
-	}
-}
+impl_benchmark_test_suite!(
+	Pallet,
+	crate::xcm_generic::mock::new_test_ext(),
+	crate::xcm_generic::mock::Test
+);

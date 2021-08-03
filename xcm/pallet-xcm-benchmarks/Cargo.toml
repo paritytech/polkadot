@@ -16,8 +16,8 @@ sp-std = { version = "4.0.0-dev", default-features = false, branch = "master", g
 xcm-executor = { path = "../xcm-executor", default-features = false }
 
 # Benchmarks dependencies.
-frame-benchmarking = { version = "4.0.0-dev", default-features = false, optional = true, branch = "master", git = "https://github.com/paritytech/substrate" }
-xcm = { path = "..", default-features = false, optional = true }
+frame-benchmarking = { version = "4.0.0-dev", default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
+xcm = { path = "..", default-features = false, features = ["runtime-benchmarks"] }
 
 [dev-dependencies]
 pallet-balances = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
@@ -38,8 +38,4 @@ std = [
 	"frame-system/std",
 	"sp-runtime/std",
 	"sp-std/std"
-]
-runtime-benchmarks = [
-	"frame-benchmarking",
-	"xcm/runtime-benchmarks"
 ]

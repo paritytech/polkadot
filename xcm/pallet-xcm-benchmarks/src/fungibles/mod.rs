@@ -9,7 +9,7 @@ pub mod pallet {
 	use crate::MultiAsset;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + crate::Config {
+	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
 		/// The type of `fungibles` that is being used under the hood.
 		///
 		/// This is useful for testing and checking.
@@ -20,6 +20,5 @@ pub mod pallet {
 	}
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
+	pub struct Pallet<T, I = ()>(_);
 }

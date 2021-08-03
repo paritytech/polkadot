@@ -7,9 +7,8 @@ mod mock;
 #[frame_support::pallet]
 pub mod pallet {
 	#[pallet::config]
-	pub trait Config: frame_system::Config + crate::Config {}
+	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {}
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
+	pub struct Pallet<T, I = ()>(_);
 }

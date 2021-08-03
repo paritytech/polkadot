@@ -15,10 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{account_id_junction, execute_order, execute_xcm, OverArchingCallOf, XcmCallOf};
+use crate::{
+	account, account_id_junction, create_holding, execute_order, execute_xcm, AssetTransactorOf,
+	OverArchingCallOf, XcmCallOf,
+};
 use codec::Encode;
-use frame_benchmarking::benchmarks;
-use frame_support::{assert_ok, traits::fungible::Inspect as FungibleInspect, weights::Weight};
+use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_support::{assert_ok, traits::fungibles::Inspect, weights::Weight};
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
 use xcm::{
@@ -35,6 +38,19 @@ const HOLDING_FUNGIBLES: u32 = 99;
 const HOLDING_NON_FUNGIBLES: u32 = 99;
 
 benchmarks! {
+	where_clause {
+		where <T::TransactAsset as Inspect<T::AccountId>>::AssetId: From<u32>,
+		<
+			<
+				T::TransactAsset
+				as
+				Inspect<T::AccountId>
+			>::Balance
+			as
+			TryInto<u128>
+		>::Error: sp_std::fmt::Debug,
+	}
+
 	send_xcm {}: {}
 
 	// orders.
@@ -46,7 +62,27 @@ benchmarks! {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	}
 
-	order_deposit_asset {}: {} verify {}
+	order_deposit_asset_per_asset {
+		// create one asset with our desired id.
+		let asset_id = 9;
+		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+
+		let asset =  T::get_multi_asset(asset_id);
+		let order = Order::<XcmCallOf<T>>::DepositAsset {
+			assets: vec![ asset.clone() ],
+			dest: MultiLocation::X1(account_id_junction::<T>(2)),
+		};
+
+		let amount: u128 = T::TransactAsset::minimum_balance(asset_id.into()).try_into().unwrap();
+		let mut holding: Assets = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+		holding.saturating_subsume(asset);
+		assert!(T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
+	}: {
+		assert_ok!(execute_order::<T>(origin, holding, order));
+	} verify {
+		assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero())
+	}
+
 	order_deposit_reserved_asset {}: {} verify {}
 	order_exchange_asset {}: {} verify {}
 	order_initiate_reserve_withdraw {}: {} verify {}
@@ -54,22 +90,56 @@ benchmarks! {
 	order_query_holding {}: {} verify {}
 	order_buy_execution {}: {} verify {}
 
-	xcm_withdraw_asset {}: {} verify {}
+	xcm_withdraw_asset_per_asset {
+		// number of fungible assets.
+		let a in 1..MAX_ASSETS+1;
+
+		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
+		let assets = (1..=a).map(|i| {
+			let asset = T::get_multi_asset(i);
+			// give all of these assets to the origin.
+			<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+			asset
+		})
+		.collect::<Vec<_>>();
+		// check just one of the asset ids, namely 1.
+		assert!(!T::TransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
+		let xcm = Xcm::WithdrawAsset::<XcmCallOf<T>> { assets, effects: vec![] };
+	}: {
+		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+	} verify {
+		// check one of the assets of origin. All assets must have been withdrawn.
+		assert!(T::TransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
+	}
 	xcm_reserve_asset_deposit {}: {} verify {}
 	xcm_teleport_asset {}: {} verify {}
-	xcm_transfer_asset {}: {} verify {}
+	xcm_transfer_asset_per_asset {
+		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
+		let dest = (account_id_junction::<T>(2)).into();
+		let asset_id = 9;
+
+		let asset = T::get_multi_asset(asset_id);
+		// Note that we deposit a new asset with twice the amount into the sender to prevent it
+		// being dying.
+		<AssetTransactorOf<T>>::deposit_asset(
+			&T::get_multi_asset(asset_id), // TODO: @shawntabrizi this won't work now. We need amount.
+			&origin
+		).unwrap();
+
+		assert!(T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
+		assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(1)).is_zero());
+
+		let xcm = Xcm::TransferAsset { assets: vec![asset], dest };
+	}: {
+		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+	} verify {
+		assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
+	}
 	xcm_transfer_reserved_asset {}: {} verify {}
 }
 
-#[cfg(test)]
-mod benchmark_tests {
-	use super::mock::{new_test_ext, Test};
-	use super::*;
-
-	#[test]
-	fn order_deposit_asset_fungible() {
-		new_test_ext().execute_with(|| {
-			test_bench_by_name::<Test>(b"order_null").unwrap();
-		})
-	}
-}
+impl_benchmark_test_suite!(
+	Pallet,
+	crate::fungibles::mock::new_test_ext(),
+	crate::fungibles::mock::Test
+);
