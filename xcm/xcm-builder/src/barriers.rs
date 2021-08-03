@@ -44,7 +44,8 @@ impl ShouldExecute for TakeWeightCredit {
 /// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking payments into
 /// account.
 ///
-/// Only allows for asset-based XCMs.
+/// Only allows for `TeleportAsset`, `WithdrawAsset` and `ReserveAssetDeposit` XCMs because they are the only ones
+/// that place assets in holding to pay for execution.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(
