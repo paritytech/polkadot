@@ -306,10 +306,6 @@ impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset
 		WildMultiAsset::AllOf { fun: fun.into(), id: id.into() }
 	}
 }
-
-
-
-
 /// `MultiAsset` collection, either `MultiAssets` or a single wildcard.
 /// 
 /// Note: Vectors of wildcards whose encoding is supported in XCM v0 are unsupported
