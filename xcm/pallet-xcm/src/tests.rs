@@ -22,8 +22,11 @@ use xcm::{
 	v0::{Junction, Xcm},
 };
 
+/// Test sending an `XCM` message (`XCM::ReserveAssetDeposit`)
+///
+/// Asserts that the expected message is sent and the event is emitted
 #[test]
-fn send_reserve_asset_deposit_works() {
+fn send_works() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
@@ -53,6 +56,10 @@ fn send_reserve_asset_deposit_works() {
 	});
 }
 
+/// Test that sending an `XCM` message fails when the `XcmRouter` blocks the
+/// matching message format
+///
+/// Asserts that `send` fails with `Error::SendFailure`
 #[test]
 fn send_fails_when_xcm_router_blocks() {
 	let balances =
@@ -72,7 +79,16 @@ fn send_fails_when_xcm_router_blocks() {
 		assert_noop!(
 			XcmPallet::send(
 				Origin::signed(ALICE),
-				X3(Junction::Parent, Junction::Parent, Junction::Parent),
+				X8(
+					Junction::Parent,
+					Junction::Parent,
+					Junction::Parent,
+					Junction::Parent,
+					Junction::Parent,
+					Junction::Parent,
+					Junction::Parent,
+					Junction::Parent
+				),
 				message.clone()
 			),
 			crate::Error::<Test>::SendFailure
@@ -80,6 +96,10 @@ fn send_fails_when_xcm_router_blocks() {
 	});
 }
 
+/// Test `teleport_assets`
+///
+/// Asserts that the sender's balance is decreased as a result of execution of
+/// local effects.
 #[test]
 fn teleport_assets_works() {
 	let balances =
@@ -91,7 +111,7 @@ fn teleport_assets_works() {
 		assert_ok!(XcmPallet::teleport_assets(
 			Origin::signed(ALICE),
 			RelayLocation::get(),
-			RelayLocation::get(),
+			MultiLocation::X1(Junction::AccountId32 { network: NetworkId::Any, id: BOB.into() }),
 			vec![ConcreteFungible { id: MultiLocation::Null, amount }],
 			weight,
 		));
@@ -103,6 +123,10 @@ fn teleport_assets_works() {
 	});
 }
 
+/// Test `reserve_transfer_assets`
+///
+/// Asserts that the sender's balance is decreased and the beneficiary's balance
+/// is increased. Verifies the correct message is sent and event is emitted.
 #[test]
 fn reserve_transfer_assets_works() {
 	let balances =
@@ -142,36 +166,30 @@ fn reserve_transfer_assets_works() {
 	});
 }
 
+/// Test local execution of XCM
+///
+/// Asserts that the sender's balance is decreased and the beneficiary's balance
+/// is increased. Verifies the expected event is emitted.
 #[test]
-fn execute_withdraw_to_teleport_works() {
+fn execute_withdraw_to_deposit_works() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let amount = 10 * ExistentialDeposit::get();
 		let weight = 3 * BaseXcmWeight::get();
 		let dest: MultiLocation =
-			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
-		let teleport_effects = vec![
-			buy_execution(0),
-			Order::DepositAsset { assets: vec![All], dest: Parachain(PARA_ID).into() },
-		];
+			Junction::AccountId32 { network: NetworkId::Any, id: BOB.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
 			Box::new(Xcm::WithdrawAsset {
 				assets: vec![ConcreteFungible { id: MultiLocation::Null, amount }],
-				effects: vec![
-					buy_execution(weight),
-					Order::InitiateTeleport {
-						assets: vec![All],
-						dest,
-						effects: teleport_effects.clone(),
-					},
-				],
+				effects: vec![buy_execution(weight), DepositAsset { assets: vec![All], dest }],
 			}),
 			weight
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - amount);
+		assert_eq!(Balances::total_balance(&BOB), amount);
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))

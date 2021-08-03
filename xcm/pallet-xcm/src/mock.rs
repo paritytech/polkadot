@@ -71,11 +71,11 @@ impl SendXcm for TestSendXcm {
 		Ok(())
 	}
 }
-/// Sender that returns error if `X3` junction and stops routing
-pub struct TestSendXcmErr;
-impl SendXcm for TestSendXcmErr {
+/// Sender that returns error if `X8` junction and stops routing
+pub struct TestSendXcmErrX8;
+impl SendXcm for TestSendXcmErrX8 {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
-		if let MultiLocation::X3(..) = dest {
+		if let MultiLocation::X8(..) = dest {
 			Err(XcmError::Undefined)
 		} else {
 			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
@@ -179,7 +179,7 @@ pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwo
 impl pallet_xcm::Config for Test {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmRouter = (TestSendXcmErr, TestSendXcm);
+	type XcmRouter = (TestSendXcmErrX8, TestSendXcm);
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmExecuteFilter = All<(MultiLocation, xcm::v0::Xcm<Call>)>;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
@@ -191,6 +191,7 @@ impl pallet_xcm::Config for Test {
 impl origin::Config for Test {}
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
+pub const BOB: AccountId = AccountId::new([1u8; 32]);
 pub const PARA_ID: u32 = 2000;
 pub const INITIAL_BALANCE: u128 = 100_000_000_000;
 
@@ -208,9 +209,7 @@ pub(crate) fn new_test_ext_with_balances(
 ) -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
-	pallet_balances::GenesisConfig::<Test> { balances }
-		.assimilate_storage(&mut t)
-		.unwrap();
+	pallet_balances::GenesisConfig::<Test> { balances }.assimilate_storage(&mut t).unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
