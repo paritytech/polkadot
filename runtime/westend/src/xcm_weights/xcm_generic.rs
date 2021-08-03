@@ -8,6 +8,12 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	pub fn order_null() -> Weight {
 		10
 	}
+	pub fn order_query_holding() -> Weight {
+		10
+	}
+	pub fn order_buy_execution() -> Weight {
+		10
+	}
 	pub fn xcm_transact() -> Weight {
 		10
 	}
