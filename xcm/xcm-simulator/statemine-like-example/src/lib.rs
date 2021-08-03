@@ -260,7 +260,7 @@ mod tests {
 		let ksm_amount = 1 * kusama_like::UNITS;
 
 		let asset_id = 1;
-		// setup asset ownwership:
+		// setup asset ownership:
 		// Karura owns both native and asset tokens in its sovereign account on Statemine.
 		StatemineLike::execute_with(|| {
 			assert_ok!(StatemineAssets::force_create(
