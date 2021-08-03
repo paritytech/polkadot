@@ -196,7 +196,7 @@ macro_rules! decl_test_network {
 				use $crate::{UmpSink, XcmpMessageHandlerT};
 
 				match destination.interior() {
-					Null if destination.parent_count() == 1 => {
+					$crate::Junctions::Null if destination.parent_count() == 1 => {
 						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
 						let _ = <$relay_chain>::process_upward_message(
 							T::get(), &encoded[..],
