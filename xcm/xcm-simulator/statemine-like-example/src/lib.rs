@@ -21,10 +21,8 @@ mod statemine_like;
 
 use sp_runtime::AccountId32;
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain};
-use polkadot_parachain::primitives::{Id as ParaId, Sibling};
+use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
-use xcm_builder::SiblingParachainConvertsVia;
-use xcm_executor::traits::Convert;
 
 pub const ALICE: AccountId32 = AccountId32::new([42u8; 32]);
 pub const INITIAL_BALANCE: u128 = 1_000_000_000;
@@ -185,6 +183,9 @@ mod tests {
 	};
 	use xcm::opaque::v0::prelude::*;
 	use xcm_simulator::TestExt;
+	use polkadot_parachain::primitives::Sibling;
+	use xcm_builder::SiblingParachainConvertsVia;
+	use xcm_executor::traits::Convert;
 
 	// Construct a `BuyExecution` order.
 	fn buy_execution<C>(debt: Weight) -> Order<C> {
