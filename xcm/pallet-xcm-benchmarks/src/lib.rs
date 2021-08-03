@@ -27,15 +27,16 @@ use frame_support::{
 		tokens::{DepositConsequence, WithdrawConsequence},
 	},
 };
+use sp_std::prelude::*;
 use xcm::v0::{
 	AssetInstance, Error as XcmError, ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId,
 	Order, Outcome, Xcm,
 };
 use xcm_executor::Assets;
 
-mod fungible;
-mod fungibles;
-mod xcm_generic;
+pub mod fungible;
+pub mod fungibles;
+pub mod xcm_generic;
 
 #[cfg(test)]
 mod mock;

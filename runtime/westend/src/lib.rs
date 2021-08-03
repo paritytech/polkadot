@@ -1504,25 +1504,20 @@ sp_api::impl_runtime_apis! {
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 
-			use pallet_xcm_benchmarks::AsFungibles;
 			use xcm::v0::MultiAsset;
 
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
-				type FungibleTransactAsset = Balances;
-
-				fn fungible_asset(amount: u32) -> Option<(MultiAsset, u128)> {
-					let amount: Balance = amount.into();
-					let amount = ExistentialDeposit::get() * amount;
-					Some((MultiAsset::ConcreteFungible { id: WndLocation::get(), amount }, amount))
-				}
-
-				// We pass in this adapter for the fungibles stuff, so our weights for fungibles
-				// will be quite similar to fungible, understandably. We don't need these weights
-				// anyways, westend does not have or use fungibles..
-				type FungiblesTransactAsset = AsFungibles<AccountId, u32, Balances>;
 			}
-			type XcmPalletBenchmarks= pallet_xcm_benchmarks::Pallet::<Runtime>;
+
+			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
+				type TransactAsset = Balances;
+
+				fn get_multi_asset() -> MultiAsset {
+					MultiAsset::ConcreteFungible { id: WndLocation::get(), amount: 0 }
+				}
+			}
+			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -1549,6 +1544,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_common::crowdloan, Crowdloan);
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
 			add_benchmark!(params, batches, runtime_common::slots, Slots);
+
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
@@ -1565,7 +1561,9 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
-			add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmPalletBenchmarks);
+
+			// XCM Benchmarks
+			add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmBalances);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

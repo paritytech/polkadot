@@ -4,7 +4,7 @@ mod xcm_generic;
 use frame_support::weights::Weight;
 use xcm_balances::WeightInfo as XcmBalancesWeight;
 
-use crate::Runtime;
+use crate::{Runtime, WndLocation};
 use sp_std::prelude::*;
 use xcm::{
 	v0::{MultiAsset, MultiLocation, Order, OriginKind, Response, Xcm, XcmWeightInfo},
@@ -19,8 +19,9 @@ pub enum AssetTypes {
 
 impl From<&MultiAsset> for AssetTypes {
 	fn from(asset: &MultiAsset) -> Self {
+		let WND_LOCATION = WndLocation::get();
 		match asset {
-			MultiAsset::ConcreteFungible { .. } => AssetTypes::Balances,
+			MultiAsset::ConcreteFungible { id: WND_LOCATION, .. } => AssetTypes::Balances,
 			_ => AssetTypes::Unknown,
 		}
 	}
