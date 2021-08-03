@@ -190,11 +190,6 @@ impl pallet_xcm::Config for Test {
 
 impl origin::Config for Test {}
 
-pub const ALICE: AccountId = AccountId::new([0u8; 32]);
-pub const BOB: AccountId = AccountId::new([1u8; 32]);
-pub const PARA_ID: u32 = 2000;
-pub const INITIAL_BALANCE: u128 = 100_000_000_000;
-
 pub(crate) fn last_event() -> Event {
 	System::events().pop().expect("Event expected").event
 }
