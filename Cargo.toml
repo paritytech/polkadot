@@ -39,6 +39,8 @@ members = [
 	"xcm",
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
+	"xcm/xcm-simulator",
+	"xcm/xcm-simulator/example",
 	"xcm/pallet-xcm",
 	"node/client",
 	"node/collation-generation",

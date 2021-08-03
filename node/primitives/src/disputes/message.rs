@@ -23,7 +23,9 @@ use thiserror::Error;
 
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_primitives::v1::{CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidatorIndex};
+use polkadot_primitives::v1::{
+	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidatorIndex,
+};
 
 use super::{InvalidDisputeVote, SignedDisputeStatement, ValidDisputeVote};
 
@@ -92,7 +94,6 @@ pub enum Error {
 }
 
 impl DisputeMessage {
-
 	/// Build a `SignedDisputeMessage` and check what can be checked.
 	///
 	/// This function checks that:
@@ -156,16 +157,12 @@ impl DisputeMessage {
 
 		let valid_kind = match valid_statement.statement() {
 			DisputeStatement::Valid(v) => v,
-			_ => {
-				return Err(Error::ValidStatementHasInvalidKind)
-			}
+			_ => return Err(Error::ValidStatementHasInvalidKind),
 		};
 
 		let invalid_kind = match invalid_statement.statement() {
 			DisputeStatement::Invalid(v) => v,
-			_ => {
-				return Err(Error::InvalidStatementHasValidKind)
-			}
+			_ => return Err(Error::InvalidStatementHasValidKind),
 		};
 
 		let valid_vote = ValidDisputeVote {
@@ -211,46 +208,51 @@ impl DisputeMessage {
 
 impl UncheckedDisputeMessage {
 	/// Try to recover the two signed dispute votes from an `UncheckedDisputeMessage`.
-	pub fn try_into_signed_votes(self, session_info: &SessionInfo)
-		-> Result<(CandidateReceipt, (SignedDisputeStatement, ValidatorIndex), (SignedDisputeStatement, ValidatorIndex)), ()>
-	{
-		let Self {
-			candidate_receipt,
-			session_index,
-			valid_vote,
-			invalid_vote,
-		} = self;
+	pub fn try_into_signed_votes(
+		self,
+		session_info: &SessionInfo,
+	) -> Result<
+		(
+			CandidateReceipt,
+			(SignedDisputeStatement, ValidatorIndex),
+			(SignedDisputeStatement, ValidatorIndex),
+		),
+		(),
+	> {
+		let Self { candidate_receipt, session_index, valid_vote, invalid_vote } = self;
 		let candidate_hash = candidate_receipt.hash();
 
 		let vote_valid = {
-			let ValidDisputeVote {
-				validator_index,
-				signature,
-				kind,
-			} = valid_vote;
-			let validator_public = session_info.validators.get(validator_index.0 as usize).ok_or(())?.clone();
+			let ValidDisputeVote { validator_index, signature, kind } = valid_vote;
+			let validator_public =
+				session_info.validators.get(validator_index.0 as usize).ok_or(())?.clone();
 
 			(
 				SignedDisputeStatement::new_checked(
-					DisputeStatement::Valid(kind), candidate_hash, session_index, validator_public, signature
+					DisputeStatement::Valid(kind),
+					candidate_hash,
+					session_index,
+					validator_public,
+					signature,
 				)?,
-				validator_index
+				validator_index,
 			)
 		};
 
 		let vote_invalid = {
-			let InvalidDisputeVote {
-				validator_index,
-				signature,
-				kind,
-			} = invalid_vote;
-			let validator_public = session_info.validators.get(validator_index.0 as usize).ok_or(())?.clone();
+			let InvalidDisputeVote { validator_index, signature, kind } = invalid_vote;
+			let validator_public =
+				session_info.validators.get(validator_index.0 as usize).ok_or(())?.clone();
 
 			(
 				SignedDisputeStatement::new_checked(
-					DisputeStatement::Invalid(kind), candidate_hash, session_index, validator_public, signature
+					DisputeStatement::Invalid(kind),
+					candidate_hash,
+					session_index,
+					validator_public,
+					signature,
 				)?,
-				validator_index
+				validator_index,
 			)
 		};
 

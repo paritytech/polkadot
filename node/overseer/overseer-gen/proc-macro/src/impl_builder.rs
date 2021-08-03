@@ -80,10 +80,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 	let consumes = &info.consumes();
 
-	let subsyste_ctx_name = Ident::new(
-		&(overseer_name.to_string() + "SubsystemContext"),
-		overseer_name.span()
-	);
+	let subsyste_ctx_name =
+		Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
 
 	let builder_where_clause = quote! {
 		where
