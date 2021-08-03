@@ -80,7 +80,7 @@ use polkadot_parachain::primitives::Id as ParaId;
 
 use constants::{currency::*, fee::*, time::*};
 use frame_support::traits::InstanceFilter;
-use xcm::v0::prelude::*;
+use xcm::v1::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, BackingToPlurality, ChildParachainAsNative, ChildParachainConvertsVia,
 	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,

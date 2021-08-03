@@ -100,7 +100,7 @@ mod tests {
 
 	use codec::Encode;
 	use frame_support::assert_ok;
-	use xcm::v0::{
+	use xcm::v1::{
 		Junction::{self, Parachain, Parent},
 		MultiAsset::*,
 		MultiLocation::*,

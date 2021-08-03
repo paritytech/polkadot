@@ -21,7 +21,7 @@ use frame_support::{
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
 use sp_std::{convert::TryInto, marker::PhantomData, result::Result};
-use xcm::v0::{AssetId, AssetId::Concrete, Error, MultiAsset, MultiLocation, Order, Xcm};
+use xcm::v1::{AssetId, AssetId::Concrete, Error, MultiAsset, MultiLocation, Order, Xcm};
 use xcm_executor::{
 	traits::{WeightBounds, WeightTrader},
 	Assets,

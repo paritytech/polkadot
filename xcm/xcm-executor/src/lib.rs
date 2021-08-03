@@ -22,7 +22,7 @@ use frame_support::{
 	weights::GetDispatchInfo,
 };
 use sp_std::{marker::PhantomData, prelude::*};
-use xcm::v0::{
+use xcm::v1::{
 	Error as XcmError, ExecuteXcm, MultiAssets, MultiLocation, Order, Outcome, Response, SendXcm,
 	Xcm,
 };

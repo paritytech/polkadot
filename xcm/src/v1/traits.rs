@@ -184,7 +184,7 @@ impl<C> ExecuteXcm<C> for () {
 ///
 /// # Example
 /// ```rust
-/// # use xcm::v0::{MultiLocation, Xcm, Junction, Error, OriginKind, SendXcm, Result};
+/// # use xcm::v1::{MultiLocation, Xcm, Junction, Error, OriginKind, SendXcm, Result};
 /// # use parity_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.

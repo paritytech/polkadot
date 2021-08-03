@@ -16,7 +16,7 @@
 
 use crate::Assets;
 use sp_std::result::Result;
-use xcm::v0::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult};
+use xcm::v1::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult};
 
 /// Facility for asset transacting.
 ///

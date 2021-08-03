@@ -27,7 +27,7 @@ use sp_std::{
 	marker::PhantomData,
 	prelude::*,
 };
-use xcm::v0::Outcome;
+use xcm::v1::Outcome;
 
 pub use pallet::*;
 
@@ -78,7 +78,7 @@ pub type MessageId = [u8; 32];
 /// and will be forwarded to the XCM Executor.
 pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
 
-impl<XcmExecutor: xcm::v0::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
+impl<XcmExecutor: xcm::v1::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
 	fn process_upward_message(
 		origin: ParaId,
 		data: &[u8],

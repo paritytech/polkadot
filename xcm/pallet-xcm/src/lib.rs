@@ -27,7 +27,7 @@ use codec::{Decode, Encode};
 use frame_support::traits::{Contains, EnsureOrigin, Filter, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
 use sp_std::{boxed::Box, convert::TryInto, marker::PhantomData, prelude::*, vec};
-use xcm::v0::prelude::*;
+use xcm::v1::prelude::*;
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -82,7 +82,7 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		Attempted(xcm::v0::Outcome),
+		Attempted(xcm::v1::Outcome),
 		Sent(MultiLocation, MultiLocation, Xcm<()>),
 	}
 

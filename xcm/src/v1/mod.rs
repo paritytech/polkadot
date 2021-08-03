@@ -23,13 +23,13 @@ use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
 mod junction;
-mod multi_location;
+mod multilocation;
 pub mod multiasset;
 mod order;
 mod traits; // the new multiasset.
 
 pub use junction::{BodyId, BodyPart, Junction, NetworkId};
-pub use multi_location::MultiLocation;
+pub use multilocation::MultiLocation;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
@@ -45,7 +45,7 @@ pub mod prelude {
 			Junction::*,
 			NetworkId::{self, *},
 		},
-		multi_location::MultiLocation::{self, *},
+		multilocation::MultiLocation::{self, *},
 		multiasset::{
 			AssetId::{self, *},
 			AssetInstance::{self, *},
@@ -288,21 +288,6 @@ pub enum Xcm<Call> {
 	/// Errors:
 	#[codec(index = 10)]
 	RelayedFrom { who: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
-}
-
-impl<Call> From<Xcm<Call>> for VersionedXcm<Call> {
-	fn from(x: Xcm<Call>) -> Self {
-		VersionedXcm::V0(x)
-	}
-}
-
-impl<Call> TryFrom<VersionedXcm<Call>> for Xcm<Call> {
-	type Error = ();
-	fn try_from(x: VersionedXcm<Call>) -> result::Result<Self, ()> {
-		match x {
-			VersionedXcm::V0(x) => Ok(x),
-		}
-	}
 }
 
 impl<Call> Xcm<Call> {

@@ -75,7 +75,7 @@ use sp_staking::SessionIndex;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
-use xcm::v0::prelude::*;
+use xcm::v1::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	BackingToPlurality, ChildParachainAsNative, ChildParachainConvertsVia,
