@@ -17,21 +17,27 @@
 use super::*;
 use crate::{account_id_junction, execute_order, execute_xcm, OverArchingCallOf, XcmCallOf};
 use codec::Encode;
-use frame_benchmarking::benchmarks_instance_pallet;
-use frame_support::assert_ok;
+use frame_benchmarking::benchmarks;
+use frame_support::{assert_ok, traits::fungible::Inspect as FungibleInspect, weights::Weight};
+use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
-use xcm::{opaque::v0::MultiLocation, v0::Order};
+use xcm::{
+	opaque::v0::{AssetInstance, ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId},
+	v0::{Error as XcmError, Order, Outcome, Xcm},
+};
 use xcm_executor::{traits::TransactAsset, Assets};
 
 // TODO: def. needs to be become a config, might also want to use bounded vec.
 const MAX_ASSETS: u32 = 25;
+
 /// The number of fungible assets in the holding.
 const HOLDING_FUNGIBLES: u32 = 99;
 const HOLDING_NON_FUNGIBLES: u32 = 99;
 
-benchmarks_instance_pallet! {
+benchmarks! {
 	send_xcm {}: {}
 
+	// orders.
 	order_null {
 		let order = Order::<XcmCallOf<T>>::Null;
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
@@ -39,6 +45,7 @@ benchmarks_instance_pallet! {
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	}
+
 	order_deposit_asset {}: {} verify {}
 	order_deposit_reserved_asset {}: {} verify {}
 	order_exchange_asset {}: {} verify {}
@@ -52,13 +59,6 @@ benchmarks_instance_pallet! {
 	xcm_teleport_asset {}: {} verify {}
 	xcm_transfer_asset {}: {} verify {}
 	xcm_transfer_reserved_asset {}: {} verify {}
-
-	// xcm_query_response {}: {} verify {}
-	// xcm_transact {}: {} verify {}
-	// xcm_hrmp_channel_open_request {}: {} verify {}
-	// xcm_hrmp_channel_accepted {}: {} verify {}
-	// xcm_hrmp_channel_closing {}: {} verify {}
-	// xcm_relayed_from {}: {} verify {}
 }
 
 #[cfg(test)]

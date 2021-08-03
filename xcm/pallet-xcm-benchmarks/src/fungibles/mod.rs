@@ -1,33 +1,23 @@
 pub use pallet::*;
 
+pub mod benchmarking;
 #[cfg(test)]
 mod mock;
-// pub mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::MultiAsset;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		/// The XCM configurations.
-		///
-		/// These might affect the execution of XCM messages, such as defining how the
-		/// `TransactAsset` is implemented.
-		type XcmConfig: xcm_executor::Config;
-
+	pub trait Config: frame_system::Config + crate::Config {
 		/// The type of `fungibles` that is being used under the hood.
 		///
 		/// This is useful for testing and checking.
 		type TransactAsset: frame_support::traits::fungibles::Mutate<Self::AccountId>;
 
 		/// Give me a `fungibles` multi-asset that your asset transactor is going to accept.
-		fn get_multi_asset() -> MultiAsset;
+		fn get_multi_asset(id: u32) -> MultiAsset;
 	}
-
-	// transact asset that works with balances and asset
-	//
-	// transact asset that works with 3 assets
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]

@@ -18,31 +18,48 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use xcm::v0::MultiAsset;
+use codec::Encode;
+use frame_support::{
+	dispatch::Weight,
+	traits::{
+		fungible::Inspect as FungibleInspect,
+		fungibles::Inspect as FungiblesInspect,
+		tokens::{DepositConsequence, WithdrawConsequence},
+	},
+};
+use xcm::v0::{
+	AssetInstance, Error as XcmError, ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId,
+	Order, Outcome, Xcm,
+};
+use xcm_executor::Assets;
 
 mod fungible;
 mod fungibles;
+mod xcm_generic;
 
 #[cfg(test)]
 mod mock;
 
-use frame_support::{dispatch::Weight, traits::{
-	fungible::Inspect as FungibleInspect,
-	fungibles::Inspect as FungiblesInspect,
-	tokens::{DepositConsequence, WithdrawConsequence},
-}};
-
-/// The xcm executor to use for doing stuff.
-pub type ExecutorOf<T> = xcm_executor::XcmExecutor<<T as crate::Config>::XcmConfig>;
-/// The asset transactor of our executor
-pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::AssetTransactor;
-/// The overarching call type.
-pub type OverArchingCallOf<T> = <T as frame_system::Config>::Call;
-/// The call type of executor's config. Should eventually resolve to the same overarching call type.
-pub type XcmCallOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::Call;
+/// A base trait for all individual pallets
+pub trait Config {
+	/// The XCM configurations.
+	///
+	/// These might affect the execution of XCM messages, such as defining how the
+	/// `TransactAsset` is implemented.
+	type XcmConfig: xcm_executor::Config;
+}
 
 const SEED: u32 = 0;
 const MAX_WEIGHT: Weight = 999_999_999_999;
+
+/// The xcm executor to use for doing stuff.
+pub type ExecutorOf<T> = xcm_executor::XcmExecutor<<T as Config>::XcmConfig>;
+/// The overarching call type.
+pub type OverArchingCallOf<T> = <T as frame_system::Config>::Call;
+/// The asset transactor of our executor
+pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::AssetTransactor;
+/// The call type of executor's config. Should eventually resolve to the same overarching call type.
+pub type XcmCallOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::Call;
 
 pub fn create_holding(
 	fungibles_count: u32,
@@ -88,12 +105,12 @@ pub fn execute_xcm<T: Config>(origin: MultiLocation, xcm: Xcm<XcmCallOf<T>>) -> 
 	ExecutorOf::<T>::execute_xcm(origin, xcm, MAX_WEIGHT)
 }
 
-pub fn account<T: Config>(index: u32) -> T::AccountId {
+pub fn account<T: frame_system::Config>(index: u32) -> T::AccountId {
 	frame_benchmarking::account::<T::AccountId>("account", index, SEED)
 }
 
 /// Build a multi-location from an account id.
-fn account_id_junction<T: Config>(index: u32) -> Junction {
+fn account_id_junction<T: frame_system::Config>(index: u32) -> Junction {
 	let account = account::<T>(index);
 	let mut encoded = account.encode();
 	encoded.resize(32, 0u8);
@@ -101,7 +118,6 @@ fn account_id_junction<T: Config>(index: u32) -> Junction {
 	id.copy_from_slice(&encoded);
 	Junction::AccountId32 { network: NetworkId::Any, id }
 }
-
 
 /// Helper struct that converts a `Fungible` to `Fungibles`
 ///

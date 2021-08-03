@@ -16,21 +16,24 @@
 
 //! A mock runtime for xcm benchmarking.
 
-use crate::fungible as xcm_balances_benchmark;
-use crate::mock::*;
-use frame_support::parameter_types;
+use crate::xcm_generic as xcm_generic_benchmarks;
+use crate::{mock::*, *};
+use frame_support::traits::fungibles::Inspect;
+use frame_support::{parameter_types, traits::Contains};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup},
+	traits::{BlakeTwo256, IdentityLookup, Zero},
 	BuildStorage,
 };
-use xcm::opaque::v0::{MultiAsset, MultiLocation};
+use xcm::{
+	opaque::v0::{MultiAsset, MultiLocation},
+	v0::Junction,
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
-// For testing the pallet, we construct a mock runtime.
 frame_support::construct_runtime!(
 	pub enum Test where
 		Block = Block,
@@ -38,8 +41,7 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		XcmBalancesBenchmark: xcm_balances_benchmark::{Pallet},
+		XcmGenericBenchmarks: xcm_generic_benchmarks::{Pallet},
 	}
 );
 
@@ -48,6 +50,7 @@ parameter_types! {
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(1024);
 }
+
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::AllowAll;
 	type BlockWeights = ();
@@ -74,59 +77,23 @@ impl frame_system::Config for Test {
 	type OnSetCode = ();
 }
 
-parameter_types! {
-	pub const ExistentialDeposit: u64 = 7;
-}
+/// The benchmarks in this pallet should never need an asset transactor to begin with.
+pub struct NoAssetTransactor;
+impl xcm_executor::traits::TransactAsset for NoAssetTransactor {
+	fn deposit_asset(_: &MultiAsset, _: &MultiLocation) -> Result<(), XcmError> {
+		unreachable!();
+	}
 
-impl pallet_balances::Config for Test {
-	type MaxLocks = ();
-	type MaxReserves = ();
-	type ReserveIdentifier = [u8; 8];
-	type Balance = u64;
-	type DustRemoval = ();
-	type Event = Event;
-	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = System;
-	type WeightInfo = ();
-}
-
-parameter_types! {
-	pub const AssetDeposit: u64 = 100 * ExistentialDeposit::get();
-	pub const ApprovalDeposit: u64 = 1 * ExistentialDeposit::get();
-	pub const StringLimit: u32 = 50;
-	pub const MetadataDepositBase: u64 = 10 * ExistentialDeposit::get();
-	pub const MetadataDepositPerByte: u64 = 1 * ExistentialDeposit::get();
-}
-
-pub struct MatchAnyFungible;
-impl xcm_executor::traits::MatchesFungible<u64> for MatchAnyFungible {
-	fn matches_fungible(m: &MultiAsset) -> Option<u64> {
-		use sp_runtime::traits::SaturatedConversion;
-		match m {
-			MultiAsset::ConcreteFungible { amount, .. } => Some((*amount).saturated_into::<u64>()),
-			_ => None,
-		}
+	fn withdraw_asset(_: &MultiAsset, _: &MultiLocation) -> Result<Assets, XcmError> {
+		unreachable!();
 	}
 }
-
-parameter_types! {
-	pub const CheckedAccount: Option<u64> = Some(100);
-}
-
-// Use balances as the asset transactor.
-pub type AssetTransactor = xcm_builder::CurrencyAdapter<
-	Balances,
-	MatchAnyFungible,
-	AccountIdConverter,
-	u64,
-	CheckedAccount,
->;
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
 	type XcmSender = DevNull;
-	type AssetTransactor = AssetTransactor;
+	type AssetTransactor = NoAssetTransactor;
 	type OriginConverter = ();
 	type IsReserve = ();
 	type IsTeleporter = ();
@@ -140,15 +107,7 @@ impl xcm_executor::Config for XcmConfig {
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 }
-
-impl xcm_balances_benchmark::Config for Test {
-	type TransactAsset = Balances;
-	fn get_multi_asset() -> MultiAsset {
-		let amount =
-			<Balances as frame_support::traits::fungible::Inspect<u64>>::minimum_balance() as u128;
-		MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount }
-	}
-}
+impl xcm_generic_benchmarks::Config for Test {}
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();

@@ -16,8 +16,9 @@
 
 //! A mock runtime for xcm benchmarking.
 
-use crate as pallet_xcm_benchmarks;
-use crate::{mock_shared::*, *};
+use crate::fungibles as xcm_assets_benchmarks;
+use crate::{mock::*, *};
+use frame_support::traits::fungibles::Inspect;
 use frame_support::{parameter_types, traits::Contains};
 use sp_core::H256;
 use sp_runtime::{
@@ -43,7 +44,7 @@ frame_support::construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
-		XcmPalletBenchmarks: pallet_xcm_benchmarks::{Pallet},
+		XcmAssetsBenchmarks: xcm_assets_benchmarks::{Pallet},
 	}
 );
 
@@ -169,9 +170,11 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = DevNull;
 }
 
-use frame_support::traits::fungibles::Inspect;
-impl pallet_xcm_benchmarks::Config for Test {
+impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
+}
+
+impl xcm_assets_benchmarks::Config for Test {
 	type TransactAsset = Assets;
 
 	fn get_multi_asset(id: u32) -> MultiAsset {
@@ -191,8 +194,6 @@ impl pallet_xcm_benchmarks::Config for Test {
 	}
 }
 
-// This function basically just builds a genesis storage key/value store according to
-// our desired mockup.
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
 	sp_tracing::try_init_simple();
