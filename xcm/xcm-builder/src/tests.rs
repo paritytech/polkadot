@@ -336,3 +336,43 @@ fn prepaid_result_of_query_should_get_free_execution() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin.clone(), message.clone(), weight_limit);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::Barrier));
 }
+
+#[test]
+fn teleport_destinations_should_be_filtered() {
+	let one = X1(AccountIndex64{index:1, network:Any});
+	let two = X1(AccountIndex64{index:2, network:Any});
+	AllowPaidFrom::set(vec![ one.clone(), two.clone() ]);
+	add_asset(1, ConcreteFungible { id: X1(Parent), amount: 100 });
+	add_asset(2, ConcreteFungible { id: X1(Parent), amount: 100 });
+	WeightPrice::set((X1(Parent), 1_000_000_000_000));
+
+	// teleport should fail to non-teleport locations
+	{
+		let origin = two.clone();
+		let message = Xcm::<TestCall>::WithdrawAsset {
+			assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],	// enough for 100 units of weight.
+			effects: vec![
+				Order::<TestCall>::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },
+				Order::<TestCall>::InitiateTeleport { assets: vec![ All ], dest: two.clone(), effects: vec![] },
+			],
+		};
+		let weight_limit = 100;
+		let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+		assert_eq!(r, Outcome::Error(XcmError::UntrustedTeleportLocation));
+	}
+
+	add_teleporter(one.clone(), AllConcreteFungible { id: X1(Parent) });
+	// teleport should succed for known teleport locations
+	let origin = one.clone();
+	let message = Xcm::<TestCall>::WithdrawAsset {
+		assets: vec![ ConcreteFungible { id: X1(Parent), amount: 100 } ],	// enough for 100 units of weight.
+		effects: vec![
+			Order::<TestCall>::BuyExecution { fees: All, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },
+			Order::<TestCall>::InitiateTeleport { assets: vec![ All ], dest: one.clone(), effects: vec![] },
+		],
+	};
+	let weight_limit = 100;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(50));
+	assert_eq!(assets(1), vec![ ConcreteFungible { id: X1(Parent), amount: 50 } ]);
+}

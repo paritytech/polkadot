@@ -25,7 +25,7 @@ use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared};
 use xcm::opaque::v0::MultiAsset;
-use xcm::v0::{MultiLocation::self, NetworkId};
+use xcm::v0::{Junction::*, MultiLocation::{self, *}, NetworkId};
 use xcm_executor::XcmExecutor;
 
 use crate as xcm_builder;
@@ -130,6 +130,14 @@ pub type Barrier = (
 	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 );
 
+parameter_types! {
+	pub const KusamaForStatemint: (MultiAsset, MultiLocation) =
+		(MultiAsset::AllConcreteFungible { id: Null }, X1(Parachain(1000)));
+}
+pub type TrustedTeleporters = (
+	xcm_builder::Case<KusamaForStatemint>,
+);
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -137,7 +145,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
-	type IsTeleporter = ();
+	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;

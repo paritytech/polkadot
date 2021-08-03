@@ -177,12 +177,30 @@ fn teleport_to_statemine_works() {
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let statemine_id = 1000;
+		let other_para_id = 3000;
 		let amount =  10 * ExistentialDeposit::get();
 		let teleport_effects = vec![
 			buy_execution(5), // unchecked mock value
 			Order::DepositAsset { assets: vec![All], dest: X2(Parent, Parachain(PARA_ID)) },
 		];
 		let weight = 3 * BaseXcmWeight::get();
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			Parachain(PARA_ID).into(),
+			Xcm::WithdrawAsset {
+				assets: vec![ConcreteFungible { id: Null, amount }],
+				effects: vec![
+					buy_execution(weight),
+					Order::InitiateTeleport {
+						assets: vec![All],
+						dest: Parachain(other_para_id).into(),
+						effects: teleport_effects.clone(),
+					},
+				],
+			},
+			weight,
+		);
+		// teleports not allowed to community chains
+		assert_eq!(r, Outcome::Error(XcmError::UntrustedTeleportLocation));
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
