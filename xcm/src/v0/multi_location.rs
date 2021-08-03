@@ -127,6 +127,8 @@ impl MultiLocation {
 
 	/// Creates a new `MultiLocation` with the specified number of parents in the `P` const generic
 	/// parameter and a `Null` interior.
+	// #FIXME: Use a where clause to evaluate P for well-formedness once const eval of const
+	//         generics is possible.
 	pub const fn with_parents_const<const P: u8>() -> MultiLocation {
 		MultiLocation { parents: P, interior: Junctions::Null }
 	}
