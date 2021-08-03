@@ -34,4 +34,5 @@ std = [
 	"sp-core/std",
 	"parity-util-mem",
 	"polkadot-core-primitives/std",
+	"frame-support/std",
 ]
