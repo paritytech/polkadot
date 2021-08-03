@@ -80,8 +80,8 @@ use xcm::v0::{
 	prelude::*,
 	BodyId,
 	Junction::Parachain,
-	MultiLocation::{self, Null, X1},
-	NetworkId, Xcm,
+	MultiLocation::{self, X1},
+	NetworkId,
 };
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
