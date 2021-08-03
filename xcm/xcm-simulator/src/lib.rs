@@ -42,15 +42,15 @@ pub trait TestExt {
 	/// Execute code in the context of the test externalities, without automatic
 	/// message processing. All messages in the message buses can be processed
 	/// by calling `Self::process_all_messages()`.
-	fn execute_without_auto_dispatch<R>(execute: impl FnOnce() -> R) -> R;
+	fn execute_and_queue_xcm<R>(execute: impl FnOnce() -> R) -> R;
 	/// Process all messages in the message buses
-	fn process_all_messages();
+	fn dispatch_xcm_queue();
 	/// Execute some code in the context of the test externalities, with
 	/// automatic message processing.
 	/// Messages are dispatched once the passed closure completes.
-	fn execute_with<R>(execute: impl FnOnce() -> R) -> R {
-		let result = Self::execute_without_auto_dispatch(execute);
-		Self::process_all_messages();
+	fn execute_and_dispatch_xcm<R>(execute: impl FnOnce() -> R) -> R {
+		let result = Self::execute_and_queue_xcm(execute);
+		Self::dispatch_xcm_queue();
 		result
 	}
 }
@@ -96,7 +96,7 @@ macro_rules! decl_test_relay_chain {
 			) -> Result<$crate::Weight, ($crate::MessageId, $crate::Weight)> {
 				use $crate::{ump::UmpSink, TestExt};
 
-				Self::execute_with(|| {
+				Self::execute_and_dispatch_xcm(|| {
 					$crate::ump::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
 						origin, msg, max_weight,
 					)
@@ -130,7 +130,7 @@ macro_rules! decl_test_parachain {
 			) -> $crate::Weight {
 				use $crate::{TestExt, XcmpMessageHandlerT};
 
-				$name::execute_with(|| {
+				$name::execute_and_dispatch_xcm(|| {
 					<$xcmp_message_handler>::handle_xcmp_messages(iter, max_weight)
 				})
 			}
@@ -143,7 +143,7 @@ macro_rules! decl_test_parachain {
 			) -> $crate::Weight {
 				use $crate::{DmpMessageHandlerT, TestExt};
 
-				$name::execute_with(|| {
+				$name::execute_and_dispatch_xcm(|| {
 					<$dmp_message_handler>::handle_dmp_messages(iter, max_weight)
 				})
 			}
@@ -175,14 +175,17 @@ macro_rules! __impl_ext {
 				$ext_name.with(|v| *v.borrow_mut() = $new_ext);
 			}
 
-			fn execute_without_auto_dispatch<R>(execute: impl FnOnce() -> R) -> R {
+			fn execute_and_queue_xcm<R>(execute: impl FnOnce() -> R) -> R {
 				$ext_name.with(|v| v.borrow_mut().execute_with(execute))
 			}
 
-			fn process_all_messages() {
+			fn dispatch_xcm_queue() {
 				while exists_messages_in_any_bus() {
-					if let Err(xcm_error) = process_messages() {
-						panic!("Message processing failure: {:?}", xcm_error);
+					if let Err(xcm_error) = process_relay_messages() {
+						panic!("Relay chain XCM execution failure: {:?}", xcm_error);
+					}
+					if let Err(xcm_error) = process_para_messages() {
+						panic!("Parachain XCM execution failure: {:?}", xcm_error);
 					}
 				}
 			}
@@ -229,17 +232,6 @@ macro_rules! decl_test_network {
 			!(no_relay_messages_left && no_parachain_messages_left)
 		}
 
-		/// Process any XCMs in the message buses.
-		///
-		/// Called automatically by `TestExt::execute_with`.
-		fn process_messages() -> $crate::XcmResult {
-			process_relay_messages()?;
-			process_para_messages()
-		}
-
-		/// XCM router for parachain.
-		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
-
 		/// Process all messages originating from parachains.
 		fn process_para_messages() -> $crate::XcmResult {
 			use $crate::{UmpSink, XcmpMessageHandlerT};
@@ -276,6 +268,33 @@ macro_rules! decl_test_network {
 			Ok(())
 		}
 
+		/// Process all messages originating from the relay chain.
+		fn process_relay_messages() -> $crate::XcmResult {
+			use $crate::DmpMessageHandlerT;
+
+			while let Some((destination, message)) = $crate::RELAY_MESSAGE_BUS.with(
+				|b| b.borrow_mut().pop_front()) {
+				match destination {
+					$(
+						$crate::X1($crate::Parachain(id)) if id == $para_id => {
+							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
+							// NOTE: RelayChainBlockNumber is hard-coded to 1
+							let messages = vec![(1, encoded)];
+							let _weight = <$parachain>::handle_dmp_messages(
+								messages.into_iter(), $crate::Weight::max_value(),
+							);
+						},
+					)*
+					_ => return Err($crate::XcmError::SendFailed("Only sends to children parachain.")),
+				}
+			}
+
+			Ok(())
+		}
+
+		/// XCM router for parachain.
+		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
+
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
 			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
 				use $crate::{UmpSink, XcmpMessageHandlerT};
@@ -300,30 +319,6 @@ macro_rules! decl_test_network {
 
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
-
-		/// Process all messages originating from the relay chain.
-		fn process_relay_messages() -> $crate::XcmResult {
-			use $crate::DmpMessageHandlerT;
-
-			while let Some((destination, message)) = $crate::RELAY_MESSAGE_BUS.with(
-				|b| b.borrow_mut().pop_front()) {
-				match destination {
-					$(
-						$crate::X1($crate::Parachain(id)) if id == $para_id => {
-							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
-							// NOTE: RelayChainBlockNumber is hard-coded to 1
-							let messages = vec![(1, encoded)];
-							let _weight = <$parachain>::handle_dmp_messages(
-								messages.into_iter(), $crate::Weight::max_value(),
-							);
-						},
-					)*
-					_ => return Err($crate::XcmError::SendFailed("Only sends to children parachain.")),
-				}
-			}
-
-			Ok(())
-		}
 
 		impl $crate::SendXcm for RelayChainXcmRouter {
 			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
