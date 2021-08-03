@@ -96,6 +96,7 @@ impl HeaderBackend<Block> for TestClient {
 			finalized_number,
 			number_leaves: 0,
 			finalized_state: None,
+			block_gap: None,
 		}
 	}
 	fn number(&self, hash: Hash) -> sp_blockchain::Result<Option<BlockNumber>> {
