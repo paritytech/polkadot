@@ -41,7 +41,7 @@ pub trait TestExt {
 	fn reset_ext();
 	/// Execute code in the context of the test externalities, without automatic
 	/// message processing. All messages in the message buses can be processed
-	/// by calling `Self::process_all_messages()`.
+	/// by calling `Self::dispatch_xcm_queue()`.
 	fn execute_and_queue_xcm<R>(execute: impl FnOnce() -> R) -> R;
 	/// Process all messages in the message buses
 	fn dispatch_xcm_queue();
