@@ -22,7 +22,7 @@ use polkadot_primitives::v1::{CandidateHash, Hash};
 use polkadot_subsystem::SubsystemError;
 use thiserror::Error;
 
-use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
+use polkadot_node_subsystem_util::{runtime, unwrap_non_fatal, Fault};
 
 use crate::LOG_TARGET;
 
@@ -112,9 +112,7 @@ pub enum NonFatal {
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them.
-pub fn log_error(result: Result<()>, ctx: &'static str)
-	-> FatalResult<()>
-{
+pub fn log_error(result: Result<()>, ctx: &'static str) -> FatalResult<()> {
 	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
 		tracing::debug!(target: LOG_TARGET, error = ?error, ctx)
 	}

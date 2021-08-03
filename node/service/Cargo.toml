@@ -19,7 +19,6 @@ sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch 
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -146,7 +145,6 @@ full-node = [
 	"polkadot-node-core-runtime-api",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
-	"sc-finality-grandpa-warp-sync",
 	"kvdb-rocksdb"
 ]
 

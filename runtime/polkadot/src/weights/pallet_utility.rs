@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/polkadot/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -43,7 +42,7 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `pallet_utility`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_utility::WeightInfo for WeightInfo<T> {
-	fn batch(c: u32, ) -> Weight {
+	fn batch(c: u32) -> Weight {
 		(13_489_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((605_000 as Weight).saturating_mul(c as Weight))
@@ -51,7 +50,7 @@ impl<T: frame_system::Config> pallet_utility::WeightInfo for WeightInfo<T> {
 	fn as_derivative() -> Weight {
 		(3_230_000 as Weight)
 	}
-	fn batch_all(c: u32, ) -> Weight {
+	fn batch_all(c: u32) -> Weight {
 		(13_266_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((1_014_000 as Weight).saturating_mul(c as Weight))

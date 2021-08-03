@@ -14,17 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
-
 use std::sync::Arc;
 
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{SyncCryptoStorePtr, SyncCryptoStore};
+use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
-use polkadot_primitives::v1::{ValidatorId, AuthorityDiscoveryId};
-
+use polkadot_primitives::v1::{AuthorityDiscoveryId, ValidatorId};
 
 /// Get mock keystore with `Ferdie` key.
 pub fn make_ferdie_keystore() -> SyncCryptoStorePtr {
@@ -43,4 +40,3 @@ pub fn make_ferdie_keystore() -> SyncCryptoStorePtr {
 	.expect("Insert key into keystore");
 	keystore
 }
-

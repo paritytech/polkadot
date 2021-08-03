@@ -22,14 +22,22 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
-
 use futures::channel::{mpsc, oneshot};
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
-use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange, peer_set::PeerSet, request_response::{request::IncomingRequest, v1 as req_res_v1, Requests}, v1 as protocol_v1};
-use polkadot_node_primitives::{AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement, ValidationResult, approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote}};
+use polkadot_node_network_protocol::{
+	peer_set::PeerSet,
+	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
+	v1 as protocol_v1, PeerId, UnifiedReputationChange,
+};
+use polkadot_node_primitives::{
+	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
+	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
+	DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement,
+	ValidationResult,
+};
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
 	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
@@ -222,7 +230,7 @@ pub enum DisputeCoordinatorMessage {
 		///		- or other explicit votes on that candidate already recorded
 		///		- or recovered availability for the candidate
 		///		- or the imported statements are backing/approval votes, which are always accepted.
-		pending_confirmation: oneshot::Sender<ImportStatementsResult>
+		pending_confirmation: oneshot::Sender<ImportStatementsResult>,
 	},
 	/// Fetch a list of all recent disputes the co-ordinator is aware of.
 	/// These are disputes which have occurred any time in recent sessions,
@@ -252,7 +260,7 @@ pub enum DisputeCoordinatorMessage {
 		block_descriptions: Vec<BlockDescription>,
 		/// A response channel - `None` to vote on base, `Some` to vote higher.
 		tx: oneshot::Sender<Option<(BlockNumber, Hash)>>,
-	}
+	},
 }
 
 /// The result of `DisputeCoordinatorMessage::ImportStatements`.
@@ -261,7 +269,7 @@ pub enum ImportStatementsResult {
 	/// Import was invalid (candidate was not available)  and the sending peer should get banned.
 	InvalidImport,
 	/// Import was valid and can be confirmed to peer.
-	ValidImport
+	ValidImport,
 }
 
 /// Messages received by the dispute participation subsystem.
@@ -286,7 +294,6 @@ pub enum DisputeParticipationMessage {
 /// Messages going to the dispute distribution subsystem.
 #[derive(Debug)]
 pub enum DisputeDistributionMessage {
-
 	/// Tell dispute distribution to distribute an explicit dispute statement to
 	/// validators.
 	SendDispute(DisputeMessage),
@@ -350,7 +357,7 @@ pub enum NetworkBridgeMessage {
 		/// Ids of our neighbors in the new gossip topology.
 		/// We're not necessarily connected to all of them, but we should.
 		our_neighbors: HashSet<AuthorityDiscoveryId>,
-	}
+	},
 }
 
 impl NetworkBridgeMessage {
@@ -486,7 +493,13 @@ pub enum AvailabilityStoreMessage {
 	/// If `ValidatorIndex` is present store corresponding chunk also.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
+	StoreAvailableData(
+		CandidateHash,
+		Option<ValidatorIndex>,
+		u32,
+		AvailableData,
+		oneshot::Sender<Result<(), ()>>,
+	),
 }
 
 impl AvailabilityStoreMessage {
@@ -605,11 +618,7 @@ pub enum RuntimeApiRequest {
 	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which
 	/// will inform on how the validation data should be computed if the para currently
 	/// occupies a core.
-	ValidationCode(
-		ParaId,
-		OccupiedCoreAssumption,
-		RuntimeApiSender<Option<ValidationCode>>,
-	),
+	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
 	/// Get validation code by its hash, either past, current or future code can be returned, as long as state is still
 	/// available.
 	ValidationCodeByHash(ValidationCodeHash, RuntimeApiSender<Option<ValidationCode>>),
@@ -621,10 +630,7 @@ pub enum RuntimeApiRequest {
 	/// Get the session info for the given session, if stored.
 	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.
-	DmqContents(
-		ParaId,
-		RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>,
-	),
+	DmqContents(ParaId, RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>),
 	/// Get the contents of all channels addressed to the given recipient. Channels that have no
 	/// messages in them are also included.
 	InboundHrmpChannelsContents(
@@ -764,7 +770,7 @@ pub enum ApprovalCheckResult {
 	/// The vote was accepted and should be propagated onwards.
 	Accepted,
 	/// The vote was bad and should be ignored, reporting the peer who propagated it.
-	Bad(ApprovalCheckError)
+	Bad(ApprovalCheckError),
 }
 
 /// The error result type of [`ApprovalVotingMessage::CheckAndImportApproval`] request.
@@ -788,7 +794,6 @@ pub enum ApprovalCheckError {
 	#[error("Internal state mismatch: {0:?}, {1:?}")]
 	Internal(Hash, CandidateHash),
 }
-
 
 /// Describes a relay-chain block by the para-chain candidates
 /// it includes.
@@ -830,10 +835,7 @@ pub enum ApprovalVotingMessage {
 	/// protocol.
 	///
 	/// Should not be sent unless the block hash within the indirect vote is known.
-	CheckAndImportApproval(
-		IndirectSignedApprovalVote,
-		oneshot::Sender<ApprovalCheckResult>,
-	),
+	CheckAndImportApproval(IndirectSignedApprovalVote, oneshot::Sender<ApprovalCheckResult>),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
 	/// acceptable to vote on finality for.
 	/// The `BlockNumber` provided is the number of the block's ancestor which is the
@@ -864,8 +866,7 @@ pub enum ApprovalDistributionMessage {
 
 /// Message to the Gossip Support subsystem.
 #[derive(Debug)]
-pub enum GossipSupportMessage {
-}
+pub enum GossipSupportMessage {}
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {
 	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
