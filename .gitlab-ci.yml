@@ -101,6 +101,14 @@ check-line-width:
     - ./scripts/gitlab/check_line_width.sh
   allow_failure:                   true
 
+cargo-fmt:
+  stage:                           test
+  <<:                              *kubernetes-env
+  <<:                              *rules-pr-only
+  script:
+    - cargo +nightly fmt --all -- --check
+  allow_failure:                   true
+
 test-deterministic-wasm:
   stage:                           test
   <<:                              *rules-test
@@ -172,7 +180,7 @@ spellcheck:
     - cargo spellcheck --version
     # compare with the commit parent to the PR, given it's from a default branch
     - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
-    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1 
+    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
         -r $(git diff --name-only ${CI_COMMIT_SHA} $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH}))
   allow_failure:                   true
 

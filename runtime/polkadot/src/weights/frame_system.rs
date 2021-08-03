@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/polkadot/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -43,36 +42,35 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `frame_system`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> frame_system::WeightInfo for WeightInfo<T> {
-	fn remark(_b: u32, ) -> Weight {
+	fn remark(_b: u32) -> Weight {
 		(990_000 as Weight)
 	}
-	fn remark_with_event(b: u32, ) -> Weight {
+	fn remark_with_event(b: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 0
 			.saturating_add((1_000 as Weight).saturating_mul(b as Weight))
 	}
 	fn set_heap_pages() -> Weight {
-		(1_353_000 as Weight)
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		(1_353_000 as Weight).saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn set_changes_trie_config() -> Weight {
 		(9_064_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn set_storage(i: u32, ) -> Weight {
+	fn set_storage(i: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 0
 			.saturating_add((546_000 as Weight).saturating_mul(i as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(i as Weight)))
 	}
-	fn kill_storage(i: u32, ) -> Weight {
+	fn kill_storage(i: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 0
 			.saturating_add((402_000 as Weight).saturating_mul(i as Weight))
 			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(i as Weight)))
 	}
-	fn kill_prefix(p: u32, ) -> Weight {
+	fn kill_prefix(p: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 0
 			.saturating_add((790_000 as Weight).saturating_mul(p as Weight))

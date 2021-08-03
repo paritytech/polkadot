@@ -16,14 +16,13 @@
 
 use crate::{
 	artifacts::Artifact,
-	LOG_TARGET,
 	executor_intf::TaskExecutor,
 	worker_common::{
-		IdleWorker, SpawnErr, WorkerHandle, bytes_to_path, framed_recv, framed_send, path_to_bytes,
-		spawn_with_program_path, worker_event_loop,
+		bytes_to_path, framed_recv, framed_send, path_to_bytes, spawn_with_program_path,
+		worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
 	},
+	LOG_TARGET,
 };
-use std::time::{Duration, Instant};
 use async_std::{
 	io,
 	os::unix::net::UnixStream,
@@ -31,8 +30,9 @@ use async_std::{
 };
 use futures::FutureExt;
 use futures_timer::Delay;
+use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationResult;
-use parity_scale_codec::{Encode, Decode};
+use std::time::{Duration, Instant};
 
 const EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -43,36 +43,20 @@ pub async fn spawn(
 	program_path: &Path,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	spawn_with_program_path(
-		"execute",
-		program_path,
-		&["execute-worker"],
-		spawn_timeout,
-	)
-	.await
+	spawn_with_program_path("execute", program_path, &["execute-worker"], spawn_timeout).await
 }
 
 /// Outcome of PVF execution.
 pub enum Outcome {
 	/// PVF execution completed successfully and the result is returned. The worker is ready for
 	/// another job.
-	Ok {
-		result_descriptor: ValidationResult,
-		duration_ms: u64,
-		idle_worker: IdleWorker,
-	},
+	Ok { result_descriptor: ValidationResult, duration_ms: u64, idle_worker: IdleWorker },
 	/// The candidate validation failed. It may be for example because the preparation process
 	/// produced an error or the wasm execution triggered a trap.
-	InvalidCandidate {
-		err: String,
-		idle_worker: IdleWorker,
-	},
+	InvalidCandidate { err: String, idle_worker: IdleWorker },
 	/// An internal error happened during the validation. Such an error is most likely related to
 	/// some transient glitch.
-	InternalError {
-		err: String,
-		idle_worker: IdleWorker,
-	},
+	InternalError { err: String, idle_worker: IdleWorker },
 	/// The execution time exceeded the hard limit. The worker is terminated.
 	HardTimeout,
 	/// An I/O error happened during communication with the worker. This may mean that the worker
@@ -97,7 +81,7 @@ pub async fn start_work(
 	);
 
 	if send_request(&mut stream, &artifact_path, &validation_params).await.is_err() {
-		return Outcome::IoErr;
+		return Outcome::IoErr
 	}
 
 	let response = futures::select! {
@@ -111,22 +95,12 @@ pub async fn start_work(
 	};
 
 	match response {
-		Response::Ok {
-			result_descriptor,
-			duration_ms,
-		} => Outcome::Ok {
-			result_descriptor,
-			duration_ms,
-			idle_worker: IdleWorker { stream, pid },
-		},
-		Response::InvalidCandidate(err) => Outcome::InvalidCandidate {
-			err,
-			idle_worker: IdleWorker { stream, pid },
-		},
-		Response::InternalError(err) => Outcome::InternalError {
-			err,
-			idle_worker: IdleWorker { stream, pid },
-		},
+		Response::Ok { result_descriptor, duration_ms } =>
+			Outcome::Ok { result_descriptor, duration_ms, idle_worker: IdleWorker { stream, pid } },
+		Response::InvalidCandidate(err) =>
+			Outcome::InvalidCandidate { err, idle_worker: IdleWorker { stream, pid } },
+		Response::InternalError(err) =>
+			Outcome::InternalError { err, idle_worker: IdleWorker { stream, pid } },
 	}
 }
 
@@ -167,10 +141,7 @@ async fn recv_response(stream: &mut UnixStream) -> io::Result<Response> {
 
 #[derive(Encode, Decode)]
 enum Response {
-	Ok {
-		result_descriptor: ValidationResult,
-		duration_ms: u64,
-	},
+	Ok { result_descriptor: ValidationResult, duration_ms: u64 },
 	InvalidCandidate(String),
 	InternalError(String),
 }
@@ -190,10 +161,7 @@ impl Response {
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("execute", socket_path, |mut stream| async move {
 		let executor = TaskExecutor::new().map_err(|e| {
-			io::Error::new(
-				io::ErrorKind::Other,
-				format!("cannot create task executor: {}", e),
-			)
+			io::Error::new(io::ErrorKind::Other, format!("cannot create task executor: {}", e))
 		})?;
 		loop {
 			let (artifact_path, params) = recv_request(&mut stream).await?;
@@ -215,13 +183,12 @@ async fn validate_using_artifact(
 	spawner: &TaskExecutor,
 ) -> Response {
 	let artifact_bytes = match async_std::fs::read(artifact_path).await {
-		Err(e) => {
+		Err(e) =>
 			return Response::InternalError(format!(
 				"failed to read the artifact at {}: {:?}",
 				artifact_path.display(),
 				e,
-			))
-		}
+			)),
 		Ok(b) => b,
 	};
 
@@ -231,47 +198,31 @@ async fn validate_using_artifact(
 	};
 
 	let compiled_artifact = match &artifact {
-		Artifact::PrevalidationErr(msg) => {
-			return Response::format_invalid("prevalidation", msg);
-		}
-		Artifact::PreparationErr(msg) => {
-			return Response::format_invalid("preparation", msg);
-		}
-		Artifact::DidntMakeIt => {
-			return Response::format_invalid("preparation timeout", "");
-		}
+		Artifact::PrevalidationErr(msg) => return Response::format_invalid("prevalidation", msg),
+		Artifact::PreparationErr(msg) => return Response::format_invalid("preparation", msg),
+		Artifact::DidntMakeIt => return Response::format_invalid("preparation timeout", ""),
 
 		Artifact::Compiled { compiled_artifact } => compiled_artifact,
 	};
 
 	let validation_started_at = Instant::now();
-	let descriptor_bytes =
-		match unsafe {
-			// SAFETY: this should be safe since the compiled artifact passed here comes from the
-			//         file created by the prepare workers. These files are obtained by calling
-			//         [`executor_intf::prepare`].
-			crate::executor_intf::execute(compiled_artifact, params, spawner.clone())
-		 } {
-			Err(err) => {
-				return Response::format_invalid("execute", &err.to_string());
-			}
-			Ok(d) => d,
-		};
+	let descriptor_bytes = match unsafe {
+		// SAFETY: this should be safe since the compiled artifact passed here comes from the
+		//         file created by the prepare workers. These files are obtained by calling
+		//         [`executor_intf::prepare`].
+		crate::executor_intf::execute(compiled_artifact, params, spawner.clone())
+	} {
+		Err(err) => return Response::format_invalid("execute", &err.to_string()),
+		Ok(d) => d,
+	};
 
 	let duration_ms = validation_started_at.elapsed().as_millis() as u64;
 
 	let result_descriptor = match ValidationResult::decode(&mut &descriptor_bytes[..]) {
-		Err(err) => {
-			return Response::InvalidCandidate(format!(
-				"validation result decoding failed: {}",
-				err
-			))
-		}
+		Err(err) =>
+			return Response::InvalidCandidate(format!("validation result decoding failed: {}", err)),
 		Ok(r) => r,
 	};
 
-	Response::Ok {
-		result_descriptor,
-		duration_ms,
-	}
+	Response::Ok { result_descriptor, duration_ms }
 }

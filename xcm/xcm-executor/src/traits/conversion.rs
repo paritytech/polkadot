@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{prelude::*, result::Result, borrow::Borrow, convert::TryFrom};
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
+use sp_std::{borrow::Borrow, convert::TryFrom, prelude::*, result::Result};
 use xcm::v0::{MultiLocation, OriginKind};
 
 /// Generic third-party conversion trait. Use this when you don't want to force the user to use default
@@ -29,12 +29,16 @@ use xcm::v0::{MultiLocation, OriginKind};
 /// the `Err(_)` of the last failing conversion (or `Err(())` for ref conversions).
 pub trait Convert<A: Clone, B: Clone> {
 	/// Convert from `value` (of type `A`) into an equivalent value of type `B`, `Err` if not possible.
-	fn convert(value: A) -> Result<B, A> { Self::convert_ref(&value).map_err(|_| value) }
+	fn convert(value: A) -> Result<B, A> {
+		Self::convert_ref(&value).map_err(|_| value)
+	}
 	fn convert_ref(value: impl Borrow<A>) -> Result<B, ()> {
 		Self::convert(value.borrow().clone()).map_err(|_| ())
 	}
 	/// Convert from `value` (of type `B`) into an equivalent value of type `A`, `Err` if not possible.
-	fn reverse(value: B) -> Result<A, B> { Self::reverse_ref(&value).map_err(|_| value) }
+	fn reverse(value: B) -> Result<A, B> {
+		Self::reverse_ref(&value).map_err(|_| value)
+	}
 	fn reverse_ref(value: impl Borrow<B>) -> Result<A, ()> {
 		Self::reverse(value.borrow().clone()).map_err(|_| ())
 	}
@@ -85,13 +89,19 @@ impl<A: Clone, B: Clone> Convert<A, B> for Tuple {
 /// Simple pass-through which implements `BytesConversion` while not doing any conversion.
 pub struct Identity;
 impl<T: Clone> Convert<T, T> for Identity {
-	fn convert(value: T) -> Result<T, T> { Ok(value) }
-	fn reverse(value: T) -> Result<T, T> { Ok(value) }
+	fn convert(value: T) -> Result<T, T> {
+		Ok(value)
+	}
+	fn reverse(value: T) -> Result<T, T> {
+		Ok(value)
+	}
 }
 
 /// Implementation of `Convert` trait using `TryFrom`.
 pub struct JustTry;
-impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> Convert<Source, Dest> for JustTry {
+impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> Convert<Source, Dest>
+	for JustTry
+{
 	fn convert(value: Source) -> Result<Dest, Source> {
 		Dest::try_from(value.clone()).map_err(|_| value)
 	}
@@ -103,7 +113,9 @@ impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> Convert<Sourc
 /// Implementation of `Convert<_, Vec<u8>>` using the parity scale codec.
 pub struct Encoded;
 impl<T: Clone + Encode + Decode> Convert<T, Vec<u8>> for Encoded {
-	fn convert_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> { Ok(value.borrow().encode()) }
+	fn convert_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> {
+		Ok(value.borrow().encode())
+	}
 	fn reverse_ref(bytes: impl Borrow<Vec<u8>>) -> Result<T, ()> {
 		T::decode(&mut &bytes.borrow()[..]).map_err(|_| ())
 	}
@@ -115,7 +127,9 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 	fn convert_ref(bytes: impl Borrow<Vec<u8>>) -> Result<T, ()> {
 		T::decode(&mut &bytes.borrow()[..]).map_err(|_| ())
 	}
-	fn reverse_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> { Ok(value.borrow().encode()) }
+	fn reverse_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> {
+		Ok(value.borrow().encode())
+	}
 }
 
 /// A converter `trait` for origin types.

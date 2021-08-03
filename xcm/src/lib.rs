@@ -23,8 +23,8 @@
 #![no_std]
 extern crate alloc;
 
-use parity_scale_codec::{Encode, Decode};
 use derivative::Derivative;
+use parity_scale_codec::{Decode, Encode};
 
 pub mod v0;
 
@@ -33,7 +33,7 @@ pub use double_encoded::DoubleEncoded;
 
 /// A single XCM message, together with its version code.
 #[derive(Derivative, Encode, Decode)]
-#[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum VersionedXcm<Call> {
@@ -45,7 +45,7 @@ pub mod opaque {
 		// Everything from v0
 		pub use crate::v0::*;
 		// Then override with the opaque types in v0
-		pub use crate::v0::opaque::{Xcm, Order};
+		pub use crate::v0::opaque::{Order, Xcm};
 	}
 
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.

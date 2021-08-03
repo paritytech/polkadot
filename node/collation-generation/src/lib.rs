@@ -18,35 +18,23 @@
 
 #![deny(missing_docs)]
 
-use futures::{
-	channel::mpsc,
-	future::FutureExt,
-	join,
-	select,
-	sink::SinkExt,
-	stream::StreamExt,
-};
-use polkadot_node_primitives::{
-	CollationGenerationConfig, AvailableData, PoV,
-};
+use futures::{channel::mpsc, future::FutureExt, join, select, sink::SinkExt, stream::StreamExt};
+use parity_scale_codec::Encode;
+use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
 use polkadot_node_subsystem::{
-	ActiveLeavesUpdate,
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
-	SpawnedSubsystem, SubsystemContext, SubsystemResult,
-	SubsystemError, FromOverseer, OverseerSignal,
-	overseer,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
-	request_availability_cores, request_persisted_validation_data,
-	request_validators, request_validation_code,
 	metrics::{self, prometheus},
+	request_availability_cores, request_persisted_validation_data, request_validation_code,
+	request_validators,
 };
 use polkadot_primitives::v1::{
-	collator_signature_payload, CandidateCommitments,
-	CandidateDescriptor, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
-	PersistedValidationData,
+	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
+	CoreState, Hash, OccupiedCoreAssumption, PersistedValidationData,
 };
-use parity_scale_codec::Encode;
 use sp_core::crypto::Pair;
 use std::sync::Arc;
 
@@ -66,10 +54,7 @@ pub struct CollationGenerationSubsystem {
 impl CollationGenerationSubsystem {
 	/// Create a new instance of the `CollationGenerationSubsystem`.
 	pub fn new(metrics: Metrics) -> Self {
-		Self {
-			config: None,
-			metrics,
-		}
+		Self { config: None, metrics }
 	}
 
 	/// Run this subsystem
@@ -127,7 +112,10 @@ impl CollationGenerationSubsystem {
 		Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
 	{
 		match incoming {
-			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }))) => {
+			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated,
+				..
+			}))) => {
 				// follow the procedure from the guide
 				if let Some(config) = &self.config {
 					let metrics = self.metrics.clone();
@@ -137,13 +125,15 @@ impl CollationGenerationSubsystem {
 						ctx,
 						metrics,
 						sender,
-					).await {
+					)
+					.await
+					{
 						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to handle new activations");
 					}
 				}
 
 				false
-			}
+			},
 			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => true,
 			Ok(FromOverseer::Communication {
 				msg: CollationGenerationMessage::Initialize(config),
@@ -154,7 +144,7 @@ impl CollationGenerationSubsystem {
 					self.config = Some(Arc::new(config));
 				}
 				false
-			}
+			},
 			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => false,
 			Err(err) => {
 				tracing::error!(
@@ -164,7 +154,7 @@ impl CollationGenerationSubsystem {
 					err
 				);
 				true
-			}
+			},
 		}
 	}
 }
@@ -178,12 +168,10 @@ where
 		let future = async move {
 			self.run(ctx).await;
 			Ok(())
-		}.boxed();
-
-		SpawnedSubsystem {
-			name: "collation-generation-subsystem",
-			future,
 		}
+		.boxed();
+
+		SpawnedSubsystem { name: "collation-generation-subsystem", future }
 	}
 }
 
@@ -214,9 +202,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			let _availability_core_timer = metrics.time_new_activations_availability_core();
 
 			let (scheduled_core, assumption) = match core {
-				CoreState::Scheduled(scheduled_core) => {
-					(scheduled_core, OccupiedCoreAssumption::Free)
-				}
+				CoreState::Scheduled(scheduled_core) =>
+					(scheduled_core, OccupiedCoreAssumption::Free),
 				CoreState::Occupied(_occupied_core) => {
 					// TODO: https://github.com/paritytech/polkadot/issues/1573
 					tracing::trace!(
@@ -225,8 +212,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						relay_parent = ?relay_parent,
 						"core is occupied. Keep going.",
 					);
-					continue;
-				}
+					continue
+				},
 				CoreState::Free => {
 					tracing::trace!(
 						target: LOG_TARGET,
@@ -234,7 +221,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						"core is free. Keep going.",
 					);
 					continue
-				}
+				},
 			};
 
 			if scheduled_core.para_id != config.para_id {
@@ -246,7 +233,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					their_para = %scheduled_core.para_id,
 					"core is not assigned to our para. Keep going.",
 				);
-				continue;
+				continue
 			}
 
 			// we get validation data and validation code synchronously for each core instead of
@@ -273,7 +260,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						"validation data is not available",
 					);
 					continue
-				}
+				},
 			};
 
 			let validation_code = match request_validation_code(
@@ -296,125 +283,131 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						"validation code is not available",
 					);
 					continue
-				}
+				},
 			};
 			let validation_code_hash = validation_code.hash();
 
 			let task_config = config.clone();
 			let mut task_sender = sender.clone();
 			let metrics = metrics.clone();
-			ctx.spawn("collation generation collation builder", Box::pin(async move {
-				let persisted_validation_data_hash = validation_data.hash();
+			ctx.spawn(
+				"collation generation collation builder",
+				Box::pin(async move {
+					let persisted_validation_data_hash = validation_data.hash();
 
-				let (collation, result_sender) = match (task_config.collator)(relay_parent, &validation_data).await {
-					Some(collation) => collation.into_inner(),
-					None => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							para_id = %scheduled_core.para_id,
-							"collator returned no collation on collate",
+					let (collation, result_sender) =
+						match (task_config.collator)(relay_parent, &validation_data).await {
+							Some(collation) => collation.into_inner(),
+							None => {
+								tracing::debug!(
+									target: LOG_TARGET,
+									para_id = %scheduled_core.para_id,
+									"collator returned no collation on collate",
+								);
+								return
+							},
+						};
+
+					// Apply compression to the block data.
+					let pov = {
+						let pov = polkadot_node_primitives::maybe_compress_pov(
+							collation.proof_of_validity,
 						);
-						return
-					}
-				};
+						let encoded_size = pov.encoded_size();
 
-				// Apply compression to the block data.
-				let pov = {
-					let pov = polkadot_node_primitives::maybe_compress_pov(collation.proof_of_validity);
-					let encoded_size = pov.encoded_size();
+						// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
+						// that honest collators never produce a PoV which is uncompressed.
+						//
+						// As such, honest collators never produce an uncompressed PoV which starts with
+						// a compression magic number, which would lead validators to reject the collation.
+						if encoded_size > validation_data.max_pov_size as usize {
+							tracing::debug!(
+								target: LOG_TARGET,
+								para_id = %scheduled_core.para_id,
+								size = encoded_size,
+								max_size = validation_data.max_pov_size,
+								"PoV exceeded maximum size"
+							);
 
-					// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
-					// that honest collators never produce a PoV which is uncompressed.
-					//
-					// As such, honest collators never produce an uncompressed PoV which starts with
-					// a compression magic number, which would lead validators to reject the collation.
-					if encoded_size > validation_data.max_pov_size as usize {
-						tracing::debug!(
-							target: LOG_TARGET,
-							para_id = %scheduled_core.para_id,
-							size = encoded_size,
-							max_size = validation_data.max_pov_size,
-							"PoV exceeded maximum size"
-						);
+							return
+						}
 
-						return
-					}
+						pov
+					};
 
-					pov
-				};
+					let pov_hash = pov.hash();
 
-				let pov_hash = pov.hash();
+					let signature_payload = collator_signature_payload(
+						&relay_parent,
+						&scheduled_core.para_id,
+						&persisted_validation_data_hash,
+						&pov_hash,
+						&validation_code_hash,
+					);
 
-				let signature_payload = collator_signature_payload(
-					&relay_parent,
-					&scheduled_core.para_id,
-					&persisted_validation_data_hash,
-					&pov_hash,
-					&validation_code_hash,
-				);
+					let erasure_root =
+						match erasure_root(n_validators, validation_data, pov.clone()) {
+							Ok(erasure_root) => erasure_root,
+							Err(err) => {
+								tracing::error!(
+									target: LOG_TARGET,
+									para_id = %scheduled_core.para_id,
+									err = ?err,
+									"failed to calculate erasure root",
+								);
+								return
+							},
+						};
 
-				let erasure_root = match erasure_root(
-					n_validators,
-					validation_data,
-					pov.clone(),
-				) {
-					Ok(erasure_root) => erasure_root,
-					Err(err) => {
-						tracing::error!(
+					let commitments = CandidateCommitments {
+						upward_messages: collation.upward_messages,
+						horizontal_messages: collation.horizontal_messages,
+						new_validation_code: collation.new_validation_code,
+						head_data: collation.head_data,
+						processed_downward_messages: collation.processed_downward_messages,
+						hrmp_watermark: collation.hrmp_watermark,
+					};
+
+					let ccr = CandidateReceipt {
+						commitments_hash: commitments.hash(),
+						descriptor: CandidateDescriptor {
+							signature: task_config.key.sign(&signature_payload),
+							para_id: scheduled_core.para_id,
+							relay_parent,
+							collator: task_config.key.public(),
+							persisted_validation_data_hash,
+							pov_hash,
+							erasure_root,
+							para_head: commitments.head_data.hash(),
+							validation_code_hash,
+						},
+					};
+
+					tracing::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?ccr.hash(),
+						?pov_hash,
+						?relay_parent,
+						para_id = %scheduled_core.para_id,
+						"candidate is generated",
+					);
+					metrics.on_collation_generated();
+
+					if let Err(err) = task_sender
+						.send(AllMessages::CollatorProtocol(
+							CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender),
+						))
+						.await
+					{
+						tracing::warn!(
 							target: LOG_TARGET,
 							para_id = %scheduled_core.para_id,
 							err = ?err,
-							"failed to calculate erasure root",
+							"failed to send collation result",
 						);
-						return
 					}
-				};
-
-				let commitments = CandidateCommitments {
-					upward_messages: collation.upward_messages,
-					horizontal_messages: collation.horizontal_messages,
-					new_validation_code: collation.new_validation_code,
-					head_data: collation.head_data,
-					processed_downward_messages: collation.processed_downward_messages,
-					hrmp_watermark: collation.hrmp_watermark,
-				};
-
-				let ccr = CandidateReceipt {
-					commitments_hash: commitments.hash(),
-					descriptor: CandidateDescriptor {
-						signature: task_config.key.sign(&signature_payload),
-						para_id: scheduled_core.para_id,
-						relay_parent,
-						collator: task_config.key.public(),
-						persisted_validation_data_hash,
-						pov_hash,
-						erasure_root,
-						para_head: commitments.head_data.hash(),
-						validation_code_hash: validation_code_hash,
-					},
-				};
-
-				tracing::debug!(
-					target: LOG_TARGET,
-					candidate_hash = ?ccr.hash(),
-					?pov_hash,
-					?relay_parent,
-					para_id = %scheduled_core.para_id,
-					"candidate is generated",
-				);
-				metrics.on_collation_generated();
-
-				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
-					CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender)
-				)).await {
-					tracing::warn!(
-						target: LOG_TARGET,
-						para_id = %scheduled_core.para_id,
-						err = ?err,
-						"failed to send collation result",
-					);
-				}
-			}))?;
+				}),
+			)?;
 		}
 	}
 
@@ -426,10 +419,8 @@ fn erasure_root(
 	persisted_validation: PersistedValidationData,
 	pov: PoV,
 ) -> crate::error::Result<Hash> {
-	let available_data = AvailableData {
-		validation_data: persisted_validation,
-		pov: Arc::new(pov),
-	};
+	let available_data =
+		AvailableData { validation_data: persisted_validation, pov: Arc::new(pov) };
 
 	let chunks = polkadot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
 	Ok(polkadot_erasure_coding::branches(&chunks).root())
@@ -460,13 +451,21 @@ impl Metrics {
 	}
 
 	/// Provide a timer per relay parents which updates on drop.
-	fn time_new_activations_relay_parent(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.new_activations_per_relay_parent.start_timer())
+	fn time_new_activations_relay_parent(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.new_activations_per_relay_parent.start_timer())
 	}
 
 	/// Provide a timer per availability core which updates on drop.
-	fn time_new_activations_availability_core(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.new_activations_per_availability_core.start_timer())
+	fn time_new_activations_availability_core(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.new_activations_per_availability_core.start_timer())
 	}
 }
 

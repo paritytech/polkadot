@@ -23,17 +23,12 @@
 //! Each direct descendant of the finalized block acts as its own sub-tree,
 //! and as the finalized block advances, orphaned sub-trees are entirely pruned.
 
-use polkadot_primitives::v1::{BlockNumber, Hash};
 use polkadot_node_primitives::BlockWeight;
-
+use polkadot_primitives::v1::{BlockNumber, Hash};
 
 use std::collections::HashMap;
 
-use super::{
-	LOG_TARGET,
-	Approval, BlockEntry, Error, LeafEntry, ViabilityCriteria,
-	Timestamp,
-};
+use super::{Approval, BlockEntry, Error, LeafEntry, Timestamp, ViabilityCriteria, LOG_TARGET};
 use crate::backend::{Backend, OverlayedBackend};
 
 // A viability update to be applied to a block.
@@ -43,10 +38,7 @@ impl ViabilityUpdate {
 	// Apply the viability update to a single block, yielding the updated
 	// block entry along with a vector of children and the updates to apply
 	// to them.
-	fn apply(self, mut entry: BlockEntry) -> (
-		BlockEntry,
-		Vec<(Hash, ViabilityUpdate)>
-	) {
+	fn apply(self, mut entry: BlockEntry) -> (BlockEntry, Vec<(Hash, ViabilityUpdate)>) {
 		// 1. When an ancestor has changed from unviable to viable,
 		// we erase the `earliest_unviable_ancestor` of all descendants
 		// until encountering a explicitly unviable descendant D.
@@ -81,7 +73,9 @@ impl ViabilityUpdate {
 		};
 		entry.viability.earliest_unviable_ancestor = maybe_earliest_unviable;
 
-		let recurse = entry.children.iter()
+		let recurse = entry
+			.children
+			.iter()
 			.cloned()
 			.map(move |c| (c, ViabilityUpdate(next_earliest_unviable)))
 			.collect();
@@ -152,10 +146,10 @@ fn propagate_viability_update(
 						"Missing expected block entry"
 					);
 
-					continue;
-				}
+					continue
+				},
 				Some(entry) => entry,
-			}
+			},
 		};
 
 		let (new_entry, children) = update.apply(entry);
@@ -184,9 +178,8 @@ fn propagate_viability_update(
 
 		backend.write_block_entry(new_entry);
 
-		tree_frontier.extend(
-			children.into_iter().map(|(h, update)| (BlockEntryRef::Hash(h), update))
-		);
+		tree_frontier
+			.extend(children.into_iter().map(|(h, update)| (BlockEntryRef::Hash(h), update)));
 	}
 
 	// Revisit the viability pivots now that we've traversed the entire subtree.
@@ -229,12 +222,11 @@ fn propagate_viability_update(
 				// Furthermore, if the set of viable leaves is empty, the
 				// finalized block is implicitly the viable leaf.
 				continue
-			}
-			Some(entry) => {
+			},
+			Some(entry) =>
 				if entry.children.len() == pivot_count {
 					viable_leaves.insert(entry.leaf_entry());
-				}
-			}
+				},
 		}
 	}
 
@@ -254,12 +246,7 @@ pub(crate) fn import_block(
 	stagnant_at: Timestamp,
 ) -> Result<(), Error> {
 	add_block(backend, block_hash, block_number, parent_hash, weight, stagnant_at)?;
-	apply_reversions(
-		backend,
-		block_hash,
-		block_number,
-		reversion_logs,
-	)?;
+	apply_reversions(backend, block_hash, block_number, reversion_logs)?;
 
 	Ok(())
 }
@@ -276,7 +263,9 @@ fn load_ancestor(
 	block_number: BlockNumber,
 	ancestor_number: BlockNumber,
 ) -> Result<Option<BlockEntry>, Error> {
-	if block_number <= ancestor_number { return Ok(None) }
+	if block_number <= ancestor_number {
+		return Ok(None)
+	}
 
 	let mut current_hash = block_hash;
 	let mut current_entry = None;
@@ -289,7 +278,7 @@ fn load_ancestor(
 				let parent_hash = entry.parent_hash;
 				current_entry = Some(entry);
 				current_hash = parent_hash;
-			}
+			},
 		}
 	}
 
@@ -314,24 +303,22 @@ fn add_block(
 	let mut leaves = backend.load_leaves()?;
 	let parent_entry = backend.load_block_entry(&parent_hash)?;
 
-	let inherited_viability = parent_entry.as_ref()
-		.and_then(|parent| parent.non_viable_ancestor_for_child());
+	let inherited_viability =
+		parent_entry.as_ref().and_then(|parent| parent.non_viable_ancestor_for_child());
 
 	// 1. Add the block to the DB assuming it's not reverted.
-	backend.write_block_entry(
-		BlockEntry {
-			block_hash,
-			block_number,
-			parent_hash,
-			children: Vec::new(),
-			viability: ViabilityCriteria {
-				earliest_unviable_ancestor: inherited_viability,
-				explicitly_reverted: false,
-				approval: Approval::Unapproved,
-			},
-			weight,
-		}
-	);
+	backend.write_block_entry(BlockEntry {
+		block_hash,
+		block_number,
+		parent_hash,
+		children: Vec::new(),
+		viability: ViabilityCriteria {
+			earliest_unviable_ancestor: inherited_viability,
+			explicitly_reverted: false,
+			approval: Approval::Unapproved,
+		},
+		weight,
+	});
 
 	// 2. Update leaves if inherited viability is fine.
 	if inherited_viability.is_none() {
@@ -370,38 +357,34 @@ fn apply_reversions(
 	// Note: since revert numbers are  in ascending order, the expensive propagation
 	// of unviability is only heavy on the first log.
 	for revert_number in reversions {
-		let mut ancestor_entry = match load_ancestor(
-			backend,
-			block_hash,
-			block_number,
-			revert_number,
-		)? {
-			None => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					?block_hash,
-					block_number,
-					revert_target = revert_number,
-					"The hammer has dropped. \
+		let mut ancestor_entry =
+			match load_ancestor(backend, block_hash, block_number, revert_number)? {
+				None => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						?block_hash,
+						block_number,
+						revert_target = revert_number,
+						"The hammer has dropped. \
 					A block has indicated that its finalized ancestor be reverted. \
 					Please inform an adult.",
-				);
+					);
 
-				continue
-			}
-			Some(ancestor_entry) => {
-				tracing::info!(
-					target: LOG_TARGET,
-					?block_hash,
-					block_number,
-					revert_target = revert_number,
-					revert_hash = ?ancestor_entry.block_hash,
-					"A block has signaled that its ancestor be reverted due to a bad parachain block.",
-				);
+					continue
+				},
+				Some(ancestor_entry) => {
+					tracing::info!(
+						target: LOG_TARGET,
+						?block_hash,
+						block_number,
+						revert_target = revert_number,
+						revert_hash = ?ancestor_entry.block_hash,
+						"A block has signaled that its ancestor be reverted due to a bad parachain block.",
+					);
 
-				ancestor_entry
-			}
-		};
+					ancestor_entry
+				},
+			};
 
 		ancestor_entry.viability.explicitly_reverted = true;
 		propagate_viability_update(backend, ancestor_entry)?;
@@ -431,8 +414,8 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 		None => {
 			// This implies that there are no unfinalized blocks and hence nothing
 			// to update.
-			return Ok(backend);
-		}
+			return Ok(backend)
+		},
 		Some(e) => e,
 	};
 
@@ -474,9 +457,7 @@ pub(super) fn finalize_block<'a, B: Backend + 'a>(
 
 			// Add all children to the frontier.
 			let next_height = dead_number + 1;
-			frontier.extend(
-				entry.into_iter().flat_map(|e| e.children).map(|h| (h, next_height))
-			);
+			frontier.extend(entry.into_iter().flat_map(|e| e.children).map(|h| (h, next_height)));
 		}
 	}
 
@@ -533,7 +514,6 @@ pub(super) fn approve_block(
 		} else {
 			backend.write_block_entry(entry);
 		}
-
 	} else {
 		tracing::debug!(
 			target: LOG_TARGET,
