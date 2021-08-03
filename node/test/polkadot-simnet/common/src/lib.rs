@@ -151,14 +151,15 @@ where
 
 	// submit external_propose call through council collective
 	{
-		let external_propose =
-			DemocracyCall::external_propose_majority { proposal_hash: proposal_hash.clone().into() };
+		let external_propose = DemocracyCall::external_propose_majority {
+			proposal_hash: proposal_hash.clone().into(),
+		};
 		let length = external_propose.using_encoded(|x| x.len()) as u32 + 1;
 		let weight = Weight::MAX / 100_000_000;
 		let proposal = CouncilCollectiveCall::propose {
 			threshold: council_collective.len() as u32,
 			proposal: Box::new(external_propose.clone().into()),
-			length_bound: length
+			length_bound: length,
 		};
 
 		node.submit_extrinsic(proposal.clone(), council_collective[0].clone()).await?;
@@ -186,7 +187,12 @@ where
 		node.seal_blocks(1).await;
 
 		// close vote
-		let call = CouncilCollectiveCall::close { proposal_hash: hash, index, proposal_weight_bound: weight, length_bound: length };
+		let call = CouncilCollectiveCall::close {
+			proposal_hash: hash,
+			index,
+			proposal_weight_bound: weight,
+			length_bound: length,
+		};
 		node.submit_extrinsic(call, council_collective[0].clone()).await?;
 		node.seal_blocks(1).await;
 
@@ -216,12 +222,11 @@ where
 
 	// next technical collective must fast track the proposal.
 	{
-		let fast_track =
-			DemocracyCall::fast_track {
-				proposal_hash: proposal_hash.into(),
-				voting_period: FastTrackVotingPeriod::get(),
-				delay: 0
-			};
+		let fast_track = DemocracyCall::fast_track {
+			proposal_hash: proposal_hash.into(),
+			voting_period: FastTrackVotingPeriod::get(),
+			delay: 0,
+		};
 		let weight = Weight::MAX / 100_000_000;
 		let length = fast_track.using_encoded(|x| x.len()) as u32 + 1;
 		let proposal = TechnicalCollectiveCall::propose {
@@ -252,13 +257,19 @@ where
 
 		// vote
 		for member in &technical_collective[1..] {
-			let call = TechnicalCollectiveCall::vote { proposal: hash.clone(), index, approve: true };
+			let call =
+				TechnicalCollectiveCall::vote { proposal: hash.clone(), index, approve: true };
 			node.submit_extrinsic(call, member.clone()).await?;
 		}
 		node.seal_blocks(1).await;
 
 		// close vote
-		let call = CouncilCollectiveCall::close { proposal_hash: hash, index, proposal_weight_bound: weight, length_bound: length };
+		let call = CouncilCollectiveCall::close {
+			proposal_hash: hash,
+			index,
+			proposal_weight_bound: weight,
+			length_bound: length,
+		};
 		node.submit_extrinsic(call, technical_collective[0].clone()).await?;
 		node.seal_blocks(1).await;
 
@@ -399,9 +410,12 @@ mod tests {
 			node.seal_blocks(1).await;
 			// submit extrinsics
 			let alice = MultiSigner::from(Alice.public()).into_account();
-			node.submit_extrinsic(system::Call::remark { _remark: (b"hello world").to_vec() }, alice)
-				.await
-				.unwrap();
+			node.submit_extrinsic(
+				system::Call::remark { _remark: (b"hello world").to_vec() },
+				alice,
+			)
+			.await
+			.unwrap();
 
 			// look ma, I can read state.
 			let _events = node.with_state(|| system::Pallet::<Runtime>::events());
