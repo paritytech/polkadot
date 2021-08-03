@@ -225,6 +225,7 @@ mod tests {
 				effects: vec![],
 			};
 			for _ in 0..MAX_RECURSION_LIMIT {
+				// nest `msg` into itself on each iteration. 
 				msg = WithdrawAsset {
 					assets: vec![ConcreteFungible { id: X1(Parent), amount: 0 }],
 					effects: vec![xcm::v0::Order::BuyExecution {
