@@ -214,13 +214,13 @@ construct_runtime! {
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
-		ParaScheduler: parachains_scheduler::{Pallet, Call, Storage},
+		ParaScheduler: parachains_scheduler::{Pallet, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config},
-		ParaSessionInfo: parachains_session_info::{Pallet, Call, Storage},
+		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
 
 		// Parachain Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -419,7 +419,6 @@ where
 }
 
 parameter_types! {
-	pub const QueueSize: usize = 2;
 	pub const MaxRetries: u32 = 3;
 }
 
