@@ -18,10 +18,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(test)]
-mod mock;
-#[cfg(test)]
-mod tests;
+// TODO: re-enable tests
+// #[cfg(test)]
+// mod mock;
+//
+// #[cfg(test)]
+// mod tests;
 
 use codec::{Decode, Encode};
 use frame_support::traits::{Contains, EnsureOrigin, Filter, Get, OriginTrait};
