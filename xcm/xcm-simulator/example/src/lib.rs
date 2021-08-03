@@ -262,7 +262,6 @@ mod tests {
 		MockNet::reset();
 
 		let send_amount = 10;
-		let mut amount_received = 0;
 		let weight_for_execution = 3 * relay_chain::BaseXcmWeight::get();
 
 		ParaA::execute_and_dispatch_xcm(|| {
@@ -277,14 +276,12 @@ mod tests {
 			assert_ok!(ParachainPalletXcm::send_xcm(Null, X1(Parent), message.clone()));
 		});
 
-		amount_received += send_amount;
-
 		Relay::execute_and_dispatch_xcm(|| {
 			assert_eq!(
 				relay_chain::Balances::free_balance(para_account_id(1)),
 				INITIAL_BALANCE - send_amount
 			);
-			assert_eq!(relay_chain::Balances::free_balance(para_account_id(2)), amount_received);
+			assert_eq!(relay_chain::Balances::free_balance(para_account_id(2)), send_amount);
 		});
 	}
 
