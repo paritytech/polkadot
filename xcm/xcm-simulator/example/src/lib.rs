@@ -274,7 +274,7 @@ mod tests {
 				],
 			};
 			// Send withdraw and deposit
-			assert_ok!(ParachainPalletXcm::send_xcm(Null, X1(Parent), message.clone(),));
+			assert_ok!(ParachainPalletXcm::send_xcm(Null, X1(Parent), message.clone()));
 		});
 
 		amount_received += send_amount;
