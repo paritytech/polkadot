@@ -83,52 +83,6 @@ fn withdraw_and_deposit_works() {
 }
 
 /// Scenario:
-/// A user Alice sends funds from the relaychain to a parachain.
-///
-/// Asserts that the correct XCM is sent and the balances are set as expected.
-#[test]
-fn reserve_transfer_assets_works() {
-	use xcm::opaque::v0::prelude::*;
-	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
-	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
-	kusama_like_with_balances(balances).execute_with(|| {
-		let amount =  10 * ExistentialDeposit::get();
-		// We just assume that the destination uses the same base weight for XCM for this test. Not checked.
-		let dest_weight = 2 * BaseXcmWeight::get();
-		assert_ok!(XcmPallet::reserve_transfer_assets(
-			Origin::signed(ALICE),
-			Parachain(PARA_ID).into(),
-			Junction::AccountId32 { network: NetworkId::Kusama, id: ALICE.into() }.into(),
-			vec![ConcreteFungible { id: Null, amount }],
-			dest_weight,
-		));
-
-		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - amount);
-		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE + amount);
-		assert_eq!(
-			mock::sent_xcm(),
-			vec![(
-				Parachain(PARA_ID).into(),
-				Xcm::ReserveAssetDeposit {
-					assets: vec![ConcreteFungible { id: Parent.into(), amount }],
-					effects: vec![
-						buy_execution(dest_weight),
-						DepositAsset {
-							assets: vec![All],
-							dest: Junction::AccountId32 {
-								network: NetworkId::Kusama,
-								id: ALICE.into()
-							}
-							.into()
-						},
-					]
-				}
-			)]
-		);
-	});
-}
-
-/// Scenario:
 /// A parachain wants to be notified that a transfer worked correctly.
 /// It sends a `QueryHolding` after the deposit to get notified on success.
 ///

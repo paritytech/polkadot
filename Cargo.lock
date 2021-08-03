@@ -5865,7 +5865,6 @@ version = "0.9.8"
 dependencies = [
  "assert_cmd",
  "color-eyre",
- "env_logger 0.9.0",
  "nix",
  "parity-util-mem",
  "polkadot-cli",
