@@ -269,14 +269,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		);
 		let mut total_surplus = 0;
 		match effect {
-			Order::DepositAsset { assets, dest } => {
-				let deposited = holding.saturating_take(assets);
+			Order::DepositAsset { assets, max_assets, dest } => {
+				let deposited = holding.limited_saturating_take(assets, max_assets as usize);
 				for asset in deposited.into_assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
 			},
-			Order::DepositReserveAsset { assets, dest, effects } => {
-				let deposited = holding.saturating_take(assets);
+			Order::DepositReserveAsset { assets, max_assets, dest, effects } => {
+				let deposited = holding.limited_saturating_take(assets, max_assets as usize);
 				for asset in deposited.assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}

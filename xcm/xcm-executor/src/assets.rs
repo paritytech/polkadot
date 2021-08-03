@@ -89,6 +89,11 @@ impl Assets {
 		Self::default()
 	}
 
+	/// Total number of distinct assets.
+	pub fn len(&self) -> usize {
+		self.fungible.len() + self.non_fungible.len()
+	}
+
 	/// A borrowing iterator over the fungible assets.
 	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
 		self.fungible
@@ -231,10 +236,30 @@ impl Assets {
 		&mut self,
 		mask: MultiAssetFilter,
 		saturate: bool,
+		limit: usize,
 	) -> Result<Assets, TakeError> {
 		let mut taken = Assets::new();
 		match mask {
-			MultiAssetFilter::Wild(All) => return Ok(self.swapped(Assets::new())),
+			MultiAssetFilter::Wild(All) => if self.fungible.len() + self.non_fungible.len() <= limit {
+				return Ok(self.swapped(Assets::new()))
+			} else {
+				let fungible = mem::replace(&mut self.fungible, Default::default());
+				fungible.into_iter().for_each(|(c, amount)| {
+					if taken.len() < limit {
+						taken.fungible.insert(c, amount);
+					} else {
+						self.fungible.insert(c, amount);
+					}
+				});
+				let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
+				non_fungible.into_iter().for_each(|(c, instance)| {
+					if taken.len() < limit {
+						taken.non_fungible.insert((c, instance));
+					} else {
+						self.non_fungible.insert((c, instance));
+					}
+				});
+			},
 			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) => {
 				if let Some((id, amount)) = self.fungible.remove_entry(&id) {
 					taken.fungible.insert(id, amount);
@@ -243,7 +268,7 @@ impl Assets {
 			MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id }) => {
 				let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
 				non_fungible.into_iter().for_each(|(c, instance)| {
-					if c == id {
+					if c == id && taken.len() < limit {
 						taken.non_fungible.insert((c, instance));
 					} else {
 						self.non_fungible.insert((c, instance));
@@ -279,6 +304,9 @@ impl Assets {
 							}
 						},
 					}
+					if taken.len() == limit {
+						break
+					}
 				}
 			},
 		}
@@ -290,7 +318,16 @@ impl Assets {
 	/// Returns `Ok` with the non-wildcard equivalence of `mask` taken and mutates `self` to its value minus
 	/// `mask` if `self` contains `asset`, and return `Err` otherwise.
 	pub fn saturating_take(&mut self, asset: MultiAssetFilter) -> Assets {
-		self.general_take(asset, true)
+		self.general_take(asset, true, usize::max_value())
+			.expect("general_take never results in error when saturating")
+	}
+
+	/// Mutates `self` to its original value less `mask` and returns `true` iff it contains at least `mask`.
+	///
+	/// Returns `Ok` with the non-wildcard equivalence of `mask` taken and mutates `self` to its value minus
+	/// `mask` if `self` contains `asset`, and return `Err` otherwise.
+	pub fn limited_saturating_take(&mut self, asset: MultiAssetFilter, limit: usize) -> Assets {
+		self.general_take(asset, true, limit)
 			.expect("general_take never results in error when saturating")
 	}
 
@@ -299,7 +336,7 @@ impl Assets {
 	/// Returns `Ok` with the non-wildcard equivalence of `asset` taken and mutates `self` to its value minus
 	/// `asset` if `self` contains `asset`, and return `Err` otherwise.
 	pub fn try_take(&mut self, mask: MultiAssetFilter) -> Result<Assets, TakeError> {
-		self.general_take(mask, false)
+		self.general_take(mask, false, usize::max_value())
 	}
 
 	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least `asset`.

@@ -39,8 +39,7 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 1)]
-	// TODO: https://github.com/paritytech/polkadot/issues/3547 introduce `, max_assets: u32`
-	DepositAsset { assets: MultiAssetFilter, dest: MultiLocation },
+	DepositAsset { assets: MultiAssetFilter, max_assets: u32, dest: MultiLocation },
 
 	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
 	/// this consensus system.
@@ -54,8 +53,7 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 2)]
-	// TODO: https://github.com/paritytech/polkadot/issues/3547 introduce `, max_assets: u32`
-	DepositReserveAsset { assets: MultiAssetFilter, dest: MultiLocation, effects: Vec<Order<()>> },
+	DepositReserveAsset { assets: MultiAssetFilter, max_assets: u32, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Remove the asset(s) (`give`) from holding and replace them with alternative assets.
 	///
@@ -139,9 +137,9 @@ impl<Call> Order<Call> {
 		use Order::*;
 		match order {
 			Noop => Noop,
-			DepositAsset { assets, dest } => DepositAsset { assets, dest },
-			DepositReserveAsset { assets, dest, effects } =>
-				DepositReserveAsset { assets, dest, effects },
+			DepositAsset { assets, max_assets, dest } => DepositAsset { assets, max_assets, dest },
+			DepositReserveAsset { assets, max_assets, dest, effects } =>
+				DepositReserveAsset { assets, max_assets, dest, effects },
 			ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
 			InitiateReserveWithdraw { assets, reserve, effects } =>
 				InitiateReserveWithdraw { assets, reserve, effects },
