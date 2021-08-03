@@ -80,7 +80,6 @@ use xcm::v0::{
 	prelude::*,
 	BodyId,
 	Junction::Parachain,
-	MultiAsset::{self, AllConcreteFungible},
 	MultiLocation::{self, Null, X1},
 	NetworkId, Xcm,
 };
