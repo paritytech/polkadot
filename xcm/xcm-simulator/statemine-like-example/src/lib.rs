@@ -267,7 +267,8 @@ mod tests {
 			assert_ok!(StatemineAssets::force_create(
 				StatemineOrigin::root(), asset_id, ALICE, true /* is_sufficient */, ed));
 
-			assert_ok!(StatemineAssets::mint(StatemineOrigin::signed(ALICE), asset_id, statemine_acc_for(KARURA_ID), 2 * amount));
+			assert_ok!(StatemineAssets::mint(
+				StatemineOrigin::signed(ALICE), asset_id, statemine_acc_for(KARURA_ID), 2 * amount));
 
 			assert_eq!(StatemineAssets::balance(asset_id, statemine_acc_for(KARURA_ID)), 2 * amount);
 			assert_eq!(StatemineAssets::balance(asset_id, statemine_acc_for(MOONRIVER_ID)), 0);
