@@ -1124,10 +1124,10 @@ pub type Executive = frame_executive::Executive<
 	AllPallets,
 	(
 		RemoveCollectiveFlip,
-		// Needs to be before pallet version to storage version migration because it look into the
+		// Needs to be before pallet version to storage version migration because it looks into the
 		// storage version to determine if it is already up to date.
 		CouncilStoragePrefixMigration,
-		// Needs to be before pallet version to storage version migration because it look into the
+		// Needs to be before pallet version to storage version migration because it looks into the
 		// storage version to determine if it is already up to date.
 		TechnicalCommitteeStoragePrefixMigration,
 		MigratePalletVersionToStorageVersion,
