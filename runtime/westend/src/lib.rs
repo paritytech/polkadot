@@ -1437,7 +1437,6 @@ sp_api::impl_runtime_apis! {
 			sp_runtime::RuntimeString,
 		> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
-			use frame_support::traits::StorageInfoTrait;
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;
