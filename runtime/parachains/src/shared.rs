@@ -21,8 +21,8 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::v1::{CandidateHash, CoreIndex, SessionIndex, ValidatorId, ValidatorIndex};
-use sp_std::vec::Vec;
 use sp_runtime::traits::{One, Zero};
+use sp_std::vec::Vec;
 
 use rand::{seq::SliceRandom, SeedableRng};
 use rand_chacha::ChaCha20Rng;
@@ -72,8 +72,10 @@ pub mod pallet {
 	#[pallet::getter(fn included_candidates)]
 	pub(super) type IncludedCandidates<T: Config> = StorageDoubleMap<
 		_,
-		Twox64Concat, SessionIndex,
-		Blake2_128Concat, CandidateHash,
+		Twox64Concat,
+		SessionIndex,
+		Blake2_128Concat,
+		CandidateHash,
 		(T::BlockNumber, CoreIndex),
 	>;
 
@@ -136,7 +138,9 @@ impl<T: Config> Pallet<T> {
 		included_in: T::BlockNumber,
 		core_index: CoreIndex,
 	) -> Option<T::BlockNumber> {
-		if included_in.is_zero() { return None }
+		if included_in.is_zero() {
+			return None
+		}
 
 		let revert_to = included_in - One::one();
 		<IncludedCandidates<T>>::insert(&session, &candidate_hash, (revert_to, core_index));
@@ -168,7 +172,7 @@ impl<T: Config> Pallet<T> {
 	#[cfg(test)]
 	pub(crate) fn included_candidates_iter_prefix(
 		session: SessionIndex,
-	) -> impl Iterator<Item=(CandidateHash, (T::BlockNumber, CoreIndex))> {
+	) -> impl Iterator<Item = (CandidateHash, (T::BlockNumber, CoreIndex))> {
 		<IncludedCandidates<T>>::iter_prefix(session)
 	}
 
@@ -291,7 +295,8 @@ mod tests {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 			let session = 1;
 			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
-			assert!(ParasShared::note_included_candidate(session, candidate_hash, 0, CoreIndex(0)).is_none());
+			assert!(ParasShared::note_included_candidate(session, candidate_hash, 0, CoreIndex(0))
+				.is_none());
 			assert!(!ParasShared::is_included_candidate(&session, &candidate_hash));
 			assert!(ParasShared::get_included_candidate(&session, &candidate_hash).is_none());
 		});
@@ -305,7 +310,12 @@ mod tests {
 			let block_number = 1;
 			let core_index = CoreIndex(2);
 			assert_eq!(
-				ParasShared::note_included_candidate(session, candidate_hash, block_number, core_index),
+				ParasShared::note_included_candidate(
+					session,
+					candidate_hash,
+					block_number,
+					core_index
+				),
 				Some(block_number - 1),
 			);
 			assert!(ParasShared::is_included_candidate(&session, &candidate_hash));
@@ -323,9 +333,15 @@ mod tests {
 			let candidate_hash2 = CandidateHash(sp_core::H256::repeat_byte(2));
 			let candidate_hash3 = CandidateHash(sp_core::H256::repeat_byte(3));
 
-			assert!(ParasShared::note_included_candidate(1, candidate_hash1, 1, CoreIndex(0)).is_some());
-			assert!(ParasShared::note_included_candidate(1, candidate_hash2, 1, CoreIndex(0)).is_some());
-			assert!(ParasShared::note_included_candidate(2, candidate_hash3, 2, CoreIndex(0)).is_some());
+			assert!(
+				ParasShared::note_included_candidate(1, candidate_hash1, 1, CoreIndex(0)).is_some()
+			);
+			assert!(
+				ParasShared::note_included_candidate(1, candidate_hash2, 1, CoreIndex(0)).is_some()
+			);
+			assert!(
+				ParasShared::note_included_candidate(2, candidate_hash3, 2, CoreIndex(0)).is_some()
+			);
 
 			assert_eq!(ParasShared::included_candidates_iter_prefix(1).count(), 2);
 			assert_eq!(ParasShared::included_candidates_iter_prefix(2).count(), 1);

@@ -17,10 +17,9 @@
 //! Runtime component for handling disputes of parachain candidates.
 
 use crate::{
-	shared,
 	configuration::{self, HostConfiguration},
 	initializer::SessionChangeNotification,
-	session_info,
+	session_info, shared,
 };
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, traits::Get, weights::Weight};
@@ -554,10 +553,8 @@ impl<T: Config> Pallet<T> {
 				dispute.concluded_at = Some(now);
 				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
 
-				let is_local = <shared::Pallet<T>>::is_included_candidate(
-					&session_index,
-					&candidate_hash,
-				);
+				let is_local =
+					<shared::Pallet<T>>::is_included_candidate(&session_index, &candidate_hash);
 				if is_local {
 					// Local disputes don't count towards spam.
 
@@ -780,7 +777,8 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// Apply spam slot changes. Bail early if too many occupied.
-		let is_local = <shared::Pallet<T>>::is_included_candidate(&set.session, &set.candidate_hash);
+		let is_local =
+			<shared::Pallet<T>>::is_included_candidate(&set.session, &set.candidate_hash);
 		if !is_local {
 			let mut spam_slots: Vec<u32> =
 				SpamSlots::<T>::get(&set.session).unwrap_or_else(|| vec![0; n_validators]);
@@ -912,10 +910,8 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// Apply spam slot changes. Bail early if too many occupied.
-		let is_local = <shared::Pallet<T>>::is_included_candidate(
-			&set.session,
-			&set.candidate_hash,
-		);
+		let is_local =
+			<shared::Pallet<T>>::is_included_candidate(&set.session, &set.candidate_hash);
 		if !is_local {
 			let mut spam_slots: Vec<u32> =
 				SpamSlots::<T>::get(&set.session).unwrap_or_else(|| vec![0; n_validators]);
@@ -989,10 +985,9 @@ impl<T: Config> Pallet<T> {
 
 		// Freeze if just concluded against some local candidate
 		if summary.new_flags.contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
-			if let Some((revert_to, _)) = <shared::Pallet<T>>::get_included_candidate(
-				&set.session,
-				&set.candidate_hash,
-			) {
+			if let Some((revert_to, _)) =
+				<shared::Pallet<T>>::get_included_candidate(&set.session, &set.candidate_hash)
+			{
 				Self::revert_and_freeze(revert_to);
 			}
 		}
@@ -1111,7 +1106,6 @@ fn check_signature(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use primitives::v1::CoreIndex;
 	use crate::mock::{
 		new_test_ext, AccountId, AllPallets, Initializer, MockGenesisConfig, System, Test,
 		PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
@@ -1122,7 +1116,7 @@ mod tests {
 		traits::{OnFinalize, OnInitialize},
 	};
 	use frame_system::InitKind;
-	use primitives::v1::BlockNumber;
+	use primitives::v1::{BlockNumber, CoreIndex};
 	use sp_core::{crypto::CryptoType, Pair};
 
 	// All arguments for `initializer::on_new_session`
@@ -1163,18 +1157,18 @@ mod tests {
 		}
 	}
 
-	fn include_candidate(session: SessionIndex, candidate_hash: &CandidateHash, block_number: BlockNumber) {
+	fn include_candidate(
+		session: SessionIndex,
+		candidate_hash: &CandidateHash,
+		block_number: BlockNumber,
+	) {
 		if let Some(revert_to) = shared::Pallet::<Test>::note_included_candidate(
 			session,
 			candidate_hash.clone(),
 			block_number,
 			CoreIndex(0),
 		) {
-			Pallet::<Test>::process_included(
-				session,
-				candidate_hash.clone(),
-				revert_to,
-			);
+			Pallet::<Test>::process_included(session, candidate_hash.clone(), revert_to);
 		}
 	}
 
