@@ -34,6 +34,8 @@ fn sample_size_is_sensible() {
 	let max_weight: Weight = RocksDbWeight::get().reads_writes(samples.into(), samples.into());
 	// Max sample cleanup should be no more than half the total block weight.
 	assert!(max_weight * 2 < BlockWeights::get().max_block);
-	assert!(<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 < BlockWeights::get().max_block);
+	assert!(
+		<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 <
+			BlockWeights::get().max_block
+	);
 }
-

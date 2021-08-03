@@ -22,7 +22,7 @@
 	feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)
 )]
 
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 use tiny_keccak::{Hasher as _, Keccak};
 
 #[cfg(not(feature = "std"))]
@@ -47,8 +47,10 @@ fn keccak256(input: &[u8]) -> [u8; 32] {
 /// Wasm binary unwrapped. If built with `BUILD_DUMMY_WASM_BINARY`, the function panics.
 #[cfg(feature = "std")]
 pub fn wasm_binary_unwrap() -> &'static [u8] {
-	WASM_BINARY.expect("Development wasm binary is not available. Testing is only \
-						supported with the flag disabled.")
+	WASM_BINARY.expect(
+		"Development wasm binary is not available. Testing is only \
+						supported with the flag disabled.",
+	)
 }
 
 /// Head data for this parachain.
@@ -100,9 +102,5 @@ pub fn execute(
 
 	let new_state = block_data.state.wrapping_add(block_data.add);
 
-	Ok(HeadData {
-		number: parent_head.number + 1,
-		parent_hash,
-		post_state: hash_state(new_state),
-	})
+	Ok(HeadData { number: parent_head.number + 1, parent_hash, post_state: hash_state(new_state) })
 }

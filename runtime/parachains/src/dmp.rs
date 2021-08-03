@@ -19,9 +19,9 @@ use crate::{
 	initializer,
 };
 use frame_support::pallet_prelude::*;
-use sp_std::{fmt, prelude::*};
+use primitives::v1::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
-use primitives::v1::{Id as ParaId, DownwardMessage, InboundDownwardMessage, Hash};
+use sp_std::{fmt, prelude::*};
 use xcm::v0::Error as XcmError;
 
 pub use pallet::*;
@@ -47,24 +47,16 @@ pub enum ProcessedDownwardMessagesAcceptanceErr {
 	/// If there are pending messages then `processed_downward_messages` should be at least 1,
 	AdvancementRule,
 	/// `processed_downward_messages` should not be greater than the number of pending messages.
-	Underflow {
-		processed_downward_messages: u32,
-		dmq_length: u32,
-	},
+	Underflow { processed_downward_messages: u32, dmq_length: u32 },
 }
 
 impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
 		use ProcessedDownwardMessagesAcceptanceErr::*;
 		match *self {
-			AdvancementRule => write!(
-				fmt,
-				"DMQ is not empty, but processed_downward_messages is 0",
-			),
-			Underflow {
-				processed_downward_messages,
-				dmq_length,
-			} => write!(
+			AdvancementRule =>
+				write!(fmt, "DMQ is not empty, but processed_downward_messages is 0",),
+			Underflow { processed_downward_messages, dmq_length } => write!(
 				fmt,
 				"processed_downward_messages = {}, but dmq_length is only {}",
 				processed_downward_messages, dmq_length,
@@ -91,7 +83,7 @@ pub mod pallet {
 		Twox64Concat,
 		ParaId,
 		Vec<InboundDownwardMessage<T::BlockNumber>>,
-		ValueQuery
+		ValueQuery,
 	>;
 
 	/// A mapping that stores the downward message queue MQC head for each para.
@@ -102,13 +94,8 @@ pub mod pallet {
 	/// - `B`: is the relay-chain block number in which a message was appended.
 	/// - `H(M)`: is the hash of the message being appended.
 	#[pallet::storage]
-	pub(crate) type DownwardMessageQueueHeads<T: Config> = StorageMap<
-		_,
-		Twox64Concat,
-		ParaId,
-		Hash,
-		ValueQuery,
-	>;
+	pub(crate) type DownwardMessageQueueHeads<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, Hash, ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -161,13 +148,11 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(), QueueDownwardMessageError> {
 		let serialized_len = msg.len() as u32;
 		if serialized_len > config.max_downward_message_size {
-			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize);
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
-		let inbound = InboundDownwardMessage {
-			msg,
-			sent_at: <frame_system::Pallet<T>>::block_number(),
-		};
+		let inbound =
+			InboundDownwardMessage { msg, sent_at: <frame_system::Pallet<T>>::block_number() };
 
 		// obtain the new link in the MQC and update the head.
 		<Self as Store>::DownwardMessageQueueHeads::mutate(para, |head| {
@@ -191,13 +176,13 @@ impl<T: Config> Pallet<T> {
 		let dmq_length = Self::dmq_length(para);
 
 		if dmq_length > 0 && processed_downward_messages == 0 {
-			return Err(ProcessedDownwardMessagesAcceptanceErr::AdvancementRule);
+			return Err(ProcessedDownwardMessagesAcceptanceErr::AdvancementRule)
 		}
 		if dmq_length < processed_downward_messages {
 			return Err(ProcessedDownwardMessagesAcceptanceErr::Underflow {
 				processed_downward_messages,
 				dmq_length,
-			});
+			})
 		}
 
 		Ok(())
@@ -245,10 +230,10 @@ impl<T: Config> Pallet<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System};
 	use hex_literal::hex;
-	use primitives::v1::BlockNumber;
 	use parity_scale_codec::Encode;
-	use crate::mock::{Configuration, new_test_ext, System, Dmp, MockGenesisConfig, Paras};
+	use primitives::v1::BlockNumber;
 
 	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		while System::block_number() < to {
@@ -413,8 +398,8 @@ mod tests {
 
 	#[test]
 	fn verify_dmq_mqc_head_is_externally_accessible() {
-		use primitives::v1::well_known_keys;
 		use hex_literal::hex;
+		use primitives::v1::well_known_keys;
 
 		let a = ParaId::from(2020);
 
@@ -427,7 +412,10 @@ mod tests {
 			let head = sp_io::storage::get(&well_known_keys::dmq_mqc_head(a));
 			assert_eq!(
 				head,
-				Some(hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"].to_vec())
+				Some(
+					hex!["434f8579a2297dfea851bf6be33093c83a78b655a53ae141a7894494c0010589"]
+						.to_vec()
+				)
 			);
 		});
 	}

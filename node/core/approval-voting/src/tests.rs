@@ -16,34 +16,39 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use std::time::Duration;
-use polkadot_overseer::HeadSupportsParachains;
-use polkadot_primitives::v1::{
-	CoreIndex, GroupIndex, ValidatorSignature, Header, CandidateEvent,
-};
-use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, LeafStatus};
 use polkadot_node_primitives::approval::{
-	AssignmentCert, AssignmentCertKind, VRFOutput, VRFProof,
-	RELAY_VRF_MODULO_CONTEXT, DelayTranche,
+	AssignmentCert, AssignmentCertKind, DelayTranche, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
+};
+use polkadot_node_subsystem::{
+	messages::{AllMessages, ApprovalVotingMessage, AssignmentCheckResult},
+	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage, AssignmentCheckResult};
 use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_overseer::HeadSupportsParachains;
+use polkadot_primitives::v1::{CandidateEvent, CoreIndex, GroupIndex, Header, ValidatorSignature};
+use std::time::Duration;
 
+use assert_matches::assert_matches;
 use parking_lot::Mutex;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 use sp_keystore::CryptoStore;
-use assert_matches::assert_matches;
-
-use super::import::tests::{
-	BabeEpoch, BabeEpochConfiguration, AllowedSlots, Digest, garbage_vrf, DigestItem, PreDigest,
-	SecondaryVRFPreDigest, CompatibleDigestItem,
+use std::{
+	pin::Pin,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
 };
-use super::approval_db::v1::StoredBlockRange;
-use super::backend::BackendWriteOp;
+
+use super::{
+	approval_db::v1::StoredBlockRange,
+	backend::BackendWriteOp,
+	import::tests::{
+		garbage_vrf, AllowedSlots, BabeEpoch, BabeEpochConfiguration, CompatibleDigestItem, Digest,
+		DigestItem, PreDigest, SecondaryVRFPreDigest,
+	},
+};
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
 
@@ -92,14 +97,8 @@ fn make_sync_oracle(val: bool) -> (TestSyncOracle, TestSyncOracleHandle) {
 	let flag = Arc::new(AtomicBool::new(val));
 
 	(
-		TestSyncOracle {
-			flag: flag.clone(),
-			done_syncing_sender: Arc::new(Mutex::new(Some(tx))),
-		},
-		TestSyncOracleHandle {
-			flag,
-			done_syncing_receiver: rx,
-		}
+		TestSyncOracle { flag: flag.clone(), done_syncing_sender: Arc::new(Mutex::new(Some(tx))) },
+		TestSyncOracleHandle { flag, done_syncing_receiver: rx },
 	)
 }
 
@@ -114,9 +113,7 @@ pub mod test_constants {
 	const DATA_COL: u32 = 0;
 	pub(crate) const NUM_COLUMNS: u32 = 1;
 
-	pub(crate) const TEST_CONFIG: DatabaseConfig = DatabaseConfig {
-		col_data: DATA_COL,
-	};
+	pub(crate) const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_data: DATA_COL };
 }
 
 struct MockSupportsParachains;
@@ -175,10 +172,8 @@ impl MockClockInner {
 	fn wakeup_all(&mut self, up_to: Tick) {
 		// This finds the position of the first wakeup after
 		// the given tick, or the end of the map.
-		let drain_up_to = self.wakeups.binary_search_by_key(
-			&(up_to + 1),
-			|w| w.0,
-		).unwrap_or_else(|i| i);
+		let drain_up_to =
+			self.wakeups.binary_search_by_key(&(up_to + 1), |w| w.0).unwrap_or_else(|i| i);
 
 		for (_, wakeup) in self.wakeups.drain(..drain_up_to) {
 			let _ = wakeup.send(());
@@ -201,10 +196,7 @@ impl MockClockInner {
 	fn register_wakeup(&mut self, tick: Tick, pre_emptive: bool) -> oneshot::Receiver<()> {
 		let (tx, rx) = oneshot::channel();
 
-		let pos = self.wakeups.binary_search_by_key(
-			&tick,
-			|w| w.0,
-		).unwrap_or_else(|i| i);
+		let pos = self.wakeups.binary_search_by_key(&tick, |w| w.0).unwrap_or_else(|i| i);
 
 		self.wakeups.insert(pos, (tick, tx));
 
@@ -223,14 +215,18 @@ struct MockAssignmentCriteria<Compute, Check>(Compute, Check);
 impl<Compute, Check> AssignmentCriteria for MockAssignmentCriteria<Compute, Check>
 where
 	Compute: Fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
-	Check: Fn() -> Result<DelayTranche, criteria::InvalidAssignment>
+	Check: Fn() -> Result<DelayTranche, criteria::InvalidAssignment>,
 {
 	fn compute_assignments(
 		&self,
 		_keystore: &LocalKeystore,
 		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 		_config: &criteria::Config,
-		_leaving_cores: Vec<(CandidateHash, polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
+		_leaving_cores: Vec<(
+			CandidateHash,
+			polkadot_primitives::v1::CoreIndex,
+			polkadot_primitives::v1::GroupIndex,
+		)>,
 	) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
 		self.0()
 	}
@@ -248,10 +244,12 @@ where
 	}
 }
 
-impl<F> MockAssignmentCriteria<
-	fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
-	F,
-> {
+impl<F>
+	MockAssignmentCriteria<
+		fn() -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment>,
+		F,
+	>
+{
 	fn check_only(f: F) -> Self {
 		MockAssignmentCriteria(Default::default, f)
 	}
@@ -266,10 +264,7 @@ struct TestStore {
 }
 
 impl Backend for TestStore {
-	fn load_block_entry(
-		&self,
-		block_hash: &Hash,
-	) -> SubsystemResult<Option<BlockEntry>> {
+	fn load_block_entry(&self, block_hash: &Hash) -> SubsystemResult<Option<BlockEntry>> {
 		Ok(self.block_entries.get(block_hash).cloned())
 	}
 
@@ -280,10 +275,7 @@ impl Backend for TestStore {
 		Ok(self.candidate_entries.get(candidate_hash).cloned())
 	}
 
-	fn load_blocks_at_height(
-		&self,
-		height: &BlockNumber,
-	) -> SubsystemResult<Vec<Hash>> {
+	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
 		Ok(self.blocks_at_height.get(height).cloned().unwrap_or_default())
 	}
 
@@ -300,31 +292,33 @@ impl Backend for TestStore {
 	}
 
 	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
-		where I: IntoIterator<Item = BackendWriteOp>
+	where
+		I: IntoIterator<Item = BackendWriteOp>,
 	{
 		for op in ops {
 			match op {
 				BackendWriteOp::WriteStoredBlockRange(stored_block_range) => {
 					self.stored_block_range = Some(stored_block_range);
-				}
+				},
 				BackendWriteOp::WriteBlocksAtHeight(h, blocks) => {
 					self.blocks_at_height.insert(h, blocks);
-				}
+				},
 				BackendWriteOp::DeleteBlocksAtHeight(h) => {
 					let _ = self.blocks_at_height.remove(&h);
-				}
+				},
 				BackendWriteOp::WriteBlockEntry(block_entry) => {
 					self.block_entries.insert(block_entry.block_hash(), block_entry);
-				}
+				},
 				BackendWriteOp::DeleteBlockEntry(hash) => {
 					let _ = self.block_entries.remove(&hash);
-				}
+				},
 				BackendWriteOp::WriteCandidateEntry(candidate_entry) => {
-					self.candidate_entries.insert(candidate_entry.candidate_receipt().hash(), candidate_entry);
-				}
+					self.candidate_entries
+						.insert(candidate_entry.candidate_receipt().hash(), candidate_entry);
+				},
 				BackendWriteOp::DeleteCandidateEntry(candidate_hash) => {
 					let _ = self.candidate_entries.remove(&candidate_hash);
-				}
+				},
 			}
 		}
 
@@ -340,10 +334,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
 	let out = inout.to_output();
 
-	AssignmentCert {
-		kind,
-		vrf: (VRFOutput(out), VRFProof(proof)),
-	}
+	AssignmentCert { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
 }
 
 fn sign_approval(
@@ -383,47 +374,40 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let store = TestStore::default();
 
-	let HarnessConfig {
-		tick_start,
-		assigned_tranche,
-	} = config;
+	let HarnessConfig { tick_start, assigned_tranche } = config;
 
 	let clock = Box::new(MockClock::new(tick_start));
 	let subsystem = run(
 		context,
 		ApprovalVotingSubsystem::with_config(
-			Config{
-				col_data: test_constants::TEST_CONFIG.col_data,
-				 slot_duration_millis: 100u64,
-			},
+			Config { col_data: test_constants::TEST_CONFIG.col_data, slot_duration_millis: 100u64 },
 			Arc::new(kvdb_memorydb::create(test_constants::NUM_COLUMNS)),
 			Arc::new(keystore),
 			sync_oracle,
 			Metrics::default(),
 		),
 		clock.clone(),
-		Box::new(MockAssignmentCriteria::check_only(move || { Ok(assigned_tranche) })),
+		Box::new(MockAssignmentCriteria::check_only(move || Ok(assigned_tranche))),
 		store,
 	);
 
-	let test_fut = test(TestHarness {
-		virtual_overseer,
-		clock,
-	});
+	let test_fut = test(TestHarness { virtual_overseer, clock });
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(subsystem);
 
-	futures::executor::block_on(future::join(async move {
-		let mut overseer = test_fut.await;
-		overseer_signal(&mut overseer, OverseerSignal::Conclude).await;
-	}, subsystem)).1.unwrap();
+	futures::executor::block_on(future::join(
+		async move {
+			let mut overseer = test_fut.await;
+			overseer_signal(&mut overseer, OverseerSignal::Conclude).await;
+		},
+		subsystem,
+	))
+	.1
+	.unwrap();
 }
 
-async fn overseer_send(
-	overseer: &mut VirtualOverseer,
-	msg: FromOverseer<ApprovalVotingMessage>,
-) {
+async fn overseer_send(overseer: &mut VirtualOverseer, msg: FromOverseer<ApprovalVotingMessage>) {
 	tracing::trace!("Sending message:\n{:?}", &msg);
 	overseer
 		.send(msg)
@@ -432,9 +416,7 @@ async fn overseer_send(
 		.expect(&format!("{:?} is enough for sending messages.", TIMEOUT));
 }
 
-async fn overseer_recv(
-	overseer: &mut VirtualOverseer,
-) -> AllMessages {
+async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 	let msg = overseer_recv_with_timeout(overseer, TIMEOUT)
 		.await
 		.expect(&format!("{:?} is enough to receive messages.", TIMEOUT));
@@ -449,17 +431,11 @@ async fn overseer_recv_with_timeout(
 	timeout: Duration,
 ) -> Option<AllMessages> {
 	tracing::trace!("Waiting for message...");
-	overseer
-		.recv()
-		.timeout(timeout)
-		.await
+	overseer.recv().timeout(timeout).await
 }
 
 const TIMEOUT: Duration = Duration::from_millis(2000);
-async fn overseer_signal(
-	overseer: &mut VirtualOverseer,
-	signal: OverseerSignal,
-) {
+async fn overseer_signal(overseer: &mut VirtualOverseer, signal: OverseerSignal) {
 	overseer
 		.send(FromOverseer::Signal(signal))
 		.timeout(TIMEOUT)
@@ -471,10 +447,7 @@ async fn overseer_signal(
 fn blank_subsystem_act_on_bad_block() {
 	let (oracle, handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let (tx, rx) = oneshot::channel();
 
@@ -484,18 +457,19 @@ fn blank_subsystem_act_on_bad_block() {
 			&mut virtual_overseer,
 			FromOverseer::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
-					IndirectAssignmentCert{
+					IndirectAssignmentCert {
 						block_hash: bad_block_hash.clone(),
 						validator: 0u32.into(),
-						cert: garbage_assignment_cert(
-							AssignmentCertKind::RelayVRFModulo { sample: 0 }
-						),
+						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
+							sample: 0,
+						}),
 					},
 					0u32,
 					tx,
-				)
-			}
-		).await;
+				),
+			},
+		)
+		.await;
 
 		handle.await_mode_switch().await;
 
@@ -516,10 +490,7 @@ fn blank_subsystem_act_on_bad_block() {
 fn ss_rejects_approval_if_no_block_entry() {
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
@@ -535,7 +506,8 @@ fn ss_rejects_approval_if_no_block_entry() {
 			candidate_hash,
 			session_index,
 			false,
-		).await;
+		)
+		.await;
 
 		assert_matches!(
 			rx.await,
@@ -552,10 +524,7 @@ fn ss_rejects_approval_if_no_block_entry() {
 fn ss_rejects_approval_before_assignment() {
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
 
@@ -584,7 +553,8 @@ fn ss_rejects_approval_before_assignment() {
 			candidate_hash,
 			session_index,
 			false,
-		).await;
+		)
+		.await;
 
 		assert_matches!(
 			rx.await,
@@ -600,59 +570,49 @@ fn ss_rejects_approval_before_assignment() {
 #[test]
 fn ss_rejects_assignment_in_future() {
 	let (oracle, _handle) = make_sync_oracle(false);
-	test_harness(HarnessConfig {
-		tick_start: 0,
-		assigned_tranche: TICK_TOO_FAR_IN_FUTURE as _,
-		..Default::default()
-	}, Box::new(oracle), |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			clock,
-		} = test_harness;
+	test_harness(
+		HarnessConfig {
+			tick_start: 0,
+			assigned_tranche: TICK_TOO_FAR_IN_FUTURE as _,
+			..Default::default()
+		},
+		Box::new(oracle),
+		|test_harness| async move {
+			let TestHarness { mut virtual_overseer, clock } = test_harness;
 
-		let block_hash = Hash::repeat_byte(0x01);
-		let candidate_index = 0;
-		let validator = ValidatorIndex(0);
+			let block_hash = Hash::repeat_byte(0x01);
+			let candidate_index = 0;
+			let validator = ValidatorIndex(0);
 
-		// Add block hash 00.
-		ChainBuilder::new()
-			.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
-			.build(&mut virtual_overseer)
-			.await;
+			// Add block hash 00.
+			ChainBuilder::new()
+				.add_block(block_hash, ChainBuilder::GENESIS_HASH, Slot::from(1), 1)
+				.build(&mut virtual_overseer)
+				.await;
 
-		let rx = cai_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator,
-		).await;
+			let rx =
+				cai_assignment(&mut virtual_overseer, block_hash, candidate_index, validator).await;
 
-		assert_eq!(rx.await, Ok(AssignmentCheckResult::TooFarInFuture));
+			assert_eq!(rx.await, Ok(AssignmentCheckResult::TooFarInFuture));
 
-		// Advance clock to make assignment reasonably near.
-		clock.inner.lock().set_tick(1);
+			// Advance clock to make assignment reasonably near.
+			clock.inner.lock().set_tick(1);
 
-		let rx = cai_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator,
-		).await;
+			let rx =
+				cai_assignment(&mut virtual_overseer, block_hash, candidate_index, validator).await;
 
-		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
+			assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
 
-		virtual_overseer
-	});
+			virtual_overseer
+		},
+	);
 }
 
 #[test]
 fn ss_accepts_duplicate_assignment() {
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
@@ -664,21 +624,13 @@ fn ss_accepts_duplicate_assignment() {
 			.build(&mut virtual_overseer)
 			.await;
 
-		let rx = cai_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator,
-		).await;
+		let rx =
+			cai_assignment(&mut virtual_overseer, block_hash, candidate_index, validator).await;
 
 		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
 
-		let rx = cai_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator,
-		).await;
+		let rx =
+			cai_assignment(&mut virtual_overseer, block_hash, candidate_index, validator).await;
 
 		assert_eq!(rx.await, Ok(AssignmentCheckResult::AcceptedDuplicate));
 
@@ -690,10 +642,7 @@ fn ss_accepts_duplicate_assignment() {
 fn ss_rejects_assignment_with_unknown_candidate() {
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 7;
@@ -705,16 +654,14 @@ fn ss_rejects_assignment_with_unknown_candidate() {
 			.build(&mut virtual_overseer)
 			.await;
 
-		let rx = cai_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator,
-		).await;
+		let rx =
+			cai_assignment(&mut virtual_overseer, block_hash, candidate_index, validator).await;
 
 		assert_eq!(
 			rx.await,
-			Ok(AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(candidate_index))),
+			Ok(AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(
+				candidate_index
+			))),
 		);
 
 		virtual_overseer
@@ -725,10 +672,7 @@ fn ss_rejects_assignment_with_unknown_candidate() {
 fn ss_accepts_and_imports_approval_after_assignment() {
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
 
@@ -749,12 +693,8 @@ fn ss_accepts_and_imports_approval_after_assignment() {
 			.build(&mut virtual_overseer)
 			.await;
 
-		let rx = cai_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator,
-		).await;
+		let rx =
+			cai_assignment(&mut virtual_overseer, block_hash, candidate_index, validator).await;
 
 		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
 
@@ -766,7 +706,8 @@ fn ss_accepts_and_imports_approval_after_assignment() {
 			candidate_hash,
 			session_index,
 			true,
-		).await;
+		)
+		.await;
 
 		assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
 
@@ -777,10 +718,7 @@ fn ss_accepts_and_imports_approval_after_assignment() {
 fn ss_assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let block_hash = Hash::repeat_byte(0x01);
 
@@ -800,12 +738,8 @@ fn ss_assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 			.build(&mut virtual_overseer)
 			.await;
 
-		let rx = cai_assignment(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			validator,
-		).await;
+		let rx =
+			cai_assignment(&mut virtual_overseer, block_hash, candidate_index, validator).await;
 
 		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
 
@@ -831,16 +765,12 @@ async fn cai_approval(
 		overseer,
 		FromOverseer::Communication {
 			msg: ApprovalVotingMessage::CheckAndImportApproval(
-				IndirectSignedApprovalVote {
-					block_hash,
-					candidate_index,
-					validator,
-					signature,
-				},
+				IndirectSignedApprovalVote { block_hash, candidate_index, validator, signature },
 				tx,
 			),
-		}
-	).await;
+		},
+	)
+	.await;
 
 	if expect_coordinator {
 		assert_matches!(
@@ -870,17 +800,14 @@ async fn cai_assignment(
 				IndirectAssignmentCert {
 					block_hash,
 					validator,
-					cert: garbage_assignment_cert(
-						AssignmentCertKind::RelayVRFModulo {
-							sample: 0,
-						},
-					),
+					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
 				},
 				candidate_index,
 				tx,
 			),
-		}
-	).await;
+		},
+	)
+	.await;
 	rx
 }
 
@@ -889,16 +816,13 @@ struct ChainBuilder {
 	blocks_at_height: BTreeMap<u32, Vec<Hash>>,
 }
 
-
 impl ChainBuilder {
 	const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
 	const GENESIS_PARENT_HASH: Hash = Hash::repeat_byte(0x00);
 
 	pub fn new() -> Self {
-		let mut builder = Self {
-			blocks_by_hash: HashMap::new(),
-			blocks_at_height: BTreeMap::new(),
-		};
+		let mut builder =
+			Self { blocks_by_hash: HashMap::new(), blocks_at_height: BTreeMap::new() };
 		builder.add_block_inner(Self::GENESIS_HASH, Self::GENESIS_PARENT_HASH, Slot::from(0), 0);
 		builder
 	}
@@ -912,7 +836,10 @@ impl ChainBuilder {
 	) -> &'a mut Self {
 		assert!(number != 0, "cannot add duplicate genesis block");
 		assert!(hash != Self::GENESIS_HASH, "cannot add block with genesis hash");
-		assert!(parent_hash != Self::GENESIS_PARENT_HASH, "cannot add block with genesis parent hash");
+		assert!(
+			parent_hash != Self::GENESIS_PARENT_HASH,
+			"cannot add block with genesis parent hash"
+		);
 		assert!(self.blocks_by_hash.len() < u8::MAX.into());
 		self.add_block_inner(hash, parent_hash, slot, number)
 	}
@@ -927,7 +854,8 @@ impl ChainBuilder {
 		let header = ChainBuilder::make_header(parent_hash, slot, number);
 		assert!(
 			self.blocks_by_hash.insert(hash, header).is_none(),
-			"block with hash {:?} already exists", hash,
+			"block with hash {:?} already exists",
+			hash,
 		);
 		self.blocks_at_height.entry(number).or_insert_with(Vec::new).push(hash);
 		self
@@ -939,7 +867,8 @@ impl ChainBuilder {
 				let mut cur_hash = *hash;
 				let mut ancestry = Vec::new();
 				while cur_hash != Self::GENESIS_PARENT_HASH {
-					let cur_header = self.blocks_by_hash.get(&cur_hash).expect("chain is not contiguous");
+					let cur_header =
+						self.blocks_by_hash.get(&cur_hash).expect("chain is not contiguous");
 					ancestry.push((cur_hash, cur_header.clone()));
 					cur_hash = cur_header.parent_hash;
 				}
@@ -950,21 +879,12 @@ impl ChainBuilder {
 		}
 	}
 
-	fn make_header(
-		parent_hash: Hash,
-		slot: Slot,
-		number: u32,
-	) -> Header {
+	fn make_header(parent_hash: Hash, slot: Slot, number: u32) -> Header {
 		let digest = {
 			let mut digest = Digest::default();
 			let (vrf_output, vrf_proof) = garbage_vrf();
 			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-				SecondaryVRFPreDigest {
-					authority_index: 0,
-					slot,
-					vrf_output,
-					vrf_proof,
-				}
+				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
 			)));
 			digest
 		};
@@ -976,8 +896,8 @@ impl ChainBuilder {
 			state_root: Default::default(),
 			parent_hash,
 		}
- 	}
- }
+	}
+}
 
 async fn import_block(
 	overseer: &mut VirtualOverseer,
@@ -1003,13 +923,16 @@ async fn import_block(
 	let (new_head, new_header) = &hashes[hashes.len() - 1];
 	overseer_send(
 		overseer,
-		FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-			hash: *new_head,
-			number: session,
-			status: LeafStatus::Fresh,
-			span: Arc::new(jaeger::Span::Disabled),
-		})),
-	)).await;
+		FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+			ActivatedLeaf {
+				hash: *new_head,
+				number: session,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			},
+		))),
+	)
+	.await;
 
 	assert_matches!(
 		overseer_recv(overseer).await,
@@ -1070,22 +993,21 @@ async fn import_block(
 						let (hash, header) = hashes[i as usize].clone();
 						assert_eq!(hash, *new_head);
 						h_tx.send(Ok(Some(header))).unwrap();
-					}
+					},
 					AllMessages::ChainApi(ChainApiMessage::Ancestors {
 						hash,
 						k,
 						response_channel,
 					}) => {
 						assert_eq!(hash, *new_head);
-						assert_eq!(k as u32, session-1);
+						assert_eq!(k as u32, session - 1);
 						let history: Vec<Hash> = hashes.iter().map(|v| v.0).take(k).collect();
 						response_channel.send(Ok(history)).unwrap();
-					}
-					_ => unreachable!{},
+					},
+					_ => unreachable! {},
 				}
 			}
 		}
-
 	}
 
 	if session > 0 {
@@ -1184,10 +1106,7 @@ fn linear_import_act_on_leaf() {
 
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let mut head: Hash = ChainBuilder::GENESIS_HASH;
 		let mut builder = ChainBuilder::new();
@@ -1197,7 +1116,7 @@ fn linear_import_act_on_leaf() {
 			let hash = Hash::repeat_byte(i as u8);
 			builder.add_block(hash, head, slot, i);
 			head = hash;
- 		}
+		}
 
 		builder.build(&mut virtual_overseer).await;
 
@@ -1207,18 +1126,19 @@ fn linear_import_act_on_leaf() {
 			&mut virtual_overseer,
 			FromOverseer::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
-					IndirectAssignmentCert{
+					IndirectAssignmentCert {
 						block_hash: head,
 						validator: 0u32.into(),
-						cert: garbage_assignment_cert(
-							AssignmentCertKind::RelayVRFModulo { sample: 0 }
-						),
+						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
+							sample: 0,
+						}),
 					},
 					0u32,
 					tx,
-				)
-			}
-		).await;
+				),
+			},
+		)
+		.await;
 
 		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
 
@@ -1232,10 +1152,7 @@ fn forkful_import_at_same_height_act_on_leaf() {
 
 	let (oracle, _handle) = make_sync_oracle(false);
 	test_harness(Default::default(), Box::new(oracle), |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, .. } = test_harness;
 
 		let mut head: Hash = ChainBuilder::GENESIS_HASH;
 		let mut builder = ChainBuilder::new();
@@ -1252,7 +1169,7 @@ fn forkful_import_at_same_height_act_on_leaf() {
 			let slot = Slot::from(session as u64);
 			let hash = Hash::repeat_byte(session as u8 + i);
 			builder.add_block(hash, head, slot, session);
- 		}
+		}
 		builder.build(&mut virtual_overseer).await;
 
 		for head in forks.into_iter() {
@@ -1262,18 +1179,19 @@ fn forkful_import_at_same_height_act_on_leaf() {
 				&mut virtual_overseer,
 				FromOverseer::Communication {
 					msg: ApprovalVotingMessage::CheckAndImportAssignment(
-						IndirectAssignmentCert{
+						IndirectAssignmentCert {
 							block_hash: head,
 							validator: 0u32.into(),
-							cert: garbage_assignment_cert(
-								AssignmentCertKind::RelayVRFModulo { sample: 0 }
-							),
+							cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
+								sample: 0,
+							}),
 						},
 						0u32,
 						tx,
-					)
-				}
-			).await;
+					),
+				},
+			)
+			.await;
 
 			assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
 		}

@@ -200,7 +200,7 @@ runtime-benchmarks = [
 	"frame-system-benchmarking",
 	"hex-literal",
 	"xcm-builder/runtime-benchmarks",
-	"pallet-xcm-benchmarks/runtime-benchmarks",
+	"pallet-xcm-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 ]
 try-runtime = [

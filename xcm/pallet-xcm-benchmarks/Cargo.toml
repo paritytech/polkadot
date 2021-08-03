@@ -13,9 +13,7 @@ frame-support = { version = "4.0.0-dev", default-features = false, branch = "mas
 frame-system = { version = "4.0.0-dev", default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-runtime = { version = "4.0.0-dev", default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 sp-std = { version = "4.0.0-dev", default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
-xcm-executor = { path = "../xcm-executor", default-features = false }
-
-# Benchmarks dependencies.
+xcm-executor = { path = "../xcm-executor", default-features = false, features = ["runtime-benchmarks"] }
 frame-benchmarking = { version = "4.0.0-dev", default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 xcm = { path = "..", default-features = false, features = ["runtime-benchmarks"] }
 

@@ -19,11 +19,11 @@
 //! To avoid cyclic dependencies, it is important that this pallet is not
 //! dependent on any of the other pallets.
 
-use primitives::v1::{SessionIndex, ValidatorId, ValidatorIndex};
 use frame_support::pallet_prelude::*;
+use primitives::v1::{SessionIndex, ValidatorId, ValidatorIndex};
 use sp_std::vec::Vec;
 
-use rand::{SeedableRng, seq::SliceRandom};
+use rand::{seq::SliceRandom, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
 use crate::configuration::HostConfiguration;
@@ -55,7 +55,8 @@ pub mod pallet {
 	/// Indices are into the broader validator set.
 	#[pallet::storage]
 	#[pallet::getter(fn active_validator_indices)]
-	pub(super) type ActiveValidatorIndices<T: Config> = StorageValue<_, Vec<ValidatorIndex>, ValueQuery>;
+	pub(super) type ActiveValidatorIndices<T: Config> =
+		StorageValue<_, Vec<ValidatorIndex>, ValueQuery>;
 
 	/// The parachain attestation keys of the validators actively participating in parachain consensus.
 	/// This should be the same length as `ActiveValidatorIndices`.
@@ -74,7 +75,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Called by the initializer to finalize the configuration pallet.
-	pub(crate) fn initializer_finalize() { }
+	pub(crate) fn initializer_finalize() {}
 
 	/// Called by the initializer to note that a new session has started.
 	///
@@ -99,10 +100,8 @@ impl<T: Config> Pallet<T> {
 			shuffled_indices.truncate(max as usize);
 		}
 
-		let active_validator_keys = crate::util::take_active_subset(
-			&shuffled_indices,
-			&all_validators,
-		);
+		let active_validator_keys =
+			crate::util::take_active_subset(&shuffled_indices, &all_validators);
 
 		ActiveValidatorIndices::<T>::set(shuffled_indices);
 		ActiveValidatorKeys::<T>::set(active_validator_keys.clone());
@@ -124,7 +123,7 @@ impl<T: Config> Pallet<T> {
 	#[cfg(test)]
 	pub(crate) fn set_active_validators_ascending(active: Vec<ValidatorId>) {
 		ActiveValidatorIndices::<T>::set(
-			(0..active.len()).map(|i| ValidatorIndex(i as _)).collect()
+			(0..active.len()).map(|i| ValidatorIndex(i as _)).collect(),
 		);
 		ActiveValidatorKeys::<T>::set(active);
 	}
@@ -143,8 +142,10 @@ impl<T: Config> Pallet<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::configuration::HostConfiguration;
-	use crate::mock::{new_test_ext, MockGenesisConfig, ParasShared};
+	use crate::{
+		configuration::HostConfiguration,
+		mock::{new_test_ext, MockGenesisConfig, ParasShared},
+	};
 	use keyring::Sr25519Keyring;
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -167,12 +168,7 @@ mod tests {
 		let pubkeys = validator_pubkeys(&validators);
 
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			let validators = ParasShared::initializer_on_new_session(
-				1,
-				[1; 32],
-				&config,
-				pubkeys,
-			);
+			let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
 
 			assert_eq!(
 				validators,
@@ -185,10 +181,7 @@ mod tests {
 				])
 			);
 
-			assert_eq!(
-				ParasShared::active_validator_keys(),
-				validators,
-			);
+			assert_eq!(ParasShared::active_validator_keys(), validators,);
 
 			assert_eq!(
 				ParasShared::active_validator_indices(),
@@ -219,32 +212,18 @@ mod tests {
 		let pubkeys = validator_pubkeys(&validators);
 
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			let validators = ParasShared::initializer_on_new_session(
-				1,
-				[1; 32],
-				&config,
-				pubkeys,
-			);
+			let validators = ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
 
 			assert_eq!(
 				validators,
-				validator_pubkeys(&[
-					Sr25519Keyring::Ferdie,
-					Sr25519Keyring::Bob,
-				])
+				validator_pubkeys(&[Sr25519Keyring::Ferdie, Sr25519Keyring::Bob,])
 			);
 
-			assert_eq!(
-				ParasShared::active_validator_keys(),
-				validators,
-			);
+			assert_eq!(ParasShared::active_validator_keys(), validators,);
 
 			assert_eq!(
 				ParasShared::active_validator_indices(),
-				vec![
-					ValidatorIndex(4),
-					ValidatorIndex(1),
-				]
+				vec![ValidatorIndex(4), ValidatorIndex(1),]
 			);
 		});
 	}

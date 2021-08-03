@@ -21,15 +21,15 @@ use std::sync::Arc;
 use futures::channel::oneshot;
 
 use polkadot_node_network_protocol::request_response::{request::IncomingRequest, v1};
-use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
-use polkadot_subsystem::{
-	messages::AvailabilityStoreMessage,
-	SubsystemContext, jaeger,
-};
+use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
+use polkadot_subsystem::{jaeger, messages::AvailabilityStoreMessage, SubsystemContext};
 
-use crate::error::{NonFatal, Result};
-use crate::{LOG_TARGET, metrics::{Metrics, SUCCEEDED, FAILED, NOT_FOUND}};
+use crate::{
+	error::{NonFatal, Result},
+	metrics::{Metrics, FAILED, NOT_FOUND, SUCCEEDED},
+	LOG_TARGET,
+};
 
 /// Variant of `answer_pov_request` that does Prometheus metric and logging on errors.
 ///
@@ -38,14 +38,12 @@ pub async fn answer_pov_request_log<Context>(
 	ctx: &mut Context,
 	req: IncomingRequest<v1::PoVFetchingRequest>,
 	metrics: &Metrics,
-)
-where
+) where
 	Context: SubsystemContext,
 {
 	let res = answer_pov_request(ctx, req).await;
 	match res {
-		Ok(result) =>
-			metrics.on_served_pov(if result {SUCCEEDED} else {NOT_FOUND}),
+		Ok(result) => metrics.on_served_pov(if result { SUCCEEDED } else { NOT_FOUND }),
 		Err(err) => {
 			tracing::warn!(
 				target: LOG_TARGET,
@@ -53,7 +51,7 @@ where
 				"Serving PoV failed with error"
 			);
 			metrics.on_served_pov(FAILED);
-		}
+		},
 	}
 }
 
@@ -70,8 +68,7 @@ where
 {
 	let res = answer_chunk_request(ctx, req).await;
 	match res {
-		Ok(result) =>
-			metrics.on_served_chunk(if result {SUCCEEDED} else {NOT_FOUND}),
+		Ok(result) => metrics.on_served_chunk(if result { SUCCEEDED } else { NOT_FOUND }),
 		Err(err) => {
 			tracing::warn!(
 				target: LOG_TARGET,
@@ -79,7 +76,7 @@ where
 				"Serving chunk failed with error"
 			);
 			metrics.on_served_chunk(FAILED);
-		}
+		},
 	}
 }
 
@@ -104,7 +101,7 @@ where
 		Some(av_data) => {
 			let pov = Arc::try_unwrap(av_data.pov).unwrap_or_else(|a| (&*a).clone());
 			v1::PoVFetchingResponse::PoV(pov)
-		}
+		},
 	};
 
 	req.send_response(response).map_err(|_| NonFatal::SendResponse)?;
@@ -123,8 +120,7 @@ where
 {
 	let span = jaeger::Span::new(req.payload.candidate_hash, "answer-chunk-request");
 
-	let _child_span = span.child("answer-chunk-request")
-		.with_chunk_index(req.payload.index.0);
+	let _child_span = span.child("answer-chunk-request").with_chunk_index(req.payload.index.0);
 
 	let chunk = query_chunk(ctx, req.payload.candidate_hash, req.payload.index).await?;
 
@@ -158,10 +154,8 @@ where
 	Context: SubsystemContext,
 {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(
-		AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
-	)
-	.await;
+	ctx.send_message(AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx))
+		.await;
 
 	let result = rx.await.map_err(|e| {
 		tracing::trace!(
@@ -185,10 +179,8 @@ where
 	Context: SubsystemContext,
 {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(
-		AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx),
-	)
-	.await;
+	ctx.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx))
+		.await;
 
 	let result = rx.await.map_err(|e| NonFatal::QueryAvailableDataResponseChannel(e))?;
 	Ok(result)
