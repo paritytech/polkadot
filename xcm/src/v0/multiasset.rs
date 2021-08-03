@@ -272,6 +272,7 @@ pub enum WildFungibility {
 	NonFungible,
 }
 
+/// A wildcard representing a set of assets.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum WildMultiAsset {
 	/// All assets in the holding register, up to `usize` individual assets (different instances of non-fungibles could
@@ -311,8 +312,10 @@ impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset
 	}
 }
 
-/// `MultiAsset` collection, either `MultiAssets` or a single wildcard. Note: vectors of wildcards
-/// whose encoding is supported in XCM v0 are unsupported in this implementation and will result in a decode error.
+/// `MultiAsset` collection, either `MultiAssets` or a single wildcard.
+/// 
+/// Note: Vectors of wildcards whose encoding is supported in XCM v0 are unsupported
+/// in this implementation and will result in a decode error.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum MultiAssetFilter {
 	Definite(MultiAssets),
