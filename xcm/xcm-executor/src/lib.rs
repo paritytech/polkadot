@@ -106,10 +106,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		log::trace!(
 			target: "xcm::do_execute_xcm",
 			"origin: {:?}, top_level: {:?}, message: {:?}, weight_credit: {:?}, maybe_shallow_weight: {:?}",
-			origin, 
-			top_level, 
-			message, 
-			weight_credit, 
+			origin,
+			top_level,
+			message,
+			weight_credit,
 			maybe_shallow_weight,
 		);
 		// This is the weight of everything that cannot be paid for. This basically means all computation
@@ -275,6 +275,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = holding.saturating_take(assets);
 				for asset in assets.assets_iter() {
 					Config::AssetTransactor::check_out(&origin, &asset);
+					ensure!(
+						Config::IsTeleporter::filter_asset_location(&asset, &dest),
+						XcmError::UntrustedTeleportLocation
+					);
 				}
 				let assets = Self::reanchored(assets, &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })?;

@@ -200,7 +200,7 @@ fn teleport_to_statemine_works() {
 			weight,
 		);
 		// teleports not allowed to community chains
-		assert_eq!(r, Outcome::Error(XcmError::UntrustedTeleportLocation));
+		assert_eq!(r, Outcome::Incomplete(weight, XcmError::UntrustedTeleportLocation));
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
@@ -217,7 +217,8 @@ fn teleport_to_statemine_works() {
 			weight,
 		);
 		assert_eq!(r, Outcome::Complete(weight));
-		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - amount);
+		// 2 * amount because of the incomplete failed attempt above
+		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - 2 * amount);
 		assert_eq!(
 			mock::sent_xcm(),
 			vec![(

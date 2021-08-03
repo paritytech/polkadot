@@ -358,7 +358,7 @@ fn teleport_destinations_should_be_filtered() {
 		};
 		let weight_limit = 100;
 		let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
-		assert_eq!(r, Outcome::Error(XcmError::UntrustedTeleportLocation));
+		assert_eq!(r, Outcome::Incomplete(30, XcmError::UntrustedTeleportLocation));
 	}
 
 	add_teleporter(one.clone(), AllConcreteFungible { id: X1(Parent) });
@@ -373,6 +373,7 @@ fn teleport_destinations_should_be_filtered() {
 	};
 	let weight_limit = 100;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
-	assert_eq!(r, Outcome::Complete(50));
-	assert_eq!(assets(1), vec![ ConcreteFungible { id: X1(Parent), amount: 50 } ]);
+	assert_eq!(r, Outcome::Complete(30));
+	// 0 because we pay for the failed attempt as well
+	assert_eq!(assets(1), vec![ ConcreteFungible { id: X1(Parent), amount: 0 } ]);
 }
