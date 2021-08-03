@@ -20,6 +20,8 @@ cargo +nightly run $standard_args benchmark \
   sed -r -e 's/Pallet: "([a-z_:]+)".*/\1/' | \
   uniq | \
   grep -v frame_system > "${runtime}_pallets"
+
+# For each pallet found in the previous command, run benches on each function
 while read -r line; do
   pallet="$(echo "$line" | cut -d' ' -f1)";
   echo "Runtime: $runtime. Pallet: $pallet";
