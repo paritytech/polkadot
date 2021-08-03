@@ -944,7 +944,6 @@ pub type LocalOriginToLocation = (
 	SignedToAccountId32<Origin, AccountId, WestendNetwork>,
 );
 
-
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
