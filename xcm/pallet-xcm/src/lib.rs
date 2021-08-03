@@ -165,7 +165,7 @@ pub mod pallet {
 							halt_on_error: false,
 							xcm: vec![],
 						},
-						DepositAsset { assets: Wild(All), dest: beneficiary },
+						DepositAsset { assets: Wild(All), max_assets: 1, dest: beneficiary },
 					],
 				}],
 			};
@@ -222,7 +222,7 @@ pub mod pallet {
 						halt_on_error: false,
 						xcm: vec![],
 					},
-					DepositAsset { assets: Wild(All), dest: beneficiary },
+					DepositAsset { assets: Wild(All), max_assets: 1, dest: beneficiary },
 				],
 			};
 			let weight =
