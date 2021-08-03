@@ -36,7 +36,7 @@ use polkadot_parachain::primitives::{
 	DmpMessageHandler, Id as ParaId, Sibling, XcmpMessageFormat, XcmpMessageHandler,
 };
 use xcm::{
-	v0::{
+	v1::{
 		Error as XcmError, ExecuteXcm,
 		Junction::{Parachain, Parent},
 		MultiAsset,

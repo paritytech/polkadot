@@ -699,7 +699,7 @@ impl MultiLocation {
 #[cfg(test)]
 mod tests {
 	use super::MultiLocation::*;
-	use crate::opaque::v0::{Junction::*, NetworkId::Any};
+	use crate::opaque::v1::{Junction::*, NetworkId::Any};
 
 	#[test]
 	fn match_and_split_works() {

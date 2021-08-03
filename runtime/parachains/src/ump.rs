@@ -85,7 +85,7 @@ impl<XcmExecutor: xcm::v1::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<X
 		max_weight: Weight,
 	) -> Result<Weight, (MessageId, Weight)> {
 		use xcm::{
-			v0::{Error as XcmError, Junction, MultiLocation, Xcm},
+			v1::{Error as XcmError, Junction, MultiLocation, Xcm},
 			VersionedXcm,
 		};
 

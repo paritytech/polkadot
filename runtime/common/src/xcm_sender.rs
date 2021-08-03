@@ -20,7 +20,7 @@ use parity_scale_codec::Encode;
 use runtime_parachains::{configuration, dmp};
 use sp_std::marker::PhantomData;
 use xcm::opaque::{
-	v0::{Error, Junction, MultiLocation, Result, SendXcm, Xcm},
+	v1::{Error, Junction, MultiLocation, Result, SendXcm, Xcm},
 	VersionedXcm,
 };
 

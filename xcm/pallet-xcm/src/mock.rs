@@ -25,8 +25,8 @@ use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
 use xcm::{
-	opaque::v0::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
-	v0::{MultiLocation, NetworkId, Order},
+	opaque::v1::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
+	v1::{MultiLocation, NetworkId, Order},
 };
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
@@ -195,7 +195,7 @@ pub(crate) fn last_event() -> Event {
 }
 
 pub(crate) fn buy_execution<C>(debt: Weight) -> Order<C> {
-	use xcm::opaque::v0::prelude::*;
+	use xcm::opaque::v1::prelude::*;
 	Order::BuyExecution { fees: All, weight: 0, debt, halt_on_error: false, xcm: vec![] }
 }
 
