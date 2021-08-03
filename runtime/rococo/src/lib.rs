@@ -214,7 +214,7 @@ construct_runtime! {
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
-		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
+		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		ParaScheduler: parachains_scheduler::{Pallet, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
@@ -488,6 +488,8 @@ impl pallet_babe::Config for Runtime {
 
 	// session module is the trigger
 	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
+
+	type DisabledValidators = Session;
 
 	type KeyOwnerProofSystem = Historical;
 
