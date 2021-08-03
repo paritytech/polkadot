@@ -18,76 +18,94 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use pallet::*;
 use xcm::v0::MultiAsset;
 
+mod fungible;
+mod fungibles;
+
 #[cfg(test)]
-mod mock_fungible;
-#[cfg(test)]
-mod mock_fungibles;
-#[cfg(test)]
-mod mock_shared;
+mod mock;
 
-mod benchmarking;
-pub mod weights;
-// pub use weights::*;
-
-#[frame_support::pallet]
-pub mod pallet {
-	use crate::MultiAsset;
-
-	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		/// The XCM configurations.
-		///
-		/// These might affect the execution of XCM messages, such as defining how the
-		/// `TransactAsset` is implemented.
-		type XcmConfig: xcm_executor::Config;
-
-		/// Give me a fungible asset that your asset transactor is going to accept. Give me none if
-		/// you don't really want to support this type of asset.
-		///
-		/// A fungible asset always has an amount, return that too.
-		fn get_id() -> MultiAsset;
-		/// Same as `fungible_asset`, but for an asset of multiple instances.
-		// fn fungibles_asset(_amount: u32, _id: u32) -> Option<(MultiAsset, u128)> {
-		// 	None
-		// }
-
-		type FungibleTransactAsset: frame_support::traits::fungible::Mutate<Self::AccountId>;
-		// type FungiblesTransactAsset: frame_support::traits::fungibles::Inspect<Self::AccountId>;
-		// type NonFungibleTransactAsset: traits::tokens::nonfungible::Inspect<Self::AccountId>;
-		// type NonFungiblesTransactAsset: traits::tokens::nonfungibles::Inspect<Self::AccountId>;
-	}
-
-	// transact asset that works with balances and asset
-	//
-	// transact asset that works with 3 assets
-
-	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
-}
-
-// With this, we measure all weights per asset, so NONE of the benchmarks need to have a component
-// that is the number of assets, that's pretty pointless. You need to iterate the `Vec<MultiAsset>`
-// down the road
-enum AssetTransactorType {
-	Fungible,    // Balances
-	Fungibles,   // Assets,
-	NonFungible, // Uniques
-}
-
-trait IdentifyAsset<R> {
-	fn identify_asset(asset: MultiAsset) -> R;
-}
-
-use frame_support::traits::{
+use frame_support::{dispatch::Weight, traits::{
 	fungible::Inspect as FungibleInspect,
 	fungibles::Inspect as FungiblesInspect,
 	tokens::{DepositConsequence, WithdrawConsequence},
-};
+}};
 
+/// The xcm executor to use for doing stuff.
+pub type ExecutorOf<T> = xcm_executor::XcmExecutor<<T as crate::Config>::XcmConfig>;
+/// The asset transactor of our executor
+pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::AssetTransactor;
+/// The overarching call type.
+pub type OverArchingCallOf<T> = <T as frame_system::Config>::Call;
+/// The call type of executor's config. Should eventually resolve to the same overarching call type.
+pub type XcmCallOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::Call;
+
+const SEED: u32 = 0;
+const MAX_WEIGHT: Weight = 999_999_999_999;
+
+pub fn create_holding(
+	fungibles_count: u32,
+	fungibles_amount: u128,
+	non_fungibles_count: u32,
+) -> Assets {
+	(0..fungibles_count)
+		.map(|i| {
+			MultiAsset::ConcreteFungible {
+				id: MultiLocation::X1(Junction::GeneralIndex { id: i as u128 }),
+				amount: fungibles_amount * i as u128,
+			}
+			.into()
+		})
+		.chain((0..non_fungibles_count).map(|i| MultiAsset::ConcreteNonFungible {
+			class: MultiLocation::X1(Junction::GeneralIndex { id: i as u128 }),
+			instance: asset_instance_from(i),
+		}))
+		.collect::<Vec<_>>()
+		.into()
+}
+
+pub fn asset_instance_from(x: u32) -> AssetInstance {
+	let bytes = x.encode();
+	let mut instance = [0u8; 4];
+	instance.copy_from_slice(&bytes);
+	AssetInstance::Array4(instance)
+}
+
+/// wrapper to execute single order. Can be any hack, for now we just do a noop-xcm with a single
+/// order.
+pub fn execute_order<T: Config>(
+	origin: MultiLocation,
+	mut holding: Assets,
+	order: Order<XcmCallOf<T>>,
+) -> Result<Weight, XcmError> {
+	ExecutorOf::<T>::do_execute_effects(&origin, &mut holding, order)
+}
+
+/// Execute an xcm.
+pub fn execute_xcm<T: Config>(origin: MultiLocation, xcm: Xcm<XcmCallOf<T>>) -> Outcome {
+	// TODO: very large weight to ensure all benchmarks execute, sensible?
+	ExecutorOf::<T>::execute_xcm(origin, xcm, MAX_WEIGHT)
+}
+
+pub fn account<T: Config>(index: u32) -> T::AccountId {
+	frame_benchmarking::account::<T::AccountId>("account", index, SEED)
+}
+
+/// Build a multi-location from an account id.
+fn account_id_junction<T: Config>(index: u32) -> Junction {
+	let account = account::<T>(index);
+	let mut encoded = account.encode();
+	encoded.resize(32, 0u8);
+	let mut id = [0u8; 32];
+	id.copy_from_slice(&encoded);
+	Junction::AccountId32 { network: NetworkId::Any, id }
+}
+
+
+/// Helper struct that converts a `Fungible` to `Fungibles`
+///
+/// TODO: might not be needed anymore.
 pub struct AsFungibles<AccountId, AssetId, B>(sp_std::marker::PhantomData<(AccountId, AssetId, B)>);
 impl<
 		AccountId: sp_runtime::traits::Member + frame_support::dispatch::Parameter,

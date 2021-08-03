@@ -172,8 +172,9 @@ impl xcm_executor::Config for XcmConfig {
 use frame_support::traits::fungibles::Inspect;
 impl pallet_xcm_benchmarks::Config for Test {
 	type XcmConfig = XcmConfig;
+	type TransactAsset = Assets;
 
-	fn fungibles_asset(amount: u32, id: u32) -> Option<(MultiAsset, u128)> {
+	fn get_multi_asset(id: u32) -> MultiAsset {
 		// create this asset, if it does not exists.
 		if <Assets as Inspect<u64>>::minimum_balance(id).is_zero() {
 			assert!(!ExistentialDeposit::get().is_zero());
@@ -182,18 +183,12 @@ impl pallet_xcm_benchmarks::Config for Test {
 			assert!(!<Assets as Inspect<u64>>::minimum_balance(id).is_zero());
 		}
 
-		let amount = <Assets as Inspect<u64>>::minimum_balance(id) as u128 * amount as u128;
-		Some((
-			MultiAsset::ConcreteFungible {
-				id: MultiLocation::X1(Junction::GeneralIndex { id: id.into() }),
-				amount,
-			},
+		let amount = <Assets as Inspect<u64>>::minimum_balance(id) as u128;
+		MultiAsset::ConcreteFungible {
+			id: MultiLocation::X1(Junction::GeneralIndex { id: id.into() }),
 			amount,
-		))
+		}
 	}
-
-	type FungibleTransactAsset = Balances;
-	type FungiblesTransactAsset = Assets;
 }
 
 // This function basically just builds a genesis storage key/value store according to

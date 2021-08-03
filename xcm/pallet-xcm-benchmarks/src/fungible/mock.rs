@@ -16,8 +16,8 @@
 
 //! A mock runtime for xcm benchmarking.
 
-use crate as pallet_xcm_benchmarks;
-use crate::mock_shared::*;
+use crate::mock::*;
+use crate::fungible as xcm_balances_benchmark;
 use frame_support::parameter_types;
 use sp_core::H256;
 use sp_runtime::{
@@ -39,7 +39,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		XcmPalletBenchmarks: pallet_xcm_benchmarks::{Pallet},
+		XcmBalancesBenchmark: xcm_balances_benchmark::{Pallet},
 	}
 );
 
@@ -137,17 +137,14 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = DevNull;
 }
 
-impl pallet_xcm_benchmarks::Config for Test {
+impl xcm_balances_benchmark::Config for Test {
 	type XcmConfig = XcmConfig;
-
-	fn fungible_asset(amount: u32) -> Option<(MultiAsset, u128)> {
+	type TransactAsset = Balances;
+	fn fungible_asset(amount: u32) -> MultiAsset {
 		let amount = <Balances as frame_support::traits::fungible::Inspect<u64>>::minimum_balance()
 			as u128 * amount as u128;
-		Some((MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount }, amount))
+		MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount }
 	}
-
-	type FungibleTransactAsset = Balances;
-	type FungiblesTransactAsset = crate::AsFungibles<u64, u32, Balances>;
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

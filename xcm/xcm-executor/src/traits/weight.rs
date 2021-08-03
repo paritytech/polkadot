@@ -15,9 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{Assets, PhantomData};
-use frame_support::weights::Weight;
+use frame_support::{dispatch::GetDispatchInfo, weights::Weight};
+use sp_runtime::traits::Saturating;
+use parity_scale_codec::Decode;
 use sp_std::result::Result;
-use xcm::v0::{Error, MultiAsset, MultiLocation, Order, Xcm};
+use xcm::v0::{Error, GetWeight, MultiAsset, MultiLocation, Order, Xcm, XcmWeightInfo};
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {
@@ -88,7 +90,7 @@ impl WeightTrader for () {
 struct FinalXcmWeight<W, C>(PhantomData<(W, C)>);
 impl<W, C> WeightBounds<C> for FinalXcmWeight<W, C>
 where
-	W: XcmWeightInfo,
+	W: XcmWeightInfo<C>,
 	C: Decode + GetDispatchInfo,
 	Xcm<C>: GetWeight<W>,
 	Order<C>: GetWeight<W>,
@@ -132,7 +134,7 @@ where
 			Xcm::WithdrawAsset { effects, .. } |
 			Xcm::ReserveAssetDeposit { effects, .. } |
 			Xcm::TeleportAsset { effects, .. } => {
-				let mut extra = 0;
+				let mut extra: Weight = 0;
 				for effect in effects.iter_mut() {
 					match effect {
 						Order::BuyExecution { xcm, .. } =>
