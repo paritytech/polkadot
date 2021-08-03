@@ -21,8 +21,6 @@ use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::{traits::AccountIdConversion, AccountId32};
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain};
 
-pub const ALICE: AccountId32 = AccountId32::new([0u8; 32]);
-
 decl_test_parachain! {
 	pub struct ParaA {
 		Runtime = parachain::Runtime,
@@ -59,7 +57,12 @@ decl_test_network! {
 	}
 }
 
+pub const ALICE: AccountId32 = AccountId32::new([0u8; 32]);
 pub const INITIAL_BALANCE: u128 = 1_000_000_000;
+
+pub fn para_account_id(id: u32) -> relay_chain::AccountId {
+	ParaId::from(id).into_account()
+}
 
 pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 	use parachain::{MsgQueue, Runtime, System};
@@ -80,11 +83,10 @@ pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 
 pub fn relay_ext() -> sp_io::TestExternalities {
 	use relay_chain::{Runtime, System};
-	let para_account_a: relay_chain::AccountId = ParaId::from(1).into_account();
 
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 	pallet_balances::GenesisConfig::<Runtime> {
-		balances: vec![(ALICE, INITIAL_BALANCE), (para_account_a, INITIAL_BALANCE)],
+		balances: vec![(ALICE, INITIAL_BALANCE), (para_account_id(1), INITIAL_BALANCE)],
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
@@ -104,7 +106,6 @@ mod tests {
 	use codec::Encode;
 	use frame_support::{assert_ok, weights::Weight};
 	use xcm::v0::{
-		prelude::OnlyChild,
 		Junction::{self, Parachain, Parent},
 		MultiAsset::*,
 		MultiLocation::*,
@@ -219,9 +220,8 @@ mod tests {
 				vec![ConcreteFungible { id: Null, amount: withdraw_amount }],
 				max_weight_for_execution,
 			));
-			let para_account_a = ParaId::from(1).into_account();
 			assert_eq!(
-				parachain::Balances::free_balance(&para_account_a),
+				parachain::Balances::free_balance(&para_account_id(1)),
 				INITIAL_BALANCE + withdraw_amount
 			);
 		});
@@ -280,13 +280,11 @@ mod tests {
 		amount_received += send_amount;
 
 		Relay::execute_and_dispatch_xcm(|| {
-			let para_account_a: relay_chain::AccountId = ParaId::from(1).into_account();
 			assert_eq!(
-				relay_chain::Balances::free_balance(para_account_a),
+				relay_chain::Balances::free_balance(para_account_id(1)),
 				INITIAL_BALANCE - send_amount
 			);
-			let para_account_b: relay_chain::AccountId = ParaId::from(2).into_account();
-			assert_eq!(relay_chain::Balances::free_balance(para_account_b), amount_received);
+			assert_eq!(relay_chain::Balances::free_balance(para_account_id(2)), amount_received);
 		});
 	}
 
@@ -300,58 +298,16 @@ mod tests {
 		MockNet::reset();
 
 		let send_amount = 10;
-		let mut amount_spent = 0;
-		let mut amount_received = 0;
 		let weight_for_execution = 3 * relay_chain::BaseXcmWeight::get();
 		let query_id_set = 1234;
 
-		// First send a message which fails on the relay chain
+		// Send a message which fully succeeds on the relay chain
 		ParaA::execute_and_dispatch_xcm(|| {
 			let message = WithdrawAsset {
 				assets: vec![ConcreteFungible { id: Null, amount: send_amount }],
 				effects: vec![
 					buy_execution(weight_for_execution),
-					Order::DepositAsset {
-						assets: vec![All],
-						dest: OnlyChild.into(), // invalid destination
-					},
-					// is not triggered because the deposit fails
-					Order::QueryHolding {
-						query_id: query_id_set,
-						dest: Parachain(2).into(),
-						assets: vec![All],
-					},
-				],
-			};
-			// Send withdraw and deposit with query holding
-			assert_ok!(ParachainPalletXcm::send_xcm(Null, X1(Parent), message.clone(),));
-		});
-
-		amount_spent += send_amount;
-
-		// Check that no transfer was executed and no response message was sent
-		Relay::execute_and_dispatch_xcm(|| {
-			let para_account_a: relay_chain::AccountId = ParaId::from(1).into_account();
-			// withdraw did execute
-			assert_eq!(
-				relay_chain::Balances::free_balance(para_account_a),
-				INITIAL_BALANCE - amount_spent
-			);
-			// but deposit did not execute
-			let para_account_b: relay_chain::AccountId = ParaId::from(2).into_account();
-			assert_eq!(relay_chain::Balances::free_balance(para_account_b), 0);
-		});
-
-		// Now send a message which fully succeeds on the relay chain
-		ParaA::execute_and_dispatch_xcm(|| {
-			let message = WithdrawAsset {
-				assets: vec![ConcreteFungible { id: Null, amount: send_amount }],
-				effects: vec![
-					buy_execution(weight_for_execution),
-					Order::DepositAsset {
-						assets: vec![All],
-						dest: Parachain(2).into(), // valid destination
-					},
+					Order::DepositAsset { assets: vec![All], dest: Parachain(2).into() },
 					Order::QueryHolding {
 						query_id: query_id_set,
 						dest: Parachain(1).into(),
@@ -363,20 +319,15 @@ mod tests {
 			assert_ok!(ParachainPalletXcm::send_xcm(Null, X1(Parent), message.clone(),));
 		});
 
-		amount_spent += send_amount;
-		amount_received += send_amount;
-
 		// Check that transfer was executed
 		Relay::execute_and_dispatch_xcm(|| {
-			let para_account_a: relay_chain::AccountId = ParaId::from(1).into_account();
-			// withdraw did execute
+			// Withdraw executed
 			assert_eq!(
-				relay_chain::Balances::free_balance(para_account_a),
-				INITIAL_BALANCE - amount_spent
+				relay_chain::Balances::free_balance(para_account_id(1)),
+				INITIAL_BALANCE - send_amount
 			);
-			// and deposit did execute
-			let para_account_b: relay_chain::AccountId = ParaId::from(2).into_account();
-			assert_eq!(relay_chain::Balances::free_balance(para_account_b), amount_received);
+			// Deposit executed
+			assert_eq!(relay_chain::Balances::free_balance(para_account_id(2)), send_amount);
 		});
 
 		// Check that QueryResponse message was received
