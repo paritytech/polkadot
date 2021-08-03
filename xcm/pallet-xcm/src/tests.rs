@@ -73,8 +73,8 @@ fn send_fails_when_xcm_router_blocks() {
 		let weight = 2 * BaseXcmWeight::get();
 		let sender: MultiLocation =
 			Junction::AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
-		let message = Xcm::ReserveAssetDeposit {
-			assets: vec![ConcreteFungible { id: Parent.into(), amount: SEND_AMOUNT }],
+		let message = Xcm::ReserveAssetDeposited {
+			assets: (Parent, SEND_AMOUNT).into(),
 			effects: vec![
 				buy_execution(weight),
 				DepositAsset { assets: Wild(All), dest: sender.clone() },
@@ -155,7 +155,7 @@ fn reserve_transfer_assets_works() {
 			sent_xcm(),
 			vec![(
 				Parachain(PARA_ID).into(),
-				Xcm::ReserveAssetDeposit {
+				Xcm::ReserveAssetDeposited {
 					assets: (X1(Parent), SEND_AMOUNT).into(),
 					effects: vec![buy_execution(weight), DepositAsset { assets: Wild(All), dest },]
 				}

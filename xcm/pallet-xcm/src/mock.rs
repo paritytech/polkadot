@@ -26,12 +26,12 @@ use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
 use xcm::{
 	opaque::v1::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
-	v1::{MultiLocation, NetworkId, Order},
+	v1::prelude::*,
 };
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds,
 	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit,
 };
@@ -154,7 +154,7 @@ type LocalOriginConverter = (
 
 parameter_types! {
 	pub const BaseXcmWeight: Weight = 1_000;
-	pub CurrencyPerSecond: (MultiLocation, u128) = (RelayLocation::get(), 1);
+	pub CurrencyPerSecond: (AssetId, u128) = (Concrete(RelayLocation::get()), 1);
 }
 
 pub type Barrier = (TakeWeightCredit, AllowTopLevelPaidExecutionFrom<All<MultiLocation>>);
@@ -170,7 +170,7 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<CurrencyPerSecond, ()>;
+	type Trader = FixedRateOfFungible<CurrencyPerSecond, ()>;
 	type ResponseHandler = ();
 }
 
@@ -196,7 +196,7 @@ pub(crate) fn last_event() -> Event {
 
 pub(crate) fn buy_execution<C>(debt: Weight) -> Order<C> {
 	use xcm::opaque::v1::prelude::*;
-	Order::BuyExecution { fees: All, weight: 0, debt, halt_on_error: false, xcm: vec![] }
+	Order::BuyExecution { fees: (RelayLocation::get(), 1).into(), weight: 0, debt, halt_on_error: false, xcm: vec![] }
 }
 
 pub(crate) fn new_test_ext_with_balances(
