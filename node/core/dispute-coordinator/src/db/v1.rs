@@ -16,19 +16,21 @@
 
 //! `V1` database for the dispute coordinator.
 
+use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_primitives::v1::{
-	CandidateReceipt, ValidDisputeStatementKind, InvalidDisputeStatementKind, ValidatorIndex,
-	ValidatorSignature, SessionIndex, CandidateHash, Hash,
+	CandidateHash, CandidateReceipt, Hash, InvalidDisputeStatementKind, SessionIndex,
+	ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature,
 };
-use polkadot_node_subsystem::{SubsystemResult, SubsystemError};
 
 use std::sync::Arc;
 
-use kvdb::{KeyValueDB, DBTransaction};
-use parity_scale_codec::{Encode, Decode};
+use kvdb::{DBTransaction, KeyValueDB};
+use parity_scale_codec::{Decode, Encode};
 
-use crate::{DISPUTE_WINDOW, DisputeStatus};
-use crate::backend::{Backend, BackendWriteOp, OverlayedBackend};
+use crate::{
+	backend::{Backend, BackendWriteOp, OverlayedBackend},
+	DisputeStatus, DISPUTE_WINDOW,
+};
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
 const EARLIEST_SESSION_KEY: &[u8; 16] = b"earliest-session";
@@ -41,10 +43,7 @@ pub struct DbBackend {
 
 impl DbBackend {
 	pub fn new(db: Arc<dyn KeyValueDB>, config: ColumnConfiguration) -> Self {
-		Self {
-			inner: db,
-			config,
-		}
+		Self { inner: db, config }
 	}
 }
 
@@ -71,38 +70,28 @@ impl Backend for DbBackend {
 	/// Atomically writes the list of operations, with later operations taking precedence over
 	/// prior.
 	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
-		where I: IntoIterator<Item = BackendWriteOp>
+	where
+		I: IntoIterator<Item = BackendWriteOp>,
 	{
 		let mut tx = DBTransaction::new();
 		for op in ops {
 			match op {
 				BackendWriteOp::WriteEarliestSession(session) => {
-					tx.put_vec(
-						self.config.col_data,
-						EARLIEST_SESSION_KEY,
-						session.encode(),
-					);
-				}
+					tx.put_vec(self.config.col_data, EARLIEST_SESSION_KEY, session.encode());
+				},
 				BackendWriteOp::WriteRecentDisputes(recent_disputes) => {
-					tx.put_vec(
-						self.config.col_data,
-						RECENT_DISPUTES_KEY,
-						recent_disputes.encode(),
-					);
-				}
+					tx.put_vec(self.config.col_data, RECENT_DISPUTES_KEY, recent_disputes.encode());
+				},
 				BackendWriteOp::WriteCandidateVotes(session, candidate_hash, votes) => {
 					tx.put_vec(
 						self.config.col_data,
 						&candidate_votes_key(session, &candidate_hash),
 						votes.encode(),
 					);
-				}
+				},
 				BackendWriteOp::DeleteCandidateVotes(session, candidate_hash) => {
-					tx.delete(
-						self.config.col_data,
-						&candidate_votes_key(session, &candidate_hash),
-					);
-				}
+					tx.delete(self.config.col_data, &candidate_votes_key(session, &candidate_hash));
+				},
 			}
 		}
 
@@ -174,14 +163,10 @@ pub enum Error {
 /// Result alias for DB errors.
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn load_decode<D: Decode>(db: &dyn KeyValueDB, col_data: u32, key: &[u8])
-	-> Result<Option<D>>
-{
+fn load_decode<D: Decode>(db: &dyn KeyValueDB, col_data: u32, key: &[u8]) -> Result<Option<D>> {
 	match db.get(col_data, key)? {
 		None => Ok(None),
-		Some(raw) => D::decode(&mut &raw[..])
-			.map(Some)
-			.map_err(Into::into),
+		Some(raw) => D::decode(&mut &raw[..]).map(Some).map_err(Into::into),
 	}
 }
 
@@ -231,7 +216,7 @@ pub(crate) fn note_current_session(
 		None => {
 			// First launch - write new-earliest.
 			overlay_db.write_earliest_session(new_earliest);
-		}
+		},
 		Some(prev_earliest) if new_earliest > prev_earliest => {
 			// Prune all data in the outdated sessions.
 			overlay_db.write_earliest_session(new_earliest);
@@ -240,10 +225,7 @@ pub(crate) fn note_current_session(
 			{
 				let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
 
-				let lower_bound = (
-					new_earliest,
-					CandidateHash(Hash::repeat_byte(0x00)),
-				);
+				let lower_bound = (new_earliest, CandidateHash(Hash::repeat_byte(0x00)));
 
 				let new_recent_disputes = recent_disputes.split_off(&lower_bound);
 				// Any remanining disputes are considered ancient and must be pruned.
@@ -256,10 +238,10 @@ pub(crate) fn note_current_session(
 					}
 				}
 			}
-		}
+		},
 		Some(_) => {
 			// nothing to do.
-		}
+		},
 	}
 
 	Ok(())
@@ -285,13 +267,17 @@ mod tests {
 		overlay_db.write_earliest_session(0);
 		overlay_db.write_earliest_session(1);
 
-		overlay_db.write_recent_disputes(vec![
-			((0, CandidateHash(Hash::repeat_byte(0))), DisputeStatus::Active),
-		].into_iter().collect());
+		overlay_db.write_recent_disputes(
+			vec![((0, CandidateHash(Hash::repeat_byte(0))), DisputeStatus::Active)]
+				.into_iter()
+				.collect(),
+		);
 
-		overlay_db.write_recent_disputes(vec![
-			((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active),
-		].into_iter().collect());
+		overlay_db.write_recent_disputes(
+			vec![((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active)]
+				.into_iter()
+				.collect(),
+		);
 
 		overlay_db.write_candidate_votes(
 			1,
@@ -318,23 +304,23 @@ mod tests {
 		);
 
 		// Test that overlay returns the correct values before committing.
-		assert_eq!(
-			overlay_db.load_earliest_session().unwrap().unwrap(),
-			1,
-		);
+		assert_eq!(overlay_db.load_earliest_session().unwrap().unwrap(), 1,);
 
 		assert_eq!(
 			overlay_db.load_recent_disputes().unwrap().unwrap(),
-			vec![
-				((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active),
-			].into_iter().collect()
+			vec![((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active),]
+				.into_iter()
+				.collect()
 		);
 
 		assert_eq!(
-			overlay_db.load_candidate_votes(
-				1,
-				&CandidateHash(Hash::repeat_byte(1))
-			).unwrap().unwrap().candidate_receipt.descriptor.para_id,
+			overlay_db
+				.load_candidate_votes(1, &CandidateHash(Hash::repeat_byte(1)))
+				.unwrap()
+				.unwrap()
+				.candidate_receipt
+				.descriptor
+				.para_id,
 			ParaId::from(5),
 		);
 
@@ -342,23 +328,23 @@ mod tests {
 		backend.write(write_ops).unwrap();
 
 		// Test that subsequent writes were written.
-		assert_eq!(
-			backend.load_earliest_session().unwrap().unwrap(),
-			1,
-		);
+		assert_eq!(backend.load_earliest_session().unwrap().unwrap(), 1,);
 
 		assert_eq!(
 			backend.load_recent_disputes().unwrap().unwrap(),
-			vec![
-				((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active),
-			].into_iter().collect()
+			vec![((1, CandidateHash(Hash::repeat_byte(1))), DisputeStatus::Active),]
+				.into_iter()
+				.collect()
 		);
 
 		assert_eq!(
-			backend.load_candidate_votes(
-				1,
-				&CandidateHash(Hash::repeat_byte(1))
-			).unwrap().unwrap().candidate_receipt.descriptor.para_id,
+			backend
+				.load_candidate_votes(1, &CandidateHash(Hash::repeat_byte(1)))
+				.unwrap()
+				.unwrap()
+				.candidate_receipt
+				.descriptor
+				.para_id,
 			ParaId::from(5),
 		);
 	}
@@ -377,17 +363,20 @@ mod tests {
 				candidate_receipt: Default::default(),
 				valid: Vec::new(),
 				invalid: Vec::new(),
-			}
+			},
 		);
 
 		let write_ops = overlay_db.into_write_ops();
 		backend.write(write_ops).unwrap();
 
 		assert_eq!(
-			backend.load_candidate_votes(
-				1,
-				&CandidateHash(Hash::repeat_byte(1))
-			).unwrap().unwrap().candidate_receipt.descriptor.para_id,
+			backend
+				.load_candidate_votes(1, &CandidateHash(Hash::repeat_byte(1)))
+				.unwrap()
+				.unwrap()
+				.candidate_receipt
+				.descriptor
+				.para_id,
 			ParaId::from(0),
 		);
 
@@ -404,7 +393,7 @@ mod tests {
 				},
 				valid: Vec::new(),
 				invalid: Vec::new(),
-			}
+			},
 		);
 
 		overlay_db.delete_candidate_votes(1, CandidateHash(Hash::repeat_byte(1)));
@@ -412,12 +401,10 @@ mod tests {
 		let write_ops = overlay_db.into_write_ops();
 		backend.write(write_ops).unwrap();
 
-		assert!(
-			backend.load_candidate_votes(
-				1,
-				&CandidateHash(Hash::repeat_byte(1))
-			).unwrap().is_none()
-		);
+		assert!(backend
+			.load_candidate_votes(1, &CandidateHash(Hash::repeat_byte(1)))
+			.unwrap()
+			.is_none());
 	}
 
 	#[test]
@@ -445,36 +432,24 @@ mod tests {
 
 		let mut overlay_db = OverlayedBackend::new(&backend);
 		overlay_db.write_earliest_session(prev_earliest_session);
-		overlay_db.write_recent_disputes(vec![
-			((very_old, hash_a), DisputeStatus::Active),
-			((slightly_old, hash_b), DisputeStatus::Active),
-			((new_earliest_session, hash_c), DisputeStatus::Active),
-			((very_recent, hash_d), DisputeStatus::Active),
-		].into_iter().collect());
-
-		overlay_db.write_candidate_votes(
-			very_old,
-			hash_a,
-			blank_candidate_votes(),
+		overlay_db.write_recent_disputes(
+			vec![
+				((very_old, hash_a), DisputeStatus::Active),
+				((slightly_old, hash_b), DisputeStatus::Active),
+				((new_earliest_session, hash_c), DisputeStatus::Active),
+				((very_recent, hash_d), DisputeStatus::Active),
+			]
+			.into_iter()
+			.collect(),
 		);
 
-		overlay_db.write_candidate_votes(
-			slightly_old,
-			hash_b,
-			blank_candidate_votes(),
-		);
+		overlay_db.write_candidate_votes(very_old, hash_a, blank_candidate_votes());
 
-		overlay_db.write_candidate_votes(
-			new_earliest_session,
-			hash_c,
-			blank_candidate_votes(),
-		);
+		overlay_db.write_candidate_votes(slightly_old, hash_b, blank_candidate_votes());
 
-		overlay_db.write_candidate_votes(
-			very_recent,
-			hash_d,
-			blank_candidate_votes(),
-		);
+		overlay_db.write_candidate_votes(new_earliest_session, hash_c, blank_candidate_votes());
+
+		overlay_db.write_candidate_votes(very_recent, hash_d, blank_candidate_votes());
 
 		let write_ops = overlay_db.into_write_ops();
 		backend.write(write_ops).unwrap();
@@ -482,22 +457,24 @@ mod tests {
 		let mut overlay_db = OverlayedBackend::new(&backend);
 		note_current_session(&mut overlay_db, current_session).unwrap();
 
-		assert_eq!(
-			overlay_db.load_earliest_session().unwrap(),
-			Some(new_earliest_session),
-		);
+		assert_eq!(overlay_db.load_earliest_session().unwrap(), Some(new_earliest_session),);
 
 		assert_eq!(
 			overlay_db.load_recent_disputes().unwrap().unwrap(),
 			vec![
 				((new_earliest_session, hash_c), DisputeStatus::Active),
 				((very_recent, hash_d), DisputeStatus::Active),
-			].into_iter().collect(),
+			]
+			.into_iter()
+			.collect(),
 		);
 
 		assert!(overlay_db.load_candidate_votes(very_old, &hash_a).unwrap().is_none());
 		assert!(overlay_db.load_candidate_votes(slightly_old, &hash_b).unwrap().is_none());
-		assert!(overlay_db.load_candidate_votes(new_earliest_session, &hash_c).unwrap().is_some());
+		assert!(overlay_db
+			.load_candidate_votes(new_earliest_session, &hash_c)
+			.unwrap()
+			.is_some());
 		assert!(overlay_db.load_candidate_votes(very_recent, &hash_d).unwrap().is_some());
 	}
 }

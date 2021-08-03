@@ -32,14 +32,16 @@
 //! The `Vec`s stored are always non-empty. Empty `Vec`s are not stored on disk so there is no
 //! semantic difference between `None` and an empty `Vec`.
 
-use crate::backend::{Backend, BackendWriteOp};
-use crate::Error;
+use crate::{
+	backend::{Backend, BackendWriteOp},
+	Error,
+};
 
-use polkadot_primitives::v1::{BlockNumber, Hash};
 use polkadot_node_primitives::BlockWeight;
+use polkadot_primitives::v1::{BlockNumber, Hash};
 
 use kvdb::{DBTransaction, KeyValueDB};
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 
 use std::sync::Arc;
 
@@ -116,11 +118,7 @@ struct LeafEntry {
 
 impl From<crate::LeafEntry> for LeafEntry {
 	fn from(x: crate::LeafEntry) -> Self {
-		LeafEntry {
-			weight: x.weight,
-			block_number: x.block_number,
-			block_hash: x.block_hash,
-		}
+		LeafEntry { weight: x.weight, block_number: x.block_number, block_hash: x.block_hash }
 	}
 }
 
@@ -141,17 +139,13 @@ struct LeafEntrySet {
 
 impl From<crate::LeafEntrySet> for LeafEntrySet {
 	fn from(x: crate::LeafEntrySet) -> Self {
-		LeafEntrySet {
-			inner: x.inner.into_iter().map(Into::into).collect(),
-		}
+		LeafEntrySet { inner: x.inner.into_iter().map(Into::into).collect() }
 	}
 }
 
 impl From<LeafEntrySet> for crate::LeafEntrySet {
 	fn from(x: LeafEntrySet) -> crate::LeafEntrySet {
-		crate::LeafEntrySet {
-			inner: x.inner.into_iter().map(Into::into).collect(),
-		}
+		crate::LeafEntrySet { inner: x.inner.into_iter().map(Into::into).collect() }
 	}
 }
 
@@ -208,28 +202,19 @@ impl DbBackend {
 	/// Create a new [`DbBackend`] with the supplied key-value store and
 	/// config.
 	pub fn new(db: Arc<dyn KeyValueDB>, config: Config) -> Self {
-		DbBackend {
-			inner: db,
-			config,
-		}
+		DbBackend { inner: db, config }
 	}
 }
 
 impl Backend for DbBackend {
 	fn load_block_entry(&self, hash: &Hash) -> Result<Option<crate::BlockEntry>, Error> {
-		load_decode::<BlockEntry>(
-			&*self.inner,
-			self.config.col_data,
-			&block_entry_key(hash),
-		).map(|o| o.map(Into::into))
+		load_decode::<BlockEntry>(&*self.inner, self.config.col_data, &block_entry_key(hash))
+			.map(|o| o.map(Into::into))
 	}
 
 	fn load_leaves(&self) -> Result<crate::LeafEntrySet, Error> {
-		load_decode::<LeafEntrySet>(
-			&*self.inner,
-			self.config.col_data,
-			LEAVES_KEY,
-		).map(|o| o.map(Into::into).unwrap_or_default())
+		load_decode::<LeafEntrySet>(&*self.inner, self.config.col_data, LEAVES_KEY)
+			.map(|o| o.map(Into::into).unwrap_or_default())
 	}
 
 	fn load_stagnant_at(&self, timestamp: crate::Timestamp) -> Result<Vec<Hash>, Error> {
@@ -237,16 +222,16 @@ impl Backend for DbBackend {
 			&*self.inner,
 			self.config.col_data,
 			&stagnant_at_key(timestamp.into()),
-		).map(|o| o.unwrap_or_default())
+		)
+		.map(|o| o.unwrap_or_default())
 	}
 
-	fn load_stagnant_at_up_to(&self, up_to: crate::Timestamp)
-		-> Result<Vec<(crate::Timestamp, Vec<Hash>)>, Error>
-	{
-		let stagnant_at_iter = self.inner.iter_with_prefix(
-			self.config.col_data,
-			&STAGNANT_AT_PREFIX[..],
-		);
+	fn load_stagnant_at_up_to(
+		&self,
+		up_to: crate::Timestamp,
+	) -> Result<Vec<(crate::Timestamp, Vec<Hash>)>, Error> {
+		let stagnant_at_iter =
+			self.inner.iter_with_prefix(self.config.col_data, &STAGNANT_AT_PREFIX[..]);
 
 		let val = stagnant_at_iter
 			.filter_map(|(k, v)| {
@@ -262,10 +247,8 @@ impl Backend for DbBackend {
 	}
 
 	fn load_first_block_number(&self) -> Result<Option<BlockNumber>, Error> {
-		let blocks_at_height_iter = self.inner.iter_with_prefix(
-			self.config.col_data,
-			&BLOCK_HEIGHT_PREFIX[..],
-		);
+		let blocks_at_height_iter =
+			self.inner.iter_with_prefix(self.config.col_data, &BLOCK_HEIGHT_PREFIX[..]);
 
 		let val = blocks_at_height_iter
 			.filter_map(|(k, _)| decode_block_height_key(&k[..]))
@@ -275,16 +258,14 @@ impl Backend for DbBackend {
 	}
 
 	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error> {
-		load_decode::<Vec<Hash>>(
-			&*self.inner,
-			self.config.col_data,
-			&block_height_key(number),
-		).map(|o| o.unwrap_or_default())
+		load_decode::<Vec<Hash>>(&*self.inner, self.config.col_data, &block_height_key(number))
+			.map(|o| o.unwrap_or_default())
 	}
 
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
 	fn write<I>(&mut self, ops: I) -> Result<(), Error>
-		where I: IntoIterator<Item = BackendWriteOp>
+	where
+		I: IntoIterator<Item = BackendWriteOp>,
 	{
 		let mut tx = DBTransaction::new();
 		for op in ops {
@@ -296,43 +277,29 @@ impl Backend for DbBackend {
 						&block_entry_key(&block_entry.block_hash),
 						block_entry.encode(),
 					);
-				}
-				BackendWriteOp::WriteBlocksByNumber(block_number, v) => {
+				},
+				BackendWriteOp::WriteBlocksByNumber(block_number, v) =>
 					if v.is_empty() {
-						tx.delete(
-							self.config.col_data,
-							&block_height_key(block_number),
-						);
+						tx.delete(self.config.col_data, &block_height_key(block_number));
 					} else {
 						tx.put_vec(
 							self.config.col_data,
 							&block_height_key(block_number),
 							v.encode(),
 						);
-					}
-				}
+					},
 				BackendWriteOp::WriteViableLeaves(leaves) => {
 					let leaves: LeafEntrySet = leaves.into();
 					if leaves.inner.is_empty() {
-						tx.delete(
-							self.config.col_data,
-							&LEAVES_KEY[..],
-						);
+						tx.delete(self.config.col_data, &LEAVES_KEY[..]);
 					} else {
-						tx.put_vec(
-							self.config.col_data,
-							&LEAVES_KEY[..],
-							leaves.encode(),
-						);
+						tx.put_vec(self.config.col_data, &LEAVES_KEY[..], leaves.encode());
 					}
-				}
+				},
 				BackendWriteOp::WriteStagnantAt(timestamp, stagnant_at) => {
 					let timestamp: Timestamp = timestamp.into();
 					if stagnant_at.is_empty() {
-						tx.delete(
-							self.config.col_data,
-							&stagnant_at_key(timestamp),
-						);
+						tx.delete(self.config.col_data, &stagnant_at_key(timestamp));
 					} else {
 						tx.put_vec(
 							self.config.col_data,
@@ -340,26 +307,17 @@ impl Backend for DbBackend {
 							stagnant_at.encode(),
 						);
 					}
-				}
+				},
 				BackendWriteOp::DeleteBlocksByNumber(block_number) => {
-					tx.delete(
-						self.config.col_data,
-						&block_height_key(block_number),
-					);
-				}
+					tx.delete(self.config.col_data, &block_height_key(block_number));
+				},
 				BackendWriteOp::DeleteBlockEntry(hash) => {
-					tx.delete(
-						self.config.col_data,
-						&block_entry_key(&hash),
-					);
-				}
+					tx.delete(self.config.col_data, &block_entry_key(&hash));
+				},
 				BackendWriteOp::DeleteStagnantAt(timestamp) => {
 					let timestamp: Timestamp = timestamp.into();
-					tx.delete(
-						self.config.col_data,
-						&stagnant_at_key(timestamp),
-					);
-				}
+					tx.delete(self.config.col_data, &stagnant_at_key(timestamp));
+				},
 			}
 		}
 
@@ -374,9 +332,7 @@ fn load_decode<D: Decode>(
 ) -> Result<Option<D>, Error> {
 	match db.get(col_data, key)? {
 		None => Ok(None),
-		Some(raw) => D::decode(&mut &raw[..])
-			.map(Some)
-			.map_err(Into::into),
+		Some(raw) => D::decode(&mut &raw[..]).map(Some).map_err(Into::into),
 	}
 }
 
@@ -402,8 +358,12 @@ fn stagnant_at_key(timestamp: Timestamp) -> [u8; 14 + 8] {
 }
 
 fn decode_block_height_key(key: &[u8]) -> Option<BlockNumber> {
-	if key.len() != 15 + 4 { return None }
-	if !key.starts_with(BLOCK_HEIGHT_PREFIX) { return None }
+	if key.len() != 15 + 4 {
+		return None
+	}
+	if !key.starts_with(BLOCK_HEIGHT_PREFIX) {
+		return None
+	}
 
 	let mut bytes = [0; 4];
 	bytes.copy_from_slice(&key[15..]);
@@ -411,8 +371,12 @@ fn decode_block_height_key(key: &[u8]) -> Option<BlockNumber> {
 }
 
 fn decode_stagnant_at_key(key: &[u8]) -> Option<Timestamp> {
-	if key.len() != 14 + 8 { return None }
-	if !key.starts_with(STAGNANT_AT_PREFIX) { return None }
+	if key.len() != 14 + 8 {
+		return None
+	}
+	if !key.starts_with(STAGNANT_AT_PREFIX) {
+		return None
+	}
 
 	let mut bytes = [0; 8];
 	bytes.copy_from_slice(&key[14..]);
@@ -479,9 +443,9 @@ mod tests {
 			weight: 100,
 		};
 
-		backend.write(vec![
-			BackendWriteOp::WriteBlockEntry(block_entry.clone().into())
-		]).unwrap();
+		backend
+			.write(vec![BackendWriteOp::WriteBlockEntry(block_entry.clone().into())])
+			.unwrap();
 
 		assert_eq!(
 			backend.load_block_entry(&block_entry.block_hash).unwrap().map(BlockEntry::from),
@@ -509,17 +473,15 @@ mod tests {
 			weight: 100,
 		};
 
-		backend.write(vec![
-			BackendWriteOp::WriteBlockEntry(block_entry.clone().into())
-		]).unwrap();
+		backend
+			.write(vec![BackendWriteOp::WriteBlockEntry(block_entry.clone().into())])
+			.unwrap();
 
-		backend.write(vec![
-			BackendWriteOp::DeleteBlockEntry(block_entry.block_hash),
-		]).unwrap();
+		backend
+			.write(vec![BackendWriteOp::DeleteBlockEntry(block_entry.block_hash)])
+			.unwrap();
 
-		assert!(
-			backend.load_block_entry(&block_entry.block_hash).unwrap().is_none(),
-		);
+		assert!(backend.load_block_entry(&block_entry.block_hash).unwrap().is_none(),);
 	}
 
 	#[test]
@@ -529,30 +491,26 @@ mod tests {
 
 		let mut backend = DbBackend::new(db, config);
 
-		assert!(
-			backend.load_first_block_number().unwrap().is_none(),
-		);
+		assert!(backend.load_first_block_number().unwrap().is_none(),);
 
-		backend.write(vec![
-			BackendWriteOp::WriteBlocksByNumber(2, vec![Hash::repeat_byte(0)]),
-			BackendWriteOp::WriteBlocksByNumber(5, vec![Hash::repeat_byte(0)]),
-			BackendWriteOp::WriteBlocksByNumber(10, vec![Hash::repeat_byte(0)]),
-		]).unwrap();
+		backend
+			.write(vec![
+				BackendWriteOp::WriteBlocksByNumber(2, vec![Hash::repeat_byte(0)]),
+				BackendWriteOp::WriteBlocksByNumber(5, vec![Hash::repeat_byte(0)]),
+				BackendWriteOp::WriteBlocksByNumber(10, vec![Hash::repeat_byte(0)]),
+			])
+			.unwrap();
 
-		assert_eq!(
-			backend.load_first_block_number().unwrap(),
-			Some(2),
-		);
+		assert_eq!(backend.load_first_block_number().unwrap(), Some(2),);
 
-		backend.write(vec![
-			BackendWriteOp::WriteBlocksByNumber(2, vec![]),
-			BackendWriteOp::DeleteBlocksByNumber(5),
-		]).unwrap();
+		backend
+			.write(vec![
+				BackendWriteOp::WriteBlocksByNumber(2, vec![]),
+				BackendWriteOp::DeleteBlocksByNumber(5),
+			])
+			.unwrap();
 
-		assert_eq!(
-			backend.load_first_block_number().unwrap(),
-			Some(10),
-		);
+		assert_eq!(backend.load_first_block_number().unwrap(), Some(10),);
 	}
 
 	#[test]
@@ -563,15 +521,15 @@ mod tests {
 		let mut backend = DbBackend::new(db, config);
 
 		// Prove that it's cheap
-		assert!(
-			backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap().is_empty(),
-		);
+		assert!(backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap().is_empty(),);
 
-		backend.write(vec![
-			BackendWriteOp::WriteStagnantAt(2, vec![Hash::repeat_byte(1)]),
-			BackendWriteOp::WriteStagnantAt(5, vec![Hash::repeat_byte(2)]),
-			BackendWriteOp::WriteStagnantAt(10, vec![Hash::repeat_byte(3)]),
-		]).unwrap();
+		backend
+			.write(vec![
+				BackendWriteOp::WriteStagnantAt(2, vec![Hash::repeat_byte(1)]),
+				BackendWriteOp::WriteStagnantAt(5, vec![Hash::repeat_byte(2)]),
+				BackendWriteOp::WriteStagnantAt(10, vec![Hash::repeat_byte(3)]),
+			])
+			.unwrap();
 
 		assert_eq!(
 			backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap(),
@@ -593,32 +551,21 @@ mod tests {
 
 		assert_eq!(
 			backend.load_stagnant_at_up_to(9).unwrap(),
-			vec![
-				(2, vec![Hash::repeat_byte(1)]),
-				(5, vec![Hash::repeat_byte(2)]),
-			]
+			vec![(2, vec![Hash::repeat_byte(1)]), (5, vec![Hash::repeat_byte(2)]),]
 		);
 
-		backend.write(vec![
-			BackendWriteOp::DeleteStagnantAt(2),
-		]).unwrap();
+		backend.write(vec![BackendWriteOp::DeleteStagnantAt(2)]).unwrap();
 
 		assert_eq!(
 			backend.load_stagnant_at_up_to(5).unwrap(),
-			vec![
-				(5, vec![Hash::repeat_byte(2)]),
-			]
+			vec![(5, vec![Hash::repeat_byte(2)]),]
 		);
 
-		backend.write(vec![
-			BackendWriteOp::WriteStagnantAt(5, vec![]),
-		]).unwrap();
+		backend.write(vec![BackendWriteOp::WriteStagnantAt(5, vec![])]).unwrap();
 
 		assert_eq!(
 			backend.load_stagnant_at_up_to(10).unwrap(),
-			vec![
-				(10, vec![Hash::repeat_byte(3)]),
-			]
+			vec![(10, vec![Hash::repeat_byte(3)]),]
 		);
 	}
 
@@ -629,40 +576,29 @@ mod tests {
 
 		let mut backend = DbBackend::new(db, config);
 
-		backend.write(vec![
-			BackendWriteOp::WriteBlocksByNumber(2, vec![Hash::repeat_byte(1)]),
-			BackendWriteOp::WriteBlocksByNumber(5, vec![Hash::repeat_byte(2)]),
-			BackendWriteOp::WriteBlocksByNumber(10, vec![Hash::repeat_byte(3)]),
-		]).unwrap();
+		backend
+			.write(vec![
+				BackendWriteOp::WriteBlocksByNumber(2, vec![Hash::repeat_byte(1)]),
+				BackendWriteOp::WriteBlocksByNumber(5, vec![Hash::repeat_byte(2)]),
+				BackendWriteOp::WriteBlocksByNumber(10, vec![Hash::repeat_byte(3)]),
+			])
+			.unwrap();
 
-		assert_eq!(
-			backend.load_blocks_by_number(2).unwrap(),
-			vec![Hash::repeat_byte(1)],
-		);
+		assert_eq!(backend.load_blocks_by_number(2).unwrap(), vec![Hash::repeat_byte(1)],);
 
-		assert_eq!(
-			backend.load_blocks_by_number(3).unwrap(),
-			vec![],
-		);
+		assert_eq!(backend.load_blocks_by_number(3).unwrap(), vec![],);
 
-		backend.write(vec![
-			BackendWriteOp::WriteBlocksByNumber(2, vec![]),
-			BackendWriteOp::DeleteBlocksByNumber(5),
-		]).unwrap();
+		backend
+			.write(vec![
+				BackendWriteOp::WriteBlocksByNumber(2, vec![]),
+				BackendWriteOp::DeleteBlocksByNumber(5),
+			])
+			.unwrap();
 
-		assert_eq!(
-			backend.load_blocks_by_number(2).unwrap(),
-			vec![],
-		);
+		assert_eq!(backend.load_blocks_by_number(2).unwrap(), vec![],);
 
-		assert_eq!(
-			backend.load_blocks_by_number(5).unwrap(),
-			vec![],
-		);
+		assert_eq!(backend.load_blocks_by_number(5).unwrap(), vec![],);
 
-		assert_eq!(
-			backend.load_blocks_by_number(10).unwrap(),
-			vec![Hash::repeat_byte(3)],
-		);
+		assert_eq!(backend.load_blocks_by_number(10).unwrap(), vec![Hash::repeat_byte(3)],);
 	}
 }

@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::result::Result;
-use xcm::v0::{Error as XcmError, Result as XcmResult, MultiAsset, MultiLocation};
 use crate::Assets;
+use sp_std::result::Result;
+use xcm::v0::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult};
 
 /// Facility for asset transacting.
 ///
@@ -78,22 +78,30 @@ pub trait TransactAsset {
 	/// Move an `asset` `from` one location in `to` another location.
 	///
 	/// Returns `XcmError::FailedToTransactAsset` if transfer failed.
-	fn transfer_asset(_asset: &MultiAsset, _from: &MultiLocation, _to: &MultiLocation) -> Result<Assets, XcmError> {
+	fn transfer_asset(
+		_asset: &MultiAsset,
+		_from: &MultiLocation,
+		_to: &MultiLocation,
+	) -> Result<Assets, XcmError> {
 		Err(XcmError::Unimplemented)
 	}
 
 	/// Move an `asset` `from` one location in `to` another location.
 	///
 	/// Attempts to use `transfer_asset` and if not available then falls back to using a two-part withdraw/deposit.
-	fn teleport_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
+	fn teleport_asset(
+		asset: &MultiAsset,
+		from: &MultiLocation,
+		to: &MultiLocation,
+	) -> Result<Assets, XcmError> {
 		match Self::transfer_asset(asset, from, to) {
 			Err(XcmError::Unimplemented) => {
 				let assets = Self::withdraw_asset(asset, from)?;
 				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
 				Self::deposit_asset(asset, to)?;
 				Ok(assets)
-			}
-			result => result
+			},
+			result => result,
 		}
 	}
 }
@@ -160,7 +168,11 @@ impl TransactAsset for Tuple {
 		Err(XcmError::AssetNotFound)
 	}
 
-	fn transfer_asset(what: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
+	fn transfer_asset(
+		what: &MultiAsset,
+		from: &MultiLocation,
+		to: &MultiLocation,
+	) -> Result<Assets, XcmError> {
 		for_tuples!( #(
 			match Tuple::transfer_asset(what, from, to) {
 				Err(XcmError::AssetNotFound | XcmError::Unimplemented) => (),
@@ -199,7 +211,11 @@ mod tests {
 			Err(XcmError::AssetNotFound)
 		}
 
-		fn transfer_asset(_what: &MultiAsset, _from: &MultiLocation, _to: &MultiLocation) -> Result<Assets, XcmError> {
+		fn transfer_asset(
+			_what: &MultiAsset,
+			_from: &MultiLocation,
+			_to: &MultiLocation,
+		) -> Result<Assets, XcmError> {
 			Err(XcmError::AssetNotFound)
 		}
 	}
@@ -218,7 +234,11 @@ mod tests {
 			Err(XcmError::Overflow)
 		}
 
-		fn transfer_asset(_what: &MultiAsset, _from: &MultiLocation, _to: &MultiLocation) -> Result<Assets, XcmError> {
+		fn transfer_asset(
+			_what: &MultiAsset,
+			_from: &MultiLocation,
+			_to: &MultiLocation,
+		) -> Result<Assets, XcmError> {
 			Err(XcmError::Overflow)
 		}
 	}
@@ -237,16 +257,24 @@ mod tests {
 			Ok(Assets::default())
 		}
 
-		fn transfer_asset(_what: &MultiAsset, _from: &MultiLocation, _to: &MultiLocation) -> Result<Assets, XcmError> {
+		fn transfer_asset(
+			_what: &MultiAsset,
+			_from: &MultiLocation,
+			_to: &MultiLocation,
+		) -> Result<Assets, XcmError> {
 			Ok(Assets::default())
 		}
 	}
 
 	#[test]
 	fn defaults_to_asset_not_found() {
-		type MultiTransactor = (UnimplementedTransactor, NotFoundTransactor, UnimplementedTransactor);
+		type MultiTransactor =
+			(UnimplementedTransactor, NotFoundTransactor, UnimplementedTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Err(XcmError::AssetNotFound));
+		assert_eq!(
+			MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null),
+			Err(XcmError::AssetNotFound)
+		);
 	}
 
 	#[test]
@@ -260,7 +288,10 @@ mod tests {
 	fn unexpected_error_stops_iteration() {
 		type MultiTransactor = (OverflowTransactor, SuccessfulTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Err(XcmError::Overflow));
+		assert_eq!(
+			MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null),
+			Err(XcmError::Overflow)
+		);
 	}
 
 	#[test]

@@ -23,8 +23,10 @@ use super::*;
 /// which acts as the gateway to constructing the overseer.
 pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let overseer_name = info.overseer_name.clone();
-	let subsystem_sender_name = Ident::new(&(overseer_name.to_string() + "SubsystemSender"), overseer_name.span());
-	let subsystem_ctx_name = Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
+	let subsystem_sender_name =
+		Ident::new(&(overseer_name.to_string() + "SubsystemSender"), overseer_name.span());
+	let subsystem_ctx_name =
+		Ident::new(&(overseer_name.to_string() + "SubsystemContext"), overseer_name.span());
 	let consumes = &info.consumes();
 	let signal = &info.extern_signal_ty;
 	let wrapper_message = &info.message_wrapper;

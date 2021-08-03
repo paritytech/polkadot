@@ -21,13 +21,15 @@
 //! [`Backend`], maintaining consistency between queries and temporary writes,
 //! before any commit to the underlying storage is made.
 
-use polkadot_node_subsystem::{SubsystemResult};
+use polkadot_node_subsystem::SubsystemResult;
 use polkadot_primitives::v1::{BlockNumber, CandidateHash, Hash};
 
 use std::collections::HashMap;
 
-use super::approval_db::v1::StoredBlockRange;
-use super::persisted_entries::{BlockEntry, CandidateEntry};
+use super::{
+	approval_db::v1::StoredBlockRange,
+	persisted_entries::{BlockEntry, CandidateEntry},
+};
 
 #[derive(Debug)]
 pub enum BackendWriteOp {
@@ -45,7 +47,10 @@ pub trait Backend {
 	/// Load a block entry from the DB.
 	fn load_block_entry(&self, hash: &Hash) -> SubsystemResult<Option<BlockEntry>>;
 	/// Load a candidate entry from the DB.
-	fn load_candidate_entry(&self, candidate_hash: &CandidateHash) -> SubsystemResult<Option<CandidateEntry>>;
+	fn load_candidate_entry(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>>;
 	/// Load all blocks at a specific height.
 	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>>;
 	/// Load all block from the DB.
@@ -54,7 +59,8 @@ pub trait Backend {
 	fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>>;
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
 	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
-		where I: IntoIterator<Item = BackendWriteOp>;
+	where
+		I: IntoIterator<Item = BackendWriteOp>;
 }
 
 /// An in-memory overlay over the backend.
@@ -128,7 +134,10 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		self.inner.load_block_entry(hash)
 	}
 
-	pub fn load_candidate_entry(&self, candidate_hash: &CandidateHash) -> SubsystemResult<Option<CandidateEntry>> {
+	pub fn load_candidate_entry(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> SubsystemResult<Option<CandidateEntry>> {
 		if let Some(val) = self.candidate_entries.get(&candidate_hash) {
 			return Ok(val.clone())
 		}

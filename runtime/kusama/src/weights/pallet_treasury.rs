@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/kusama/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -53,14 +52,14 @@ impl<T: frame_system::Config> pallet_treasury::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn approve_proposal(p: u32, ) -> Weight {
+	fn approve_proposal(p: u32) -> Weight {
 		(12_321_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((34_000 as Weight).saturating_mul(p as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn on_initialize_proposals(p: u32, ) -> Weight {
+	fn on_initialize_proposals(p: u32) -> Weight {
 		(76_361_000 as Weight)
 			// Standard Error: 17_000
 			.saturating_add((60_132_000 as Weight).saturating_mul(p as Weight))

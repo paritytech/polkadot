@@ -91,7 +91,7 @@ pub mod testing;
 #[doc(hidden)]
 pub use sp_tracing;
 
-pub use error::{ValidationError, InvalidCandidate};
+pub use error::{InvalidCandidate, ValidationError};
 pub use priority::Priority;
 pub use pvf::Pvf;
 

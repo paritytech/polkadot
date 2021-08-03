@@ -16,20 +16,20 @@
 
 //! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
 
-use sp_std::{prelude::*, result, marker::PhantomData, borrow::Borrow};
-use xcm::v0::{Error as XcmError, Result, MultiAsset, MultiLocation, Junction};
-use frame_support::traits::{Get, tokens::fungibles, Contains};
-use xcm_executor::traits::{TransactAsset, Convert, MatchesFungibles, Error as MatchError};
+use frame_support::traits::{tokens::fungibles, Contains, Get};
+use sp_std::{borrow::Borrow, marker::PhantomData, prelude::*, result};
+use xcm::v0::{Error as XcmError, Junction, MultiAsset, MultiLocation, Result};
+use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, TransactAsset};
 
 /// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
 /// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
 /// `PalletInstance` junction.
-pub struct AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>(PhantomData<(Prefix, AssetId, ConvertAssetId)>);
-impl<
-	Prefix: Get<MultiLocation>,
-	AssetId: Clone,
-	ConvertAssetId: Convert<u128, AssetId>,
-> Convert<MultiLocation, AssetId> for AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId> {
+pub struct AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>(
+	PhantomData<(Prefix, AssetId, ConvertAssetId)>,
+);
+impl<Prefix: Get<MultiLocation>, AssetId: Clone, ConvertAssetId: Convert<u128, AssetId>>
+	Convert<MultiLocation, AssetId> for AsPrefixedGeneralIndex<Prefix, AssetId, ConvertAssetId>
+{
 	fn convert_ref(id: impl Borrow<MultiLocation>) -> result::Result<AssetId, ()> {
 		let prefix = Prefix::get();
 		let id = id.borrow();
@@ -50,58 +50,63 @@ impl<
 }
 
 pub struct ConvertedConcreteAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>(
-	PhantomData<(AssetId, Balance, ConvertAssetId, ConvertBalance)>
+	PhantomData<(AssetId, Balance, ConvertAssetId, ConvertBalance)>,
 );
 impl<
-	AssetId: Clone,
-	Balance: Clone,
-	ConvertAssetId: Convert<MultiLocation, AssetId>,
-	ConvertBalance: Convert<u128, Balance>,
-> MatchesFungibles<AssetId, Balance> for
-	ConvertedConcreteAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
+		AssetId: Clone,
+		Balance: Clone,
+		ConvertAssetId: Convert<MultiLocation, AssetId>,
+		ConvertBalance: Convert<u128, Balance>,
+	> MatchesFungibles<AssetId, Balance>
+	for ConvertedConcreteAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
 		let (id, amount) = match a {
 			MultiAsset::ConcreteFungible { id, amount } => (id, amount),
 			_ => return Err(MatchError::AssetNotFound),
 		};
-		let what = ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
-		let amount = ConvertBalance::convert_ref(amount).map_err(|_| MatchError::AmountToBalanceConversionFailed)?;
+		let what =
+			ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
+		let amount = ConvertBalance::convert_ref(amount)
+			.map_err(|_| MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
 	}
 }
 
 pub struct ConvertedAbstractAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>(
-	PhantomData<(AssetId, Balance, ConvertAssetId, ConvertBalance)>
+	PhantomData<(AssetId, Balance, ConvertAssetId, ConvertBalance)>,
 );
 impl<
-	AssetId: Clone,
-	Balance: Clone,
-	ConvertAssetId: Convert<Vec<u8>, AssetId>,
-	ConvertBalance: Convert<u128, Balance>,
-> MatchesFungibles<AssetId, Balance> for
-	ConvertedAbstractAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
+		AssetId: Clone,
+		Balance: Clone,
+		ConvertAssetId: Convert<Vec<u8>, AssetId>,
+		ConvertBalance: Convert<u128, Balance>,
+	> MatchesFungibles<AssetId, Balance>
+	for ConvertedAbstractAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
 		let (id, amount) = match a {
 			MultiAsset::AbstractFungible { id, amount } => (id, amount),
 			_ => return Err(MatchError::AssetNotFound),
 		};
-		let what = ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
-		let amount = ConvertBalance::convert_ref(amount).map_err(|_| MatchError::AmountToBalanceConversionFailed)?;
+		let what =
+			ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
+		let amount = ConvertBalance::convert_ref(amount)
+			.map_err(|_| MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
 	}
 }
 
 pub struct FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
-	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>
+	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,
 );
 impl<
-	Assets: fungibles::Transfer<AccountId>,
-	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
-	AccountIdConverter: Convert<MultiLocation, AccountId>,
-	AccountId: Clone,	// can't get away without it since Currency is generic over it.
-> TransactAsset for FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId> {
+		Assets: fungibles::Transfer<AccountId>,
+		Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
+		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountId: Clone, // can't get away without it since Currency is generic over it.
+	> TransactAsset for FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>
+{
 	fn transfer_asset(
 		what: &MultiAsset,
 		from: &MultiLocation,
@@ -119,17 +124,31 @@ impl<
 	}
 }
 
-pub struct FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>(
-	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount)>
-);
+pub struct FungiblesMutateAdapter<
+	Assets,
+	Matcher,
+	AccountIdConverter,
+	AccountId,
+	CheckAsset,
+	CheckingAccount,
+>(PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount)>);
 impl<
-	Assets: fungibles::Mutate<AccountId>,
-	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
-	AccountIdConverter: Convert<MultiLocation, AccountId>,
-	AccountId: Clone,	// can't get away without it since Currency is generic over it.
-	CheckAsset: Contains<Assets::AssetId>,
-	CheckingAccount: Get<AccountId>,
-> TransactAsset for FungiblesMutateAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount> {
+		Assets: fungibles::Mutate<AccountId>,
+		Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
+		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountId: Clone, // can't get away without it since Currency is generic over it.
+		CheckAsset: Contains<Assets::AssetId>,
+		CheckingAccount: Get<AccountId>,
+	> TransactAsset
+	for FungiblesMutateAdapter<
+		Assets,
+		Matcher,
+		AccountIdConverter,
+		AccountId,
+		CheckAsset,
+		CheckingAccount,
+	>
+{
 	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset) -> Result {
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
@@ -148,7 +167,10 @@ impl<
 			if CheckAsset::contains(&asset_id) {
 				let checking_account = CheckingAccount::get();
 				let ok = Assets::burn_from(asset_id, &checking_account, amount).is_ok();
-				debug_assert!(ok, "`can_check_in` must have returned `true` immediately prior; qed");
+				debug_assert!(
+					ok,
+					"`can_check_in` must have returned `true` immediately prior; qed"
+				);
 			}
 		}
 	}
@@ -174,7 +196,7 @@ impl<
 
 	fn withdraw_asset(
 		what: &MultiAsset,
-		who: &MultiLocation
+		who: &MultiLocation,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
 		// Check we handle this asset.
 		let (asset_id, amount) = Matcher::matches_fungibles(what)?;
@@ -186,43 +208,80 @@ impl<
 	}
 }
 
-pub struct FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>(
-	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount)>
-);
+pub struct FungiblesAdapter<
+	Assets,
+	Matcher,
+	AccountIdConverter,
+	AccountId,
+	CheckAsset,
+	CheckingAccount,
+>(PhantomData<(Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount)>);
 impl<
-	Assets: fungibles::Mutate<AccountId> + fungibles::Transfer<AccountId>,
-	Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
-	AccountIdConverter: Convert<MultiLocation, AccountId>,
-	AccountId: Clone,	// can't get away without it since Currency is generic over it.
-	CheckAsset: Contains<Assets::AssetId>,
-	CheckingAccount: Get<AccountId>,
-> TransactAsset for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount> {
+		Assets: fungibles::Mutate<AccountId> + fungibles::Transfer<AccountId>,
+		Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
+		AccountIdConverter: Convert<MultiLocation, AccountId>,
+		AccountId: Clone, // can't get away without it since Currency is generic over it.
+		CheckAsset: Contains<Assets::AssetId>,
+		CheckingAccount: Get<AccountId>,
+	> TransactAsset
+	for FungiblesAdapter<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
+{
 	fn can_check_in(origin: &MultiLocation, what: &MultiAsset) -> Result {
-		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
-			::can_check_in(origin, what)
+		FungiblesMutateAdapter::<
+			Assets,
+			Matcher,
+			AccountIdConverter,
+			AccountId,
+			CheckAsset,
+			CheckingAccount,
+		>::can_check_in(origin, what)
 	}
 
 	fn check_in(origin: &MultiLocation, what: &MultiAsset) {
-		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
-			::check_in(origin, what)
+		FungiblesMutateAdapter::<
+			Assets,
+			Matcher,
+			AccountIdConverter,
+			AccountId,
+			CheckAsset,
+			CheckingAccount,
+		>::check_in(origin, what)
 	}
 
 	fn check_out(dest: &MultiLocation, what: &MultiAsset) {
-		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
-			::check_out(dest, what)
+		FungiblesMutateAdapter::<
+			Assets,
+			Matcher,
+			AccountIdConverter,
+			AccountId,
+			CheckAsset,
+			CheckingAccount,
+		>::check_out(dest, what)
 	}
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
-		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
-			::deposit_asset(what, who)
+		FungiblesMutateAdapter::<
+			Assets,
+			Matcher,
+			AccountIdConverter,
+			AccountId,
+			CheckAsset,
+			CheckingAccount,
+		>::deposit_asset(what, who)
 	}
 
 	fn withdraw_asset(
 		what: &MultiAsset,
-		who: &MultiLocation
+		who: &MultiLocation,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
-		FungiblesMutateAdapter::<Assets, Matcher, AccountIdConverter, AccountId, CheckAsset, CheckingAccount>
-			::withdraw_asset(what, who)
+		FungiblesMutateAdapter::<
+			Assets,
+			Matcher,
+			AccountIdConverter,
+			AccountId,
+			CheckAsset,
+			CheckingAccount,
+		>::withdraw_asset(what, who)
 	}
 
 	fn transfer_asset(
@@ -230,6 +289,8 @@ impl<
 		from: &MultiLocation,
 		to: &MultiLocation,
 	) -> result::Result<xcm_executor::Assets, XcmError> {
-		FungiblesTransferAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::transfer_asset(what, from, to)
+		FungiblesTransferAdapter::<Assets, Matcher, AccountIdConverter, AccountId>::transfer_asset(
+			what, from, to,
+		)
 	}
 }
