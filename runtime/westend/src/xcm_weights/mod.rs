@@ -19,9 +19,9 @@ pub enum AssetTypes {
 
 impl From<&MultiAsset> for AssetTypes {
 	fn from(asset: &MultiAsset) -> Self {
-		let WND_LOCATION = WndLocation::get();
+		let wnd_location = WndLocation::get();
 		match asset {
-			MultiAsset::ConcreteFungible { id: WND_LOCATION, .. } => AssetTypes::Balances,
+			MultiAsset::ConcreteFungible { id: wnd_location, .. } => AssetTypes::Balances,
 			_ => AssetTypes::Unknown,
 		}
 	}

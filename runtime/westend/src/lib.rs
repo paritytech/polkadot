@@ -1456,6 +1456,8 @@ sp_api::impl_runtime_apis! {
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 
+			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+
 			let mut list = Vec::<BenchmarkList>::new();
 
 			// Polkadot
@@ -1465,6 +1467,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_common::crowdloan, Crowdloan);
 			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
 			list_benchmark!(list, extra, runtime_common::slots, Slots);
+
 			// Substrate
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
@@ -1481,6 +1484,9 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_timestamp, Timestamp);
 			list_benchmark!(list, extra, pallet_utility, Utility);
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
+
+			// XCM Benchmarks
+			list_benchmark!(list, extra, pallet_xcm_benchmarks, XcmBalances);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
