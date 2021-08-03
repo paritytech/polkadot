@@ -23,10 +23,10 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use core::cmp::Ordering;
-use alloc::{vec, vec::Vec};
-use parity_scale_codec::{self as codec, Encode, Decode};
 use super::MultiLocation;
+use alloc::{vec, vec::Vec};
+use core::cmp::Ordering;
+use parity_scale_codec::{self as codec, Decode, Encode};
 
 /// A general identifier for an instance of a non-fungible asset class.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
@@ -36,7 +36,10 @@ pub enum AssetInstance {
 
 	/// A compact index. Technically this could be greater than `u128`, but this implementation supports only
 	/// values up to `2**128 - 1`.
-	Index { #[codec(compact)] id: u128 },
+	Index {
+		#[codec(compact)]
+		id: u128,
+	},
 
 	/// A 4-byte fixed-length datum.
 	Array4([u8; 4]),
@@ -103,7 +106,8 @@ pub enum Fungibility {
 
 impl Fungibility {
 	pub fn is_kind(&self, w: WildFungibility) -> bool {
-		use {Fungibility::*, WildFungibility::{Fungible as WildFungible, NonFungible as WildNonFungible}};
+		use Fungibility::*;
+		use WildFungibility::{Fungible as WildFungible, NonFungible as WildNonFungible};
 		matches!((self, w), (Fungible(_), WildFungible) | (NonFungible(_), WildNonFungible))
 	}
 }
@@ -120,9 +124,6 @@ impl From<AssetInstance> for Fungibility {
 		Fungibility::NonFungible(instance)
 	}
 }
-
-
-
 
 #[derive(Clone, Eq, PartialEq, Debug, Encode, Decode)]
 pub struct MultiAsset {
@@ -182,8 +183,6 @@ impl MultiAsset {
 	}
 }
 
-
-
 /// A `Vec` of `MultiAsset`s. There may be no duplicate fungible items in here and when decoding, they must be sorted.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode)]
 pub struct MultiAssets(Vec<MultiAsset>);
@@ -191,14 +190,19 @@ pub struct MultiAssets(Vec<MultiAsset>);
 impl Decode for MultiAssets {
 	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
 		let r = Vec::<MultiAsset>::decode(input)?;
-		if r.is_empty() { return Ok(Self(Vec::new())) }
-		r.iter().skip(1).try_fold(&r[0], |a, b| -> Result<&MultiAsset, parity_scale_codec::Error> {
-			if a.id < b.id || a < b && (a.is_non_fungible(None) || b.is_non_fungible(None)) {
-				Ok(b)
-			} else {
-				Err("Out of order".into())
-			}
-		})?;
+		if r.is_empty() {
+			return Ok(Self(Vec::new()))
+		}
+		r.iter().skip(1).try_fold(
+			&r[0],
+			|a, b| -> Result<&MultiAsset, parity_scale_codec::Error> {
+				if a.id < b.id || a < b && (a.is_non_fungible(None) || b.is_non_fungible(None)) {
+					Ok(b)
+				} else {
+					Err("Out of order".into())
+				}
+			},
+		)?;
 		Ok(Self(r))
 	}
 }
@@ -307,7 +311,7 @@ impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset
 	}
 }
 /// `MultiAsset` collection, either `MultiAssets` or a single wildcard.
-/// 
+///
 /// Note: Vectors of wildcards whose encoding is supported in XCM v0 are unsupported
 /// in this implementation and will result in a decode error.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]

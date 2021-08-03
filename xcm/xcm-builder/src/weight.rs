@@ -14,27 +14,32 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{result::Result, marker::PhantomData, convert::TryInto};
+use frame_support::{
+	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
+	weights::{GetDispatchInfo, Weight, WeightToFeePolynomial},
+};
 use parity_scale_codec::Decode;
-use xcm::v0::{Xcm, Order, MultiAsset, AssetId, MultiLocation, Error, AssetId::Concrete};
-use sp_runtime::traits::{Zero, Saturating, SaturatedConversion};
-use frame_support::traits::{Get, OnUnbalanced as OnUnbalancedT, tokens::currency::Currency as CurrencyT};
-use frame_support::weights::{Weight, GetDispatchInfo, WeightToFeePolynomial};
-use xcm_executor::{Assets, traits::{WeightBounds, WeightTrader}};
+use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
+use sp_std::{convert::TryInto, marker::PhantomData, result::Result};
+use xcm::v0::{AssetId, AssetId::Concrete, Error, MultiAsset, MultiLocation, Order, Xcm};
+use xcm_executor::{
+	traits::{WeightBounds, WeightTrader},
+	Assets,
+};
 
 pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
 	fn shallow(message: &mut Xcm<C>) -> Result<Weight, ()> {
 		Ok(match message {
-			Xcm::Transact { call, .. } => {
-				call.ensure_decoded()?.get_dispatch_info().weight.saturating_add(T::get())
-			}
-			Xcm::RelayedFrom { ref mut message, .. } => T::get().saturating_add(Self::shallow(message.as_mut())?),
-			Xcm::WithdrawAsset { effects, .. }
-			| Xcm::ReserveAssetDeposited { effects, .. }
-			| Xcm::TeleportAsset { effects, .. }
-			=> {
-				let inner: Weight = effects.iter_mut()
+			Xcm::Transact { call, .. } =>
+				call.ensure_decoded()?.get_dispatch_info().weight.saturating_add(T::get()),
+			Xcm::RelayedFrom { ref mut message, .. } =>
+				T::get().saturating_add(Self::shallow(message.as_mut())?),
+			Xcm::WithdrawAsset { effects, .. } |
+			Xcm::ReserveAssetDeposited { effects, .. } |
+			Xcm::TeleportAsset { effects, .. } => {
+				let inner: Weight = effects
+					.iter_mut()
 					.map(|effect| match effect {
 						Order::BuyExecution { .. } => {
 							// On success, execution of this will result in more weight being consumed but
@@ -45,28 +50,29 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 							T::get()
 						},
 						_ => T::get(),
-					}).sum();
+					})
+					.sum();
 				T::get().saturating_add(inner)
-			}
+			},
 			_ => T::get(),
 		})
 	}
 	fn deep(message: &mut Xcm<C>) -> Result<Weight, ()> {
 		Ok(match message {
 			Xcm::RelayedFrom { ref mut message, .. } => Self::deep(message.as_mut())?,
-			Xcm::WithdrawAsset { effects, .. }
-			| Xcm::ReserveAssetDeposited { effects, .. }
-			| Xcm::TeleportAsset { effects, .. }
-			=> {
+			Xcm::WithdrawAsset { effects, .. } |
+			Xcm::ReserveAssetDeposited { effects, .. } |
+			Xcm::TeleportAsset { effects, .. } => {
 				let mut extra = 0;
 				for effect in effects.iter_mut() {
 					match effect {
-						Order::BuyExecution { xcm, .. } => {
+						Order::BuyExecution { xcm, .. } =>
 							for message in xcm.iter_mut() {
-								extra.saturating_accrue(Self::shallow(message)?.saturating_add(Self::deep(message)?));
-							}
-						},
-						_ => {}
+								extra.saturating_accrue(
+									Self::shallow(message)?.saturating_add(Self::deep(message)?),
+								);
+							},
+						_ => {},
 					}
 				}
 				extra
@@ -93,13 +99,18 @@ impl TakeRevenue for () {
 /// The constant `Get` type parameter should be the concrete fungible ID and the amount of it required for
 /// one second of weight.
 #[deprecated = "Use `FixedRateOfFungible` instead"]
-pub struct FixedRateOfConcreteFungible<
-	T: Get<(MultiLocation, u128)>,
-	R: TakeRevenue,
->(Weight, u128, PhantomData<(T, R)>);
+pub struct FixedRateOfConcreteFungible<T: Get<(MultiLocation, u128)>, R: TakeRevenue>(
+	Weight,
+	u128,
+	PhantomData<(T, R)>,
+);
 #[allow(deprecated)]
-impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfConcreteFungible<T, R> {
-	fn new() -> Self { Self(0, 0, PhantomData) }
+impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
+	for FixedRateOfConcreteFungible<T, R>
+{
+	fn new() -> Self {
+		Self(0, 0, PhantomData)
+	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let (id, units_per_second) = T::get();
@@ -137,12 +148,15 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> Drop for FixedRateOfConcrete
 ///
 /// The constant `Get` type parameter should be the fungible ID and the amount of it required for
 /// one second of weight.
-pub struct FixedRateOfFungible<
-	T: Get<(AssetId, u128)>,
-	R: TakeRevenue,
->(Weight, u128, PhantomData<(T, R)>);
+pub struct FixedRateOfFungible<T: Get<(AssetId, u128)>, R: TakeRevenue>(
+	Weight,
+	u128,
+	PhantomData<(T, R)>,
+);
 impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungible<T, R> {
-	fn new() -> Self { Self(0, 0, PhantomData) }
+	fn new() -> Self {
+		Self(0, 0, PhantomData)
+	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let (id, units_per_second) = T::get();
@@ -179,20 +193,27 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> Drop for FixedRateOfFungible<T, R>
 /// Weight trader which uses the `TransactionPayment` pallet to set the right price for weight and then
 /// places any weight bought into the right account.
 pub struct UsingComponents<
-	WeightToFee: WeightToFeePolynomial<Balance=Currency::Balance>,
+	WeightToFee: WeightToFeePolynomial<Balance = Currency::Balance>,
 	AssetId: Get<MultiLocation>,
 	AccountId,
 	Currency: CurrencyT<AccountId>,
 	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
->(Weight, Currency::Balance, PhantomData<(WeightToFee, AssetId, AccountId, Currency, OnUnbalanced)>);
+>(
+	Weight,
+	Currency::Balance,
+	PhantomData<(WeightToFee, AssetId, AccountId, Currency, OnUnbalanced)>,
+);
 impl<
-	WeightToFee: WeightToFeePolynomial<Balance=Currency::Balance>,
-	AssetId: Get<MultiLocation>,
-	AccountId,
-	Currency: CurrencyT<AccountId>,
-	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
-> WeightTrader for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> {
-	fn new() -> Self { Self(0, Zero::zero(), PhantomData) }
+		WeightToFee: WeightToFeePolynomial<Balance = Currency::Balance>,
+		AssetId: Get<MultiLocation>,
+		AccountId,
+		Currency: CurrencyT<AccountId>,
+		OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
+	> WeightTrader for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced>
+{
+	fn new() -> Self {
+		Self(0, Zero::zero(), PhantomData)
+	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let amount = WeightToFee::calc(&weight);
@@ -216,15 +237,15 @@ impl<
 			None
 		}
 	}
-
 }
 impl<
-	WeightToFee: WeightToFeePolynomial<Balance=Currency::Balance>,
-	AssetId: Get<MultiLocation>,
-	AccountId,
-	Currency: CurrencyT<AccountId>,
-	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
-> Drop for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> {
+		WeightToFee: WeightToFeePolynomial<Balance = Currency::Balance>,
+		AssetId: Get<MultiLocation>,
+		AccountId,
+		Currency: CurrencyT<AccountId>,
+		OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
+	> Drop for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced>
+{
 	fn drop(&mut self) {
 		OnUnbalanced::on_unbalanced(Currency::issue(self.1));
 	}
