@@ -174,7 +174,11 @@ macro_rules! __impl_ext {
 
 			fn execute_with<R>(execute: impl FnOnce() -> R) -> R {
 				let result = $ext_name.with(|v| v.borrow_mut().execute_with(execute));
-				process_messages().expect("message processing failure");
+				while exists_messages_in_any_bus() {
+					if let Err(xcm_error) = process_messages() {
+						panic!("Message processing failure: {:?}", xcm_error);
+					}
+				}
 				result
 			}
 		}
@@ -200,11 +204,24 @@ macro_rules! decl_test_network {
 
 		impl $name {
 			pub fn reset() {
-				use $crate::TestExt;
-
+				use $crate::{TestExt, VecDeque};
+				// Reset relay chain message bus
+				$crate::RELAY_MESSAGE_BUS.with(|b| b.replace(VecDeque::new()));
+				// Reset parachain message bus
+				$crate::PARA_MESSAGE_BUS.with(|b| b.replace(VecDeque::new()));
+				// Reset relay chain state
 				<$relay_chain>::reset_ext();
+				// Reset parachain state
 				$( <$parachain>::reset_ext(); )*
 			}
+		}
+
+		/// Check if any messages exist in either message bus
+		fn exists_messages_in_any_bus() -> bool {
+			use $crate::{RELAY_MESSAGE_BUS, PARA_MESSAGE_BUS};
+			let no_relay_messages_left = RELAY_MESSAGE_BUS.with(|b| b.borrow().is_empty());
+			let no_parachain_messages_left = PARA_MESSAGE_BUS.with(|b| b.borrow().is_empty());
+			!(no_relay_messages_left && no_parachain_messages_left)
 		}
 
 		/// Process any XCMs in the message buses.
