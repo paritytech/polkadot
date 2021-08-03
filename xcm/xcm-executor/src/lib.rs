@@ -42,7 +42,7 @@ pub use config::Config;
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 /// The maximum recursion limit for `execute_xcm` and `execute_effects`.
-pub const MAX_RECURSION_LIMIT: u32 = 10;
+pub const MAX_RECURSION_LIMIT: u32 = 6;
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	fn execute_xcm_in_credit(
@@ -266,7 +266,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		};
 
 		if let Some((mut holding, effects)) = maybe_holding_effects {
-			for effect in effects.into_iter() {
+			for effect in effects {
 				total_surplus +=
 					Self::execute_effects(&origin, &mut holding, effect, trader, num_recursions)?;
 			}
@@ -334,7 +334,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				holding.saturating_subsume_all(unspent);
 
 				let mut remaining_weight = weight;
-				for message in xcm.into_iter() {
+				for message in xcm {
 					match Self::do_execute_xcm(
 						origin.clone(),
 						false,

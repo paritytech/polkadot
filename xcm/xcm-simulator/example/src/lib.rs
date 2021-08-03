@@ -216,25 +216,48 @@ mod tests {
 	#[test]
 	fn recursion_limit_works() {
 		use parachain::{Event, System};
+		use xcm_executor::MAX_RECURSION_LIMIT;
 		MockNet::reset();
 
 		ParaA::execute_with(|| {
-			let msg = WithdrawAsset { assets: vec![All], effects: vec![] };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
-			let msg = RelayedFrom { who: Null, message: Box::new(msg) };
+			let mut msg = WithdrawAsset {
+				assets: vec![ConcreteFungible { id: X1(Parent), amount: 0 }],
+				effects: vec![],
+			};
+			for _ in 0..MAX_RECURSION_LIMIT {
+				msg = WithdrawAsset {
+					assets: vec![ConcreteFungible { id: X1(Parent), amount: 0 }],
+					effects: vec![xcm::v0::Order::BuyExecution {
+						fees: All,
+						weight: 0,
+						debt: 5,
+						halt_on_error: true,
+						xcm: vec![msg],
+					}],
+				};
+			}
 
 			let origin = parachain::Origin::signed(ALICE);
+
+			assert_ok!(ParachainPalletXcm::execute(origin, Box::new(msg.clone()), 1_000_000_000));
+
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				Event::PolkadotXcm(pallet_xcm::Event::Attempted(xcm::v0::Outcome::Complete(_))),
+			)));
+
+			let origin = parachain::Origin::signed(ALICE);
+
+			msg = WithdrawAsset {
+				assets: vec![ConcreteFungible { id: X1(Parent), amount: 0 }],
+				effects: vec![xcm::v0::Order::BuyExecution {
+					fees: All,
+					weight: 0,
+					debt: 5,
+					halt_on_error: true,
+					xcm: vec![msg],
+				}],
+			};
 
 			assert_ok!(ParachainPalletXcm::execute(origin, Box::new(msg), 1_000_000_000));
 
