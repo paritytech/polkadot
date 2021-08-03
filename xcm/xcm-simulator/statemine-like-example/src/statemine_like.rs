@@ -209,7 +209,7 @@ pub type FungiblesTransactor = FungiblesAdapter<
 >;
 
 pub type LocalAssetTransactor = (
-	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, LocationToAccountId, AccountId, CheckingAccount>,
+	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, LocationToAccountId, AccountId, ()>,
 	FungiblesTransactor,
 );
 
