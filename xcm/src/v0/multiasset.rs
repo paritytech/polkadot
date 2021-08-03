@@ -260,11 +260,6 @@ impl MultiAssets {
 		self.0.iter_mut().try_for_each(|i| i.reanchor(prepend))
 	}
 }
-
-
-
-
-
 /// Classification of whether an asset is fungible or not, along with an optional amount or instance.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum WildFungibility {
