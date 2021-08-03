@@ -1071,7 +1071,7 @@ construct_runtime! {
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 42,
 		ParasShared: parachains_shared::{Pallet, Call, Storage} = 43,
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 44,
-		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 45,
+		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 45,
 		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 46,
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 47,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 48,
