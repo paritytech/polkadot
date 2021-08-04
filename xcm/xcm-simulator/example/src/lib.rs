@@ -127,7 +127,7 @@ mod tests {
 		let remark = parachain::Call::System(
 			frame_system::Call::<parachain::Runtime>::remark_with_event(vec![1, 2, 3]),
 		);
-		Relay::execute_and_dispatch_xcm(|| {
+		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
 				Null,
 				X1(Parachain(1)),
@@ -139,7 +139,7 @@ mod tests {
 			));
 		});
 
-		ParaA::execute_and_dispatch_xcm(|| {
+		ParaA::execute_with(|| {
 			use parachain::{Event, System};
 			assert!(System::events()
 				.iter()
@@ -154,7 +154,7 @@ mod tests {
 		let remark = relay_chain::Call::System(
 			frame_system::Call::<relay_chain::Runtime>::remark_with_event(vec![1, 2, 3]),
 		);
-		ParaA::execute_and_dispatch_xcm(|| {
+		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Null,
 				X1(Parent),
@@ -166,7 +166,7 @@ mod tests {
 			));
 		});
 
-		Relay::execute_and_dispatch_xcm(|| {
+		Relay::execute_with(|| {
 			use relay_chain::{Event, System};
 			assert!(System::events()
 				.iter()
@@ -181,7 +181,7 @@ mod tests {
 		let remark = parachain::Call::System(
 			frame_system::Call::<parachain::Runtime>::remark_with_event(vec![1, 2, 3]),
 		);
-		ParaA::execute_and_dispatch_xcm(|| {
+		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Null,
 				X2(Parent, Parachain(2)),
@@ -193,7 +193,7 @@ mod tests {
 			));
 		});
 
-		ParaB::execute_and_dispatch_xcm(|| {
+		ParaB::execute_with(|| {
 			use parachain::{Event, System};
 			assert!(System::events()
 				.iter()
@@ -212,7 +212,7 @@ mod tests {
 		let withdraw_amount = 123;
 		let max_weight_for_execution = 10;
 
-		Relay::execute_and_dispatch_xcm(|| {
+		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::reserve_transfer_assets(
 				relay_chain::Origin::signed(ALICE),
 				X1(Parachain(1)),
@@ -226,7 +226,7 @@ mod tests {
 			);
 		});
 
-		ParaA::execute_and_dispatch_xcm(|| {
+		ParaA::execute_with(|| {
 			// Check message received
 			let expected_message = (
 				X1(Parent),
@@ -264,7 +264,7 @@ mod tests {
 		let send_amount = 10;
 		let weight_for_execution = 3 * relay_chain::BaseXcmWeight::get();
 
-		ParaA::execute_and_dispatch_xcm(|| {
+		ParaA::execute_with(|| {
 			let message = WithdrawAsset {
 				assets: vec![ConcreteFungible { id: Null, amount: send_amount }],
 				effects: vec![
@@ -276,7 +276,7 @@ mod tests {
 			assert_ok!(ParachainPalletXcm::send_xcm(Null, X1(Parent), message.clone()));
 		});
 
-		Relay::execute_and_dispatch_xcm(|| {
+		Relay::execute_with(|| {
 			assert_eq!(
 				relay_chain::Balances::free_balance(para_account_id(1)),
 				INITIAL_BALANCE - send_amount
@@ -299,7 +299,7 @@ mod tests {
 		let query_id_set = 1234;
 
 		// Send a message which fully succeeds on the relay chain
-		ParaA::execute_and_dispatch_xcm(|| {
+		ParaA::execute_with(|| {
 			let message = WithdrawAsset {
 				assets: vec![ConcreteFungible { id: Null, amount: send_amount }],
 				effects: vec![
@@ -317,7 +317,7 @@ mod tests {
 		});
 
 		// Check that transfer was executed
-		Relay::execute_and_dispatch_xcm(|| {
+		Relay::execute_with(|| {
 			// Withdraw executed
 			assert_eq!(
 				relay_chain::Balances::free_balance(para_account_id(1)),
@@ -328,7 +328,7 @@ mod tests {
 		});
 
 		// Check that QueryResponse message was received
-		ParaA::execute_and_dispatch_xcm(|| {
+		ParaA::execute_with(|| {
 			assert_eq!(
 				parachain::MsgQueue::received_dmp(),
 				vec![(

@@ -41,16 +41,16 @@ pub trait TestExt {
 	fn reset_ext();
 	/// Execute code in the context of the test externalities, without automatic
 	/// message processing. All messages in the message buses can be processed
-	/// by calling `Self::dispatch_xcm_queue()`.
-	fn execute_and_queue_xcm<R>(execute: impl FnOnce() -> R) -> R;
+	/// by calling `Self::dispatch_xcm_buses()`.
+	fn execute_without_dispatch<R>(execute: impl FnOnce() -> R) -> R;
 	/// Process all messages in the message buses
-	fn dispatch_xcm_queue();
+	fn dispatch_xcm_buses();
 	/// Execute some code in the context of the test externalities, with
 	/// automatic message processing.
 	/// Messages are dispatched once the passed closure completes.
-	fn execute_and_dispatch_xcm<R>(execute: impl FnOnce() -> R) -> R {
-		let result = Self::execute_and_queue_xcm(execute);
-		Self::dispatch_xcm_queue();
+	fn execute_with<R>(execute: impl FnOnce() -> R) -> R {
+		let result = Self::execute_without_dispatch(execute);
+		Self::dispatch_xcm_buses();
 		result
 	}
 }
@@ -96,7 +96,7 @@ macro_rules! decl_test_relay_chain {
 			) -> Result<$crate::Weight, ($crate::MessageId, $crate::Weight)> {
 				use $crate::{ump::UmpSink, TestExt};
 
-				Self::execute_and_dispatch_xcm(|| {
+				Self::execute_with(|| {
 					$crate::ump::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
 						origin, msg, max_weight,
 					)
@@ -130,7 +130,7 @@ macro_rules! decl_test_parachain {
 			) -> $crate::Weight {
 				use $crate::{TestExt, XcmpMessageHandlerT};
 
-				$name::execute_and_dispatch_xcm(|| {
+				$name::execute_with(|| {
 					<$xcmp_message_handler>::handle_xcmp_messages(iter, max_weight)
 				})
 			}
@@ -143,7 +143,7 @@ macro_rules! decl_test_parachain {
 			) -> $crate::Weight {
 				use $crate::{DmpMessageHandlerT, TestExt};
 
-				$name::execute_and_dispatch_xcm(|| {
+				$name::execute_with(|| {
 					<$dmp_message_handler>::handle_dmp_messages(iter, max_weight)
 				})
 			}
@@ -175,11 +175,11 @@ macro_rules! __impl_ext {
 				$ext_name.with(|v| *v.borrow_mut() = $new_ext);
 			}
 
-			fn execute_and_queue_xcm<R>(execute: impl FnOnce() -> R) -> R {
+			fn execute_without_dispatch<R>(execute: impl FnOnce() -> R) -> R {
 				$ext_name.with(|v| v.borrow_mut().execute_with(execute))
 			}
 
-			fn dispatch_xcm_queue() {
+			fn dispatch_xcm_buses() {
 				while exists_messages_in_any_bus() {
 					if let Err(xcm_error) = process_relay_messages() {
 						panic!("Relay chain XCM execution failure: {:?}", xcm_error);
