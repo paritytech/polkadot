@@ -16,7 +16,7 @@
 
 use super::*;
 use crate::{
-	account, account_and_location, account_id_junction, create_holding, execute_order, execute_xcm,
+	account_and_location, account_id_junction, create_holding, execute_order, execute_xcm,
 	AssetTransactorOf, OverArchingCallOf, XcmCallOf,
 };
 use codec::Encode;
@@ -149,9 +149,9 @@ benchmarks_instance_pallet! {
 	}
 
 	xcm_withdraw_asset {
-		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
+		let (sender_account, sender_location) = account_and_location::<T>(1);
 		let asset = T::get_multi_asset();
-		<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
 
 		// TODO that this is sum-optimal. We should ideally populate the holding account, but we
 		// can't, nor does it make sense. Insertion of assets into holding gets worse over time (log
@@ -166,47 +166,47 @@ benchmarks_instance_pallet! {
 		// which reflect the state of the holding after executing the previous two xcms.
 
 		// check the assets of origin.
-		assert!(!T::TransactAsset::balance(&account::<T>(1)).is_zero());
+		assert!(!T::TransactAsset::balance(&sender_account).is_zero());
 		// TODO: probably we can and should just use the opaque xcm/order types.
 		let xcm = Xcm::WithdrawAsset::<XcmCallOf<T>> { assets: vec![asset], effects: vec![] };
 	}: {
-		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
 	} verify {
 		// check one of the assets of origin.
-		assert!(T::TransactAsset::balance(&account::<T>(1)).is_zero());
+		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 	}
 	xcm_teleport_asset {}: {} verify {}
 	xcm_transfer_asset {
-		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
-		let dest = account_id_junction::<T>(2).into();
+		let (sender_account, sender_location) = account_and_location::<T>(1);
+		let (dest_account, dest_location) = account_and_location::<T>(2);
 
 		let asset = T::get_multi_asset();
-		<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
 		let assets = vec![ asset ];
-		assert!(T::TransactAsset::balance(&account::<T>(2)).is_zero());
-		let xcm = Xcm::TransferAsset { assets, dest };
+		assert!(T::TransactAsset::balance(&dest_account).is_zero());
+		let xcm = Xcm::TransferAsset { assets, dest: dest_location };
 	}: {
-		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
 	} verify {
-		assert!(T::TransactAsset::balance(&account::<T>(1)).is_zero());
-		assert!(!T::TransactAsset::balance(&account::<T>(2)).is_zero());
+		assert!(T::TransactAsset::balance(&sender_account).is_zero());
+		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
 	}
 
 	xcm_transfer_reserve_asset {
-		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
-		let dest = account_id_junction::<T>(2).into();
+		let (sender_account, sender_location) = account_and_location::<T>(1);
+		let (dest_account, dest_location) = account_and_location::<T>(2);
 
 		let asset = T::get_multi_asset();
-		<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
 		let assets = vec![ asset ];
-		assert!(T::TransactAsset::balance(&account::<T>(2)).is_zero());
+		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 		let effects = Vec::new(); // No effects to isolate the xcm
-		let xcm = Xcm::TransferReserveAsset { assets, dest, effects };
+		let xcm = Xcm::TransferReserveAsset { assets, dest: dest_location, effects };
 	}: {
-		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
 	} verify {
-		assert!(T::TransactAsset::balance(&account::<T>(1)).is_zero());
-		assert!(!T::TransactAsset::balance(&account::<T>(2)).is_zero());
+		assert!(T::TransactAsset::balance(&sender_account).is_zero());
+		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
 	}
 }
 
@@ -214,5 +214,6 @@ benchmarks_instance_pallet! {
 impl_benchmark_test_suite!(
 	Pallet,
 	crate::fungible::mock::new_test_ext(),
+	//westend_runtime::Runtime,
 	crate::fungible::mock::Test
 );

@@ -17,14 +17,19 @@
 //! A mock runtime for xcm benchmarking.
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
-use frame_support::parameter_types;
+use frame_support::{parameter_types, traits::All};
+use polkadot_primitives::v1::Id as ParaId;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
-use xcm::opaque::v0::{MultiAsset, MultiLocation};
+use xcm::v0::{Junction, MultiAsset, MultiLocation, NetworkId};
+use xcm_builder::{
+	AllowBenchmarks, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
+	IsChildSystemParachain, TakeWeightCredit,
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -110,6 +115,10 @@ impl xcm_executor::traits::MatchesFungible<u64> for MatchAnyFungible {
 
 parameter_types! {
 	pub const CheckedAccount: Option<u64> = Some(100);
+	pub const ValidDestination: MultiLocation = MultiLocation::X1(Junction::AccountId32 {
+		network: NetworkId::Any,
+		id: [0u8; 32],
+	});
 }
 
 // Use balances as the asset transactor.
@@ -121,6 +130,17 @@ pub type AssetTransactor = xcm_builder::CurrencyAdapter<
 	CheckedAccount,
 >;
 
+/// The barriers one of which must be passed for an XCM message to be executed.
+pub type Barrier = (
+	// Weight that is paid for may be consumed.
+	TakeWeightCredit,
+	// If the message is one that immediately attemps to pay for execution, then allow it.
+	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	// Messages coming from system parachains need not pay for execution.
+	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
+	AllowBenchmarks,
+);
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -130,7 +150,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = YesItShould<Test>;
+	type Barrier = Barrier;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
 	type Trader = xcm_builder::FixedRateOfConcreteFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
@@ -138,11 +158,13 @@ impl xcm_executor::Config for XcmConfig {
 
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
+	type AccountIdConverter = AccountIdConverter;
 }
 
 impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
 	type CheckedAccount = CheckedAccount;
+	type ValidDestination = ValidDestination;
 	fn get_multi_asset() -> MultiAsset {
 		let amount =
 			<Balances as frame_support::traits::fungible::Inspect<u64>>::minimum_balance() as u128;

@@ -106,3 +106,25 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 		}
 	}
 }
+
+// This barrier
+pub struct AllowBenchmarks;
+impl ShouldExecute for AllowBenchmarks {
+	fn should_execute<Call>(
+		_: &MultiLocation,
+		_: bool,
+		_: &xcm::v0::Xcm<Call>,
+		_: Weight,
+		_: &mut Weight,
+	) -> Result<(), ()> {
+		#[cfg(feature = "runtime-benchmarks")]
+		{
+			Ok(())
+		}
+
+		#[cfg(not(feature = "runtime-benchmarks"))]
+		{
+			Err(())
+		}
+	}
+}

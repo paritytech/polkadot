@@ -32,7 +32,7 @@ use xcm::v0::{
 	AssetInstance, Error as XcmError, ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId,
 	Order, Outcome, Xcm,
 };
-use xcm_executor::Assets;
+use xcm_executor::{traits::Convert, Assets};
 
 pub mod fungible;
 pub mod fungibles;
@@ -42,12 +42,15 @@ pub mod xcm_generic;
 mod mock;
 
 /// A base trait for all individual pallets
-pub trait Config {
+pub trait Config: frame_system::Config {
 	/// The XCM configurations.
 	///
 	/// These might affect the execution of XCM messages, such as defining how the
 	/// `TransactAsset` is implemented.
 	type XcmConfig: xcm_executor::Config;
+
+	// temp?
+	type AccountIdConverter: Convert<MultiLocation, Self::AccountId>;
 }
 
 const SEED: u32 = 0;
@@ -106,6 +109,7 @@ pub fn execute_xcm<T: Config>(origin: MultiLocation, xcm: Xcm<XcmCallOf<T>>) -> 
 	ExecutorOf::<T>::execute_xcm(origin, xcm, MAX_WEIGHT)
 }
 
+// TODO probably delete and use converter
 pub fn account<T: frame_system::Config>(index: u32) -> T::AccountId {
 	frame_benchmarking::account::<T::AccountId>("account", index, SEED)
 }
@@ -120,9 +124,9 @@ fn account_id_junction<T: frame_system::Config>(index: u32) -> Junction {
 	Junction::AccountId32 { network: NetworkId::Any, id }
 }
 
-pub fn account_and_location<T: frame_system::Config>(index: u32) -> (T::AccountId, MultiLocation) {
-	let account = account::<T>(index);
+pub fn account_and_location<T: Config>(index: u32) -> (T::AccountId, MultiLocation) {
 	let location = MultiLocation::X1(account_id_junction::<T>(index));
+	let account = T::AccountIdConverter::convert(location.clone()).unwrap();
 
 	(account, location)
 }

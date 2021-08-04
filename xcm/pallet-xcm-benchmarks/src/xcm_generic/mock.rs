@@ -107,6 +107,7 @@ impl xcm_executor::Config for XcmConfig {
 
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
+	type AccountIdConverter = ();
 }
 impl xcm_generic_benchmarks::Config for Test {}
 

@@ -51,7 +51,7 @@ use xcm::v0::{
 	NetworkId, Xcm,
 };
 use xcm_builder::{
-	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
+	AccountId32Aliases, AllowBenchmarks, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
@@ -926,6 +926,9 @@ pub type Barrier = (
 	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
 	// Messages coming from system parachains need not pay for execution.
 	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
+	// The last barrier should allow benchmarks through.
+	// We want it to be last so that other barriers are touched for a "worst case scenario".
+	AllowBenchmarks,
 );
 
 pub struct XcmConfig;
@@ -1147,6 +1150,21 @@ impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
 		// Remove the storage value `RandomMaterial` from removed pallet `RandomnessCollectiveFlip`
 		migration::remove_storage_prefix(b"RandomnessCollectiveFlip", b"RandomMaterial", b"");
 		<Runtime as frame_system::Config>::DbWeight::get().writes(1)
+	}
+}
+
+impl pallet_xcm_benchmarks::Config for Runtime {
+	type XcmConfig = XcmConfig;
+	type AccountIdConverter = LocationConverter;
+}
+
+impl pallet_xcm_benchmarks::fungible::Config for Runtime {
+	type TransactAsset = Balances;
+
+	type CheckedAccount = CheckAccount;
+
+	fn get_multi_asset() -> MultiAsset {
+		MultiAsset::ConcreteFungible { id: WndLocation::get(), amount: 0 }
 	}
 }
 
@@ -1512,19 +1530,6 @@ sp_api::impl_runtime_apis! {
 
 			use xcm::v0::MultiAsset;
 
-			impl pallet_xcm_benchmarks::Config for Runtime {
-				type XcmConfig = XcmConfig;
-			}
-
-			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
-				type TransactAsset = Balances;
-
-				type CheckedAccount = CheckAccount;
-
-				fn get_multi_asset() -> MultiAsset {
-					MultiAsset::ConcreteFungible { id: WndLocation::get(), amount: 0 }
-				}
-			}
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
