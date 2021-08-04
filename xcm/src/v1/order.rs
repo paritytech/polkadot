@@ -31,11 +31,14 @@ pub enum Order<Call> {
 	#[codec(index = 0)]
 	Noop,
 
-	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
-	/// this consensus system.
+	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `beneficiary`
+	/// within this consensus system.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
-	/// - `dest`: The new owner for the assets.
+	/// - `max_assets`: The maximum number of unique assets/asset instances to remove from holding. Only the first
+	///   `max_assets` assets/instances of those matched by `assets` will be removed, prioritised under standard asset
+	///   ordering. Any others will remain in holding.
+	/// - `beneficiary`: The new owner for the assets.
 	///
 	/// Errors:
 	#[codec(index = 1)]
@@ -47,6 +50,9 @@ pub enum Order<Call> {
 	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the given `effects`.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
+	/// - `max_assets`: The maximum number of unique assets/asset instances to remove from holding. Only the first
+	///   `max_assets` assets/instances of those matched by `assets` will be removed, prioritised under standard asset
+	///   ordering. Any others will remain in holding.
 	/// - `dest`: The location whose sovereign account will own the assets and thus the effective beneficiary for the
 	///   assets and the notification target for the reserve asset deposit message.
 	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposited` which is sent onwards to
