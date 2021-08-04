@@ -62,6 +62,9 @@ impl XcmWeightInfo<()> for WestendXcmWeight {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::order_deposit_reserved_asset())
 	}
+	fn order_exchange_asset(give: &Vec<MultiAsset>, receive: &Vec<MultiAsset>) -> Weight {
+		Weight::MAX // todo fix
+	}
 	fn order_initiate_reserve_withdraw(
 		assets: &Vec<MultiAsset>,
 		_reserve: &MultiLocation,

@@ -1519,6 +1519,8 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
 				type TransactAsset = Balances;
 
+				type CheckedAccount = CheckAccount;
+
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset::ConcreteFungible { id: WndLocation::get(), amount: 0 }
 				}
