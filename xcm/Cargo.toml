@@ -10,10 +10,14 @@ impl-trait-for-tuples = "0.2.0"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = [ "derive" ] }
 derivative = {version = "2.2.0", default-features = false, features = [ "use_core" ] }
 log = { version = "0.4.14", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [features]
 default = ["std"]
 wasm-api = []
 std = [
 	"parity-scale-codec/std",
+	"sp-runtime/std",
+	"frame-support/std",
 ]

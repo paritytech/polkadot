@@ -12253,9 +12253,11 @@ name = "xcm"
 version = "0.9.8"
 dependencies = [
  "derivative",
+ "frame-support",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
+ "sp-runtime",
 ]
 
 [[package]]

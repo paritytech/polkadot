@@ -18,6 +18,8 @@
 
 use core::result;
 use parity_scale_codec::{Decode, Encode};
+use sp_runtime::traits::Dispatchable;
+use frame_support::weights::GetDispatchInfo;
 
 use super::{MultiLocation, Xcm};
 
@@ -265,28 +267,30 @@ impl SendXcm for Tuple {
 /// close open channels.
 /// Parachains should configure the default `()` implementation which returns `Error::Undefined`.
 /// Relay chains will use the implementation in the `hrmp` pallet.
-pub trait HrmpChannelManagementHooks<Call> {
+pub trait HrmpChannelManagementHooks {
+	type HrmpCall: Dispatchable + GetDispatchInfo;
 	fn hrmp_init_open_channel(
 		recipient: u32,
 		max_message_size: u32,
 		max_capacity: u32,
-	) -> result::Result<Call, Error>;
-	fn hrmp_accept_open_channel(sender: u32) -> result::Result<Call, Error>;
-	fn hrmp_close_channel(sender: u32, recipient: u32) -> result::Result<Call, Error>;
+	) -> result::Result<Self::HrmpCall, Error>;
+	fn hrmp_accept_open_channel(sender: u32) -> result::Result<Self::HrmpCall, Error>;
+	fn hrmp_close_channel(sender: u32, recipient: u32) -> result::Result<Self::HrmpCall, Error>;
 }
 
-impl<C> HrmpChannelManagementHooks<C> for () {
+impl HrmpChannelManagementHooks for () {
+	type HrmpCall = ();
 	fn hrmp_init_open_channel(
 		_recipient: u32,
 		_max_message_size: u32,
 		_max_capacity: u32,
-	) -> result::Result<C, Error> {
+	) -> result::Result<(), Error> {
 		Err(().into())
 	}
-	fn hrmp_accept_open_channel(_sender: u32) -> result::Result<C, Error> {
+	fn hrmp_accept_open_channel(_sender: u32) -> result::Result<(), Error> {
 		Err(().into())
 	}
-	fn hrmp_close_channel(_sender: u32, _recipient: u32) -> result::Result<C, Error> {
+	fn hrmp_close_channel(_sender: u32, _recipient: u32) -> result::Result<(), Error> {
 		Err(().into())
 	}
 }

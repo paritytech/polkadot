@@ -468,18 +468,19 @@ pub mod pallet {
 	}
 }
 
-impl<T: Config> HrmpChannelManagementHooks<pallet::Call<T>> for Pallet<T> {
+impl HrmpChannelManagementHooks for Pallet<T> {
+	type HrmpCall = pallet::Call<T>>;
 	fn hrmp_init_open_channel(
 		recipient: u32,
 		max_message_size: u32,
 		max_capacity: u32,
-	) -> Result<pallet::Call<T>, XcmError> {
+	) -> Result<Self::HrmpCall, XcmError> {
 		Ok(pallet::Call::hrmp_init_open_channel(recipient.into(), max_capacity, max_message_size))
 	}
-	fn hrmp_accept_open_channel(sender: u32) -> Result<pallet::Call<T>, XcmError> {
+	fn hrmp_accept_open_channel(sender: u32) -> Result<Self::HrmpCall, XcmError> {
 		Ok(pallet::Call::hrmp_accept_open_channel(sender.into()))
 	}
-	fn hrmp_close_channel(sender: u32, recipient: u32) -> Result<pallet::Call<T>, XcmError> {
+	fn hrmp_close_channel(sender: u32, recipient: u32) -> Result<Self::HrmpCall, XcmError> {
 		Ok(pallet::Call::hrmp_close_channel(HrmpChannelId {
 			sender: sender.into(),
 			recipient: recipient.into(),

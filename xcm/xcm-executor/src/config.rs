@@ -36,7 +36,7 @@ pub trait Config {
 	type AssetTransactor: TransactAsset;
 
 	/// Hooks to expose HRMP actions to XCM.
-	type HrmpChannelManager: HrmpChannelManagementHooks<Self::Call>;
+	type HrmpChannelManager: HrmpChannelManagementHooks;
 
 	/// How to get a call origin from a `OriginKind` value.
 	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
