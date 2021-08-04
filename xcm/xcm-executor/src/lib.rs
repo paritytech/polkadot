@@ -270,7 +270,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let mut total_surplus = 0;
 		match effect {
 			Order::DepositAsset { assets, max_assets, beneficiary } => {
-				let deposited = holding.limited_saturating_take(assets, max_assets);
+				let deposited = holding.limited_saturating_take(assets, max_assets as usize);
 				for asset in deposited.into_assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &beneficiary)?;
 				}

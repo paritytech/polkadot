@@ -43,7 +43,7 @@ fn send_works() {
 			assets: (X1(Parent), SEND_AMOUNT).into(),
 			effects: vec![
 				buy_execution(weight),
-				DepositAsset { assets: Wild(All), beneficiary: sender.clone() },
+				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
 		assert_ok!(XcmPallet::send(Origin::signed(ALICE), RelayLocation::get(), message.clone()));
@@ -77,7 +77,7 @@ fn send_fails_when_xcm_router_blocks() {
 			assets: (Parent, SEND_AMOUNT).into(),
 			effects: vec![
 				buy_execution(weight),
-				DepositAsset { assets: Wild(All), beneficiary: sender.clone() },
+				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
 		assert_noop!(
@@ -159,7 +159,7 @@ fn reserve_transfer_assets_works() {
 					assets: (X1(Parent), SEND_AMOUNT).into(),
 					effects: vec![
 						buy_execution(weight),
-						DepositAsset { assets: Wild(All), beneficiary: dest },
+						DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 					]
 				}
 			)]
@@ -190,7 +190,7 @@ fn execute_withdraw_to_deposit_works() {
 				assets: (Here, SEND_AMOUNT).into(),
 				effects: vec![
 					buy_execution(weight),
-					DepositAsset { assets: Wild(All), beneficiary: dest }
+					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest }
 				],
 			}),
 			weight
