@@ -39,7 +39,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::traits::AccountIdConversion;
-	use xcm_executor::traits::{WeightBounds, InvertLocation};
+	use xcm_executor::traits::{InvertLocation, WeightBounds};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -156,7 +156,8 @@ pub mod pallet {
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
 			let inv_dest = T::LocationInverter::invert_location(&dest);
-			let fees = assets.get(fee_asset_item as usize)
+			let fees = assets
+				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
 				.clone()
 				.reanchored(&inv_dest)
@@ -223,7 +224,8 @@ pub mod pallet {
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, mut assets) = value;
 			let inv_dest = T::LocationInverter::invert_location(&dest);
-			let fees = assets.get(fee_asset_item as usize)
+			let fees = assets
+				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
 				.clone()
 				.reanchored(&inv_dest)
@@ -239,7 +241,7 @@ pub mod pallet {
 						fees,
 						// Zero weight for additional instructions/orders (since there are none to execute)
 						weight: 0,
-						debt: dest_weight,	// covers this, `TransferReserveAsset` xcm, and `DepositAsset` order.
+						debt: dest_weight, // covers this, `TransferReserveAsset` xcm, and `DepositAsset` order.
 						halt_on_error: false,
 						orders: vec![],
 						instructions: vec![],
