@@ -19,7 +19,7 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use crate::shared;
-use frame_support::pallet_prelude::*;
+use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_POV_SIZE};
@@ -27,6 +27,8 @@ use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
 pub use pallet::*;
+
+const LOG_TARGET: &str = "runtime::configuration";
 
 /// All configuration of the runtime with respect to parachains and parathreads.
 #[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug)]
@@ -168,6 +170,9 @@ pub struct HostConfiguration<BlockNumber> {
 	pub needed_approvals: u32,
 	/// The number of samples to do of the `RelayVRFModulo` approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
+	/// The maximum amount of weight any individual upward message may consume. Messages above this
+	/// weight go into the overweight queue and may only be serviced explicitly.
+	pub ump_max_individual_weight: Weight,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
@@ -213,6 +218,11 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
+
+			//
+			// FOR REVIEW: what is a sensible value here?
+			//
+			ump_max_individual_weight: 10 * WEIGHT_PER_MILLIS,
 		}
 	}
 }
@@ -764,10 +774,137 @@ pub mod pallet {
 			});
 			Ok(())
 		}
+
+		/// Sets the maximum amount of weight any individual upward message may consume.
+		#[pallet::weight((1_000, DispatchClass::Operational))]
+		pub fn set_ump_max_individual_weight(origin: OriginFor<T>, new: Weight) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.ump_max_individual_weight, new) != new
+			});
+			Ok(())
+		}
 	}
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_runtime_upgrade() -> Weight {
+			#[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug)]
+			#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+			struct PreMigrationHostConfiguration<BlockNumber> {
+				max_code_size: u32,
+				max_head_data_size: u32,
+				max_upward_queue_count: u32,
+				max_upward_queue_size: u32,
+				max_upward_message_size: u32,
+				max_upward_message_num_per_candidate: u32,
+				hrmp_max_message_num_per_candidate: u32,
+				validation_upgrade_frequency: BlockNumber,
+				validation_upgrade_delay: BlockNumber,
+				max_pov_size: u32,
+				max_downward_message_size: u32,
+				ump_service_total_weight: Weight,
+				hrmp_max_parachain_outbound_channels: u32,
+				hrmp_max_parathread_outbound_channels: u32,
+				hrmp_open_request_ttl: u32,
+				hrmp_sender_deposit: Balance,
+				hrmp_recipient_deposit: Balance,
+				hrmp_channel_max_capacity: u32,
+				hrmp_channel_max_total_size: u32,
+				hrmp_max_parachain_inbound_channels: u32,
+				hrmp_max_parathread_inbound_channels: u32,
+				hrmp_channel_max_message_size: u32,
+				code_retention_period: BlockNumber,
+				parathread_cores: u32,
+				parathread_retries: u32,
+				group_rotation_frequency: BlockNumber,
+				chain_availability_period: BlockNumber,
+				thread_availability_period: BlockNumber,
+				scheduling_lookahead: u32,
+				max_validators_per_core: Option<u32>,
+				max_validators: Option<u32>,
+				dispute_period: SessionIndex,
+				dispute_post_conclusion_acceptance_period: BlockNumber,
+				dispute_max_spam_slots: u32,
+				dispute_conclusion_by_time_out_period: BlockNumber,
+				no_show_slots: u32,
+				n_delay_tranches: u32,
+				zeroth_delay_tranche_width: u32,
+				needed_approvals: u32,
+				relay_vrf_modulo_samples: u32,
+				// the difference from `HostConfiguration` (i.e. the current version) is one field: `HostConfiguration`
+				// defines `ump_max_individual_weight`.
+			}
+
+			// Unusual formatting is justified:
+			// - make it easier to verify that fields assign what they supposed to assign.
+			// - this code is transient and will be removed after all migrations are done.
+			// - this code is important enough to optimize for legibility sacrificing consistency.
+			#[rustfmt::skip]
+			let translate = |pre: PreMigrationHostConfiguration<BlockNumberFor<T>>| -> HostConfiguration<BlockNumberFor<T>> {
+				HostConfiguration {
+
+max_code_size                            : pre.max_code_size,
+max_head_data_size                       : pre.max_head_data_size,
+max_upward_queue_count                   : pre.max_upward_queue_count,
+max_upward_queue_size                    : pre.max_upward_queue_size,
+max_upward_message_size                  : pre.max_upward_message_size,
+max_upward_message_num_per_candidate     : pre.max_upward_message_num_per_candidate,
+hrmp_max_message_num_per_candidate       : pre.hrmp_max_message_num_per_candidate,
+validation_upgrade_frequency             : pre.validation_upgrade_frequency,
+validation_upgrade_delay                 : pre.validation_upgrade_delay,
+max_pov_size                             : pre.max_pov_size,
+max_downward_message_size                : pre.max_downward_message_size,
+ump_service_total_weight                 : pre.ump_service_total_weight,
+hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
+hrmp_max_parathread_outbound_channels    : pre.hrmp_max_parathread_outbound_channels,
+hrmp_open_request_ttl                    : pre.hrmp_open_request_ttl,
+hrmp_sender_deposit                      : pre.hrmp_sender_deposit,
+hrmp_recipient_deposit                   : pre.hrmp_recipient_deposit,
+hrmp_channel_max_capacity                : pre.hrmp_channel_max_capacity,
+hrmp_channel_max_total_size              : pre.hrmp_channel_max_total_size,
+hrmp_max_parachain_inbound_channels      : pre.hrmp_max_parachain_inbound_channels,
+hrmp_max_parathread_inbound_channels     : pre.hrmp_max_parathread_inbound_channels,
+hrmp_channel_max_message_size            : pre.hrmp_channel_max_message_size,
+code_retention_period                    : pre.code_retention_period,
+parathread_cores                         : pre.parathread_cores,
+parathread_retries                       : pre.parathread_retries,
+group_rotation_frequency                 : pre.group_rotation_frequency,
+chain_availability_period                : pre.chain_availability_period,
+thread_availability_period               : pre.thread_availability_period,
+scheduling_lookahead                     : pre.scheduling_lookahead,
+max_validators_per_core                  : pre.max_validators_per_core,
+max_validators                           : pre.max_validators,
+dispute_period                           : pre.dispute_period,
+dispute_post_conclusion_acceptance_period: pre.dispute_post_conclusion_acceptance_period,
+dispute_max_spam_slots                   : pre.dispute_max_spam_slots,
+dispute_conclusion_by_time_out_period    : pre.dispute_conclusion_by_time_out_period,
+no_show_slots                            : pre.no_show_slots,
+n_delay_tranches                         : pre.n_delay_tranches,
+zeroth_delay_tranche_width               : pre.zeroth_delay_tranche_width,
+needed_approvals                         : pre.needed_approvals,
+relay_vrf_modulo_samples                 : pre.relay_vrf_modulo_samples,
+
+					// The newly added field will be fetched from the defaults.
+					..Default::default()
+				}
+			};
+
+			if let Err(_) = <Self as Store>::ActiveConfig::translate(|pre| pre.map(translate)) {
+				// `Err` is returned when the pre-migration type cannot be deserialized. This
+				// cannot happen if the migration run correctly, i.e. against the expected version.
+				//
+				// This happening almost sure will lead to a panic somewhere else. Corruption seems
+				// to be unlikely to be caused by this. So we just log. Maybe it'll work out still?
+				log::error!(
+					target: LOG_TARGET,
+					"unexpected error when performing translation of the configuration type during runtime upgrade."
+				);
+			}
+
+			T::DbWeight::get().reads_writes(1, 1)
+		}
+
 		fn integrity_test() {
 			assert_eq!(
 				&ActiveConfig::<T>::hashed_key(),
@@ -899,6 +1036,7 @@ mod tests {
 				hrmp_max_parachain_outbound_channels: 100,
 				hrmp_max_parathread_outbound_channels: 200,
 				hrmp_max_message_num_per_candidate: 20,
+				ump_max_individual_weight: 909,
 			};
 
 			assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none());
@@ -1063,6 +1201,11 @@ mod tests {
 			Configuration::set_hrmp_max_message_num_per_candidate(
 				Origin::root(),
 				new_config.hrmp_max_message_num_per_candidate,
+			)
+			.unwrap();
+			Configuration::set_ump_max_individual_weight(
+				Origin::root(),
+				new_config.ump_max_individual_weight,
 			)
 			.unwrap();
 
