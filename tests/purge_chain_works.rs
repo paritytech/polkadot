@@ -23,8 +23,10 @@ mod common;
 #[test]
 #[cfg(unix)]
 fn purge_chain_works() {
-	use nix::sys::signal::{kill, Signal::SIGINT};
-	use nix::unistd::Pid;
+	use nix::{
+		sys::signal::{kill, Signal::SIGINT},
+		unistd::Pid,
+	};
 
 	let tmpdir = tempdir().expect("could not create temp dir");
 

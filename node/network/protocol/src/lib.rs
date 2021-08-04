@@ -19,13 +19,13 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_primitives::v1::{Hash, BlockNumber};
-use parity_scale_codec::{Encode, Decode};
-use std::{fmt, collections::HashMap};
+use parity_scale_codec::{Decode, Encode};
+use polkadot_primitives::v1::{BlockNumber, Hash};
+use std::{collections::HashMap, fmt};
 
-pub use sc_network::PeerId;
 #[doc(hidden)]
 pub use polkadot_node_jaeger as jaeger;
+pub use sc_network::{IfDisconnected, PeerId};
 #[doc(hidden)]
 pub use std::sync::Arc;
 
@@ -38,11 +38,13 @@ pub mod peer_set;
 /// Request/response protocols used in Polkadot.
 pub mod request_response;
 
-/// A unique identifier of a request.
-pub type RequestId = u64;
+/// Accessing authority discovery service
+pub mod authority_discovery;
 
 /// A version of the protocol.
 pub type ProtocolVersion = u32;
+/// The minimum amount of peers to send gossip messages to.
+pub const MIN_GOSSIP_PEERS: usize = 25;
 
 /// An error indicating that this the over-arching message type had the wrong variant
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -87,13 +89,15 @@ impl Into<sc_network::ObservedRole> for ObservedRole {
 	}
 }
 
+/// Implement `TryFrom` for one enum variant into the inner type.
+/// `$m_ty::$variant(inner) -> Ok(inner)`
 macro_rules! impl_try_from {
 	($m_ty:ident, $variant:ident, $out:ty) => {
 		impl TryFrom<$m_ty> for $out {
 			type Error = crate::WrongVariant;
 
-			#[allow(unreachable_patterns)] // when there is only one variant
 			fn try_from(x: $m_ty) -> Result<$out, Self::Error> {
+				#[allow(unreachable_patterns)] // when there is only one variant
 				match x {
 					$m_ty::$variant(y) => Ok(y),
 					_ => Err(crate::WrongVariant),
@@ -112,9 +116,8 @@ macro_rules! impl_try_from {
 				}
 			}
 		}
-	}
+	};
 }
-
 
 /// Specialized wrapper around [`View`].
 ///
@@ -127,16 +130,13 @@ pub struct OurView {
 
 impl OurView {
 	/// Creates a new instance.
-	pub fn new(heads: impl IntoIterator<Item = (Hash, Arc<jaeger::Span>)>, finalized_number: BlockNumber) -> Self {
+	pub fn new(
+		heads: impl IntoIterator<Item = (Hash, Arc<jaeger::Span>)>,
+		finalized_number: BlockNumber,
+	) -> Self {
 		let state_per_head = heads.into_iter().collect::<HashMap<_, _>>();
-		let view = View::new(
-			state_per_head.keys().cloned(),
-			finalized_number,
-		);
-		Self {
-			view,
-			span_per_head: state_per_head,
-		}
+		let view = View::new(state_per_head.keys().cloned(), finalized_number);
+		Self { view, span_per_head: state_per_head }
 	}
 
 	/// Returns the span per head map.
@@ -215,22 +215,15 @@ macro_rules! view {
 
 impl View {
 	/// Construct a new view based on heads and a finalized block number.
-	pub fn new(heads: impl IntoIterator<Item=Hash>, finalized_number: BlockNumber) -> Self
-	{
+	pub fn new(heads: impl IntoIterator<Item = Hash>, finalized_number: BlockNumber) -> Self {
 		let mut heads = heads.into_iter().collect::<Vec<Hash>>();
 		heads.sort();
-		Self {
-			heads,
-			finalized_number,
-		}
+		Self { heads, finalized_number }
 	}
 
 	/// Start with no heads, but only a finalized block number.
 	pub fn with_finalized(finalized_number: BlockNumber) -> Self {
-		Self {
-			heads: Vec::new(),
-			finalized_number,
-		}
+		Self { heads: Vec::new(), finalized_number }
 	}
 
 	/// Obtain the number of heads that are in view.
@@ -244,12 +237,12 @@ impl View {
 	}
 
 	/// Obtain an iterator over all heads.
-	pub fn iter<'a>(&'a self) -> impl Iterator<Item=&'a Hash> {
+	pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Hash> {
 		self.heads.iter()
 	}
 
 	/// Obtain an iterator over all heads.
-	pub fn into_iter(self) -> impl Iterator<Item=Hash> {
+	pub fn into_iter(self) -> impl Iterator<Item = Hash> {
 		self.heads.into_iter()
 	}
 
@@ -279,7 +272,7 @@ impl View {
 
 	/// Check if two views have the same heads.
 	///
-	/// Equivalent to the `PartialEq` fn,
+	/// Equivalent to the `PartialEq` function,
 	/// but ignores the `finalized_number` field.
 	pub fn check_heads_eq(&self, other: &Self) -> bool {
 		self.heads == other.heads
@@ -288,49 +281,25 @@ impl View {
 
 /// v1 protocol types.
 pub mod v1 {
-	use polkadot_primitives::v1::{AvailableData, CandidateHash, CandidateIndex, CollatorId, CompressedPoV, ErasureChunk, Hash, Id as ParaId, SignedAvailabilityBitfield, ValidatorIndex};
-	use polkadot_node_primitives::{
-		SignedFullStatement,
-		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
-	};
-	use parity_scale_codec::{Encode, Decode};
-	use super::RequestId;
+	use parity_scale_codec::{Decode, Encode};
 	use std::convert::TryFrom;
 
-	/// Network messages used by the availability recovery subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub enum AvailabilityRecoveryMessage {
-		/// Request a chunk for a given candidate hash and validator index.
-		RequestChunk(RequestId, CandidateHash, ValidatorIndex),
-		/// Respond with chunk for a given candidate hash and validator index.
-		/// The response may be `None` if the requestee does not have the chunk.
-		Chunk(RequestId, Option<ErasureChunk>),
-		/// Request full data for a given candidate hash.
-		RequestFullData(RequestId, CandidateHash),
-		/// Respond with full data for a given candidate hash.
-		/// The response may be `None` if the requestee does not have the data.
-		FullData(RequestId, Option<AvailableData>),
-	}
+	use polkadot_primitives::v1::{
+		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash,
+		Id as ParaId, UncheckedSignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature,
+	};
+
+	use polkadot_node_primitives::{
+		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
+		UncheckedSignedFullStatement,
+	};
 
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {
 		/// A signed availability bitfield for a given relay-parent hash.
 		#[codec(index = 0)]
-		Bitfield(Hash, SignedAvailabilityBitfield),
-	}
-
-	/// Network messages used by the PoV distribution subsystem.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-	pub enum PoVDistributionMessage {
-		/// Notification that we are awaiting the given PoVs (by hash) against a
-		/// specific relay-parent hash.
-		#[codec(index = 0)]
-		Awaiting(Hash, Vec<Hash>),
-		/// Notification of an awaited PoV, in a given relay-parent context.
-		/// (relay_parent, pov_hash, compressed_pov)
-		#[codec(index = 1)]
-		SendPoV(Hash, Hash, CompressedPoV),
+		Bitfield(Hash, UncheckedSignedAvailabilityBitfield),
 	}
 
 	/// Network messages used by the statement distribution subsystem.
@@ -338,7 +307,70 @@ pub mod v1 {
 	pub enum StatementDistributionMessage {
 		/// A signed full statement under a given relay-parent.
 		#[codec(index = 0)]
-		Statement(Hash, SignedFullStatement)
+		Statement(Hash, UncheckedSignedFullStatement),
+		/// Seconded statement with large payload (e.g. containing a runtime upgrade).
+		///
+		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
+		/// via request/response.
+		#[codec(index = 1)]
+		LargeStatement(StatementMetadata),
+	}
+
+	/// Data that makes a statement unique.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
+	pub struct StatementMetadata {
+		/// Relay parent this statement is relevant under.
+		pub relay_parent: Hash,
+		/// Hash of the candidate that got validated.
+		pub candidate_hash: CandidateHash,
+		/// Validator that attested the validity.
+		pub signed_by: ValidatorIndex,
+		/// Signature of seconding validator.
+		pub signature: ValidatorSignature,
+	}
+
+	impl StatementDistributionMessage {
+		/// Get meta data of the given `StatementDistributionMessage`.
+		pub fn get_metadata(&self) -> StatementMetadata {
+			match self {
+				Self::Statement(relay_parent, statement) => StatementMetadata {
+					relay_parent: *relay_parent,
+					candidate_hash: statement.unchecked_payload().candidate_hash(),
+					signed_by: statement.unchecked_validator_index(),
+					signature: statement.unchecked_signature().clone(),
+				},
+				Self::LargeStatement(metadata) => metadata.clone(),
+			}
+		}
+
+		/// Get fingerprint describing the contained statement uniquely.
+		pub fn get_fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
+			match self {
+				Self::Statement(_, statement) => (
+					statement.unchecked_payload().to_compact(),
+					statement.unchecked_validator_index(),
+				),
+				Self::LargeStatement(meta) =>
+					(CompactStatement::Seconded(meta.candidate_hash), meta.signed_by),
+			}
+		}
+
+		/// Get contained relay parent.
+		pub fn get_relay_parent(&self) -> Hash {
+			match self {
+				Self::Statement(r, _) => *r,
+				Self::LargeStatement(meta) => meta.relay_parent,
+			}
+		}
+
+		/// Whether this message contains a large statement.
+		pub fn is_large_statement(&self) -> bool {
+			if let Self::LargeStatement(_) = self {
+				true
+			} else {
+				false
+			}
+		}
 	}
 
 	/// Network messages used by the approval distribution subsystem.
@@ -357,16 +389,17 @@ pub mod v1 {
 	/// Network messages used by the collator protocol subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum CollatorProtocolMessage {
-		/// Declare the intent to advertise collations under a collator ID.
+		/// Declare the intent to advertise collations under a collator ID, attaching a
+		/// signature of the `PeerId` of the node using the given collator ID key.
 		#[codec(index = 0)]
-		Declare(CollatorId),
-		/// Advertise a collation to a validator. Can only be sent once the peer has declared
-		/// that they are a collator with given ID.
+		Declare(CollatorId, ParaId, CollatorSignature),
+		/// Advertise a collation to a validator. Can only be sent once the peer has
+		/// declared that they are a collator with given ID.
 		#[codec(index = 1)]
-		AdvertiseCollation(Hash, ParaId),
+		AdvertiseCollation(Hash),
 		/// A collation sent to a validator was seconded.
 		#[codec(index = 4)]
-		CollationSeconded(SignedFullStatement),
+		CollationSeconded(Hash, UncheckedSignedFullStatement),
 	}
 
 	/// All network messages on the validation peer-set.
@@ -375,25 +408,17 @@ pub mod v1 {
 		/// Bitfield distribution messages
 		#[codec(index = 1)]
 		BitfieldDistribution(BitfieldDistributionMessage),
-		/// PoV Distribution messages
-		#[codec(index = 2)]
-		PoVDistribution(PoVDistributionMessage),
 		/// Statement distribution messages
 		#[codec(index = 3)]
 		StatementDistribution(StatementDistributionMessage),
-		/// Availability recovery messages
-		#[codec(index = 4)]
-		AvailabilityRecovery(AvailabilityRecoveryMessage),
 		/// Approval distribution messages
-		#[codec(index = 5)]
+		#[codec(index = 4)]
 		ApprovalDistribution(ApprovalDistributionMessage),
 	}
 
 	impl_try_from!(ValidationProtocol, BitfieldDistribution, BitfieldDistributionMessage);
-	impl_try_from!(ValidationProtocol, PoVDistribution, PoVDistributionMessage);
 	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);
 	impl_try_from!(ValidationProtocol, ApprovalDistribution, ApprovalDistributionMessage);
-	impl_try_from!(ValidationProtocol, AvailabilityRecovery, AvailabilityRecoveryMessage);
 
 	/// All network messages on the collation peer-set.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -404,4 +429,14 @@ pub mod v1 {
 	}
 
 	impl_try_from!(CollationProtocol, CollatorProtocol, CollatorProtocolMessage);
+
+	/// Get the payload that should be signed and included in a `Declare` message.
+	///
+	/// The payload is the local peer id of the node, which serves to prove that it
+	/// controls the collator key it is declaring an intention to collate under.
+	pub fn declare_signature_payload(peer_id: &sc_network::PeerId) -> Vec<u8> {
+		let mut payload = peer_id.to_bytes();
+		payload.extend_from_slice(b"COLL");
+		payload
+	}
 }

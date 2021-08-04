@@ -18,12 +18,18 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	initializer,
 };
-use sp_std::{fmt, prelude::*};
-use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
-use frame_support::{decl_module, decl_storage, StorageMap, StorageValue, weights::Weight, traits::Get};
+use frame_support::pallet_prelude::*;
 use primitives::v1::{Id as ParaId, UpwardMessage};
+use sp_std::{
+	collections::{btree_map::BTreeMap, vec_deque::VecDeque},
+	convert::TryFrom,
+	fmt,
+	marker::PhantomData,
+	prelude::*,
+};
+use xcm::v0::Outcome;
 
-const LOG_TARGET: &str = "runtime::ump-sink";
+pub use pallet::*;
 
 /// All upward messages coming from parachains will be funneled into an implementation of this trait.
 ///
@@ -41,75 +47,84 @@ const LOG_TARGET: &str = "runtime::ump-sink";
 /// It is possible that by the time the message is sank the origin parachain was offboarded. It is
 /// up to the implementer to check that if it cares.
 pub trait UmpSink {
-	/// Process an incoming upward message and return the amount of weight it consumed.
+	/// Process an incoming upward message and return the amount of weight it consumed, or `None` if
+	/// it did not begin processing a message since it would otherwise exceed `max_weight`.
 	///
 	/// See the trait docs for more details.
-	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight;
+	fn process_upward_message(
+		origin: ParaId,
+		msg: &[u8],
+		max_weight: Weight,
+	) -> Result<Weight, (MessageId, Weight)>;
 }
 
-/// An implementation of a sink that just swallows the message without consuming any weight.
+/// An implementation of a sink that just swallows the message without consuming any weight. Returns
+/// `Some(0)` indicating that no messages existed for it to process.
 impl UmpSink for () {
-	fn process_upward_message(_: ParaId, _: Vec<u8>) -> Weight {
-		0
+	fn process_upward_message(
+		_: ParaId,
+		_: &[u8],
+		_: Weight,
+	) -> Result<Weight, (MessageId, Weight)> {
+		Ok(0)
 	}
 }
 
-/// A specific implementation of a UmpSink where messages are in the XCM format
+/// Simple type used to identify messages for the purpose of reporting events. Secure if and only
+/// if the message content is unique.
+pub type MessageId = [u8; 32];
+
+/// A specific implementation of a `UmpSink` where messages are in the XCM format
 /// and will be forwarded to the XCM Executor.
-pub struct XcmSink<Config>(sp_std::marker::PhantomData<Config>);
+pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
 
-impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
-	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight {
-		use parity_scale_codec::Decode;
-		use xcm::VersionedXcm;
-		use xcm::v0::{Junction, MultiLocation, ExecuteXcm};
-		use xcm_executor::XcmExecutor;
+impl<XcmExecutor: xcm::v0::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
+	fn process_upward_message(
+		origin: ParaId,
+		data: &[u8],
+		max_weight: Weight,
+	) -> Result<Weight, (MessageId, Weight)> {
+		use xcm::{
+			v0::{Error as XcmError, Junction, MultiLocation, Xcm},
+			VersionedXcm,
+		};
 
-		let weight: Weight = 0;
-
-		if let Ok(versioned_xcm_message) = VersionedXcm::decode(&mut &msg[..]) {
-			match versioned_xcm_message {
-				VersionedXcm::V0(xcm_message) => {
-					let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
-					let xcm_location: MultiLocation = xcm_junction.into();
-					// TODO: Do something with result.
-					let _result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message);
+		let id = sp_io::hashing::blake2_256(&data[..]);
+		let maybe_msg =
+			VersionedXcm::<C::Call>::decode(&mut &data[..]).map(Xcm::<C::Call>::try_from);
+		match maybe_msg {
+			Err(_) => {
+				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
+				Ok(0)
+			},
+			Ok(Err(())) => {
+				Pallet::<C>::deposit_event(Event::UnsupportedVersion(id));
+				Ok(0)
+			},
+			Ok(Ok(xcm_message)) => {
+				let xcm_junction: Junction = Junction::Parachain(origin.into());
+				let xcm_location: MultiLocation = xcm_junction.into();
+				let outcome = XcmExecutor::execute_xcm(xcm_location, xcm_message, max_weight);
+				match outcome {
+					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
+					outcome => {
+						let weight_used = outcome.weight_used();
+						Pallet::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
+						Ok(weight_used)
+					},
 				}
-			}
-		} else {
-			log::error!(
-				target: LOG_TARGET,
-				"Failed to decode versioned XCM from upward message.",
-			);
+			},
 		}
-
-		// TODO: to be sound, this implementation must ensure that returned (and thus consumed)
-		// weight is limited to some small portion of the total block weight (as a ballpark, 1/4, 1/8
-		// or lower).
-		weight
 	}
 }
 
 /// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
 /// criteria rules.
 pub enum AcceptanceCheckErr {
-	MoreMessagesThanPermitted {
-		sent: u32,
-		permitted: u32,
-	},
-	MessageSize {
-		idx: u32,
-		msg_size: u32,
-		max_size: u32,
-	},
-	CapacityExceeded {
-		count: u32,
-		limit: u32,
-	},
-	TotalSizeExceeded {
-		total_size: u32,
-		limit: u32,
-	},
+	MoreMessagesThanPermitted { sent: u32, permitted: u32 },
+	MessageSize { idx: u32, msg_size: u32, max_size: u32 },
+	CapacityExceeded { count: u32, limit: u32 },
+	TotalSizeExceeded { total_size: u32, limit: u32 },
 }
 
 impl fmt::Debug for AcceptanceCheckErr {
@@ -120,11 +135,7 @@ impl fmt::Debug for AcceptanceCheckErr {
 				"more upward messages than permitted by config ({} > {})",
 				sent, permitted,
 			),
-			AcceptanceCheckErr::MessageSize {
-				idx,
-				msg_size,
-				max_size,
-			} => write!(
+			AcceptanceCheckErr::MessageSize { idx, msg_size, max_size } => write!(
 				fmt,
 				"upward message idx {} larger than permitted by config ({} > {})",
 				idx, msg_size, max_size,
@@ -143,57 +154,100 @@ impl fmt::Debug for AcceptanceCheckErr {
 	}
 }
 
-pub trait Config: frame_system::Config + configuration::Config {
-	/// A place where all received upward messages are funneled.
-	type UmpSink: UmpSink;
-}
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
 
-decl_storage! {
-	trait Store for Module<T: Config> as Ump {
-		/// The messages waiting to be handled by the relay-chain originating from a certain parachain.
-		///
-		/// Note that some upward messages might have been already processed by the inclusion logic. E.g.
-		/// channel management messages.
-		///
-		/// The messages are processed in FIFO order.
-		RelayDispatchQueues: map hasher(twox_64_concat) ParaId => VecDeque<UpwardMessage>;
-		/// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
-		///
-		/// First item in the tuple is the count of messages and second
-		/// is the total length (in bytes) of the message payloads.
-		///
-		/// Note that this is an auxilary mapping: it's possible to tell the byte size and the number of
-		/// messages only looking at `RelayDispatchQueues`. This mapping is separate to avoid the cost of
-		/// loading the whole message queue if only the total size and count are required.
-		///
-		/// Invariant:
-		/// - The set of keys should exactly match the set of keys of `RelayDispatchQueues`.
-		// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
-		// the format will require migration of parachains.
-		RelayDispatchQueueSize: map hasher(twox_64_concat) ParaId => (u32, u32);
-		/// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
-		///
-		/// Invariant:
-		/// - The set of items from this vector should be exactly the set of the keys in
-		///   `RelayDispatchQueues` and `RelayDispatchQueueSize`.
-		NeedsDispatch: Vec<ParaId>;
-		/// This is the para that gets will get dispatched first during the next upward dispatchable queue
-		/// execution round.
-		///
-		/// Invariant:
-		/// - If `Some(para)`, then `para` must be present in `NeedsDispatch`.
-		NextDispatchRoundStartWith: Option<ParaId>;
-	}
-}
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
 
-decl_module! {
-	/// The UMP module.
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
+	#[pallet::config]
+	pub trait Config: frame_system::Config + configuration::Config {
+		/// The aggregate event.
+		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// A place where all received upward messages are funneled.
+		type UmpSink: UmpSink;
+
+		/// The factor by which the weight limit it multiplied for the first UMP message to execute with.
+		///
+		/// An amount less than 100 keeps more available weight in the queue for messages after the first, and potentially
+		/// stalls the queue in doing so. More than 100 will provide additional weight for the first message only.
+		///
+		/// Generally you'll want this to be a bit more - 150 or 200 would be good values.
+		type FirstMessageFactorPercent: Get<Weight>;
 	}
+
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event {
+		/// Upward message is invalid XCM.
+		/// \[ id \]
+		InvalidFormat(MessageId),
+		/// Upward message is unsupported version of XCM.
+		/// \[ id \]
+		UnsupportedVersion(MessageId),
+		/// Upward message executed with the given outcome.
+		/// \[ id, outcome \]
+		ExecutedUpward(MessageId, Outcome),
+		/// The weight limit for handling downward messages was reached.
+		/// \[ id, remaining, required \]
+		WeightExhausted(MessageId, Weight, Weight),
+		/// Some downward messages have been received and will be processed.
+		/// \[ para, count, size \]
+		UpwardMessagesReceived(ParaId, u32, u32),
+	}
+
+	/// The messages waiting to be handled by the relay-chain originating from a certain parachain.
+	///
+	/// Note that some upward messages might have been already processed by the inclusion logic. E.g.
+	/// channel management messages.
+	///
+	/// The messages are processed in FIFO order.
+	#[pallet::storage]
+	pub type RelayDispatchQueues<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, VecDeque<UpwardMessage>, ValueQuery>;
+
+	/// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
+	///
+	/// First item in the tuple is the count of messages and second
+	/// is the total length (in bytes) of the message payloads.
+	///
+	/// Note that this is an auxiliary mapping: it's possible to tell the byte size and the number of
+	/// messages only looking at `RelayDispatchQueues`. This mapping is separate to avoid the cost of
+	/// loading the whole message queue if only the total size and count are required.
+	///
+	/// Invariant:
+	/// - The set of keys should exactly match the set of keys of `RelayDispatchQueues`.
+	// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
+	// the format will require migration of parachains.
+	#[pallet::storage]
+	pub type RelayDispatchQueueSize<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, (u32, u32), ValueQuery>;
+
+	/// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
+	///
+	/// Invariant:
+	/// - The set of items from this vector should be exactly the set of the keys in
+	///   `RelayDispatchQueues` and `RelayDispatchQueueSize`.
+	#[pallet::storage]
+	pub type NeedsDispatch<T: Config> = StorageValue<_, Vec<ParaId>, ValueQuery>;
+
+	/// This is the para that gets will get dispatched first during the next upward dispatchable queue
+	/// execution round.
+	///
+	/// Invariant:
+	/// - If `Some(para)`, then `para` must be present in `NeedsDispatch`.
+	#[pallet::storage]
+	pub type NextDispatchRoundStartWith<T: Config> = StorageValue<_, ParaId>;
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {}
 }
 
 /// Routines related to the upward message passing.
-impl<T: Config> Module<T> {
+impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
@@ -249,7 +303,7 @@ impl<T: Config> Module<T> {
 			return Err(AcceptanceCheckErr::MoreMessagesThanPermitted {
 				sent: upward_messages.len() as u32,
 				permitted: config.max_upward_message_num_per_candidate,
-			});
+			})
 		}
 
 		let (mut para_queue_count, mut para_queue_size) =
@@ -262,7 +316,7 @@ impl<T: Config> Module<T> {
 					idx: idx as u32,
 					msg_size,
 					max_size: config.max_upward_message_size,
-				});
+				})
 			}
 			para_queue_count += 1;
 			para_queue_size += msg_size;
@@ -274,27 +328,27 @@ impl<T: Config> Module<T> {
 			return Err(AcceptanceCheckErr::CapacityExceeded {
 				count: para_queue_count,
 				limit: config.max_upward_queue_count,
-			});
+			})
 		}
 		if para_queue_size > config.max_upward_queue_size {
 			return Err(AcceptanceCheckErr::TotalSizeExceeded {
 				total_size: para_queue_size,
 				limit: config.max_upward_queue_size,
-			});
+			})
 		}
 
 		Ok(())
 	}
 
-	/// Enacts all the upward messages sent by a candidate.
-	pub(crate) fn enact_upward_messages(
+	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
+	pub(crate) fn receive_upward_messages(
 		para: ParaId,
 		upward_messages: Vec<UpwardMessage>,
 	) -> Weight {
 		let mut weight = 0;
 
 		if !upward_messages.is_empty() {
-			let (extra_cnt, extra_size) = upward_messages
+			let (extra_count, extra_size) = upward_messages
 				.iter()
 				.fold((0, 0), |(cnt, size), d| (cnt + 1, size + d.len() as u32));
 
@@ -302,10 +356,13 @@ impl<T: Config> Module<T> {
 				v.extend(upward_messages.into_iter())
 			});
 
-			<Self as Store>::RelayDispatchQueueSize::mutate(&para, |(ref mut cnt, ref mut size)| {
-				*cnt += extra_cnt;
-				*size += extra_size;
-			});
+			<Self as Store>::RelayDispatchQueueSize::mutate(
+				&para,
+				|(ref mut cnt, ref mut size)| {
+					*cnt += extra_count;
+					*size += extra_size;
+				},
+			);
 
 			<Self as Store>::NeedsDispatch::mutate(|v| {
 				if let Err(i) = v.binary_search(&para) {
@@ -313,34 +370,55 @@ impl<T: Config> Module<T> {
 				}
 			});
 
+			// NOTE: The actual computation is not accounted for. It should be benchmarked.
 			weight += T::DbWeight::get().reads_writes(3, 3);
+
+			Self::deposit_event(Event::UpwardMessagesReceived(para, extra_count, extra_size));
 		}
 
 		weight
 	}
 
 	/// Devote some time into dispatching pending upward messages.
-	pub(crate) fn process_pending_upward_messages() {
-		let mut used_weight_so_far = 0;
+	pub(crate) fn process_pending_upward_messages() -> Weight {
+		let mut weight_used = 0;
 
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 		let mut cursor = NeedsDispatchCursor::new::<T>();
 		let mut queue_cache = QueueCache::new();
 
 		while let Some(dispatchee) = cursor.peek() {
-			if used_weight_so_far >= config.preferred_dispatchable_upward_messages_step_weight {
+			if weight_used >= config.ump_service_total_weight {
 				// Then check whether we've reached or overshoot the
 				// preferred weight for the dispatching stage.
 				//
 				// if so - bail.
-				break;
+				break
 			}
+			let max_weight = if weight_used == 0 {
+				// we increase the amount of weight that we're allowed to use on the first message to try to prevent
+				// the possibility of blockage of the queue.
+				config.ump_service_total_weight * T::FirstMessageFactorPercent::get() / 100
+			} else {
+				config.ump_service_total_weight - weight_used
+			};
 
 			// dequeue the next message from the queue of the dispatchee
 			let (upward_message, became_empty) = queue_cache.dequeue::<T>(dispatchee);
 			if let Some(upward_message) = upward_message {
-				used_weight_so_far +=
-					T::UmpSink::process_upward_message(dispatchee, upward_message);
+				match T::UmpSink::process_upward_message(
+					dispatchee,
+					&upward_message[..],
+					max_weight,
+				) {
+					Ok(used) => weight_used += used,
+					Err((id, required)) => {
+						// we process messages in order and don't drop them if we run out of weight, so need to break
+						// here.
+						Self::deposit_event(Event::WeightExhausted(id, max_weight, required));
+						break
+					},
+				}
 			}
 
 			if became_empty {
@@ -353,6 +431,8 @@ impl<T: Config> Module<T> {
 
 		cursor.flush::<T>();
 		queue_cache.flush::<T>();
+
+		weight_used
 	}
 }
 
@@ -370,7 +450,7 @@ impl<T: Config> Module<T> {
 /// thus increasing the peak memory consumption of the wasm runtime. Under such conditions persisting
 /// queues might play better since it's unlikely that they are going to be requested once more.
 ///
-/// On the other hand, the situation when deep queues exist and it takes more than one dipsatcher
+/// On the other hand, the situation when deep queues exist and it takes more than one dispatcher
 /// cycle to traverse the queues is already sub-optimal and better be avoided.
 ///
 /// This struct is not supposed to be dropped but rather to be consumed by [`flush`].
@@ -395,13 +475,9 @@ impl QueueCache {
 	/// - `became_empty` is true if the queue _became_ empty.
 	fn dequeue<T: Config>(&mut self, para: ParaId) -> (Option<UpwardMessage>, bool) {
 		let cache_entry = self.0.entry(para).or_insert_with(|| {
-			let queue = <Module<T> as Store>::RelayDispatchQueues::get(&para);
-			let (count, total_size) = <Module<T> as Store>::RelayDispatchQueueSize::get(&para);
-			QueueCacheEntry {
-				queue,
-				count,
-				total_size,
-			}
+			let queue = <Pallet<T> as Store>::RelayDispatchQueues::get(&para);
+			let (count, total_size) = <Pallet<T> as Store>::RelayDispatchQueueSize::get(&para);
+			QueueCacheEntry { queue, count, total_size }
 		});
 		let upward_message = cache_entry.queue.pop_front();
 		if let Some(ref msg) = upward_message {
@@ -418,22 +494,14 @@ impl QueueCache {
 		// NOTE we use an explicit method here instead of Drop impl because it has unwanted semantics
 		// within runtime. It is dangerous to use because of double-panics and flushing on a panic
 		// is not necessary as well.
-		for (
-			para,
-			QueueCacheEntry {
-				queue,
-				count,
-				total_size,
-			},
-		) in self.0
-		{
+		for (para, QueueCacheEntry { queue, count, total_size }) in self.0 {
 			if queue.is_empty() {
 				// remove the entries altogether.
-				<Module<T> as Store>::RelayDispatchQueues::remove(&para);
-				<Module<T> as Store>::RelayDispatchQueueSize::remove(&para);
+				<Pallet<T> as Store>::RelayDispatchQueues::remove(&para);
+				<Pallet<T> as Store>::RelayDispatchQueueSize::remove(&para);
 			} else {
-				<Module<T> as Store>::RelayDispatchQueues::insert(&para, queue);
-				<Module<T> as Store>::RelayDispatchQueueSize::insert(&para, (count, total_size));
+				<Pallet<T> as Store>::RelayDispatchQueues::insert(&para, queue);
+				<Pallet<T> as Store>::RelayDispatchQueueSize::insert(&para, (count, total_size));
 			}
 		}
 	}
@@ -451,18 +519,18 @@ impl QueueCache {
 #[derive(Debug)]
 struct NeedsDispatchCursor {
 	needs_dispatch: Vec<ParaId>,
-	cur_idx: usize,
+	index: usize,
 }
 
 impl NeedsDispatchCursor {
 	fn new<T: Config>() -> Self {
-		let needs_dispatch: Vec<ParaId> = <Module<T> as Store>::NeedsDispatch::get();
-		let start_with = <Module<T> as Store>::NextDispatchRoundStartWith::get();
+		let needs_dispatch: Vec<ParaId> = <Pallet<T> as Store>::NeedsDispatch::get();
+		let start_with = <Pallet<T> as Store>::NextDispatchRoundStartWith::get();
 
-		let start_with_idx = match start_with {
+		let initial_index = match start_with {
 			Some(para) => match needs_dispatch.binary_search(&para) {
-				Ok(found_idx) => found_idx,
-				Err(_supposed_idx) => {
+				Ok(found_index) => found_index,
+				Err(_supposed_index) => {
 					// well that's weird because we maintain an invariant that
 					// `NextDispatchRoundStartWith` must point into one of the items in
 					// `NeedsDispatch`.
@@ -470,49 +538,46 @@ impl NeedsDispatchCursor {
 					// let's select 0 as the starting index as a safe bet.
 					debug_assert!(false);
 					0
-				}
+				},
 			},
 			None => 0,
 		};
 
-		Self {
-			needs_dispatch,
-			cur_idx: start_with_idx,
-		}
+		Self { needs_dispatch, index: initial_index }
 	}
 
 	/// Returns the item the cursor points to.
 	fn peek(&self) -> Option<ParaId> {
-		self.needs_dispatch.get(self.cur_idx).cloned()
+		self.needs_dispatch.get(self.index).cloned()
 	}
 
 	/// Moves the cursor to the next item.
 	fn advance(&mut self) {
 		if self.needs_dispatch.is_empty() {
-			return;
+			return
 		}
-		self.cur_idx = (self.cur_idx + 1) % self.needs_dispatch.len();
+		self.index = (self.index + 1) % self.needs_dispatch.len();
 	}
 
 	/// Removes the item under the cursor.
 	fn remove(&mut self) {
 		if self.needs_dispatch.is_empty() {
-			return;
+			return
 		}
-		let _ = self.needs_dispatch.remove(self.cur_idx);
+		let _ = self.needs_dispatch.remove(self.index);
 
 		// we might've removed the last element and that doesn't necessarily mean that `needs_dispatch`
 		// became empty. Reposition the cursor in this case to the beginning.
-		if self.needs_dispatch.get(self.cur_idx).is_none() {
-			self.cur_idx = 0;
+		if self.needs_dispatch.get(self.index).is_none() {
+			self.index = 0;
 		}
 	}
 
 	/// Flushes the dispatcher state into the persistent storage.
 	fn flush<T: Config>(self) {
 		let next_one = self.peek();
-		<Module<T> as Store>::NextDispatchRoundStartWith::set(next_one);
-		<Module<T> as Store>::NeedsDispatch::put(self.needs_dispatch);
+		<Pallet<T> as Store>::NextDispatchRoundStartWith::set(next_one);
+		<Pallet<T> as Store>::NeedsDispatch::put(self.needs_dispatch);
 	}
 }
 
@@ -534,10 +599,9 @@ pub(crate) mod mock_sink {
 	//! 2. All messages expected by the probe must be received by the time of dropping it. Unreceived
 	//!    messages will lead to a panic while dropping a probe.
 
-	use super::{UmpSink, UpwardMessage, ParaId};
-	use std::cell::RefCell;
-	use std::collections::vec_deque::VecDeque;
+	use super::{MessageId, ParaId, UmpSink, UpwardMessage};
 	use frame_support::weights::Weight;
+	use std::{cell::RefCell, collections::vec_deque::VecDeque};
 
 	#[derive(Debug)]
 	struct UmpExpectation {
@@ -553,28 +617,30 @@ pub(crate) mod mock_sink {
 
 	pub struct MockUmpSink;
 	impl UmpSink for MockUmpSink {
-		fn process_upward_message(actual_origin: ParaId, actual_msg: Vec<u8>) -> Weight {
-			HOOK.with(|opt_hook| match &mut *opt_hook.borrow_mut() {
-				Some(hook) => {
-					let UmpExpectation {
-						expected_origin,
-						expected_msg,
-						mock_weight,
-					} = match hook.pop_front() {
-						Some(expectation) => expectation,
-						None => {
-							panic!(
-								"The probe is active but didn't expect the message:\n\n\t{:?}.",
-								actual_msg,
-							);
-						}
-					};
-					assert_eq!(expected_origin, actual_origin);
-					assert_eq!(expected_msg, actual_msg);
-					mock_weight
-				}
-				None => 0,
-			})
+		fn process_upward_message(
+			actual_origin: ParaId,
+			actual_msg: &[u8],
+			_max_weight: Weight,
+		) -> Result<Weight, (MessageId, Weight)> {
+			Ok(HOOK
+				.with(|opt_hook| {
+					opt_hook.borrow_mut().as_mut().map(|hook| {
+						let UmpExpectation { expected_origin, expected_msg, mock_weight } =
+							match hook.pop_front() {
+								Some(expectation) => expectation,
+								None => {
+									panic!(
+							"The probe is active but didn't expect the message:\n\n\t{:?}.",
+							actual_msg,
+						);
+								},
+							};
+						assert_eq!(expected_origin, actual_origin);
+						assert_eq!(expected_msg, &actual_msg[..]);
+						mock_weight
+					})
+				})
+				.unwrap_or(0))
 		}
 	}
 
@@ -606,15 +672,11 @@ pub(crate) mod mock_sink {
 			mock_weight: Weight,
 		) {
 			HOOK.with(|opt_hook| {
-				opt_hook
-					.borrow_mut()
-					.as_mut()
-					.unwrap()
-					.push_back(UmpExpectation {
-						expected_origin,
-						expected_msg,
-						mock_weight,
-					})
+				opt_hook.borrow_mut().as_mut().unwrap().push_back(UmpExpectation {
+					expected_origin,
+					expected_msg,
+					mock_weight,
+				})
 			});
 		}
 	}
@@ -649,10 +711,8 @@ pub(crate) mod mock_sink {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-	use super::mock_sink::Probe;
-	use crate::mock::{Configuration, Ump, new_test_ext, MockGenesisConfig};
-	use frame_support::IterableStorageMap;
+	use super::{mock_sink::Probe, *};
+	use crate::mock::{new_test_ext, Configuration, MockGenesisConfig, Ump};
 	use std::collections::HashSet;
 
 	struct GenesisConfigBuilder {
@@ -660,7 +720,7 @@ mod tests {
 		max_upward_message_num_per_candidate: u32,
 		max_upward_queue_count: u32,
 		max_upward_queue_size: u32,
-		preferred_dispatchable_upward_messages_step_weight: Weight,
+		ump_service_total_weight: Weight,
 	}
 
 	impl Default for GenesisConfigBuilder {
@@ -670,7 +730,7 @@ mod tests {
 				max_upward_message_num_per_candidate: 2,
 				max_upward_queue_count: 4,
 				max_upward_queue_size: 64,
-				preferred_dispatchable_upward_messages_step_weight: 1000,
+				ump_service_total_weight: 1000,
 			}
 		}
 	}
@@ -684,8 +744,7 @@ mod tests {
 			config.max_upward_message_num_per_candidate = self.max_upward_message_num_per_candidate;
 			config.max_upward_queue_count = self.max_upward_queue_count;
 			config.max_upward_queue_size = self.max_upward_queue_size;
-			config.preferred_dispatchable_upward_messages_step_weight =
-				self.preferred_dispatchable_upward_messages_step_weight;
+			config.ump_service_total_weight = self.ump_service_total_weight;
 			genesis
 		}
 	}
@@ -705,7 +764,7 @@ mod tests {
 	fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
 		let msgs = vec![msg];
 		assert!(Ump::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
-		let _ = Ump::enact_upward_messages(para, msgs);
+		let _ = Ump::receive_upward_messages(para, msgs);
 	}
 
 	fn assert_storage_consistency_exhaustive() {
@@ -734,9 +793,8 @@ mod tests {
 		let queue_sizes_set = <Ump as Store>::RelayDispatchQueueSize::iter()
 			.map(|(k, _)| k)
 			.collect::<HashSet<ParaId>>();
-		let needs_dispatch_set = <Ump as Store>::NeedsDispatch::get()
-			.into_iter()
-			.collect::<HashSet<ParaId>>();
+		let needs_dispatch_set =
+			<Ump as Store>::NeedsDispatch::get().into_iter().collect::<HashSet<ParaId>>();
 		assert_eq!(queue_contents_set, queue_sizes_set);
 		assert_eq!(queue_contents_set, needs_dispatch_set);
 
@@ -746,11 +804,7 @@ mod tests {
 		}
 
 		// `NeedsDispatch` is always sorted.
-		assert!(
-			<Ump as Store>::NeedsDispatch::get()
-				.windows(2)
-				.all(|xs| xs[0] <= xs[1])
-		);
+		assert!(<Ump as Store>::NeedsDispatch::get().windows(2).all(|xs| xs[0] <= xs[1]));
 	}
 
 	#[test]
@@ -795,11 +849,7 @@ mod tests {
 		let q_msg = b"we are Q".to_vec();
 
 		new_test_ext(
-			GenesisConfigBuilder {
-				preferred_dispatchable_upward_messages_step_weight: 500,
-				..Default::default()
-			}
-			.build(),
+			GenesisConfigBuilder { ump_service_total_weight: 500, ..Default::default() }.build(),
 		)
 		.execute_with(|| {
 			queue_upward_msg(q, q_msg.clone());
@@ -869,11 +919,7 @@ mod tests {
 		let b_msg_1 = vec![4, 5, 6];
 
 		new_test_ext(
-			GenesisConfigBuilder {
-				preferred_dispatchable_upward_messages_step_weight: 900,
-				..Default::default()
-			}
-			.build(),
+			GenesisConfigBuilder { ump_service_total_weight: 900, ..Default::default() }.build(),
 		)
 		.execute_with(|| {
 			// We want to test here an edge case, where we remove the queue with the highest
@@ -905,8 +951,8 @@ mod tests {
 		// Make sure that the relay dispatch queue size storage entry is accessible via well known
 		// keys and is decodable into a (u32, u32).
 
-		use primitives::v1::well_known_keys;
 		use parity_scale_codec::Decode as _;
+		use primitives::v1::well_known_keys;
 
 		let a = ParaId::from(228);
 		let msg = vec![1, 2, 3];
@@ -914,9 +960,11 @@ mod tests {
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 			queue_upward_msg(a, msg);
 
-			let raw_queue_size = sp_io::storage::get(&well_known_keys::relay_dispatch_queue_size(a))
-				.expect("enqueing a message should create the dispatch queue\
-				and it should be accessible via the well known keys");
+			let raw_queue_size =
+				sp_io::storage::get(&well_known_keys::relay_dispatch_queue_size(a)).expect(
+					"enqueing a message should create the dispatch queue\
+				and it should be accessible via the well known keys",
+				);
 			let (cnt, size) = <(u32, u32)>::decode(&mut &raw_queue_size[..])
 				.expect("the dispatch queue size should be decodable into (u32, u32)");
 

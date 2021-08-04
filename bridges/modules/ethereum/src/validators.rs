@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -188,10 +188,7 @@ impl<'a> Validators<'a> {
 		finalized_blocks: &[(HeaderId, Option<S::Submitter>)],
 	) -> Option<ChangeToEnact> {
 		// if we haven't finalized any blocks, no changes may be finalized
-		let newest_finalized_id = match finalized_blocks.last().map(|(id, _)| id) {
-			Some(last_finalized_id) => last_finalized_id,
-			None => return None,
-		};
+		let newest_finalized_id = finalized_blocks.last().map(|(id, _)| id)?;
 		let oldest_finalized_id = finalized_blocks
 			.first()
 			.map(|(id, _)| id)
@@ -326,7 +323,7 @@ pub(crate) mod tests {
 		let config = ValidatorsConfiguration::Single(ValidatorsSource::Contract(Default::default(), Vec::new()));
 		let validators = Validators::new(&config);
 		let mut header = AuraHeader {
-			number: u64::max_value(),
+			number: u64::MAX,
 			..Default::default()
 		};
 		assert!(!validators.maybe_signals_validators_change(&header));

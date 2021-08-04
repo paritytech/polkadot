@@ -26,10 +26,11 @@ mod cli;
 mod command;
 
 pub use service::{
-	self,
-	ProvideRuntimeApi, CoreApi, IdentifyVariant,
-	Block, RuntimeApiCollection, TFullClient
+	self, Block, CoreApi, IdentifyVariant, ProvideRuntimeApi, RuntimeApiCollection, TFullClient,
 };
+
+#[cfg(feature = "malus")]
+pub use service::create_default_subsystems;
 
 #[cfg(feature = "cli")]
 pub use cli::*;

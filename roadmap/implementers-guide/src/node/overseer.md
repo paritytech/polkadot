@@ -26,6 +26,8 @@ The hierarchy of subsystems:
 
 The overseer determines work to do based on block import events and block finalization events. It does this by keeping track of the set of relay-parents for which work is currently being done. This is known as the "active leaves" set. It determines an initial set of active leaves on startup based on the data on-disk, and uses events about blockchain import to update the active leaves. Updates lead to [`OverseerSignal`](../types/overseer-protocol.md#overseer-signal)`::ActiveLeavesUpdate` being sent according to new relay-parents, as well as relay-parents to stop considering. Block import events inform the overseer of leaves that no longer need to be built on, now that they have children, and inform us to begin building on those children. Block finalization events inform us when we can stop focusing on blocks that appear to have been orphaned.
 
+The overseer is also responsible for tracking the freshness of active leaves. Leaves are fresh when they're encountered for the first time, and stale when they're encountered for subsequent times. This can occur after chain reversions or when the fork-choice rule abandons some chain. This distinction is used to manage **Reversion Safety**. Consensus messages are often localized to a specific relay-parent, and it is often a misbehavior to equivocate or sign two conflicting messages. When reverting the chain, we may begin work on a leaf that subsystems have already signed messages for. Subsystems which need to account for reversion safety should avoid performing work on stale leaves.
+
 The overseer's logic can be described with these functions:
 
 ## On Startup
@@ -38,6 +40,7 @@ The overseer's logic can be described with these functions:
 ## On Block Import Event
 
 * Apply the block import event to the active leaves. A new block should lead to its addition to the active leaves set and its parent being deactivated.
+* Mark any stale leaves as stale. The overseer should track all leaves it activates to determine whether leaves are fresh or stale.
 * Send an `OverseerSignal::ActiveLeavesUpdate` message to all subsystems containing all activated and deactivated leaves.
 * Ensure all `ActiveLeavesUpdate` messages are flushed before resuming activity as a message router.
 
@@ -77,7 +80,7 @@ When a subsystem wants to communicate with another subsystem, or, more typically
 
 First, the subsystem that spawned a job is responsible for handling the first step of the communication. The overseer is not aware of the hierarchy of tasks within any given subsystem and is only responsible for subsystem-to-subsystem communication. So the sending subsystem must pass on the message via the overseer to the receiving subsystem, in such a way that the receiving subsystem can further address the communication to one of its internal tasks, if necessary.
 
-This communication prevents a certain class of race conditions. When the Overseer determines that it is time for subsystems to begin working on top of a particular relay-parent, it will dispatch a `ActiveLeavesUpdate` message to all subsystems to do so, and those messages will be handled asynchronously by those subsystems. Some subsystems will receive those messsages before others, and it is important that a message sent by subsystem A after receiving `ActiveLeavesUpdate` message will arrive at subsystem B after its `ActiveLeavesUpdate` message. If subsystem A maintaned an independent channel with subsystem B to communicate, it would be possible for subsystem B to handle the side message before the `ActiveLeavesUpdate` message, but it wouldn't have any logical course of action to take with the side message - leading to it being discarded or improperly handled. Well-architectured state machines should have a single source of inputs, so that is what we do here.
+This communication prevents a certain class of race conditions. When the Overseer determines that it is time for subsystems to begin working on top of a particular relay-parent, it will dispatch a `ActiveLeavesUpdate` message to all subsystems to do so, and those messages will be handled asynchronously by those subsystems. Some subsystems will receive those messsages before others, and it is important that a message sent by subsystem A after receiving `ActiveLeavesUpdate` message will arrive at subsystem B after its `ActiveLeavesUpdate` message. If subsystem A maintained an independent channel with subsystem B to communicate, it would be possible for subsystem B to handle the side message before the `ActiveLeavesUpdate` message, but it wouldn't have any logical course of action to take with the side message - leading to it being discarded or improperly handled. Well-architectured state machines should have a single source of inputs, so that is what we do here.
 
 One exception is reasonable to make for responses to requests. A request should be made via the overseer in order to ensure that it arrives after any relevant `ActiveLeavesUpdate` message. A subsystem issuing a request as a result of a `ActiveLeavesUpdate` message can safely receive the response via a side-channel for two reasons:
 

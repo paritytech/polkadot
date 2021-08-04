@@ -14,14 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::traits::{
+	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
+	WeightBounds, WeightTrader,
+};
+use frame_support::{
+	dispatch::{Dispatchable, Parameter},
+	weights::{GetDispatchInfo, PostDispatchInfo},
+};
 use xcm::v0::{SendXcm, ExecuteHrmp};
-use frame_support::dispatch::{Dispatchable, Parameter};
-use crate::traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
 
-/// The trait to parametrize the `XcmExecutor`.
+/// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
 	/// The outer call dispatch type.
-	type Call: Parameter + Dispatchable;
+	type Call: Parameter + Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo;
 
 	/// How to send an onward XCM message.
 	type XcmSender: SendXcm;
@@ -43,4 +49,16 @@ pub trait Config {
 
 	/// Means of inverting a location.
 	type LocationInverter: InvertLocation;
+
+	/// Whether we should execute the given XCM at all.
+	type Barrier: ShouldExecute;
+
+	/// The means of determining an XCM message's weight.
+	type Weigher: WeightBounds<Self::Call>;
+
+	/// The means of purchasing weight credit for XCM execution.
+	type Trader: WeightTrader;
+
+	/// What to do when a response of a query is found.
+	type ResponseHandler: OnResponse;
 }

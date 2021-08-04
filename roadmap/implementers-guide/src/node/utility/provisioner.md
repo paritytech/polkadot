@@ -71,6 +71,16 @@ To determine availability:
 
 The end result of this process is a vector of `BackedCandidate`s, sorted in order of their core index. Furthermore, this process should select at maximum one candidate which upgrades the runtime validation code.
 
+### Dispute Statement Selection
+
+This is the point at which the block author provides further votes to active disputes or initiates new disputes in the runtime state.
+
+The block-authoring logic of the runtime has an extra step between handling the inherent-data and producing the actual inherent call, which we assume performs the work of filtering out disputes which are not relevant to the on-chain state.
+
+To select disputes:
+
+- Issue a `DisputeCoordinatorMessage::RecentDisputes` message and wait for the response. This is a set of all disputes in recent sessions which we are aware of.
+
 ### Determining Bitfield Availability
 
 An occupied core has a `CoreAvailability` bitfield. We also have a list of `SignedAvailabilityBitfield`s. We need to determine from these whether or not a core at a particular index has become available.

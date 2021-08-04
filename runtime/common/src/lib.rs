@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,48 +18,52 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+pub mod auctions;
 pub mod claims;
+pub mod crowdloan;
+pub mod elections;
+pub mod impls;
+pub mod paras_registrar;
+pub mod paras_sudo_wrapper;
+pub mod purchase;
 pub mod slot_range;
 pub mod slots;
-pub mod auctions;
-pub mod crowdloan;
-pub mod purchase;
-pub mod impls;
-pub mod paras_sudo_wrapper;
-pub mod paras_registrar;
 pub mod traits;
-#[cfg(test)]
-mod mock;
-#[cfg(test)]
-mod integration_tests;
 pub mod xcm_sender;
 
-use primitives::v1::{BlockNumber, ValidatorId, AssignmentId};
-use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
-use frame_system::limits;
-use frame_support::{
-	parameter_types, traits::{Currency, OneSessionHandler},
-	weights::{Weight, constants::WEIGHT_PER_SECOND, DispatchClass},
-};
-use pallet_transaction_payment::{TargetedFeeAdjustment, Multiplier};
-use static_assertions::const_assert;
-pub use frame_support::weights::constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight};
+#[cfg(test)]
+mod integration_tests;
+#[cfg(test)]
+mod mock;
 
+pub use frame_support::weights::constants::{
+	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
+};
+use frame_support::{
+	parameter_types,
+	traits::{Currency, OneSessionHandler},
+	weights::{constants::WEIGHT_PER_SECOND, DispatchClass, Weight},
+};
+use frame_system::limits;
+use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
+use primitives::v1::{AssignmentId, BlockNumber, ValidatorId};
+use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
+use static_assertions::const_assert;
+
+pub use elections::{OffchainSolutionLengthLimit, OffchainSolutionWeightLimit};
+pub use pallet_balances::Call as BalancesCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
+pub use pallet_timestamp::Call as TimestampCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-pub use pallet_timestamp::Call as TimestampCall;
-pub use pallet_balances::Call as BalancesCall;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::ToAuthor;
 
-pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
-
-/// The sequence of bytes a valid wasm module binary always starts with. Apart from that it's also a
-/// valid wasm module.
-pub const WASM_MAGIC: &[u8] = &[0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+pub type NegativeImbalance<T> = <pallet_balances::Pallet<T> as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::NegativeImbalance;
 
 /// We assume that an on-initialize consumes 1% of the weight on average, hence a single extrinsic
 /// will not be allowed to consume more than `AvailableBlockRatio - 1%`.
@@ -109,30 +113,14 @@ parameter_types! {
 		.build_or_panic();
 }
 
-parameter_types! {
-	/// A limit for off-chain phragmen unsigned solution submission.
-	///
-	/// We want to keep it as high as possible, but can't risk having it reject,
-	/// so we always subtract the base block execution weight.
-	pub OffchainSolutionWeightLimit: Weight = BlockWeights::get()
-		.get(DispatchClass::Normal)
-		.max_extrinsic
-		.expect("Normal extrinsics have weight limit configured by default; qed")
-		.saturating_sub(BlockExecutionWeight::get());
-}
-
 /// Parameterized slow adjusting fee updated based on
 /// https://w3f-research.readthedocs.io/en/latest/polkadot/Token%20Economics.html#-2.-slow-adjusting-mechanism
-pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
-	R,
-	TargetBlockFullness,
-	AdjustmentVariable,
-	MinimumMultiplier
->;
+pub type SlowAdjustingFeeUpdate<R> =
+	TargetedFeeAdjustment<R, TargetBlockFullness, AdjustmentVariable, MinimumMultiplier>;
 
 /// The type used for currency conversion.
 ///
-/// This must only be used as long as the balance type is u128.
+/// This must only be used as long as the balance type is `u128`.
 pub type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 static_assertions::assert_eq_size!(primitives::v1::Balance, u128);
 
@@ -143,25 +131,26 @@ impl<T> sp_runtime::BoundToRuntimeAppPublic for ParachainSessionKeyPlaceholder<T
 	type Public = ValidatorId;
 }
 
-impl<T: pallet_session::Config> OneSessionHandler<T::AccountId> for ParachainSessionKeyPlaceholder<T>
+impl<T: pallet_session::Config> OneSessionHandler<T::AccountId>
+	for ParachainSessionKeyPlaceholder<T>
 {
 	type Key = ValidatorId;
 
-	fn on_genesis_session<'a, I: 'a>(_validators: I) where
+	fn on_genesis_session<'a, I: 'a>(_validators: I)
+	where
 		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
-		T::AccountId: 'a
+		T::AccountId: 'a,
 	{
-
 	}
 
-	fn on_new_session<'a, I: 'a>(_changed: bool, _v: I, _q: I) where
+	fn on_new_session<'a, I: 'a>(_changed: bool, _v: I, _q: I)
+	where
 		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
-		T::AccountId: 'a
+		T::AccountId: 'a,
 	{
-
 	}
 
-	fn on_disabled(_: usize) { }
+	fn on_disabled(_: usize) {}
 }
 
 /// A placeholder since there is currently no provided session key handler for parachain validator
@@ -171,25 +160,26 @@ impl<T> sp_runtime::BoundToRuntimeAppPublic for AssignmentSessionKeyPlaceholder<
 	type Public = AssignmentId;
 }
 
-impl<T: pallet_session::Config> OneSessionHandler<T::AccountId> for AssignmentSessionKeyPlaceholder<T>
+impl<T: pallet_session::Config> OneSessionHandler<T::AccountId>
+	for AssignmentSessionKeyPlaceholder<T>
 {
 	type Key = AssignmentId;
 
-	fn on_genesis_session<'a, I: 'a>(_validators: I) where
+	fn on_genesis_session<'a, I: 'a>(_validators: I)
+	where
 		I: Iterator<Item = (&'a T::AccountId, AssignmentId)>,
-		T::AccountId: 'a
+		T::AccountId: 'a,
 	{
-
 	}
 
-	fn on_new_session<'a, I: 'a>(_changed: bool, _v: I, _q: I) where
+	fn on_new_session<'a, I: 'a>(_changed: bool, _v: I, _q: I)
+	where
 		I: Iterator<Item = (&'a T::AccountId, AssignmentId)>,
-		T::AccountId: 'a
+		T::AccountId: 'a,
 	{
-
 	}
 
-	fn on_disabled(_: usize) { }
+	fn on_disabled(_: usize) {}
 }
 
 #[cfg(test)]
@@ -199,7 +189,7 @@ mod multiplier_tests {
 	use sp_core::H256;
 	use sp_runtime::{
 		testing::Header,
-		traits::{BlakeTwo256, IdentityLookup, Convert},
+		traits::{BlakeTwo256, Convert, IdentityLookup, One},
 		Perbill,
 	};
 
@@ -226,7 +216,7 @@ mod multiplier_tests {
 	}
 
 	impl frame_system::Config for Runtime {
-		type BaseCallFilter = ();
+		type BaseCallFilter = frame_support::traits::AllowAll;
 		type BlockWeights = BlockWeights;
 		type BlockLength = ();
 		type DbWeight = ();
@@ -248,11 +238,17 @@ mod multiplier_tests {
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 		type SS58Prefix = ();
+		type OnSetCode = ();
 	}
 
-	fn run_with_system_weight<F>(w: Weight, mut assertions: F) where F: FnMut() -> () {
-		let mut t: sp_io::TestExternalities =
-			frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap().into();
+	fn run_with_system_weight<F>(w: Weight, mut assertions: F)
+	where
+		F: FnMut() -> (),
+	{
+		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
+			.build_storage::<Runtime>()
+			.unwrap()
+			.into();
 		t.execute_with(|| {
 			System::set_block_consumed_resources(w, 0);
 			assertions()
@@ -278,9 +274,9 @@ mod multiplier_tests {
 		// assume the multiplier is initially set to its minimum. We update it with values twice the
 		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
 		let mut multiplier = MinimumMultiplier::get();
-		let block_weight = TargetBlockFullness::get()
-			* BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap()
-			* 2;
+		let block_weight = TargetBlockFullness::get() *
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap() *
+			2;
 		let mut blocks = 0;
 		while multiplier <= Multiplier::one() {
 			run_with_system_weight(block_weight, || {

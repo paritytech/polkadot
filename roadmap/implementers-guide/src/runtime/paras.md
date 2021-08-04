@@ -116,10 +116,10 @@ Parachains: Vec<ParaId>,
 ParaLifecycle: map ParaId => Option<ParaLifecycle>,
 /// The head-data of every registered para.
 Heads: map ParaId => Option<HeadData>;
-/// The validation code of every live para.
-ValidationCode: map ParaId => Option<ValidationCode>;
-/// Actual past code, indicated by the para id as well as the block number at which it became outdated.
-PastCode: map (ParaId, BlockNumber) => Option<ValidationCode>;
+/// The validation code hash of every live para.
+CurrentCodeHash: map ParaId => Option<ValidationCodeHash>;
+/// Actual past code hash, indicated by the para id as well as the block number at which it became outdated.
+PastCodeHash: map (ParaId, BlockNumber) => Option<ValidationCodeHash>;
 /// Past code of parachains. The parachains themselves may not be registered anymore,
 /// but we also keep their code on-chain for the same amount of time as outdated code
 /// to keep it available for secondary checkers.
@@ -136,24 +136,57 @@ PastCodePruning: Vec<(ParaId, BlockNumber)>;
 /// in the context of a relay chain block with a number >= `expected_at`.
 FutureCodeUpgrades: map ParaId => Option<BlockNumber>;
 /// The actual future code of a para.
-FutureCode: map ParaId => Option<ValidationCode>;
+FutureCodeHash: map ParaId => Option<ValidationCodeHash>;
+/// This is used by the relay-chain to communicate to a parachain a go-ahead with in the upgrade procedure.
+///
+/// This value is absent when there are no upgrades scheduled or during the time the relay chain
+/// performs the checks. It is set at the first relay-chain block when the corresponding parachain
+/// can switch its upgrade function. As soon as the parachain's block is included, the value
+/// gets reset to `None`.
+///
+/// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
+/// the format will require migration of parachains.
+UpgradeGoAheadSignal: map hasher(twox_64_concat) ParaId => Option<UpgradeGoAhead>;
+/// This is used by the relay-chain to communicate that there are restrictions for performing
+/// an upgrade for this parachain.
+///
+/// This may be a because the parachain waits for the upgrade cooldown to expire. Another
+/// potential use case is when we want to perform some maintanance (such as storage migration)
+/// we could restrict upgrades to make the process simpler.
+///
+/// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
+/// the format will require migration of parachains.
+UpgradeRestrictionSignal: map hasher(twox_64_concat) ParaId => Option<UpgradeRestriction>;
+/// The list of parachains that are awaiting for their upgrade restriction to cooldown.
+///
+/// Ordered ascending by block number.
+UpgradeCooldowns: Vec<(ParaId, T::BlockNumber)>;
+/// The list of upcoming code upgrades. Each item is a pair of which para performs a code
+/// upgrade and at which relay-chain block it is expected at.
+///
+/// Ordered ascending by block number.
+UpcomingUpgrades: Vec<(ParaId, T::BlockNumber)>;
 /// The actions to perform during the start of a specific session index.
 ActionsQueue: map SessionIndex => Vec<ParaId>;
 /// Upcoming paras instantiation arguments.
 UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
+/// The number of references on the validation code in `CodeByHash` storage.
+CodeByHashRefs: map ValidationCodeHash => u32;
+/// Validation code stored by its hash.
+CodeByHash: map ValidationCodeHash => Option<ValidationCode>
 ```
 
 ## Session Change
 
 1. Execute all queued actions for paralifecycle changes:
   1. Clean up outgoing paras.
-     1. This means removing the entries under `Heads`, `ValidationCode`, `FutureCodeUpgrades`, and
+     1. This means removing the entries under `Heads`, `CurrentCode`, `FutureCodeUpgrades`, and
         `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and
-        `PastCodePruning` using the outgoing `ParaId` and removed `ValidationCode` value. This is
+        `PastCodePruning` using the outgoing `ParaId` and removed `CurrentCode` value. This is
         because any outdated validation code must remain available on-chain for a determined amount
         of blocks, and validation code outdated by de-registering the para is still subject to that
         invariant.
-  1. Apply all incoming paras by initializing the `Heads` and `ValidationCode` using the genesis
+  1. Apply all incoming paras by initializing the `Heads` and `CurrentCode` using the genesis
      parameters.
   1. Amend the `Parachains` list and `ParaLifecycle` to reflect changes in registered parachains.
   1. Amend the `ParaLifecycle` set to reflect changes in registered parathreads.
@@ -167,6 +200,9 @@ UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
 
 1. Do pruning based on all entries in `PastCodePruning` with `BlockNumber <= now`. Update the
    corresponding `PastCodeMeta` and `PastCode` accordingly.
+1. Toggle the upgrade related signals
+  1. Collect all `(para_id, expected_at)` from `UpcomingUpgrades` where `expected_at <= now` and prune them. For each para pruned set `UpgradeGoAheadSignal` to `GoAhead`.
+  1. Collect all `(para_id, next_possible_upgrade_at)` from `UpgradeCooldowns` where `next_possible_upgrade_at <= now` and prune them. For each para pruned set `UpgradeRestrictionSignal` to `Present`.
 
 ## Routines
 
@@ -175,18 +211,19 @@ UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
 * `schedule_para_cleanup(ParaId)`: Schedule a para to be cleaned up after the next full session.
 * `schedule_parathread_upgrade(ParaId)`: Schedule a parathread to be upgraded to a parachain.
 * `schedule_parachain_downgrade(ParaId)`: Schedule a parachain to be downgraded to a parathread.
-* `schedule_code_upgrade(ParaId, ValidationCode, expected_at: BlockNumber)`: Schedule a future code
+* `schedule_code_upgrade(ParaId, CurrentCode, relay_parent: BlockNumber, HostConfiguration)`: Schedule a future code
   upgrade of the given parachain, to be applied after inclusion of a block of the same parachain
-  executed in the context of a relay-chain block with number >= `expected_at`.
+  executed in the context of a relay-chain block with number >= `relay_parent + config.validation_upgrade_delay`. If the upgrade is scheduled `UpgradeRestrictionSignal` is set and it will remain set until `relay_parent + config.validation_upgrade_frequency`.
 * `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head,
   where the new head was executed in the context of a relay-chain block with given number. This will
-  apply pending code upgrades based on the block number provided.
+  apply pending code upgrades based on the block number provided. If an upgrade took place it will clear the `UpgradeGoAheadSignal`.
 * `validation_code_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Fetches
   the validation code to be used when validating a block in the context of the given relay-chain
   height. A second block number parameter may be used to tell the lookup to proceed as if an
   intermediate parablock has been included at the given relay-chain height. This may return past,
   current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if
   provided, must be before `at`. If the validation code has been pruned, this will return `None`.
+* `validation_code_hash_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Just like `validation_code_at`, but returns the code hash.
 * `lifecycle(ParaId) -> Option<ParaLifecycle>`: Return the `ParaLifecycle` of a para.
 * `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live parachain,
   including those which may be transitioning to a parathread in the future.
@@ -197,9 +234,6 @@ UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
 * `last_code_upgrade(id: ParaId, include_future: bool) -> Option<BlockNumber>`: The block number of
   the last scheduled upgrade of the requested para. Includes future upgrades if the flag is set.
   This is the `expected_at` number, not the `activated_at` number.
-* `persisted_validation_data(id: ParaId) -> Option<PersistedValidationData>`: Get the
-  PersistedValidationData of the given para, assuming the context is the parent block. Returns
-  `None` if the para is not known.
 
 ## Finalization
 

@@ -19,24 +19,24 @@
 //!
 //! This module can throw fatal errors if session-change notifications are received after initialization.
 
-use sp_std::prelude::*;
-use frame_support::weights::Weight;
-use primitives::v1::{ValidatorId, SessionIndex};
-use frame_support::{
-	decl_storage, decl_module, decl_error, traits::{OneSessionHandler, Randomness},
-};
-use parity_scale_codec::{Encode, Decode};
 use crate::{
 	configuration::{self, HostConfiguration},
-	shared, paras, scheduler, inclusion, session_info, dmp, ump, hrmp,
+	disputes::DisputesHandler,
+	dmp, hrmp, inclusion, paras, scheduler, session_info, shared, ump,
 };
+use frame_support::traits::{OneSessionHandler, Randomness};
+use parity_scale_codec::{Decode, Encode};
+use primitives::v1::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
+use sp_std::prelude::*;
+
+pub use pallet::*;
 
 /// Information about a session change that has just occurred.
 #[derive(Clone)]
 pub struct SessionChangeNotification<BlockNumber> {
 	/// The new validators in the session.
 	pub validators: Vec<ValidatorId>,
-	/// The qeueud validators for the following session.
+	/// The queued validators for the following session.
 	pub queued: Vec<ValidatorId>,
 	/// The configuration before handling the session change
 	pub prev_config: HostConfiguration<BlockNumber>,
@@ -68,53 +68,59 @@ struct BufferedSessionChange {
 	session_index: SessionIndex,
 }
 
-pub trait Config:
-	frame_system::Config
-	+ configuration::Config
-	+ shared::Config
-	+ paras::Config
-	+ scheduler::Config
-	+ inclusion::Config
-	+ session_info::Config
-	+ dmp::Config
-	+ ump::Config
-	+ hrmp::Config
-{
-	/// A randomness beacon.
-	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
-}
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
 
-decl_storage! {
-	trait Store for Module<T: Config> as Initializer {
-		/// Whether the parachains modules have been initialized within this block.
-		///
-		/// Semantically a bool, but this guarantees it should never hit the trie,
-		/// as this is cleared in `on_finalize` and Frame optimizes `None` values to be empty values.
-		///
-		/// As a bool, `set(false)` and `remove()` both lead to the next `get()` being false, but one of
-		/// them writes to the trie and one does not. This confusion makes `Option<()>` more suitable for
-		/// the semantics of this variable.
-		HasInitialized: Option<()>;
-		/// Buffered session changes along with the block number at which they should be applied.
-		///
-		/// Typically this will be empty or one element long. Apart from that this item never hits
-		/// the storage.
-		///
-		/// However this is a `Vec` regardless to handle various edge cases that may occur at runtime
-		/// upgrade boundaries or if governance intervenes.
-		BufferedSessionChanges: Vec<BufferedSessionChange>;
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
+	#[pallet::config]
+	pub trait Config:
+		frame_system::Config
+		+ configuration::Config
+		+ shared::Config
+		+ paras::Config
+		+ scheduler::Config
+		+ inclusion::Config
+		+ session_info::Config
+		+ dmp::Config
+		+ ump::Config
+		+ hrmp::Config
+	{
+		/// A randomness beacon.
+		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+		/// An origin which is allowed to force updates to parachains.
+		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
 	}
-}
 
-decl_error! {
-	pub enum Error for Module<T: Config> { }
-}
+	/// Whether the parachains modules have been initialized within this block.
+	///
+	/// Semantically a `bool`, but this guarantees it should never hit the trie,
+	/// as this is cleared in `on_finalize` and Frame optimizes `None` values to be empty values.
+	///
+	/// As a `bool`, `set(false)` and `remove()` both lead to the next `get()` being false, but one of
+	/// them writes to the trie and one does not. This confusion makes `Option<()>` more suitable for
+	/// the semantics of this variable.
+	#[pallet::storage]
+	pub(super) type HasInitialized<T: Config> = StorageValue<_, ()>;
 
-decl_module! {
-	/// The initializer module.
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
+	/// Buffered session changes along with the block number at which they should be applied.
+	///
+	/// Typically this will be empty or one element long. Apart from that this item never hits
+	/// the storage.
+	///
+	/// However this is a `Vec` regardless to handle various edge cases that may occur at runtime
+	/// upgrade boundaries or if governance intervenes.
+	#[pallet::storage]
+	pub(super) type BufferedSessionChanges<T: Config> =
+		StorageValue<_, Vec<BufferedSessionChange>, ValueQuery>;
 
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: T::BlockNumber) -> Weight {
 			// The other modules are initialized in this order:
 			// - Configuration
@@ -122,62 +128,75 @@ decl_module! {
 			// - Scheduler
 			// - Inclusion
 			// - SessionInfo
-			// - Validity
+			// - Disputes
 			// - DMP
 			// - UMP
 			// - HRMP
-			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
-				shared::Module::<T>::initializer_initialize(now) +
-				paras::Module::<T>::initializer_initialize(now) +
-				scheduler::Module::<T>::initializer_initialize(now) +
-				inclusion::Module::<T>::initializer_initialize(now) +
-				session_info::Module::<T>::initializer_initialize(now) +
-				dmp::Module::<T>::initializer_initialize(now) +
-				ump::Module::<T>::initializer_initialize(now) +
-				hrmp::Module::<T>::initializer_initialize(now);
+			let total_weight = configuration::Pallet::<T>::initializer_initialize(now) +
+				shared::Pallet::<T>::initializer_initialize(now) +
+				paras::Pallet::<T>::initializer_initialize(now) +
+				scheduler::Pallet::<T>::initializer_initialize(now) +
+				inclusion::Pallet::<T>::initializer_initialize(now) +
+				session_info::Pallet::<T>::initializer_initialize(now) +
+				T::DisputesHandler::initializer_initialize(now) +
+				dmp::Pallet::<T>::initializer_initialize(now) +
+				ump::Pallet::<T>::initializer_initialize(now) +
+				hrmp::Pallet::<T>::initializer_initialize(now);
 
-			HasInitialized::set(Some(()));
+			HasInitialized::<T>::set(Some(()));
 
 			total_weight
 		}
 
-		fn on_finalize() {
+		fn on_finalize(_: T::BlockNumber) {
 			// reverse initialization order.
-			hrmp::Module::<T>::initializer_finalize();
-			ump::Module::<T>::initializer_finalize();
-			dmp::Module::<T>::initializer_finalize();
-			session_info::Module::<T>::initializer_finalize();
-			inclusion::Module::<T>::initializer_finalize();
-			scheduler::Module::<T>::initializer_finalize();
-			paras::Module::<T>::initializer_finalize();
-			shared::Module::<T>::initializer_finalize();
-			configuration::Module::<T>::initializer_finalize();
+			hrmp::Pallet::<T>::initializer_finalize();
+			ump::Pallet::<T>::initializer_finalize();
+			dmp::Pallet::<T>::initializer_finalize();
+			T::DisputesHandler::initializer_finalize();
+			session_info::Pallet::<T>::initializer_finalize();
+			inclusion::Pallet::<T>::initializer_finalize();
+			scheduler::Pallet::<T>::initializer_finalize();
+			paras::Pallet::<T>::initializer_finalize();
+			shared::Pallet::<T>::initializer_finalize();
+			configuration::Pallet::<T>::initializer_finalize();
 
 			// Apply buffered session changes as the last thing. This way the runtime APIs and the
 			// next block will observe the next session.
 			//
 			// Note that we only apply the last session as all others lasted less than a block (weirdly).
-			if let Some(BufferedSessionChange {
-				session_index,
-				validators,
-				queued,
-			}) = BufferedSessionChanges::take().pop()
+			if let Some(BufferedSessionChange { session_index, validators, queued }) =
+				BufferedSessionChanges::<T>::take().pop()
 			{
 				Self::apply_new_session(session_index, validators, queued);
 			}
 
-			HasInitialized::take();
+			HasInitialized::<T>::take();
+		}
+	}
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
+		/// Issue a signal to the consensus engine to forcibly act as though all parachain
+		/// blocks in all relay chain blocks up to and including the given number in the current
+		/// chain are valid and should be finalized.
+		#[pallet::weight((0, DispatchClass::Operational))]
+		pub fn force_approve(origin: OriginFor<T>, up_to: BlockNumber) -> DispatchResult {
+			T::ForceOrigin::ensure_origin(origin)?;
+
+			frame_system::Pallet::<T>::deposit_log(ConsensusLog::ForceApprove(up_to).into());
+			Ok(())
 		}
 	}
 }
 
-impl<T: Config> Module<T> {
+impl<T: Config> Pallet<T> {
 	fn apply_new_session(
 		session_index: SessionIndex,
 		all_validators: Vec<ValidatorId>,
 		queued: Vec<ValidatorId>,
 	) {
-		let prev_config = <configuration::Module<T>>::config();
+		let prev_config = <configuration::Pallet<T>>::config();
 
 		let random_seed = {
 			let mut buf = [0u8; 32];
@@ -191,11 +210,11 @@ impl<T: Config> Module<T> {
 
 		// We can't pass the new config into the thing that determines the new config,
 		// so we don't pass the `SessionChangeNotification` into this module.
-		configuration::Module::<T>::initializer_on_new_session(&session_index);
+		configuration::Pallet::<T>::initializer_on_new_session(&session_index);
 
-		let new_config = <configuration::Module<T>>::config();
+		let new_config = <configuration::Pallet<T>>::config();
 
-		let validators = shared::Module::<T>::initializer_on_new_session(
+		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
 			random_seed.clone(),
 			&new_config,
@@ -211,13 +230,14 @@ impl<T: Config> Module<T> {
 			session_index,
 		};
 
-		let outgoing_paras = paras::Module::<T>::initializer_on_new_session(&notification);
-		scheduler::Module::<T>::initializer_on_new_session(&notification);
-		inclusion::Module::<T>::initializer_on_new_session(&notification);
-		session_info::Module::<T>::initializer_on_new_session(&notification);
-		dmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		ump::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		hrmp::Module::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		let outgoing_paras = paras::Pallet::<T>::initializer_on_new_session(&notification);
+		scheduler::Pallet::<T>::initializer_on_new_session(&notification);
+		inclusion::Pallet::<T>::initializer_on_new_session(&notification);
+		session_info::Pallet::<T>::initializer_on_new_session(&notification);
+		T::DisputesHandler::initializer_on_new_session(&notification);
+		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied
@@ -227,8 +247,8 @@ impl<T: Config> Module<T> {
 		session_index: SessionIndex,
 		validators: I,
 		queued: Option<I>,
-	)
-		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
+	) where
+		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
 	{
 		let validators: Vec<_> = validators.map(|(_, v)| v).collect();
 		let queued: Vec<_> = if let Some(queued) = queued {
@@ -241,47 +261,60 @@ impl<T: Config> Module<T> {
 			// Genesis session should be immediately enacted.
 			Self::apply_new_session(0, validators, queued);
 		} else {
-			BufferedSessionChanges::mutate(|v| v.push(BufferedSessionChange {
-				validators,
-				queued,
-				session_index,
-			}));
+			BufferedSessionChanges::<T>::mutate(|v| {
+				v.push(BufferedSessionChange { validators, queued, session_index })
+			});
 		}
+	}
 
+	// Allow to trigger on_new_session in tests, this is needed as long as pallet_session is not
+	// implemented in mock.
+	#[cfg(test)]
+	pub(crate) fn test_trigger_on_new_session<'a, I: 'a>(
+		changed: bool,
+		session_index: SessionIndex,
+		validators: I,
+		queued: Option<I>,
+	) where
+		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
+	{
+		Self::on_new_session(changed, session_index, validators, queued)
 	}
 }
 
-impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
+impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Pallet<T> {
 	type Public = ValidatorId;
 }
 
-impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pallet<T> {
 	type Key = ValidatorId;
 
 	fn on_genesis_session<'a, I: 'a>(validators: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	where
+		I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
 	{
-		<Module<T>>::on_new_session(false, 0, validators, None);
+		<Pallet<T>>::on_new_session(false, 0, validators, None);
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	where
+		I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
 	{
-		let session_index = <pallet_session::Module<T>>::current_index();
-		<Module<T>>::on_new_session(changed, session_index, validators, Some(queued));
+		let session_index = <pallet_session::Pallet<T>>::current_index();
+		<Pallet<T>>::on_new_session(changed, session_index, validators, Some(queued));
 	}
 
-	fn on_disabled(_i: usize) { }
+	fn on_disabled(_i: usize) {}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use primitives::v1::{Id as ParaId};
 	use crate::mock::{
-		new_test_ext,
-		Initializer, System, Dmp, Paras, Configuration, SessionInfo, MockGenesisConfig,
+		new_test_ext, Configuration, Dmp, Initializer, MockGenesisConfig, Paras, SessionInfo,
+		System,
 	};
+	use primitives::v1::Id as ParaId;
 
 	use frame_support::{
 		assert_ok,
@@ -298,7 +331,7 @@ mod tests {
 				Some(Vec::new().into_iter()),
 			);
 
-			let v = <BufferedSessionChanges>::get();
+			let v = <Initializer as Store>::BufferedSessionChanges::get();
 			assert!(v.is_empty());
 
 			assert_eq!(SessionInfo::earliest_stored_session(), 0);
@@ -319,7 +352,7 @@ mod tests {
 			let now = System::block_number();
 			Initializer::on_initialize(now);
 
-			let v = <BufferedSessionChanges>::get();
+			let v = <Initializer as Store>::BufferedSessionChanges::get();
 			assert_eq!(v.len(), 1);
 		});
 	}
@@ -337,7 +370,7 @@ mod tests {
 
 			Initializer::on_finalize(1);
 
-			assert!(<BufferedSessionChanges>::get().is_empty());
+			assert!(<Initializer as Store>::BufferedSessionChanges::get().is_empty());
 		});
 	}
 
@@ -346,7 +379,7 @@ mod tests {
 		new_test_ext(Default::default()).execute_with(|| {
 			Initializer::on_initialize(1);
 
-			assert!(HasInitialized::get().is_some());
+			assert!(<Initializer as Store>::HasInitialized::get().is_some());
 		})
 	}
 
@@ -356,7 +389,7 @@ mod tests {
 			Initializer::on_initialize(1);
 			Initializer::on_finalize(1);
 
-			assert!(HasInitialized::get().is_none());
+			assert!(<Initializer as Store>::HasInitialized::get().is_none());
 		})
 	}
 
@@ -372,26 +405,24 @@ mod tests {
 			validation_code: Default::default(),
 		};
 
-		new_test_ext(
-			MockGenesisConfig {
-				configuration: crate::configuration::GenesisConfig {
-					config: crate::configuration::HostConfiguration {
-						max_downward_message_size: 1024,
-						..Default::default()
-					},
-				},
-				paras: crate::paras::GenesisConfig {
-					paras: vec![
-						(a, mock_genesis.clone()),
-						(b, mock_genesis.clone()),
-						(c, mock_genesis.clone()),
-					],
+		new_test_ext(MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: crate::configuration::HostConfiguration {
+					max_downward_message_size: 1024,
 					..Default::default()
 				},
+			},
+			paras: crate::paras::GenesisConfig {
+				paras: vec![
+					(a, mock_genesis.clone()),
+					(b, mock_genesis.clone()),
+					(c, mock_genesis.clone()),
+				],
 				..Default::default()
-			}
-		).execute_with(|| {
-
+			},
+			..Default::default()
+		})
+		.execute_with(|| {
 			// enqueue downward messages to A, B and C.
 			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), a, vec![1, 2, 3]));
 			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), b, vec![4, 5, 6]));

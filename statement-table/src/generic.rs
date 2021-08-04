@@ -24,13 +24,15 @@
 //! indicating whether the candidate is valid or invalid. Once a threshold of the committee
 //! has signed validity statements, the candidate may be marked includable.
 
-use std::collections::hash_map::{self, Entry, HashMap};
-use std::hash::Hash;
-use std::fmt::Debug;
+use std::{
+	collections::hash_map::{self, Entry, HashMap},
+	fmt::Debug,
+	hash::Hash,
+};
 
-use primitives::v1::{ValidityAttestation as PrimitiveValidityAttestation, ValidatorSignature};
+use primitives::v1::{ValidatorSignature, ValidityAttestation as PrimitiveValidityAttestation};
 
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 
 /// Context for the statement table.
 pub trait Context {
@@ -96,20 +98,18 @@ pub enum ValidityDoubleVote<Candidate, Digest, Signature> {
 impl<Candidate, Digest, Signature> ValidityDoubleVote<Candidate, Digest, Signature> {
 	/// Deconstruct this misbehavior into two `(Statement, Signature)` pairs, erasing the information
 	/// about precisely what the problem was.
-	pub fn deconstruct<Ctx>(self) -> (
-		(Statement<Candidate, Digest>, Signature),
-		(Statement<Candidate, Digest>, Signature),
-	)
+	pub fn deconstruct<Ctx>(
+		self,
+	) -> ((Statement<Candidate, Digest>, Signature), (Statement<Candidate, Digest>, Signature))
 	where
-		Ctx: Context<Candidate=Candidate, Digest=Digest, Signature=Signature>,
+		Ctx: Context<Candidate = Candidate, Digest = Digest, Signature = Signature>,
 		Candidate: Debug + Ord + Eq + Clone,
 		Digest: Debug + Hash + Eq + Clone,
 		Signature: Debug + Eq + Clone,
 	{
 		match self {
-			Self::IssuedAndValidity((c, s1), (d, s2)) => {
-				((Statement::Seconded(c), s1), (Statement::Valid(d), s2))
-			}
+			Self::IssuedAndValidity((c, s1), (d, s2)) =>
+				((Statement::Seconded(c), s1), (Statement::Valid(d), s2)),
 		}
 	}
 }
@@ -233,20 +233,20 @@ pub struct CandidateData<Ctx: Context> {
 impl<Ctx: Context> CandidateData<Ctx> {
 	/// Yield a full attestation for a candidate.
 	/// If the candidate can be included, it will return `Some`.
-	pub fn attested(&self, validity_threshold: usize)
-		-> Option<AttestedCandidate<
-			Ctx::GroupId, Ctx::Candidate, Ctx::AuthorityId, Ctx::Signature,
-		>>
-	{
+	pub fn attested(
+		&self,
+		validity_threshold: usize,
+	) -> Option<AttestedCandidate<Ctx::GroupId, Ctx::Candidate, Ctx::AuthorityId, Ctx::Signature>> {
 		let valid_votes = self.validity_votes.len();
 		if valid_votes < validity_threshold {
-			return None;
+			return None
 		}
 
-		let validity_votes = self.validity_votes.iter()
+		let validity_votes = self
+			.validity_votes
+			.iter()
 			.map(|(a, v)| match *v {
-				ValidityVote::Valid(ref s) =>
-					(a.clone(), ValidityAttestation::Explicit(s.clone())),
+				ValidityVote::Valid(ref s) => (a.clone(), ValidityAttestation::Explicit(s.clone())),
 				ValidityVote::Issued(ref s) =>
 					(a.clone(), ValidityAttestation::Implicit(s.clone())),
 			})
@@ -275,16 +275,14 @@ struct AuthorityData<Ctx: Context> {
 
 impl<Ctx: Context> Default for AuthorityData<Ctx> {
 	fn default() -> Self {
-		AuthorityData {
-			proposal: None,
-		}
+		AuthorityData { proposal: None }
 	}
 }
 
 /// Type alias for the result of a statement import.
 pub type ImportResult<Ctx> = Result<
 	Option<Summary<<Ctx as Context>::Digest, <Ctx as Context>::GroupId>>,
-	MisbehaviorFor<Ctx>
+	MisbehaviorFor<Ctx>,
 >;
 
 /// Stores votes
@@ -308,11 +306,11 @@ impl<Ctx: Context> Table<Ctx> {
 	/// Get the attested candidate for `digest`.
 	///
 	/// Returns `Some(_)` if the candidate exists and is includable.
-	pub fn attested_candidate(&self, digest: &Ctx::Digest, context: &Ctx)
-		-> Option<AttestedCandidate<
-			Ctx::GroupId, Ctx::Candidate, Ctx::AuthorityId, Ctx::Signature,
-		>>
-	{
+	pub fn attested_candidate(
+		&self,
+		digest: &Ctx::Digest,
+		context: &Ctx,
+	) -> Option<AttestedCandidate<Ctx::GroupId, Ctx::Candidate, Ctx::AuthorityId, Ctx::Signature>> {
 		self.candidate_votes.get(digest).and_then(|data| {
 			let v_threshold = context.requisite_votes(&data.group_id);
 			data.attested(v_threshold)
@@ -334,18 +332,10 @@ impl<Ctx: Context> Table<Ctx> {
 		let SignedStatement { statement, signature, sender: signer } = statement;
 
 		let res = match statement {
-			Statement::Seconded(candidate) => self.import_candidate(
-				context,
-				signer.clone(),
-				candidate,
-				signature
-			),
-			Statement::Valid(digest) => self.validity_vote(
-				context,
-				signer.clone(),
-				digest,
-				ValidityVote::Valid(signature),
-			),
+			Statement::Seconded(candidate) =>
+				self.import_candidate(context, signer.clone(), candidate, signature),
+			Statement::Valid(digest) =>
+				self.validity_vote(context, signer.clone(), digest, ValidityVote::Valid(signature)),
 		};
 
 		match res {
@@ -355,7 +345,7 @@ impl<Ctx: Context> Table<Ctx> {
 				// punishments may be cumulative.
 				self.detected_misbehavior.entry(signer).or_default().push(misbehavior);
 				None
-			}
+			},
 		}
 	}
 
@@ -365,9 +355,7 @@ impl<Ctx: Context> Table<Ctx> {
 	}
 
 	/// Access all witnessed misbehavior.
-	pub fn get_misbehavior(&self)
-		-> &HashMap<Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>>
-	{
+	pub fn get_misbehavior(&self) -> &HashMap<Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>> {
 		&self.detected_misbehavior
 	}
 
@@ -375,9 +363,7 @@ impl<Ctx: Context> Table<Ctx> {
 	///
 	/// This consumes all detected misbehaviors, even if the iterator is not completely consumed.
 	pub fn drain_misbehaviors(&mut self) -> DrainMisbehaviors<'_, Ctx> {
-		self.detected_misbehavior
-			.drain()
-			.into()
+		self.detected_misbehavior.drain().into()
 	}
 
 	fn import_candidate(
@@ -395,7 +381,7 @@ impl<Ctx: Context> Table<Ctx> {
 					statement: Statement::Seconded(candidate),
 					sender: authority,
 				},
-			}));
+			}))
 		}
 
 		// check that authority hasn't already specified another candidate.
@@ -414,7 +400,9 @@ impl<Ctx: Context> Table<Ctx> {
 							votes entry is created. proposal here is `Some`, therefore \
 							candidate votes entry exists; qed";
 
-						let old_candidate = self.candidate_votes.get(old_digest)
+						let old_candidate = self
+							.candidate_votes
+							.get(old_digest)
 							.expect(EXISTENCE_PROOF)
 							.candidate
 							.clone();
@@ -422,7 +410,7 @@ impl<Ctx: Context> Table<Ctx> {
 						return Err(Misbehavior::MultipleCandidates(MultipleCandidates {
 							first: (old_candidate, old_sig.clone()),
 							second: (candidate, signature.clone()),
-						}));
+						}))
 					}
 
 					false
@@ -430,31 +418,27 @@ impl<Ctx: Context> Table<Ctx> {
 					existing.proposal = Some((digest.clone(), signature.clone()));
 					true
 				}
-			}
+			},
 			Entry::Vacant(vacant) => {
-				vacant.insert(AuthorityData {
-					proposal: Some((digest.clone(), signature.clone())),
-				});
+				vacant
+					.insert(AuthorityData { proposal: Some((digest.clone(), signature.clone())) });
 				true
-			}
+			},
 		};
 
 		// NOTE: altering this code may affect the existence proof above. ensure it remains
 		// valid.
 		if new_proposal {
-			self.candidate_votes.entry(digest.clone()).or_insert_with(move || CandidateData {
-				group_id: group,
-				candidate,
-				validity_votes: HashMap::new(),
-			});
+			self.candidate_votes
+				.entry(digest.clone())
+				.or_insert_with(move || CandidateData {
+					group_id: group,
+					candidate,
+					validity_votes: HashMap::new(),
+				});
 		}
 
-		self.validity_vote(
-			context,
-			authority,
-			digest,
-			ValidityVote::Issued(signature),
-		)
+		self.validity_vote(context, authority, digest, ValidityVote::Issued(signature))
 	}
 
 	fn validity_vote(
@@ -473,9 +457,10 @@ impl<Ctx: Context> Table<Ctx> {
 		if !context.is_member_of(&from, &votes.group_id) {
 			let sig = match vote {
 				ValidityVote::Valid(s) => s,
-				ValidityVote::Issued(_) =>
-					panic!("implicit issuance vote only cast from `import_candidate` after \
-							checking group membership of issuer; qed"),
+				ValidityVote::Issued(_) => panic!(
+					"implicit issuance vote only cast from `import_candidate` after \
+							checking group membership of issuer; qed"
+				),
 			};
 
 			return Err(Misbehavior::UnauthorizedStatement(UnauthorizedStatement {
@@ -483,8 +468,8 @@ impl<Ctx: Context> Table<Ctx> {
 					signature: sig,
 					sender: from,
 					statement: Statement::Valid(digest),
-				}
-			}));
+				},
+			}))
 		}
 
 		// check for double votes.
@@ -497,7 +482,10 @@ impl<Ctx: Context> Table<Ctx> {
 						// valid vote conflicting with candidate statement
 						(ValidityVote::Issued(iss), ValidityVote::Valid(good)) |
 						(ValidityVote::Valid(good), ValidityVote::Issued(iss)) =>
-							make_vdv(ValidityDoubleVote::IssuedAndValidity((votes.candidate.clone(), iss), (digest, good))),
+							make_vdv(ValidityDoubleVote::IssuedAndValidity(
+								(votes.candidate.clone(), iss),
+								(digest, good),
+							)),
 
 						// two signatures on same candidate
 						(ValidityVote::Issued(a), ValidityVote::Issued(b)) =>
@@ -510,10 +498,10 @@ impl<Ctx: Context> Table<Ctx> {
 				} else {
 					Ok(None)
 				}
-			}
+			},
 			Entry::Vacant(vacant) => {
 				vacant.insert(vote);
-			}
+			},
 		}
 
 		Ok(Some(votes.summary(digest)))
@@ -527,7 +515,9 @@ struct MisbehaviorForAuthority<Ctx: Context> {
 	misbehaviors: Vec<MisbehaviorFor<Ctx>>,
 }
 
-impl<Ctx: Context> From<(Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>)> for MisbehaviorForAuthority<Ctx> {
+impl<Ctx: Context> From<(Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>)>
+	for MisbehaviorForAuthority<Ctx>
+{
 	fn from((id, mut misbehaviors): (Ctx::AuthorityId, Vec<MisbehaviorFor<Ctx>>)) -> Self {
 		// we're going to be popping items off this list in the iterator, so reverse it now to
 		// preserve the original ordering.
@@ -551,10 +541,7 @@ pub struct DrainMisbehaviors<'a, Ctx: Context> {
 
 impl<'a, Ctx: Context> From<Drain<'a, Ctx>> for DrainMisbehaviors<'a, Ctx> {
 	fn from(drain: Drain<'a, Ctx>) -> Self {
-		Self {
-			drain,
-			in_progress: None,
-		}
+		Self { drain, in_progress: None }
 	}
 }
 
@@ -607,7 +594,7 @@ mod tests {
 	#[derive(Debug, PartialEq, Eq)]
 	struct TestContext {
 		// v -> parachain group
-		authorities: HashMap<AuthorityId, GroupId>
+		authorities: HashMap<AuthorityId, GroupId>,
 	}
 
 	impl Context for TestContext {
@@ -625,11 +612,7 @@ mod tests {
 			GroupId(candidate.0)
 		}
 
-		fn is_member_of(
-			&self,
-			authority: &AuthorityId,
-			group: &GroupId
-		) -> bool {
+		fn is_member_of(&self, authority: &AuthorityId, group: &GroupId) -> bool {
 			self.authorities.get(authority).map(|v| v == group).unwrap_or(false)
 		}
 
@@ -637,7 +620,9 @@ mod tests {
 			let mut total_validity = 0;
 
 			for validity in self.authorities.values() {
-				if validity == id { total_validity += 1 }
+				if validity == id {
+					total_validity += 1
+				}
 			}
 
 			total_validity / 2 + 1
@@ -651,7 +636,7 @@ mod tests {
 				let mut map = HashMap::new();
 				map.insert(AuthorityId(1), GroupId(2));
 				map
-			}
+			},
 		};
 
 		let mut table = create();
@@ -687,7 +672,7 @@ mod tests {
 				let mut map = HashMap::new();
 				map.insert(AuthorityId(1), GroupId(3));
 				map
-			}
+			},
 		};
 
 		let mut table = create();
@@ -719,7 +704,7 @@ mod tests {
 				map.insert(AuthorityId(1), GroupId(2));
 				map.insert(AuthorityId(2), GroupId(3));
 				map
-			}
+			},
 		};
 
 		let mut table = create();
@@ -763,7 +748,7 @@ mod tests {
 				map.insert(AuthorityId(1), GroupId(2));
 				map.insert(AuthorityId(2), GroupId(2));
 				map
-			}
+			},
 		};
 
 		let mut table = create();
@@ -793,7 +778,7 @@ mod tests {
 				let mut map = HashMap::new();
 				map.insert(AuthorityId(1), GroupId(2));
 				map
-			}
+			},
 		};
 
 		let mut table = create();
@@ -836,7 +821,9 @@ mod tests {
 		assert!(candidate.attested(validity_threshold).is_none());
 
 		for i in 0..validity_threshold {
-			candidate.validity_votes.insert(AuthorityId(i + 100), ValidityVote::Valid(Signature(i + 100)));
+			candidate
+				.validity_votes
+				.insert(AuthorityId(i + 100), ValidityVote::Valid(Signature(i + 100)));
 		}
 
 		assert!(candidate.attested(validity_threshold).is_some());
@@ -858,7 +845,7 @@ mod tests {
 				map.insert(AuthorityId(2), GroupId(2));
 				map.insert(AuthorityId(3), GroupId(2));
 				map
-			}
+			},
 		};
 
 		// have 2/3 validity guarantors note validity.
@@ -893,7 +880,7 @@ mod tests {
 				let mut map = HashMap::new();
 				map.insert(AuthorityId(1), GroupId(2));
 				map
-			}
+			},
 		};
 
 		let mut table = create();
@@ -903,7 +890,8 @@ mod tests {
 			sender: AuthorityId(1),
 		};
 
-		let summary = table.import_statement(&context, statement)
+		let summary = table
+			.import_statement(&context, statement)
 			.expect("candidate import to give summary");
 
 		assert_eq!(summary.candidate, Digest(100));
@@ -919,7 +907,7 @@ mod tests {
 				map.insert(AuthorityId(1), GroupId(2));
 				map.insert(AuthorityId(2), GroupId(2));
 				map
-			}
+			},
 		};
 
 		let mut table = create();
@@ -939,8 +927,8 @@ mod tests {
 			sender: AuthorityId(2),
 		};
 
-		let summary = table.import_statement(&context, vote)
-			.expect("candidate vote to give summary");
+		let summary =
+			table.import_statement(&context, vote).expect("candidate vote to give summary");
 
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(2)));
 
