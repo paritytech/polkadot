@@ -18,7 +18,8 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	initializer,
 };
-use frame_support::pallet_prelude::*;
+use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
+use frame_system::pallet_prelude::*;
 use primitives::v1::{Id as ParaId, UpwardMessage};
 use sp_std::{
 	collections::btree_map::BTreeMap, convert::TryFrom, fmt, marker::PhantomData, prelude::*,
@@ -70,9 +71,17 @@ impl UmpSink for () {
 /// if the message content is unique.
 pub type MessageId = [u8; 32];
 
+/// Index used to identify overweight messages.
+pub type OverweightIndex = u64;
+
 /// A specific implementation of a `UmpSink` where messages are in the XCM format
 /// and will be forwarded to the XCM Executor.
 pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
+
+/// Returns a [`MessageId`] for the given upward message payload.
+fn upward_message_id(data: &[u8]) -> MessageId {
+	sp_io::hashing::blake2_256(data)
+}
 
 impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
 	fn process_upward_message(
@@ -86,7 +95,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 			VersionedXcm,
 		};
 
-		let id = sp_io::hashing::blake2_256(&data[..]);
+		let id = upward_message_id(&data[..]);
 		let maybe_msg = VersionedXcm::<C::Call>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut &data[..],
@@ -177,6 +186,9 @@ pub mod pallet {
 		///
 		/// Generally you'll want this to be a bit more - 150 or 200 would be good values.
 		type FirstMessageFactorPercent: Get<Weight>;
+
+		/// Origin which is allowed to execute overweight messages.
+		type ExecuteOverweightOrigin: EnsureOrigin<Self::Origin>;
 	}
 
 	#[pallet::event]
@@ -197,6 +209,26 @@ pub mod pallet {
 		/// Some downward messages have been received and will be processed.
 		/// \[ para, count, size \]
 		UpwardMessagesReceived(ParaId, u32, u32),
+		/// The weight budget was exceeded for an individual downward message.
+		///
+		/// This message can be later dispatched manually using `service_overweight` dispatchable
+		/// using the assigned `overweight_index`.
+		///
+		/// \[ para, id, overweight_index, required \]
+		OverweightEnqueued(ParaId, MessageId, OverweightIndex, Weight),
+		/// Downward message from the overweight queue was executed with the given actual weight
+		/// used.
+		///
+		/// \[ overweight_index, used \]
+		OverweightServiced(OverweightIndex, Weight),
+	}
+
+	#[pallet::error]
+	pub enum Error<T> {
+		/// The message index given is unknown.
+		Unknown,
+		/// The amount of weight given is possibly not enough for executing the message.
+		OverLimit,
 	}
 
 	/// The messages waiting to be handled by the relay-chain originating from a certain parachain.
@@ -242,8 +274,48 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type NextDispatchRoundStartWith<T: Config> = StorageValue<_, ParaId>;
 
+	/// The messages that exceeded max individual message weight budget.
+	///
+	/// These messages stay there until manually dispatched.
+	#[pallet::storage]
+	pub type Overweight<T: Config> =
+		StorageMap<_, Twox64Concat, OverweightIndex, (ParaId, Vec<u8>), OptionQuery>;
+
+	/// The number of overweight messages ever recorded in `Overweight` (and thus the lowest free
+	/// index).
+	#[pallet::storage]
+	pub type OverweightCount<T: Config> = StorageValue<_, OverweightIndex, ValueQuery>;
+
 	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
+	impl<T: Config> Pallet<T> {
+		/// Service a single overweight upward message.
+		///
+		/// - `origin`: Must pass `ExecuteOverweightOrigin`.
+		/// - `index`: The index of the overweight message to service.
+		/// - `weight_limit`: The amount of weight that message execution may take.
+		///
+		/// Errors:
+		/// - `Unknown`: Message of `index` is unknown.
+		/// - `OverLimit`: Message execution may use greater than `weight_limit`.
+		///
+		/// Events:
+		/// - `OverweightServiced`: On success.
+		#[pallet::weight(weight_limit.saturating_add(1_000_000))]
+		pub fn service_overweight(
+			origin: OriginFor<T>,
+			index: OverweightIndex,
+			weight_limit: Weight,
+		) -> DispatchResultWithPostInfo {
+			T::ExecuteOverweightOrigin::ensure_origin(origin)?;
+
+			let (sender, data) = Overweight::<T>::get(index).ok_or(Error::<T>::Unknown)?;
+			let used = T::UmpSink::process_upward_message(sender, &data[..], weight_limit)
+				.map_err(|_| Error::<T>::OverLimit)?;
+			Overweight::<T>::remove(index);
+			Self::deposit_event(Event::OverweightServiced(index, used));
+			Ok(Some(used.saturating_add(1_000_000)).into())
+		}
+	}
 }
 
 /// Routines related to the upward message passing.
@@ -413,10 +485,20 @@ impl<T: Config> Pallet<T> {
 						queue_cache.consume_front::<T>(dispatchee)
 					},
 					Err((id, required)) => {
-						// we process messages in order and don't drop them if we run out of weight,
-						// so need to break here without calling `consume_front`.
-						Self::deposit_event(Event::WeightExhausted(id, max_weight, required));
-						break
+						if required > config.ump_max_individual_weight {
+							// overweight - add to overweight queue and continue with message
+							// execution consuming the message.
+							let index = Self::stash_overweight(dispatchee, upward_message);
+							Self::deposit_event(Event::OverweightEnqueued(
+								dispatchee, id, index, required,
+							));
+							queue_cache.consume_front::<T>(dispatchee)
+						} else {
+							// we process messages in order and don't drop them if we run out of weight,
+							// so need to break here without calling `consume_front`.
+							Self::deposit_event(Event::WeightExhausted(id, max_weight, required));
+							break
+						}
 					},
 				}
 			} else {
@@ -437,6 +519,19 @@ impl<T: Config> Pallet<T> {
 		queue_cache.flush::<T>();
 
 		weight_used
+	}
+
+	/// Puts a given upward message into the list of overweight messages allowing it to be executed
+	/// later.
+	fn stash_overweight(sender: ParaId, upward_message: Vec<u8>) -> OverweightIndex {
+		let index = <Self as Store>::OverweightCount::mutate(|count| {
+			let index = *count;
+			*count += 1;
+			index
+		});
+
+		<Self as Store>::Overweight::insert(index, (sender, upward_message));
+		index
 	}
 }
 
