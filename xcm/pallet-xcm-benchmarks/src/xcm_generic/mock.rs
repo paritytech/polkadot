@@ -99,7 +99,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = YesItShould<Test>;
+	type Barrier = YesItShould;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
 	type Trader = xcm_builder::FixedRateOfConcreteFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;

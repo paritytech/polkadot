@@ -5,13 +5,11 @@ pub mod benchmarking;
 mod mock;
 // #[cfg(test)]
 // mod mock2;
-use xcm::v0::MultiAsset;
-
 // TODO: make this instanciable.
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::pallet_prelude::Get;
-	use xcm::v0::MultiLocation;
+	use xcm::v0::{MultiAsset, MultiLocation};
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {

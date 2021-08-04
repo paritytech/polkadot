@@ -113,14 +113,6 @@ impl xcm_executor::traits::MatchesFungible<u64> for MatchAnyFungible {
 	}
 }
 
-parameter_types! {
-	pub const CheckedAccount: Option<u64> = Some(100);
-	pub const ValidDestination: MultiLocation = MultiLocation::X1(Junction::AccountId32 {
-		network: NetworkId::Any,
-		id: [0u8; 32],
-	});
-}
-
 // Use balances as the asset transactor.
 pub type AssetTransactor = xcm_builder::CurrencyAdapter<
 	Balances,
@@ -161,9 +153,18 @@ impl crate::Config for Test {
 	type AccountIdConverter = AccountIdConverter;
 }
 
+parameter_types! {
+	pub const CheckedAccount: Option<u64> = Some(100);
+	pub const ValidDestination: MultiLocation = MultiLocation::X1(Junction::AccountId32 {
+		network: NetworkId::Any,
+		id: [0u8; 32],
+	});
+}
+
 impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
 	type CheckedAccount = CheckedAccount;
+
 	type ValidDestination = ValidDestination;
 	fn get_multi_asset() -> MultiAsset {
 		let amount =

@@ -18,8 +18,8 @@ use crate::*;
 use frame_support::{parameter_types, weights::Weight};
 use xcm::opaque::v0::{prelude::XcmResult, Junction, MultiLocation, Response, Xcm};
 
-pub struct YesItShould<T>(sp_std::marker::PhantomData<T>);
-impl<T: Config> xcm_executor::traits::ShouldExecute for YesItShould<T> {
+pub struct YesItShould;
+impl xcm_executor::traits::ShouldExecute for YesItShould {
 	fn should_execute<Call>(
 		_: &MultiLocation,
 		_: bool,

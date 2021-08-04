@@ -913,8 +913,9 @@ pub type XcmRouter = (
 );
 
 parameter_types! {
-	pub const WestendForWestmint: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(1000)));
+	pub const Westend: MultiLocation = X1(Parachain(1000));
+	pub const Westmint: MultiAsset = AllConcreteFungible { id: Null };
+	pub const WestendForWestmint: (MultiAsset, MultiLocation) = (Westmint::get(), Westend::get());
 }
 pub type TrustedTeleporters = (xcm_builder::Case<WestendForWestmint>,);
 
@@ -1150,21 +1151,6 @@ impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
 		// Remove the storage value `RandomMaterial` from removed pallet `RandomnessCollectiveFlip`
 		migration::remove_storage_prefix(b"RandomnessCollectiveFlip", b"RandomMaterial", b"");
 		<Runtime as frame_system::Config>::DbWeight::get().writes(1)
-	}
-}
-
-impl pallet_xcm_benchmarks::Config for Runtime {
-	type XcmConfig = XcmConfig;
-	type AccountIdConverter = LocationConverter;
-}
-
-impl pallet_xcm_benchmarks::fungible::Config for Runtime {
-	type TransactAsset = Balances;
-
-	type CheckedAccount = CheckAccount;
-
-	fn get_multi_asset() -> MultiAsset {
-		MultiAsset::ConcreteFungible { id: WndLocation::get(), amount: 0 }
 	}
 }
 
@@ -1529,6 +1515,22 @@ sp_api::impl_runtime_apis! {
 			impl frame_system_benchmarking::Config for Runtime {}
 
 			use xcm::v0::MultiAsset;
+
+			impl pallet_xcm_benchmarks::Config for Runtime {
+				type XcmConfig = XcmConfig;
+				type AccountIdConverter = LocationConverter;
+			}
+
+			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
+				type TransactAsset = Balances;
+
+				type CheckedAccount = CheckAccount;
+				type ValidDestination = Westend;
+
+				fn get_multi_asset() -> MultiAsset {
+					MultiAsset::ConcreteFungible { id: WndLocation::get(), amount: 1 * UNITS }
+				}
+			}
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
 
