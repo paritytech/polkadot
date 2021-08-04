@@ -285,7 +285,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	test: impl FnOnce(TestHarness) -> T,
 ) {
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (request_multiplexer, req_configs) = RequestMultiplexer::new();
 	let (mut network, network_handle, discovery) = new_test_network(req_configs);
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
@@ -777,17 +776,6 @@ fn peer_disconnect_from_just_one_peerset() {
 			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
 			.await;
 
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::DisputeDistribution(DisputeDistributionMessage::DisputeSendingReceiver(_))
-		);
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::StatementFetchingReceiver(_)
-			)
-		);
-
 		// bridge will inform about all connected peers.
 		{
 			assert_sends_validation_event_to_all(
@@ -863,17 +851,6 @@ fn relays_collation_protocol_messages() {
 
 		let peer_a = PeerId::random();
 		let peer_b = PeerId::random();
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::DisputeDistribution(DisputeDistributionMessage::DisputeSendingReceiver(_))
-		);
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::StatementFetchingReceiver(_)
-			)
-		);
 
 		network_handle
 			.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full)

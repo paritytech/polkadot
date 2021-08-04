@@ -282,6 +282,9 @@ where
 	Req: IsRequest + Decode,
 	Req::Response: Encode,
 {
+	/// Create
+	pub fn get_config_receiver() -> (mpsc::Receiver<nSelf, RequestResponseConfig) {
+	}
 	/// Create new `IncomingRequest`.
 	pub fn new(
 		peer: PeerId,
