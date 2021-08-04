@@ -135,11 +135,11 @@ pub mod pallet {
 					},
 				};
 
-			Some(Call::enter(inherent_data))
+			Some(Call::enter { data: inherent_data })
 		}
 
 		fn is_inherent(call: &Self::Call) -> bool {
-			matches!(call, Call::enter(..))
+			matches!(call, Call::enter {..})
 		}
 	}
 
