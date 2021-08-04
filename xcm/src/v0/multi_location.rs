@@ -38,15 +38,17 @@ use parity_scale_codec::{self, Decode, Encode, Input, Output};
 /// A `MultiLocation` is a *relative identifier*, meaning that it can only be used to define the relative path
 /// between two locations, and cannot generally be used to refer to a location universally. It is comprised of a
 /// number of *junctions*, each morphing the previous location, either diving down into one of its internal locations,
-/// called a *sub-consensus*, or going up into its parent location. Correct `MultiLocation` values must have all
-/// `Parent` junctions as a prefix to all *sub-consensus* junctions.
+/// called a *sub-consensus*, or going up into its parent location.
 ///
-/// This specific `MultiLocation` implementation uses a Rust `enum` in order to make pattern matching easier.
-///
-/// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
+/// The `parents` field of this struct indicates the number of parent junctions that exist at the
+/// beginning of this `MultiLocation`. A corollary of such a property is that no parent junctions
+/// can be added in the middle or at the end of a `MultiLocation`, thus ensuring well-formedness
+/// of each and every `MultiLocation` that can be constructed.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct MultiLocation {
+	/// The number of parent junctions at the beginning of this `MultiLocation`.
 	parents: u8,
+	/// The interior (i.e. non-parent) junctions that this `MultiLocation` contains.
 	interior: Junctions,
 }
 
@@ -121,6 +123,8 @@ impl MultiLocation {
 	}
 
 	/// Creates a new `MultiLocation` with 0 parents and a `Null` interior.
+	///
+	/// The resulting `MultiLocation` can be interpreted as the "current consensus system".
 	pub const fn empty() -> MultiLocation {
 		MultiLocation { parents: 0, interior: Junctions::Null }
 	}
@@ -144,6 +148,9 @@ impl MultiLocation {
 
 	/// Creates a new `MultiLocation` with no parents and a single `Parachain` interior junction
 	/// specified by `para_id`.
+	///
+	/// The resulting `MultiLocation` can be interpreted as the child-parachain of the current
+	/// consensus system.
 	pub const fn with_parachain_interior(para_id: u32) -> MultiLocation {
 		MultiLocation { parents: 0, interior: Junctions::X1(Junction::Parachain(para_id)) }
 	}
@@ -170,7 +177,9 @@ impl MultiLocation {
 
 	/// Returns the number of parents and junctions in `self`.
 	pub const fn len(&self) -> usize {
-		self.parent_count() as usize + self.interior.len()
+		let len = self.parent_count() as usize + self.interior.len();
+		debug_assert!(len <= MAX_MULTILOCATION_LENGTH);
+		len
 	}
 
 	/// Returns the first interior junction, or `None` if the location is empty or contains only
@@ -530,6 +539,11 @@ impl From<[Junction; 8]> for MultiLocation {
 	}
 }
 
+/// Non-parent junctions that can be constructed, up to the length of 8. This specific `Junctions`
+/// implementation uses a Rust `enum` in order to make pattern matching easier.
+///
+/// Parent junctions cannot be constructed with this type. Refer to `MultiLocation` for
+/// instructions on constructing parent junctions.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
 pub enum Junctions {
 	/// The interpreting consensus system.
