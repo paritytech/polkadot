@@ -192,7 +192,7 @@ mod tests {
 			assert_ok!(RelayChainPalletXcm::reserve_transfer_assets(
 				relay_chain::Origin::signed(ALICE),
 				X1(Parachain(1)),
-				X1(Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }),
+				X1(AccountId32 { network: Any, id: ALICE.into() }),
 				(Here, 123).into(),
 				123,
 			));
