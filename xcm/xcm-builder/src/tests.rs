@@ -32,7 +32,7 @@ fn basic_setup_works() {
 	assert_eq!(to_account(X2(Parent, Parachain(50))), Ok(2050));
 	assert_eq!(to_account(X1(AccountIndex64 { index: 1, network: Any })), Ok(1));
 	assert_eq!(to_account(X1(AccountIndex64 { index: 42, network: Any })), Ok(42));
-	assert_eq!(to_account(Null), Ok(3000));
+	assert_eq!(to_account(Here), Ok(3000));
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn weigher_should_work() {
 				halt_on_error: true,
 				xcm: vec![],
 			},
-			Order::DepositAsset { assets: All.into(), dest: Null },
+			Order::DepositAsset { assets: All.into(), beneficiary: Here },
 		],
 	}
 	.into();
@@ -56,7 +56,7 @@ fn weigher_should_work() {
 
 #[test]
 fn take_weight_credit_barrier_should_work() {
-	let mut message = opaque::Xcm::TransferAsset { assets: (X1(Parent), 100).into(), dest: Null };
+	let mut message = opaque::Xcm::TransferAsset { assets: (X1(Parent), 100).into(), beneficiary: Here };
 
 	let mut weight_credit = 10;
 	let r =
@@ -72,7 +72,7 @@ fn take_weight_credit_barrier_should_work() {
 
 #[test]
 fn allow_unpaid_should_work() {
-	let mut message = opaque::Xcm::TransferAsset { assets: (X1(Parent), 100).into(), dest: Null };
+	let mut message = opaque::Xcm::TransferAsset { assets: (X1(Parent), 100).into(), beneficiary: Here };
 
 	AllowUnpaidFrom::set(vec![X1(Parent)]);
 
@@ -99,7 +99,7 @@ fn allow_unpaid_should_work() {
 fn allow_paid_should_work() {
 	AllowPaidFrom::set(vec![X1(Parent)]);
 
-	let mut message = opaque::Xcm::TransferAsset { assets: (X1(Parent), 100).into(), dest: Null };
+	let mut message = opaque::Xcm::TransferAsset { assets: (X1(Parent), 100).into(), beneficiary: Here };
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&X1(Parachain(1)),
@@ -115,7 +115,7 @@ fn allow_paid_should_work() {
 		assets: (X1(Parent), 100).into(),
 		effects: vec![
 			Order::BuyExecution { fees, weight: 0, debt: 20, halt_on_error: true, xcm: vec![] },
-			Order::DepositAsset { assets: All.into(), dest: Null },
+			Order::DepositAsset { assets: All.into(), beneficiary: Here },
 		],
 	};
 
@@ -133,7 +133,7 @@ fn allow_paid_should_work() {
 		assets: (X1(Parent), 100).into(),
 		effects: vec![
 			Order::BuyExecution { fees, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },
-			Order::DepositAsset { assets: All.into(), dest: Null },
+			Order::DepositAsset { assets: All.into(), beneficiary: Here },
 		],
 	};
 
@@ -159,8 +159,8 @@ fn allow_paid_should_work() {
 #[test]
 fn paying_reserve_deposit_should_work() {
 	AllowPaidFrom::set(vec![X1(Parent)]);
-	add_reserve(X1(Parent), (X1(Parent), WildFungible).into());
-	WeightPrice::set((X1(Parent).into(), 1_000_000_000_000));
+	add_reserve(X1(Parent), (Parent, WildFungible).into());
+	WeightPrice::set((Parent.into(), 1_000_000_000_000));
 
 	let origin = X1(Parent);
 	let fees = (X1(Parent), 30).into();
@@ -174,7 +174,7 @@ fn paying_reserve_deposit_should_work() {
 				halt_on_error: true,
 				xcm: vec![],
 			},
-			Order::<TestCall>::DepositAsset { assets: All.into(), dest: Null },
+			Order::<TestCall>::DepositAsset { assets: All.into(), beneficiary: Here },
 		],
 	};
 	let weight_limit = 50;
@@ -188,19 +188,19 @@ fn transfer_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![X1(Parachain(1))]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (Null, 1000).into());
+	add_asset(1001, (Here, 1000).into());
 	// They want to transfer 100 of them to their sibling parachain #2
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		X1(Parachain(1)),
 		Xcm::TransferAsset {
-			assets: (Null, 100).into(),
-			dest: X1(AccountIndex64 { index: 3, network: Any }),
+			assets: (Here, 100).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: Any }),
 		},
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(assets(3), vec![(Null, 100).into()]);
-	assert_eq!(assets(1001), vec![(Null, 900).into()]);
+	assert_eq!(assets(3), vec![(Here, 100).into()]);
+	assert_eq!(assets(1001), vec![(Here, 900).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 }
 
@@ -208,7 +208,7 @@ fn transfer_should_work() {
 fn reserve_transfer_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1))]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (Null, 1000).into());
+	add_asset(1001, (Here, 1000).into());
 	// The remote account owned by gav.
 	let three = X1(AccountIndex64 { index: 3, network: Any });
 
@@ -217,22 +217,22 @@ fn reserve_transfer_should_work() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		X1(Parachain(1)),
 		Xcm::TransferReserveAsset {
-			assets: (Null, 100).into(),
+			assets: (Here, 100).into(),
 			dest: X1(Parachain(2)),
-			effects: vec![Order::DepositAsset { assets: All.into(), dest: three.clone() }],
+			effects: vec![Order::DepositAsset { assets: All.into(), beneficiary: three.clone() }],
 		},
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
 
-	assert_eq!(assets(1002), vec![(Null, 100).into()]);
+	assert_eq!(assets(1002), vec![(Here, 100).into()]);
 	assert_eq!(
 		sent_xcm(),
 		vec![(
 			X1(Parachain(2)),
 			Xcm::ReserveAssetDeposited {
 				assets: (X1(Parent), 100).into(),
-				effects: vec![Order::DepositAsset { assets: All.into(), dest: three }],
+				effects: vec![Order::DepositAsset { assets: All.into(), beneficiary: three }],
 			}
 		)]
 	);
@@ -287,8 +287,8 @@ fn transacting_should_refund_weight() {
 fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let one = X1(AccountIndex64 { index: 1, network: Any });
 	AllowPaidFrom::set(vec![one.clone()]);
-	add_asset(1, (X1(Parent), 100).into());
-	WeightPrice::set((X1(Parent).into(), 1_000_000_000_000));
+	add_asset(1, (Parent, 100).into());
+	WeightPrice::set((Parent.into(), 1_000_000_000_000));
 
 	let origin = one.clone();
 	let fees = (X1(Parent), 100).into();
@@ -307,7 +307,7 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 					call: TestCall::Any(60, Some(10)).encode().into(),
 				}],
 			},
-			Order::<TestCall>::DepositAsset { assets: All.into(), dest: one.clone() },
+			Order::<TestCall>::DepositAsset { assets: All.into(), beneficiary: one.clone() },
 		],
 	};
 	let weight_limit = 100;

@@ -143,19 +143,19 @@ pub enum Xcm<Call> {
 	/// created on this system.
 	///
 	/// Some orders are given (`effects`) which should be executed once the corresponding derivative assets have
-	/// been placed into `holding`.
+	/// been placed into the Holding Register.
 	///
-	/// - `assets`: The asset(s) that are minted into holding.
-	/// - `effects`: The order(s) to execute on the holding register.
+	/// - `assets`: The asset(s) that are minted into the Holding Register.
+	/// - `effects`: The order(s) to execute on the Holding Register.
 	///
-	/// Safety: `origin` must be trusted to have irrevocably destroyed the `assets` prior as a consequence of
-	/// sending this message.
+	/// Safety: `origin` must be trusted to have irrevocably destroyed the corresponding`assets` prior as a consequence
+	/// of sending this message.
 	///
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
 	#[codec(index = 2)]
-	TeleportAsset { assets: MultiAssets, effects: Vec<Order<Call>> },
+	ReceiveTeleportedAsset { assets: MultiAssets, effects: Vec<Order<Call>> },
 
 	/// Indication of the contents of the holding register corresponding to the `QueryHolding` order of `query_id`.
 	///
@@ -175,10 +175,10 @@ pub enum Xcm<Call> {
 	},
 
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
-	/// ownership of `dest` within this consensus system.
+	/// ownership of `beneficiary`.
 	///
 	/// - `assets`: The asset(s) to be withdrawn.
-	/// - `dest`: The new owner for the assets.
+	/// - `beneficiary`: The new owner for the assets.
 	///
 	/// Safety: No concerns.
 	///
@@ -186,15 +186,16 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 4)]
-	TransferAsset { assets: MultiAssets, dest: MultiLocation },
+	TransferAsset { assets: MultiAssets, beneficiary: MultiLocation },
 
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
-	/// ownership of `dest` within this consensus system.
+	/// ownership of `dest` within this consensus system (i.e. its sovereign account).
 	///
 	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the given `effects`.
 	///
 	/// - `assets`: The asset(s) to be withdrawn.
-	/// - `dest`: The new owner for the assets.
+	/// - `dest`: The location whose sovereign account will own the assets and thus the effective beneficiary for the
+	///   assets and the notification target for the reserve asset deposit message.
 	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposited` which is sent onwards to
 	///   `dest`.
 	///
@@ -303,10 +304,10 @@ impl<Call> Xcm<Call> {
 				assets,
 				effects: effects.into_iter().map(Order::into).collect(),
 			},
-			TeleportAsset { assets, effects } =>
-				TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
+			ReceiveTeleportedAsset { assets, effects } =>
+				ReceiveTeleportedAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
 			QueryResponse { query_id: u64, response } => QueryResponse { query_id: u64, response },
-			TransferAsset { assets, dest } => TransferAsset { assets, dest },
+			TransferAsset { assets, beneficiary } => TransferAsset { assets, beneficiary },
 			TransferReserveAsset { assets, dest, effects } =>
 				TransferReserveAsset { assets, dest, effects },
 			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>

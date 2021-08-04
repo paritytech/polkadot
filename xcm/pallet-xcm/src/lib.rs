@@ -165,7 +165,7 @@ pub mod pallet {
 							halt_on_error: false,
 							xcm: vec![],
 						},
-						DepositAsset { assets: Wild(All), dest: beneficiary },
+						DepositAsset { assets: Wild(All), beneficiary },
 					],
 				}],
 			};
@@ -222,7 +222,7 @@ pub mod pallet {
 						halt_on_error: false,
 						xcm: vec![],
 					},
-					DepositAsset { assets: Wild(All), dest: beneficiary },
+					DepositAsset { assets: Wild(All), beneficiary },
 				],
 			};
 			let weight =
@@ -269,7 +269,7 @@ pub mod pallet {
 			message: Xcm<()>,
 		) -> Result<(), XcmError> {
 			let message = match interior {
-				MultiLocation::Null => message,
+				MultiLocation::Here => message,
 				who => Xcm::<()>::RelayedFrom { who, message: Box::new(message) },
 			};
 			log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
@@ -346,7 +346,7 @@ where
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
-		O::from(Origin::Xcm(MultiLocation::Null))
+		O::from(Origin::Xcm(MultiLocation::Here))
 	}
 }
 

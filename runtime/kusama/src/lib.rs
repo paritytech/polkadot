@@ -1199,14 +1199,14 @@ impl auctions::Config for Runtime {
 
 parameter_types! {
 	/// The location of the KSM token, from the context of this chain. Since this token is native to this
-	/// chain, we make it synonymous with it and thus it is the `Null` location, which means "equivalent to
+	/// chain, we make it synonymous with it and thus it is the `Here` location, which means "equivalent to
 	/// the context".
-	pub const KsmLocation: MultiLocation = MultiLocation::Null;
+	pub const KsmLocation: MultiLocation = MultiLocation::Here;
 	/// The Kusama network ID. This is named.
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
 	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
 	/// Kusama is a top-level relay-chain, there is no ancestry.
-	pub const Ancestry: MultiLocation = MultiLocation::Null;
+	pub const Ancestry: MultiLocation = MultiLocation::Here;
 	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }

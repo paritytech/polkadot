@@ -152,7 +152,7 @@ pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 		// Children at 1000+id
 		X1(Parachain(id)) => 1000 + id as u64,
 		// Self at 3000
-		Null => 3000,
+		Here => 3000,
 		// Parent at 3001
 		X1(Parent) => 3001,
 		l => return Err(l),
@@ -251,7 +251,7 @@ parameter_types! {
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
-	pub static WeightPrice: (AssetId, u128) = (Null.into(), 1_000_000_000_000);
+	pub static WeightPrice: (AssetId, u128) = (Here.into(), 1_000_000_000_000);
 }
 
 pub type TestBarrier = (

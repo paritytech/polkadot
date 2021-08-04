@@ -112,7 +112,7 @@ mod tests {
 		);
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
-				Null,
+				Here,
 				X1(Parachain(1)),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -139,7 +139,7 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				Null,
+				Here,
 				X1(Parent),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -166,7 +166,7 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				Null,
+				Here,
 				X2(Parent, Parachain(2)),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -193,7 +193,7 @@ mod tests {
 				relay_chain::Origin::signed(ALICE),
 				X1(Parachain(1)),
 				X1(Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }),
-				(Null, 123).into(),
+				(Here, 123).into(),
 				123,
 			));
 		});

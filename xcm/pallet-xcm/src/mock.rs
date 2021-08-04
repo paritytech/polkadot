@@ -133,9 +133,9 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-	pub const RelayLocation: MultiLocation = MultiLocation::Null;
+	pub const RelayLocation: MultiLocation = MultiLocation::Here;
 	pub const AnyNetwork: NetworkId = NetworkId::Any;
-	pub Ancestry: MultiLocation = MultiLocation::Null;
+	pub Ancestry: MultiLocation = MultiLocation::Here;
 	pub UnitWeightCost: Weight = 1_000;
 }
 

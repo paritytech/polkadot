@@ -43,14 +43,14 @@ fn send_works() {
 			assets: (X1(Parent), SEND_AMOUNT).into(),
 			effects: vec![
 				buy_execution(weight),
-				DepositAsset { assets: Wild(All), dest: sender.clone() },
+				DepositAsset { assets: Wild(All), beneficiary: sender.clone() },
 			],
 		};
 		assert_ok!(XcmPallet::send(Origin::signed(ALICE), RelayLocation::get(), message.clone()));
 		assert_eq!(
 			sent_xcm(),
 			vec![(
-				MultiLocation::Null,
+				MultiLocation::Here,
 				RelayedFrom { who: sender.clone(), message: Box::new(message.clone()) }
 			)]
 		);
@@ -77,7 +77,7 @@ fn send_fails_when_xcm_router_blocks() {
 			assets: (Parent, SEND_AMOUNT).into(),
 			effects: vec![
 				buy_execution(weight),
-				DepositAsset { assets: Wild(All), dest: sender.clone() },
+				DepositAsset { assets: Wild(All), beneficiary: sender.clone() },
 			],
 		};
 		assert_noop!(
@@ -115,7 +115,7 @@ fn teleport_assets_works() {
 			Origin::signed(ALICE),
 			RelayLocation::get(),
 			X1(AccountId32 { network: Any, id: BOB.into() }),
-			(Null, SEND_AMOUNT).into(),
+			(Here, SEND_AMOUNT).into(),
 			weight,
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -143,7 +143,7 @@ fn reserve_transfer_assets_works() {
 			Origin::signed(ALICE),
 			Parachain(PARA_ID).into(),
 			dest.clone(),
-			(Null, SEND_AMOUNT).into(),
+			(Here, SEND_AMOUNT).into(),
 			weight
 		));
 		// Alice spent amount
@@ -157,7 +157,7 @@ fn reserve_transfer_assets_works() {
 				Parachain(PARA_ID).into(),
 				Xcm::ReserveAssetDeposited {
 					assets: (X1(Parent), SEND_AMOUNT).into(),
-					effects: vec![buy_execution(weight), DepositAsset { assets: Wild(All), dest },]
+					effects: vec![buy_execution(weight), DepositAsset { assets: Wild(All), beneficiary: dest },]
 				}
 			)]
 		);
@@ -184,8 +184,8 @@ fn execute_withdraw_to_deposit_works() {
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
 			Box::new(Xcm::WithdrawAsset {
-				assets: (Null, SEND_AMOUNT).into(),
-				effects: vec![buy_execution(weight), DepositAsset { assets: Wild(All), dest }],
+				assets: (Here, SEND_AMOUNT).into(),
+				effects: vec![buy_execution(weight), DepositAsset { assets: Wild(All), beneficiary: dest }],
 			}),
 			weight
 		));
