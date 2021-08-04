@@ -255,10 +255,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				};
 				return Config::HrmpExecutor::hrmp_close_channel(initiator, sender, recipient)
 			}
-			(origin, Xcm::RelayTo { dest: MultiLocation::X1(Junction::Parachain { id }), inner }) => {
-				let msg = Xcm::RelayedFrom { superorigin: origin, inner }.into();
-				return Config::XcmSender::send_xcm(Junction::Parachain { id }.into(), msg)
-			},
 			(origin, Xcm::QueryResponse { query_id, response }) => {
 				Config::ResponseHandler::on_response(origin, query_id, response);
 				None
