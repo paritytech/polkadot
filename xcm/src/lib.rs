@@ -29,6 +29,10 @@ use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
 pub mod v1;
 
+pub mod latest {
+	pub use super::v1::*;
+}
+
 mod double_encoded;
 pub use double_encoded::DoubleEncoded;
 
@@ -73,6 +77,10 @@ pub mod opaque {
 		pub use crate::v1::*;
 		// Then override with the opaque types in v0
 		pub use crate::v1::opaque::{Order, Xcm};
+	}
+
+	pub mod latest {
+		pub use super::v1::*;
 	}
 
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
