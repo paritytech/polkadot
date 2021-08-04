@@ -177,9 +177,7 @@ impl MultiLocation {
 
 	/// Returns the number of parents and junctions in `self`.
 	pub const fn len(&self) -> usize {
-		let len = self.parent_count() as usize + self.interior.len();
-		debug_assert!(len <= MAX_MULTILOCATION_LENGTH);
-		len
+		self.parent_count() as usize + self.interior.len()
 	}
 
 	/// Returns the first interior junction, or `None` if the location is empty or contains only
