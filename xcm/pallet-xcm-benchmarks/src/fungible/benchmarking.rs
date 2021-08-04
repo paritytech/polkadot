@@ -27,7 +27,10 @@ use frame_support::{
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
 use xcm::v0::{Junction, MultiLocation, Order, Xcm};
-use xcm_executor::{traits::TransactAsset, Assets};
+use xcm_executor::{
+	traits::{Convert, TransactAsset},
+	Assets,
+};
 
 // TODO: def. needs to be become a config, might also want to use bounded vec.
 const MAX_ASSETS: u32 = 25;
@@ -59,7 +62,8 @@ benchmarks_instance_pallet! {
 		// .. and the specific asset that we want to take out.
 		holding.saturating_subsume(asset.clone());
 		// our dest must have no balance initially.
-		let (dest_account, dest_location) = account_and_location::<T>(77);
+		let dest_location = T::ValidDestination::get();
+		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let order = Order::<XcmCallOf<T>>::DepositAsset {
@@ -83,7 +87,8 @@ benchmarks_instance_pallet! {
 		// .. and the specific asset that we want to take out.
 		holding.saturating_subsume(asset.clone());
 		// our dest must have no balance initially.
-		let (dest_account, dest_location) = account_and_location::<T>(77);
+		let dest_location = T::ValidDestination::get();
+		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
 		let effects = Vec::new(); // No effects to isolate the order
@@ -178,7 +183,8 @@ benchmarks_instance_pallet! {
 	xcm_teleport_asset {}: {} verify {}
 	xcm_transfer_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let (dest_account, dest_location) = account_and_location::<T>(2);
+		let dest_location = T::ValidDestination::get();
+		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
 
 		let asset = T::get_multi_asset();
 		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
@@ -194,7 +200,8 @@ benchmarks_instance_pallet! {
 
 	xcm_transfer_reserve_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let (dest_account, dest_location) = account_and_location::<T>(2);
+		let dest_location = T::ValidDestination::get();
+		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
 
 		let asset = T::get_multi_asset();
 		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
