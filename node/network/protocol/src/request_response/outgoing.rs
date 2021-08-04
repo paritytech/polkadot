@@ -20,11 +20,14 @@ use thiserror::Error;
 use parity_scale_codec::{Decode, Encode, Error as DecodingError};
 
 use sc_network as network;
-use sc_network::{PeerId};
+use sc_network::PeerId;
 
 use polkadot_primitives::v1::AuthorityDiscoveryId;
 
-use super::{Protocol};
+use super::{Protocol, request::IsRequest};
+
+/// Used by the network to send us a response to a request.
+pub type ResponseSender = oneshot::Sender<Result<Vec<u8>, network::RequestFailure>>;
 
 /// Any error that can occur when sending a request.
 #[derive(Debug, Error)]

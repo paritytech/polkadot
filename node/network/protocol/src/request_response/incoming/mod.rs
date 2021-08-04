@@ -25,19 +25,8 @@ use sc_network::{config as netconfig, PeerId};
 
 use crate::UnifiedReputationChange;
 
-
-
-/// Things that can go wrong when decoding an incoming request.
-#[derive(Debug, Error)]
-pub enum ReceiveError {
-	/// Decoding failed, we were able to change the peer's reputation accordingly.
-	#[error("Decoding request failed for peer {0}.")]
-	DecodingError(PeerId, #[source] DecodingError),
-
-	/// Decoding failed, but sending reputation change failed.
-	#[error("Decoding request failed for peer {0}, and changing reputation failed.")]
-	DecodingErrorNoReputationChange(PeerId, #[source] DecodingError),
-}
+mod error;
+pub use error::{Error, Fatal, NonFatal};
 
 /// A request coming in, including a sender for sending responses.
 ///
@@ -57,8 +46,14 @@ where
 	Req: IsRequest + Decode,
 	Req::Response: Encode,
 {
-	/// Create
-	pub fn get_config_receiver() -> (mpsc::Receiver<nSelf, RequestResponseConfig) {
+	/// Create configuration for `NetworkConfiguration::request_response_porotocols` and a
+	/// corresponding typed receiver.
+	///
+	/// This Register that config with substrate networking and receive incoming requests via the
+	/// returned `IncomingRequestReceiver`.
+	pub fn get_config_receiver() -> (IncomingRequestReceiver<Self>, RequestResponseConfig) {
+		let (raw_receiver, cfg) = Self::PROTOCOL.get_config();
+		(IncomingRequestReceiver { raw }, cfg)
 	}
 	/// Create new `IncomingRequest`.
 	pub fn new(
@@ -81,10 +76,10 @@ where
 	/// Params:
 	///		- The raw request to decode
 	///		- Reputation changes to apply for the peer in case decoding fails.
-	pub fn try_from_raw(
+	fn try_from_raw(
 		raw: sc_network::config::IncomingRequest,
 		reputation_changes: Vec<UnifiedReputationChange>,
-	) -> Result<Self, ReceiveError> {
+	) -> Result<Self, NonFatal> {
 		let sc_network::config::IncomingRequest { payload, peer, pending_response } = raw;
 		let payload = match Req::decode(&mut payload.as_ref()) {
 			Ok(payload) => payload,
@@ -98,9 +93,9 @@ where
 				};
 
 				if let Err(_) = pending_response.send(response) {
-					return Err(ReceiveError::DecodingErrorNoReputationChange(peer, err))
+					return Err(NonFatal::DecodingErrorNoReputationChange(peer, err))
 				}
-				return Err(ReceiveError::DecodingError(peer, err))
+				return Err(NonFatal::DecodingError(peer, err))
 			},
 		};
 		Ok(Self::new(peer, payload, pending_response))
@@ -192,3 +187,29 @@ pub struct OutgoingResponse<Response> {
 	pub sent_feedback: Option<oneshot::Sender<()>>,
 }
 
+/// Receiver for incoming requests.
+///
+/// Takes care of decoding and handling of invalid encoded requests.
+pub struct IncomingRequestReceiver<Req> {
+	raw: mpsc::Receiver<network::IncomingRequest>,
+	phantom: PhantomData<Req>,
+}
+
+impl<Req> IncomingRequestReceiver<Req>
+where
+	Req: IsRequest + Decode,
+{
+	/// Try to receive the next incoming request.
+	///
+	/// Any received request will be decoded, on decoding errors the provided reputation changes
+	/// will be applied and an error will be reported.
+	pub async fn recv(
+		&mut self,
+		reputation_changes: Vec<UnifiedReputationChange>,
+	) -> Result<Req> {
+		match self.raw.next().await {
+			None => Fatal::RequestChannelExhausted.into(),
+			Some(raw) => IncomingRequest<Req>::try_from_raw(raw, reputation_changes)?,
+		}
+	}
+}
