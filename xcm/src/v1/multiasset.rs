@@ -311,6 +311,27 @@ impl MultiAssets {
 		Ok(Self(r))
 	}
 
+	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted and
+	/// which contain no duplicates.
+	///
+	/// In release mode, this skips any checks to ensure that `r` is correct, making it a negligible-cost operation.
+	/// Generally though you should avoid using it unless you have a strict proof that `r` is valid.
+	#[cfg(test)]
+	pub fn from_sorted_and_deduplicated_skip_checks(r: Vec<MultiAsset>) -> Self {
+		Self::from_sorted_and_deduplicated(r).expect("Invalid input r is not sorted/deduped")
+	}
+	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted and
+	/// which contain no duplicates.
+	///
+	/// In release mode, this skips any checks to ensure that `r` is correct, making it a negligible-cost operation.
+	/// Generally though you should avoid using it unless you have a strict proof that `r` is valid.
+	///
+	/// In test mode, this checks anyway and panics on fail.
+	#[cfg(not(test))]
+	pub fn from_sorted_and_deduplicated_skip_checks(r: Vec<MultiAsset>) -> Self {
+		Self(r)
+	}
+
 	/// Add some asset onto the list. This is quite a laborious operation since it maintains the ordering.
 	pub fn push(&mut self, a: MultiAsset) {
 		if let Fungibility::Fungible(ref amount) = a.fun {
