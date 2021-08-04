@@ -260,30 +260,34 @@ impl SendXcm for Tuple {
 	}
 }
 
-pub trait ExecuteHrmp {
+
+/// These hooks expose HRMP channel management functionality to enable parachains
+/// to send messages that propose opening channels, accept opening channels, and
+/// close open channels.
+/// Parachains should configure the default `()` implementation which returns `Error::Undefined`. 
+/// Relay chains will use the implementation in the `hrmp` pallet.
+pub trait HrmpChannelManagementHooks<Call> {
 	fn hrmp_init_open_channel(
-		sender: u32,
 		recipient: u32,
 		max_message_size: u32,
 		max_capacity: u32,
-	) -> Result;
-	fn hrmp_accept_open_channel(recipient: u32, sender: u32) -> Result;
-	fn hrmp_close_channel(initiator: u32, sender: u32, recipient: u32) -> Result;
+	) -> result::Result<Call, Error>;
+	fn hrmp_accept_open_channel(sender: u32) -> result::Result<Call, Error>;
+	fn hrmp_close_channel(sender: u32, recipient: u32) -> result::Result<Call, Error>;
 }
 
-impl ExecuteHrmp for () {
+impl<C> HrmpChannelManagementHooks<C> for () {
 	fn hrmp_init_open_channel(
-		_sender: u32,
 		_recipient: u32,
 		_max_message_size: u32,
 		_max_capacity: u32,
-	) -> Result {
+	) -> result::Result<C, Error> {
 		Err(().into())
 	}
-	fn hrmp_accept_open_channel(_recipient: u32, _sender: u32) -> Result {
+	fn hrmp_accept_open_channel(_sender: u32) -> result::Result<C, Error> {
 		Err(().into())
 	}
-	fn hrmp_close_channel(_initiator: u32, _sender: u32, _recipient: u32) -> Result {
+	fn hrmp_close_channel(_sender: u32, _recipient: u32) -> result::Result<C, Error> {
 		Err(().into())
 	}
 }

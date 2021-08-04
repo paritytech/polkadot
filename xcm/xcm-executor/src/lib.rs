@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+#![feature(or_patterns)]
 
 use frame_support::{
 	dispatch::{Dispatchable, Weight},
@@ -24,7 +25,7 @@ use frame_support::{
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::v0::{
 	Error as XcmError, ExecuteXcm, MultiAsset, MultiLocation, Order, Outcome, Response, SendXcm,
-	Xcm,
+	Xcm, HrmpChannelManagementHooks,
 };
 
 pub mod traits;
@@ -234,31 +235,93 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// execution has taken.
 				None
 			},
-			(origin, Xcm::HrmpInitOpenChannel { recipient, max_message_size, max_capacity }) => {
-				let sender = match origin {
-					MultiLocation::X1(Junction::Parachain { id }) => id,
-					_ => Err(XcmError::BadOrigin)?,
-				};
-				return Config::HrmpExecutor::hrmp_init_open_channel(
-					sender,
+			(origin, Xcm::HrmpInitOpenChannel { origin_type, require_weight_at_most, recipient, max_message_size, max_capacity }) => {
+				let call = Config::HrmpChannelManager::hrmp_init_open_channel(
 					recipient,
 					max_message_size,
 					max_capacity,
-				)
+				)?;
+				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
+					.map_err(|_| XcmError::BadOrigin)?;
+				let weight = call.get_dispatch_info().weight;
+				ensure!(weight <= require_weight_at_most, XcmError::TooMuchWeightRequired);
+				let actual_weight = match call.dispatch(dispatch_origin) {
+					Ok(post_info) => post_info.actual_weight,
+					Err(error_and_info) => {
+						// Not much to do with the result as it is. It's up to the parachain to ensure that the
+						// message makes sense.
+						error_and_info.post_info.actual_weight
+					},
+				}
+				.unwrap_or(weight);
+				let surplus = weight.saturating_sub(actual_weight);
+				// Credit any surplus weight that we bought. This should be safe since it's work we
+				// didn't realise that we didn't have to do.
+				// It works because we assume that the `Config::Weigher` will always count the `call`'s
+				// `get_dispatch_info` weight into its `shallow` estimate.
+				*weight_credit = weight_credit.saturating_add(surplus);
+				// Do the same for the total surplus, which is reported to the caller and eventually makes its way
+				// back up the stack to be subtracted from the deep-weight.
+				total_surplus = total_surplus.saturating_add(surplus);
+				// Return the overestimated amount so we can adjust our expectations on how much this entire
+				// execution has taken.
+				None
 			},
-			(origin, Xcm::HrmpAcceptOpenChannel { sender }) => {
-				let recipient = match origin {
-					MultiLocation::X1(Junction::Parachain { id }) => id,
-					_ => Err(XcmError::BadOrigin)?,
-				};
-				return Config::HrmpExecutor::hrmp_accept_open_channel(recipient, sender)
+			(origin, Xcm::HrmpAcceptOpenChannel { origin_type, require_weight_at_most, sender }) => {
+				let call = Config::HrmpChannelManager::hrmp_accept_open_channel(sender)?;
+				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
+					.map_err(|_| XcmError::BadOrigin)?;
+				let weight = call.get_dispatch_info().weight;
+				ensure!(weight <= require_weight_at_most, XcmError::TooMuchWeightRequired);
+				let actual_weight = match call.dispatch(dispatch_origin) {
+					Ok(post_info) => post_info.actual_weight,
+					Err(error_and_info) => {
+						// Not much to do with the result as it is. It's up to the parachain to ensure that the
+						// message makes sense.
+						error_and_info.post_info.actual_weight
+					},
+				}
+				.unwrap_or(weight);
+				let surplus = weight.saturating_sub(actual_weight);
+				// Credit any surplus weight that we bought. This should be safe since it's work we
+				// didn't realise that we didn't have to do.
+				// It works because we assume that the `Config::Weigher` will always count the `call`'s
+				// `get_dispatch_info` weight into its `shallow` estimate.
+				*weight_credit = weight_credit.saturating_add(surplus);
+				// Do the same for the total surplus, which is reported to the caller and eventually makes its way
+				// back up the stack to be subtracted from the deep-weight.
+				total_surplus = total_surplus.saturating_add(surplus);
+				// Return the overestimated amount so we can adjust our expectations on how much this entire
+				// execution has taken.
+				None
 			},
-			(origin, Xcm::HrmpCloseChannel { sender, recipient }) => {
-				let initiator = match origin {
-					MultiLocation::X1(Junction::Parachain { id }) => id,
-					_ => Err(XcmError::BadOrigin)?,
-				};
-				return Config::HrmpExecutor::hrmp_close_channel(initiator, sender, recipient)
+			(origin, Xcm::HrmpCloseChannel { origin_type, require_weight_at_most, sender, recipient }) => {
+				let call = Config::HrmpChannelManager::hrmp_close_channel(sender, recipient)?;
+				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
+					.map_err(|_| XcmError::BadOrigin)?;
+				let weight = call.get_dispatch_info().weight;
+				ensure!(weight <= require_weight_at_most, XcmError::TooMuchWeightRequired);
+				let actual_weight = match call.dispatch(dispatch_origin) {
+					Ok(post_info) => post_info.actual_weight,
+					Err(error_and_info) => {
+						// Not much to do with the result as it is. It's up to the parachain to ensure that the
+						// message makes sense.
+						error_and_info.post_info.actual_weight
+					},
+				}
+				.unwrap_or(weight);
+				let surplus = weight.saturating_sub(actual_weight);
+				// Credit any surplus weight that we bought. This should be safe since it's work we
+				// didn't realise that we didn't have to do.
+				// It works because we assume that the `Config::Weigher` will always count the `call`'s
+				// `get_dispatch_info` weight into its `shallow` estimate.
+				*weight_credit = weight_credit.saturating_add(surplus);
+				// Do the same for the total surplus, which is reported to the caller and eventually makes its way
+				// back up the stack to be subtracted from the deep-weight.
+				total_surplus = total_surplus.saturating_add(surplus);
+				// Return the overestimated amount so we can adjust our expectations on how much this entire
+				// execution has taken.
+				None
 			},
 			(origin, Xcm::QueryResponse { query_id, response }) => {
 				Config::ResponseHandler::on_response(origin, query_id, response);
