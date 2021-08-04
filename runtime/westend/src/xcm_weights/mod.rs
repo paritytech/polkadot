@@ -62,10 +62,6 @@ impl XcmWeightInfo<()> for WestendXcmWeight {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::order_deposit_reserved_asset())
 	}
-	fn order_exchange_asset(give: &Vec<MultiAsset>, _receive: &Vec<MultiAsset>) -> Weight {
-		// TODO: Probably not right
-		give.weigh_multi_assets(XcmBalancesWeight::<Runtime>::order_exchange_asset())
-	}
 	fn order_initiate_reserve_withdraw(
 		assets: &Vec<MultiAsset>,
 		_reserve: &MultiLocation,
@@ -112,12 +108,12 @@ impl XcmWeightInfo<()> for WestendXcmWeight {
 	fn xcm_transfer_asset(assets: &Vec<MultiAsset>, _dest: &MultiLocation) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_transfer_asset())
 	}
-	fn xcm_transfer_reserved_asset(
+	fn xcm_transfer_reserve_asset(
 		assets: &Vec<MultiAsset>,
 		_dest: &MultiLocation,
 		_effects: &Vec<Order<()>>,
 	) -> Weight {
-		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_transfer_reserved_asset())
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_transfer_reserve_asset())
 	}
 	fn xcm_transact(
 		_origin_type: &OriginKind,

@@ -147,7 +147,7 @@ benchmarks! {
 			assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
 		}
 	}
-	xcm_transfer_reserved_asset {}: {} verify {}
+	xcm_transfer_reserve_asset {}: {} verify {}
 }
 
 impl_benchmark_test_suite!(

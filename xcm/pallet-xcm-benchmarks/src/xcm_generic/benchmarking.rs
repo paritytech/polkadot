@@ -47,7 +47,7 @@ benchmarks! {
 	xcm_reserve_asset_deposit {}: {} verify {}
 	xcm_teleport_asset {}: {} verify {}
 	xcm_transfer_asset {}: {} verify {}
-	xcm_transfer_reserved_asset {}: {} verify {}
+	xcm_transfer_reserve_asset {}: {} verify {}
 }
 
 impl_benchmark_test_suite!(

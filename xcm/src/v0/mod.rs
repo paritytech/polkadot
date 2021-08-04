@@ -340,7 +340,7 @@ impl<W: XcmWeightInfo<()>> GetWeight<W> for Xcm<()> {
 			Xcm::QueryResponse { query_id, response } => W::xcm_query_response(query_id, response),
 			Xcm::TransferAsset { assets, dest } => W::xcm_transfer_asset(assets, dest),
 			Xcm::TransferReserveAsset { assets, dest, effects } =>
-				W::xcm_transfer_reserved_asset(&assets, dest, effects),
+				W::xcm_transfer_reserve_asset(&assets, dest, effects),
 			Xcm::Transact { origin_type, require_weight_at_most, call } =>
 				W::xcm_transact(origin_type, require_weight_at_most, call),
 			Xcm::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>

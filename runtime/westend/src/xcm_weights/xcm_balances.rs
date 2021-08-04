@@ -29,7 +29,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	pub fn xcm_transfer_asset() -> Weight {
 		10
 	}
-	pub fn xcm_transfer_reserved_asset() -> Weight {
+	pub fn xcm_transfer_reserve_asset() -> Weight {
 		10
 	}
 }

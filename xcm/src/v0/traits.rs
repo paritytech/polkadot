@@ -299,7 +299,7 @@ pub trait XcmWeightInfo<Call> {
 	fn xcm_teleport_asset(assets: &Vec<MultiAsset>, effects: &Vec<Order<Call>>) -> Weight;
 	fn xcm_query_response(query_id: &u64, response: &Response) -> Weight;
 	fn xcm_transfer_asset(assets: &Vec<MultiAsset>, dest: &MultiLocation) -> Weight;
-	fn xcm_transfer_reserved_asset(
+	fn xcm_transfer_reserve_asset(
 		assets: &Vec<MultiAsset>,
 		dest: &MultiLocation,
 		effects: &Vec<Order<Call>>,

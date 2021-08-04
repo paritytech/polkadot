@@ -98,6 +98,7 @@ benchmarks_instance_pallet! {
 		// dest should have received some asset.
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero())
 	}
+
 	order_initiate_reserve_withdraw {
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
 		let asset = T::get_multi_asset();
@@ -118,6 +119,7 @@ benchmarks_instance_pallet! {
 	} verify {
 		// execute_order succeeding is enough to verify this completed.
 	}
+
 	order_initiate_teleport {
 		let (sender_account, origin) = account_and_location::<T>(1);
 		let asset = T::get_multi_asset();
@@ -145,8 +147,6 @@ benchmarks_instance_pallet! {
 			assert!(!T::TransactAsset::balance(&checked_account).is_zero());
 		}
 	}
-	order_query_holding {}: {} verify {}
-	order_buy_execution {}: {} verify {}
 
 	xcm_withdraw_asset {
 		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
@@ -175,7 +175,6 @@ benchmarks_instance_pallet! {
 		// check one of the assets of origin.
 		assert!(T::TransactAsset::balance(&account::<T>(1)).is_zero());
 	}
-	xcm_reserve_asset_deposit {}: {} verify {}
 	xcm_teleport_asset {}: {} verify {}
 	xcm_transfer_asset {
 		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
@@ -189,17 +188,26 @@ benchmarks_instance_pallet! {
 	}: {
 		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
 	} verify {
+		assert!(T::TransactAsset::balance(&account::<T>(1)).is_zero());
 		assert!(!T::TransactAsset::balance(&account::<T>(2)).is_zero());
 	}
 
-	xcm_transfer_reserved_asset {}: {} verify {}
+	xcm_transfer_reserve_asset {
+		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
+		let dest = account_id_junction::<T>(2).into();
 
-	// xcm_query_response {}: {} verify {}
-	// xcm_transact {}: {} verify {}
-	// xcm_hrmp_channel_open_request {}: {} verify {}
-	// xcm_hrmp_channel_accepted {}: {} verify {}
-	// xcm_hrmp_channel_closing {}: {} verify {}
-	// xcm_relayed_from {}: {} verify {}
+		let asset = T::get_multi_asset();
+		<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
+		let assets = vec![ asset ];
+		assert!(T::TransactAsset::balance(&account::<T>(2)).is_zero());
+		let effects = Vec::new(); // No effects to isolate the xcm
+		let xcm = Xcm::TransferReserveAsset { assets, dest, effects };
+	}: {
+		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+	} verify {
+		assert!(T::TransactAsset::balance(&account::<T>(1)).is_zero());
+		assert!(!T::TransactAsset::balance(&account::<T>(2)).is_zero());
+	}
 }
 
 // TODO: this macro cannot be called alone, fix it in substrate.
