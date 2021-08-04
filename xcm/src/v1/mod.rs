@@ -304,8 +304,10 @@ impl<Call> Xcm<Call> {
 				assets,
 				effects: effects.into_iter().map(Order::into).collect(),
 			},
-			ReceiveTeleportedAsset { assets, effects } =>
-				ReceiveTeleportedAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
+			ReceiveTeleportedAsset { assets, effects } => ReceiveTeleportedAsset {
+				assets,
+				effects: effects.into_iter().map(Order::into).collect(),
+			},
 			QueryResponse { query_id: u64, response } => QueryResponse { query_id: u64, response },
 			TransferAsset { assets, beneficiary } => TransferAsset { assets, beneficiary },
 			TransferReserveAsset { assets, dest, effects } =>

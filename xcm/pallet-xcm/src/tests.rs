@@ -157,7 +157,10 @@ fn reserve_transfer_assets_works() {
 				Parachain(PARA_ID).into(),
 				Xcm::ReserveAssetDeposited {
 					assets: (X1(Parent), SEND_AMOUNT).into(),
-					effects: vec![buy_execution(weight), DepositAsset { assets: Wild(All), beneficiary: dest },]
+					effects: vec![
+						buy_execution(weight),
+						DepositAsset { assets: Wild(All), beneficiary: dest },
+					]
 				}
 			)]
 		);
@@ -185,7 +188,10 @@ fn execute_withdraw_to_deposit_works() {
 			Origin::signed(ALICE),
 			Box::new(Xcm::WithdrawAsset {
 				assets: (Here, SEND_AMOUNT).into(),
-				effects: vec![buy_execution(weight), DepositAsset { assets: Wild(All), beneficiary: dest }],
+				effects: vec![
+					buy_execution(weight),
+					DepositAsset { assets: Wild(All), beneficiary: dest }
+				],
 			}),
 			weight
 		));
