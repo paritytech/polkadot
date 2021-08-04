@@ -113,7 +113,7 @@ const POV_RESPONSE_SIZE: u64 = MAX_POV_SIZE as u64 + 10_000;
 /// Maximum response sizes for `StatementFetching`.
 ///
 /// This is `MAX_CODE_SIZE` plus some additional space for protocol overhead.
-const STATEMENT_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 10_0000;
+const STATEMENT_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 10_000;
 
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
