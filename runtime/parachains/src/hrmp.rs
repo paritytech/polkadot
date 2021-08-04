@@ -31,7 +31,7 @@ use sp_std::{
 	fmt, mem,
 	prelude::*,
 };
-use xcm::v0::{Result as XcmResult, ExecuteHrmp};
+use xcm::v0::{ExecuteHrmp, Result as XcmResult};
 
 pub use pallet::*;
 
@@ -469,19 +469,24 @@ pub mod pallet {
 }
 
 impl<T: Config> ExecuteHrmp for Module<T> {
-	fn hrmp_init_open_channel(sender: u32, recipient: u32, max_message_size: u32, max_capacity: u32) -> XcmResult {
-		Self::init_open_channel(sender.into(), recipient.into(), max_capacity, max_message_size).map_err(|_| ().into())
+	fn hrmp_init_open_channel(
+		sender: u32,
+		recipient: u32,
+		max_message_size: u32,
+		max_capacity: u32,
+	) -> XcmResult {
+		Self::init_open_channel(sender.into(), recipient.into(), max_capacity, max_message_size)
+			.map_err(|_| ().into())
 	}
 	fn hrmp_accept_open_channel(recipient: u32, sender: u32) -> XcmResult {
 		Self::accept_open_channel(recipient.into(), sender.into()).map_err(|_| ().into())
 	}
 	fn hrmp_close_channel(initiator: u32, sender: u32, recipient: u32) -> XcmResult {
-		Self::close_channel(initiator.into(), 
-			HrmpChannelId { 
-				sender: sender.into(),
-				recipient: recipient.into(),
-			}
-		).map_err(|_| ().into())
+		Self::close_channel(
+			initiator.into(),
+			HrmpChannelId { sender: sender.into(), recipient: recipient.into() },
+		)
+		.map_err(|_| ().into())
 	}
 }
 

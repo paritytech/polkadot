@@ -275,9 +275,12 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	HrmpInitOpenChannel {
-		#[codec(compact)] recipient: u32,
-		#[codec(compact)] max_message_size: u32,
-		#[codec(compact)] max_capacity: u32,
+		#[codec(compact)]
+		recipient: u32,
+		#[codec(compact)]
+		max_message_size: u32,
+		#[codec(compact)]
+		max_capacity: u32,
 	},
 
 	/// A message to accept opening a channel on the relay-chain.
@@ -290,7 +293,8 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	HrmpAcceptOpenChannel {
-		#[codec(compact)] sender: u32,
+		#[codec(compact)]
+		sender: u32,
 	},
 
 	/// A message to close a channel on the relay-chain.
@@ -305,8 +309,10 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	HrmpCloseChannel {
-		#[codec(compact)] sender: u32,
-		#[codec(compact)] recipient: u32,
+		#[codec(compact)]
+		sender: u32,
+		#[codec(compact)]
+		recipient: u32,
 	},
 	/// A message to indicate that the embedded XCM is actually arriving on behalf of some consensus
 	/// location within the origin.

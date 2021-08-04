@@ -22,7 +22,7 @@ use frame_support::{
 	dispatch::{Dispatchable, Parameter},
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
-use xcm::v0::{SendXcm, ExecuteHrmp};
+use xcm::v0::{ExecuteHrmp, SendXcm};
 
 /// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
@@ -36,7 +36,7 @@ pub trait Config {
 	type AssetTransactor: TransactAsset;
 
 	/// How to execute HRMP-related actions
-	type HrmpExecutor: ExecuteHrmp; 
+	type HrmpExecutor: ExecuteHrmp;
 
 	/// How to get a call origin from a `OriginKind` value.
 	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
