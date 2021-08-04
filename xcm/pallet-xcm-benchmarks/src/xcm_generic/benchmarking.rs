@@ -36,6 +36,13 @@ const HOLDING_NON_FUNGIBLES: u32 = 99;
 
 benchmarks! {
 	send_xcm {}: {}
+	order_null {
+		let order = Order::<XcmCallOf<T>>::Null;
+		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let holding = Assets::default();
+	}: {
+		assert_ok!(execute_order::<T>(origin, holding, order));
+	}
 	xcm_withdraw_asset {}: {} verify {}
 	xcm_reserve_asset_deposit {}: {} verify {}
 	xcm_teleport_asset {}: {} verify {}

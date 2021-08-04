@@ -120,6 +120,13 @@ fn account_id_junction<T: frame_system::Config>(index: u32) -> Junction {
 	Junction::AccountId32 { network: NetworkId::Any, id }
 }
 
+pub fn account_and_location<T: frame_system::Config>(index: u32) -> (T::AccountId, MultiLocation) {
+	let account = account::<T>(index);
+	let location = MultiLocation::X1(account_id_junction::<T>(index));
+
+	(account, location)
+}
+
 /// Helper struct that converts a `Fungible` to `Fungibles`
 ///
 /// TODO: might not be needed anymore.
