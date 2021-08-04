@@ -326,6 +326,33 @@ publish-adder-collator-image:
       # this artifact is used in trigger-simnet job
       dotenv: ./artifacts/collator.env
 
+.update_weights:                   &update-weights
+  stage:                           build
+  when:                            manual
+  tags:
+    - weights
+  variables:
+    RUNTIME:                       polkadot
+  artifacts:
+    paths:
+      - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  script: |
+    ./scripts/run_benches_for_runtime.sh $RUNTIME
+    git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+
+update_polkadot_weights:
+  <<:                              *update-weights
+
+update_kusama_weights:
+  <<:                              *update-weights
+  variables:
+    RUNTIME:                       kusama
+
+update_westend_weights:
+  <<:                              *update-weights
+  variables:
+    RUNTIME:                       westend
+
 #### stage:                        publish
 
 publish-s3-release:                &publish-s3
