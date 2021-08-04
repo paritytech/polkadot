@@ -125,6 +125,7 @@ impl Config for XcmConfig {
 	type Call = Call;
 	type XcmSender = XcmRouter;
 	type AssetTransactor = LocalAssetTransactor;
+	type HrmpChannelManager = ();
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = ();

@@ -269,6 +269,7 @@ impl Config for TestConfig {
 	type Call = TestCall;
 	type XcmSender = TestSendXcm;
 	type AssetTransactor = TestAssetTransactor;
+	type HrmpChannelManager = ();
 	type OriginConverter = TestOriginConverter;
 	type IsReserve = TestIsReserve;
 	type IsTeleporter = TestIsTeleporter;
