@@ -11,7 +11,8 @@ echo "[+] Running all benchmarks for $runtime"
 
 # shellcheck disable=SC2086
 cargo +nightly run $standard_args benchmark \
-  --chain "${runtime}-dev" --list |\
+    --chain "${runtime}-dev" \
+    --list |\
   tail -n+2 |\
   cut -d',' -f1 |\
   uniq | \
