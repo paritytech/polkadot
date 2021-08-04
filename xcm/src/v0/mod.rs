@@ -31,7 +31,7 @@ pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use multi_asset::{AssetInstance, MultiAsset};
 pub use multi_location::MultiLocation;
 pub use order::Order;
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm, HrmpChannelManagementHooks};
+pub use traits::{Error, ExecuteXcm, HrmpChannelManagementHooks, Outcome, Result, SendXcm};
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
@@ -372,10 +372,23 @@ impl<Call> Xcm<Call> {
 			HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
 			HrmpChannelClosing { initiator, sender, recipient } =>
 				HrmpChannelClosing { initiator, sender, recipient },
-			HrmpInitOpenChannel { origin_type, require_weight_at_most, recipient, max_message_size, max_capacity } =>
-				HrmpInitOpenChannel { origin_type, require_weight_at_most, recipient, max_message_size, max_capacity },
-			HrmpAcceptOpenChannel { origin_type, require_weight_at_most, sender } => HrmpAcceptOpenChannel { origin_type, require_weight_at_most, sender },
-			HrmpCloseChannel { origin_type, require_weight_at_most, sender, recipient } => HrmpCloseChannel { origin_type, require_weight_at_most, sender, recipient },
+			HrmpInitOpenChannel {
+				origin_type,
+				require_weight_at_most,
+				recipient,
+				max_message_size,
+				max_capacity,
+			} => HrmpInitOpenChannel {
+				origin_type,
+				require_weight_at_most,
+				recipient,
+				max_message_size,
+				max_capacity,
+			},
+			HrmpAcceptOpenChannel { origin_type, require_weight_at_most, sender } =>
+				HrmpAcceptOpenChannel { origin_type, require_weight_at_most, sender },
+			HrmpCloseChannel { origin_type, require_weight_at_most, sender, recipient } =>
+				HrmpCloseChannel { origin_type, require_weight_at_most, sender, recipient },
 			Transact { origin_type, require_weight_at_most, call } =>
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			RelayedFrom { who, message } =>

@@ -260,11 +260,10 @@ impl SendXcm for Tuple {
 	}
 }
 
-
 /// These hooks expose HRMP channel management functionality to enable parachains
 /// to send messages that propose opening channels, accept opening channels, and
 /// close open channels.
-/// Parachains should configure the default `()` implementation which returns `Error::Undefined`. 
+/// Parachains should configure the default `()` implementation which returns `Error::Undefined`.
 /// Relay chains will use the implementation in the `hrmp` pallet.
 pub trait HrmpChannelManagementHooks<Call> {
 	fn hrmp_init_open_channel(

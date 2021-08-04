@@ -23,8 +23,8 @@ use frame_support::{
 };
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::v0::{
-	Error as XcmError, ExecuteXcm, MultiAsset, MultiLocation, Order, Outcome, Response, SendXcm,
-	Xcm, HrmpChannelManagementHooks,
+	Error as XcmError, ExecuteXcm, HrmpChannelManagementHooks, MultiAsset, MultiLocation, Order,
+	Outcome, Response, SendXcm, Xcm,
 };
 
 pub mod traits;
@@ -234,7 +234,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// execution has taken.
 				None
 			},
-			(origin, Xcm::HrmpInitOpenChannel { origin_type, require_weight_at_most, recipient, max_message_size, max_capacity }) => {
+			(
+				origin,
+				Xcm::HrmpInitOpenChannel {
+					origin_type,
+					require_weight_at_most,
+					recipient,
+					max_message_size,
+					max_capacity,
+				},
+			) => {
 				let call = Config::HrmpChannelManager::hrmp_init_open_channel(
 					recipient,
 					max_message_size,
@@ -266,7 +275,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// execution has taken.
 				None
 			},
-			(origin, Xcm::HrmpAcceptOpenChannel { origin_type, require_weight_at_most, sender }) => {
+			(
+				origin,
+				Xcm::HrmpAcceptOpenChannel { origin_type, require_weight_at_most, sender },
+			) => {
 				let call = Config::HrmpChannelManager::hrmp_accept_open_channel(sender)?;
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
 					.map_err(|_| XcmError::BadOrigin)?;
@@ -294,7 +306,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// execution has taken.
 				None
 			},
-			(origin, Xcm::HrmpCloseChannel { origin_type, require_weight_at_most, sender, recipient }) => {
+			(
+				origin,
+				Xcm::HrmpCloseChannel { origin_type, require_weight_at_most, sender, recipient },
+			) => {
 				let call = Config::HrmpChannelManager::hrmp_close_channel(sender, recipient)?;
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
 					.map_err(|_| XcmError::BadOrigin)?;
