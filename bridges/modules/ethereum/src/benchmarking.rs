@@ -236,35 +236,35 @@ mod tests {
 	#[test]
 	fn insert_unsigned_header_best_case() {
 		run_test(1, |_| {
-			assert_ok!(test_benchmark_import_unsigned_header_best_case::<TestRuntime>());
+			assert_ok!(Pallet::<TestRuntime>::test_benchmark_import_unsigned_header_best_case());
 		});
 	}
 
 	#[test]
 	fn insert_unsigned_header_finality() {
 		run_test(1, |_| {
-			assert_ok!(test_benchmark_import_unsigned_finality::<TestRuntime>());
+			assert_ok!(Pallet::<TestRuntime>::test_benchmark_import_unsigned_finality());
 		});
 	}
 
 	#[test]
 	fn insert_unsigned_header_finality_with_cache() {
 		run_test(1, |_| {
-			assert_ok!(test_benchmark_import_unsigned_finality_with_cache::<TestRuntime>());
+			assert_ok!(Pallet::<TestRuntime>::test_benchmark_import_unsigned_finality_with_cache());
 		});
 	}
 
 	#[test]
 	fn insert_unsigned_header_pruning() {
 		run_test(1, |_| {
-			assert_ok!(test_benchmark_import_unsigned_pruning::<TestRuntime>());
+			assert_ok!(Pallet::<TestRuntime>::test_benchmark_import_unsigned_pruning());
 		});
 	}
 
 	#[test]
 	fn insert_unsigned_header_receipts() {
 		run_test(1, |_| {
-			assert_ok!(test_benchmark_import_unsigned_with_receipts::<TestRuntime>());
+			assert_ok!(Pallet::<TestRuntime>::test_benchmark_import_unsigned_with_receipts());
 		});
 	}
 }
