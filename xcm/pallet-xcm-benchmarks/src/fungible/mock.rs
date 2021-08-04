@@ -16,8 +16,7 @@
 
 //! A mock runtime for xcm benchmarking.
 
-use crate::fungible as xcm_balances_benchmark;
-use crate::mock::*;
+use crate::{fungible as xcm_balances_benchmark, mock::*};
 use frame_support::parameter_types;
 use sp_core::H256;
 use sp_runtime::{
@@ -143,6 +142,7 @@ impl crate::Config for Test {
 
 impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
+	type CheckedAccount = CheckedAccount;
 	fn get_multi_asset() -> MultiAsset {
 		let amount =
 			<Balances as frame_support::traits::fungible::Inspect<u64>>::minimum_balance() as u128;

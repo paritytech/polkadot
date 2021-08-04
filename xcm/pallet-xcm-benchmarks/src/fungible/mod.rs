@@ -8,6 +8,7 @@ use xcm::v0::MultiAsset;
 // TODO: make this instanciable.
 #[frame_support::pallet]
 pub mod pallet {
+	use frame_support::pallet_prelude::Get;
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
@@ -15,6 +16,9 @@ pub mod pallet {
 		///
 		/// This is useful for testing and checking.
 		type TransactAsset: frame_support::traits::fungible::Mutate<Self::AccountId>;
+
+		/// temp?
+		type CheckedAccount: Get<Option<Self::AccountId>>;
 
 		/// Give me a fungible asset that your asset transactor is going to accept.
 		fn get_multi_asset() -> xcm::v0::MultiAsset;

@@ -21,7 +21,9 @@ use crate::{
 };
 use codec::Encode;
 use frame_benchmarking::{benchmarks_instance_pallet, impl_benchmark_test_suite};
-use frame_support::{assert_ok, instances::Instance1, traits::fungible::Inspect};
+use frame_support::{
+	assert_ok, instances::Instance1, pallet_prelude::Get, traits::fungible::Inspect,
+};
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
 use xcm::v0::{Junction, MultiLocation, Order, Xcm};
@@ -126,16 +128,22 @@ benchmarks_instance_pallet! {
 		holding.saturating_subsume(asset.clone());
 
 		let effects = Vec::new(); // No effects to isolate the order
-		let order = Order::<XcmCallOf<T>>::DepositReserveAsset {
+		let order = Order::<XcmCallOf<T>>::InitiateTeleport {
 			assets: vec![asset.clone()],
 			dest: MultiLocation::X1(account_id_junction::<T>(77)), // TODO FIX, maybe needs a config trait
 			effects,
 		};
+		if let Some(checked_account) = T::CheckedAccount::get() {
+			// Checked account starts at zero
+			assert!(T::TransactAsset::balance(&checked_account).is_zero());
+		}
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	} verify {
-		// sender should have received some asset.
-		assert!(!T::TransactAsset::balance(&sender_account).is_zero())
+		if let Some(checked_account) = T::CheckedAccount::get() {
+			// teleport checked account should have received some asset.
+			assert!(!T::TransactAsset::balance(&checked_account).is_zero());
+		}
 	}
 	order_query_holding {}: {} verify {}
 	order_buy_execution {}: {} verify {}

@@ -100,27 +100,27 @@ where
 			Xcm::RelayedFrom { ref mut message, .. } => {
 				let relay_message_weight = Self::shallow(message.as_mut())?;
 				message.weight().saturating_add(relay_message_weight)
-			}
+			},
 			// These XCM
-			Xcm::WithdrawAsset { effects, .. }
-			| Xcm::ReserveAssetDeposit { effects, .. }
-			| Xcm::TeleportAsset { effects, .. } => {
+			Xcm::WithdrawAsset { effects, .. } |
+			Xcm::ReserveAssetDeposit { effects, .. } |
+			Xcm::TeleportAsset { effects, .. } => {
 				let inner: Weight = effects.iter_mut().map(|effect| effect.weight()).sum();
 				message.weight().saturating_add(inner)
-			}
+			},
 			// The shallow weight of `Transact` is the full weight of the message, thus there is no
 			// deeper weight.
 			Xcm::Transact { call, .. } => {
 				let call_weight = call.ensure_decoded()?.get_dispatch_info().weight;
 				message.weight().saturating_add(call_weight)
-			}
+			},
 			// These
-			Xcm::QueryResponse { .. }
-			| Xcm::TransferAsset { .. }
-			| Xcm::TransferReserveAsset { .. }
-			| Xcm::HrmpNewChannelOpenRequest { .. }
-			| Xcm::HrmpChannelAccepted { .. }
-			| Xcm::HrmpChannelClosing { .. } => message.weight(),
+			Xcm::QueryResponse { .. } |
+			Xcm::TransferAsset { .. } |
+			Xcm::TransferReserveAsset { .. } |
+			Xcm::HrmpNewChannelOpenRequest { .. } |
+			Xcm::HrmpChannelAccepted { .. } |
+			Xcm::HrmpChannelClosing { .. } => message.weight(),
 		};
 
 		Ok(weight)
@@ -131,34 +131,33 @@ where
 			// `RelayFrom` needs to account for the deep weight of the internal message.
 			Xcm::RelayedFrom { ref mut message, .. } => Self::deep(message.as_mut())?,
 			// These XCM have internal effects which are not accounted for in the `shallow` weight.
-			Xcm::WithdrawAsset { effects, .. }
-			| Xcm::ReserveAssetDeposit { effects, .. }
-			| Xcm::TeleportAsset { effects, .. } => {
+			Xcm::WithdrawAsset { effects, .. } |
+			Xcm::ReserveAssetDeposit { effects, .. } |
+			Xcm::TeleportAsset { effects, .. } => {
 				let mut extra: Weight = 0;
 				for effect in effects.iter_mut() {
 					match effect {
-						Order::BuyExecution { xcm, .. } => {
+						Order::BuyExecution { xcm, .. } =>
 							for message in xcm.iter_mut() {
 								extra.saturating_accrue({
 									let shallow = Self::shallow(message)?;
 									let deep = Self::deep(message)?;
 									shallow.saturating_add(deep)
 								});
-							}
-						}
-						_ => {}
+							},
+						_ => {},
 					}
 				}
 				extra
-			}
+			},
 			// These XCM do not have any deeper weight.
-			Xcm::Transact { .. }
-			| Xcm::QueryResponse { .. }
-			| Xcm::TransferAsset { .. }
-			| Xcm::TransferReserveAsset { .. }
-			| Xcm::HrmpNewChannelOpenRequest { .. }
-			| Xcm::HrmpChannelAccepted { .. }
-			| Xcm::HrmpChannelClosing { .. } => 0,
+			Xcm::Transact { .. } |
+			Xcm::QueryResponse { .. } |
+			Xcm::TransferAsset { .. } |
+			Xcm::TransferReserveAsset { .. } |
+			Xcm::HrmpNewChannelOpenRequest { .. } |
+			Xcm::HrmpChannelAccepted { .. } |
+			Xcm::HrmpChannelClosing { .. } => 0,
 		};
 
 		Ok(weight)

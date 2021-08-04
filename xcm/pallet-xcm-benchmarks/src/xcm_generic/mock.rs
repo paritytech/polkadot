@@ -16,10 +16,11 @@
 
 //! A mock runtime for xcm benchmarking.
 
-use crate::xcm_generic as xcm_generic_benchmarks;
-use crate::{mock::*, *};
-use frame_support::traits::fungibles::Inspect;
-use frame_support::{parameter_types, traits::Contains};
+use crate::{mock::*, xcm_generic as xcm_generic_benchmarks, *};
+use frame_support::{
+	parameter_types,
+	traits::{fungibles::Inspect, Contains},
+};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,

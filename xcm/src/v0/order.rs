@@ -137,21 +137,18 @@ impl<Call> Order<Call> {
 		match order {
 			Null => Null,
 			DepositAsset { assets, dest } => DepositAsset { assets, dest },
-			DepositReserveAsset { assets, dest, effects } => {
-				DepositReserveAsset { assets, dest, effects }
-			}
+			DepositReserveAsset { assets, dest, effects } =>
+				DepositReserveAsset { assets, dest, effects },
 			ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
-			InitiateReserveWithdraw { assets, reserve, effects } => {
-				InitiateReserveWithdraw { assets, reserve, effects }
-			}
-			InitiateTeleport { assets, dest, effects } => {
-				InitiateTeleport { assets, dest, effects }
-			}
+			InitiateReserveWithdraw { assets, reserve, effects } =>
+				InitiateReserveWithdraw { assets, reserve, effects },
+			InitiateTeleport { assets, dest, effects } =>
+				InitiateTeleport { assets, dest, effects },
 			QueryHolding { query_id, dest, assets } => QueryHolding { query_id, dest, assets },
 			BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				let xcm = xcm.into_iter().map(Xcm::from).collect();
 				BuyExecution { fees, weight, debt, halt_on_error, xcm }
-			}
+			},
 		}
 	}
 }
@@ -161,22 +158,17 @@ impl<W: XcmWeightInfo<()>> GetWeight<W> for Order<()> {
 		match self {
 			Order::Null => W::order_null(),
 			Order::DepositAsset { assets, dest } => W::order_deposit_asset(assets, dest),
-			Order::DepositReserveAsset { assets, dest, effects } => {
-				W::order_deposit_reserved_asset(assets, dest, effects)
-			}
+			Order::DepositReserveAsset { assets, dest, effects } =>
+				W::order_deposit_reserved_asset(assets, dest, effects),
 			Order::ExchangeAsset { give, receive } => W::order_exchange_asset(give, receive),
-			Order::InitiateReserveWithdraw { assets, reserve, effects } => {
-				W::order_initiate_reserve_withdraw(assets, reserve, effects)
-			}
-			Order::InitiateTeleport { assets, dest, effects } => {
-				W::order_initiate_teleport(assets, dest, effects)
-			}
-			Order::QueryHolding { query_id, dest, assets } => {
-				W::order_query_holding(query_id, dest, assets)
-			}
-			Order::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
-				W::order_buy_execution(fees, weight, debt, halt_on_error, xcm)
-			}
+			Order::InitiateReserveWithdraw { assets, reserve, effects } =>
+				W::order_initiate_reserve_withdraw(assets, reserve, effects),
+			Order::InitiateTeleport { assets, dest, effects } =>
+				W::order_initiate_teleport(assets, dest, effects),
+			Order::QueryHolding { query_id, dest, assets } =>
+				W::order_query_holding(query_id, dest, assets),
+			Order::BuyExecution { fees, weight, debt, halt_on_error, xcm } =>
+				W::order_buy_execution(fees, weight, debt, halt_on_error, xcm),
 		}
 	}
 }

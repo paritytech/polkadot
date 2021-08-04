@@ -97,7 +97,7 @@ pub fn execute(
 	assert_eq!(parent_hash, parent_head.hash());
 
 	if hash_state(block_data.state) != parent_head.post_state {
-		return Err(StateMismatch);
+		return Err(StateMismatch)
 	}
 
 	let new_state = block_data.state.wrapping_add(block_data.add);

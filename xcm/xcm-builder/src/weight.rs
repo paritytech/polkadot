@@ -31,15 +31,13 @@ pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
 	fn shallow(message: &mut Xcm<C>) -> Result<Weight, ()> {
 		Ok(match message {
-			Xcm::Transact { call, .. } => {
-				call.ensure_decoded()?.get_dispatch_info().weight.saturating_add(T::get())
-			}
-			Xcm::RelayedFrom { ref mut message, .. } => {
-				T::get().saturating_add(Self::shallow(message.as_mut())?)
-			}
-			Xcm::WithdrawAsset { effects, .. }
-			| Xcm::ReserveAssetDeposit { effects, .. }
-			| Xcm::TeleportAsset { effects, .. } => {
+			Xcm::Transact { call, .. } =>
+				call.ensure_decoded()?.get_dispatch_info().weight.saturating_add(T::get()),
+			Xcm::RelayedFrom { ref mut message, .. } =>
+				T::get().saturating_add(Self::shallow(message.as_mut())?),
+			Xcm::WithdrawAsset { effects, .. } |
+			Xcm::ReserveAssetDeposit { effects, .. } |
+			Xcm::TeleportAsset { effects, .. } => {
 				let inner: Weight = effects
 					.iter_mut()
 					.map(|effect| match effect {
@@ -50,36 +48,35 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 							// be definitely consumed from any existing weight credit if execution of the message
 							// is attempted.
 							T::get()
-						}
+						},
 						_ => T::get(),
 					})
 					.sum();
 				T::get().saturating_add(inner)
-			}
+			},
 			_ => T::get(),
 		})
 	}
 	fn deep(message: &mut Xcm<C>) -> Result<Weight, ()> {
 		Ok(match message {
 			Xcm::RelayedFrom { ref mut message, .. } => Self::deep(message.as_mut())?,
-			Xcm::WithdrawAsset { effects, .. }
-			| Xcm::ReserveAssetDeposit { effects, .. }
-			| Xcm::TeleportAsset { effects, .. } => {
+			Xcm::WithdrawAsset { effects, .. } |
+			Xcm::ReserveAssetDeposit { effects, .. } |
+			Xcm::TeleportAsset { effects, .. } => {
 				let mut extra = 0;
 				for effect in effects.iter_mut() {
 					match effect {
-						Order::BuyExecution { xcm, .. } => {
+						Order::BuyExecution { xcm, .. } =>
 							for message in xcm.iter_mut() {
 								extra.saturating_accrue(
 									Self::shallow(message)?.saturating_add(Self::deep(message)?),
 								);
-							}
-						}
-						_ => {}
+							},
+						_ => {},
 					}
 				}
 				extra
-			}
+			},
 			_ => 0,
 		})
 	}

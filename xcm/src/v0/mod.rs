@@ -297,34 +297,27 @@ impl<Call> Xcm<Call> {
 	pub fn from<C>(xcm: Xcm<C>) -> Self {
 		use Xcm::*;
 		match xcm {
-			WithdrawAsset { assets, effects } => {
-				WithdrawAsset { assets, effects: effects.into_iter().map(Order::into).collect() }
-			}
+			WithdrawAsset { assets, effects } =>
+				WithdrawAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
 			ReserveAssetDeposit { assets, effects } => ReserveAssetDeposit {
 				assets,
 				effects: effects.into_iter().map(Order::into).collect(),
 			},
-			TeleportAsset { assets, effects } => {
-				TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() }
-			}
+			TeleportAsset { assets, effects } =>
+				TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
 			QueryResponse { query_id: u64, response } => QueryResponse { query_id: u64, response },
 			TransferAsset { assets, dest } => TransferAsset { assets, dest },
-			TransferReserveAsset { assets, dest, effects } => {
-				TransferReserveAsset { assets, dest, effects }
-			}
-			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } => {
-				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity }
-			}
+			TransferReserveAsset { assets, dest, effects } =>
+				TransferReserveAsset { assets, dest, effects },
+			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
 			HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
-			HrmpChannelClosing { initiator, sender, recipient } => {
-				HrmpChannelClosing { initiator, sender, recipient }
-			}
-			Transact { origin_type, require_weight_at_most, call } => {
-				Transact { origin_type, require_weight_at_most, call: call.into() }
-			}
-			RelayedFrom { who, message } => {
-				RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) }
-			}
+			HrmpChannelClosing { initiator, sender, recipient } =>
+				HrmpChannelClosing { initiator, sender, recipient },
+			Transact { origin_type, require_weight_at_most, call } =>
+				Transact { origin_type, require_weight_at_most, call: call.into() },
+			RelayedFrom { who, message } =>
+				RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
 		}
 	}
 	// TODO: is this needed?
@@ -341,25 +334,20 @@ impl<W: XcmWeightInfo<()>> GetWeight<W> for Xcm<()> {
 	fn weight(&self) -> Weight {
 		match self {
 			Xcm::WithdrawAsset { assets, effects } => W::xcm_withdraw_asset(assets, effects),
-			Xcm::ReserveAssetDeposit { assets, effects } => {
-				W::xcm_reserve_asset_deposit(assets, effects)
-			}
+			Xcm::ReserveAssetDeposit { assets, effects } =>
+				W::xcm_reserve_asset_deposit(assets, effects),
 			Xcm::TeleportAsset { assets, effects } => W::xcm_teleport_asset(assets, effects),
 			Xcm::QueryResponse { query_id, response } => W::xcm_query_response(query_id, response),
 			Xcm::TransferAsset { assets, dest } => W::xcm_transfer_asset(assets, dest),
-			Xcm::TransferReserveAsset { assets, dest, effects } => {
-				W::xcm_transfer_reserved_asset(&assets, dest, effects)
-			}
-			Xcm::Transact { origin_type, require_weight_at_most, call } => {
-				W::xcm_transact(origin_type, require_weight_at_most, call)
-			}
-			Xcm::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } => {
-				W::xcm_hrmp_channel_open_request(sender, max_message_size, max_capacity)
-			}
+			Xcm::TransferReserveAsset { assets, dest, effects } =>
+				W::xcm_transfer_reserved_asset(&assets, dest, effects),
+			Xcm::Transact { origin_type, require_weight_at_most, call } =>
+				W::xcm_transact(origin_type, require_weight_at_most, call),
+			Xcm::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				W::xcm_hrmp_channel_open_request(sender, max_message_size, max_capacity),
 			Xcm::HrmpChannelAccepted { recipient } => W::xcm_hrmp_channel_accepted(recipient),
-			Xcm::HrmpChannelClosing { initiator, sender, recipient } => {
-				W::xcm_hrmp_channel_closing(initiator, sender, recipient)
-			}
+			Xcm::HrmpChannelClosing { initiator, sender, recipient } =>
+				W::xcm_hrmp_channel_closing(initiator, sender, recipient),
 			Xcm::RelayedFrom { who, message } => W::xcm_relayed_from(who, message),
 		}
 	}

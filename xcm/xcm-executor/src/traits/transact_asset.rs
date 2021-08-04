@@ -100,7 +100,7 @@ pub trait TransactAsset {
 				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
 				Self::deposit_asset(asset, to)?;
 				Ok(assets)
-			}
+			},
 			result => result,
 		}
 	}
