@@ -34,10 +34,7 @@ use polkadot_overseer::gen::{OverseerError, Subsystem};
 use polkadot_primitives::v1::{BlockNumber, Hash};
 use polkadot_subsystem::{
 	errors::{SubsystemError, SubsystemResult},
-	messages::{
-		CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage,
-		AllMessages,
-	},
+	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeEvent, NetworkBridgeMessage},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemSender,
 };
@@ -845,12 +842,8 @@ where
 {
 	let shared = Shared::default();
 
-	let NetworkBridge {
-		network_service,
-		authority_discovery_service,
-		metrics,
-		sync_oracle,
-	} = bridge;
+	let NetworkBridge { network_service, authority_discovery_service, metrics, sync_oracle } =
+		bridge;
 
 	let (remote, network_event_handler) = handle_network_messages(
 		ctx.sender().clone(),

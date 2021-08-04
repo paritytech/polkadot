@@ -99,54 +99,6 @@ pub enum Recipient {
 	Authority(AuthorityDiscoveryId),
 }
 
-/// A request to be sent to the network bridge, including a sender for sending responses/failures.
-///
-/// The network implementation will make use of that sender for informing the requesting subsystem
-/// about responses/errors.
-///
-/// When using `Recipient::Peer`, keep in mind that no address (as in IP address and port) might
-/// be known for that specific peer. You are encouraged to use `Peer` for peers that you are
-/// expected to be already connected to.
-/// When using `Recipient::Authority`, the addresses can be found thanks to the authority
-/// discovery system.
-#[derive(Debug)]
-pub struct OutgoingRequest<Req> {
-	/// Intended recipient of this request.
-	pub peer: Recipient,
-	/// The actual request to send over the wire.
-	pub payload: Req,
-	/// Sender which is used by networking to get us back a response.
-	pub pending_response: ResponseSender,
-}
-
-/// Any error that can occur when sending a request.
-#[derive(Debug, Error)]
-pub enum RequestError {
-	/// Response could not be decoded.
-	#[error("Response could not be decoded")]
-	InvalidResponse(#[source] DecodingError),
-
-	/// Some error in substrate/libp2p happened.
-	#[error("Some network error occurred")]
-	NetworkError(#[source] network::RequestFailure),
-
-	/// Response got canceled by networking.
-	#[error("Response channel got canceled")]
-	Canceled(#[source] oneshot::Canceled),
-}
-
-/// Things that can go wrong when decoding an incoming request.
-#[derive(Debug, Error)]
-pub enum ReceiveError {
-	/// Decoding failed, we were able to change the peer's reputation accordingly.
-	#[error("Decoding request failed for peer {0}.")]
-	DecodingError(PeerId, #[source] DecodingError),
-
-	/// Decoding failed, but sending reputation change failed.
-	#[error("Decoding request failed for peer {0}, and changing reputation failed.")]
-	DecodingErrorNoReputationChange(PeerId, #[source] DecodingError),
-}
-
 /// Responses received for an `OutgoingRequest`.
 pub type OutgoingResult<Res> = Result<Res, RequestError>;
 

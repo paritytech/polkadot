@@ -40,10 +40,17 @@ use strum::EnumIter;
 
 pub use sc_network::{config as network, config::RequestResponseConfig};
 
-/// All requests that can be sent to the network bridge.
-pub mod request;
-pub use request::{
+/// Everything related to handling of incoming requests.
+mod incoming;
+/// Everything related to handling of outgoing requests.
+mod outgoing;
+
+pub use incoming::{
 	IncomingRequest, OutgoingRequest, OutgoingResult, Recipient, Requests, ResponseSender,
+};
+
+pub use outgoing::{
+	OutgoingRequest, OutgoingResult, Recipient, Requests, ResponseSender,
 };
 
 ///// Multiplexer for incoming requests.
