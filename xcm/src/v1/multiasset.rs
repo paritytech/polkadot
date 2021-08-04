@@ -243,27 +243,40 @@ pub struct MultiAssets(Vec<MultiAsset>);
 
 impl Decode for MultiAssets {
 	fn decode<I: codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-		let r = Vec::<MultiAsset>::decode(input)?;
-		if r.is_empty() {
-			return Ok(Self(Vec::new()))
-		}
-		r.iter().skip(1).try_fold(
-			&r[0],
-			|a, b| -> Result<&MultiAsset, parity_scale_codec::Error> {
-				if a.id < b.id || a < b && (a.is_non_fungible(None) || b.is_non_fungible(None)) {
-					Ok(b)
-				} else {
-					Err("Out of order".into())
-				}
-			},
-		)?;
-		Ok(Self(r))
+		Self::from_sorted_and_deduplicated(Vec::<MultiAsset>::decode(input)?)
+			.map_err(|()| "Out of order".into())
 	}
 }
 
 impl From<Vec<MultiAsset>> for MultiAssets {
-	fn from(x: Vec<MultiAsset>) -> Self {
-		Self(x)
+	fn from(mut assets: Vec<MultiAsset>) -> Self {
+		let mut res = Vec::with_capacity(assets.len());
+		if !assets.is_empty() {
+			assets.sort();
+			let mut iter = assets.into_iter();
+			if let Some(first) = iter.next() {
+				let last = iter.fold(first, |a, b| -> MultiAsset {
+					match (a, b) {
+						(
+							MultiAsset { fun: Fungibility::Fungible(a_amount), id: a_id },
+							MultiAsset { fun: Fungibility::Fungible(b_amount), id: b_id },
+						) if a_id == b_id =>
+							MultiAsset { id: a_id, fun: Fungibility::Fungible(a_amount + b_amount) },
+						(
+							MultiAsset { fun: Fungibility::NonFungible(a_instance), id: a_id },
+							MultiAsset { fun: Fungibility::NonFungible(b_instance), id: b_id },
+						) if a_id == b_id && a_instance == b_instance =>
+							MultiAsset { fun: Fungibility::NonFungible(a_instance), id: a_id },
+						(to_push, to_remember) => {
+							res.push(to_push);
+							to_remember
+						},
+					}
+				});
+				res.push(last);
+			}
+		}
+		Self(res)
 	}
 }
 
@@ -277,6 +290,25 @@ impl MultiAssets {
 	/// A new (empty) value.
 	pub fn new() -> Self {
 		Self(Vec::new())
+	}
+
+	/// Create a new instance of `MultiAssets` from a `Vec<MultiAsset>` whose contents are sorted and
+	/// which contain no duplicates.
+	///
+	/// Returns `Ok` if the operation succeeds and `Err` if `r` is out of order or had duplicates. If you can't
+	/// guarantee that `r` is sorted and deduplicated, then use `From::<Vec<MultiAsset>>::from` which is infallible.
+	pub fn from_sorted_and_deduplicated(r: Vec<MultiAsset>) -> Result<Self, ()> {
+		if r.is_empty() {
+			return Ok(Self(Vec::new()))
+		}
+		r.iter().skip(1).try_fold(&r[0], |a, b| -> Result<&MultiAsset, ()> {
+			if a.id < b.id || a < b && (a.is_non_fungible(None) || b.is_non_fungible(None)) {
+				Ok(b)
+			} else {
+				Err(())
+			}
+		})?;
+		Ok(Self(r))
 	}
 
 	/// Add some asset onto the list. This is quite a laborious operation since it maintains the ordering.
