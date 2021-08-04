@@ -770,13 +770,6 @@ fn peer_disconnect_from_just_one_peerset() {
 
 		let peer = PeerId::random();
 
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
-			.await;
-		network_handle
-			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
-			.await;
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::DisputeDistribution(DisputeDistributionMessage::DisputeSendingReceiver(_))
@@ -787,6 +780,13 @@ fn peer_disconnect_from_just_one_peerset() {
 				StatementDistributionMessage::StatementFetchingReceiver(_)
 			)
 		);
+
+		network_handle
+			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
+			.await;
+		network_handle
+			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
+			.await;
 
 		// bridge will inform about all connected peers.
 		{
