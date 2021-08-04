@@ -45,7 +45,8 @@ fn weigher_should_work() {
 				weight: 0,
 				debt: 30,
 				halt_on_error: true,
-				xcm: vec![],
+				orders: vec![],
+				instructions: vec![],
 			},
 			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here },
 		],
@@ -117,7 +118,7 @@ fn allow_paid_should_work() {
 	let mut underpaying_message = opaque::Xcm::ReserveAssetDeposited {
 		assets: (X1(Parent), 100).into(),
 		effects: vec![
-			Order::BuyExecution { fees, weight: 0, debt: 20, halt_on_error: true, xcm: vec![] },
+			Order::BuyExecution { fees, weight: 0, debt: 20, halt_on_error: true, orders: vec![], instructions: vec![] },
 			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here },
 		],
 	};
@@ -135,7 +136,7 @@ fn allow_paid_should_work() {
 	let mut paying_message = opaque::Xcm::ReserveAssetDeposited {
 		assets: (X1(Parent), 100).into(),
 		effects: vec![
-			Order::BuyExecution { fees, weight: 0, debt: 30, halt_on_error: true, xcm: vec![] },
+			Order::BuyExecution { fees, weight: 0, debt: 30, halt_on_error: true, orders: vec![], instructions: vec![] },
 			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here },
 		],
 	};
@@ -175,9 +176,14 @@ fn paying_reserve_deposit_should_work() {
 				weight: 0,
 				debt: 30,
 				halt_on_error: true,
-				xcm: vec![],
+				orders: vec![],
+				instructions: vec![],
 			},
-			Order::<TestCall>::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here },
+			Order::<TestCall>::DepositAsset {
+				assets: All.into(),
+				max_assets: 1,
+				beneficiary: Here,
+			},
 		],
 	};
 	let weight_limit = 50;
@@ -222,7 +228,11 @@ fn reserve_transfer_should_work() {
 		Xcm::TransferReserveAsset {
 			assets: (Here, 100).into(),
 			dest: X1(Parachain(2)),
-			effects: vec![Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: three.clone() }],
+			effects: vec![Order::DepositAsset {
+				assets: All.into(),
+				max_assets: 1,
+				beneficiary: three.clone(),
+			}],
 		},
 		50,
 	);
@@ -235,7 +245,11 @@ fn reserve_transfer_should_work() {
 			X1(Parachain(2)),
 			Xcm::ReserveAssetDeposited {
 				assets: (X1(Parent), 100).into(),
-				effects: vec![Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: three }],
+				effects: vec![Order::DepositAsset {
+					assets: All.into(),
+					max_assets: 1,
+					beneficiary: three
+				}],
 			}
 		)]
 	);
@@ -303,14 +317,19 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 				weight: 70,
 				debt: 30,
 				halt_on_error: true,
-				xcm: vec![Xcm::<TestCall>::Transact {
+				orders: vec![],
+				instructions: vec![Xcm::<TestCall>::Transact {
 					origin_type: OriginKind::Native,
 					require_weight_at_most: 60,
 					// call estimated at 70 but only takes 10.
 					call: TestCall::Any(60, Some(10)).encode().into(),
 				}],
 			},
-			Order::<TestCall>::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: one.clone() },
+			Order::<TestCall>::DepositAsset {
+				assets: All.into(),
+				max_assets: 1,
+				beneficiary: one.clone(),
+			},
 		],
 	};
 	let weight_limit = 100;

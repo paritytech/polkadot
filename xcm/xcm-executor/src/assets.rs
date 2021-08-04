@@ -240,26 +240,27 @@ impl Assets {
 	) -> Result<Assets, TakeError> {
 		let mut taken = Assets::new();
 		match mask {
-			MultiAssetFilter::Wild(All) => if self.fungible.len() + self.non_fungible.len() <= limit {
-				return Ok(self.swapped(Assets::new()))
-			} else {
-				let fungible = mem::replace(&mut self.fungible, Default::default());
-				fungible.into_iter().for_each(|(c, amount)| {
-					if taken.len() < limit {
-						taken.fungible.insert(c, amount);
-					} else {
-						self.fungible.insert(c, amount);
-					}
-				});
-				let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
-				non_fungible.into_iter().for_each(|(c, instance)| {
-					if taken.len() < limit {
-						taken.non_fungible.insert((c, instance));
-					} else {
-						self.non_fungible.insert((c, instance));
-					}
-				});
-			},
+			MultiAssetFilter::Wild(All) =>
+				if self.fungible.len() + self.non_fungible.len() <= limit {
+					return Ok(self.swapped(Assets::new()))
+				} else {
+					let fungible = mem::replace(&mut self.fungible, Default::default());
+					fungible.into_iter().for_each(|(c, amount)| {
+						if taken.len() < limit {
+							taken.fungible.insert(c, amount);
+						} else {
+							self.fungible.insert(c, amount);
+						}
+					});
+					let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
+					non_fungible.into_iter().for_each(|(c, instance)| {
+						if taken.len() < limit {
+							taken.non_fungible.insert((c, instance));
+						} else {
+							self.non_fungible.insert((c, instance));
+						}
+					});
+				},
 			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) => {
 				if let Some((id, amount)) = self.fungible.remove_entry(&id) {
 					taken.fungible.insert(id, amount);

@@ -201,7 +201,8 @@ pub(crate) fn buy_execution<C>(debt: Weight) -> Order<C> {
 		weight: 0,
 		debt,
 		halt_on_error: false,
-		xcm: vec![],
+		orders: vec![],
+		instructions: vec![],
 	}
 }
 

@@ -247,28 +247,28 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 		if let Some((mut holding, effects)) = maybe_holding_effects {
 			for effect in effects.into_iter() {
-				total_surplus += Self::execute_effects(&origin, &mut holding, effect, trader)?;
+				total_surplus += Self::execute_orders(&origin, &mut holding, effect, trader)?;
 			}
 		}
 
 		Ok(total_surplus)
 	}
 
-	fn execute_effects(
+	fn execute_orders(
 		origin: &MultiLocation,
 		holding: &mut Assets,
-		effect: Order<Config::Call>,
+		order: Order<Config::Call>,
 		trader: &mut Config::Trader,
 	) -> Result<Weight, XcmError> {
 		log::trace!(
-			target: "xcm::execute_effects",
+			target: "xcm::execute_orders",
 			"origin: {:?}, holding: {:?}, effect: {:?}",
 			origin,
 			holding,
-			effect,
+			order,
 		);
 		let mut total_surplus = 0;
-		match effect {
+		match order {
 			Order::DepositAsset { assets, max_assets, beneficiary } => {
 				let deposited = holding.limited_saturating_take(assets, max_assets as usize);
 				for asset in deposited.into_assets_iter() {
@@ -303,7 +303,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Xcm::QueryResponse { query_id, response: Response::Assets(assets) },
 				)?;
 			},
-			Order::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
+			Order::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } => {
 				// pay for `weight` using up to `fees` of the holding register.
 				let purchasing_weight =
 					Weight::from(weight.checked_add(debt).ok_or(XcmError::Overflow)?);
@@ -313,11 +313,23 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				holding.subsume_assets(unspent);
 
 				let mut remaining_weight = weight;
-				for message in xcm.into_iter() {
+				for order in orders.into_iter() {
+					match Self::execute_orders(
+						origin,
+						holding,
+						order,
+						trader,
+					) {
+						Err(e) if halt_on_error => return Err(e),
+						Err(_) => {},
+						Ok(surplus) => total_surplus += surplus,
+					}
+				}
+				for instruction in instructions.into_iter() {
 					match Self::do_execute_xcm(
 						origin.clone(),
 						false,
-						message,
+						instruction,
 						&mut remaining_weight,
 						None,
 						trader,

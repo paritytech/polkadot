@@ -60,7 +60,12 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 2)]
-	DepositReserveAsset { assets: MultiAssetFilter, max_assets: u32, dest: MultiLocation, effects: Vec<Order<()>> },
+	DepositReserveAsset {
+		assets: MultiAssetFilter,
+		max_assets: u32,
+		dest: MultiLocation,
+		effects: Vec<Order<()>>,
+	},
 
 	/// Remove the asset(s) (`give`) from holding and replace them with alternative assets.
 	///
@@ -120,11 +125,20 @@ pub enum Order<Call> {
 		assets: MultiAssetFilter,
 	},
 
-	/// Pay for the execution of some XCM with up to `weight` picoseconds of execution time, paying for this with
-	/// up to `fees` from the holding register.
+	/// Pay for the execution of some XCM `instructions` and `orders` with up to `weight` picoseconds of execution time,
+	/// paying for this with up to `fees` from the Holding Register.
 	///
 	/// - `fees`: The asset(s) to remove from holding to pay for fees.
-	///
+	/// - `weight`: The amount of weight to purchase; this should be at least the shallow weight of `effects` and `xcm`.
+	/// - `debt`: The amount of weight-debt already incurred to be pay off; this should be equal to the unpaid weight of
+	///   any surrounding operations/orders.
+	/// - `halt_on_error`: If `true`, the execution of the `orders` and `operations` will halt on the first failure. If
+	///   `false`, then execution will continue regardless.
+	/// - `orders`: Orders to be executed with the existing Holding Register; execution of these orders happens PRIOR to
+	///   execution of the `operations`. The (shallow) weight for these must be paid for with the `weight` purchased.
+	/// - `instructions`: XCM instructions to be executed outside of the context of the current Holding Register;
+	///   execution of these instructions happens AFTER the execution of the `orders`. The (shallow) weight for these
+	///   must be paid for with the `weight` purchased.
 	/// Errors:
 	#[codec(index = 7)]
 	BuyExecution {
@@ -132,7 +146,8 @@ pub enum Order<Call> {
 		weight: u64,
 		debt: u64,
 		halt_on_error: bool,
-		xcm: Vec<Xcm<Call>>,
+		orders: Vec<Order<Call>>,
+		instructions: Vec<Xcm<Call>>,
 	},
 }
 
@@ -148,7 +163,8 @@ impl<Call> Order<Call> {
 		use Order::*;
 		match order {
 			Noop => Noop,
-			DepositAsset { assets, max_assets, beneficiary } => DepositAsset { assets, max_assets, beneficiary },
+			DepositAsset { assets, max_assets, beneficiary } =>
+				DepositAsset { assets, max_assets, beneficiary },
 			DepositReserveAsset { assets, max_assets, dest, effects } =>
 				DepositReserveAsset { assets, max_assets, dest, effects },
 			ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
@@ -157,9 +173,10 @@ impl<Call> Order<Call> {
 			InitiateTeleport { assets, dest, effects } =>
 				InitiateTeleport { assets, dest, effects },
 			QueryHolding { query_id, dest, assets } => QueryHolding { query_id, dest, assets },
-			BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
-				let xcm = xcm.into_iter().map(Xcm::from).collect();
-				BuyExecution { fees, weight, debt, halt_on_error, xcm }
+			BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } => {
+				let orders = orders.into_iter().map(Order::from).collect();
+				let instructions = instructions.into_iter().map(Xcm::from).collect();
+				BuyExecution { fees, weight, debt, halt_on_error, orders, instructions }
 			},
 		}
 	}

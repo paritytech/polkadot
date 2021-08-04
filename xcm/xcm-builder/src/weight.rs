@@ -38,21 +38,11 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 			Xcm::WithdrawAsset { effects, .. } |
 			Xcm::ReserveAssetDeposited { effects, .. } |
 			Xcm::ReceiveTeleportedAsset { effects, .. } => {
-				let inner: Weight = effects
-					.iter_mut()
-					.map(|effect| match effect {
-						Order::BuyExecution { .. } => {
-							// On success, execution of this will result in more weight being consumed but
-							// we don't count it here since this is only the *shallow*, non-negotiable weight
-							// spend and doesn't count weight placed behind a `BuyExecution` since it will not
-							// be definitely consumed from any existing weight credit if execution of the message
-							// is attempted.
-							T::get()
-						},
-						_ => T::get(),
-					})
-					.sum();
-				T::get().saturating_add(inner)
+				let mut extra = T::get();
+				for order in effects.iter_mut() {
+					extra.saturating_accrue(Self::shallow_order(order)?);
+				}
+				extra
 			},
 			_ => T::get(),
 		})
@@ -64,16 +54,43 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 			Xcm::ReserveAssetDeposited { effects, .. } |
 			Xcm::ReceiveTeleportedAsset { effects, .. } => {
 				let mut extra = 0;
-				for effect in effects.iter_mut() {
-					match effect {
-						Order::BuyExecution { xcm, .. } =>
-							for message in xcm.iter_mut() {
-								extra.saturating_accrue(
-									Self::shallow(message)?.saturating_add(Self::deep(message)?),
-								);
-							},
-						_ => {},
-					}
+				for order in effects.iter_mut() {
+					extra.saturating_accrue(Self::deep_order(order)?);
+				}
+				extra
+			},
+			_ => 0,
+		})
+	}
+}
+
+impl<T: Get<Weight>, C: Decode + GetDispatchInfo> FixedWeightBounds<T, C> {
+	fn shallow_order(order: &mut Order<C>) -> Result<Weight, ()> {
+		Ok(match order {
+			Order::BuyExecution { .. } => {
+				// On success, execution of this will result in more weight being consumed but
+				// we don't count it here since this is only the *shallow*, non-negotiable weight
+				// spend and doesn't count weight placed behind a `BuyExecution` since it will not
+				// be definitely consumed from any existing weight credit if execution of the message
+				// is attempted.
+				T::get()
+			},
+			_ => T::get(),
+		})
+	}
+	fn deep_order(order: &mut Order<C>) -> Result<Weight, ()> {
+		Ok(match order {
+			Order::BuyExecution { orders, instructions, .. } => {
+				let mut extra = 0;
+				for instruction in instructions.iter_mut() {
+					extra.saturating_accrue(
+						Self::shallow(instruction)?.saturating_add(Self::deep(instruction)?),
+					);
+				}
+				for order in orders.iter_mut() {
+					extra.saturating_accrue(
+						Self::shallow_order(order)?.saturating_add(Self::deep_order(order)?),
+					);
 				}
 				extra
 			},
