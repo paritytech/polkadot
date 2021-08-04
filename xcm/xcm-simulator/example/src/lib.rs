@@ -100,13 +100,7 @@ mod tests {
 
 	use codec::Encode;
 	use frame_support::assert_ok;
-	use xcm::v1::{
-		Junction::{self, Parachain, Parent},
-		MultiAsset::*,
-		MultiLocation::*,
-		NetworkId, OriginKind,
-		Xcm::*,
-	};
+	use xcm::v1::prelude::*;
 	use xcm_simulator::TestExt;
 
 	#[test]
@@ -118,7 +112,7 @@ mod tests {
 		);
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
-				Null,
+				Here,
 				X1(Parachain(1)),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -145,7 +139,7 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				Null,
+				Here,
 				X1(Parent),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -172,7 +166,7 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				Null,
+				Here,
 				X2(Parent, Parachain(2)),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -198,8 +192,8 @@ mod tests {
 			assert_ok!(RelayChainPalletXcm::reserve_transfer_assets(
 				relay_chain::Origin::signed(ALICE),
 				X1(Parachain(1)),
-				X1(Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }),
-				vec![ConcreteFungible { id: Null, amount: 123 }],
+				X1(AccountId32 { network: Any, id: ALICE.into() }),
+				(Here, 123).into(),
 				123,
 			));
 		});

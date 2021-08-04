@@ -23,7 +23,10 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use super::MultiLocation;
+use super::{
+	Junction,
+	MultiLocation::{self, X1},
+};
 use alloc::{vec, vec::Vec};
 use core::cmp::Ordering;
 use parity_scale_codec::{self as codec, Decode, Encode};
@@ -36,10 +39,7 @@ pub enum AssetInstance {
 
 	/// A compact index. Technically this could be greater than `u128`, but this implementation supports only
 	/// values up to `2**128 - 1`.
-	Index {
-		#[codec(compact)]
-		id: u128,
-	},
+	Index(#[codec(compact)] u128),
 
 	/// A 4-byte fixed-length datum.
 	Array4([u8; 4]),
@@ -57,6 +57,48 @@ pub enum AssetInstance {
 	Blob(Vec<u8>),
 }
 
+impl From<()> for AssetInstance {
+	fn from(_: ()) -> Self {
+		Self::Undefined
+	}
+}
+
+/*impl From<u128> for AssetInstance {
+	fn from(x: u128) -> Self {
+		Self::Index(x)
+	}
+}*/
+
+impl From<[u8; 4]> for AssetInstance {
+	fn from(x: [u8; 4]) -> Self {
+		Self::Array4(x)
+	}
+}
+
+impl From<[u8; 8]> for AssetInstance {
+	fn from(x: [u8; 8]) -> Self {
+		Self::Array8(x)
+	}
+}
+
+impl From<[u8; 16]> for AssetInstance {
+	fn from(x: [u8; 16]) -> Self {
+		Self::Array16(x)
+	}
+}
+
+impl From<[u8; 32]> for AssetInstance {
+	fn from(x: [u8; 32]) -> Self {
+		Self::Array32(x)
+	}
+}
+
+impl From<Vec<u8>> for AssetInstance {
+	fn from(x: Vec<u8>) -> Self {
+		Self::Blob(x)
+	}
+}
+
 /// Classification of an asset being concrete or abstract.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum AssetId {
@@ -67,6 +109,12 @@ pub enum AssetId {
 impl From<MultiLocation> for AssetId {
 	fn from(x: MultiLocation) -> Self {
 		Self::Concrete(x)
+	}
+}
+
+impl From<Junction> for AssetId {
+	fn from(x: Junction) -> Self {
+		Self::Concrete(X1(x))
 	}
 }
 
@@ -119,9 +167,9 @@ impl From<u128> for Fungibility {
 	}
 }
 
-impl From<AssetInstance> for Fungibility {
-	fn from(instance: AssetInstance) -> Fungibility {
-		Fungibility::NonFungible(instance)
+impl<T: Into<AssetInstance>> From<T> for Fungibility {
+	fn from(instance: T) -> Fungibility {
+		Fungibility::NonFungible(instance.into())
 	}
 }
 

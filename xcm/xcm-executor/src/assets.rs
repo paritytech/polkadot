@@ -376,12 +376,12 @@ impl Assets {
 	/// ```
 	/// use xcm_executor::Assets;
 	/// use xcm::v1::prelude::*;
-	/// let assets_i_have: Assets = vec![ (Null, 100).into(), (vec![0], 100).into() ].into();
-	/// let assets_they_want: MultiAssetFilter = vec![ (Null, 200).into(), (vec![0], 50).into() [.into();
+	/// let assets_i_have: Assets = vec![ (Here, 100).into(), (vec![0], 100).into() ].into();
+	/// let assets_they_want: MultiAssetFilter = vec![ (Here, 200).into(), (vec![0], 50).into() [.into();
 	///
 	/// let assets_we_can_trade: Assets = assets_i_have.min(&assets_they_want);
 	/// assert_eq!(assets_we_can_trade.into_assets_iter().collect::<Vec<_>>(), vec![
-	/// 	(Null, 100).into(), (vec![0], 50).into(),
+	/// 	(Here, 100).into(), (vec![0], 50).into(),
 	/// ]);
 	/// ```
 	pub fn min(&self, mask: &MultiAssetFilter) -> Assets {
@@ -425,30 +425,30 @@ impl Assets {
 mod tests {
 	use super::*;
 	use xcm::v1::prelude::*;
-	use MultiLocation::Null;
+	use MultiLocation::Here;
 	#[allow(non_snake_case)]
 	fn AF(id: u8, amount: u128) -> MultiAsset {
 		(vec![id], amount).into()
 	}
 	#[allow(non_snake_case)]
-	fn ANF(class: u8, instance_id: u128) -> MultiAsset {
-		(vec![class], AssetInstance::Index { id: instance_id }).into()
+	fn ANF(class: u8, instance_id: u8) -> MultiAsset {
+		(vec![class], vec![instance_id]).into()
 	}
 	#[allow(non_snake_case)]
 	fn CF(amount: u128) -> MultiAsset {
-		(Null, amount).into()
+		(Here, amount).into()
 	}
 	#[allow(non_snake_case)]
-	fn CNF(instance_id: u128) -> MultiAsset {
-		(Null, AssetInstance::Index { id: instance_id }).into()
+	fn CNF(instance_id: u8) -> MultiAsset {
+		(Here, [instance_id; 4]).into()
 	}
 
 	fn test_assets() -> Assets {
 		let mut assets = Assets::new();
 		assets.subsume(AF(1, 100));
-		assets.subsume(ANF(2, 200));
+		assets.subsume(ANF(2, 20));
 		assets.subsume(CF(300));
-		assets.subsume(CNF(400));
+		assets.subsume(CNF(40));
 		assets
 	}
 
@@ -457,9 +457,9 @@ mod tests {
 		let t1 = test_assets();
 		let mut t2 = Assets::new();
 		t2.subsume(AF(1, 50));
-		t2.subsume(ANF(2, 100));
+		t2.subsume(ANF(2, 10));
 		t2.subsume(CF(300));
-		t2.subsume(CNF(500));
+		t2.subsume(CNF(50));
 		let mut r1 = t1.clone();
 		r1.subsume_assets(t2.clone());
 		let mut r2 = t1.clone();
@@ -480,12 +480,12 @@ mod tests {
 		let t = t.checked_sub(CF(151)).unwrap_err();
 		let t = t.checked_sub(CF(150)).unwrap();
 		let t = t.checked_sub(CF(1)).unwrap_err();
-		let t = t.checked_sub(ANF(2, 201)).unwrap_err();
-		let t = t.checked_sub(ANF(2, 200)).unwrap();
-		let t = t.checked_sub(ANF(2, 200)).unwrap_err();
-		let t = t.checked_sub(CNF(401)).unwrap_err();
-		let t = t.checked_sub(CNF(400)).unwrap();
-		let t = t.checked_sub(CNF(400)).unwrap_err();
+		let t = t.checked_sub(ANF(2, 21)).unwrap_err();
+		let t = t.checked_sub(ANF(2, 20)).unwrap();
+		let t = t.checked_sub(ANF(2, 20)).unwrap_err();
+		let t = t.checked_sub(CNF(41)).unwrap_err();
+		let t = t.checked_sub(CNF(40)).unwrap();
+		let t = t.checked_sub(CNF(40)).unwrap_err();
 		assert_eq!(t, Assets::new());
 	}
 
@@ -496,8 +496,8 @@ mod tests {
 		// Order defined by implementation: CF, AF, CNF, ANF
 		assert_eq!(Some(CF(300)), iter.next());
 		assert_eq!(Some(AF(1, 100)), iter.next());
-		assert_eq!(Some(CNF(400)), iter.next());
-		assert_eq!(Some(ANF(2, 200)), iter.next());
+		assert_eq!(Some(CNF(40)), iter.next());
+		assert_eq!(Some(ANF(2, 20)), iter.next());
 		assert_eq!(None, iter.next());
 	}
 
@@ -505,14 +505,14 @@ mod tests {
 	fn assets_into_works() {
 		let mut assets_vec: Vec<MultiAsset> = Vec::new();
 		assets_vec.push(AF(1, 100));
-		assets_vec.push(ANF(2, 200));
+		assets_vec.push(ANF(2, 20));
 		assets_vec.push(CF(300));
-		assets_vec.push(CNF(400));
+		assets_vec.push(CNF(40));
 		// Push same group of tokens again
 		assets_vec.push(AF(1, 100));
-		assets_vec.push(ANF(2, 200));
+		assets_vec.push(ANF(2, 20));
 		assets_vec.push(CF(300));
-		assets_vec.push(CNF(400));
+		assets_vec.push(CNF(40));
 
 		let assets: Assets = assets_vec.into();
 		let mut iter = assets.into_assets_iter();
@@ -520,8 +520,8 @@ mod tests {
 		assert_eq!(Some(CF(600)), iter.next());
 		assert_eq!(Some(AF(1, 200)), iter.next());
 		// Non-fungibles collapse
-		assert_eq!(Some(CNF(400)), iter.next());
-		assert_eq!(Some(ANF(2, 200)), iter.next());
+		assert_eq!(Some(CNF(40)), iter.next());
+		assert_eq!(Some(ANF(2, 20)), iter.next());
 		assert_eq!(None, iter.next());
 	}
 
@@ -548,21 +548,21 @@ mod tests {
 		assert_eq!(fungible, vec![AF(1, 100)]);
 		let non_fungible = assets.min(&non_fungible);
 		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
-		assert_eq!(non_fungible, vec![ANF(2, 200)]);
+		assert_eq!(non_fungible, vec![ANF(2, 20)]);
 	}
 
 	#[test]
 	fn min_all_concrete_works() {
 		let assets = test_assets();
-		let fungible = Wild((Null, WildFungible).into());
-		let non_fungible = Wild((Null, WildNonFungible).into());
+		let fungible = Wild((Here, WildFungible).into());
+		let non_fungible = Wild((Here, WildNonFungible).into());
 
 		let fungible = assets.min(&fungible);
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();
 		assert_eq!(fungible, vec![CF(300)]);
 		let non_fungible = assets.min(&non_fungible);
 		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
-		assert_eq!(non_fungible, vec![CNF(400)]);
+		assert_eq!(non_fungible, vec![CNF(40)]);
 	}
 
 	#[test]
@@ -573,16 +573,16 @@ mod tests {
 		// This is less than 100, so it will decrease to 50
 		assets2.subsume(AF(1, 50));
 		// This asset does not exist, so not included
-		assets2.subsume(ANF(2, 400));
+		assets2.subsume(ANF(2, 40));
 		// This is more then 300, so it should stay at 300
 		assets2.subsume(CF(600));
 		// This asset should be included
-		assets2.subsume(CNF(400));
+		assets2.subsume(CNF(40));
 		let assets2: MultiAssets = assets2.into();
 
 		let assets_min = assets1.min(&assets2.into());
 		let assets_min = assets_min.into_assets_iter().collect::<Vec<_>>();
-		assert_eq!(assets_min, vec![CF(300), AF(1, 50), CNF(400)]);
+		assert_eq!(assets_min, vec![CF(300), AF(1, 50), CNF(40)]);
 	}
 
 	#[test]
@@ -609,27 +609,27 @@ mod tests {
 		assert_eq!(fungible, vec![AF(1, 100)]);
 		let non_fungible = assets.saturating_take(non_fungible);
 		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
-		assert_eq!(non_fungible, vec![ANF(2, 200)]);
+		assert_eq!(non_fungible, vec![ANF(2, 20)]);
 		// Assets drained of abstract
 		let final_assets = assets.assets_iter().collect::<Vec<_>>();
-		assert_eq!(final_assets, vec![CF(300), CNF(400)]);
+		assert_eq!(final_assets, vec![CF(300), CNF(40)]);
 	}
 
 	#[test]
 	fn saturating_take_all_concrete_works() {
 		let mut assets = test_assets();
-		let fungible = Wild((Null, WildFungible).into());
-		let non_fungible = Wild((Null, WildNonFungible).into());
+		let fungible = Wild((Here, WildFungible).into());
+		let non_fungible = Wild((Here, WildNonFungible).into());
 
 		let fungible = assets.saturating_take(fungible);
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();
 		assert_eq!(fungible, vec![CF(300)]);
 		let non_fungible = assets.saturating_take(non_fungible);
 		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
-		assert_eq!(non_fungible, vec![CNF(400)]);
+		assert_eq!(non_fungible, vec![CNF(40)]);
 		// Assets drained of concrete
 		let assets = assets.assets_iter().collect::<Vec<_>>();
-		assert_eq!(assets, vec![AF(1, 100), ANF(2, 200)]);
+		assert_eq!(assets, vec![AF(1, 100), ANF(2, 20)]);
 	}
 
 	#[test]
@@ -640,18 +640,18 @@ mod tests {
 		// We should take 50
 		assets2.subsume(AF(1, 50));
 		// This asset should not be taken
-		assets2.subsume(ANF(2, 400));
+		assets2.subsume(ANF(2, 40));
 		// This is more then 300, so it takes everything
 		assets2.subsume(CF(600));
 		// This asset should be taken
-		assets2.subsume(CNF(400));
+		assets2.subsume(CNF(40));
 		let assets2: MultiAssets = assets2.into();
 
 		let taken = assets1.saturating_take(assets2.into());
 		let taken = taken.into_assets_iter().collect::<Vec<_>>();
-		assert_eq!(taken, vec![CF(300), AF(1, 50), CNF(400)]);
+		assert_eq!(taken, vec![CF(300), AF(1, 50), CNF(40)]);
 
 		let assets = assets1.into_assets_iter().collect::<Vec<_>>();
-		assert_eq!(assets, vec![AF(1, 50), ANF(2, 200)]);
+		assert_eq!(assets, vec![AF(1, 50), ANF(2, 20)]);
 	}
 }

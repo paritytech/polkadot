@@ -162,10 +162,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Some((assets.into(), effects))
 			},
-			(origin, Xcm::TransferAsset { assets, dest }) => {
+			(origin, Xcm::TransferAsset { assets, beneficiary }) => {
 				// Take `assets` from the origin account (on-chain) and place into dest account.
 				for asset in assets.inner() {
-					Config::AssetTransactor::beam_asset(&asset, &origin, &dest)?;
+					Config::AssetTransactor::beam_asset(&asset, &origin, &beneficiary)?;
 				}
 				None
 			},
@@ -179,7 +179,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(dest, Xcm::ReserveAssetDeposited { assets, effects })?;
 				None
 			},
-			(origin, Xcm::TeleportAsset { assets, effects }) => {
+			(origin, Xcm::ReceiveTeleportedAsset { assets, effects }) => {
 				// check whether we trust origin to teleport this asset to us via config trait.
 				for asset in assets.inner() {
 					// We only trust the origin to send us assets that they identify as their
@@ -269,10 +269,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		);
 		let mut total_surplus = 0;
 		match effect {
-			Order::DepositAsset { assets, max_assets, dest } => {
-				let deposited = holding.limited_saturating_take(assets, max_assets as usize);
+			Order::DepositAsset { assets, max_assets, beneficiary } => {
+				let deposited = holding.limited_saturating_take(assets, max_assets);
 				for asset in deposited.into_assets_iter() {
-					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
+					Config::AssetTransactor::deposit_asset(&asset, &beneficiary)?;
 				}
 			},
 			Order::DepositReserveAsset { assets, max_assets, dest, effects } => {
@@ -294,7 +294,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Config::AssetTransactor::check_out(&origin, &asset);
 				}
 				let assets = Self::reanchored(assets, &dest);
-				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })?;
+				Config::XcmSender::send_xcm(dest, Xcm::ReceiveTeleportedAsset { assets, effects })?;
 			},
 			Order::QueryHolding { query_id, dest, assets } => {
 				let assets = Self::reanchored(holding.min(&assets), &dest);

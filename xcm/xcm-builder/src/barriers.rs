@@ -51,7 +51,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		ensure!(T::contains(origin), ());
 		ensure!(top_level, ());
 		match message {
-			Xcm::TeleportAsset { effects, .. } |
+			Xcm::ReceiveTeleportedAsset { effects, .. } |
 			Xcm::WithdrawAsset { effects, .. } |
 			Xcm::ReserveAssetDeposited { effects, .. }
 				if matches!(

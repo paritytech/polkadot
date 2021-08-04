@@ -583,9 +583,9 @@ impl parachains_paras::Config for Runtime {
 }
 
 parameter_types! {
-	pub const RocLocation: MultiLocation = MultiLocation::Null;
+	pub const RocLocation: MultiLocation = MultiLocation::Here;
 	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
-	pub const Ancestry: MultiLocation = MultiLocation::Null;
+	pub const Ancestry: MultiLocation = MultiLocation::Here;
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 

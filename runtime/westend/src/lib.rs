@@ -866,8 +866,8 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const WndLocation: MultiLocation = MultiLocation::Null;
-	pub const Ancestry: MultiLocation = MultiLocation::Null;
+	pub const WndLocation: MultiLocation = MultiLocation::Here;
+	pub const Ancestry: MultiLocation = MultiLocation::Here;
 	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }

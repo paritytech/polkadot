@@ -39,15 +39,16 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 1)]
-	DepositAsset { assets: MultiAssetFilter, max_assets: u32, dest: MultiLocation },
+	DepositAsset { assets: MultiAssetFilter, max_assets: u32, beneficiary: MultiLocation },
 
 	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
-	/// this consensus system.
+	/// this consensus system (i.e. its sovereign account).
 	///
 	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the given `effects`.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
-	/// - `dest`: The new owner for the assets.
+	/// - `dest`: The location whose sovereign account will own the assets and thus the effective beneficiary for the
+	///   assets and the notification target for the reserve asset deposit message.
 	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposited` which is sent onwards to
 	///   `dest`.
 	///
@@ -82,11 +83,15 @@ pub enum Order<Call> {
 		effects: Vec<Order<()>>,
 	},
 
-	/// Remove the asset(s) (`assets`) from holding and send a `TeleportAsset` XCM message to a destination location.
+	/// Remove the asset(s) (`assets`) from holding and send a `ReceiveTeleportedAsset` XCM message to a `destination`
+	/// location.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `destination`: A valid location that has a bi-lateral teleportation arrangement.
 	/// - `effects`: The orders to execute on the assets once arrived *on the destination location*.
+	///
+	/// NOTE: The `destination` location *MUST* respect this origin as a valid teleportation origin for all `assets`.
+	/// If it does not, then the assets may be lost.
 	///
 	/// Errors:
 	#[codec(index = 5)]
@@ -137,7 +142,7 @@ impl<Call> Order<Call> {
 		use Order::*;
 		match order {
 			Noop => Noop,
-			DepositAsset { assets, max_assets, dest } => DepositAsset { assets, max_assets, dest },
+			DepositAsset { assets, max_assets, beneficiary } => DepositAsset { assets, max_assets, beneficiary },
 			DepositReserveAsset { assets, max_assets, dest, effects } =>
 				DepositReserveAsset { assets, max_assets, dest, effects },
 			ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
