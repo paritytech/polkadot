@@ -164,6 +164,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
 	type XcmSender = TestSendXcm;
 	type AssetTransactor = LocalAssetTransactor;
+	type HrmpChannelManager = ();
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = ();

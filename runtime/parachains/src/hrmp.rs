@@ -31,7 +31,7 @@ use sp_std::{
 	fmt, mem,
 	prelude::*,
 };
-use xcm::v0::{HrmpChannelManagementHooks, Error as XcmError};
+use xcm::v0::{Error as XcmError, HrmpChannelManagementHooks};
 
 pub use pallet::*;
 
@@ -468,21 +468,22 @@ pub mod pallet {
 	}
 }
 
-impl<T: Config> HrmpChannelManagementHooks<T::Call> for Module<T> {
+impl<T: Config> HrmpChannelManagementHooks<pallet::Call<T>> for Pallet<T> {
 	fn hrmp_init_open_channel(
 		recipient: u32,
 		max_message_size: u32,
 		max_capacity: u32,
-	) -> Result<T::Call, XcmError> {
-		Ok(Self::hrmp_init_open_channel(recipient.into(), max_capacity, max_message_size))
+	) -> Result<pallet::Call<T>, XcmError> {
+		Ok(pallet::Call::hrmp_init_open_channel(recipient.into(), max_capacity, max_message_size))
 	}
-	fn hrmp_accept_open_channel(sender: u32) -> Result<T::Call, XcmError> {
-		Ok(Self::hrmp_accept_open_channel(recipient.into(), max_capacity, max_message_size))
+	fn hrmp_accept_open_channel(sender: u32) -> Result<pallet::Call<T>, XcmError> {
+		Ok(pallet::Call::hrmp_accept_open_channel(sender.into()))
 	}
-	fn hrmp_close_channel(sender: u32, recipient: u32) -> Result<T::Call, XcmError> {
-		Ok(Self::hrmp_close_channel(
-			HrmpChannelId { sender: sender.into(), recipient: recipient.into() },
-		))
+	fn hrmp_close_channel(sender: u32, recipient: u32) -> Result<pallet::Call<T>, XcmError> {
+		Ok(pallet::Call::hrmp_close_channel(HrmpChannelId {
+			sender: sender.into(),
+			recipient: recipient.into(),
+		}))
 	}
 }
 
