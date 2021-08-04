@@ -24,10 +24,7 @@ use frame_benchmarking::{benchmarks_instance_pallet, impl_benchmark_test_suite};
 use frame_support::{assert_ok, instances::Instance1, traits::fungible::Inspect};
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
-use xcm::{
-	opaque::v0::MultiLocation,
-	v0::{Order, Xcm},
-};
+use xcm::v0::{Junction, MultiLocation, Order, Xcm};
 use xcm_executor::{traits::TransactAsset, Assets};
 
 // TODO: def. needs to be become a config, might also want to use bounded vec.
@@ -87,7 +84,7 @@ benchmarks_instance_pallet! {
 		let (dest_account, dest_location) = account_and_location::<T>(77);
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
-		let effects = Vec::new(); // TODO fix
+		let effects = Vec::new(); // No effects to isolate the order
 		let order = Order::<XcmCallOf<T>>::DepositReserveAsset {
 			assets: vec![asset.clone()],
 			dest: dest_location,
@@ -99,8 +96,47 @@ benchmarks_instance_pallet! {
 		// dest should have received some asset.
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero())
 	}
-	order_initiate_reserve_withdraw {}: {} verify {}
-	order_initiate_teleport {}: {} verify {}
+	order_initiate_reserve_withdraw {
+		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let asset = T::get_multi_asset();
+		let amount: u128 = T::TransactAsset::minimum_balance().try_into().unwrap();
+		// generate the holding with a bunch of stuff..
+		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+		// .. and the specific asset that we want to take out.
+		holding.saturating_subsume(asset.clone());
+
+		let effects = Vec::new(); // No effects to isolate the order
+		let order = Order::<XcmCallOf<T>>::DepositReserveAsset {
+			assets: vec![asset.clone()],
+			dest: MultiLocation::X1(account_id_junction::<T>(77)), // TODO FIX, maybe needs a config trait
+			effects,
+		};
+	}: {
+		assert_ok!(execute_order::<T>(origin, holding, order));
+	} verify {
+		// execute_order succeeding is enough to verify this completed.
+	}
+	order_initiate_teleport {
+		let (sender_account, origin) = account_and_location::<T>(1);
+		let asset = T::get_multi_asset();
+		let amount: u128 = T::TransactAsset::minimum_balance().try_into().unwrap();
+		// generate the holding with a bunch of stuff..
+		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+		// .. and the specific asset that we want to take out.
+		holding.saturating_subsume(asset.clone());
+
+		let effects = Vec::new(); // No effects to isolate the order
+		let order = Order::<XcmCallOf<T>>::DepositReserveAsset {
+			assets: vec![asset.clone()],
+			dest: MultiLocation::X1(account_id_junction::<T>(77)), // TODO FIX, maybe needs a config trait
+			effects,
+		};
+	}: {
+		assert_ok!(execute_order::<T>(origin, holding, order));
+	} verify {
+		// sender should have received some asset.
+		assert!(!T::TransactAsset::balance(&sender_account).is_zero())
+	}
 	order_query_holding {}: {} verify {}
 	order_buy_execution {}: {} verify {}
 
