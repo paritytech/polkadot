@@ -100,13 +100,7 @@ mod tests {
 
 	use codec::Encode;
 	use frame_support::assert_ok;
-	use xcm::v1::{
-		Junction::{self, Parachain, Parent},
-		MultiAsset::*,
-		MultiLocation::*,
-		NetworkId, OriginKind,
-		Xcm::*,
-	};
+	use xcm::v1::prelude::*;
 	use xcm_simulator::TestExt;
 
 	#[test]
@@ -199,7 +193,7 @@ mod tests {
 				relay_chain::Origin::signed(ALICE),
 				X1(Parachain(1)),
 				X1(Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }),
-				vec![ConcreteFungible { id: Null, amount: 123 }],
+				(Null, 123).into(),
 				123,
 			));
 		});

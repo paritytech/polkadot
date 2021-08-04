@@ -31,9 +31,9 @@ use xcm::{
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds,
-	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
+	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	TakeWeightCredit,
 };
 use xcm_executor::XcmExecutor;
 
@@ -196,7 +196,13 @@ pub(crate) fn last_event() -> Event {
 
 pub(crate) fn buy_execution<C>(debt: Weight) -> Order<C> {
 	use xcm::opaque::v1::prelude::*;
-	Order::BuyExecution { fees: (RelayLocation::get(), 10).into(), weight: 0, debt, halt_on_error: false, xcm: vec![] }
+	Order::BuyExecution {
+		fees: (RelayLocation::get(), 10).into(),
+		weight: 0,
+		debt,
+		halt_on_error: false,
+		xcm: vec![],
+	}
 }
 
 pub(crate) fn new_test_ext_with_balances(

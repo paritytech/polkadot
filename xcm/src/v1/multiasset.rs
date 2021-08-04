@@ -23,7 +23,10 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use super::{Junction, MultiLocation::{self, X1}};
+use super::{
+	Junction,
+	MultiLocation::{self, X1},
+};
 use alloc::{vec, vec::Vec};
 use core::cmp::Ordering;
 use parity_scale_codec::{self as codec, Decode, Encode};
