@@ -42,7 +42,7 @@ fn send_works() {
 		let message = Xcm::ReserveAssetDeposited {
 			assets: (X1(Parent), SEND_AMOUNT).into(),
 			effects: vec![
-				buy_execution(weight),
+				buy_execution((Parent, SEND_AMOUNT), weight),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
@@ -76,7 +76,7 @@ fn send_fails_when_xcm_router_blocks() {
 		let message = Xcm::ReserveAssetDeposited {
 			assets: (Parent, SEND_AMOUNT).into(),
 			effects: vec![
-				buy_execution(weight),
+				buy_execution((Parent, SEND_AMOUNT), weight),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
@@ -116,6 +116,7 @@ fn teleport_assets_works() {
 			RelayLocation::get(),
 			X1(AccountId32 { network: Any, id: BOB.into() }),
 			(Here, SEND_AMOUNT).into(),
+			0,
 			weight,
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -144,6 +145,7 @@ fn reserve_transfer_assets_works() {
 			Parachain(PARA_ID).into(),
 			dest.clone(),
 			(Here, SEND_AMOUNT).into(),
+			0,
 			weight
 		));
 		// Alice spent amount
@@ -158,7 +160,7 @@ fn reserve_transfer_assets_works() {
 				Xcm::ReserveAssetDeposited {
 					assets: (X1(Parent), SEND_AMOUNT).into(),
 					effects: vec![
-						buy_execution(weight),
+						buy_execution((Parent, SEND_AMOUNT), weight),
 						DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 					]
 				}
@@ -189,7 +191,7 @@ fn execute_withdraw_to_deposit_works() {
 			Box::new(Xcm::WithdrawAsset {
 				assets: (Here, SEND_AMOUNT).into(),
 				effects: vec![
-					buy_execution(weight),
+					buy_execution((Here, SEND_AMOUNT), weight),
 					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest }
 				],
 			}),

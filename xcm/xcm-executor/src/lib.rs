@@ -314,12 +314,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 				let mut remaining_weight = weight;
 				for order in orders.into_iter() {
-					match Self::execute_orders(
-						origin,
-						holding,
-						order,
-						trader,
-					) {
+					match Self::execute_orders(origin, holding, order, trader) {
 						Err(e) if halt_on_error => return Err(e),
 						Err(_) => {},
 						Ok(surplus) => total_surplus += surplus,

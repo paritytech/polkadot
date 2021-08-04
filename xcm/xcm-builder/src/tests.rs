@@ -118,7 +118,14 @@ fn allow_paid_should_work() {
 	let mut underpaying_message = opaque::Xcm::ReserveAssetDeposited {
 		assets: (X1(Parent), 100).into(),
 		effects: vec![
-			Order::BuyExecution { fees, weight: 0, debt: 20, halt_on_error: true, orders: vec![], instructions: vec![] },
+			Order::BuyExecution {
+				fees,
+				weight: 0,
+				debt: 20,
+				halt_on_error: true,
+				orders: vec![],
+				instructions: vec![],
+			},
 			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here },
 		],
 	};
@@ -136,7 +143,14 @@ fn allow_paid_should_work() {
 	let mut paying_message = opaque::Xcm::ReserveAssetDeposited {
 		assets: (X1(Parent), 100).into(),
 		effects: vec![
-			Order::BuyExecution { fees, weight: 0, debt: 30, halt_on_error: true, orders: vec![], instructions: vec![] },
+			Order::BuyExecution {
+				fees,
+				weight: 0,
+				debt: 30,
+				halt_on_error: true,
+				orders: vec![],
+				instructions: vec![],
+			},
 			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here },
 		],
 	};

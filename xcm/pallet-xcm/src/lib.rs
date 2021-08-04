@@ -39,7 +39,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::traits::AccountIdConversion;
-	use xcm_executor::traits::WeightBounds;
+	use xcm_executor::traits::{WeightBounds, InvertLocation};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -77,6 +77,9 @@ pub mod pallet {
 
 		/// Means of measuring the weight consumed by an XCM message locally.
 		type Weigher: WeightBounds<Self::Call>;
+
+		/// Means of inverting a location.
+		type LocationInverter: InvertLocation;
 	}
 
 	#[pallet::event]
@@ -96,6 +99,8 @@ pub mod pallet {
 		UnweighableMessage,
 		/// The assets to be sent are empty.
 		Empty,
+		/// Could not reanchor the assets to declare the fees for the destination chain.
+		CannotReanchor,
 	}
 
 	#[pallet::hooks]
@@ -143,13 +148,20 @@ pub mod pallet {
 			dest: MultiLocation,
 			beneficiary: MultiLocation,
 			assets: MultiAssets,
+			fee_asset_item: u32,
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let fees = assets.first().ok_or(Error::<T>::Empty)?.clone();
+			let inv_dest = T::LocationInverter::invert_location(&dest);
+			let fees = assets.get(fee_asset_item as usize)
+				.ok_or(Error::<T>::Empty)?
+				.clone()
+				.reanchored(&inv_dest)
+				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let max_assets = assets.len() as u32;
 			let assets = assets.into();
 			let mut message = Xcm::WithdrawAsset {
 				assets,
@@ -166,7 +178,7 @@ pub mod pallet {
 							orders: vec![],
 							instructions: vec![],
 						},
-						DepositAsset { assets: Wild(All), max_assets: 1, beneficiary },
+						DepositAsset { assets: Wild(All), max_assets, beneficiary },
 					],
 				}],
 			};
@@ -203,13 +215,21 @@ pub mod pallet {
 			dest: MultiLocation,
 			beneficiary: MultiLocation,
 			assets: MultiAssets,
+			fee_asset_item: u32,
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
-			let (origin_location, assets) = value;
-			let fees = assets.first().ok_or(Error::<T>::Empty)?.clone();
+			let (origin_location, mut assets) = value;
+			let inv_dest = T::LocationInverter::invert_location(&dest);
+			let fees = assets.get(fee_asset_item as usize)
+				.ok_or(Error::<T>::Empty)?
+				.clone()
+				.reanchored(&inv_dest)
+				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let max_assets = assets.len() as u32;
+			assets.sort();
 			let assets = assets.into();
 			let mut message = Xcm::TransferReserveAsset {
 				assets,
@@ -217,14 +237,14 @@ pub mod pallet {
 				effects: vec![
 					BuyExecution {
 						fees,
-						// Zero weight for additional XCM (since there are none to execute)
+						// Zero weight for additional instructions/orders (since there are none to execute)
 						weight: 0,
-						debt: dest_weight,
+						debt: dest_weight,	// covers this, `TransferReserveAsset` xcm, and `DepositAsset` order.
 						halt_on_error: false,
 						orders: vec![],
 						instructions: vec![],
 					},
-					DepositAsset { assets: Wild(All), max_assets: 1, beneficiary },
+					DepositAsset { assets: Wild(All), max_assets, beneficiary },
 				],
 			};
 			let weight =

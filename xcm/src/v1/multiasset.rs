@@ -217,6 +217,12 @@ impl MultiAsset {
 		self.id.reanchor(prepend)
 	}
 
+	/// Prepend a `MultiLocation` to a concrete asset, giving it a new root location.
+	pub fn reanchored(mut self, prepend: &MultiLocation) -> Result<Self, ()> {
+		self.reanchor(prepend)?;
+		Ok(self)
+	}
+
 	/// Returns true if `self` is a super-set of the given `inner`.
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use Fungibility::*;
@@ -307,9 +313,19 @@ impl MultiAssets {
 		&self.0
 	}
 
+	/// Return the number of distinct asset instances contained.
+	pub fn len(&self) -> usize {
+		self.0.len()
+	}
+
 	/// Prepend a `MultiLocation` to any concrete asset items, giving it a new root location.
 	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		self.0.iter_mut().try_for_each(|i| i.reanchor(prepend))
+	}
+
+	/// Return a reference to an item at a specific index or `None` if it doesn't exist.
+	pub fn get(&self, index: usize) -> Option<&MultiAsset> {
+		self.0.get(index)
 	}
 }
 /// Classification of whether an asset is fungible or not, along with an optional amount or instance.
