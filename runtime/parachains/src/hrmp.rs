@@ -1239,7 +1239,7 @@ impl<T: Config> Pallet<T> {
 
 impl<T: Config> Pallet<T> {
 	/// Decreases the open channel request count for the given sender. If the value reaches zero
-	/// if is removed completely.
+	/// it is removed completely.
 	fn decrease_open_channel_request_count(sender: ParaId) {
 		let new_open_channel_req_cnt =
 			<Self as Store>::HrmpOpenChannelRequestCount::get(&sender).saturating_sub(1);

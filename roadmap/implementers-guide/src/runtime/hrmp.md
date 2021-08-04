@@ -241,7 +241,7 @@ the parachain executed the message.
     1. Remove `HrmpOpenChannelRequests` and `HrmpOpenChannelRequestsList` for `(P, _)` and `(_, P)`.
         1. For each removed channel request `C`:
             1. Unreserve the sender's deposit if the sender is not present in `outgoing_paras`
-            1. Unreserve the recipient`s deposit if `C` is confirmed and the recipient is not present in `outgoing_paras`
+            1. Unreserve the recipient's deposit if `C` is confirmed and the recipient is not present in `outgoing_paras`
 1. For each channel designator `D` in `HrmpOpenChannelRequestsList` we query the request `R` from `HrmpOpenChannelRequests`:
     1. if `R.confirmed = true`,
         1. if both `D.sender` and `D.recipient` are not offboarded.
