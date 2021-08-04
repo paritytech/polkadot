@@ -12,12 +12,9 @@ echo "[+] Running all benchmarks for $runtime"
 # shellcheck disable=SC2086
 cargo +nightly run $standard_args benchmark \
     --chain "${runtime}-dev" \
-    --execution=wasm \
-    --wasm-execution=compiled \
-    --pallet "*" \
-    --extrinsic "*" \
-    --repeat 0 | \
-  sed -r -e 's/Pallet: "([a-z_:]+)".*/\1/' | \
+    --list |\
+  tail -n+2 |\
+  cut -d',' -f1 |\
   uniq | \
   grep -v frame_system > "${runtime}_pallets"
 
