@@ -36,7 +36,7 @@ pub enum Order<Call> {
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `max_assets`: The maximum number of unique assets/asset instances to remove from holding. Only the first
-	///   `max_assets` assets/instances of those matched by `assets` will be removed, prioritised under standard asset
+	///   `max_assets` assets/instances of those matched by `assets` will be removed, prioritized under standard asset
 	///   ordering. Any others will remain in holding.
 	/// - `beneficiary`: The new owner for the assets.
 	///
@@ -51,7 +51,7 @@ pub enum Order<Call> {
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `max_assets`: The maximum number of unique assets/asset instances to remove from holding. Only the first
-	///   `max_assets` assets/instances of those matched by `assets` will be removed, prioritised under standard asset
+	///   `max_assets` assets/instances of those matched by `assets` will be removed, prioritized under standard asset
 	///   ordering. Any others will remain in holding.
 	/// - `dest`: The location whose sovereign account will own the assets and thus the effective beneficiary for the
 	///   assets and the notification target for the reserve asset deposit message.
