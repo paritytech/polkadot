@@ -411,7 +411,7 @@ mod tests {
 			// submit extrinsics
 			let alice = MultiSigner::from(Alice.public()).into_account();
 			node.submit_extrinsic(
-				system::Call::remark { _remark: (b"hello world").to_vec() },
+				system::Call::remark { remark: (b"hello world").to_vec() },
 				alice,
 			)
 			.await
