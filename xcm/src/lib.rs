@@ -23,7 +23,7 @@
 #![no_std]
 extern crate alloc;
 
-use core::{convert::TryFrom, result::Result};
+use core::{convert::{TryFrom, TryInto}, result::Result};
 use derivative::Derivative;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
@@ -66,8 +66,9 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v1::Xcm<Call> {
 	type Error = ();
 	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
 		match x {
+			// v1-based chains can interpret v0 messages.
+			VersionedXcm::V0(x) => x.try_into(),
 			VersionedXcm::V1(x) => Ok(x),
-			_ => Err(()),
 		}
 	}
 }

@@ -696,6 +696,24 @@ impl MultiLocation {
 	}
 }
 
+impl From<super::MultiLocation0> for MultiLocation {
+	fn from(old: super::MultiLocation0) -> Self {
+		use MultiLocation::*;
+		use super::MultiLocation0;
+		match old {
+			MultiLocation0::Null => Here,
+			MultiLocation0::X1(j0) => X1(j0),
+			MultiLocation0::X2(j0, j1) => X2(j0, j1),
+			MultiLocation0::X3(j0, j1, j2) => X3(j0, j1, j2),
+			MultiLocation0::X4(j0, j1, j2, j3) => X4(j0, j1, j2, j3),
+			MultiLocation0::X5(j0, j1, j2, j3, j4) => X5(j0, j1, j2, j3, j4),
+			MultiLocation0::X6(j0, j1, j2, j3, j4, j5) => X6(j0, j1, j2, j3, j4, j5),
+			MultiLocation0::X7(j0, j1, j2, j3, j4, j5, j6) => X7(j0, j1, j2, j3, j4, j5, j6),
+			MultiLocation0::X8(j0, j1, j2, j3, j4, j5, j6, j7) => X8(j0, j1, j2, j3, j4, j5, j6, j7),
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::MultiLocation::*;

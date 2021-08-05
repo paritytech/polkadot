@@ -17,39 +17,10 @@
 //! Cross-Consensus Message format data structures.
 
 use alloc::vec::Vec;
-use core::{convert::TryFrom, result};
-
 use super::MultiLocation;
 use parity_scale_codec::{self, Decode, Encode};
 
-/// A general identifier for an instance of a non-fungible asset class.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
-pub enum AssetInstance {
-	/// Undefined - used if the NFA class has only one instance.
-	Undefined,
-
-	/// A compact index. Technically this could be greater than `u128`, but this implementation supports only
-	/// values up to `2**128 - 1`.
-	Index {
-		#[codec(compact)]
-		id: u128,
-	},
-
-	/// A 4-byte fixed-length datum.
-	Array4([u8; 4]),
-
-	/// An 8-byte fixed-length datum.
-	Array8([u8; 8]),
-
-	/// A 16-byte fixed-length datum.
-	Array16([u8; 16]),
-
-	/// A 32-byte fixed-length datum.
-	Array32([u8; 32]),
-
-	/// An arbitrary piece of data. Use only when necessary.
-	Blob(Vec<u8>),
-}
+pub use super::super::v1::AssetInstance;
 
 /// A single general identifier for an asset.
 ///
@@ -354,27 +325,27 @@ mod tests {
 		// For non-fungibles, containing is equality.
 		assert!(!AbstractNonFungible {
 			class: vec![99u8],
-			instance: AssetInstance::Index { id: 9 }
+			instance: AssetInstance::Index(9)
 		}
 		.contains(&AbstractNonFungible {
 			class: vec![98u8],
-			instance: AssetInstance::Index { id: 9 }
+			instance: AssetInstance::Index(9)
 		}));
 		assert!(!AbstractNonFungible {
 			class: vec![99u8],
-			instance: AssetInstance::Index { id: 8 }
+			instance: AssetInstance::Index(8)
 		}
 		.contains(&AbstractNonFungible {
 			class: vec![99u8],
-			instance: AssetInstance::Index { id: 9 }
+			instance: AssetInstance::Index(9)
 		}));
 		assert!(AbstractNonFungible {
 			class: vec![99u8],
-			instance: AssetInstance::Index { id: 9 }
+			instance: AssetInstance::Index(9)
 		}
 		.contains(&AbstractNonFungible {
 			class: vec![99u8],
-			instance: AssetInstance::Index { id: 9 }
+			instance: AssetInstance::Index(9)
 		}));
 	}
 }

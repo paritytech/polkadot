@@ -18,16 +18,14 @@
 
 use crate::{DoubleEncoded, VersionedXcm};
 use alloc::vec::Vec;
-use core::{convert::TryFrom, fmt::Debug, result};
+use core::{convert::TryFrom, result};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
-mod junction;
 mod multi_asset;
 mod multi_location;
 mod order;
 mod traits;
-pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use multi_asset::{AssetInstance, MultiAsset};
 pub use multi_location::MultiLocation;
 pub use order::Order;
@@ -36,7 +34,7 @@ pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
-		junction::{BodyId, BodyPart, Junction::*, NetworkId},
+		BodyId, BodyPart, Junction::*, NetworkId,
 		multi_asset::{
 			AssetInstance::{self, *},
 			MultiAsset::{self, *},
@@ -49,38 +47,7 @@ pub mod prelude {
 	};
 }
 
-// TODO: #2841 #XCMENCODE Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode
-//   the number of items in the vector.
-
-/// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
-#[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum OriginKind {
-	/// Origin should just be the native dispatch origin representation for the sender in the
-	/// local runtime framework. For Cumulus/Frame chains this is the `Parachain` or `Relay` origin
-	/// if coming from a chain, though there may be others if the `MultiLocation` XCM origin has a
-	/// primary/native dispatch origin form.
-	Native,
-
-	/// Origin should just be the standard account-based origin with the sovereign account of
-	/// the sender. For Cumulus/Frame chains, this is the `Signed` origin.
-	SovereignAccount,
-
-	/// Origin should be the super-user. For Cumulus/Frame chains, this is the `Root` origin.
-	/// This will not usually be an available option.
-	Superuser,
-
-	/// Origin should be interpreted as an XCM native origin and the `MultiLocation` should be
-	/// encoded directly in the dispatch origin unchanged. For Cumulus/Frame chains, this will be
-	/// the `pallet_xcm::Origin::Xcm` type.
-	Xcm,
-}
-
-/// Response data to a query.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum Response {
-	/// Some assets.
-	Assets(Vec<MultiAsset>),
-}
+pub use super::v1::{Response, OriginKind, BodyId, BodyPart, Junction, NetworkId};
 
 /// Cross-Consensus Message: A message from one consensus system to another.
 ///
@@ -286,6 +253,7 @@ impl<Call> TryFrom<VersionedXcm<Call>> for Xcm<Call> {
 	fn try_from(x: VersionedXcm<Call>) -> result::Result<Self, ()> {
 		match x {
 			VersionedXcm::V0(x) => Ok(x),
+			VersionedXcm::V1(_) => Err(()),	// v0-based chains cannot interpret v1 messages.
 		}
 	}
 }

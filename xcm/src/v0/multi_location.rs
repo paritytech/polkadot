@@ -16,7 +16,7 @@
 
 //! Cross-Consensus Message format data structures.
 
-use core::{convert::TryFrom, mem, result};
+use core::{mem, result};
 
 use super::Junction;
 use parity_scale_codec::{self, Decode, Encode};
