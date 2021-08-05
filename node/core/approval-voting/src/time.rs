@@ -16,11 +16,13 @@
 
 //! Time utilities for approval voting.
 
+use futures::prelude::*;
 use polkadot_node_primitives::approval::DelayTranche;
 use sp_consensus_slots::Slot;
-use futures::prelude::*;
-use std::time::{Duration, SystemTime};
-use std::pin::Pin;
+use std::{
+	pin::Pin,
+	time::{Duration, SystemTime},
+};
 
 const TICK_DURATION_MILLIS: u64 = 500;
 

@@ -14,9 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{prelude::*, mem, collections::{btree_map::BTreeMap, btree_set::BTreeSet}};
-use xcm::v0::{MultiAsset, MultiLocation, AssetInstance};
 use sp_runtime::RuntimeDebug;
+use sp_std::{
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+	mem,
+	prelude::*,
+};
+use xcm::v0::{AssetInstance, MultiAsset, MultiLocation};
 
 /// Classification of an asset being concrete or abstract.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
@@ -91,43 +95,43 @@ impl From<MultiAsset> for Assets {
 
 impl Assets {
 	/// New value, containing no assets.
-	pub fn new() -> Self { Self::default() }
+	pub fn new() -> Self {
+		Self::default()
+	}
 
 	/// An iterator over the fungible assets.
-	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
-		self.fungible.iter()
-			.map(|(id, &amount)| match id.clone() {
-				AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
-				AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
-			})
+	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+		self.fungible.iter().map(|(id, &amount)| match id.clone() {
+			AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
+			AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
+		})
 	}
 
 	/// An iterator over the non-fungible assets.
-	pub fn non_fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
-		self.non_fungible.iter()
-			.map(|&(ref class, ref instance)| match class.clone() {
-				AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance: instance.clone() },
-				AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance: instance.clone() },
-			})
+	pub fn non_fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+		self.non_fungible.iter().map(|&(ref class, ref instance)| match class.clone() {
+			AssetId::Concrete(class) =>
+				MultiAsset::ConcreteNonFungible { class, instance: instance.clone() },
+			AssetId::Abstract(class) =>
+				MultiAsset::AbstractNonFungible { class, instance: instance.clone() },
+		})
 	}
 
 	/// An iterator over all assets.
-	pub fn into_assets_iter(self) -> impl Iterator<Item=MultiAsset> {
-		let fungible = self.fungible.into_iter()
-			.map(|(id, amount)| match id {
-				AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
-				AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
-			});
-		let non_fungible = self.non_fungible.into_iter()
-			.map(|(id, instance)| match id {
-				AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance },
-				AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance },
-			});
+	pub fn into_assets_iter(self) -> impl Iterator<Item = MultiAsset> {
+		let fungible = self.fungible.into_iter().map(|(id, amount)| match id {
+			AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
+			AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
+		});
+		let non_fungible = self.non_fungible.into_iter().map(|(id, instance)| match id {
+			AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance },
+			AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance },
+		});
 		fungible.chain(non_fungible)
 	}
 
 	/// An iterator over all assets.
-	pub fn assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
+	pub fn assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
 		let fungible = self.fungible_assets_iter();
 		let non_fungible = self.non_fungible_assets_iter();
 		fungible.chain(non_fungible)
@@ -151,16 +155,16 @@ impl Assets {
 		match asset {
 			MultiAsset::ConcreteFungible { id, amount } => {
 				self.saturating_subsume_fungible(AssetId::Concrete(id), amount);
-			}
+			},
 			MultiAsset::AbstractFungible { id, amount } => {
 				self.saturating_subsume_fungible(AssetId::Abstract(id), amount);
-			}
-			MultiAsset::ConcreteNonFungible { class, instance} => {
+			},
+			MultiAsset::ConcreteNonFungible { class, instance } => {
 				self.saturating_subsume_non_fungible(AssetId::Concrete(class), instance);
-			}
-			MultiAsset::AbstractNonFungible { class, instance} => {
+			},
+			MultiAsset::AbstractNonFungible { class, instance } => {
 				self.saturating_subsume_non_fungible(AssetId::Abstract(class), instance);
-			}
+			},
 			_ => (),
 		}
 	}
@@ -191,14 +195,22 @@ impl Assets {
 	pub fn try_take(&mut self, asset: MultiAsset) -> Result<Assets, ()> {
 		match asset {
 			MultiAsset::None => Ok(Assets::new()),
-			MultiAsset::ConcreteFungible { id, amount } => self.try_take_fungible(AssetId::Concrete(id), amount),
-			MultiAsset::AbstractFungible { id, amount } => self.try_take_fungible(AssetId::Abstract(id), amount),
-			MultiAsset::ConcreteNonFungible { class, instance} => self.try_take_non_fungible(AssetId::Concrete(class), instance),
-			MultiAsset::AbstractNonFungible { class, instance} => self.try_take_non_fungible(AssetId::Abstract(class), instance),
-			MultiAsset::AllAbstractFungible { id } => Ok(self.take_fungible(&AssetId::Abstract(id))),
-			MultiAsset::AllConcreteFungible { id } => Ok(self.take_fungible(&AssetId::Concrete(id))),
-			MultiAsset::AllAbstractNonFungible { class } => Ok(self.take_non_fungible(&AssetId::Abstract(class))),
-			MultiAsset::AllConcreteNonFungible { class } => Ok(self.take_non_fungible(&AssetId::Concrete(class))),
+			MultiAsset::ConcreteFungible { id, amount } =>
+				self.try_take_fungible(AssetId::Concrete(id), amount),
+			MultiAsset::AbstractFungible { id, amount } =>
+				self.try_take_fungible(AssetId::Abstract(id), amount),
+			MultiAsset::ConcreteNonFungible { class, instance } =>
+				self.try_take_non_fungible(AssetId::Concrete(class), instance),
+			MultiAsset::AbstractNonFungible { class, instance } =>
+				self.try_take_non_fungible(AssetId::Abstract(class), instance),
+			MultiAsset::AllAbstractFungible { id } =>
+				Ok(self.take_fungible(&AssetId::Abstract(id))),
+			MultiAsset::AllConcreteFungible { id } =>
+				Ok(self.take_fungible(&AssetId::Concrete(id))),
+			MultiAsset::AllAbstractNonFungible { class } =>
+				Ok(self.take_non_fungible(&AssetId::Abstract(class))),
+			MultiAsset::AllConcreteNonFungible { class } =>
+				Ok(self.take_non_fungible(&AssetId::Concrete(class))),
 			MultiAsset::AllFungible => {
 				let mut taken = Assets::new();
 				mem::swap(&mut self.fungible, &mut taken.fungible);
@@ -218,7 +230,11 @@ impl Assets {
 		Ok(id.into_fungible_multiasset(amount).into())
 	}
 
-	pub fn try_take_non_fungible(&mut self, id: AssetId, instance: AssetInstance) -> Result<Assets, ()> {
+	pub fn try_take_non_fungible(
+		&mut self,
+		id: AssetId,
+		instance: AssetInstance,
+	) -> Result<Assets, ()> {
 		let asset_id_instance = (id, instance);
 		self.try_remove_non_fungible(&asset_id_instance)?;
 		let (asset_id, instance) = asset_id_instance;
@@ -252,7 +268,10 @@ impl Assets {
 		Ok(())
 	}
 
-	pub fn try_remove_non_fungible(&mut self, class_instance: &(AssetId, AssetInstance)) -> Result<(), ()> {
+	pub fn try_remove_non_fungible(
+		&mut self,
+		class_instance: &(AssetId, AssetInstance),
+	) -> Result<(), ()> {
 		match self.non_fungible.remove(class_instance) {
 			true => Ok(()),
 			false => Err(()),
@@ -280,13 +299,21 @@ impl Assets {
 	pub fn prepend_location(&mut self, prepend: &MultiLocation) {
 		let mut fungible = Default::default();
 		mem::swap(&mut self.fungible, &mut fungible);
-		self.fungible = fungible.into_iter()
-			.map(|(mut id, amount)| { let _ = id.prepend_location(prepend); (id, amount) })
+		self.fungible = fungible
+			.into_iter()
+			.map(|(mut id, amount)| {
+				let _ = id.prepend_location(prepend);
+				(id, amount)
+			})
 			.collect();
 		let mut non_fungible = Default::default();
 		mem::swap(&mut self.non_fungible, &mut non_fungible);
-		self.non_fungible = non_fungible.into_iter()
-			.map(|(mut class, inst)| { let _ = class.prepend_location(prepend); (class, inst) })
+		self.non_fungible = non_fungible
+			.into_iter()
+			.map(|(mut class, inst)| {
+				let _ = class.prepend_location(prepend);
+				(class, inst)
+			})
 			.collect();
 	}
 
@@ -340,67 +367,77 @@ impl Assets {
 						non_fungible: self.non_fungible.clone(),
 					}
 				},
-				MultiAsset::AllAbstractFungible { id } => {
+				MultiAsset::AllAbstractFungible { id } =>
 					for asset in self.fungible_assets_iter() {
 						match &asset {
 							MultiAsset::AbstractFungible { id: identifier, .. } => {
-								if id == identifier { result.saturating_subsume(asset) }
+								if id == identifier {
+									result.saturating_subsume(asset)
+								}
 							},
 							_ => (),
 						}
-					}
-				},
+					},
 				MultiAsset::AllAbstractNonFungible { class } => {
 					for asset in self.non_fungible_assets_iter() {
 						match &asset {
-							MultiAsset::AbstractNonFungible { class: c, .. } => {
-								if class == c { result.saturating_subsume(asset) }
-							},
-							_ => (),
-						}
-					}
-				}
-				MultiAsset::AllConcreteFungible { id } => {
-					for asset in self.fungible_assets_iter() {
-						match &asset {
-							MultiAsset::ConcreteFungible { id: identifier, .. } => {
-								if id == identifier { result.saturating_subsume(asset) }
-							},
+							MultiAsset::AbstractNonFungible { class: c, .. } =>
+								if class == c {
+									result.saturating_subsume(asset)
+								},
 							_ => (),
 						}
 					}
 				},
-				MultiAsset::AllConcreteNonFungible { class } => {
-					for asset in self.non_fungible_assets_iter() {
+				MultiAsset::AllConcreteFungible { id } =>
+					for asset in self.fungible_assets_iter() {
 						match &asset {
-							MultiAsset::ConcreteNonFungible { class: c, .. } => {
-								if class == c { result.saturating_subsume(asset) }
+							MultiAsset::ConcreteFungible { id: identifier, .. } => {
+								if id == identifier {
+									result.saturating_subsume(asset)
+								}
 							},
 							_ => (),
 						}
+					},
+				MultiAsset::AllConcreteNonFungible { class } => {
+					for asset in self.non_fungible_assets_iter() {
+						match &asset {
+							MultiAsset::ConcreteNonFungible { class: c, .. } =>
+								if class == c {
+									result.saturating_subsume(asset)
+								},
+							_ => (),
+						}
 					}
-				}
-				x @ MultiAsset::ConcreteFungible { .. } | x @ MultiAsset::AbstractFungible { .. } => {
+				},
+				x @ MultiAsset::ConcreteFungible { .. } |
+				x @ MultiAsset::AbstractFungible { .. } => {
 					let (id, amount) = match x {
-						MultiAsset::ConcreteFungible { id, amount } => (AssetId::Concrete(id.clone()), *amount),
-						MultiAsset::AbstractFungible { id, amount } => (AssetId::Abstract(id.clone()), *amount),
+						MultiAsset::ConcreteFungible { id, amount } =>
+							(AssetId::Concrete(id.clone()), *amount),
+						MultiAsset::AbstractFungible { id, amount } =>
+							(AssetId::Abstract(id.clone()), *amount),
 						_ => unreachable!(),
 					};
 					if let Some(v) = self.fungible.get(&id) {
 						result.saturating_subsume_fungible(id, amount.min(*v));
 					}
 				},
-				x @ MultiAsset::ConcreteNonFungible { .. } | x @ MultiAsset::AbstractNonFungible { .. } => {
+				x @ MultiAsset::ConcreteNonFungible { .. } |
+				x @ MultiAsset::AbstractNonFungible { .. } => {
 					let (class, instance) = match x {
-						MultiAsset::ConcreteNonFungible { class, instance } => (AssetId::Concrete(class.clone()), instance.clone()),
-						MultiAsset::AbstractNonFungible { class, instance } => (AssetId::Abstract(class.clone()), instance.clone()),
+						MultiAsset::ConcreteNonFungible { class, instance } =>
+							(AssetId::Concrete(class.clone()), instance.clone()),
+						MultiAsset::AbstractNonFungible { class, instance } =>
+							(AssetId::Abstract(class.clone()), instance.clone()),
 						_ => unreachable!(),
 					};
 					let item = (class, instance);
 					if self.non_fungible.contains(&item) {
 						result.non_fungible.insert(item);
 					}
-				}
+				},
 			}
 		}
 		result
@@ -455,7 +492,8 @@ impl Assets {
 						result.saturating_subsume_non_fungible(class, instance);
 					});
 				},
-				x @ MultiAsset::AllAbstractFungible { .. } | x @ MultiAsset::AllConcreteFungible { .. } => {
+				x @ MultiAsset::AllAbstractFungible { .. } |
+				x @ MultiAsset::AllConcreteFungible { .. } => {
 					let id = match x {
 						MultiAsset::AllConcreteFungible { id } => AssetId::Concrete(id),
 						MultiAsset::AllAbstractFungible { id } => AssetId::Abstract(id),
@@ -465,36 +503,41 @@ impl Assets {
 					let mut non_matching_fungibles = BTreeMap::<AssetId, u128>::new();
 					let fungible = mem::replace(&mut self.fungible, Default::default());
 					fungible.into_iter().for_each(|(iden, amount)| {
-							if iden == id {
-								result.saturating_subsume_fungible(iden, amount);
-							} else {
-								non_matching_fungibles.insert(iden, amount);
-							}
-						});
+						if iden == id {
+							result.saturating_subsume_fungible(iden, amount);
+						} else {
+							non_matching_fungibles.insert(iden, amount);
+						}
+					});
 					self.fungible = non_matching_fungibles;
 				},
-				x @ MultiAsset::AllAbstractNonFungible { .. } | x @ MultiAsset::AllConcreteNonFungible { .. } => {
+				x @ MultiAsset::AllAbstractNonFungible { .. } |
+				x @ MultiAsset::AllConcreteNonFungible { .. } => {
 					let class = match x {
 						MultiAsset::AllConcreteNonFungible { class } => AssetId::Concrete(class),
 						MultiAsset::AllAbstractNonFungible { class } => AssetId::Abstract(class),
 						_ => unreachable!(),
 					};
 					// At the end of this block, we will be left with only the non-matching non-fungibles.
-					let mut non_matching_non_fungibles = BTreeSet::<(AssetId, AssetInstance)>::new();
+					let mut non_matching_non_fungibles =
+						BTreeSet::<(AssetId, AssetInstance)>::new();
 					let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
 					non_fungible.into_iter().for_each(|(c, instance)| {
-							if class == c {
-								result.saturating_subsume_non_fungible(c, instance);
-							} else {
-								non_matching_non_fungibles.insert((c, instance));
-							}
-						});
+						if class == c {
+							result.saturating_subsume_non_fungible(c, instance);
+						} else {
+							non_matching_non_fungibles.insert((c, instance));
+						}
+					});
 					self.non_fungible = non_matching_non_fungibles;
 				},
-				x @ MultiAsset::ConcreteFungible {..} | x @ MultiAsset::AbstractFungible {..} => {
+				x @ MultiAsset::ConcreteFungible { .. } |
+				x @ MultiAsset::AbstractFungible { .. } => {
 					let (id, amount) = match x {
-						MultiAsset::ConcreteFungible { id, amount } => (AssetId::Concrete(id), amount),
-						MultiAsset::AbstractFungible { id, amount } => (AssetId::Abstract(id), amount),
+						MultiAsset::ConcreteFungible { id, amount } =>
+							(AssetId::Concrete(id), amount),
+						MultiAsset::AbstractFungible { id, amount } =>
+							(AssetId::Abstract(id), amount),
 						_ => unreachable!(),
 					};
 					// remove the maxmimum possible up to id/amount from self, add the removed onto
@@ -509,11 +552,14 @@ impl Assets {
 							result.saturating_subsume_fungible(id, e.clone());
 						}
 					}
-				}
-				x @ MultiAsset::ConcreteNonFungible {..} | x @ MultiAsset::AbstractNonFungible {..} => {
+				},
+				x @ MultiAsset::ConcreteNonFungible { .. } |
+				x @ MultiAsset::AbstractNonFungible { .. } => {
 					let (class, instance) = match x {
-						MultiAsset::ConcreteNonFungible { class, instance } => (AssetId::Concrete(class), instance),
-						MultiAsset::AbstractNonFungible { class, instance } => (AssetId::Abstract(class), instance),
+						MultiAsset::ConcreteNonFungible { class, instance } =>
+							(AssetId::Concrete(class), instance),
+						MultiAsset::AbstractNonFungible { class, instance } =>
+							(AssetId::Abstract(class), instance),
 						_ => unreachable!(),
 					};
 					// remove the maxmimum possible up to id/amount from self, add the removed onto
@@ -521,7 +567,7 @@ impl Assets {
 					if let Some(entry) = self.non_fungible.take(&(class, instance)) {
 						result.non_fungible.insert(entry);
 					}
-				}
+				},
 			}
 		}
 		result
@@ -543,7 +589,10 @@ mod tests {
 	}
 	#[allow(non_snake_case)]
 	fn ANF(class: u8, instance_id: u128) -> MultiAsset {
-		MultiAsset::AbstractNonFungible { class: vec![class], instance: AssetInstance::Index { id: instance_id } }
+		MultiAsset::AbstractNonFungible {
+			class: vec![class],
+			instance: AssetInstance::Index { id: instance_id },
+		}
 	}
 	#[allow(non_snake_case)]
 	fn CF(amount: u128) -> MultiAsset {
@@ -551,7 +600,10 @@ mod tests {
 	}
 	#[allow(non_snake_case)]
 	fn CNF(instance_id: u128) -> MultiAsset {
-		MultiAsset::ConcreteNonFungible { class: MultiLocation::Null, instance: AssetInstance::Index { id: instance_id } }
+		MultiAsset::ConcreteNonFungible {
+			class: MultiLocation::Null,
+			instance: AssetInstance::Index { id: instance_id },
+		}
 	}
 
 	fn test_assets() -> Assets {

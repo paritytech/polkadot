@@ -19,21 +19,18 @@
 
 use polkadot_node_subsystem::SubsystemResult;
 
-use polkadot_primitives::v1::{
-	CandidateHash, CandidateReceipt, BlockNumber, GroupIndex, Hash,
+use bitvec::order::Lsb0 as BitOrderLsb0;
+use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, GroupIndex, Hash};
+
+use std::{
+	collections::{hash_map::Entry, BTreeMap, HashMap},
+	convert::Into,
 };
-use bitvec::{order::Lsb0 as BitOrderLsb0};
 
-use std::convert::Into;
-use std::collections::{BTreeMap, HashMap};
-use std::collections::hash_map::Entry;
-
-use super::persisted_entries::{ApprovalEntry, CandidateEntry, BlockEntry};
-use super::backend::{Backend, OverlayedBackend};
-use super::approval_db::{
-	v1::{
-		OurAssignment, StoredBlockRange,
-	},
+use super::{
+	approval_db::v1::{OurAssignment, StoredBlockRange},
+	backend::{Backend, OverlayedBackend},
+	persisted_entries::{ApprovalEntry, BlockEntry, CandidateEntry},
 };
 
 /// Information about a new candidate necessary to instantiate the requisite
@@ -75,7 +72,7 @@ fn visit_and_remove_block_entry(
 					None => continue, // Should not happen except for corrupt DB
 					Some(c) => c,
 				})
-			}
+			},
 		};
 
 		candidate.block_assignments.remove(&block_hash);
@@ -111,11 +108,7 @@ pub fn canonicalize(
 		overlay_db.delete_blocks_at_height(i);
 
 		for b in at_height {
-			let _ = visit_and_remove_block_entry(
-				b,
-				overlay_db,
-				&mut visited_candidates,
-			)?;
+			let _ = visit_and_remove_block_entry(b, overlay_db, &mut visited_candidates)?;
 		}
 	}
 
@@ -129,11 +122,7 @@ pub fn canonicalize(
 		let mut pruned_branches = Vec::new();
 
 		for b in at_height {
-			let children = visit_and_remove_block_entry(
-				b,
-				overlay_db,
-				&mut visited_candidates,
-			)?;
+			let children = visit_and_remove_block_entry(b, overlay_db, &mut visited_candidates)?;
 
 			if b != canon_hash {
 				pruned_branches.extend(children);
@@ -145,13 +134,11 @@ pub fn canonicalize(
 
 	// Follow all children of non-canonicalized blocks.
 	{
-		let mut frontier: Vec<(BlockNumber, Hash)> = pruned_branches.into_iter().map(|h| (canon_number + 1, h)).collect();
+		let mut frontier: Vec<(BlockNumber, Hash)> =
+			pruned_branches.into_iter().map(|h| (canon_number + 1, h)).collect();
 		while let Some((height, next_child)) = frontier.pop() {
-			let children = visit_and_remove_block_entry(
-				next_child,
-				overlay_db,
-				&mut visited_candidates,
-			)?;
+			let children =
+				visit_and_remove_block_entry(next_child, overlay_db, &mut visited_candidates)?;
 
 			// extend the frontier of branches to include the given height.
 			frontier.extend(children.into_iter().map(|h| (height + 1, h)));
@@ -188,10 +175,7 @@ pub fn canonicalize(
 	// due to the fork pruning, this range actually might go too far above where our actual highest block is,
 	// if a relatively short fork is canonicalized.
 	// TODO https://github.com/paritytech/polkadot/issues/3389
-	let new_range = StoredBlockRange(
-		canon_number + 1,
-		std::cmp::max(range.1, canon_number + 2),
-	);
+	let new_range = StoredBlockRange(canon_number + 1, std::cmp::max(range.1, canon_number + 2));
 
 	overlay_db.write_stored_block_range(new_range);
 
@@ -246,21 +230,20 @@ pub fn add_block_entry(
 	// read and write all updated entries.
 	{
 		for &(_, ref candidate_hash) in entry.candidates() {
-			let NewCandidateInfo {
-				candidate,
-				backing_group,
-				our_assignment,
-			} = match candidate_info(candidate_hash) {
-				None => return Ok(Vec::new()),
-				Some(info) => info,
-			};
+			let NewCandidateInfo { candidate, backing_group, our_assignment } =
+				match candidate_info(candidate_hash) {
+					None => return Ok(Vec::new()),
+					Some(info) => info,
+				};
 
-			let mut candidate_entry = store.load_candidate_entry(&candidate_hash)?
-				.unwrap_or_else(move || CandidateEntry {
-					candidate,
-					session,
-					block_assignments: BTreeMap::new(),
-					approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			let mut candidate_entry =
+				store.load_candidate_entry(&candidate_hash)?.unwrap_or_else(move || {
+					CandidateEntry {
+						candidate,
+						session,
+						block_assignments: BTreeMap::new(),
+						approvals: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+					}
 				});
 
 			candidate_entry.block_assignments.insert(
@@ -272,7 +255,7 @@ pub fn add_block_entry(
 					None,
 					bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
 					false,
-				)
+				),
 			);
 
 			store.write_candidate_entry(candidate_entry.clone());
@@ -313,7 +296,6 @@ pub fn force_approve(
 	// iterate back to the `up_to` block, and then iterate backwards until all blocks
 	// are updated.
 	while let Some(mut entry) = store.load_block_entry(&cur_hash)? {
-
 		if entry.block_number() <= up_to {
 			state = State::Approving;
 		}
@@ -326,7 +308,7 @@ pub fn force_approve(
 				entry.approved_bitfield.iter_mut().for_each(|mut b| *b = true);
 				approved_hashes.push(entry.block_hash());
 				store.write_block_entry(entry);
-			}
+			},
 		}
 	}
 

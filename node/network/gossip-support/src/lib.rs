@@ -24,29 +24,20 @@
 //! in this graph will be forwarded to the network bridge with
 //! the `NetworkBridgeMessage::NewGossipTopology` message.
 
-use std::time::{Duration, Instant};
 use futures::{channel::oneshot, FutureExt as _};
-use rand::{SeedableRng, seq::SliceRandom as _};
-use rand_chacha::ChaCha20Rng;
+use polkadot_node_network_protocol::peer_set::PeerSet;
 use polkadot_node_subsystem::{
-	overseer,
+	messages::{GossipSupportMessage, NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest},
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
-	FromOverseer, SpawnedSubsystem, SubsystemContext,
-	messages::{
-		GossipSupportMessage,
-		NetworkBridgeMessage,
-		RuntimeApiMessage,
-		RuntimeApiRequest,
-	},
-	ActiveLeavesUpdate, OverseerSignal,
 };
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v1::{
-	Hash, SessionIndex, AuthorityDiscoveryId,
-};
-use polkadot_node_network_protocol::peer_set::PeerSet;
+use polkadot_primitives::v1::{AuthorityDiscoveryId, Hash, SessionIndex};
+use rand::{seq::SliceRandom as _, SeedableRng};
+use rand_chacha::ChaCha20Rng;
+use sp_application_crypto::{AppKey, Public};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
-use sp_application_crypto::{Public, AppKey};
+use std::time::{Duration, Instant};
 
 #[cfg(test)]
 mod tests;
@@ -90,9 +81,7 @@ struct State {
 impl GossipSupport {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
 	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
-		Self {
-			keystore,
-		}
+		Self { keystore }
 	}
 
 	async fn run<Context>(self, ctx: Context)
@@ -119,7 +108,7 @@ impl GossipSupport {
 						err = ?e,
 						"Failed to receive a message from Overseer, exiting",
 					);
-					return;
+					return
 				},
 			};
 			match message {
@@ -134,11 +123,9 @@ impl GossipSupport {
 					if let Err(e) = state.handle_active_leaves(&mut ctx, &keystore, leaves).await {
 						tracing::debug!(target: LOG_TARGET, error = ?e);
 					}
-				}
+				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_hash, _number)) => {},
-				FromOverseer::Signal(OverseerSignal::Conclude) => {
-					return;
-				}
+				FromOverseer::Signal(OverseerSignal::Conclude) => return,
 			}
 		}
 	}
@@ -168,11 +155,8 @@ async fn ensure_i_am_an_authority(
 	authorities: &[AuthorityDiscoveryId],
 ) -> Result<usize, util::Error> {
 	for (i, v) in authorities.iter().enumerate() {
-		if CryptoStore::has_keys(
-			&**keystore,
-			&[(v.to_raw_vec(), AuthorityDiscoveryId::ID)]
-		).await {
-			return Ok(i);
+		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)]).await {
+			return Ok(i)
 		}
 	}
 	Err(util::Error::NotAValidator)
@@ -189,13 +173,8 @@ where
 	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 {
 	let (failed, failed_rx) = oneshot::channel();
-	ctx.send_message(
-		NetworkBridgeMessage::ConnectToValidators {
-			validator_ids,
-			peer_set,
-			failed,
-		}
-	).await;
+	ctx.send_message(NetworkBridgeMessage::ConnectToValidators { validator_ids, peer_set, failed })
+		.await;
 	failed_rx
 }
 
@@ -224,7 +203,8 @@ where
 		ctx.send_message(RuntimeApiMessage::Request(
 			relay_parent,
 			RuntimeApiRequest::CurrentBabeEpoch(tx),
-		)).await;
+		))
+		.await;
 
 		let randomness = rx.await??.randomness;
 		let mut subject = [0u8; 40];
@@ -238,24 +218,22 @@ where
 	let len = authorities.len();
 	let mut indices: Vec<usize> = (0..len).collect();
 	indices.shuffle(&mut rng);
-	let our_shuffled_position = indices.iter()
+	let our_shuffled_position = indices
+		.iter()
 		.position(|i| *i == our_index)
 		.expect("our_index < len; indices contains it; qed");
 
 	let neighbors = matrix_neighbors(our_shuffled_position, len);
 	let our_neighbors = neighbors.map(|i| authorities[indices[i]].clone()).collect();
 
-	ctx.send_message(
-		NetworkBridgeMessage::NewGossipTopology {
-			our_neighbors,
-		}
-	).await;
+	ctx.send_message(NetworkBridgeMessage::NewGossipTopology { our_neighbors })
+		.await;
 
 	Ok(())
 }
 
 /// Compute our row and column neighbors in a matrix
-fn matrix_neighbors(our_index: usize, len: usize) -> impl Iterator<Item=usize> {
+fn matrix_neighbors(our_index: usize, len: usize) -> impl Iterator<Item = usize> {
 	assert!(our_index < len, "our_index is computed using `enumerate`; qed");
 
 	// e.g. for size 11 the matrix would be
@@ -291,7 +269,8 @@ impl State {
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
 		for leaf in leaves {
-			let current_index = util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
+			let current_index =
+				util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
 			let since_failure = self.last_failure.map(|i| i.elapsed()).unwrap_or_default();
 			let force_request = since_failure >= BACKOFF_DURATION;
 			let leaf_session = Some((current_index, leaf));
@@ -300,11 +279,8 @@ impl State {
 				_ => leaf_session,
 			};
 
-			let maybe_issue_connection = if force_request {
-				leaf_session
-			} else {
-				maybe_new_session
-			};
+			let maybe_issue_connection =
+				if force_request { leaf_session } else { maybe_new_session };
 
 			if let Some((session_index, relay_parent)) = maybe_issue_connection {
 				let is_new_session = maybe_new_session.is_some();
@@ -326,7 +302,6 @@ impl State {
 					update_gossip_topology(ctx, our_index, authorities, relay_parent).await?;
 				}
 			}
-
 		}
 
 		Ok(())
@@ -344,11 +319,7 @@ impl State {
 		let num = authorities.len();
 		tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
-		let failures = connect_to_authorities(
-			ctx,
-			authorities,
-			PeerSet::Validation,
-		).await;
+		let failures = connect_to_authorities(ctx, authorities, PeerSet::Validation).await;
 
 		// we await for the request to be processed
 		// this is fine, it should take much less time than one session
@@ -367,8 +338,7 @@ impl State {
 						target = ?num,
 						"Low connectivity - authority lookup failed for too many validators."
 					);
-
-				}
+				},
 				Some(_) => {
 					tracing::debug!(
 						target: LOG_TARGET,
@@ -376,7 +346,7 @@ impl State {
 						target = ?num,
 						"Low connectivity (due to authority lookup failures) - expected on startup."
 					);
-				}
+				},
 			}
 			self.last_failure = Some(timestamp);
 		} else {
@@ -394,13 +364,8 @@ where
 	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = self.run(ctx)
-			.map(|_| Ok(()))
-			.boxed();
+		let future = self.run(ctx).map(|_| Ok(())).boxed();
 
-		SpawnedSubsystem {
-			name: "gossip-support-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "gossip-support-subsystem", future }
 	}
 }

@@ -21,12 +21,12 @@
 //! [`Backend`], maintaining consistency between queries and temporary writes,
 //! before any commit to the underlying storage is made.
 
-use polkadot_primitives::v1::{CandidateHash, SessionIndex};
 use polkadot_node_subsystem::SubsystemResult;
+use polkadot_primitives::v1::{CandidateHash, SessionIndex};
 
 use std::collections::HashMap;
 
-use super::db::v1::{RecentDisputes, CandidateVotes};
+use super::db::v1::{CandidateVotes, RecentDisputes};
 
 #[derive(Debug)]
 pub enum BackendWriteOp {
@@ -54,7 +54,8 @@ pub trait Backend {
 	/// Atomically writes the list of operations, with later operations taking precedence over
 	/// prior.
 	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
-		where I: IntoIterator<Item = BackendWriteOp>;
+	where
+		I: IntoIterator<Item = BackendWriteOp>;
 }
 
 /// An in-memory overlay for the backend.
@@ -112,7 +113,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	pub fn load_candidate_votes(
 		&self,
 		session: SessionIndex,
-		candidate_hash: &CandidateHash
+		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<CandidateVotes>> {
 		if let Some(val) = self.candidate_votes.get(&(session, *candidate_hash)) {
 			return Ok(val.clone())
@@ -142,7 +143,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		&mut self,
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
-		votes: CandidateVotes
+		votes: CandidateVotes,
 	) {
 		self.candidate_votes.insert((session, candidate_hash), Some(votes));
 	}
@@ -150,34 +151,28 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 	/// Prepare a deletion of the candidate votes under the indicated candidate.
 	///
 	/// Later calls to this function for the same candidate will override earlier ones.
-	pub fn delete_candidate_votes(
-		&mut self,
-		session: SessionIndex,
-		candidate_hash: CandidateHash,
-	) {
+	pub fn delete_candidate_votes(&mut self, session: SessionIndex, candidate_hash: CandidateHash) {
 		self.candidate_votes.insert((session, candidate_hash), None);
 	}
 
 	/// Transform this backend into a set of write-ops to be written to the inner backend.
 	pub fn into_write_ops(self) -> impl Iterator<Item = BackendWriteOp> {
-		let earliest_session_ops = self.earliest_session
+		let earliest_session_ops = self
+			.earliest_session
 			.map(|s| BackendWriteOp::WriteEarliestSession(s))
 			.into_iter();
 
-		let recent_dispute_ops = self.recent_disputes
-			.map(|d| BackendWriteOp::WriteRecentDisputes(d))
-			.into_iter();
+		let recent_dispute_ops =
+			self.recent_disputes.map(|d| BackendWriteOp::WriteRecentDisputes(d)).into_iter();
 
-		let candidate_vote_ops = self.candidate_votes
-			.into_iter()
-			.map(|((session, candidate), votes)| match votes {
-				Some(votes) => BackendWriteOp::WriteCandidateVotes(session, candidate, votes),
-				None => BackendWriteOp::DeleteCandidateVotes(session, candidate),
-			});
+		let candidate_vote_ops =
+			self.candidate_votes
+				.into_iter()
+				.map(|((session, candidate), votes)| match votes {
+					Some(votes) => BackendWriteOp::WriteCandidateVotes(session, candidate, votes),
+					None => BackendWriteOp::DeleteCandidateVotes(session, candidate),
+				});
 
-		earliest_session_ops
-			.chain(recent_dispute_ops)
-			.chain(candidate_vote_ops)
-
+		earliest_session_ops.chain(recent_dispute_ops).chain(candidate_vote_ops)
 	}
 }

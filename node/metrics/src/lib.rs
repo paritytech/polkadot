@@ -28,7 +28,7 @@ use futures::prelude::*;
 use futures_timer::Delay;
 use std::{
 	pin::Pin,
-	task::{Poll, Context},
+	task::{Context, Poll},
 	time::Duration,
 };
 
@@ -39,7 +39,6 @@ pub mod metrics {
 	/// Reexport Substrate Prometheus types.
 	pub use substrate_prometheus_endpoint as prometheus;
 
-
 	/// Subsystem- or job-specific Prometheus metrics.
 	///
 	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
@@ -47,13 +46,17 @@ pub mod metrics {
 	/// Prometheus metrics internally hold an `Arc` reference, so cloning them is fine.
 	pub trait Metrics: Default + Clone {
 		/// Try to register metrics in the Prometheus registry.
-		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
+		fn try_register(
+			registry: &prometheus::Registry,
+		) -> Result<Self, prometheus::PrometheusError>;
 
 		/// Convenience method to register metrics in the optional Prometheus registry.
 		///
 		/// If no registry is provided, returns `Default::default()`. Otherwise, returns the same
 		/// thing that `try_register` does.
-		fn register(registry: Option<&prometheus::Registry>) -> Result<Self, prometheus::PrometheusError> {
+		fn register(
+			registry: Option<&prometheus::Registry>,
+		) -> Result<Self, prometheus::PrometheusError> {
 			match registry {
 				None => Ok(Self::default()),
 				Some(registry) => Self::try_register(registry),
@@ -63,7 +66,9 @@ pub mod metrics {
 
 	// dummy impl
 	impl Metrics for () {
-		fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+		fn try_register(
+			_registry: &prometheus::Registry,
+		) -> Result<(), prometheus::PrometheusError> {
 			Ok(())
 		}
 	}
@@ -86,34 +91,27 @@ impl Metronome {
 	/// Create a new metronome source with a defined cycle duration.
 	pub fn new(cycle: Duration) -> Self {
 		let period = cycle.into();
-		Self {
-			period,
-			delay: Delay::new(period),
-			state: MetronomeState::Snooze,
-		}
+		Self { period, delay: Delay::new(period), state: MetronomeState::Snooze }
 	}
 }
 
 impl futures::Stream for Metronome {
 	type Item = ();
-	fn poll_next(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context<'_>
-	) -> Poll<Option<Self::Item>> {
+	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
 		loop {
 			match self.state {
 				MetronomeState::SetAlarm => {
 					let val = self.period.clone();
 					self.delay.reset(val);
 					self.state = MetronomeState::Snooze;
-				}
+				},
 				MetronomeState::Snooze => {
 					if !Pin::new(&mut self.delay).poll(cx).is_ready() {
 						break
 					}
 					self.state = MetronomeState::SetAlarm;
-					return Poll::Ready(Some(()));
-				}
+					return Poll::Ready(Some(()))
+				},
 			}
 		}
 		Poll::Pending

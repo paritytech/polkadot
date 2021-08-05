@@ -18,14 +18,14 @@
 
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
-use runtime_parachains::{
-	configuration, dmp, ump, hrmp,
-	ParaLifecycle,
-	paras::{self, ParaGenesisArgs},
-};
-use primitives::v1::Id as ParaId;
-use parity_scale_codec::Encode;
 pub use pallet::*;
+use parity_scale_codec::Encode;
+use primitives::v1::Id as ParaId;
+use runtime_parachains::{
+	configuration, dmp, hrmp,
+	paras::{self, ParaGenesisArgs},
+	ump, ParaLifecycle,
+};
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -38,8 +38,9 @@ pub mod pallet {
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config:
-		configuration::Config + paras::Config + dmp::Config + ump::Config + hrmp::Config {}
-
+		configuration::Config + paras::Config + dmp::Config + ump::Config + hrmp::Config
+	{
+	}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -84,13 +85,17 @@ pub mod pallet {
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_para_cleanup(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
-			runtime_parachains::schedule_para_cleanup::<T>(id).map_err(|_| Error::<T>::CouldntCleanup)?;
+			runtime_parachains::schedule_para_cleanup::<T>(id)
+				.map_err(|_| Error::<T>::CouldntCleanup)?;
 			Ok(())
 		}
 
 		/// Upgrade a parathread to a parachain
 		#[pallet::weight((1_000, DispatchClass::Operational))]
-		pub fn sudo_schedule_parathread_upgrade(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
+		pub fn sudo_schedule_parathread_upgrade(
+			origin: OriginFor<T>,
+			id: ParaId,
+		) -> DispatchResult {
 			ensure_root(origin)?;
 			// Para backend should think this is a parathread...
 			ensure!(
@@ -104,7 +109,10 @@ pub mod pallet {
 
 		/// Downgrade a parachain to a parathread
 		#[pallet::weight((1_000, DispatchClass::Operational))]
-		pub fn sudo_schedule_parachain_downgrade(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
+		pub fn sudo_schedule_parachain_downgrade(
+			origin: OriginFor<T>,
+			id: ParaId,
+		) -> DispatchResult {
 			ensure_root(origin)?;
 			// Para backend should think this is a parachain...
 			ensure!(
@@ -129,11 +137,11 @@ pub mod pallet {
 			ensure_root(origin)?;
 			ensure!(<paras::Pallet<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
 			let config = <configuration::Pallet<T>>::config();
-			<dmp::Pallet<T>>::queue_downward_message(&config, id, xcm.encode())
-				.map_err(|e| match e {
-					dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
-						Error::<T>::ExceedsMaxMessageSize.into(),
-				})
+			<dmp::Pallet<T>>::queue_downward_message(&config, id, xcm.encode()).map_err(|e| match e
+			{
+				dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
+					Error::<T>::ExceedsMaxMessageSize.into(),
+			})
 		}
 
 		/// Forcefully establish a channel from the sender to the recipient.

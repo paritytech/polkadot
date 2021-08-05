@@ -15,22 +15,16 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::TestHost;
-use polkadot_parachain::{
-	primitives::{
-		RelayChainBlockNumber, BlockData as GenericBlockData, HeadData as GenericHeadData,
-		ValidationParams,
-	},
-};
+use adder::{hash_state, BlockData, HeadData};
 use parity_scale_codec::{Decode, Encode};
-use adder::{HeadData, BlockData, hash_state};
+use polkadot_parachain::primitives::{
+	BlockData as GenericBlockData, HeadData as GenericHeadData, RelayChainBlockNumber,
+	ValidationParams,
+};
 
 #[async_std::test]
 async fn execute_good_on_parent() {
-	let parent_head = HeadData {
-		number: 0,
-		parent_hash: [0; 32],
-		post_state: hash_state(0),
-	};
+	let parent_head = HeadData { number: 0, parent_hash: [0; 32], post_state: hash_state(0) };
 
 	let block_data = BlockData { state: 0, add: 512 };
 
@@ -65,16 +59,9 @@ async fn execute_good_chain_on_parent() {
 	let host = TestHost::new();
 
 	for add in 0..10 {
-		let parent_head = HeadData {
-			number,
-			parent_hash,
-			post_state: hash_state(last_state),
-		};
+		let parent_head = HeadData { number, parent_hash, post_state: hash_state(last_state) };
 
-		let block_data = BlockData {
-			state: last_state,
-			add,
-		};
+		let block_data = BlockData { state: last_state, add };
 
 		let ret = host
 			.validate_candidate(
@@ -103,11 +90,7 @@ async fn execute_good_chain_on_parent() {
 
 #[async_std::test]
 async fn execute_bad_on_parent() {
-	let parent_head = HeadData {
-		number: 0,
-		parent_hash: [0; 32],
-		post_state: hash_state(0),
-	};
+	let parent_head = HeadData { number: 0, parent_hash: [0; 32], post_state: hash_state(0) };
 
 	let block_data = BlockData {
 		state: 256, // start state is wrong.
