@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Version 0 of the Cross-Consensus Message format data structures.
+//! Version 1 of the Cross-Consensus Message format data structures.
 
 use super::{MultiAsset, MultiAssetFilter, MultiLocation, Xcm};
 use alloc::vec::Vec;
