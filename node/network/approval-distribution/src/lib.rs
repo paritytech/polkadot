@@ -200,11 +200,11 @@ impl State {
 		match event {
 			NetworkBridgeEvent::PeerConnected(peer_id, role, _) => {
 				// insert a blank view if none already present
-				tracing::trace!(target: LOG_TARGET, ?peer_id, ?role, "Peer connected",);
+				tracing::trace!(target: LOG_TARGET, ?peer_id, ?role, "Peer connected");
 				self.peer_views.entry(peer_id).or_default();
 			},
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
-				tracing::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected",);
+				tracing::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
 				self.peer_views.remove(&peer_id);
 				self.blocks.iter_mut().for_each(|(_hash, entry)| {
 					entry.known_by.remove(&peer_id);
@@ -224,7 +224,7 @@ impl State {
 				self.handle_peer_view_change(ctx, metrics, peer_id, view).await;
 			},
 			NetworkBridgeEvent::OurViewChange(view) => {
-				tracing::trace!(target: LOG_TARGET, ?view, "Own view change",);
+				tracing::trace!(target: LOG_TARGET, ?view, "Own view change");
 				for head in view.iter() {
 					if !self.blocks.contains_key(head) {
 						self.pending_known.entry(*head).or_default();
@@ -454,7 +454,7 @@ impl State {
 		peer_id: PeerId,
 		view: View,
 	) {
-		tracing::trace!(target: LOG_TARGET, ?view, "Peer view change",);
+		tracing::trace!(target: LOG_TARGET, ?view, "Peer view change");
 		let finalized_number = view.finalized_number;
 		let old_view = self.peer_views.insert(peer_id.clone(), view.clone());
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
@@ -570,7 +570,7 @@ impl State {
 			if entry.knowledge.known_messages.contains(&fingerprint) {
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
-					tracing::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, "Known assignment",);
+					tracing::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, "Known assignment");
 					peer_knowledge.received.insert(fingerprint.clone());
 				}
 				return
@@ -589,7 +589,7 @@ impl State {
 			let result = match rx.await {
 				Ok(result) => result,
 				Err(_) => {
-					tracing::debug!(target: LOG_TARGET, "The approval voting subsystem is down",);
+					tracing::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
 					return
 				},
 			};
@@ -805,7 +805,7 @@ impl State {
 
 			// if the approval is known to be valid, reward the peer
 			if entry.knowledge.contains(&fingerprint) {
-				tracing::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, "Known approval",);
+				tracing::trace!(target: LOG_TARGET, ?peer_id, ?fingerprint, "Known approval");
 				modify_reputation(ctx, peer_id.clone(), BENEFIT_VALID_MESSAGE).await;
 				if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 					peer_knowledge.received.insert(fingerprint.clone());
@@ -822,7 +822,7 @@ impl State {
 			let result = match rx.await {
 				Ok(result) => result,
 				Err(_) => {
-					tracing::debug!(target: LOG_TARGET, "The approval voting subsystem is down",);
+					tracing::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
 					return
 				},
 			};
@@ -978,7 +978,7 @@ impl State {
 			);
 
 		if !lucky {
-			tracing::trace!(target: LOG_TARGET, ?peer_id, "Unlucky peer",);
+			tracing::trace!(target: LOG_TARGET, ?peer_id, "Unlucky peer");
 			return
 		}
 

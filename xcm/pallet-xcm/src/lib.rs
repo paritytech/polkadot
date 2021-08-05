@@ -82,6 +82,9 @@ pub mod pallet {
 		type LocationInverter: InvertLocation;
 	}
 
+	/// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
+	const MAX_ASSETS_FOR_TRANSFER: usize = 2;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -101,6 +104,8 @@ pub mod pallet {
 		Empty,
 		/// Could not reanchor the assets to declare the fees for the destination chain.
 		CannotReanchor,
+		/// Too many assets have been attempted for transfer.
+		TooManyAssets,
 	}
 
 	#[pallet::hooks]
@@ -154,6 +159,7 @@ pub mod pallet {
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
@@ -224,9 +230,10 @@ pub mod pallet {
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
-			let (origin_location, mut assets) = value;
+			let (origin_location, assets) = value;
 			let inv_dest = T::LocationInverter::invert_location(&dest);
 			let fees = assets
 				.get(fee_asset_item as usize)
