@@ -227,6 +227,8 @@ impl pallet_babe::Config for Runtime {
 	// session module is the trigger
 	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
 
+	type DisabledValidators = Session;
+
 	type KeyOwnerProofSystem = Historical;
 
 	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
@@ -833,7 +835,6 @@ where
 
 parameter_types! {
 	pub const ParathreadDeposit: Balance = 500 * DOLLARS;
-	pub const QueueSize: usize = 2;
 	pub const MaxRetries: u32 = 3;
 }
 

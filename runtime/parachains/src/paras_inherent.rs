@@ -28,19 +28,17 @@ use crate::{
 	shared, ump,
 };
 use frame_support::{
-	decl_error, decl_module, decl_storage,
-	dispatch::DispatchResultWithPostInfo,
-	ensure,
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
-	traits::Get,
-	weights::{DispatchClass, Weight},
+	pallet_prelude::*,
 };
-use frame_system::ensure_none;
+use frame_system::pallet_prelude::*;
 use primitives::v1::{
 	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_runtime::traits::Header as HeaderT;
 use sp_std::prelude::*;
+
+pub use pallet::*;
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
@@ -49,22 +47,20 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
-pub trait Config: inclusion::Config + scheduler::Config {}
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
 
-decl_storage! {
-	trait Store for Module<T: Config> as ParaInherent {
-		/// Whether the paras inherent was included within this block.
-		///
-		/// The `Option<()>` is effectively a `bool`, but it never hits storage in the `None` variant
-		/// due to the guarantees of FRAME's storage APIs.
-		///
-		/// If this is `None` at the end of the block, we panic and render the block invalid.
-		Included: Option<()>;
-	}
-}
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
 
-decl_error! {
-	pub enum Error for Module<T: Config> {
+	#[pallet::config]
+	#[pallet::disable_frame_system_supertrait_check]
+	pub trait Config: inclusion::Config + scheduler::Config {}
+
+	#[pallet::error]
+	pub enum Error<T> {
 		/// Inclusion inherent called more than once per block.
 		TooManyInclusionInherents,
 		/// The hash of the submitted parent header doesn't correspond to the saved block hash of
@@ -73,30 +69,89 @@ decl_error! {
 		/// Potentially invalid candidate.
 		CandidateCouldBeInvalid,
 	}
-}
 
-decl_module! {
-	/// The paras inherent module.
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
+	/// Whether the paras inherent was included within this block.
+	///
+	/// The `Option<()>` is effectively a `bool`, but it never hits storage in the `None` variant
+	/// due to the guarantees of FRAME's storage APIs.
+	///
+	/// If this is `None` at the end of the block, we panic and render the block invalid.
+	#[pallet::storage]
+	pub(crate) type Included<T> = StorageValue<_, ()>;
 
-		fn on_initialize() -> Weight {
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(_: T::BlockNumber) -> Weight {
 			T::DbWeight::get().reads_writes(1, 1) // in on_finalize.
 		}
 
-		fn on_finalize() {
-			if Included::take().is_none() {
+		fn on_finalize(_: T::BlockNumber) {
+			if Included::<T>::take().is_none() {
 				panic!("Bitfields and heads must be included every block");
 			}
 		}
+	}
 
+	#[pallet::inherent]
+	impl<T: Config> ProvideInherent for Pallet<T> {
+		type Call = Call<T>;
+		type Error = MakeFatalError<()>;
+		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
+
+		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+			let mut inherent_data: ParachainsInherentData<T::Header> =
+				match data.get_data(&Self::INHERENT_IDENTIFIER) {
+					Ok(Some(d)) => d,
+					Ok(None) => return None,
+					Err(_) => {
+						log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode",);
+
+						return None
+					},
+				};
+
+			// filter out any unneeded dispute statements
+			T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
+
+			// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
+			// See github.com/paritytech/polkadot/issues/1327
+			let inherent_data =
+				match Self::enter(frame_system::RawOrigin::None.into(), inherent_data.clone()) {
+					Ok(_) => inherent_data,
+					Err(err) => {
+						log::warn!(
+						target: LOG_TARGET,
+						"dropping signed_bitfields and backed_candidates because they produced \
+						an invalid paras inherent: {:?}",
+						err,
+					);
+
+						ParachainsInherentData {
+							bitfields: Vec::new(),
+							backed_candidates: Vec::new(),
+							disputes: Vec::new(),
+							parent_header: inherent_data.parent_header,
+						}
+					},
+				};
+
+			Some(Call::enter(inherent_data))
+		}
+
+		fn is_inherent(call: &Self::Call) -> bool {
+			matches!(call, Call::enter(..))
+		}
+	}
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
-		#[weight = (
+		#[pallet::weight((
 			MINIMAL_INCLUSION_INHERENT_WEIGHT + data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
 			DispatchClass::Mandatory,
-		)]
+		))]
 		pub fn enter(
-			origin,
+			origin: OriginFor<T>,
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
 			let ParachainsInherentData {
@@ -107,7 +162,7 @@ decl_module! {
 			} = data;
 
 			ensure_none(origin)?;
-			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
+			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
 			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
@@ -122,17 +177,16 @@ decl_module! {
 				let fresh_disputes = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
-					Included::set(Some(()));
-					return Ok(Some(
-						MINIMAL_INCLUSION_INHERENT_WEIGHT
-					).into());
+					Included::<T>::set(Some(()));
+					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
 				}
 
-				let any_current_session_disputes = fresh_disputes.iter()
-					.any(|(s, _)| s == &current_session);
+				let any_current_session_disputes =
+					fresh_disputes.iter().any(|(s, _)| s == &current_session);
 
 				if any_current_session_disputes {
-					let current_session_disputes: Vec<_> = fresh_disputes.iter()
+					let current_session_disputes: Vec<_> = fresh_disputes
+						.iter()
 						.filter(|(s, _)| s == &current_session)
 						.map(|(_, c)| *c)
 						.collect();
@@ -170,7 +224,8 @@ decl_module! {
 			};
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
-			let mut freed = freed_disputed.into_iter()
+			let mut freed = freed_disputed
+				.into_iter()
 				.chain(freed_concluded.into_iter().map(|(c, _hash)| (c, FreedReason::Concluded)))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
 				.collect::<Vec<_>>();
@@ -178,10 +233,7 @@ decl_module! {
 			freed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 
 			<scheduler::Pallet<T>>::clear();
-			<scheduler::Pallet<T>>::schedule(
-				freed,
-				<frame_system::Pallet<T>>::block_number(),
-			);
+			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
@@ -213,12 +265,13 @@ decl_module! {
 			<ump::Pallet<T>>::process_pending_upward_messages();
 
 			// And track that we've finished processing the inherent for this block.
-			Included::set(Some(()));
+			Included::<T>::set(Some(()));
 
 			Ok(Some(
 				MINIMAL_INCLUSION_INHERENT_WEIGHT +
-				(backed_candidates_len * BACKED_CANDIDATE_WEIGHT)
-			).into())
+					(backed_candidates_len * BACKED_CANDIDATE_WEIGHT),
+			)
+			.into())
 		}
 	}
 }
@@ -264,56 +317,6 @@ fn limit_backed_candidates<T: Config>(
 		Vec::new()
 	} else {
 		backed_candidates
-	}
-}
-
-impl<T: Config> ProvideInherent for Module<T> {
-	type Call = Call<T>;
-	type Error = MakeFatalError<()>;
-	const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
-
-	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-		let mut inherent_data: ParachainsInherentData<T::Header> =
-			match data.get_data(&Self::INHERENT_IDENTIFIER) {
-				Ok(Some(d)) => d,
-				Ok(None) => return None,
-				Err(_) => {
-					log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode",);
-
-					return None
-				},
-			};
-
-		// filter out any unneeded dispute statements
-		T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
-
-		// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
-		// See github.com/paritytech/polkadot/issues/1327
-		let inherent_data =
-			match Self::enter(frame_system::RawOrigin::None.into(), inherent_data.clone()) {
-				Ok(_) => inherent_data,
-				Err(err) => {
-					log::warn!(
-						target: LOG_TARGET,
-						"dropping signed_bitfields and backed_candidates because they produced \
-					an invalid paras inherent: {:?}",
-						err,
-					);
-
-					ParachainsInherentData {
-						bitfields: Vec::new(),
-						backed_candidates: Vec::new(),
-						disputes: Vec::new(),
-						parent_header: inherent_data.parent_header,
-					}
-				},
-			};
-
-		Some(Call::enter(inherent_data))
-	}
-
-	fn is_inherent(call: &Self::Call) -> bool {
-		matches!(call, Call::enter(..))
 	}
 }
 

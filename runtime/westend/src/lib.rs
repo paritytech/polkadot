@@ -209,6 +209,8 @@ impl pallet_babe::Config for Runtime {
 	// session module is the trigger
 	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
 
+	type DisabledValidators = Session;
+
 	type KeyOwnerProofSystem = Historical;
 
 	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
@@ -1010,6 +1012,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type LocationInverter = LocationInverter<Ancestry>;
 }
 
 construct_runtime! {
@@ -1071,7 +1074,7 @@ construct_runtime! {
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 42,
 		ParasShared: parachains_shared::{Pallet, Call, Storage} = 43,
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 44,
-		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 45,
+		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 45,
 		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 46,
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 47,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 48,

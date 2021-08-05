@@ -35,8 +35,8 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
-	DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement,
-	ValidationResult,
+	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
+	SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
@@ -158,7 +158,7 @@ pub enum CollatorProtocolMessage {
 	///
 	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
 	/// completely okay to just drop the sender.
-	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
+	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<CollationSecondedSignal>>),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),

@@ -168,6 +168,8 @@ impl pallet_babe::Config for Runtime {
 	// session module is the trigger
 	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
 
+	type DisabledValidators = ();
+
 	type KeyOwnerProofSystem = ();
 
 	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
@@ -556,7 +558,7 @@ construct_runtime! {
 		// Parachains runtime modules
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
-		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
+		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},

@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,36 +14,81 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Relay chain runtime mock.
-
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{All, AllowAll},
 	weights::Weight,
 };
+use polkadot_parachain::primitives::Id as ParaId;
+use polkadot_runtime_parachains::origin;
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
-
-use polkadot_parachain::primitives::Id as ParaId;
-use polkadot_runtime_parachains::{configuration, origin, shared, ump};
-use xcm::v0::{MultiAsset, MultiLocation, NetworkId};
+pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
+use xcm::{
+	opaque::v0::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
+	v0::{MultiLocation, NetworkId, Order},
+};
 use xcm_builder::{
-	AccountId32Aliases, AllowUnpaidExecutionFrom, ChildParachainAsNative,
+	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
 	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation,
+	SovereignSignedViaLocation, TakeWeightCredit,
 };
-use xcm_executor::{Config, XcmExecutor};
+use xcm_executor::XcmExecutor;
+
+use crate as pallet_xcm;
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
+type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+type Block = frame_system::mocking::MockBlock<Test>;
+
+construct_runtime!(
+	pub enum Test where
+		Block = Block,
+		NodeBlock = Block,
+		UncheckedExtrinsic = UncheckedExtrinsic,
+	{
+		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		ParasOrigin: origin::{Pallet, Origin},
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>},
+	}
+);
+
+thread_local! {
+	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm)>> = RefCell::new(Vec::new());
+}
+pub fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
+	SENT_XCM.with(|q| (*q.borrow()).clone())
+}
+/// Sender that never returns error, always sends
+pub struct TestSendXcm;
+impl SendXcm for TestSendXcm {
+	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
+		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
+		Ok(())
+	}
+}
+/// Sender that returns error if `X8` junction and stops routing
+pub struct TestSendXcmErrX8;
+impl SendXcm for TestSendXcmErrX8 {
+	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
+		if let MultiLocation::X8(..) = dest {
+			Err(XcmError::Undefined)
+		} else {
+			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
+			Ok(())
+		}
+	}
+}
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 }
 
-impl frame_system::Config for Runtime {
+impl frame_system::Config for Test {
 	type Origin = Origin;
 	type Call = Call;
 	type Index = u64;
@@ -75,7 +120,7 @@ parameter_types! {
 	pub const MaxReserves: u32 = 50;
 }
 
-impl pallet_balances::Config for Runtime {
+impl pallet_balances::Config for Test {
 	type MaxLocks = MaxLocks;
 	type Balance = Balance;
 	type Event = Event;
@@ -87,43 +132,37 @@ impl pallet_balances::Config for Runtime {
 	type ReserveIdentifier = [u8; 8];
 }
 
-impl shared::Config for Runtime {}
-
-impl configuration::Config for Runtime {}
-
 parameter_types! {
-	pub const KsmLocation: MultiLocation = MultiLocation::Null;
-	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
+	pub const RelayLocation: MultiLocation = MultiLocation::Null;
 	pub const AnyNetwork: NetworkId = NetworkId::Any;
 	pub Ancestry: MultiLocation = MultiLocation::Null;
 	pub UnitWeightCost: Weight = 1_000;
 }
 
 pub type SovereignAccountOf =
-	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<KusamaNetwork, AccountId>);
+	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<AnyNetwork, AccountId>);
 
 pub type LocalAssetTransactor =
-	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, SovereignAccountOf, AccountId, ()>;
+	XcmCurrencyAdapter<Balances, IsConcrete<RelayLocation>, SovereignAccountOf, AccountId, ()>;
 
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
 	ChildParachainAsNative<origin::Origin, Origin>,
-	SignedAccountId32AsNative<KusamaNetwork, Origin>,
+	SignedAccountId32AsNative<AnyNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
 parameter_types! {
 	pub const BaseXcmWeight: Weight = 1_000;
-	pub KsmPerSecond: (MultiLocation, u128) = (KsmLocation::get(), 1);
+	pub CurrencyPerSecond: (MultiLocation, u128) = (RelayLocation::get(), 1);
 }
 
-pub type XcmRouter = super::RelayChainXcmRouter;
-pub type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
+pub type Barrier = (TakeWeightCredit, AllowTopLevelPaidExecutionFrom<All<MultiLocation>>);
 
 pub struct XcmConfig;
-impl Config for XcmConfig {
+impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = XcmRouter;
+	type XcmSender = TestSendXcm;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
@@ -131,19 +170,18 @@ impl Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<KsmPerSecond, ()>;
+	type Trader = FixedRateOfConcreteFungible<CurrencyPerSecond, ()>;
 	type ResponseHandler = ();
 }
 
-pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;
+pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;
 
-impl pallet_xcm::Config for Runtime {
+impl pallet_xcm::Config for Test {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmRouter = XcmRouter;
-	// Anyone can execute XCM messages locally...
+	type XcmRouter = (TestSendXcmErrX8, TestSendXcm);
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmExecuteFilter = ();
+	type XcmExecuteFilter = All<(MultiLocation, xcm::v0::Xcm<Call>)>;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
@@ -151,31 +189,27 @@ impl pallet_xcm::Config for Runtime {
 	type LocationInverter = LocationInverter<Ancestry>;
 }
 
-parameter_types! {
-	pub const FirstMessageFactorPercent: u64 = 100;
+impl origin::Config for Test {}
+
+pub(crate) fn last_event() -> Event {
+	System::events().pop().expect("Event expected").event
 }
 
-impl ump::Config for Runtime {
-	type Event = Event;
-	type UmpSink = ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
-	type FirstMessageFactorPercent = FirstMessageFactorPercent;
+pub(crate) fn buy_execution<C>(debt: Weight, fees: MultiAsset) -> Order<C> {
+	use xcm::opaque::v0::prelude::*;
+	Order::BuyExecution { fees, weight: 0, debt, halt_on_error: false, xcm: vec![] }
 }
 
-impl origin::Config for Runtime {}
+pub(crate) fn new_test_ext_with_balances(
+	balances: Vec<(AccountId, Balance)>,
+) -> sp_io::TestExternalities {
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
-type Block = frame_system::mocking::MockBlock<Runtime>;
+	pallet_balances::GenesisConfig::<Test> { balances }
+		.assimilate_storage(&mut t)
+		.unwrap();
 
-construct_runtime!(
-	pub enum Runtime where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
-	{
-		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		ParasOrigin: origin::{Pallet, Origin},
-		ParasUmp: ump::{Pallet, Call, Storage, Event},
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>},
-	}
-);
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| System::set_block_number(1));
+	ext
+}

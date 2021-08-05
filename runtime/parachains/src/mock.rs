@@ -17,8 +17,8 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, scheduler, session_info,
-	shared, ump,
+	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
+	session_info, shared, ump,
 };
 use frame_support::{parameter_types, traits::GenesisBuild};
 use frame_support_test::TestRandomness;
@@ -45,6 +45,7 @@ frame_support::construct_runtime!(
 		Configuration: configuration::{Pallet, Call, Storage, Config<T>},
 		ParasShared: shared::{Pallet, Call, Storage},
 		ParaInclusion: inclusion::{Pallet, Call, Storage, Event<T>},
+		ParaInherent: paras_inherent::{Pallet, Call, Storage},
 		Scheduler: scheduler::{Pallet, Storage},
 		Initializer: initializer::{Pallet, Call, Storage},
 		Dmp: dmp::{Pallet, Call, Storage},

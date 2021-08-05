@@ -645,7 +645,6 @@ mod tests {
 	parameter_types! {
 		pub const ParaDeposit: Balance = 10;
 		pub const DataDepositPerByte: Balance = 1;
-		pub const QueueSize: usize = 2;
 		pub const MaxRetries: u32 = 3;
 	}
 
