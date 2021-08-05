@@ -235,7 +235,6 @@ pub mod pallet {
 				.reanchored(&inv_dest)
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
-			assets.sort();
 			let assets = assets.into();
 			let mut message = Xcm::TransferReserveAsset {
 				assets,
