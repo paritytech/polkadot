@@ -38,7 +38,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::traits::AccountIdConversion;
-	use xcm_executor::traits::WeightBounds;
+	use xcm_executor::traits::{InvertLocation, WeightBounds};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -76,6 +76,9 @@ pub mod pallet {
 
 		/// Means of measuring the weight consumed by an XCM message locally.
 		type Weigher: WeightBounds<Self::Call>;
+
+		/// Means of inverting a location.
+		type LocationInverter: InvertLocation;
 	}
 
 	#[pallet::event]
@@ -93,6 +96,10 @@ pub mod pallet {
 		Filtered,
 		/// The message's weight could not be determined.
 		UnweighableMessage,
+		/// The assets to be sent are empty.
+		Empty,
+		/// Could not reanchor the assets to declare the fees for the destination chain.
+		CannotReanchor,
 	}
 
 	#[pallet::hooks]
@@ -114,6 +121,8 @@ pub mod pallet {
 		}
 
 		/// Teleport some assets from the local chain to some destination chain.
+		///
+		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -146,6 +155,9 @@ pub mod pallet {
 			let value = (origin_location, assets);
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
+			let inv_dest = T::LocationInverter::invert_location(&dest);
+			let mut fees = assets.first().ok_or(Error::<T>::Empty)?.clone();
+			fees.reanchor(&inv_dest).map_err(|_| Error::<T>::CannotReanchor)?;
 			let mut message = Xcm::WithdrawAsset {
 				assets,
 				effects: vec![InitiateTeleport {
@@ -153,7 +165,7 @@ pub mod pallet {
 					dest,
 					effects: vec![
 						BuyExecution {
-							fees: All,
+							fees,
 							// Zero weight for additional XCM (since there are none to execute)
 							weight: 0,
 							debt: dest_weight,
@@ -174,6 +186,8 @@ pub mod pallet {
 
 		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
 		/// a notification XCM.
+		///
+		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -203,12 +217,15 @@ pub mod pallet {
 			let value = (origin_location, assets);
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
+			let inv_dest = T::LocationInverter::invert_location(&dest);
+			let mut fees = assets.first().ok_or(Error::<T>::Empty)?.clone();
+			fees.reanchor(&inv_dest).map_err(|_| Error::<T>::CannotReanchor)?;
 			let mut message = Xcm::TransferReserveAsset {
 				assets,
 				dest,
 				effects: vec![
 					BuyExecution {
-						fees: All,
+						fees,
 						// Zero weight for additional XCM (since there are none to execute)
 						weight: 0,
 						debt: dest_weight,

@@ -1380,6 +1380,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type LocationInverter = LocationInverter<Ancestry>;
 }
 
 parameter_types! {

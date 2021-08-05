@@ -187,7 +187,7 @@ pub mod mock_msg_queue {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		// XCMP
-		/// Some XCM was executed ok.
+		/// Some XCM was executed OK.
 		Success(Option<T::Hash>),
 		/// Some XCM failed.
 		Fail(Option<T::Hash>, XcmError),
@@ -302,6 +302,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmTeleportFilter = ();
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
+	type LocationInverter = LocationInverter<Ancestry>;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
