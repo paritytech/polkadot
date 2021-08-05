@@ -294,7 +294,7 @@ mod tests {
 			.await
 			.unwrap();
 
-			assert_eq!(ancestry, expected_ancestry,);
+			assert_eq!(ancestry, expected_ancestry);
 		});
 
 		let aux_fut = Box::pin(async move {
@@ -367,7 +367,7 @@ mod tests {
 			.await
 			.unwrap();
 
-			assert_eq!(ancestry, expected_ancestry,);
+			assert_eq!(ancestry, expected_ancestry);
 		});
 
 		let aux_fut = Box::pin(async move {
@@ -426,7 +426,7 @@ mod tests {
 			.await
 			.unwrap();
 
-			assert_eq!(ancestry, expected_ancestry,);
+			assert_eq!(ancestry, expected_ancestry);
 		});
 
 		futures::executor::block_on(test_fut);
@@ -462,7 +462,7 @@ mod tests {
 			.await
 			.unwrap();
 
-			assert_eq!(ancestry, expected_ancestry,);
+			assert_eq!(ancestry, expected_ancestry);
 		});
 
 		futures::executor::block_on(test_fut);
@@ -498,11 +498,11 @@ mod tests {
 					.await
 					.unwrap();
 
-			assert_eq!(after_finality, vec![(head_hash, head.clone())],);
+			assert_eq!(after_finality, vec![(head_hash, head.clone())]);
 
-			assert_eq!(at_finality, Vec::new(),);
+			assert_eq!(at_finality, Vec::new());
 
-			assert_eq!(before_finality, Vec::new(),);
+			assert_eq!(before_finality, Vec::new());
 		});
 
 		futures::executor::block_on(test_fut);
