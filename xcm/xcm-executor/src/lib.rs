@@ -377,7 +377,7 @@ mod tests {
 			let mut client = TestClientBuilder::new()
 				.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 				.build();
-	
+
 			let mut msg = WithdrawAsset {
 				assets: vec![ConcreteFungible { id: MultiLocation::Null, amount: 0 }],
 				effects: vec![],
@@ -398,9 +398,10 @@ mod tests {
 
 			let execute = construct_extrinsic(
 				&client,
-				polkadot_test_runtime::Call::Xcm(
-					pallet_xcm::Call::execute(Box::new(msg.clone()), 1_000_000_000),
-				),
+				polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
+					Box::new(msg.clone()),
+					1_000_000_000,
+				)),
 				sp_keyring::Sr25519Keyring::Alice,
 			);
 
@@ -419,9 +420,9 @@ mod tests {
 				.inspect_state(|| {
 					assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 						r.event,
-						polkadot_test_runtime::Event::Xcm(
-							pallet_xcm::Event::Attempted(Outcome::Complete(_)),
-						),
+						polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted(
+							Outcome::Complete(_)
+						),),
 					)));
 				});
 		});
@@ -453,9 +454,10 @@ mod tests {
 
 		let execute = construct_extrinsic(
 			&client,
-			polkadot_test_runtime::Call::Xcm(
-				pallet_xcm::Call::execute(Box::new(msg.clone()), 1_000_000_000),
-			),
+			polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
+				Box::new(msg.clone()),
+				1_000_000_000,
+			)),
 			sp_keyring::Sr25519Keyring::Alice,
 		);
 
