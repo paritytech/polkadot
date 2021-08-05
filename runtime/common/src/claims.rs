@@ -1564,20 +1564,11 @@ mod benchmarking {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use crate::claims::tests::{new_test_ext, Test};
-		use frame_support::assert_ok;
 
-		#[test]
-		fn test_benchmarks() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_claim::<Test>());
-				assert_ok!(test_benchmark_mint_claim::<Test>());
-				assert_ok!(test_benchmark_claim_attest::<Test>());
-				assert_ok!(test_benchmark_attest::<Test>());
-				assert_ok!(test_benchmark_move_claim::<Test>());
-				assert_ok!(test_benchmark_keccak256::<Test>());
-				assert_ok!(test_benchmark_eth_recover::<Test>());
-			});
-		}
+		frame_benchmarking::impl_benchmark_test_suite!(
+			Pallet,
+			crate::claims::tests::new_test_ext(),
+			crate::claims::tests::Test,
+		);
 	}
 }
