@@ -428,22 +428,22 @@ mod tests {
 	use xcm::v1::prelude::*;
 	use MultiLocation::Here;
 	#[allow(non_snake_case)]
-  /// Abstract fungible constructor
+	/// Abstract fungible constructor
 	fn AF(id: u8, amount: u128) -> MultiAsset {
 		(vec![id], amount).into()
 	}
 	#[allow(non_snake_case)]
-  /// Abstract non-fungible constructor
+	/// Abstract non-fungible constructor
 	fn ANF(class: u8, instance_id: u8) -> MultiAsset {
 		(vec![class], vec![instance_id]).into()
 	}
 	#[allow(non_snake_case)]
-  /// Concrete fungible constructor
+	/// Concrete fungible constructor
 	fn CF(amount: u128) -> MultiAsset {
 		(Here, amount).into()
 	}
 	#[allow(non_snake_case)]
-  /// Concrete non-fungible constructor
+	/// Concrete non-fungible constructor
 	fn CNF(instance_id: u8) -> MultiAsset {
 		(Here, [instance_id; 4]).into()
 	}
