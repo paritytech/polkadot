@@ -4267,7 +4267,7 @@ dependencies = [
 
 [[package]]
 name = "metered-channel"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "derive_more",
@@ -5447,7 +5447,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-xcm"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5883,7 +5883,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-approval-distribution"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "env_logger 0.8.4",
@@ -5903,7 +5903,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-availability-bitfield-distribution"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "bitvec",
@@ -5924,7 +5924,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-availability-distribution"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "futures 0.3.16",
@@ -5953,7 +5953,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-availability-recovery"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "env_logger 0.8.4",
@@ -6034,7 +6034,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-collator-protocol"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "always-assert",
  "assert_matches",
@@ -6070,7 +6070,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-dispute-distribution"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -6116,7 +6116,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-gossip-support"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "futures 0.3.16",
@@ -6137,7 +6137,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-network-bridge"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -6161,7 +6161,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-collation-generation"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "futures 0.3.16",
  "parity-scale-codec",
@@ -6179,7 +6179,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-approval-voting"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "bitvec",
@@ -6219,7 +6219,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-av-store"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "bitvec",
@@ -6246,7 +6246,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-backing"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "bitvec",
@@ -6270,7 +6270,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-bitfield-signing"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "futures 0.3.16",
  "polkadot-node-subsystem",
@@ -6285,7 +6285,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-candidate-validation"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -6306,7 +6306,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-chain-api"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "futures 0.3.16",
  "maplit",
@@ -6325,7 +6325,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-chain-selection"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "futures 0.3.16",
@@ -6346,7 +6346,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-dispute-coordinator"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "bitvec",
@@ -6371,7 +6371,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-dispute-participation"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "futures 0.3.16",
@@ -6387,7 +6387,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-parachains-inherent"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "async-trait",
  "futures 0.3.16",
@@ -6403,7 +6403,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-provisioner"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "bitvec",
  "futures 0.3.16",
@@ -6420,7 +6420,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-pvf"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "always-assert",
  "assert_matches",
@@ -6453,7 +6453,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-core-runtime-api"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "futures 0.3.16",
  "memory-lru",
@@ -6472,7 +6472,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-jaeger"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "async-std",
  "lazy_static",
@@ -6489,7 +6489,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-metrics"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "async-trait",
  "futures 0.3.16",
@@ -6504,7 +6504,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-network-protocol"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "async-trait",
  "futures 0.3.16",
@@ -6520,7 +6520,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-primitives"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "futures 0.3.16",
  "parity-scale-codec",
@@ -6543,7 +6543,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-subsystem"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "polkadot-node-jaeger",
  "polkadot-node-subsystem-types",
@@ -6552,7 +6552,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-subsystem-test-helpers"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "async-trait",
  "futures 0.3.16",
@@ -6578,7 +6578,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-subsystem-types"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "async-std",
@@ -6609,7 +6609,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-node-subsystem-util"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -6643,7 +6643,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-overseer"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "async-trait",
@@ -6669,7 +6669,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-overseer-all-subsystems-gen"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "proc-macro2",
@@ -6680,7 +6680,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-overseer-gen"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "async-trait",
  "futures 0.3.16",
@@ -6697,7 +6697,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-overseer-gen-proc-macro"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "assert_matches",
  "proc-macro-crate 1.0.0",
@@ -7104,14 +7104,14 @@ dependencies = [
 
 [[package]]
 name = "polkadot-simnet-node"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "polkadot-simnet",
 ]
 
 [[package]]
 name = "polkadot-simnet-test"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "frame-system",
  "pallet-balances",
@@ -7125,7 +7125,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-statement-distribution"
-version = "0.1.0"
+version = "0.9.9"
 dependencies = [
  "arrayvec 0.5.2",
  "assert_matches",
