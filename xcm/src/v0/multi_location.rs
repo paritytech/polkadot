@@ -19,7 +19,6 @@
 use core::{convert::TryFrom, mem, result};
 
 use super::Junction;
-use crate::VersionedMultiLocation;
 use parity_scale_codec::{self, Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.
@@ -694,21 +693,6 @@ impl MultiLocation {
 	/// ```
 	pub fn is_interior(&self) -> bool {
 		self.iter().all(Junction::is_interior)
-	}
-}
-
-impl From<MultiLocation> for VersionedMultiLocation {
-	fn from(x: MultiLocation) -> Self {
-		VersionedMultiLocation::V0(x)
-	}
-}
-
-impl TryFrom<VersionedMultiLocation> for MultiLocation {
-	type Error = ();
-	fn try_from(x: VersionedMultiLocation) -> result::Result<Self, ()> {
-		match x {
-			VersionedMultiLocation::V0(x) => Ok(x),
-		}
 	}
 }
 

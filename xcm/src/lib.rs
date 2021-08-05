@@ -27,6 +27,7 @@ use core::{convert::TryFrom, result::Result};
 use derivative::Derivative;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
+pub mod v0;
 pub mod v1;
 
 pub mod latest {
@@ -91,27 +92,4 @@ pub mod opaque {
 
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
 	pub type VersionedXcm = super::VersionedXcm<()>;
-}
-
-/// A versioned multi-location, a relative location of a cross-consensus system identifier.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum VersionedMultiLocation {
-	V0(v0::MultiLocation),
-	V1(v1::MultiLocation),
-}
-
-impl From<v1::MultiLocation> for VersionedMultiLocation {
-	fn from(x: v1::MultiLocation) -> Self {
-		VersionedMultiLocation::V1(x)
-	}
-}
-
-impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
-	type Error = ();
-	fn try_from(x: VersionedMultiLocation) -> Result<Self, ()> {
-		match x {
-			VersionedMultiLocation::V0(x) => Ok(x),
-			VersionedMultiLocation::V1(x) => Ok(x),
-		}
-	}
 }
