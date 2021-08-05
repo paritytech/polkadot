@@ -241,7 +241,7 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 		match worker::spawn(&program_path, spawn_timeout).await {
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
-				tracing::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err,);
+				tracing::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err);
 
 				// Assume that the failure intermittent and retry after a delay.
 				Delay::new(Duration::from_secs(3)).await;

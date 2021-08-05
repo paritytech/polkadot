@@ -104,7 +104,7 @@ pub mod pallet {
 					Ok(Some(d)) => d,
 					Ok(None) => return None,
 					Err(_) => {
-						log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode",);
+						log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
 
 						return None
 					},
@@ -489,7 +489,7 @@ mod tests {
 				// we don't directly check the block's weight post-call. Instead, we check that the
 				// call has returned the appropriate post-dispatch weight for refund, and trust
 				// Substrate to do the right thing with that information.
-				assert_eq!(post_info.actual_weight.unwrap(), expected_weight,);
+				assert_eq!(post_info.actual_weight.unwrap(), expected_weight);
 			});
 		}
 	}

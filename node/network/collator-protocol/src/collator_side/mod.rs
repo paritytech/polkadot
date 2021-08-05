@@ -777,7 +777,7 @@ async fn send_collation(
 	};
 
 	if let Err(_) = request.send_outgoing_response(response) {
-		tracing::warn!(target: LOG_TARGET, "Sending collation response failed",);
+		tracing::warn!(target: LOG_TARGET, "Sending collation response failed");
 	}
 
 	state.active_collation_fetches.push(
@@ -913,7 +913,7 @@ where
 		PeerConnected(peer_id, observed_role, maybe_authority) => {
 			// If it is possible that a disconnected validator would attempt a reconnect
 			// it should be handled here.
-			tracing::trace!(target: LOG_TARGET, ?peer_id, ?observed_role, "Peer connected",);
+			tracing::trace!(target: LOG_TARGET, ?peer_id, ?observed_role, "Peer connected");
 			if let Some(authority) = maybe_authority {
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -927,16 +927,16 @@ where
 			}
 		},
 		PeerViewChange(peer_id, view) => {
-			tracing::trace!(target: LOG_TARGET, ?peer_id, ?view, "Peer view change",);
+			tracing::trace!(target: LOG_TARGET, ?peer_id, ?view, "Peer view change");
 			handle_peer_view_change(ctx, state, peer_id, view).await;
 		},
 		PeerDisconnected(peer_id) => {
-			tracing::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected",);
+			tracing::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
 			state.peer_views.remove(&peer_id);
 			state.peer_ids.remove(&peer_id);
 		},
 		OurViewChange(view) => {
-			tracing::trace!(target: LOG_TARGET, ?view, "Own view change",);
+			tracing::trace!(target: LOG_TARGET, ?view, "Own view change");
 			handle_our_view_change(state, view).await?;
 		},
 		PeerMessage(remote, msg) => {

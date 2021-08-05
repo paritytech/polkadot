@@ -720,7 +720,7 @@ fn stored_data_kept_until_finalized() {
 		test_state.wait_for_pruning().await;
 
 		// At this point data should be gone from the store.
-		assert!(query_available_data(&mut virtual_overseer, candidate_hash).await.is_none(),);
+		assert!(query_available_data(&mut virtual_overseer, candidate_hash).await.is_none());
 
 		assert!(has_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, false).await);
 		virtual_overseer
@@ -964,9 +964,9 @@ fn forkfullness_works() {
 			available_data_2,
 		);
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await);
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, true).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, true).await);
 
 		// Candidate 2 should now be considered unavailable and will be pruned.
 		test_state.clock.inc(test_state.pruning_config.keep_unavailable_for);
@@ -977,24 +977,24 @@ fn forkfullness_works() {
 			available_data_1,
 		);
 
-		assert!(query_available_data(&mut virtual_overseer, candidate_2_hash).await.is_none(),);
+		assert!(query_available_data(&mut virtual_overseer, candidate_2_hash).await.is_none());
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await);
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await);
 
 		// Wait for longer than finalized blocks should be kept for
 		test_state.clock.inc(test_state.pruning_config.keep_finalized_for);
 		test_state.wait_for_pruning().await;
 
 		// Everything should be pruned now.
-		assert!(query_available_data(&mut virtual_overseer, candidate_1_hash).await.is_none(),);
+		assert!(query_available_data(&mut virtual_overseer, candidate_1_hash).await.is_none());
 
-		assert!(query_available_data(&mut virtual_overseer, candidate_2_hash).await.is_none(),);
+		assert!(query_available_data(&mut virtual_overseer, candidate_2_hash).await.is_none());
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, false).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, false).await);
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await);
 		virtual_overseer
 	});
 }
