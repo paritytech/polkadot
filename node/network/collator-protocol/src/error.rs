@@ -21,7 +21,7 @@ use polkadot_node_primitives::UncheckedSignedFullStatement;
 use polkadot_subsystem::errors::SubsystemError;
 use thiserror::Error;
 
-use polkadot_node_subsystem_util::{runtime, unwrap_non_fatal, Fault};
+use polkadot_node_subsystem_util::runtime;
 
 use crate::LOG_TARGET;
 
@@ -32,25 +32,20 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub type FatalResult<T> = std::result::Result<T, Fatal>;
 
 /// Errors for statement distribution.
-#[derive(Debug, Error)]
-#[error(transparent)]
-pub struct Error(pub Fault<NonFatal, Fatal>);
-
-impl From<NonFatal> for Error {
-	fn from(e: NonFatal) -> Self {
-		Self(Fault::from_non_fatal(e))
-	}
-}
-
-impl From<Fatal> for Error {
-	fn from(f: Fatal) -> Self {
-		Self(Fault::from_fatal(f))
-	}
+#[derive(Debug, Error, From)]
+pub enum Error {
+	/// All fatal errors.
+	Fatal(Fatal),
+	/// All nonfatal/potentially recoverable errors.
+	NonFatal(NonFatal),
 }
 
 impl From<runtime::Error> for Error {
 	fn from(o: runtime::Error) -> Self {
-		Self(Fault::from_other(o))
+		match o {
+			runtime::Error::Fatal(f) => Self::Fatal(Fatal::Runtime(f)),
+			runtime::Error::NonFatal(f) => Self::NonFatal(NonFatal::Runtime(f)),
+		}
 	}
 }
 
@@ -82,9 +77,11 @@ pub enum NonFatal {
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them.
-pub fn log_error(result: Result<()>, ctx: &'static str) -> FatalResult<()> {
-	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
-		tracing::warn!(target: LOG_TARGET, error = ?error, ctx)
+pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), Fatal> {
+	match result {
+		Err(Error::Fatal(f)) => Err(f),
+		Err(Error::NonFatal(e)) =>
+			tracing::warn!(target: LOG_TARGET, error = ?error, ctx),
+		Ok(()) => Ok(()),
 	}
-	Ok(())
 }

@@ -20,28 +20,13 @@ use thiserror::Error;
 
 use parity_scale_codec::{Decode, Encode, Error as DecodingError};
 
-use polkadot_node_subsystem_util::{runtime, unwrap_non_fatal, Fault};
 
-#[derive(Debug, Error)]
-#[error(transparent)]
-pub struct Error(pub Fault<NonFatal, Fatal>);
-
-impl From<NonFatal> for Error {
-	fn from(e: NonFatal) -> Self {
-		Self(Fault::from_non_fatal(e))
-	}
-}
-
-impl From<Fatal> for Error {
-	fn from(f: Fatal) -> Self {
-		Self(Fault::from_fatal(f))
-	}
-}
-
-impl From<runtime::Error> for Error {
-	fn from(o: runtime::Error) -> Self {
-		Self(Fault::from_other(o))
-	}
+#[derive(Debug, Error, From)]
+pub enum Error {
+	/// All fatal errors.
+	Fatal(Fatal),
+	/// All nonfatal/potentially recoverable errors.
+	NonFatal(NonFatal),
 }
 
 /// Fatal errors when receiving incoming requests.

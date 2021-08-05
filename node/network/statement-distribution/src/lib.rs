@@ -57,7 +57,7 @@ use futures::{
 };
 use indexmap::{map::Entry as IEntry, IndexMap};
 use sp_keystore::SyncCryptoStorePtr;
-use util::{runtime::RuntimeInfo, Fault};
+use util::runtime::RuntimeInfo;
 
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
@@ -1563,8 +1563,8 @@ impl StatementDistribution {
 					match result {
 						Ok(true) => break,
 						Ok(false) => {},
-						Err(Error(Fault::Fatal(f))) => return Err(f),
-						Err(Error(Fault::Err(error))) =>
+						Err(Error::Fatal(f)) => return Err(f),
+						Err(Error::Err(error)) =>
 							tracing::debug!(target: LOG_TARGET, ?error),
 					}
 				},
