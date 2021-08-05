@@ -16,12 +16,16 @@
 
 //! Version 1 of the Cross-Consensus Message format data structures.
 
-use core::{convert::{TryFrom, TryInto}, result};
+use super::{
+	super::v0::Order as Order0, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
+};
 use alloc::{vec, vec::Vec};
-use super::{MultiAsset, MultiAssets, MultiAssetFilter, MultiLocation, Xcm};
+use core::{
+	convert::{TryFrom, TryInto},
+	result,
+};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
-use super::super::v0::Order as Order0;
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Derivative, Encode, Decode)]
@@ -192,17 +196,47 @@ impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 			Order0::Null => Noop,
 			Order0::DepositAsset { assets, dest } =>
 				DepositAsset { assets: assets.try_into()?, max_assets: 1, beneficiary: dest.into() },
-			Order0::DepositReserveAsset { assets, dest, effects } =>
-				DepositReserveAsset { assets: assets.try_into()?, max_assets: 1, dest: dest.into(), effects: effects.into_iter().map(Order::<()>::try_from).collect::<result::Result<_, _>>()? },
-			Order0::ExchangeAsset { give, receive } => ExchangeAsset { give: give.try_into()?, receive: receive.try_into()? },
+			Order0::DepositReserveAsset { assets, dest, effects } => DepositReserveAsset {
+				assets: assets.try_into()?,
+				max_assets: 1,
+				dest: dest.into(),
+				effects: effects
+					.into_iter()
+					.map(Order::<()>::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Order0::ExchangeAsset { give, receive } =>
+				ExchangeAsset { give: give.try_into()?, receive: receive.try_into()? },
 			Order0::InitiateReserveWithdraw { assets, reserve, effects } =>
-				InitiateReserveWithdraw { assets: assets.try_into()?, reserve: reserve.into(), effects: effects.into_iter().map(Order::<()>::try_from).collect::<result::Result<_, _>>()? },
-			Order0::InitiateTeleport { assets, dest, effects } =>
-				InitiateTeleport { assets: assets.try_into()?, dest: dest.into(), effects: effects.into_iter().map(Order::<()>::try_from).collect::<result::Result<_, _>>()? },
-			Order0::QueryHolding { query_id, dest, assets } => QueryHolding { query_id, dest: dest.into(), assets: assets.try_into()? },
+				InitiateReserveWithdraw {
+					assets: assets.try_into()?,
+					reserve: reserve.into(),
+					effects: effects
+						.into_iter()
+						.map(Order::<()>::try_from)
+						.collect::<result::Result<_, _>>()?,
+				},
+			Order0::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
+				assets: assets.try_into()?,
+				dest: dest.into(),
+				effects: effects
+					.into_iter()
+					.map(Order::<()>::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Order0::QueryHolding { query_id, dest, assets } =>
+				QueryHolding { query_id, dest: dest.into(), assets: assets.try_into()? },
 			Order0::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
-				let instructions = xcm.into_iter().map(Xcm::<Call>::try_from).collect::<result::Result<_, _>>()?;
-				BuyExecution { fees: fees.try_into()?, weight, debt, halt_on_error, orders: vec![], instructions }
+				let instructions =
+					xcm.into_iter().map(Xcm::<Call>::try_from).collect::<result::Result<_, _>>()?;
+				BuyExecution {
+					fees: fees.try_into()?,
+					weight,
+					debt,
+					halt_on_error,
+					orders: vec![],
+					instructions,
+				}
 			},
 		})
 	}

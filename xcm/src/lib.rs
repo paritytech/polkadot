@@ -23,7 +23,10 @@
 #![no_std]
 extern crate alloc;
 
-use core::{convert::{TryFrom, TryInto}, result::Result};
+use core::{
+	convert::{TryFrom, TryInto},
+	result::Result,
+};
 use derivative::Derivative;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 

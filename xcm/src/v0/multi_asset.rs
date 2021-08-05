@@ -16,10 +16,10 @@
 
 //! Cross-Consensus Message format data structures.
 
-use alloc::{vec, vec::Vec};
 use super::MultiLocation;
+use crate::v1::{MultiAsset as MultiAsset1, MultiAssetFilter, MultiAssets, WildMultiAsset};
+use alloc::{vec, vec::Vec};
 use parity_scale_codec::{self, Decode, Encode};
-use crate::v1::{MultiAsset as MultiAsset1, WildMultiAsset, MultiAssetFilter, MultiAssets};
 
 pub use crate::v1::AssetInstance;
 
@@ -292,11 +292,12 @@ impl MultiAsset {
 
 impl From<MultiAsset1> for MultiAsset {
 	fn from(a: MultiAsset1) -> MultiAsset {
+		use crate::v1::{AssetId::*, Fungibility::*};
 		use MultiAsset::*;
-		use crate::v1::{Fungibility::*, AssetId::*};
 		match (a.id, a.fun) {
 			(Concrete(id), Fungible(amount)) => ConcreteFungible { id: id.into(), amount },
-			(Concrete(class), NonFungible(instance)) => ConcreteNonFungible { class: class.into(), instance },
+			(Concrete(class), NonFungible(instance)) =>
+				ConcreteNonFungible { class: class.into(), instance },
 			(Abstract(id), Fungible(amount)) => AbstractFungible { id, amount },
 			(Abstract(class), NonFungible(instance)) => AbstractNonFungible { class, instance },
 		}
@@ -311,22 +312,24 @@ impl From<MultiAssets> for Vec<MultiAsset> {
 
 impl From<WildMultiAsset> for MultiAsset {
 	fn from(a: WildMultiAsset) -> MultiAsset {
+		use crate::v1::{AssetId::*, WildFungibility::*};
 		use MultiAsset::*;
-		use crate::v1::{WildFungibility::*, AssetId::*};
 		match a {
 			WildMultiAsset::All => All,
 			WildMultiAsset::AllOf { id, fun } => match (id, fun) {
-				(Concrete(id), Fungible) => AllConcreteFungible { id: id.into()},
-				(Concrete(class), NonFungible) => AllConcreteNonFungible { class: class.into()},
-				(Abstract(id), Fungible) => AllAbstractFungible { id},
-				(Abstract(class), NonFungible) => AllAbstractNonFungible { class},
-			}
+				(Concrete(id), Fungible) => AllConcreteFungible { id: id.into() },
+				(Concrete(class), NonFungible) => AllConcreteNonFungible { class: class.into() },
+				(Abstract(id), Fungible) => AllAbstractFungible { id },
+				(Abstract(class), NonFungible) => AllAbstractNonFungible { class },
+			},
 		}
 	}
 }
 
 impl From<WildMultiAsset> for Vec<MultiAsset> {
-	fn from(a: WildMultiAsset) -> Vec<MultiAsset> { vec![a.into()] }
+	fn from(a: WildMultiAsset) -> Vec<MultiAsset> {
+		vec![a.into()]
+	}
 }
 
 impl From<MultiAssetFilter> for Vec<MultiAsset> {
@@ -372,29 +375,20 @@ mod tests {
 			.contains(&AbstractFungible { id: vec![99u8], amount: 100 }));
 
 		// For non-fungibles, containing is equality.
-		assert!(!AbstractNonFungible {
-			class: vec![99u8],
-			instance: AssetInstance::Index(9)
-		}
-		.contains(&AbstractNonFungible {
-			class: vec![98u8],
-			instance: AssetInstance::Index(9)
-		}));
-		assert!(!AbstractNonFungible {
-			class: vec![99u8],
-			instance: AssetInstance::Index(8)
-		}
-		.contains(&AbstractNonFungible {
-			class: vec![99u8],
-			instance: AssetInstance::Index(9)
-		}));
-		assert!(AbstractNonFungible {
-			class: vec![99u8],
-			instance: AssetInstance::Index(9)
-		}
-		.contains(&AbstractNonFungible {
-			class: vec![99u8],
-			instance: AssetInstance::Index(9)
-		}));
+		assert!(!AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index(9) }
+			.contains(&AbstractNonFungible {
+				class: vec![98u8],
+				instance: AssetInstance::Index(9)
+			}));
+		assert!(!AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index(8) }
+			.contains(&AbstractNonFungible {
+				class: vec![99u8],
+				instance: AssetInstance::Index(9)
+			}));
+		assert!(AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index(9) }
+			.contains(&AbstractNonFungible {
+				class: vec![99u8],
+				instance: AssetInstance::Index(9)
+			}));
 	}
 }

@@ -16,10 +16,10 @@
 
 //! Cross-Consensus Message format data structures.
 
-use core::{result, convert::TryInto};
+use core::{convert::TryInto, result};
 use parity_scale_codec::{Decode, Encode};
 
-use super::{MultiLocation, Xcm, super::VersionedXcm};
+use super::{super::VersionedXcm, MultiLocation, Xcm};
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Error {
@@ -264,11 +264,17 @@ impl SendXcm for Tuple {
 
 /// Convert an `Xcm` datum into a `VersionedXcm`, based on a destination `MultiLocation` which will interpret it.
 pub trait WrapVersion {
-	fn wrap_version<Call>(dest: &MultiLocation, xcm: Xcm<Call>) -> result::Result<VersionedXcm<Call>, ()>;
+	fn wrap_version<Call>(
+		dest: &MultiLocation,
+		xcm: Xcm<Call>,
+	) -> result::Result<VersionedXcm<Call>, ()>;
 }
 
 impl WrapVersion for () {
-	fn wrap_version<Call>(_: &MultiLocation, xcm: Xcm<Call>) -> result::Result<VersionedXcm<Call>, ()> {
+	fn wrap_version<Call>(
+		_: &MultiLocation,
+		xcm: Xcm<Call>,
+	) -> result::Result<VersionedXcm<Call>, ()> {
 		Ok(VersionedXcm::<Call>::from(xcm))
 	}
 }
@@ -276,7 +282,10 @@ impl WrapVersion for () {
 /// `WrapVersion` implementation which attempts to always convert the XCM to version 0 before wrapping it.
 pub struct ForceV0;
 impl WrapVersion for ForceV0 {
-	fn wrap_version<Call>(_: &MultiLocation, xcm: Xcm<Call>) -> result::Result<VersionedXcm<Call>, ()> {
+	fn wrap_version<Call>(
+		_: &MultiLocation,
+		xcm: Xcm<Call>,
+	) -> result::Result<VersionedXcm<Call>, ()> {
 		Ok(VersionedXcm::<Call>::V0(xcm.try_into()?))
 	}
 }

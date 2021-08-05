@@ -28,7 +28,11 @@ use super::{
 	MultiLocation::{self, X1},
 };
 use alloc::{vec, vec::Vec};
-use core::{cmp::Ordering, convert::{TryFrom, TryInto}, result};
+use core::{
+	cmp::Ordering,
+	convert::{TryFrom, TryInto},
+	result,
+};
 use parity_scale_codec::{self as codec, Decode, Encode};
 
 /// A general identifier for an instance of a non-fungible asset class.
@@ -235,11 +239,12 @@ impl TryFrom<super::super::v0::MultiAsset> for MultiAsset {
 	type Error = ();
 	fn try_from(old: super::super::v0::MultiAsset) -> result::Result<MultiAsset, ()> {
 		use super::super::v0::MultiAsset as V0;
-		use Fungibility::*;
 		use AssetId::*;
+		use Fungibility::*;
 		let (id, fun) = match old {
 			V0::ConcreteFungible { id, amount } => (Concrete(id.into()), Fungible(amount)),
-			V0::ConcreteNonFungible { class, instance } => (Concrete(class.into()), NonFungible(instance)),
+			V0::ConcreteNonFungible { class, instance } =>
+				(Concrete(class.into()), NonFungible(instance)),
 			V0::AbstractFungible { id, amount } => (Abstract(id), Fungible(amount)),
 			V0::AbstractNonFungible { class, instance } => (Abstract(class), NonFungible(instance)),
 			_ => return Err(()),
@@ -283,7 +288,8 @@ impl Decode for MultiAssets {
 impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAssets {
 	type Error = ();
 	fn try_from(old: Vec<super::super::v0::MultiAsset>) -> result::Result<MultiAssets, ()> {
-		let v = old.into_iter()
+		let v = old
+			.into_iter()
 			.map(Option::<MultiAsset>::try_from)
 			.filter_map(|x| x.transpose())
 			.collect::<result::Result<Vec<MultiAsset>, ()>>()?;
@@ -446,8 +452,8 @@ impl TryFrom<super::super::v0::MultiAsset> for WildMultiAsset {
 	type Error = ();
 	fn try_from(old: super::super::v0::MultiAsset) -> result::Result<WildMultiAsset, ()> {
 		use super::super::v0::MultiAsset as V0;
-		use WildFungibility::*;
 		use AssetId::*;
+		use WildFungibility::*;
 		let (id, fun) = match old {
 			V0::All => return Ok(WildMultiAsset::All),
 			V0::AllConcreteFungible { id } => (Concrete(id.into()), Fungible),
@@ -557,7 +563,9 @@ impl MultiAssetFilter {
 
 impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAssetFilter {
 	type Error = ();
-	fn try_from(mut old: Vec<super::super::v0::MultiAsset>) -> result::Result<MultiAssetFilter, ()> {
+	fn try_from(
+		mut old: Vec<super::super::v0::MultiAsset>,
+	) -> result::Result<MultiAssetFilter, ()> {
 		if old.len() == 1 && old[0].is_wildcard() {
 			Ok(MultiAssetFilter::Wild(old.remove(0).try_into()?))
 		} else {

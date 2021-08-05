@@ -16,8 +16,8 @@
 
 //! Cross-Consensus Message format data structures.
 
+use super::{super::v0::MultiLocation as MultiLocation0, Junction};
 use core::{mem, result};
-use super::{Junction, super::v0::MultiLocation as MultiLocation0};
 use parity_scale_codec::{self, Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.
@@ -707,7 +707,8 @@ impl From<MultiLocation0> for MultiLocation {
 			MultiLocation0::X5(j0, j1, j2, j3, j4) => X5(j0, j1, j2, j3, j4),
 			MultiLocation0::X6(j0, j1, j2, j3, j4, j5) => X6(j0, j1, j2, j3, j4, j5),
 			MultiLocation0::X7(j0, j1, j2, j3, j4, j5, j6) => X7(j0, j1, j2, j3, j4, j5, j6),
-			MultiLocation0::X8(j0, j1, j2, j3, j4, j5, j6, j7) => X8(j0, j1, j2, j3, j4, j5, j6, j7),
+			MultiLocation0::X8(j0, j1, j2, j3, j4, j5, j6, j7) =>
+				X8(j0, j1, j2, j3, j4, j5, j6, j7),
 		}
 	}
 }
