@@ -156,12 +156,8 @@ pub mod pallet {
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
 			let inv_dest = T::LocationInverter::invert_location(&dest);
-			let mut fees = assets
-				.first()
-				.ok_or(Error::<T>::Empty)?
-				.clone();
-			fees.reanchor(&inv_dest)
-				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let mut fees = assets.first().ok_or(Error::<T>::Empty)?.clone();
+			fees.reanchor(&inv_dest).map_err(|_| Error::<T>::CannotReanchor)?;
 			let mut message = Xcm::WithdrawAsset {
 				assets,
 				effects: vec![InitiateTeleport {
@@ -222,12 +218,8 @@ pub mod pallet {
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
 			let inv_dest = T::LocationInverter::invert_location(&dest);
-			let mut fees = assets
-				.first()
-				.ok_or(Error::<T>::Empty)?
-				.clone();
-			fees.reanchor(&inv_dest)
-				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let mut fees = assets.first().ok_or(Error::<T>::Empty)?.clone();
+			fees.reanchor(&inv_dest).map_err(|_| Error::<T>::CannotReanchor)?;
 			let mut message = Xcm::TransferReserveAsset {
 				assets,
 				dest,

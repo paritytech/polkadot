@@ -42,7 +42,10 @@ fn send_works() {
 		let message = Xcm::ReserveAssetDeposit {
 			assets: vec![ConcreteFungible { id: Parent.into(), amount: SEND_AMOUNT }],
 			effects: vec![
-				buy_execution(weight, ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT }),
+				buy_execution(
+					weight,
+					ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT },
+				),
 				DepositAsset { assets: vec![All], dest: sender.clone() },
 			],
 		};
@@ -76,7 +79,10 @@ fn send_fails_when_xcm_router_blocks() {
 		let message = Xcm::ReserveAssetDeposit {
 			assets: vec![ConcreteFungible { id: Parent.into(), amount: SEND_AMOUNT }],
 			effects: vec![
-				buy_execution(weight, ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT }),
+				buy_execution(
+					weight,
+					ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT },
+				),
 				DepositAsset { assets: vec![All], dest: sender.clone() },
 			],
 		};
@@ -158,7 +164,10 @@ fn reserve_transfer_assets_works() {
 				Xcm::ReserveAssetDeposit {
 					assets: vec![ConcreteFungible { id: Parent.into(), amount: SEND_AMOUNT }],
 					effects: vec![
-						buy_execution(weight, ConcreteFungible { id: Parent.into(), amount: SEND_AMOUNT }),
+						buy_execution(
+							weight,
+							ConcreteFungible { id: Parent.into(), amount: SEND_AMOUNT }
+						),
 						DepositAsset { assets: vec![All], dest },
 					]
 				}
@@ -189,7 +198,10 @@ fn execute_withdraw_to_deposit_works() {
 			Box::new(Xcm::WithdrawAsset {
 				assets: vec![ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT }],
 				effects: vec![
-					buy_execution(weight, ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT }),
+					buy_execution(
+						weight,
+						ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT }
+					),
 					DepositAsset { assets: vec![All], dest },
 				],
 			}),
