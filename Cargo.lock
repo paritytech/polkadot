@@ -7067,7 +7067,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-simnet"
-version = "0.9.0"
+version = "0.9.9"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -10364,7 +10364,7 @@ checksum = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
 
 [[package]]
 name = "staking-miner"
-version = "0.9.0"
+version = "0.9.9"
 dependencies = [
  "env_logger 0.8.4",
  "frame-election-provider-support",
