@@ -356,3 +356,104 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Ok(total_surplus)
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use polkadot_test_client::{
+		BlockBuilderExt, ClientBlockImportExt, DefaultTestClientBuilderExt, ExecutionStrategy,
+		InitPolkadotBlockBuilder, TestClientBuilder, TestClientBuilderExt,
+	};
+	use polkadot_test_runtime::new_test_ext;
+	use polkadot_test_service::construct_extrinsic;
+
+	#[test]
+	fn recursion_limit_works() {
+		use xcm::v0::prelude::*;
+
+		sp_tracing::try_init_simple();
+
+		new_test_ext().execute_with(|| {
+			let mut client = TestClientBuilder::new()
+				.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
+				.build();
+	
+			// let mut msg = WithdrawAsset {
+			// 	assets: vec![ConcreteFungible { id: X1(Parent), amount: 0 }],
+			// 	effects: vec![],
+			// };
+			// for _ in 0..MAX_RECURSION_LIMIT {
+			// 	// nest `msg` into itself on each iteration.
+			// 	msg = WithdrawAsset {
+			// 		assets: vec![ConcreteFungible { id: X1(Parent), amount: 0 }],
+			// 		effects: vec![BuyExecution {
+			// 			fees: All,
+			// 			weight: 0,
+			// 			debt: 5,
+			// 			halt_on_error: true,
+			// 			xcm: vec![msg],
+			// 		}],
+			// 	};
+			// }
+
+			let execute = construct_extrinsic(
+				&client,
+				// polkadot_test_runtime::Call::Xcm(
+				// 	pallet_xcm::Call::execute(Box::new(msg.clone()), 1_000_000_000),
+				// ),
+				polkadot_test_runtime::Call::System(
+					frame_system::Call::remark_with_event(b"hello".to_vec()),
+				),
+				sp_keyring::Sr25519Keyring::Alice,
+			);
+
+			let mut block_builder = client.init_polkadot_block_builder();
+			block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
+
+			let block = block_builder.build().expect("Finalizes the block").block;
+
+			futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
+				.expect("imports the block");
+
+			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
+				dbg!(&r.event),
+				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted(Outcome::Complete(_))),
+			)));
+
+			// msg = WithdrawAsset {
+			// 	assets: vec![ConcreteFungible { id: X1(Parent), amount: 0 }],
+			// 	effects: vec![BuyExecution {
+			// 		fees: All,
+			// 		weight: 0,
+			// 		debt: 5,
+			// 		halt_on_error: true,
+			// 		xcm: vec![msg],
+			// 	}],
+			// };
+
+			// let execute = construct_extrinsic(
+			// 	&client,
+			// 	polkadot_test_runtime::Call::Xcm(
+			// 		pallet_xcm::Call::execute(Box::new(msg.clone()), 1_000_000_000),
+			// 	),
+			// 	sp_keyring::Sr25519Keyring::Alice,
+			// );
+
+			// let mut block_builder = client.init_polkadot_block_builder();
+			// block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
+
+			// let block = block_builder.build().expect("Finalizes the block").block;
+
+			// futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
+			// 	.expect("imports the block");
+
+			// assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
+			// 	r.event,
+			// 	polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted(
+			// 		Outcome::Incomplete(_, XcmError::RecursionLimitReached),
+			// 	)),
+			// )));
+		});
+	}
+}

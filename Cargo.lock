@@ -7222,6 +7222,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-vesting",
+ "pallet-xcm",
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-primitives",
@@ -7250,6 +7251,9 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder",
  "tiny-keccak",
+ "xcm",
+ "xcm-builder",
+ "xcm-executor",
 ]
 
 [[package]]
@@ -12275,14 +12279,23 @@ name = "xcm-executor"
 version = "0.9.8"
 dependencies = [
  "frame-support",
+ "frame-system",
+ "futures 0.3.15",
  "impl-trait-for-tuples",
  "log",
+ "pallet-xcm",
  "parity-scale-codec",
+ "polkadot-test-client",
+ "polkadot-test-runtime",
+ "polkadot-test-service",
  "sp-arithmetic",
+ "sp-consensus",
  "sp-core",
  "sp-io",
+ "sp-keyring",
  "sp-runtime",
  "sp-std",
+ "sp-tracing",
  "xcm",
 ]
 
