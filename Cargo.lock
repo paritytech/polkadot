@@ -12312,7 +12312,7 @@ version = "0.9.9"
 dependencies = [
  "frame-support",
  "frame-system",
- "futures 0.3.15",
+ "futures 0.3.16",
  "impl-trait-for-tuples",
  "log",
  "pallet-xcm",

@@ -14,14 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{parameter_types, traits::{All, EnsureOrigin}, weights::Weight};
+use frame_support::{
+	traits::{All, EnsureOrigin},
+	weights::Weight,
+};
 use xcm::v0::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult, SendXcm, Xcm};
-use xcm_builder::{AllowUnpaidExecutionFrom, LocationInverter, FixedWeightBounds};
-use xcm_executor::{Assets, traits::{TransactAsset, WeightTrader}};
-
-parameter_types! {
-	pub Ancestry: MultiLocation = MultiLocation::Null;
-}
+use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds};
+use xcm_executor::{
+	traits::{InvertLocation, TransactAsset, WeightTrader},
+	Assets,
+};
 
 pub struct ConvertOriginToLocal;
 impl<Origin> EnsureOrigin<Origin> for ConvertOriginToLocal {
@@ -68,6 +70,13 @@ impl WeightTrader for DummyWeightTrader {
 	}
 }
 
+pub struct InvertNothing;
+impl InvertLocation for InvertNothing {
+	fn invert_location(_: &MultiLocation) -> MultiLocation {
+		MultiLocation::Null
+	}
+}
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = super::Call;
@@ -76,7 +85,7 @@ impl xcm_executor::Config for XcmConfig {
 	type OriginConverter = pallet_xcm::XcmPassthrough<super::Origin>;
 	type IsReserve = ();
 	type IsTeleporter = ();
-	type LocationInverter = LocationInverter<Ancestry>;
+	type LocationInverter = InvertNothing;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call>;
 	type Trader = DummyWeightTrader;

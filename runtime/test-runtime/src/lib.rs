@@ -500,9 +500,11 @@ impl pallet_xcm::Config for Runtime {
 	// The config types here are entirely configurable, since the only one that is sorely needed
 	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
 	type Event = Event;
-	type SendXcmOrigin = xcm_config::ConvertOriginToLocal;
-	type XcmRouter = xcm_config::DoNothingRouter;
 	type ExecuteXcmOrigin = xcm_config::ConvertOriginToLocal;
+	type LocationInverter = xcm_config::InvertNothing;
+	type SendXcmOrigin = xcm_config::ConvertOriginToLocal;
+	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
+	type XcmRouter = xcm_config::DoNothingRouter;
 	type XcmExecuteFilter =
 		frame_support::traits::All<(xcm::v0::MultiLocation, xcm::v0::Xcm<Call>)>;
 	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
@@ -510,7 +512,6 @@ impl pallet_xcm::Config for Runtime {
 		frame_support::traits::All<(xcm::v0::MultiLocation, Vec<xcm::v0::MultiAsset>)>;
 	type XcmReserveTransferFilter =
 		frame_support::traits::All<(xcm::v0::MultiLocation, Vec<xcm::v0::MultiAsset>)>;
-	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
 }
 
 impl parachains_hrmp::Config for Runtime {
@@ -879,14 +880,4 @@ sp_api::impl_runtime_apis! {
 			Timestamp::now()
 		}
 	}
-}
-
-#[cfg(feature = "std")]
-pub fn new_test_ext() -> sp_io::TestExternalities {
-	let t = frame_system::GenesisConfig::default()
-		.build_storage::<Runtime>()
-		.unwrap();
-	let mut ext: sp_io::TestExternalities = t.into();
-	ext.execute_with(|| System::set_block_number(1));
-	ext
 }
