@@ -122,6 +122,8 @@ pub mod pallet {
 
 		/// Teleport some assets from the local chain to some destination chain.
 		///
+		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
 		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
@@ -188,6 +190,8 @@ pub mod pallet {
 
 		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
 		/// a notification XCM.
+		///
+		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
