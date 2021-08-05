@@ -225,7 +225,7 @@ mod tests {
 				relay_chain::Origin::signed(ALICE),
 				X1(Parachain(1)),
 				X1(AccountId32 { network: Any, id: ALICE.into() }),
-				(Here, 123).into(),
+				(Here, withdraw_amount).into(),
 				0,
 				max_weight_for_execution,
 			));
