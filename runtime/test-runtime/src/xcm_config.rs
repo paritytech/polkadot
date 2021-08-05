@@ -30,6 +30,11 @@ impl<Origin> EnsureOrigin<Origin> for ConvertOriginToLocal {
 	fn try_origin(_: Origin) -> Result<MultiLocation, Origin> {
 		Ok(MultiLocation::Null)
 	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn successful_origin() -> Origin {
+		unimplemented!()
+	}
 }
 
 pub struct DoNothingRouter;
