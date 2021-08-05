@@ -130,7 +130,7 @@ pub enum Order<Call> {
 	///
 	/// - `fees`: The asset(s) to remove from holding to pay for fees.
 	/// - `weight`: The amount of weight to purchase; this should be at least the shallow weight of `effects` and `xcm`.
-	/// - `debt`: The amount of weight-debt already incurred to be pay off; this should be equal to the unpaid weight of
+	/// - `debt`: The amount of weight-debt already incurred to be paid off; this should be equal to the unpaid weight of
 	///   any surrounding operations/orders.
 	/// - `halt_on_error`: If `true`, the execution of the `orders` and `operations` will halt on the first failure. If
 	///   `false`, then execution will continue regardless.

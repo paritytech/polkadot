@@ -73,7 +73,7 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v1::Xcm<Call> {
 
 pub mod opaque {
 	pub mod v1 {
-		// Everything from v0
+		// Everything from v1
 		pub use crate::v1::*;
 		// Then override with the opaque types in v0
 		pub use crate::v1::opaque::{Order, Xcm};

@@ -34,7 +34,7 @@ use parity_scale_codec::{self as codec, Decode, Encode};
 /// A general identifier for an instance of a non-fungible asset class.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
 pub enum AssetInstance {
-	/// Undefined - used if the NFA class has only one instance.
+	/// Undefined - used if the non-fungible asset class has only one instance.
 	Undefined,
 
 	/// A compact index. Technically this could be greater than `u128`, but this implementation supports only
@@ -62,12 +62,6 @@ impl From<()> for AssetInstance {
 		Self::Undefined
 	}
 }
-
-/*impl From<u128> for AssetInstance {
-	fn from(x: u128) -> Self {
-		Self::Index(x)
-	}
-}*/
 
 impl From<[u8; 4]> for AssetInstance {
 	fn from(x: [u8; 4]) -> Self {
@@ -381,7 +375,7 @@ impl MultiAssets {
 		self.0.get(index)
 	}
 }
-/// Classification of whether an asset is fungible or not, along with an optional amount or instance.
+/// Classification of whether an asset is fungible or not.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum WildFungibility {
 	Fungible,
