@@ -19,7 +19,6 @@ sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch 
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", optional = true , branch = "kiz-ocw-max-heap-pages" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
@@ -146,7 +145,6 @@ full-node = [
 	"polkadot-node-core-runtime-api",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
-	"sc-finality-grandpa-warp-sync",
 	"kvdb-rocksdb"
 ]
 

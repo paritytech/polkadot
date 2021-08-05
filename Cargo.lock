@@ -7024,7 +7024,6 @@ dependencies = [
  "sc-consensus-uncles",
  "sc-executor",
  "sc-finality-grandpa",
- "sc-finality-grandpa-warp-sync",
  "sc-keystore",
  "sc-network",
  "sc-service",
@@ -8738,27 +8737,6 @@ dependencies = [
  "serde_json",
  "sp-blockchain",
  "sp-core",
- "sp-runtime",
-]
-
-[[package]]
-name = "sc-finality-grandpa-warp-sync"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=kiz-ocw-max-heap-pages#a4fb6c6c3152715465c5c018d062f32a5afe56e0"
-dependencies = [
- "derive_more",
- "futures 0.3.16",
- "log",
- "num-traits",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "prost",
- "sc-client-api",
- "sc-finality-grandpa",
- "sc-network",
- "sc-service",
- "sp-blockchain",
- "sp-finality-grandpa",
  "sp-runtime",
 ]
 
