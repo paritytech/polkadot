@@ -148,7 +148,7 @@ pub enum Xcm<Call> {
 	/// - `assets`: The asset(s) that are minted into the Holding Register.
 	/// - `effects`: The order(s) to execute on the Holding Register.
 	///
-	/// Safety: `origin` must be trusted to have irrevocably destroyed the corresponding`assets` prior as a consequence
+	/// Safety: `origin` must be trusted to have irrevocably destroyed the corresponding `assets` prior as a consequence
 	/// of sending this message.
 	///
 	/// Kind: *Trusted Indication*.

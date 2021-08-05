@@ -386,7 +386,7 @@ pub enum WildFungibility {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum WildMultiAsset {
 	/// All assets in the holding register, up to `usize` individual assets (different instances of non-fungibles could
-	/// as separate assets).
+	/// be separate assets).
 	All,
 	/// All assets in the holding register of a given fungibility and ID. If operating on non-fungibles, then a limit
 	/// is provided for the maximum amount of matching instances.
