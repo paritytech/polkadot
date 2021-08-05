@@ -19,7 +19,7 @@
 use crate::DoubleEncoded;
 use alloc::vec::Vec;
 use core::{fmt::Debug, convert::{TryFrom, TryInto}, result};
-use super::v0::{Xcm as Xcm0, MultiLocation as MultiLocation0};
+use super::v0::Xcm as Xcm0;
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
@@ -36,7 +36,7 @@ pub use multiasset::{
 };
 pub use multilocation::MultiLocation;
 pub use order::Order;
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
+pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm, WrapVersion};
 
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
@@ -60,7 +60,7 @@ pub mod prelude {
 		multilocation::MultiLocation::{self, *},
 		opaque,
 		order::Order::{self, *},
-		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
+		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm, ForceV0},
 		OriginKind, Response,
 		Xcm::{self, *},
 	};

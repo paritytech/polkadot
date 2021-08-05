@@ -18,7 +18,7 @@
 
 use crate::{DoubleEncoded, VersionedXcm};
 use alloc::vec::Vec;
-use core::{convert::TryFrom, result};
+use core::{convert::{TryFrom, TryInto}, result};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
@@ -30,6 +30,7 @@ pub use multi_asset::{AssetInstance, MultiAsset};
 pub use multi_location::MultiLocation;
 pub use order::Order;
 pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
+use super::v1::Xcm as Xcm1;
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
@@ -296,4 +297,45 @@ pub mod opaque {
 	pub type Xcm = super::Xcm<()>;
 
 	pub use super::order::opaque::*;
+}
+
+impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
+	type Error = ();
+	fn try_from(x: Xcm1<Call>) -> result::Result<Xcm<Call>, ()> {
+		use Xcm::*;
+		Ok(match x {
+			Xcm1::WithdrawAsset { assets, effects } =>
+				WithdrawAsset {
+					assets: assets.into(),
+					effects: effects.into_iter()
+						.map(Order::try_from)
+						.collect::<result::Result<_, _>>()?,
+				},
+			Xcm1::ReserveAssetDeposited { assets, effects } => ReserveAssetDeposit {
+				assets: assets.into(),
+				effects: effects.into_iter().map(Order::try_from).collect::<result::Result<_, _>>()?,
+			},
+			Xcm1::ReceiveTeleportedAsset { assets, effects } => TeleportAsset {
+				assets: assets.into(),
+				effects: effects.into_iter().map(Order::try_from).collect::<result::Result<_, _>>()?,
+			},
+			Xcm1::QueryResponse { query_id: u64, response } => QueryResponse { query_id: u64, response },
+			Xcm1::TransferAsset { assets, beneficiary } => TransferAsset { assets: assets.into(), dest: beneficiary.into() },
+			Xcm1::TransferReserveAsset { assets, dest, effects } =>
+				TransferReserveAsset {
+					assets: assets.into(),
+					dest: dest.into(),
+					effects: effects.into_iter().map(Order::try_from).collect::<result::Result<_, _>>()?,
+				},
+			Xcm1::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
+			Xcm1::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
+			Xcm1::HrmpChannelClosing { initiator, sender, recipient } =>
+				HrmpChannelClosing { initiator, sender, recipient },
+			Xcm1::Transact { origin_type, require_weight_at_most, call } =>
+				Transact { origin_type, require_weight_at_most, call: call.into() },
+			Xcm1::RelayedFrom { who, message } =>
+				RelayedFrom { who: who.into(), message: alloc::boxed::Box::new((*message).try_into()?) },
+		})
+	}
 }

@@ -18,7 +18,7 @@
 
 use core::{mem, result};
 
-use super::Junction;
+use super::{Junction, super::v1::MultiLocation as MultiLocation1};
 use parity_scale_codec::{self, Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.
@@ -693,6 +693,23 @@ impl MultiLocation {
 	/// ```
 	pub fn is_interior(&self) -> bool {
 		self.iter().all(Junction::is_interior)
+	}
+}
+
+impl From<MultiLocation1> for MultiLocation {
+	fn from(old: MultiLocation1) -> Self {
+		use MultiLocation::*;
+		match old {
+			MultiLocation1::Here => Null,
+			MultiLocation1::X1(j0) => X1(j0),
+			MultiLocation1::X2(j0, j1) => X2(j0, j1),
+			MultiLocation1::X3(j0, j1, j2) => X3(j0, j1, j2),
+			MultiLocation1::X4(j0, j1, j2, j3) => X4(j0, j1, j2, j3),
+			MultiLocation1::X5(j0, j1, j2, j3, j4) => X5(j0, j1, j2, j3, j4),
+			MultiLocation1::X6(j0, j1, j2, j3, j4, j5) => X6(j0, j1, j2, j3, j4, j5),
+			MultiLocation1::X7(j0, j1, j2, j3, j4, j5, j6) => X7(j0, j1, j2, j3, j4, j5, j6),
+			MultiLocation1::X8(j0, j1, j2, j3, j4, j5, j6, j7) => X8(j0, j1, j2, j3, j4, j5, j6, j7),
+		}
 	}
 }
 

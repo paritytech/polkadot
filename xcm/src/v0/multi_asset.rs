@@ -16,11 +16,12 @@
 
 //! Cross-Consensus Message format data structures.
 
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use super::MultiLocation;
 use parity_scale_codec::{self, Decode, Encode};
+use crate::v1::{MultiAsset as MultiAsset1, WildMultiAsset, MultiAssetFilter, MultiAssets};
 
-pub use super::super::v1::AssetInstance;
+pub use crate::v1::AssetInstance;
 
 /// A single general identifier for an asset.
 ///
@@ -285,6 +286,54 @@ impl MultiAsset {
 			ConcreteNonFungible { class: ref mut id, .. } =>
 				id.prepend_with(prepend.clone()).map_err(|_| ()),
 			_ => Ok(()),
+		}
+	}
+}
+
+impl From<MultiAsset1> for MultiAsset {
+	fn from(a: MultiAsset1) -> MultiAsset {
+		use MultiAsset::*;
+		use crate::v1::{Fungibility::*, AssetId::*};
+		match (a.id, a.fun) {
+			(Concrete(id), Fungible(amount)) => ConcreteFungible { id: id.into(), amount },
+			(Concrete(class), NonFungible(instance)) => ConcreteNonFungible { class: class.into(), instance },
+			(Abstract(id), Fungible(amount)) => AbstractFungible { id, amount },
+			(Abstract(class), NonFungible(instance)) => AbstractNonFungible { class, instance },
+		}
+	}
+}
+
+impl From<MultiAssets> for Vec<MultiAsset> {
+	fn from(a: MultiAssets) -> Vec<MultiAsset> {
+		a.drain().into_iter().map(MultiAsset::from).collect()
+	}
+}
+
+impl From<WildMultiAsset> for MultiAsset {
+	fn from(a: WildMultiAsset) -> MultiAsset {
+		use MultiAsset::*;
+		use crate::v1::{WildFungibility::*, AssetId::*};
+		match a {
+			WildMultiAsset::All => All,
+			WildMultiAsset::AllOf { id, fun } => match (id, fun) {
+				(Concrete(id), Fungible) => AllConcreteFungible { id: id.into()},
+				(Concrete(class), NonFungible) => AllConcreteNonFungible { class: class.into()},
+				(Abstract(id), Fungible) => AllAbstractFungible { id},
+				(Abstract(class), NonFungible) => AllAbstractNonFungible { class},
+			}
+		}
+	}
+}
+
+impl From<WildMultiAsset> for Vec<MultiAsset> {
+	fn from(a: WildMultiAsset) -> Vec<MultiAsset> { vec![a.into()] }
+}
+
+impl From<MultiAssetFilter> for Vec<MultiAsset> {
+	fn from(a: MultiAssetFilter) -> Vec<MultiAsset> {
+		match a {
+			MultiAssetFilter::Definite(assets) => assets.into(),
+			MultiAssetFilter::Wild(wildcard) => wildcard.into(),
 		}
 	}
 }

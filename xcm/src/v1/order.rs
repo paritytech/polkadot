@@ -21,6 +21,7 @@ use alloc::{vec, vec::Vec};
 use super::{MultiAsset, MultiAssets, MultiAssetFilter, MultiLocation, Xcm};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
+use super::super::v0::Order as Order0;
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Derivative, Encode, Decode)]
@@ -183,11 +184,10 @@ impl<Call> Order<Call> {
 	}
 }
 
-impl<Call> TryFrom<super::super::v0::Order<Call>> for Order<Call> {
+impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 	type Error = ();
-	fn try_from(old: super::super::v0::Order<Call>) -> result::Result<Order<Call>, ()> {
+	fn try_from(old: Order0<Call>) -> result::Result<Order<Call>, ()> {
 		use Order::*;
-		use super::super::v0::Order as Order0;
 		Ok(match old {
 			Order0::Null => Noop,
 			Order0::DepositAsset { assets, dest } =>
