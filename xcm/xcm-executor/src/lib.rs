@@ -42,7 +42,7 @@ pub use config::Config;
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 /// The maximum recursion limit for `execute_xcm` and `execute_effects`.
-pub const MAX_RECURSION_LIMIT: u32 = 6;
+pub const MAX_RECURSION_LIMIT: u32 = 80;
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	fn execute_xcm_in_credit(
