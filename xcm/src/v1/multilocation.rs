@@ -16,11 +16,10 @@
 
 //! Cross-Consensus Message format data structures.
 
-use core::{result, mem, convert::TryFrom};
+use core::{mem, result};
 
-use parity_scale_codec::{self, Encode, Decode};
 use super::Junction;
-use crate::VersionedMultiLocation;
+use parity_scale_codec::{self, Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.
 ///
@@ -43,11 +42,11 @@ use crate::VersionedMultiLocation;
 ///
 /// This specific `MultiLocation` implementation uses a Rust `enum` in order to make pattern matching easier.
 ///
-/// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
+/// The `MultiLocation` value of `Here` simply refers to the interpreting consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
 pub enum MultiLocation {
 	/// The interpreting consensus system.
-	Null,
+	Here,
 	/// A relative path comprising 1 junction.
 	X1(Junction),
 	/// A relative path comprising 2 junctions.
@@ -77,7 +76,7 @@ impl From<Junction> for MultiLocation {
 
 impl From<()> for MultiLocation {
 	fn from(_: ()) -> Self {
-		MultiLocation::Null
+		MultiLocation::Here
 	}
 }
 impl From<(Junction,)> for MultiLocation {
@@ -110,20 +109,26 @@ impl From<(Junction, Junction, Junction, Junction, Junction, Junction)> for Mult
 		MultiLocation::X6(x.0, x.1, x.2, x.3, x.4, x.5)
 	}
 }
-impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
+impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction)>
+	for MultiLocation
+{
 	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
 		MultiLocation::X7(x.0, x.1, x.2, x.3, x.4, x.5, x.6)
 	}
 }
-impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
+impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)>
+	for MultiLocation
+{
+	fn from(
+		x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction),
+	) -> Self {
 		MultiLocation::X8(x.0, x.1, x.2, x.3, x.4, x.5, x.6, x.7)
 	}
 }
 
 impl From<[Junction; 0]> for MultiLocation {
 	fn from(_: [Junction; 0]) -> Self {
-		MultiLocation::Null
+		MultiLocation::Here
 	}
 }
 impl From<[Junction; 1]> for MultiLocation {
@@ -214,7 +219,7 @@ impl MultiLocation {
 	/// Returns first junction, or `None` if the location is empty.
 	pub fn first(&self) -> Option<&Junction> {
 		match &self {
-			MultiLocation::Null => None,
+			MultiLocation::Here => None,
 			MultiLocation::X1(ref a) => Some(a),
 			MultiLocation::X2(ref a, ..) => Some(a),
 			MultiLocation::X3(ref a, ..) => Some(a),
@@ -229,7 +234,7 @@ impl MultiLocation {
 	/// Returns last junction, or `None` if the location is empty.
 	pub fn last(&self) -> Option<&Junction> {
 		match &self {
-			MultiLocation::Null => None,
+			MultiLocation::Here => None,
 			MultiLocation::X1(ref a) => Some(a),
 			MultiLocation::X2(.., ref a) => Some(a),
 			MultiLocation::X3(.., ref a) => Some(a),
@@ -245,15 +250,17 @@ impl MultiLocation {
 	/// (second item in tuple) or `None` if it was empty.
 	pub fn split_first(self) -> (MultiLocation, Option<Junction>) {
 		match self {
-			MultiLocation::Null => (MultiLocation::Null, None),
-			MultiLocation::X1(a) => (MultiLocation::Null, Some(a)),
+			MultiLocation::Here => (MultiLocation::Here, None),
+			MultiLocation::X1(a) => (MultiLocation::Here, Some(a)),
 			MultiLocation::X2(a, b) => (MultiLocation::X1(b), Some(a)),
 			MultiLocation::X3(a, b, c) => (MultiLocation::X2(b, c), Some(a)),
-			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(b, c, d), Some(a)),
-			MultiLocation::X5(a, b, c ,d, e) => (MultiLocation::X4(b, c, d, e), Some(a)),
-			MultiLocation::X6(a, b, c ,d, e, f) => (MultiLocation::X5(b, c, d, e, f), Some(a)),
-			MultiLocation::X7(a, b, c ,d, e, f, g) => (MultiLocation::X6(b, c, d, e, f, g), Some(a)),
-			MultiLocation::X8(a, b, c ,d, e, f, g, h) => (MultiLocation::X7(b, c, d, e, f, g, h), Some(a)),
+			MultiLocation::X4(a, b, c, d) => (MultiLocation::X3(b, c, d), Some(a)),
+			MultiLocation::X5(a, b, c, d, e) => (MultiLocation::X4(b, c, d, e), Some(a)),
+			MultiLocation::X6(a, b, c, d, e, f) => (MultiLocation::X5(b, c, d, e, f), Some(a)),
+			MultiLocation::X7(a, b, c, d, e, f, g) =>
+				(MultiLocation::X6(b, c, d, e, f, g), Some(a)),
+			MultiLocation::X8(a, b, c, d, e, f, g, h) =>
+				(MultiLocation::X7(b, c, d, e, f, g, h), Some(a)),
 		}
 	}
 
@@ -261,21 +268,23 @@ impl MultiLocation {
 	/// (second item in tuple) or `None` if it was empty.
 	pub fn split_last(self) -> (MultiLocation, Option<Junction>) {
 		match self {
-			MultiLocation::Null => (MultiLocation::Null, None),
-			MultiLocation::X1(a) => (MultiLocation::Null, Some(a)),
+			MultiLocation::Here => (MultiLocation::Here, None),
+			MultiLocation::X1(a) => (MultiLocation::Here, Some(a)),
 			MultiLocation::X2(a, b) => (MultiLocation::X1(a), Some(b)),
 			MultiLocation::X3(a, b, c) => (MultiLocation::X2(a, b), Some(c)),
-			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(a, b, c), Some(d)),
+			MultiLocation::X4(a, b, c, d) => (MultiLocation::X3(a, b, c), Some(d)),
 			MultiLocation::X5(a, b, c, d, e) => (MultiLocation::X4(a, b, c, d), Some(e)),
 			MultiLocation::X6(a, b, c, d, e, f) => (MultiLocation::X5(a, b, c, d, e), Some(f)),
-			MultiLocation::X7(a, b, c, d, e, f, g) => (MultiLocation::X6(a, b, c, d, e, f), Some(g)),
-			MultiLocation::X8(a, b, c, d, e, f, g, h) => (MultiLocation::X7(a, b, c, d, e, f, g), Some(h)),
+			MultiLocation::X7(a, b, c, d, e, f, g) =>
+				(MultiLocation::X6(a, b, c, d, e, f), Some(g)),
+			MultiLocation::X8(a, b, c, d, e, f, g, h) =>
+				(MultiLocation::X7(a, b, c, d, e, f, g), Some(h)),
 		}
 	}
 
 	/// Removes the first element from `self`, returning it (or `None` if it was empty).
 	pub fn take_first(&mut self) -> Option<Junction> {
-		let mut d = MultiLocation::Null;
+		let mut d = MultiLocation::Here;
 		mem::swap(&mut *self, &mut d);
 		let (tail, head) = d.split_first();
 		*self = tail;
@@ -284,7 +293,7 @@ impl MultiLocation {
 
 	/// Removes the last element from `self`, returning it (or `None` if it was empty).
 	pub fn take_last(&mut self) -> Option<Junction> {
-		let mut d = MultiLocation::Null;
+		let mut d = MultiLocation::Here;
 		mem::swap(&mut *self, &mut d);
 		let (head, tail) = d.split_last();
 		*self = head;
@@ -295,7 +304,7 @@ impl MultiLocation {
 	/// `self` in case of overflow.
 	pub fn pushed_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
-			MultiLocation::Null => MultiLocation::X1(new),
+			MultiLocation::Here => MultiLocation::X1(new),
 			MultiLocation::X1(a) => MultiLocation::X2(a, new),
 			MultiLocation::X2(a, b) => MultiLocation::X3(a, b, new),
 			MultiLocation::X3(a, b, c) => MultiLocation::X4(a, b, c, new),
@@ -311,7 +320,7 @@ impl MultiLocation {
 	/// `self` in case of overflow.
 	pub fn pushed_front_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
-			MultiLocation::Null => MultiLocation::X1(new),
+			MultiLocation::Here => MultiLocation::X1(new),
 			MultiLocation::X1(a) => MultiLocation::X2(new, a),
 			MultiLocation::X2(a, b) => MultiLocation::X3(new, a, b),
 			MultiLocation::X3(a, b, c) => MultiLocation::X4(new, a, b, c),
@@ -326,7 +335,7 @@ impl MultiLocation {
 	/// Returns the number of junctions in `self`.
 	pub fn len(&self) -> usize {
 		match &self {
-			MultiLocation::Null => 0,
+			MultiLocation::Here => 0,
 			MultiLocation::X1(..) => 1,
 			MultiLocation::X2(..) => 2,
 			MultiLocation::X3(..) => 3,
@@ -450,7 +459,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v0::{MultiLocation::*, Junction::*};
+	/// # use xcm::v1::{MultiLocation::*, Junction::*};
 	/// # fn main() {
 	/// let mut m = X3(Parent, PalletInstance(3), OnlyChild);
 	/// assert_eq!(m.match_and_split(&X2(Parent, PalletInstance(3))), Some(&OnlyChild));
@@ -471,22 +480,33 @@ impl MultiLocation {
 
 	/// Mutates `self`, suffixing it with `new`. Returns `Err` in case of overflow.
 	pub fn push(&mut self, new: Junction) -> result::Result<(), ()> {
-		let mut n = MultiLocation::Null;
+		let mut n = MultiLocation::Here;
 		mem::swap(&mut *self, &mut n);
 		match n.pushed_with(new) {
-			Ok(result) => { *self = result; Ok(()) }
-			Err(old) => { *self = old; Err(()) }
+			Ok(result) => {
+				*self = result;
+				Ok(())
+			},
+			Err(old) => {
+				*self = old;
+				Err(())
+			},
 		}
 	}
 
-
 	/// Mutates `self`, prefixing it with `new`. Returns `Err` in case of overflow.
 	pub fn push_front(&mut self, new: Junction) -> result::Result<(), ()> {
-		let mut n = MultiLocation::Null;
+		let mut n = MultiLocation::Here;
 		mem::swap(&mut *self, &mut n);
 		match n.pushed_front_with(new) {
-			Ok(result) => { *self = result; Ok(()) }
-			Err(old) => { *self = old; Err(()) }
+			Ok(result) => {
+				*self = result;
+				Ok(())
+			},
+			Err(old) => {
+				*self = old;
+				Err(())
+			},
 		}
 	}
 
@@ -544,7 +564,7 @@ impl MultiLocation {
 	/// This function ensures a multi-junction is in its canonicalized/normalized form, removing
 	/// any internal `[Non-Parent, Parent]` combinations.
 	pub fn canonicalize(&mut self) {
-		let mut normalized = MultiLocation::Null;
+		let mut normalized = MultiLocation::Here;
 		let mut iter = self.iter();
 		// We build up the the new normalized path by taking items from the original multi-location.
 		// When the next item we would add is `Parent`, we instead remove the last item assuming
@@ -558,10 +578,10 @@ impl MultiLocation {
 		while let Some(j) = iter.next() {
 			if j == &Junction::Parent {
 				match normalized.last() {
-					None | Some(Junction::Parent) => {}
+					None | Some(Junction::Parent) => {},
 					Some(_) => {
 						normalized.take_last();
-						continue;
+						continue
 					},
 				}
 			}
@@ -572,7 +592,6 @@ impl MultiLocation {
 		core::mem::swap(self, &mut normalized);
 	}
 
-
 	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalized form is returned,
 	/// removing any internal `[Non-Parent, Parent]`  combinations.
 	///
@@ -580,7 +599,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v0::{MultiLocation::*, Junction::*};
+	/// # use xcm::v1::{MultiLocation::*, Junction::*};
 	/// # fn main() {
 	/// let mut m = X3(Parent, Parachain(21), OnlyChild);
 	/// assert_eq!(m.append_with(X2(Parent, PalletInstance(3))), Ok(()));
@@ -596,7 +615,7 @@ impl MultiLocation {
 				let mut suffix = prefix;
 				core::mem::swap(self, &mut suffix);
 				Err(suffix)
-			}
+			},
 		}
 	}
 
@@ -607,7 +626,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v0::{MultiLocation::*, Junction::*, NetworkId::Any};
+	/// # use xcm::v1::{MultiLocation::*, Junction::*, NetworkId::Any};
 	/// # fn main() {
 	/// let mut m = X3(Parent, Parent, PalletInstance(3));
 	/// assert_eq!(m.prepend_with(X3(Parent, Parachain(21), OnlyChild)), Ok(()));
@@ -630,7 +649,7 @@ impl MultiLocation {
 
 		// Pre-pending this prefix would create a multi-location with too many junctions.
 		if self.len() + prefix.len() - 2 * skipped > MAX_MULTILOCATION_LENGTH {
-			return Err(prefix);
+			return Err(prefix)
 		}
 
 		// Here we cancel out `[Non-Parent, Parent]` items (normalization), where
@@ -638,21 +657,22 @@ impl MultiLocation {
 		// comes from the front of the original location.
 		//
 		// We calculated already how many of these there should be above.
-		for _ in 0 .. skipped {
-				let _non_parent = prefix.take_last();
-				let _parent = self.take_first();
-				debug_assert!(
-					_non_parent.is_some() && _non_parent != Some(Junction::Parent),
-					"prepend_with should always remove a non-parent from the end of the prefix",
-				);
-				debug_assert!(
-					_parent == Some(Junction::Parent),
-					"prepend_with should always remove a parent from the front of the location",
-				);
+		for _ in 0..skipped {
+			let _non_parent = prefix.take_last();
+			let _parent = self.take_first();
+			debug_assert!(
+				_non_parent.is_some() && _non_parent != Some(Junction::Parent),
+				"prepend_with should always remove a non-parent from the end of the prefix",
+			);
+			debug_assert!(
+				_parent == Some(Junction::Parent),
+				"prepend_with should always remove a parent from the front of the location",
+			);
 		}
 
 		for j in prefix.into_iter_rev() {
-			self.push_front(j).expect("len + prefix minus 2*skipped is less than max length; qed");
+			self.push_front(j)
+				.expect("len + prefix minus 2*skipped is less than max length; qed");
 		}
 		Ok(())
 	}
@@ -663,7 +683,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v0::{MultiLocation::*, Junction::*, NetworkId::Any};
+	/// # use xcm::v1::{MultiLocation::*, Junction::*, NetworkId::Any};
 	/// # fn main() {
 	/// let parent = X1(Parent);
 	/// assert_eq!(parent.is_interior(), false);
@@ -676,25 +696,10 @@ impl MultiLocation {
 	}
 }
 
-impl From<MultiLocation> for VersionedMultiLocation {
-	fn from(x: MultiLocation) -> Self {
-		VersionedMultiLocation::V0(x)
-	}
-}
-
-impl TryFrom<VersionedMultiLocation> for MultiLocation {
-	type Error = ();
-	fn try_from(x: VersionedMultiLocation) -> result::Result<Self, ()> {
-		match x {
-			VersionedMultiLocation::V0(x) => Ok(x),
-		}
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use super::MultiLocation::*;
-	use crate::opaque::v0::{Junction::*, NetworkId::Any};
+	use crate::opaque::v1::{Junction::*, NetworkId::Any};
 
 	#[test]
 	fn match_and_split_works() {
@@ -734,7 +739,16 @@ mod tests {
 
 		// Can handle shared prefix and resizing correctly.
 		let mut m = X1(Parent);
-		let prefix = X8(Parachain(100), OnlyChild, OnlyChild, OnlyChild, OnlyChild, OnlyChild, OnlyChild, Parent);
+		let prefix = X8(
+			Parachain(100),
+			OnlyChild,
+			OnlyChild,
+			OnlyChild,
+			OnlyChild,
+			OnlyChild,
+			OnlyChild,
+			Parent,
+		);
 		assert_eq!(m.prepend_with(prefix.clone()), Ok(()));
 		assert_eq!(m, X5(Parachain(100), OnlyChild, OnlyChild, OnlyChild, OnlyChild));
 
@@ -773,7 +787,7 @@ mod tests {
 
 		let mut m = X6(Parachain(1), Parent, Parachain(2), Parent, Parachain(3), Parent);
 		m.canonicalize();
-		assert_eq!(m, Null);
+		assert_eq!(m, Here);
 
 		let mut m = X5(Parachain(1), Parent, Parent, Parent, Parachain(3));
 		m.canonicalize();
@@ -781,10 +795,10 @@ mod tests {
 
 		let mut m = X4(Parachain(1), Parachain(2), Parent, Parent);
 		m.canonicalize();
-		assert_eq!(m, Null);
+		assert_eq!(m, Here);
 
-		let mut m = X4( Parent, Parent, Parachain(1), Parachain(2));
+		let mut m = X4(Parent, Parent, Parachain(1), Parachain(2));
 		m.canonicalize();
-		assert_eq!(m, X4( Parent, Parent, Parachain(1), Parachain(2)));
+		assert_eq!(m, X4(Parent, Parent, Parachain(1), Parachain(2)));
 	}
 }

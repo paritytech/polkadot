@@ -131,7 +131,7 @@ Ensure a vector is present in `pending_known` for each hash in the view that doe
 
 Invoke `unify_with_peer(peer, view)` to catch them up to messages we have.
 
-We also need to use the `view.finalized_number` to remove the `PeerId` from any blocks that it won't be wanting information about anymore. Note that we have to be on guard for peers doing crazy stuff like jumping their 'finalized_number` forward 10 trillion blocks to try and get us stuck in a loop for ages.
+We also need to use the `view.finalized_number` to remove the `PeerId` from any blocks that it won't be wanting information about anymore. Note that we have to be on guard for peers doing crazy stuff like jumping their `finalized_number` forward 10 trillion blocks to try and get us stuck in a loop for ages.
 
 One of the safeguards we can implement is to reject view updates from peers where the new `finalized_number` is less than the previous.
 
@@ -192,7 +192,7 @@ We maintain a few invariants:
 
 The algorithm is the following:
 
-  * Load the BlockEntry using `assignment.block_hash`. If it does not exist, report the source if it is `MessageSource::Peer` and return.
+  * Load the `BlockEntry` using `assignment.block_hash`. If it does not exist, report the source if it is `MessageSource::Peer` and return.
   * Compute a fingerprint for the `assignment` using `claimed_candidate_index`.
   * If the source is `MessageSource::Peer(sender)`:
     * check if `peer` appears under `known_by` and whether the fingerprint is in the knowledge of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the `sent` knowledge contains the fingerprint, report for providing replicate data and return, otherwise, insert into the `received` knowledge and return.
@@ -218,7 +218,7 @@ The algorithm is the following:
 
 Imports an approval signature referenced by block hash and candidate index:
 
-  * Load the BlockEntry using `approval.block_hash` and the candidate entry using `approval.candidate_entry`. If either does not exist, report the source if it is `MessageSource::Peer` and return.
+  * Load the `BlockEntry` using `approval.block_hash` and the candidate entry using `approval.candidate_entry`. If either does not exist, report the source if it is `MessageSource::Peer` and return.
   * Compute a fingerprint for the approval.
   * Compute a fingerprint for the corresponding assignment. If the `BlockEntry`'s knowledge does not contain that fingerprint, then report the source if it is `MessageSource::Peer` and return. All references to a fingerprint after this refer to the approval's, not the assignment's.
   * If the source is `MessageSource::Peer(sender)`:

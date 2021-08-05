@@ -31,7 +31,7 @@ pub use polkadot_runtime_parachains::{
 };
 pub use sp_io::TestExternalities;
 pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
-pub use xcm::{v0::prelude::*, VersionedXcm};
+pub use xcm::{v1::prelude::*, VersionedXcm};
 pub use xcm_executor::XcmExecutor;
 
 pub trait TestExt {
@@ -76,6 +76,7 @@ pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 }
 
 #[macro_export]
+#[rustfmt::skip]
 macro_rules! decl_test_relay_chain {
 	(
 		pub struct $name:ident {

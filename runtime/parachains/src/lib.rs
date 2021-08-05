@@ -24,18 +24,18 @@
 
 pub mod configuration;
 pub mod disputes;
-pub mod shared;
+pub mod dmp;
+pub mod hrmp;
 pub mod inclusion;
 pub mod initializer;
+pub mod origin;
 pub mod paras;
 pub mod paras_inherent;
+pub mod reward_points;
 pub mod scheduler;
 pub mod session_info;
-pub mod origin;
-pub mod dmp;
+pub mod shared;
 pub mod ump;
-pub mod hrmp;
-pub mod reward_points;
 
 pub mod runtime_api_impl;
 
@@ -44,9 +44,9 @@ mod util;
 #[cfg(test)]
 mod mock;
 
-pub use origin::{Origin, ensure_parachain};
-use primitives::v1::Id as ParaId;
+pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;
+use primitives::v1::Id as ParaId;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 pub fn schedule_para_initialize<T: paras::Config>(

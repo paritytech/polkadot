@@ -17,7 +17,7 @@
 //! Cross-Consensus Message format data structures.
 
 use core::result;
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 
 use super::{MultiLocation, Xcm};
 
@@ -62,7 +62,7 @@ pub enum Error {
 	/// Used by:
 	/// - `Transact`
 	TooMuchWeightRequired,
-	/// The fees specified by the XCM message were not found in the holding account.
+	/// The fees specified by the XCM message were not found in the holding register.
 	///
 	/// Used by:
 	/// - `BuyExecution`
@@ -184,7 +184,7 @@ impl<C> ExecuteXcm<C> for () {
 ///
 /// # Example
 /// ```rust
-/// # use xcm::v0::{MultiLocation, Xcm, Junction, Error, OriginKind, SendXcm, Result};
+/// # use xcm::v1::{MultiLocation, Xcm, Junction, Error, OriginKind, SendXcm, Result};
 /// # use parity_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.

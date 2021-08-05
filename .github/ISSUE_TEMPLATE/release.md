@@ -134,8 +134,22 @@ date to include them.
 
 ### Benchmarks
 
-Run the benchmarking suite with the new runtime and update any function weights
-if necessary.
+There are three benchmarking machines reserved for updating the weights at
+release-time. To initialise a benchmark run for each production runtime
+(westend, kusama, polkadot):
+* Go to https://gitlab.parity.io/parity/polkadot/-/pipelines?page=1&scope=branches&ref=master
+* Click the link to the last pipeline run for master
+* Start each of the manual jobs:
+  * 'update_westend_weights'
+  * 'update_polkadot_weights'
+  * 'update_kusama_weights'
+* When these jobs have completed (it takes a few hours), a git PATCH file will
+    be available to download as an artifact. 
+* On your local machine, branch off master
+* Download the patch file and apply it to your branch with `git patch patchfile.patch`
+* Commit the changes to your branch and submit a PR against master
+* The weights should be (Currently manually) checked to make sure there are no
+    big outliers (i.e., twice or half the weight).
 
 ### Polkadot JS
 

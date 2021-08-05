@@ -23,29 +23,64 @@
 #![no_std]
 extern crate alloc;
 
-use parity_scale_codec::{Encode, Decode};
+use core::{convert::TryFrom, result::Result};
 use derivative::Derivative;
+use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
-pub mod v0;
+pub mod v1;
+
+pub mod latest {
+	pub use super::v1::*;
+}
 
 mod double_encoded;
 pub use double_encoded::DoubleEncoded;
 
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub enum Unsupported {}
+impl Encode for Unsupported {}
+impl Decode for Unsupported {
+	fn decode<I: Input>(_: &mut I) -> Result<Self, CodecError> {
+		Err("Not decodable".into())
+	}
+}
+
 /// A single XCM message, together with its version code.
 #[derive(Derivative, Encode, Decode)]
-#[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum VersionedXcm<Call> {
-	V0(v0::Xcm<Call>),
+	V0(Unsupported),
+	V1(v1::Xcm<Call>),
+}
+
+impl<Call> From<v1::Xcm<Call>> for VersionedXcm<Call> {
+	fn from(x: v1::Xcm<Call>) -> Self {
+		VersionedXcm::V1(x)
+	}
+}
+
+impl<Call> TryFrom<VersionedXcm<Call>> for v1::Xcm<Call> {
+	type Error = ();
+	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+		match x {
+			VersionedXcm::V1(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
 }
 
 pub mod opaque {
-	pub mod v0 {
-		// Everything from v0
-		pub use crate::v0::*;
-		// Then override with the opaque types in v0
-		pub use crate::v0::opaque::{Xcm, Order};
+	pub mod v1 {
+		// Everything from v1
+		pub use crate::v1::*;
+		// Then override with the opaque types in v1
+		pub use crate::v1::opaque::{Order, Xcm};
+	}
+
+	pub mod latest {
+		pub use super::v1::*;
 	}
 
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
@@ -55,11 +90,45 @@ pub mod opaque {
 /// A versioned multi-location, a relative location of a cross-consensus system identifier.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum VersionedMultiLocation {
-	V0(v0::MultiLocation),
+	V0(v1::MultiLocation),
+	V1(v1::MultiLocation),
+}
+
+impl From<v1::MultiLocation> for VersionedMultiLocation {
+	fn from(x: v1::MultiLocation) -> Self {
+		VersionedMultiLocation::V1(x)
+	}
+}
+
+impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
+	type Error = ();
+	fn try_from(x: VersionedMultiLocation) -> Result<Self, ()> {
+		match x {
+			VersionedMultiLocation::V0(x) => Ok(x),
+			VersionedMultiLocation::V1(x) => Ok(x),
+		}
+	}
 }
 
 /// A versioned multi-asset, an identifier for an asset within a consensus system.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum VersionedMultiAsset {
-	V0(v0::MultiAsset),
+	V0(Unsupported),
+	V1(v1::MultiAsset),
+}
+
+impl From<v1::MultiAsset> for VersionedMultiAsset {
+	fn from(x: v1::MultiAsset) -> Self {
+		VersionedMultiAsset::V1(x)
+	}
+}
+
+impl core::convert::TryFrom<VersionedMultiAsset> for v1::MultiAsset {
+	type Error = ();
+	fn try_from(x: VersionedMultiAsset) -> core::result::Result<Self, ()> {
+		match x {
+			VersionedMultiAsset::V1(x) => Ok(x),
+			_ => Err(()),
+		}
+	}
 }

@@ -14,6 +14,6 @@ with the `NetworkBridgeMessage::NewGossipTopology` message.
 See https://github.com/paritytech/polkadot/issues/3239 for more details.
 
 The gossip topology is used by parachain distribution subsystems,
-such as Bitfield Distrubution, (small) Statement Distributuion and
-Approval Distibution to limit the amount of peers we send messages to
+such as Bitfield Distribution, (small) Statement Distribution and
+Approval Distribution to limit the amount of peers we send messages to
 and handle view updates.
