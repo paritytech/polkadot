@@ -7056,6 +7056,7 @@ dependencies = [
  "sc-keystore",
  "sc-network",
  "sc-service",
+ "sc-sync-state-rpc",
  "sc-telemetry",
  "sc-transaction-pool",
  "serde",
