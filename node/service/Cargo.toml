@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.9.8"
+version = "0.9.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -21,6 +21,7 @@ sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch =
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-ocw-max-heap-pages" }

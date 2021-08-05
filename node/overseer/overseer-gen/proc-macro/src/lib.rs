@@ -16,18 +16,18 @@
 
 #![deny(unused_crate_dependencies)]
 
-use proc_macro2::{Span, Ident, TokenStream};
-use syn::{parse2, Result};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
+use syn::{parse2, Result};
 
 mod impl_builder;
+mod impl_channels_out;
+mod impl_dispatch;
+mod impl_message_wrapper;
 mod impl_misc;
 mod impl_overseer;
 mod parse_attr;
 mod parse_struct;
-mod impl_channels_out;
-mod impl_dispatch;
-mod impl_message_wrapper;
 
 use impl_builder::*;
 use impl_channels_out::*;
@@ -42,28 +42,36 @@ use parse_struct::*;
 mod tests;
 
 #[proc_macro_attribute]
-pub fn overlord(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn overlord(
+	attr: proc_macro::TokenStream,
+	item: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
 	let attr: TokenStream = attr.into();
 	let item: TokenStream = item.into();
-	impl_overseer_gen(attr, item).unwrap_or_else(|err| err.to_compile_error()).into()
+	impl_overseer_gen(attr, item)
+		.unwrap_or_else(|err| err.to_compile_error())
+		.into()
 }
 
-pub(crate) fn impl_overseer_gen(attr: TokenStream, orig: TokenStream) -> Result<proc_macro2::TokenStream> {
+pub(crate) fn impl_overseer_gen(
+	attr: TokenStream,
+	orig: TokenStream,
+) -> Result<proc_macro2::TokenStream> {
 	let args: AttrArgs = parse2(attr)?;
 	let message_wrapper = args.message_wrapper;
 
 	let of: OverseerGuts = parse2(orig)?;
 
 	let support_crate_name = if cfg!(test) {
-		quote!{crate}
+		quote! {crate}
 	} else {
 		use proc_macro_crate::{crate_name, FoundCrate};
 		let crate_name = crate_name("polkadot-overseer-gen")
 			.expect("Support crate polkadot-overseer-gen is present in `Cargo.toml`. qed");
 		match crate_name {
-		   FoundCrate::Itself => quote!{crate},
-		   FoundCrate::Name(name) => Ident::new(&name, Span::call_site()).to_token_stream(),
-	   	}
+			FoundCrate::Itself => quote! {crate},
+			FoundCrate::Name(name) => Ident::new(&name, Span::call_site()).to_token_stream(),
+		}
 	};
 	let info = OverseerInfo {
 		support_crate_name,

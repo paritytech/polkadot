@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/polkadot/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -43,7 +42,7 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `pallet_tips`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
-	fn report_awesome(r: u32, ) -> Weight {
+	fn report_awesome(r: u32) -> Weight {
 		(46_460_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((2_000 as Weight).saturating_mul(r as Weight))
@@ -55,7 +54,7 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn tip_new(r: u32, t: u32, ) -> Weight {
+	fn tip_new(r: u32, t: u32) -> Weight {
 		(27_685_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((2_000 as Weight).saturating_mul(r as Weight))
@@ -64,21 +63,21 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn tip(t: u32, ) -> Weight {
+	fn tip(t: u32) -> Weight {
 		(18_081_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((565_000 as Weight).saturating_mul(t as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn close_tip(t: u32, ) -> Weight {
+	fn close_tip(t: u32) -> Weight {
 		(77_929_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((299_000 as Weight).saturating_mul(t as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
-	fn slash_tip(t: u32, ) -> Weight {
+	fn slash_tip(t: u32) -> Weight {
 		(22_710_000 as Weight)
 			// Standard Error: 0
 			.saturating_add((7_000 as Weight).saturating_mul(t as Weight))

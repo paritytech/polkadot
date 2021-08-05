@@ -23,8 +23,13 @@ mod common;
 #[test]
 #[cfg(unix)]
 fn running_the_node_works_and_can_be_interrupted() {
-	use nix::sys::signal::{kill, Signal::{self, SIGINT, SIGTERM}};
-	use nix::unistd::Pid;
+	use nix::{
+		sys::signal::{
+			kill,
+			Signal::{self, SIGINT, SIGTERM},
+		},
+		unistd::Pid,
+	};
 
 	fn run_command_and_kill(signal: Signal) {
 		let tmpdir = tempdir().expect("coult not create temp dir");

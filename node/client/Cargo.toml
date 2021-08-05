@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-client"
-version = "0.9.8"
+version = "0.9.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -22,6 +22,7 @@ sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch 
 sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "kiz-ocw-max-heap-pages" }
 sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kiz-ocw-max-heap-pages" }

@@ -17,7 +17,10 @@
 //! All peersets and protocols used for parachains.
 
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
-use std::{borrow::Cow, ops::{Index, IndexMut}};
+use std::{
+	borrow::Cow,
+	ops::{Index, IndexMut},
+};
 use strum::{EnumIter, IntoEnumIterator};
 
 /// The peer-sets and thus the protocols which are used for the network.
@@ -79,7 +82,7 @@ impl PeerSet {
 						sc_network::config::NonReservedPeerMode::Accept
 					} else {
 						sc_network::config::NonReservedPeerMode::Deny
-					}
+					},
 				},
 			},
 		}
