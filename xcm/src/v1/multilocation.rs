@@ -250,7 +250,7 @@ impl MultiLocation {
 	}
 
 	/// Decrements the parent count by 1.
-	pub fn pop_parent(&mut self) {
+	pub fn dec_parent(&mut self) {
 		self.parents = self.parents.saturating_sub(1);
 	}
 
@@ -346,7 +346,7 @@ impl MultiLocation {
 				final_parent_count += self.parents;
 				break
 			}
-			self.pop_parent();
+			self.dec_parent();
 		}
 
 		self.parents = final_parent_count;
