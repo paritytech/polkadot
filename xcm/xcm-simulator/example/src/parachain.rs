@@ -249,8 +249,8 @@ pub mod mock_msg_queue {
 
 				let mut remaining_fragments = &data_ref[..];
 				while !remaining_fragments.is_empty() {
-					if let Ok(xcm) = VersionedXcm::<T::Call>::decode_with_depth_limit(
-						MAX_RECURSION_LIMIT,
+					if let Ok(xcm) = VersionedXcm::<T::Call>::decode_all_with_depth_limit(
+						xcm::MAX_XCM_DECODE_DEPTH,
 						&mut remaining_fragments,
 					) {
 						let _ = Self::handle_xcmp_message(sender, sent_at, xcm, max_weight);
