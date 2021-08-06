@@ -12311,22 +12311,6 @@ name = "xcm-executor"
 version = "0.9.9"
 dependencies = [
  "frame-support",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "xcm",
-]
-
-[[package]]
-name = "xcm-executor-integration-tests"
-version = "0.9.9"
-dependencies = [
- "frame-support",
  "frame-system",
  "futures 0.3.16",
  "impl-trait-for-tuples",
@@ -12344,7 +12328,24 @@ dependencies = [
  "sp-runtime",
  "sp-state-machine",
  "sp-std",
- "sp-tracing",
+ "xcm",
+]
+
+[[package]]
+name = "xcm-executor-integration-tests"
+version = "0.9.9"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "futures 0.3.16",
+ "pallet-xcm",
+ "polkadot-test-client",
+ "polkadot-test-runtime",
+ "polkadot-test-service",
+ "sp-consensus",
+ "sp-keyring",
+ "sp-runtime",
+ "sp-state-machine",
  "xcm",
  "xcm-executor",
 ]
