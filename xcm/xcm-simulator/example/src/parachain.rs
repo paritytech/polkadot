@@ -35,7 +35,7 @@ use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
 use polkadot_parachain::primitives::{
 	DmpMessageHandler, Id as ParaId, Sibling, XcmpMessageFormat, XcmpMessageHandler,
 };
-use xcm::{v1::prelude::*, VersionedXcm};
+use xcm::{latest::prelude::*, VersionedXcm};
 use xcm_builder::{
 	AccountId32Aliases, AllowUnpaidExecutionFrom, CurrencyAdapter as XcmCurrencyAdapter,
 	EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds, IsConcrete, LocationInverter,

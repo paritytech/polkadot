@@ -458,7 +458,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v1::{MultiLocation::*, Junction::*};
+	/// # use xcm::latest::{MultiLocation::*, Junction::*};
 	/// # fn main() {
 	/// let mut m = X3(Parent, PalletInstance(3), OnlyChild);
 	/// assert_eq!(m.match_and_split(&X2(Parent, PalletInstance(3))), Some(&OnlyChild));
@@ -598,7 +598,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v1::{MultiLocation::*, Junction::*};
+	/// # use xcm::latest::{MultiLocation::*, Junction::*};
 	/// # fn main() {
 	/// let mut m = X3(Parent, Parachain(21), OnlyChild);
 	/// assert_eq!(m.append_with(X2(Parent, PalletInstance(3))), Ok(()));
@@ -625,7 +625,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v1::{MultiLocation::*, Junction::*, NetworkId::Any};
+	/// # use xcm::latest::{MultiLocation::*, Junction::*, NetworkId::Any};
 	/// # fn main() {
 	/// let mut m = X3(Parent, Parent, PalletInstance(3));
 	/// assert_eq!(m.prepend_with(X3(Parent, Parachain(21), OnlyChild)), Ok(()));
@@ -682,7 +682,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v1::{MultiLocation::*, Junction::*, NetworkId::Any};
+	/// # use xcm::latest::{MultiLocation::*, Junction::*, NetworkId::Any};
 	/// # fn main() {
 	/// let parent = X1(Parent);
 	/// assert_eq!(parent.is_interior(), false);

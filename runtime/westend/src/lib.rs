@@ -44,7 +44,7 @@ use runtime_parachains::{
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
-use xcm::v1::prelude::*;
+use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
@@ -903,7 +903,7 @@ parameter_types! {
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, ForceV0>,
+	xcm_sender::ChildParachainRouter<Runtime, xcm::AlwaysRelease>,
 );
 
 parameter_types! {

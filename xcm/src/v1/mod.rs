@@ -40,7 +40,7 @@ pub use multiasset::{
 };
 pub use multilocation::MultiLocation;
 pub use order::Order;
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm, WrapVersion};
+pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
@@ -63,7 +63,7 @@ pub mod prelude {
 		multilocation::MultiLocation::{self, *},
 		opaque,
 		order::Order::{self, *},
-		traits::{Error as XcmError, ExecuteXcm, ForceV0, Outcome, Result as XcmResult, SendXcm},
+		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
 		OriginKind, Response,
 		Xcm::{self, *},
 	};

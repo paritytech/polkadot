@@ -20,7 +20,7 @@ use sp_std::{
 	mem,
 	prelude::*,
 };
-use xcm::v1::{
+use xcm::latest::{
 	AssetId, AssetInstance,
 	Fungibility::{Fungible, NonFungible},
 	MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation,
@@ -376,7 +376,7 @@ impl Assets {
 	///
 	/// ```
 	/// use xcm_executor::Assets;
-	/// use xcm::v1::prelude::*;
+	/// use xcm::latest::prelude::*;
 	/// let assets_i_have: Assets = vec![ (Here, 100).into(), (vec![0], 100).into() ].into();
 	/// let assets_they_want: MultiAssetFilter = vec![ (Here, 200).into(), (vec![0], 50).into() ].into();
 	///
@@ -425,7 +425,7 @@ impl Assets {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use xcm::v1::prelude::*;
+	use xcm::latest::prelude::*;
 	use MultiLocation::Here;
 	#[allow(non_snake_case)]
 	/// Abstract fungible constructor

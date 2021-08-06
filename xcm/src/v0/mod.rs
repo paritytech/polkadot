@@ -16,7 +16,7 @@
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
-use crate::{DoubleEncoded, VersionedXcm};
+use crate::DoubleEncoded;
 use alloc::vec::Vec;
 use core::{
 	convert::{TryFrom, TryInto},
@@ -245,22 +245,6 @@ pub enum Xcm<Call> {
 	/// Errors:
 	#[codec(index = 10)]
 	RelayedFrom { who: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
-}
-
-impl<Call> From<Xcm<Call>> for VersionedXcm<Call> {
-	fn from(x: Xcm<Call>) -> Self {
-		VersionedXcm::V0(x)
-	}
-}
-
-impl<Call> TryFrom<VersionedXcm<Call>> for Xcm<Call> {
-	type Error = ();
-	fn try_from(x: VersionedXcm<Call>) -> result::Result<Self, ()> {
-		match x {
-			VersionedXcm::V0(x) => Ok(x),
-			VersionedXcm::V1(_) => Err(()), // v0-based chains cannot interpret v1 messages.
-		}
-	}
 }
 
 impl<Call> Xcm<Call> {

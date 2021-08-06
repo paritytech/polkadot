@@ -17,7 +17,7 @@
 use crate::Assets;
 use frame_support::weights::Weight;
 use sp_std::result::Result;
-use xcm::v1::{Error, MultiAsset, MultiLocation, Xcm};
+use xcm::latest::{Error, MultiAsset, MultiLocation, Xcm};
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {

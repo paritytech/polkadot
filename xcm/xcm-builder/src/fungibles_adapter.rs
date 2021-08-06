@@ -18,7 +18,7 @@
 
 use frame_support::traits::{tokens::fungibles, Contains, Get};
 use sp_std::{borrow::Borrow, marker::PhantomData, prelude::*, result};
-use xcm::v1::{
+use xcm::latest::{
 	AssetId::{Abstract, Concrete},
 	Error as XcmError,
 	Fungibility::Fungible,

@@ -19,7 +19,7 @@
 use frame_support::{ensure, traits::Contains, weights::Weight};
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::v1::{Junction, MultiLocation, Order, Xcm};
+use xcm::latest::{Junction, MultiLocation, Order, Xcm};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `shallow_weight` from `weight_credit`.
