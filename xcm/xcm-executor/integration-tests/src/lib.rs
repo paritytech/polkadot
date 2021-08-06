@@ -76,7 +76,7 @@ fn execute_within_recursion_limit() {
 		.expect("state should exist")
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
-				dbg! {&r.event},
+				r.event,
 				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted(Outcome::Complete(
 					_
 				)),),
