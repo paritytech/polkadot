@@ -500,9 +500,9 @@ impl pallet_xcm::Config for Runtime {
 	// The config types here are entirely configurable, since the only one that is sorely needed
 	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
 	type Event = Event;
-	type ExecuteXcmOrigin = xcm_config::ConvertOriginToLocal;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type LocationInverter = xcm_config::InvertNothing;
-	type SendXcmOrigin = xcm_config::ConvertOriginToLocal;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
 	type XcmRouter = xcm_config::DoNothingRouter;
 	type XcmExecuteFilter =

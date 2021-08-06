@@ -37,10 +37,10 @@ fn execute_within_recursion_limit() {
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
-	let mut msg = WithdrawAsset { assets: (X1(Parent), 0).into(), effects: vec![] };
+	let mut msg = WithdrawAsset { assets: (X1(Parent), 100).into(), effects: vec![] };
 	for _ in 0..MAX_RECURSION_CHECK {
 		msg = WithdrawAsset {
-			assets: (X1(Parent), 0).into(),
+			assets: (X1(Parent), 100).into(),
 			effects: vec![Order::BuyExecution {
 				fees: (X1(Parent), 1).into(),
 				weight: 0,
@@ -53,6 +53,8 @@ fn execute_within_recursion_limit() {
 		};
 	}
 
+	let mut block_builder = client.init_polkadot_block_builder();
+
 	let execute = construct_extrinsic(
 		&client,
 		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
@@ -62,7 +64,6 @@ fn execute_within_recursion_limit() {
 		sp_keyring::Sr25519Keyring::Alice,
 	);
 
-	let mut block_builder = client.init_polkadot_block_builder();
 	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
 
 	let block = block_builder.build().expect("Finalizes the block").block;
@@ -91,10 +92,10 @@ fn exceed_recursion_limit() {
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
-	let mut msg = WithdrawAsset { assets: (X1(Parent), 0).into(), effects: vec![] };
+	let mut msg = WithdrawAsset { assets: (X1(Parent), 100).into(), effects: vec![] };
 	for _ in 0..(MAX_RECURSION_CHECK + 1) {
 		msg = WithdrawAsset {
-			assets: (X1(Parent), 0).into(),
+			assets: (X1(Parent), 100).into(),
 			effects: vec![Order::BuyExecution {
 				fees: (X1(Parent), 1).into(),
 				weight: 0,
@@ -107,6 +108,8 @@ fn exceed_recursion_limit() {
 		};
 	}
 
+	let mut block_builder = client.init_polkadot_block_builder();
+
 	let execute = construct_extrinsic(
 		&client,
 		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
@@ -116,7 +119,6 @@ fn exceed_recursion_limit() {
 		sp_keyring::Sr25519Keyring::Alice,
 	);
 
-	let mut block_builder = client.init_polkadot_block_builder();
 	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
 
 	let block = block_builder.build().expect("Finalizes the block").block;
