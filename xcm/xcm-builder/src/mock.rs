@@ -219,7 +219,11 @@ impl OnResponse for TestResponseHandler {
 			_ => false,
 		})
 	}
-	fn on_response(_origin: MultiLocation, query_id: u64, response: xcm::latest::Response) -> Weight {
+	fn on_response(
+		_origin: MultiLocation,
+		query_id: u64,
+		response: xcm::latest::Response,
+	) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut().entry(query_id).and_modify(|v| {
 				if matches!(*v, ResponseSlot::Expecting(..)) {

@@ -25,8 +25,8 @@ use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
 use xcm::{
-	opaque::latest::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
 	latest::prelude::*,
+	opaque::latest::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
 };
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
