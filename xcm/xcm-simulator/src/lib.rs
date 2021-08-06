@@ -32,7 +32,7 @@ pub use polkadot_runtime_parachains::{
 	dmp,
 	ump::{self, MessageId, UmpSink, XcmSink},
 };
-pub use xcm::{v0::prelude::*, VersionedXcm};
+pub use xcm::{latest::prelude::*, VersionedXcm};
 pub use xcm_executor::XcmExecutor;
 
 pub trait TestExt {
