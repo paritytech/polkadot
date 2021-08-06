@@ -386,7 +386,7 @@ impl MultiAssets {
 		if let Fungibility::Fungible(ref amount) = a.fun {
 			for asset in self.0.iter_mut().filter(|x| x.id == a.id) {
 				if let Fungibility::Fungible(ref mut balance) = asset.fun {
-					*balance += *amount;
+					*balance.saturating_accrue(*amount);
 					return
 				}
 			}
