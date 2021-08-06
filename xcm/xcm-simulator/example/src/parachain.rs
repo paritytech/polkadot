@@ -156,7 +156,9 @@ impl Config for XcmConfig {
 #[frame_support::pallet]
 pub mod mock_msg_queue {
 	use super::*;
+	use codec::DecodeLimit;
 	use frame_support::pallet_prelude::*;
+	use xcm_executor::MAX_RECURSION_LIMIT;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -247,7 +249,10 @@ pub mod mock_msg_queue {
 
 				let mut remaining_fragments = &data_ref[..];
 				while !remaining_fragments.is_empty() {
-					if let Ok(xcm) = VersionedXcm::<T::Call>::decode(&mut remaining_fragments) {
+					if let Ok(xcm) = VersionedXcm::<T::Call>::decode_with_depth_limit(
+						MAX_RECURSION_LIMIT,
+						&mut remaining_fragments,
+					) {
 						let _ = Self::handle_xcmp_message(sender, sent_at, xcm, max_weight);
 					} else {
 						debug_assert!(false, "Invalid incoming XCMP message data");
@@ -265,8 +270,11 @@ pub mod mock_msg_queue {
 		) -> Weight {
 			for (_i, (_sent_at, data)) in iter.enumerate() {
 				let id = sp_io::hashing::blake2_256(&data[..]);
-				let maybe_msg =
-					VersionedXcm::<T::Call>::decode(&mut &data[..]).map(Xcm::<T::Call>::try_from);
+				let maybe_msg = VersionedXcm::<T::Call>::decode_with_depth_limit(
+					MAX_RECURSION_LIMIT,
+					&mut &data[..],
+				)
+				.map(Xcm::<T::Call>::try_from);
 				match maybe_msg {
 					Err(_) => {
 						Self::deposit_event(Event::InvalidFormat(id));
