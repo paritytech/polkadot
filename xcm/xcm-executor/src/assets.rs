@@ -223,11 +223,13 @@ impl Assets {
 		return Ok(())
 	}
 
-	/// Mutates `self` to its original value less `mask` and returns `true`.
+	/// Mutates `self` to its original value less `mask` and returns assets that were removed.
 	///
 	/// If `saturate` is `true`, then `self` is considered to be masked by `mask`, thereby avoiding any attempt at
 	/// reducing it by assets it does not contain. In this case, the function is infallible. If `saturate` is `false`
 	/// and `mask` references a definite asset which `self` does not contain then an error is returned.
+	///
+	/// The number of unique assets which are removed will never be any greater than `limit`.
 	///
 	/// Returns `Ok` with the definite assets token from `self` and mutates `self` to its value minus
 	/// `mask`. Returns `Err` in the non-saturating case where `self` did not contain (enough of) a definite asset to
@@ -368,9 +370,9 @@ impl Assets {
 		}
 	}
 
-	/// Return the assets in `self`, but (asset-wise) of no greater value than `assets`.
+	/// Return the assets in `self`, but (asset-wise) of no greater value than `mask`.
 	///
-	/// Result is undefined if `assets` includes elements which match to the same asset more than once.
+	/// Result is undefined if `mask` includes elements which match to the same asset more than once.
 	///
 	/// Example:
 	///
