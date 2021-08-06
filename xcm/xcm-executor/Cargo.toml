@@ -30,6 +30,9 @@ sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "
 
 [features]
 default = ["std"]
+runtime-benchmarks = [
+	"polkadot-test-runtime/runtime-benchmarks",
+]
 std = [
 	"parity-scale-codec/std",
 	"xcm/std",

@@ -14,13 +14,30 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{traits::All, weights::Weight};
+use frame_support::{
+	traits::{All, EnsureOrigin, OriginTrait},
+	weights::Weight,
+};
 use xcm::v0::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult, SendXcm, Xcm};
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds};
 use xcm_executor::{
 	traits::{InvertLocation, TransactAsset, WeightTrader},
 	Assets,
 };
+
+pub struct ConvertOriginToLocal;
+impl<Origin: OriginTrait> EnsureOrigin<Origin> for ConvertOriginToLocal {
+	type Success = MultiLocation;
+
+	fn try_origin(_: Origin) -> Result<MultiLocation, Origin> {
+		Ok(MultiLocation::Null)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn successful_origin() -> Origin {
+		Origin::root()
+	}
+}
 
 pub struct DoNothingRouter;
 impl SendXcm for DoNothingRouter {
