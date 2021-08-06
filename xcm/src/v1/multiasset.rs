@@ -381,7 +381,7 @@ impl MultiAssets {
 		Self(r)
 	}
 
-	/// Add some asset onto the list. This is quite a laborious operation since it maintains the ordering.
+	/// Add some asset onto the list, saturating. This is quite a laborious operation since it maintains the ordering.
 	pub fn push(&mut self, a: MultiAsset) {
 		if let Fungibility::Fungible(ref amount) = a.fun {
 			for asset in self.0.iter_mut().filter(|x| x.id == a.id) {
