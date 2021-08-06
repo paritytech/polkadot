@@ -460,7 +460,7 @@ async fn process_incoming_peer_message<Context>(
 	if !received_set.contains(&validator) {
 		received_set.insert(validator.clone());
 	} else {
-		tracing::trace!(target: LOG_TARGET, ?validator_index, ?origin, "Duplicate message",);
+		tracing::trace!(target: LOG_TARGET, ?validator_index, ?origin, "Duplicate message");
 		modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
 		return
 	};
@@ -512,12 +512,12 @@ async fn handle_network_msg<Context>(
 
 	match bridge_message {
 		NetworkBridgeEvent::PeerConnected(peerid, role, _) => {
-			tracing::trace!(target: LOG_TARGET, ?peerid, ?role, "Peer connected",);
+			tracing::trace!(target: LOG_TARGET, ?peerid, ?role, "Peer connected");
 			// insert if none already present
 			state.peer_views.entry(peerid).or_default();
 		},
 		NetworkBridgeEvent::PeerDisconnected(peerid) => {
-			tracing::trace!(target: LOG_TARGET, ?peerid, "Peer disconnected",);
+			tracing::trace!(target: LOG_TARGET, ?peerid, "Peer disconnected");
 			// get rid of superfluous data
 			state.peer_views.remove(&peerid);
 		},
@@ -531,11 +531,11 @@ async fn handle_network_msg<Context>(
 			}
 		},
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
-			tracing::trace!(target: LOG_TARGET, ?peerid, ?view, "Peer view change",);
+			tracing::trace!(target: LOG_TARGET, ?peerid, ?view, "Peer view change");
 			handle_peer_view_change(ctx, state, peerid, view).await;
 		},
 		NetworkBridgeEvent::OurViewChange(view) => {
-			tracing::trace!(target: LOG_TARGET, ?view, "Our view change",);
+			tracing::trace!(target: LOG_TARGET, ?view, "Our view change");
 			handle_our_view_change(state, view);
 		},
 		NetworkBridgeEvent::PeerMessage(remote, message) =>
@@ -589,7 +589,7 @@ async fn handle_peer_view_change<Context>(
 		);
 
 	if !lucky {
-		tracing::trace!(target: LOG_TARGET, ?origin, "Peer view change is ignored",);
+		tracing::trace!(target: LOG_TARGET, ?origin, "Peer view change is ignored");
 		return
 	}
 

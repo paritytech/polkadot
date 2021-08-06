@@ -186,6 +186,7 @@ impl pallet_xcm::Config for Test {
 	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type LocationInverter = LocationInverter<Ancestry>;
 }
 
 impl origin::Config for Test {}
@@ -194,9 +195,9 @@ pub(crate) fn last_event() -> Event {
 	System::events().pop().expect("Event expected").event
 }
 
-pub(crate) fn buy_execution<C>(debt: Weight) -> Order<C> {
+pub(crate) fn buy_execution<C>(debt: Weight, fees: MultiAsset) -> Order<C> {
 	use xcm::opaque::v0::prelude::*;
-	Order::BuyExecution { fees: All, weight: 0, debt, halt_on_error: false, xcm: vec![] }
+	Order::BuyExecution { fees, weight: 0, debt, halt_on_error: false, xcm: vec![] }
 }
 
 pub(crate) fn new_test_ext_with_balances(

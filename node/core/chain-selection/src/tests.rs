@@ -551,7 +551,7 @@ fn assert_backend_contains<'a>(
 			header.number,
 			hash,
 		);
-		assert!(backend.load_block_entry(&hash).unwrap().is_some(), "no entry found for {}", hash,);
+		assert!(backend.load_block_entry(&hash).unwrap().is_some(), "no entry found for {}", hash);
 	}
 }
 
@@ -1138,9 +1138,9 @@ fn finalize_viable_prunes_subtrees() {
 		assert_leaves(&backend, vec![a3_hash, x3_hash]);
 		assert_leaves_query(&mut virtual_overseer, vec![a3_hash, x3_hash]).await;
 
-		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 3,);
+		assert_eq!(backend.load_first_block_number().unwrap().unwrap(), 3);
 
-		assert_eq!(backend.load_blocks_by_number(3).unwrap(), vec![a3_hash, x3_hash],);
+		assert_eq!(backend.load_blocks_by_number(3).unwrap(), vec![a3_hash, x3_hash]);
 
 		virtual_overseer
 	});

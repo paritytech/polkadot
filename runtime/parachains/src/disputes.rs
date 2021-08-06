@@ -1222,14 +1222,14 @@ mod tests {
 			VoteImportError::ValidatorIndexOutOfBounds,
 		);
 
-		assert_err!(importer.import(ValidatorIndex(0), true), VoteImportError::DuplicateStatement,);
+		assert_err!(importer.import(ValidatorIndex(0), true), VoteImportError::DuplicateStatement);
 		assert_ok!(importer.import(ValidatorIndex(0), false));
 
 		assert_ok!(importer.import(ValidatorIndex(2), true));
-		assert_err!(importer.import(ValidatorIndex(2), true), VoteImportError::DuplicateStatement,);
+		assert_err!(importer.import(ValidatorIndex(2), true), VoteImportError::DuplicateStatement);
 
 		assert_ok!(importer.import(ValidatorIndex(2), false));
-		assert_err!(importer.import(ValidatorIndex(2), false), VoteImportError::DuplicateStatement,);
+		assert_err!(importer.import(ValidatorIndex(2), false), VoteImportError::DuplicateStatement);
 
 		let summary = importer.finish();
 		assert_eq!(summary.new_flags, DisputeStateFlags::default());
@@ -1242,7 +1242,7 @@ mod tests {
 				concluded_at: None,
 			},
 		);
-		assert_eq!(summary.spam_slot_changes, vec![(ValidatorIndex(2), SpamSlotChange::Inc)],);
+		assert_eq!(summary.spam_slot_changes, vec![(ValidatorIndex(2), SpamSlotChange::Inc)]);
 		assert!(summary.slash_for.is_empty());
 		assert!(summary.slash_against.is_empty());
 		assert_eq!(summary.new_participants, bitvec![BitOrderLsb0, u8; 0, 0, 1, 0, 0, 0, 0, 0]);
@@ -1899,7 +1899,7 @@ mod tests {
 				)],
 			}];
 
-			assert_ok!(Pallet::<Test>::provide_multi_dispute_data(stmts), vec![],);
+			assert_ok!(Pallet::<Test>::provide_multi_dispute_data(stmts), vec![]);
 			assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0]));
 			assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 0, 1]));
 			assert_eq!(SpamSlots::<Test>::get(5), Some(vec![0, 0, 0, 0]));

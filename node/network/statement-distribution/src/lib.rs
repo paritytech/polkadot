@@ -1450,7 +1450,7 @@ async fn handle_network_update(
 ) {
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, role, maybe_authority) => {
-			tracing::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected",);
+			tracing::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
 			peers.insert(
 				peer,
 				PeerData {
@@ -1464,7 +1464,7 @@ async fn handle_network_update(
 			}
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
-			tracing::trace!(target: LOG_TARGET, ?peer, "Peer disconnected",);
+			tracing::trace!(target: LOG_TARGET, ?peer, "Peer disconnected");
 			if let Some(auth_id) = peers.remove(&peer).and_then(|p| p.maybe_authority) {
 				authorities.remove(&auth_id);
 			}
@@ -1502,7 +1502,7 @@ async fn handle_network_update(
 			.await;
 		},
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
-			tracing::trace!(target: LOG_TARGET, ?peer, ?view, "Peer view change",);
+			tracing::trace!(target: LOG_TARGET, ?peer, ?view, "Peer view change");
 			match peers.get_mut(&peer) {
 				Some(data) =>
 					update_peer_view_and_maybe_send_unlocked(

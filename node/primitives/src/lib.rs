@@ -215,6 +215,17 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	pub hrmp_watermark: BlockNumber,
 }
 
+/// Signal that is being returned back when a collation was seconded by a validator.
+#[derive(Debug)]
+pub struct CollationSecondedSignal {
+	/// The hash of the relay chain block that was used as context to sign [`Self::statement`].
+	pub relay_parent: Hash,
+	/// The statement about seconding the collation.
+	///
+	/// Anything else than [`Statement::Seconded`](Statement::Seconded) is forbidden here.
+	pub statement: SignedFullStatement,
+}
+
 /// Result of the [`CollatorFn`] invocation.
 pub struct CollationResult {
 	/// The collation that was build.
@@ -224,14 +235,14 @@ pub struct CollationResult {
 	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
 	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
 	/// collation.
-	pub result_sender: Option<futures::channel::oneshot::Sender<SignedFullStatement>>,
+	pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
 }
 
 impl CollationResult {
 	/// Convert into the inner values.
 	pub fn into_inner(
 		self,
-	) -> (Collation, Option<futures::channel::oneshot::Sender<SignedFullStatement>>) {
+	) -> (Collation, Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>) {
 		(self.collation, self.result_sender)
 	}
 }

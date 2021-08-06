@@ -497,7 +497,7 @@ async fn handle_active_leaf(
 
 	let header = match fetch_header(ctx, hash).await? {
 		None => {
-			tracing::warn!(target: LOG_TARGET, ?hash, "Missing header for new head",);
+			tracing::warn!(target: LOG_TARGET, ?hash, "Missing header for new head");
 			return Ok(Vec::new())
 		},
 		Some(h) => h,
