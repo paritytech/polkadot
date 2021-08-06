@@ -901,7 +901,7 @@ async fn issue_local_statement(
 }
 
 #[derive(Debug, thiserror::Error)]
-enum MakeDisputeMessageError {
+enum DisputeMessageCreationError {
 	#[error("There was no opposite vote available")]
 	NoOppositeVote,
 	#[error("Found vote had an invalid validator index that could not be found")]
@@ -917,39 +917,39 @@ fn make_dispute_message(
 	votes: &CandidateVotes,
 	our_vote: SignedDisputeStatement,
 	our_index: ValidatorIndex,
-) -> Result<DisputeMessage, MakeDisputeMessageError> {
+) -> Result<DisputeMessage, DisputeMessageCreationError> {
 	let validators = &info.validators;
 
 	let (valid_statement, valid_index, invalid_statement, invalid_index) =
 		if let DisputeStatement::Valid(_) = our_vote.statement() {
 			let (statement_kind, validator_index, validator_signature) =
-				votes.invalid.get(0).ok_or(MakeDisputeMessageError::NoOppositeVote)?.clone();
+				votes.invalid.get(0).ok_or(DisputeMessageCreationError::NoOppositeVote)?.clone();
 			let other_vote = SignedDisputeStatement::new_checked(
 				DisputeStatement::Invalid(statement_kind),
 				our_vote.candidate_hash().clone(),
 				our_vote.session_index(),
 				validators
 					.get(validator_index.0 as usize)
-					.ok_or(MakeDisputeMessageError::InvalidValidatorIndex)?
+					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
 					.clone(),
 				validator_signature,
 			)
-			.map_err(|()| MakeDisputeMessageError::InvalidStoredStatement)?;
+			.map_err(|()| DisputeMessageCreationError::InvalidStoredStatement)?;
 			(our_vote, our_index, other_vote, validator_index)
 		} else {
 			let (statement_kind, validator_index, validator_signature) =
-				votes.valid.get(0).ok_or(MakeDisputeMessageError::NoOppositeVote)?.clone();
+				votes.valid.get(0).ok_or(DisputeMessageCreationError::NoOppositeVote)?.clone();
 			let other_vote = SignedDisputeStatement::new_checked(
 				DisputeStatement::Valid(statement_kind),
 				our_vote.candidate_hash().clone(),
 				our_vote.session_index(),
 				validators
 					.get(validator_index.0 as usize)
-					.ok_or(MakeDisputeMessageError::InvalidValidatorIndex)?
+					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
 					.clone(),
 				validator_signature,
 			)
-			.map_err(|()| MakeDisputeMessageError::InvalidStoredStatement)?;
+			.map_err(|()| DisputeMessageCreationError::InvalidStoredStatement)?;
 			(other_vote, validator_index, our_vote, our_index)
 		};
 
@@ -961,7 +961,7 @@ fn make_dispute_message(
 		votes.candidate_receipt.clone(),
 		info,
 	)
-	.map_err(MakeDisputeMessageError::InvalidStatementCombination)
+	.map_err(DisputeMessageCreationError::InvalidStatementCombination)
 }
 
 /// Determine the the best block and its block number.
