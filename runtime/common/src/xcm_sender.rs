@@ -28,8 +28,12 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 	for ChildParachainRouter<T, W>
 {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result {
+		if dest.parent_count() > 0 {
+			return Err(Error::CannotReachDestination(dest, msg))
+		}
+
 		match dest.interior() {
-			Junctions::X1(Junction::Parachain(id)) if dest.parent_count() == 0 => {
+			Junctions::X1(Junction::Parachain(id)) => {
 				// Downward message passing.
 				let versioned_xcm =
 					W::wrap_version(&dest, msg).map_err(|()| Error::DestinationUnsupported)?;
