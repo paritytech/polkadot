@@ -25,8 +25,8 @@ use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
 use xcm::{
-	opaque::v1::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
-	v1::prelude::*,
+	latest::prelude::*,
+	opaque::latest::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
 };
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
@@ -181,7 +181,7 @@ impl pallet_xcm::Config for Test {
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = (TestSendXcmErrX8, TestSendXcm);
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmExecuteFilter = All<(MultiLocation, xcm::v1::Xcm<Call>)>;
+	type XcmExecuteFilter = All<(MultiLocation, xcm::latest::Xcm<Call>)>;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
@@ -196,7 +196,7 @@ pub(crate) fn last_event() -> Event {
 }
 
 pub(crate) fn buy_execution<C>(fees: impl Into<MultiAsset>, debt: Weight) -> Order<C> {
-	use xcm::opaque::v1::prelude::*;
+	use xcm::opaque::latest::prelude::*;
 	Order::BuyExecution {
 		fees: fees.into(),
 		weight: 0,

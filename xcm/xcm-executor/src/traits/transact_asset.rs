@@ -16,7 +16,7 @@
 
 use crate::Assets;
 use sp_std::result::Result;
-use xcm::v1::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult};
+use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult};
 
 /// Facility for asset transacting.
 ///
@@ -193,7 +193,6 @@ impl TransactAsset for Tuple {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use MultiLocation::Here;
 
 	pub struct UnimplementedTransactor;
 	impl TransactAsset for UnimplementedTransactor {}

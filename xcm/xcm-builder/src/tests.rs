@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{mock::*, *};
-use xcm::v1::prelude::*;
+use xcm::latest::prelude::*;
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]

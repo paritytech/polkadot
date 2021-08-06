@@ -16,10 +16,10 @@
 
 //! Cross-Consensus Message format data structures.
 
-use core::{convert::TryInto, result};
+use core::result;
 use parity_scale_codec::{Decode, Encode};
 
-use super::{super::VersionedXcm, MultiLocation, Xcm};
+use super::{MultiLocation, Xcm};
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Error {
@@ -186,7 +186,7 @@ impl<C> ExecuteXcm<C> for () {
 ///
 /// # Example
 /// ```rust
-/// # use xcm::v1::{MultiLocation, Xcm, Junction, Error, OriginKind, SendXcm, Result};
+/// # use xcm::v1::{MultiLocation, Xcm, Junction, Junctions, Error, OriginKind, SendXcm, Result};
 /// # use parity_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.
@@ -201,7 +201,9 @@ impl<C> ExecuteXcm<C> for () {
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         if let MultiLocation::X2(j1, j2) = destination {
+///         if matches!(destination.interior(), Junctions::X2(j1, j2))
+///             && destination.parent_count() == 0
+///         {
 ///             Ok(())
 ///         } else {
 ///             Err(Error::Undefined)
@@ -213,9 +215,12 @@ impl<C> ExecuteXcm<C> for () {
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         match destination {
-///             MultiLocation::X1(j) if j == Junction::Parent => Ok(()),
-///             _ => Err(Error::CannotReachDestination(destination, message)),
+///         if matches!(destination.interior(), Junctions::Null)
+///             && destination.parent_count() == 1
+///         {
+///             Ok(())
+///         } else {
+///             Err(Error::CannotReachDestination(destination, message))
 ///         }
 ///     }
 /// }
@@ -224,7 +229,7 @@ impl<C> ExecuteXcm<C> for () {
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
-/// let destination = MultiLocation::X1(Junction::Parent);
+/// let destination = MultiLocation::with_parents(1).unwrap();
 ///
 /// assert!(
 ///     // Sender2 will block this.
@@ -259,33 +264,5 @@ impl SendXcm for Tuple {
 			};
 		)* );
 		Err(Error::CannotReachDestination(destination, message))
-	}
-}
-
-/// Convert an `Xcm` datum into a `VersionedXcm`, based on a destination `MultiLocation` which will interpret it.
-pub trait WrapVersion {
-	fn wrap_version<Call>(
-		dest: &MultiLocation,
-		xcm: Xcm<Call>,
-	) -> result::Result<VersionedXcm<Call>, ()>;
-}
-
-impl WrapVersion for () {
-	fn wrap_version<Call>(
-		_: &MultiLocation,
-		xcm: Xcm<Call>,
-	) -> result::Result<VersionedXcm<Call>, ()> {
-		Ok(VersionedXcm::<Call>::from(xcm))
-	}
-}
-
-/// `WrapVersion` implementation which attempts to always convert the XCM to version 0 before wrapping it.
-pub struct ForceV0;
-impl WrapVersion for ForceV0 {
-	fn wrap_version<Call>(
-		_: &MultiLocation,
-		xcm: Xcm<Call>,
-	) -> result::Result<VersionedXcm<Call>, ()> {
-		Ok(VersionedXcm::<Call>::V0(xcm.try_into()?))
 	}
 }

@@ -59,9 +59,25 @@ pub enum VersionedXcm<Call> {
 	V1(v1::Xcm<Call>),
 }
 
+impl<Call> From<v0::Xcm<Call>> for VersionedXcm<Call> {
+	fn from(x: v0::Xcm<Call>) -> Self {
+		VersionedXcm::V0(x)
+	}
+}
+
 impl<Call> From<v1::Xcm<Call>> for VersionedXcm<Call> {
 	fn from(x: v1::Xcm<Call>) -> Self {
 		VersionedXcm::V1(x)
+	}
+}
+
+impl<Call> TryFrom<VersionedXcm<Call>> for v0::Xcm<Call> {
+	type Error = ();
+	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+		match x {
+			VersionedXcm::V0(x) => Ok(x),
+			VersionedXcm::V1(x) => x.try_into(),
+		}
 	}
 }
 
@@ -69,12 +85,57 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v1::Xcm<Call> {
 	type Error = ();
 	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
 		match x {
-			// v1-based chains can interpret v0 messages.
 			VersionedXcm::V0(x) => x.try_into(),
 			VersionedXcm::V1(x) => Ok(x),
 		}
 	}
 }
+
+/// Convert an `Xcm` datum into a `VersionedXcm`, based on a destination `MultiLocation` which will interpret it.
+pub trait WrapVersion {
+	fn wrap_version<Call>(
+		dest: &latest::MultiLocation,
+		xcm: impl Into<VersionedXcm<Call>>,
+	) -> Result<VersionedXcm<Call>, ()>;
+}
+
+/// `()` implementation does nothing with the XCM, just sending with whatever version it was authored as.
+impl WrapVersion for () {
+	fn wrap_version<Call>(
+		_: &latest::MultiLocation,
+		xcm: impl Into<VersionedXcm<Call>>,
+	) -> Result<VersionedXcm<Call>, ()> {
+		Ok(xcm.into())
+	}
+}
+
+/// `WrapVersion` implementation which attempts to always convert the XCM to version 0 before wrapping it.
+pub struct AlwaysV0;
+impl WrapVersion for AlwaysV0 {
+	fn wrap_version<Call>(
+		_: &latest::MultiLocation,
+		xcm: impl Into<VersionedXcm<Call>>,
+	) -> Result<VersionedXcm<Call>, ()> {
+		Ok(VersionedXcm::<Call>::V0(xcm.into().try_into()?))
+	}
+}
+
+/// `WrapVersion` implementation which attempts to always convert the XCM to version 1 before wrapping it.
+pub struct AlwaysV1;
+impl WrapVersion for AlwaysV1 {
+	fn wrap_version<Call>(
+		_: &latest::MultiLocation,
+		xcm: impl Into<VersionedXcm<Call>>,
+	) -> Result<VersionedXcm<Call>, ()> {
+		Ok(VersionedXcm::<Call>::V1(xcm.into().try_into()?))
+	}
+}
+
+/// `WrapVersion` implementation which attempts to always convert the XCM to the latest version before wrapping it.
+pub type AlwaysLatest = AlwaysV1;
+
+/// `WrapVersion` implementation which attempts to always convert the XCM to the release version before wrapping it.
+pub type AlwaysRelease = AlwaysV0;
 
 pub mod opaque {
 	pub mod v0 {

@@ -99,7 +99,7 @@ mod tests {
 
 	use codec::Encode;
 	use frame_support::assert_ok;
-	use xcm::v1::prelude::*;
+	use xcm::latest::prelude::*;
 	use xcm_simulator::TestExt;
 
 	#[test]

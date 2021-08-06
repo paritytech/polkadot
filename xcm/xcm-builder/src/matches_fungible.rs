@@ -19,7 +19,7 @@
 use frame_support::traits::Get;
 use sp_runtime::traits::CheckedConversion;
 use sp_std::{convert::TryFrom, marker::PhantomData};
-use xcm::v1::{
+use xcm::latest::{
 	AssetId::{Abstract, Concrete},
 	Fungibility::Fungible,
 	MultiAsset, MultiLocation,
@@ -32,7 +32,7 @@ use xcm_executor::traits::MatchesFungible;
 /// # Example
 ///
 /// ```
-/// use xcm::v1::MultiLocation;
+/// use xcm::latest::MultiLocation;
 /// use xcm_builder::IsConcrete;
 /// use xcm_executor::traits::MatchesFungible;
 ///
@@ -62,7 +62,7 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 /// # Example
 ///
 /// ```
-/// use xcm::v1::prelude::*;
+/// use xcm::latest::prelude::*;
 /// use xcm_builder::IsAbstract;
 /// use xcm_executor::traits::MatchesFungible;
 ///

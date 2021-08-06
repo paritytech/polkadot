@@ -34,7 +34,7 @@ pub use sp_std::{
 	fmt::Debug,
 	marker::PhantomData,
 };
-pub use xcm::v1::prelude::*;
+pub use xcm::latest::prelude::*;
 pub use xcm_executor::{
 	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
 	Assets, Config,
@@ -205,7 +205,7 @@ impl FilterAssetLocation for TestIsTeleporter {
 	}
 }
 
-use xcm::v1::Response;
+use xcm::latest::Response;
 pub enum ResponseSlot {
 	Expecting(MultiLocation),
 	Received(Response),
@@ -221,7 +221,11 @@ impl OnResponse for TestResponseHandler {
 			_ => false,
 		})
 	}
-	fn on_response(_origin: MultiLocation, query_id: u64, response: xcm::v1::Response) -> Weight {
+	fn on_response(
+		_origin: MultiLocation,
+		query_id: u64,
+		response: xcm::latest::Response,
+	) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut().entry(query_id).and_modify(|v| {
 				if matches!(*v, ResponseSlot::Expecting(..)) {

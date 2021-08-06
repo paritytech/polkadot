@@ -279,7 +279,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v0::{Junctions::*, Junction::*, MultiLocation};
+	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
 	/// let mut m = MultiLocation::new(1, X2(PalletInstance(3), OnlyChild)).unwrap();
 	/// assert_eq!(
@@ -303,7 +303,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v0::{Junctions::*, Junction::*, MultiLocation};
+	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
 	/// let mut m = MultiLocation::new(1, X2(Parachain(21), OnlyChild)).unwrap();
 	/// assert_eq!(m.append_with(MultiLocation::new(1, X1(PalletInstance(3))).unwrap()), Ok(()));
@@ -329,7 +329,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v0::{Junctions::*, Junction::*, MultiLocation};
+	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
 	/// let mut m = MultiLocation::new(2, X1(PalletInstance(3))).unwrap();
 	/// assert_eq!(m.prepend_with(MultiLocation::new(1, X2(Parachain(21), OnlyChild)).unwrap()), Ok(()));
@@ -800,7 +800,7 @@ impl Junctions {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v0::{Junctions::*, Junction::*};
+	/// # use xcm::latest::{Junctions::*, Junction::*};
 	/// # fn main() {
 	/// let mut m = X3(Parachain(2), PalletInstance(3), OnlyChild);
 	/// assert_eq!(m.match_and_split(&X2(Parachain(2), PalletInstance(3))), Some(&OnlyChild));
@@ -1089,7 +1089,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 #[cfg(test)]
 mod tests {
 	use super::{Junctions::*, MultiLocation};
-	use crate::opaque::v0::{Junction::*, NetworkId::Any};
+	use crate::opaque::v1::{Junction::*, NetworkId::Any};
 	use parity_scale_codec::{Decode, Encode};
 
 	#[test]
@@ -1099,7 +1099,7 @@ mod tests {
 			interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }),
 		};
 		let encoded = m.encode();
-		assert_eq!(encoded, [3, 0, 1, 168, 3, 0, 92].to_vec());
+		assert_eq!(encoded, [1, 2, 1, 168, 3, 0, 92].to_vec());
 		let decoded = MultiLocation::decode(&mut &encoded[..]);
 		assert_eq!(decoded, Ok(m));
 	}
