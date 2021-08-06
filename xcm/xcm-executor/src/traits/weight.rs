@@ -17,7 +17,7 @@
 use crate::Assets;
 use frame_support::weights::Weight;
 use sp_std::result::Result;
-use xcm::v0::{Error, MultiAsset, MultiLocation, Xcm};
+use xcm::latest::{Error, MultiAsset, MultiLocation, Xcm};
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {
@@ -71,8 +71,8 @@ pub trait WeightTrader: Sized {
 	/// purchased using `buy_weight`.
 	///
 	/// Default implementation refunds nothing.
-	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset {
-		MultiAsset::None
+	fn refund_weight(&mut self, _weight: Weight) -> Option<MultiAsset> {
+		None
 	}
 }
 
