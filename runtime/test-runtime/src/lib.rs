@@ -491,7 +491,7 @@ impl parachains_ump::Config for Runtime {
 
 parameter_types! {
 	pub const BaseXcmWeight: frame_support::weights::Weight = 1_000;
-	pub const AnyNetwork: xcm::v0::NetworkId = xcm::v0::NetworkId::Any;
+	pub const AnyNetwork: xcm::latest::NetworkId = xcm::latest::NetworkId::Any;
 }
 
 pub type LocalOriginToLocation = xcm_builder::SignedToAccountId32<Origin, AccountId, AnyNetwork>;
@@ -506,12 +506,12 @@ impl pallet_xcm::Config for Runtime {
 	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
 	type XcmRouter = xcm_config::DoNothingRouter;
 	type XcmExecuteFilter =
-		frame_support::traits::All<(xcm::v0::MultiLocation, xcm::v0::Xcm<Call>)>;
+		frame_support::traits::All<(xcm::latest::MultiLocation, xcm::latest::Xcm<Call>)>;
 	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
 	type XcmTeleportFilter =
-		frame_support::traits::All<(xcm::v0::MultiLocation, Vec<xcm::v0::MultiAsset>)>;
+		frame_support::traits::All<(xcm::latest::MultiLocation, Vec<xcm::latest::MultiAsset>)>;
 	type XcmReserveTransferFilter =
-		frame_support::traits::All<(xcm::v0::MultiLocation, Vec<xcm::v0::MultiAsset>)>;
+		frame_support::traits::All<(xcm::latest::MultiLocation, Vec<xcm::latest::MultiAsset>)>;
 }
 
 impl parachains_hrmp::Config for Runtime {

@@ -18,7 +18,9 @@ use frame_support::{
 	traits::{All, EnsureOrigin, OriginTrait},
 	weights::Weight,
 };
-use xcm::v0::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult, SendXcm, Xcm};
+use xcm::latest::{
+	Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult, SendXcm, Xcm,
+};
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds};
 use xcm_executor::{
 	traits::{InvertLocation, TransactAsset, WeightTrader},
@@ -30,7 +32,7 @@ impl<Origin: OriginTrait> EnsureOrigin<Origin> for ConvertOriginToLocal {
 	type Success = MultiLocation;
 
 	fn try_origin(_: Origin) -> Result<MultiLocation, Origin> {
-		Ok(MultiLocation::Null)
+		Ok(MultiLocation::Here)
 	}
 }
 
@@ -68,7 +70,7 @@ impl WeightTrader for DummyWeightTrader {
 pub struct InvertNothing;
 impl InvertLocation for InvertNothing {
 	fn invert_location(_: &MultiLocation) -> MultiLocation {
-		MultiLocation::Null
+		MultiLocation::Here
 	}
 }
 
