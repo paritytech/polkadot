@@ -1014,7 +1014,7 @@ impl From<ValidityError> for u8 {
 
 /// Abridged version of `HostConfiguration` (from the `Configuration` parachains host runtime module)
 /// meant to be used by a parachain or PDK such as cumulus.
-#[derive(Clone, Encode, Decode, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct AbridgedHostConfiguration {
 	/// The maximum validation code size, in bytes.
@@ -1047,7 +1047,7 @@ pub struct AbridgedHostConfiguration {
 
 /// Abridged version of `HrmpChannel` (from the `Hrmp` parachains host runtime module) meant to be
 /// used by a parachain or PDK such as cumulus.
-#[derive(Clone, Encode, Decode, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct AbridgedHrmpChannel {
 	/// The maximum number of messages that can be pending in the channel at once.
