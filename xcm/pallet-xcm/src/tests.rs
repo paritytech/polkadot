@@ -151,10 +151,7 @@ fn reserve_transfer_assets_works() {
 				Xcm::ReserveAssetDeposited {
 					assets: (MultiLocation::with_parents::<1>(), SEND_AMOUNT).into(),
 					effects: vec![
-						buy_execution(
-							(MultiLocation::with_parents::<1>(), SEND_AMOUNT),
-							weight
-						),
+						buy_execution((MultiLocation::with_parents::<1>(), SEND_AMOUNT), weight),
 						DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 					]
 				}
