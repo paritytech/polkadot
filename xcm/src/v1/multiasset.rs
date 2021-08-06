@@ -23,9 +23,16 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use super::{Junction, MultiLocation::{self, X1}};
+use super::{
+	Junction,
+	MultiLocation::{self, X1},
+};
 use alloc::{vec, vec::Vec};
-use core::{cmp::Ordering, convert::{TryFrom, TryInto}, result};
+use core::{
+	cmp::Ordering,
+	convert::{TryFrom, TryInto},
+	result,
+};
 use parity_scale_codec::{self as codec, Decode, Encode};
 
 /// A general identifier for an instance of a non-fungible asset class.
