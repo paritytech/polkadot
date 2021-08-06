@@ -152,12 +152,12 @@ impl MultiLocation {
 		(multilocation, last)
 	}
 
-	/// Bumps the parent count up by 1. Returns `Err` in case of overflow.
-	pub fn push_parent(&mut self) -> result::Result<(), ()> {
-		if self.len() >= MAX_MULTILOCATION_LENGTH {
+	/// Bumps the parent count up by `n`. Returns `Err` in case of overflow.
+	pub fn add_parents(&mut self, n: u8) -> result::Result<(), ()> {
+		if self.len() + (n as usize) > MAX_MULTILOCATION_LENGTH {
 			return Err(())
 		}
-		self.parents = self.parents.saturating_add(1);
+		self.parents = self.parents.saturating_add(n);
 		Ok(())
 	}
 
@@ -193,13 +193,13 @@ impl MultiLocation {
 		}
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` with its parent count incremented by 1, or
+	/// Consumes `self` and returns a `MultiLocation` with its parent count incremented by `n`, or
 	/// an `Err` with the original value of `self` in case of overflow.
-	pub fn pushed_with_parent(self) -> result::Result<Self, Self> {
-		if self.len() >= MAX_MULTILOCATION_LENGTH {
+	pub fn added_with_parents(self, n: u8) -> result::Result<Self, Self> {
+		if self.len() + (n as usize) > MAX_MULTILOCATION_LENGTH {
 			return Err(self)
 		}
-		Ok(MultiLocation { parents: self.parents.saturating_add(1), ..self })
+		Ok(MultiLocation { parents: self.parents.saturating_add(n), ..self })
 	}
 
 	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with the original value of
