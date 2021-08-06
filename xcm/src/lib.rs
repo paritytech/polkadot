@@ -31,6 +31,9 @@ pub mod v0;
 mod double_encoded;
 pub use double_encoded::DoubleEncoded;
 
+/// Maximum nesting level for XCM decoding.
+pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
+
 /// A single XCM message, together with its version code.
 #[derive(Derivative, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
