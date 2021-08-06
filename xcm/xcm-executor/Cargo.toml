@@ -22,7 +22,7 @@ frame-system = { git = "https://github.com/paritytech/substrate", branch = "mast
 futures = "0.3.15"
 pallet-xcm = { path = "../pallet-xcm" }
 polkadot-test-client = { path = "../../node/test/client" }
-polkadot-test-runtime = { path = "../../runtime/test-runtime" }
+polkadot-test-runtime = { path = "../../runtime/test-runtime", features = [ "runtime-benchmarks" ] }
 polkadot-test-service = { path = "../../node/test/service" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -30,9 +30,6 @@ sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "
 
 [features]
 default = ["std"]
-runtime-benchmarks = [
-	"polkadot-test-runtime/runtime-benchmarks",
-]
 std = [
 	"parity-scale-codec/std",
 	"xcm/std",
