@@ -126,6 +126,8 @@ impl Assets {
 	}
 
 	/// Mutate `self` to contain all given `assets`, saturating if necessary.
+	///
+	/// NOTE: [`Assets`] are always sorted, allowing us to optimize this function from `O(n^2)` to `O(n)`.
 	pub fn subsume_assets(&mut self, mut assets: Assets) {
 		let mut f_iter = assets.fungible.iter_mut();
 		let mut g_iter = self.fungible.iter_mut();
