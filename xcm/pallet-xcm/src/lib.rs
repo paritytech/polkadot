@@ -114,7 +114,11 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(100_000_000)]
-		pub fn send(origin: OriginFor<T>, dest: Box<MultiLocation>, message: Box<Xcm<()>>) -> DispatchResult {
+		pub fn send(
+			origin: OriginFor<T>,
+			dest: Box<MultiLocation>,
+			message: Box<Xcm<()>>,
+		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
 			Self::send_xcm(origin_location.clone(), *dest.clone(), *message.clone()).map_err(
 				|e| match e {

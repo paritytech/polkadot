@@ -46,7 +46,11 @@ fn send_works() {
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
-		assert_ok!(XcmPallet::send(Origin::signed(ALICE), Box::new(RelayLocation::get()), Box::new(message.clone())));
+		assert_ok!(XcmPallet::send(
+			Origin::signed(ALICE),
+			Box::new(RelayLocation::get()),
+			Box::new(message.clone())
+		));
 		assert_eq!(
 			sent_xcm(),
 			vec![(
