@@ -22,6 +22,7 @@ use core::{
 	mem, result,
 };
 use parity_scale_codec::{self, Decode, Encode};
+use static_assertions::const_assert;
 
 /// A relative path between state-bearing consensus systems.
 ///
@@ -81,19 +82,10 @@ impl MultiLocation {
 
 	/// Creates a new `MultiLocation` with the specified number of parents in the `P` const generic
 	/// parameter and a `Null` interior.
-	// #FIXME: Use a where clause to evaluate P for well-formedness once const eval of const
-	//         generics is possible.
-	pub const fn with_parents_const<const P: u8>() -> MultiLocation {
+	pub const fn with_parents<const P: u8>() -> MultiLocation {
+		// If this condition does not hold, then P may overflow MAX_MULTILOCATION_LENGTH.
+		const_assert!(MAX_MULTILOCATION_LENGTH >= 255);
 		MultiLocation { parents: P, interior: Junctions::Null }
-	}
-
-	/// Creates a new `MultiLocation` with the specified number of parents and a `Null` interior.
-	/// Returns an error if `parents` is greater than `MAX_MULTILOCATION_LENGTH`.
-	pub const fn with_parents(parents: u8) -> result::Result<MultiLocation, ()> {
-		if parents as usize > MAX_MULTILOCATION_LENGTH {
-			return Err(())
-		}
-		Ok(MultiLocation { parents, interior: Junctions::Null })
 	}
 
 	/// Creates a new `MultiLocation` with no parents and a single `Parachain` interior junction
@@ -837,16 +829,16 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 		use Junctions::*;
 		match old {
 			MultiLocation0::Null => Ok(MultiLocation::here()),
-			MultiLocation0::X1(j0) if j0.is_parent() => MultiLocation::with_parents(1),
+			MultiLocation0::X1(j0) if j0.is_parent() => Ok(MultiLocation::with_parents::<1>()),
 			MultiLocation0::X1(j0) => Ok(X1(j0.try_into()?).into()),
 			MultiLocation0::X2(j0, j1) if j0.is_parent() && j1.is_parent() =>
-				MultiLocation::with_parents(2),
+				Ok(MultiLocation::with_parents::<2>()),
 			MultiLocation0::X2(j0, j1) if j0.is_parent() =>
 				Ok(MultiLocation { parents: 1, interior: X1(j1.try_into()?) }),
 			MultiLocation0::X2(j0, j1) => Ok(X2(j0.try_into()?, j1.try_into()?).into()),
 			MultiLocation0::X3(j0, j1, j2)
 				if j0.is_parent() && j1.is_parent() && j2.is_parent() =>
-				MultiLocation::with_parents(3),
+				Ok(MultiLocation::with_parents::<3>()),
 			MultiLocation0::X3(j0, j1, j2) if j0.is_parent() && j1.is_parent() =>
 				Ok(MultiLocation { parents: 2, interior: X1(j2.try_into()?) }),
 			MultiLocation0::X3(j0, j1, j2) if j0.is_parent() =>
@@ -855,7 +847,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 				Ok(X3(j0.try_into()?, j1.try_into()?, j2.try_into()?).into()),
 			MultiLocation0::X4(j0, j1, j2, j3)
 				if j0.is_parent() && j1.is_parent() && j2.is_parent() && j3.is_parent() =>
-				MultiLocation::with_parents(4),
+				Ok(MultiLocation::with_parents::<4>()),
 			MultiLocation0::X4(j0, j1, j2, j3)
 				if j0.is_parent() && j1.is_parent() && j2.is_parent() =>
 				Ok(MultiLocation { parents: 3, interior: X1(j3.try_into()?) }),
@@ -871,7 +863,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 				if j0.is_parent() &&
 					j1.is_parent() && j2.is_parent() &&
 					j3.is_parent() && j4.is_parent() =>
-				MultiLocation::with_parents(5),
+				Ok(MultiLocation::with_parents::<5>()),
 			MultiLocation0::X5(j0, j1, j2, j3, j4)
 				if j0.is_parent() && j1.is_parent() && j2.is_parent() && j3.is_parent() =>
 				Ok(MultiLocation { parents: 4, interior: X1(j4.try_into()?) }),
@@ -900,7 +892,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 					j1.is_parent() && j2.is_parent() &&
 					j3.is_parent() && j4.is_parent() &&
 					j5.is_parent() =>
-				MultiLocation::with_parents(6),
+				Ok(MultiLocation::with_parents::<6>()),
 			MultiLocation0::X6(j0, j1, j2, j3, j4, j5)
 				if j0.is_parent() &&
 					j1.is_parent() && j2.is_parent() &&
@@ -944,7 +936,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 					j1.is_parent() && j2.is_parent() &&
 					j3.is_parent() && j4.is_parent() &&
 					j5.is_parent() && j6.is_parent() =>
-				MultiLocation::with_parents(7),
+				Ok(MultiLocation::with_parents::<7>()),
 			MultiLocation0::X7(j0, j1, j2, j3, j4, j5, j6)
 				if j0.is_parent() &&
 					j1.is_parent() && j2.is_parent() &&
@@ -1006,7 +998,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 					j3.is_parent() && j4.is_parent() &&
 					j5.is_parent() && j6.is_parent() &&
 					j7.is_parent() =>
-				MultiLocation::with_parents(8),
+				Ok(MultiLocation::with_parents::<8>()),
 			MultiLocation0::X8(j0, j1, j2, j3, j4, j5, j6, j7)
 				if j0.is_parent() &&
 					j1.is_parent() && j2.is_parent() &&

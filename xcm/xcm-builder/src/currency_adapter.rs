@@ -61,7 +61,7 @@ impl From<Error> for XcmError {
 ///
 /// /// Our relay chain's location.
 /// parameter_types! {
-///     RelayChain: MultiLocation = MultiLocation::with_parents(1).unwrap();
+///     RelayChain: MultiLocation = MultiLocation::with_parents::<1>();
 ///     CheckingAccount: AccountId = Default::default();
 /// }
 ///

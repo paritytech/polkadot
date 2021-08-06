@@ -101,7 +101,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const KsmLocation: MultiLocation = MultiLocation::with_parents_const::<1>();
+	pub const KsmLocation: MultiLocation = MultiLocation::with_parents::<1>();
 	pub const RelayNetwork: NetworkId = NetworkId::Kusama;
 	pub Ancestry: MultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
 }
@@ -120,7 +120,7 @@ pub type XcmOriginToCallOrigin = (
 
 parameter_types! {
 	pub const UnitWeightCost: Weight = 1;
-	pub KsmPerSecond: (AssetId, u128) = (Concrete(MultiLocation::with_parents(1).unwrap()), 1);
+	pub KsmPerSecond: (AssetId, u128) = (Concrete(MultiLocation::with_parents::<1>()), 1);
 }
 
 pub type LocalAssetTransactor =
@@ -267,7 +267,7 @@ pub mod mock_msg_queue {
 					},
 					Ok(Ok(x)) => {
 						let outcome = T::XcmExecutor::execute_xcm(
-							MultiLocation::with_parents(1).unwrap(),
+							MultiLocation::with_parents::<1>(),
 							x,
 							limit,
 						);

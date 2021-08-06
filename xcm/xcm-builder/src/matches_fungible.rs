@@ -37,11 +37,11 @@ use xcm_executor::traits::MatchesFungible;
 /// use xcm_executor::traits::MatchesFungible;
 ///
 /// frame_support::parameter_types! {
-/// 	pub TargetLocation: MultiLocation = MultiLocation::with_parents(1).unwrap();
+/// 	pub TargetLocation: MultiLocation = MultiLocation::with_parents::<1>();
 /// }
 ///
 /// # fn main() {
-/// let asset = (MultiLocation::with_parents(1).unwrap(), 999).into();
+/// let asset = (MultiLocation::with_parents::<1>(), 999).into();
 /// // match `asset` if it is a concrete asset in `TargetLocation`.
 /// assert_eq!(<IsConcrete<TargetLocation> as MatchesFungible<u128>>::matches_fungible(&asset), Some(999));
 /// # }
