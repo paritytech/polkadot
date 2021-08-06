@@ -134,7 +134,7 @@ impl Assets {
 				if f.0 == g.0 {
 					// keys are equal. in this case, we add `self`'s balance for the asset onto `assets`, balance, knowing
 					// that the `append` operation which follows will clobber `self`'s value and only use `assets`'s.
-					*f.1 += *g.1;
+					(*f.1).saturating_accrue(*g.1);
 				}
 				if f.0 <= g.0 {
 					f = match f_iter.next() {
