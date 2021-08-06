@@ -39,6 +39,7 @@ members = [
 	"xcm",
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
+	"xcm/xcm-executor/integration-tests",
 	"xcm/xcm-simulator",
 	"xcm/xcm-simulator/example",
 	"xcm/pallet-xcm",

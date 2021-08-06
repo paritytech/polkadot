@@ -115,19 +115,21 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		trader: &mut Config::Trader,
 		num_recursions: u32,
 	) -> Result<Weight, XcmError> {
-		if num_recursions > MAX_RECURSION_LIMIT {
-			return Err(XcmError::RecursionLimitReached)
-		}
-
 		log::trace!(
 			target: "xcm::do_execute_xcm",
-			"origin: {:?}, top_level: {:?}, message: {:?}, weight_credit: {:?}, maybe_shallow_weight: {:?}",
+			"origin: {:?}, top_level: {:?}, message: {:?}, weight_credit: {:?}, maybe_shallow_weight: {:?}, recursion: {:?}",
 			origin,
 			top_level,
 			message,
 			weight_credit,
 			maybe_shallow_weight,
+			num_recursions,
 		);
+
+		if num_recursions > MAX_RECURSION_LIMIT {
+			return Err(XcmError::RecursionLimitReached)
+		}
+
 		// This is the weight of everything that cannot be paid for. This basically means all computation
 		// except any XCM which is behind an Order::BuyExecution.
 		let shallow_weight = maybe_shallow_weight
@@ -289,11 +291,17 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	) -> Result<Weight, XcmError> {
 		log::trace!(
 			target: "xcm::execute_effects",
-			"origin: {:?}, holding: {:?}, effect: {:?}",
+			"origin: {:?}, holding: {:?}, effect: {:?}, recursion: {:?}",
 			origin,
 			holding,
 			effect,
+			num_recursions,
 		);
+
+		if num_recursions > MAX_RECURSION_LIMIT {
+			return Err(XcmError::RecursionLimitReached)
+		}
+
 		let mut total_surplus = 0;
 		match effect {
 			Order::DepositAsset { assets, dest } => {

@@ -12332,6 +12332,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "xcm-executor-integration-tests"
+version = "0.9.9"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "futures 0.3.16",
+ "impl-trait-for-tuples",
+ "log",
+ "pallet-xcm",
+ "parity-scale-codec",
+ "polkadot-test-client",
+ "polkadot-test-runtime",
+ "polkadot-test-service",
+ "sp-arithmetic",
+ "sp-consensus",
+ "sp-core",
+ "sp-io",
+ "sp-keyring",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "xcm",
+ "xcm-executor",
+]
+
+[[package]]
 name = "xcm-simulator"
 version = "0.9.9"
 dependencies = [
