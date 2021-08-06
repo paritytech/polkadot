@@ -126,6 +126,8 @@ impl Assets {
 	}
 
 	/// Mutate `self` to contain all given `assets`, saturating if necessary.
+	///
+	/// NOTE: [`Assets`] are always sorted, allowing us to optimize this function from `O(n^2)` to `O(n)`.
 	pub fn subsume_assets(&mut self, mut assets: Assets) {
 		let mut f_iter = assets.fungible.iter_mut();
 		let mut g_iter = self.fungible.iter_mut();
@@ -134,7 +136,7 @@ impl Assets {
 				if f.0 == g.0 {
 					// keys are equal. in this case, we add `self`'s balance for the asset onto `assets`, balance, knowing
 					// that the `append` operation which follows will clobber `self`'s value and only use `assets`'s.
-					*f.1 += *g.1;
+					(*f.1).saturating_accrue(*g.1);
 				}
 				if f.0 <= g.0 {
 					f = match f_iter.next() {
