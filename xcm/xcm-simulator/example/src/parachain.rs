@@ -158,7 +158,6 @@ pub mod mock_msg_queue {
 	use super::*;
 	use codec::DecodeLimit;
 	use frame_support::pallet_prelude::*;
-	use xcm_executor::MAX_RECURSION_LIMIT;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
