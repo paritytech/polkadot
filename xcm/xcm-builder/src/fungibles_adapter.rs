@@ -18,7 +18,12 @@
 
 use frame_support::traits::{tokens::fungibles, Contains, Get};
 use sp_std::{borrow::Borrow, marker::PhantomData, prelude::*, result};
-use xcm::v0::{Error as XcmError, Junction, MultiAsset, MultiLocation, Result};
+use xcm::latest::{
+	AssetId::{Abstract, Concrete},
+	Error as XcmError,
+	Fungibility::Fungible,
+	Junction, MultiAsset, MultiLocation, Result,
+};
 use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, TransactAsset};
 
 /// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
@@ -61,8 +66,8 @@ impl<
 	for ConvertedConcreteAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
-		let (id, amount) = match a {
-			MultiAsset::ConcreteFungible { id, amount } => (id, amount),
+		let (amount, id) = match (&a.fun, &a.id) {
+			(Fungible(ref amount), Concrete(ref id)) => (amount, id),
 			_ => return Err(MatchError::AssetNotFound),
 		};
 		let what =
@@ -85,8 +90,8 @@ impl<
 	for ConvertedAbstractAssetId<AssetId, Balance, ConvertAssetId, ConvertBalance>
 {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
-		let (id, amount) = match a {
-			MultiAsset::AbstractFungible { id, amount } => (id, amount),
+		let (amount, id) = match (&a.fun, &a.id) {
+			(Fungible(ref amount), Abstract(ref id)) => (amount, id),
 			_ => return Err(MatchError::AssetNotFound),
 		};
 		let what =
