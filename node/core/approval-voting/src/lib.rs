@@ -92,9 +92,6 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-mod old_tests;
-
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 const APPROVAL_CACHE_SIZE: usize = 1024;
@@ -455,8 +452,9 @@ impl Wakeups {
 			Some(tick) => {
 				clock.wait(tick).await;
 				match self.wakeups.entry(tick) {
-					Entry::Vacant(_) =>
-						panic!("entry is known to exist since `first` was `Some`; qed"),
+					Entry::Vacant(_) => {
+						panic!("entry is known to exist since `first` was `Some`; qed")
+					},
 					Entry::Occupied(mut entry) => {
 						let (hash, candidate_hash) = entry.get_mut().pop()
 							.expect("empty entries are removed here and in `schedule`; no other mutation of this map; qed");
@@ -919,8 +917,9 @@ async fn handle_actions(
 				.await;
 
 				match confirmation_rx.await {
-					Err(oneshot::Canceled) =>
-						tracing::warn!(target: LOG_TARGET, "Dispute coordinator confirmation lost",),
+					Err(oneshot::Canceled) => {
+						tracing::warn!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
+					},
 					Ok(ImportStatementsResult::ValidImport) => {},
 					Ok(ImportStatementsResult::InvalidImport) => tracing::warn!(
 						target: LOG_TARGET,
@@ -961,7 +960,7 @@ fn distribution_messages_for_activation(
 		let block_entry = match db.load_block_entry(&block_hash)? {
 			Some(b) => b,
 			None => {
-				tracing::warn!(target: LOG_TARGET, ?block_hash, "Missing block entry",);
+				tracing::warn!(target: LOG_TARGET, ?block_hash, "Missing block entry");
 
 				continue
 			},
@@ -2223,7 +2222,7 @@ async fn launch_approval(
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
-				tracing::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Candidate Valid",);
+				tracing::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Candidate Valid");
 
 				let expected_commitments_hash = candidate.commitments_hash;
 				if commitments.hash() == expected_commitments_hash {

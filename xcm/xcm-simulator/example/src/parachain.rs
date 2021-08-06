@@ -35,16 +35,10 @@ use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
 use polkadot_parachain::primitives::{
 	DmpMessageHandler, Id as ParaId, Sibling, XcmpMessageFormat, XcmpMessageHandler,
 };
-use xcm::{
-	v0::{
-		Error as XcmError, ExecuteXcm, Junction::Parachain, Junctions::X1, MultiAsset,
-		MultiLocation, NetworkId, Outcome, Xcm,
-	},
-	VersionedXcm,
-};
+use xcm::{v1::prelude::*, VersionedXcm};
 use xcm_builder::{
 	AccountId32Aliases, AllowUnpaidExecutionFrom, CurrencyAdapter as XcmCurrencyAdapter,
-	EnsureXcmOrigin, FixedRateOfConcreteFungible, FixedWeightBounds, IsConcrete, LocationInverter,
+	EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds, IsConcrete, LocationInverter,
 	NativeAsset, ParentIsDefault, SiblingParachainConvertsVia, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation,
 };
@@ -126,7 +120,7 @@ pub type XcmOriginToCallOrigin = (
 
 parameter_types! {
 	pub const UnitWeightCost: Weight = 1;
-	pub KsmPerSecond: (MultiLocation, u128) = (MultiLocation::with_parents(1).unwrap(), 1);
+	pub KsmPerSecond: (AssetId, u128) = (Concrete(MultiLocation::with_parents(1).unwrap()), 1);
 }
 
 pub type LocalAssetTransactor =
@@ -146,7 +140,7 @@ impl Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
-	type Trader = FixedRateOfConcreteFungible<KsmPerSecond, ()>;
+	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
 }
 
@@ -184,7 +178,7 @@ pub mod mock_msg_queue {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		// XCMP
-		/// Some XCM was executed successfully.
+		/// Some XCM was executed OK.
 		Success(Option<T::Hash>),
 		/// Some XCM failed.
 		Fail(Option<T::Hash>, XcmError),
@@ -303,6 +297,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmTeleportFilter = ();
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
+	type LocationInverter = LocationInverter<Ancestry>;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;

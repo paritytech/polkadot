@@ -680,7 +680,7 @@ pub(crate) mod tests {
 			&target,
 			test_transaction_hash(0),
 		))
-		.is_err(),);
+		.is_err());
 		assert!(target.data.lock().submitted_proofs.is_empty());
 	}
 
@@ -861,7 +861,7 @@ pub(crate) mod tests {
 				failed: 1,
 			}),
 		);
-		assert_eq!(target.data.lock().submitted_proofs, vec![],);
+		assert_eq!(target.data.lock().submitted_proofs, vec![]);
 	}
 
 	#[test]

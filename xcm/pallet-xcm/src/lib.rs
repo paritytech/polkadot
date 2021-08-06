@@ -18,11 +18,16 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(test)]
+mod mock;
+#[cfg(test)]
+mod tests;
+
 use codec::{Decode, Encode};
 use frame_support::traits::{Contains, EnsureOrigin, Filter, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
 use sp_std::{boxed::Box, convert::TryInto, marker::PhantomData, prelude::*, vec};
-use xcm::v0::prelude::*;
+use xcm::v1::prelude::*;
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -34,7 +39,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::traits::AccountIdConversion;
-	use xcm_executor::traits::WeightBounds;
+	use xcm_executor::traits::{InvertLocation, WeightBounds};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -72,12 +77,18 @@ pub mod pallet {
 
 		/// Means of measuring the weight consumed by an XCM message locally.
 		type Weigher: WeightBounds<Self::Call>;
+
+		/// Means of inverting a location.
+		type LocationInverter: InvertLocation;
 	}
+
+	/// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
+	const MAX_ASSETS_FOR_TRANSFER: usize = 2;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		Attempted(xcm::v0::Outcome),
+		Attempted(xcm::v1::Outcome),
 		Sent(MultiLocation, MultiLocation, Xcm<()>),
 	}
 
@@ -89,6 +100,12 @@ pub mod pallet {
 		Filtered,
 		/// The message's weight could not be determined.
 		UnweighableMessage,
+		/// The assets to be sent are empty.
+		Empty,
+		/// Could not reanchor the assets to declare the fees for the destination chain.
+		CannotReanchor,
+		/// Too many assets have been attempted for transfer.
+		TooManyAssets,
 	}
 
 	#[pallet::hooks]
@@ -111,20 +128,22 @@ pub mod pallet {
 
 		/// Teleport some assets from the local chain to some destination chain.
 		///
+		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
 		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
 		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
 		///   an `AccountId32` value.
-		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
-		///   `dest` side.
+		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
+		///   `dest` side. May not be empty.
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
 		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
 			let mut message = Xcm::WithdrawAsset {
 				assets: assets.clone(),
 				effects: sp_std::vec![ InitiateTeleport {
-					assets: sp_std::vec![ All ],
+					assets: Wild(All),
 					dest: dest.clone(),
 					effects: sp_std::vec![],
 				} ]
@@ -135,28 +154,40 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			dest: MultiLocation,
 			beneficiary: MultiLocation,
-			assets: Vec<MultiAsset>,
+			assets: MultiAssets,
+			fee_asset_item: u32,
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let value = (origin_location, assets);
+			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
+			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
+			let inv_dest = T::LocationInverter::invert_location(&dest);
+			let fees = assets
+				.get(fee_asset_item as usize)
+				.ok_or(Error::<T>::Empty)?
+				.clone()
+				.reanchored(&inv_dest)
+				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let max_assets = assets.len() as u32;
+			let assets = assets.into();
 			let mut message = Xcm::WithdrawAsset {
 				assets,
 				effects: vec![InitiateTeleport {
-					assets: vec![All],
+					assets: Wild(All),
 					dest,
 					effects: vec![
 						BuyExecution {
-							fees: All,
+							fees,
 							// Zero weight for additional XCM (since there are none to execute)
 							weight: 0,
 							debt: dest_weight,
 							halt_on_error: false,
-							xcm: vec![],
+							orders: vec![],
+							instructions: vec![],
 						},
-						DepositAsset { assets: vec![All], dest: beneficiary },
+						DepositAsset { assets: Wild(All), max_assets, beneficiary },
 					],
 				}],
 			};
@@ -171,6 +202,8 @@ pub mod pallet {
 		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
 		/// a notification XCM.
 		///
+		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
 		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
@@ -179,7 +212,7 @@ pub mod pallet {
 		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
 		///   `dest` side.
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
-		///   `ReserveAssetDeposit { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		///   `ReserveAssetDeposited { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
 			let mut message = Xcm::TransferReserveAsset {
 				assets: assets.clone(),
@@ -192,26 +225,38 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			dest: MultiLocation,
 			beneficiary: MultiLocation,
-			assets: Vec<MultiAsset>,
+			assets: MultiAssets,
+			fee_asset_item: u32,
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let value = (origin_location, assets);
+			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
+			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
+			let inv_dest = T::LocationInverter::invert_location(&dest);
+			let fees = assets
+				.get(fee_asset_item as usize)
+				.ok_or(Error::<T>::Empty)?
+				.clone()
+				.reanchored(&inv_dest)
+				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let max_assets = assets.len() as u32;
+			let assets = assets.into();
 			let mut message = Xcm::TransferReserveAsset {
 				assets,
 				dest,
 				effects: vec![
 					BuyExecution {
-						fees: All,
-						// Zero weight for additional XCM (since there are none to execute)
+						fees,
+						// Zero weight for additional instructions/orders (since there are none to execute)
 						weight: 0,
-						debt: dest_weight,
+						debt: dest_weight, // covers this, `TransferReserveAsset` xcm, and `DepositAsset` order.
 						halt_on_error: false,
-						xcm: vec![],
+						orders: vec![],
+						instructions: vec![],
 					},
-					DepositAsset { assets: vec![All], dest: beneficiary },
+					DepositAsset { assets: Wild(All), max_assets, beneficiary },
 				],
 			};
 			let weight =
@@ -257,7 +302,7 @@ pub mod pallet {
 			dest: MultiLocation,
 			message: Xcm<()>,
 		) -> Result<(), XcmError> {
-			let message = if interior.is_empty() {
+			let message = if interior.is_here() {
 				message
 			} else {
 				Xcm::<()>::RelayedFrom { who: interior, message: Box::new(message) }
@@ -336,7 +381,7 @@ where
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
-		O::from(Origin::Xcm(MultiLocation::empty()))
+		O::from(Origin::Xcm(MultiLocation::here()))
 	}
 }
 

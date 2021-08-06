@@ -20,7 +20,7 @@ use futures::channel::oneshot;
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{
-	Collation, CollationResult, CollatorFn, PoV, SignedFullStatement, Statement,
+	Collation, CollationResult, CollationSecondedSignal, CollatorFn, PoV, Statement,
 };
 use polkadot_primitives::v1::{CollatorId, CollatorPair};
 use sp_core::{traits::SpawnNamed, Pair};
@@ -182,19 +182,19 @@ impl Collator {
 
 			let compressed_pov = polkadot_node_primitives::maybe_compress_pov(pov);
 
-			let (result_sender, recv) = oneshot::channel::<SignedFullStatement>();
+			let (result_sender, recv) = oneshot::channel::<CollationSecondedSignal>();
 			let seconded_collations = seconded_collations.clone();
 			spawner.spawn(
 				"adder-collator-seconded",
 				async move {
 					if let Ok(res) = recv.await {
 						if !matches!(
-							res.payload(),
+							res.statement.payload(),
 							Statement::Seconded(s) if s.descriptor.pov_hash == compressed_pov.hash(),
 						) {
 							log::error!(
 								"Seconded statement should match our collation: {:?}",
-								res.payload()
+								res.statement.payload()
 							);
 							std::process::exit(-1);
 						}

@@ -16,7 +16,7 @@
 
 pub use crate::{
 	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	FixedRateOfConcreteFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
+	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
 };
 pub use frame_support::{
 	dispatch::{
@@ -34,10 +34,7 @@ pub use sp_std::{
 	fmt::Debug,
 	marker::PhantomData,
 };
-pub use xcm::v0::{
-	opaque, Error as XcmError, Junction, Junction::*, Junctions, Junctions::*, MultiAsset,
-	MultiLocation, Order, OriginKind, Result as XcmResult, SendXcm, Xcm,
-};
+pub use xcm::v1::prelude::*;
 pub use xcm_executor::{
 	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
 	Assets, Config,
@@ -123,7 +120,7 @@ pub fn assets(who: u64) -> Vec<MultiAsset> {
 	ASSETS.with(|a| a.borrow().get(&who).map_or(vec![], |a| a.clone().into()))
 }
 pub fn add_asset(who: u64, what: MultiAsset) {
-	ASSETS.with(|a| a.borrow_mut().entry(who).or_insert(Assets::new()).saturating_subsume(what));
+	ASSETS.with(|a| a.borrow_mut().entry(who).or_insert(Assets::new()).subsume(what));
 }
 
 pub struct TestAssetTransactor;
@@ -140,8 +137,8 @@ impl TransactAsset for TestAssetTransactor {
 			a.borrow_mut()
 				.get_mut(&who)
 				.ok_or(XcmError::NotWithdrawable)?
-				.try_take(what.clone())
-				.map_err(|()| XcmError::NotWithdrawable)
+				.try_take(what.clone().into())
+				.map_err(|_| XcmError::NotWithdrawable)
 		})
 	}
 }
@@ -183,14 +180,14 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 }
 
 thread_local! {
-	pub static IS_RESERVE: RefCell<BTreeMap<MultiLocation, Vec<MultiAsset>>> = RefCell::new(BTreeMap::new());
-	pub static IS_TELEPORTER: RefCell<BTreeMap<MultiLocation, Vec<MultiAsset>>> = RefCell::new(BTreeMap::new());
+	pub static IS_RESERVE: RefCell<BTreeMap<MultiLocation, Vec<MultiAssetFilter>>> = RefCell::new(BTreeMap::new());
+	pub static IS_TELEPORTER: RefCell<BTreeMap<MultiLocation, Vec<MultiAssetFilter>>> = RefCell::new(BTreeMap::new());
 }
-pub fn add_reserve(from: MultiLocation, asset: MultiAsset) {
+pub fn add_reserve(from: MultiLocation, asset: MultiAssetFilter) {
 	IS_RESERVE.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
 }
 #[allow(dead_code)]
-pub fn add_teleporter(from: MultiLocation, asset: MultiAsset) {
+pub fn add_teleporter(from: MultiLocation, asset: MultiAssetFilter) {
 	IS_TELEPORTER.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
 }
 pub struct TestIsReserve;
@@ -208,7 +205,7 @@ impl FilterAssetLocation for TestIsTeleporter {
 	}
 }
 
-use xcm::v0::Response;
+use xcm::v1::Response;
 pub enum ResponseSlot {
 	Expecting(MultiLocation),
 	Received(Response),
@@ -224,7 +221,7 @@ impl OnResponse for TestResponseHandler {
 			_ => false,
 		})
 	}
-	fn on_response(_origin: MultiLocation, query_id: u64, response: xcm::v0::Response) -> Weight {
+	fn on_response(_origin: MultiLocation, query_id: u64, response: xcm::v1::Response) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut().entry(query_id).and_modify(|v| {
 				if matches!(*v, ResponseSlot::Expecting(..)) {
@@ -256,7 +253,7 @@ parameter_types! {
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
-	pub static WeightPrice: (MultiLocation, u128) = (Null.into(), 1_000_000_000_000);
+	pub static WeightPrice: (AssetId, u128) = (MultiLocation::here().into(), 1_000_000_000_000);
 }
 
 pub type TestBarrier = (
@@ -277,6 +274,6 @@ impl Config for TestConfig {
 	type LocationInverter = LocationInverter<TestAncestry>;
 	type Barrier = TestBarrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall>;
-	type Trader = FixedRateOfConcreteFungible<WeightPrice, ()>;
+	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
 }

@@ -723,7 +723,7 @@ where
 			launch_interaction(state, ctx, session_info, receipt, backing_group, response_sender)
 				.await,
 		None => {
-			tracing::warn!(target: LOG_TARGET, "SessionInfo is `None` at {:?}", state.live_block,);
+			tracing::warn!(target: LOG_TARGET, "SessionInfo is `None` at {:?}", state.live_block);
 			response_sender
 				.send(Err(RecoveryError::Unavailable))
 				.map_err(|_| error::Error::CanceledResponseSender)?;
