@@ -16,7 +16,7 @@
 
 use crate::Assets;
 use sp_std::result::Result;
-use xcm::v0::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult};
+use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult};
 
 /// Facility for asset transacting.
 ///
@@ -89,7 +89,7 @@ pub trait TransactAsset {
 	/// Move an `asset` `from` one location in `to` another location.
 	///
 	/// Attempts to use `transfer_asset` and if not available then falls back to using a two-part withdraw/deposit.
-	fn teleport_asset(
+	fn beam_asset(
 		asset: &MultiAsset,
 		from: &MultiLocation,
 		to: &MultiLocation,
@@ -111,7 +111,7 @@ impl TransactAsset for Tuple {
 	fn can_check_in(origin: &MultiLocation, what: &MultiAsset) -> XcmResult {
 		for_tuples!( #(
 			match Tuple::can_check_in(origin, what) {
-				Err(XcmError::AssetNotFound | XcmError::Unimplemented) => (),
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
 				r => return r,
 			}
 		)* );
@@ -139,7 +139,7 @@ impl TransactAsset for Tuple {
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
 		for_tuples!( #(
 			match Tuple::deposit_asset(what, who) {
-				Err(XcmError::AssetNotFound | XcmError::Unimplemented) => (),
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
 				r => return r,
 			}
 		)* );
@@ -155,7 +155,7 @@ impl TransactAsset for Tuple {
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
 		for_tuples!( #(
 			match Tuple::withdraw_asset(what, who) {
-				Err(XcmError::AssetNotFound | XcmError::Unimplemented) => (),
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
 				r => return r,
 			}
 		)* );
@@ -175,7 +175,7 @@ impl TransactAsset for Tuple {
 	) -> Result<Assets, XcmError> {
 		for_tuples!( #(
 			match Tuple::transfer_asset(what, from, to) {
-				Err(XcmError::AssetNotFound | XcmError::Unimplemented) => (),
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
 				r => return r,
 			}
 		)* );
@@ -193,6 +193,7 @@ impl TransactAsset for Tuple {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use MultiLocation::Here;
 
 	pub struct UnimplementedTransactor;
 	impl TransactAsset for UnimplementedTransactor {}
@@ -272,7 +273,7 @@ mod tests {
 			(UnimplementedTransactor, NotFoundTransactor, UnimplementedTransactor);
 
 		assert_eq!(
-			MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null),
+			MultiTransactor::deposit_asset(&(Here, 1).into(), &Here),
 			Err(XcmError::AssetNotFound)
 		);
 	}
@@ -281,7 +282,7 @@ mod tests {
 	fn unimplemented_and_not_found_continue_iteration() {
 		type MultiTransactor = (UnimplementedTransactor, NotFoundTransactor, SuccessfulTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Ok(()));
+		assert_eq!(MultiTransactor::deposit_asset(&(Here, 1).into(), &Here), Ok(()));
 	}
 
 	#[test]
@@ -289,7 +290,7 @@ mod tests {
 		type MultiTransactor = (OverflowTransactor, SuccessfulTransactor);
 
 		assert_eq!(
-			MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null),
+			MultiTransactor::deposit_asset(&(Here, 1).into(), &Here),
 			Err(XcmError::Overflow)
 		);
 	}
@@ -298,6 +299,6 @@ mod tests {
 	fn success_stops_iteration() {
 		type MultiTransactor = (SuccessfulTransactor, OverflowTransactor);
 
-		assert_eq!(MultiTransactor::deposit_asset(&MultiAsset::All, &MultiLocation::Null), Ok(()));
+		assert_eq!(MultiTransactor::deposit_asset(&(Here, 1).into(), &Here), Ok(()));
 	}
 }

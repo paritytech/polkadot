@@ -80,7 +80,7 @@ use polkadot_parachain::primitives::Id as ParaId;
 
 use constants::{currency::*, fee::*, time::*};
 use frame_support::traits::InstanceFilter;
-use xcm::v0::{BodyId, MultiLocation, NetworkId, Xcm};
+use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, BackingToPlurality, ChildParachainAsNative, ChildParachainConvertsVia,
 	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
@@ -583,9 +583,9 @@ impl parachains_paras::Config for Runtime {
 }
 
 parameter_types! {
-	pub const RocLocation: MultiLocation = MultiLocation::Null;
+	pub const RocLocation: MultiLocation = MultiLocation::Here;
 	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
-	pub const Ancestry: MultiLocation = MultiLocation::Null;
+	pub const Ancestry: MultiLocation = MultiLocation::Here;
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -620,24 +620,15 @@ parameter_types! {
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime>,
+	xcm_sender::ChildParachainRouter<Runtime, xcm::AlwaysRelease>,
 );
 
-use xcm::v0::{
-	Junction::Parachain,
-	MultiAsset,
-	MultiAsset::AllConcreteFungible,
-	MultiLocation::{Null, X1},
-};
 parameter_types! {
-	pub const RococoForTick: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(100)));
-	pub const RococoForTrick: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(110)));
-	pub const RococoForTrack: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(120)));
-	pub const RococoForStatemint: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(1001)));
+	pub const Rococo: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(RocLocation::get()) });
+	pub const RococoForTick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(100)));
+	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(110)));
+	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(120)));
+	pub const RococoForStatemint: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(1001)));
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
@@ -692,65 +683,14 @@ pub type LocalOriginToLocation = (
 	SignedToAccountId32<Origin, AccountId, RococoNetwork>,
 );
 
-pub struct OnlyWithdrawTeleportForAccounts;
-impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)>
-	for OnlyWithdrawTeleportForAccounts
-{
-	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
-		use xcm::v0::{
-			Junction::{AccountId32, Plurality},
-			MultiAsset::{All, ConcreteFungible},
-			Order::{BuyExecution, DepositAsset, InitiateTeleport},
-			Xcm::WithdrawAsset,
-		};
-		match origin {
-			// Root and collective are allowed to execute anything.
-			Null | X1(Plurality { .. }) => true,
-			X1(AccountId32 { .. }) => {
-				// An account ID trying to send a message. We ensure that it's sensible.
-				// This checks that it's of the form:
-				// WithdrawAsset {
-				//   assets: [ ConcreteFungible { id: Null } ],
-				//   effects: [ BuyExecution, InitiateTeleport {
-				//     assets: All,
-				//     dest: Parachain,
-				//     effects: [ BuyExecution, DepositAssets {
-				//       assets: All,
-				//       dest: AccountId32,
-				//     } ]
-				//   } ]
-				// }
-				matches!(msg, WithdrawAsset { ref assets, ref effects }
-					if assets.len() == 1
-					&& matches!(assets[0], ConcreteFungible { id: Null, .. })
-					&& effects.len() == 2
-					&& matches!(effects[0], BuyExecution { .. })
-					&& matches!(effects[1], InitiateTeleport { ref assets, dest: X1(Parachain(..)), ref effects }
-						if assets.len() == 1
-						&& matches!(assets[0], All)
-						&& effects.len() == 2
-						&& matches!(effects[0], BuyExecution { .. })
-						&& matches!(effects[1], DepositAsset { ref assets, dest: X1(AccountId32{..}) }
-							if assets.len() == 1
-							&& matches!(assets[0], All)
-						)
-					)
-				)
-			},
-			// Nobody else is allowed to execute anything.
-			_ => false,
-		}
-	}
-}
-
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	// ...but they must match our filter, which requires them to be a simple withdraw + teleport.
-	type XcmExecuteFilter = OnlyWithdrawTeleportForAccounts;
+	// ...but they must match our filter, which right now rejects everything.
+	type XcmExecuteFilter = ();
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;

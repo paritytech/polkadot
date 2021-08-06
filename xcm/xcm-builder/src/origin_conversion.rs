@@ -20,7 +20,7 @@ use frame_support::traits::{EnsureOrigin, Get, GetBacking, OriginTrait};
 use frame_system::RawOrigin as SystemRawOrigin;
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{convert::TryInto, marker::PhantomData};
-use xcm::v0::{BodyId, BodyPart, Junction, MultiLocation, NetworkId, OriginKind};
+use xcm::latest::{BodyId, BodyPart, Junction, MultiLocation, NetworkId, OriginKind};
 use xcm_executor::traits::{Convert, ConvertOrigin};
 
 /// Sovereign accounts use the system's `Signed` origin with an account ID derived from the `LocationConverter`.
@@ -170,7 +170,7 @@ where
 		// We institute a root fallback so root can always represent the context. This
 		// guarantees that `successful_origin` will work.
 		if o.caller() == Origin::root().caller() {
-			Ok(MultiLocation::Null)
+			Ok(MultiLocation::Here)
 		} else {
 			Err(o)
 		}
