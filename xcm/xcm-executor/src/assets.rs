@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_runtime::RuntimeDebug;
+use sp_runtime::{traits::Saturating, RuntimeDebug};
 use sp_std::{
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
 	mem,
@@ -126,6 +126,8 @@ impl Assets {
 	}
 
 	/// Mutate `self` to contain all given `assets`, saturating if necessary.
+	///
+	/// NOTE: [`Assets`] are always sorted, allowing us to optimize this function from `O(n^2)` to `O(n)`.
 	pub fn subsume_assets(&mut self, mut assets: Assets) {
 		let mut f_iter = assets.fungible.iter_mut();
 		let mut g_iter = self.fungible.iter_mut();
@@ -134,7 +136,7 @@ impl Assets {
 				if f.0 == g.0 {
 					// keys are equal. in this case, we add `self`'s balance for the asset onto `assets`, balance, knowing
 					// that the `append` operation which follows will clobber `self`'s value and only use `assets`'s.
-					*f.1 += *g.1;
+					(*f.1).saturating_accrue(*g.1);
 				}
 				if f.0 <= g.0 {
 					f = match f_iter.next() {
@@ -223,11 +225,13 @@ impl Assets {
 		return Ok(())
 	}
 
-	/// Mutates `self` to its original value less `mask` and returns `true`.
+	/// Mutates `self` to its original value less `mask` and returns assets that were removed.
 	///
 	/// If `saturate` is `true`, then `self` is considered to be masked by `mask`, thereby avoiding any attempt at
 	/// reducing it by assets it does not contain. In this case, the function is infallible. If `saturate` is `false`
 	/// and `mask` references a definite asset which `self` does not contain then an error is returned.
+	///
+	/// The number of unique assets which are removed will never be any greater than `limit`.
 	///
 	/// Returns `Ok` with the definite assets token from `self` and mutates `self` to its value minus
 	/// `mask`. Returns `Err` in the non-saturating case where `self` did not contain (enough of) a definite asset to
@@ -368,9 +372,9 @@ impl Assets {
 		}
 	}
 
-	/// Return the assets in `self`, but (asset-wise) of no greater value than `assets`.
+	/// Return the assets in `self`, but (asset-wise) of no greater value than `mask`.
 	///
-	/// Result is undefined if `assets` includes elements which match to the same asset more than once.
+	/// Result is undefined if `mask` includes elements which match to the same asset more than once.
 	///
 	/// Example:
 	///

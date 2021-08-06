@@ -695,7 +695,7 @@ impl Junctions {
 
 	/// Returns the junction at index `i`, or `None` if the location doesn't contain that many elements.
 	pub fn at(&self, i: usize) -> Option<&Junction> {
-		Some(match (i, &self) {
+		Some(match (i, self) {
 			(0, Junctions::X1(ref a)) => a,
 			(0, Junctions::X2(ref a, ..)) => a,
 			(0, Junctions::X3(ref a, ..)) => a,
