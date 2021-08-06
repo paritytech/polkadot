@@ -35,7 +35,10 @@ use polkadot_runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_support::{construct_runtime, parameter_types, traits::KeyOwnerProofSystem};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{AllowAll, KeyOwnerProofSystem},
+};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
@@ -500,9 +503,9 @@ impl pallet_xcm::Config for Runtime {
 	// The config types here are entirely configurable, since the only one that is sorely needed
 	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
 	type Event = Event;
-	type ExecuteXcmOrigin = xcm_config::ConvertOriginToLocal;
+	type ExecuteXcmOrigin = pallet_xcm::EnsureXcm<AllowAll>;
 	type LocationInverter = xcm_config::InvertNothing;
-	type SendXcmOrigin = xcm_config::ConvertOriginToLocal;
+	type SendXcmOrigin = pallet_xcm::EnsureXcm<AllowAll>;
 	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
 	type XcmRouter = xcm_config::DoNothingRouter;
 	type XcmExecuteFilter =
