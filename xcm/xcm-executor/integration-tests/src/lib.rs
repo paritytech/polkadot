@@ -32,13 +32,14 @@ const MAX_RECURSION_CHECK: u32 = MAX_RECURSION_LIMIT / 2;
 
 #[test]
 fn execute_within_recursion_limit() {
+	sp_tracing::try_init_simple();
 	let mut client = TestClientBuilder::new()
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
 	let mut msg =
 		WithdrawAsset { assets: vec![ConcreteFungible { id: Null, amount: 0 }], effects: vec![] };
-	for _ in 0..(MAX_RECURSION_CHECK - 1) {
+	for _ in 0..MAX_RECURSION_CHECK {
 		msg = WithdrawAsset {
 			assets: vec![ConcreteFungible { id: Null, amount: 0 }],
 			effects: vec![Order::BuyExecution {
@@ -85,13 +86,14 @@ fn execute_within_recursion_limit() {
 
 #[test]
 fn exceed_recursion_limit() {
+	sp_tracing::try_init_simple();
 	let mut client = TestClientBuilder::new()
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
 	let mut msg =
 		WithdrawAsset { assets: vec![ConcreteFungible { id: Null, amount: 0 }], effects: vec![] };
-	for _ in 0..MAX_RECURSION_CHECK {
+	for _ in 0..(MAX_RECURSION_CHECK + 1) {
 		msg = WithdrawAsset {
 			assets: vec![ConcreteFungible { id: Null, amount: 0 }],
 			effects: vec![Order::BuyExecution {

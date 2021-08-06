@@ -17,17 +17,6 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 log = { version = "0.4.14", default-features = false }
 
-[dev-dependencies]
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = "0.3.15"
-pallet-xcm = { path = "../pallet-xcm" }
-polkadot-test-client = { path = "../../node/test/client" }
-polkadot-test-runtime = { path = "../../runtime/test-runtime", features = [ "runtime-benchmarks" ] }
-polkadot-test-service = { path = "../../node/test/service" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
 [features]
 default = ["std"]
 std = [
