@@ -209,9 +209,7 @@ pub mod pallet {
 				// We can try to onboard it.
 				Some(Some(_lease_info)) => T::Registrar::make_parachain(para)?,
 				// Otherwise, it does not have a lease.
-				Some(None) | None => {
-					return Err(Error::<T>::ParaNotOnboarding.into());
-				}
+				Some(None) | None => return Err(Error::<T>::ParaNotOnboarding.into()),
 			};
 			Ok(())
 		}
@@ -232,7 +230,7 @@ impl<T: Config> Pallet<T> {
 		let mut parachains = Vec::new();
 		for (para, mut lease_periods) in Leases::<T>::iter() {
 			if lease_periods.is_empty() {
-				continue;
+				continue
 			}
 			// ^^ should never be empty since we would have deleted the entry otherwise.
 
@@ -307,16 +305,15 @@ impl<T: Config> Pallet<T> {
 		let mut tracker = sp_std::collections::btree_map::BTreeMap::new();
 		Leases::<T>::get(para).into_iter().for_each(|lease| match lease {
 			Some((who, amount)) => match tracker.get(&who) {
-				Some(prev_amount) => {
+				Some(prev_amount) =>
 					if amount > *prev_amount {
 						tracker.insert(who, amount);
-					}
-				}
+					},
 				None => {
 					tracker.insert(who, amount);
-				}
+				},
 			},
-			None => {}
+			None => {},
 		});
 
 		tracker.into_iter().collect()
@@ -375,7 +372,7 @@ impl<T: Config> Leaser for Pallet<T> {
 						// attempt.
 						//
 						// We bail, not giving any lease and leave it for governance to sort out.
-						return Err(LeaseError::AlreadyLeased);
+						return Err(LeaseError::AlreadyLeased)
 					}
 				} else if d.len() == i {
 					// Doesn't exist. This is usual.
@@ -423,13 +420,12 @@ impl<T: Config> Leaser for Pallet<T> {
 		Leases::<T>::get(para)
 			.into_iter()
 			.map(|lease| match lease {
-				Some((who, amount)) => {
+				Some((who, amount)) =>
 					if &who == leaser {
 						amount
 					} else {
 						Zero::zero()
-					}
-				}
+					},
 				None => Zero::zero(),
 			})
 			.max()
@@ -471,7 +467,7 @@ impl<T: Config> Leaser for Pallet<T> {
 		for slot in offset..=offset + period_count {
 			if let Some(Some(_)) = leases.get(slot) {
 				// If there exists any lease period, we exit early and return true.
-				return true;
+				return true
 			}
 		}
 

@@ -13,8 +13,8 @@ In particular this subsystem is responsible for:
   this is to ensure availability by at least 2/3+ of all validators, this
   happens after a candidate is backed.
 - Fetch `PoV` from validators, when requested via `FetchPoV` message from
-  backing (pov_requester module).
--
+  backing (`pov_requester` module).
+
 The backing subsystem is responsible of making available data available in the
 local `Availability Store` upon validation. This subsystem will serve any
 network requests by querying that store.
@@ -22,27 +22,27 @@ network requests by querying that store.
 ## Protocol
 
 This subsystem does not handle any peer set messages, but the `pov_requester`
-does  connecto to validators of the same backing group on the validation peer
+does connect to validators of the same backing group on the validation peer
 set, to ensure fast propagation of statements between those validators and for
 ensuring already established connections for requesting `PoV`s. Other than that
 this subsystem drives request/response protocols.
 
 Input:
 
-- OverseerSignal::ActiveLeaves(`[ActiveLeavesUpdate]`)
-- AvailabilityDistributionMessage{msg: ChunkFetchingRequest}
-- AvailabilityDistributionMessage{msg: PoVFetchingRequest}
-- AvailabilityDistributionMessage{msg: FetchPoV}
+- `OverseerSignal::ActiveLeaves(ActiveLeavesUpdate)`
+- `AvailabilityDistributionMessage{msg: ChunkFetchingRequest}`
+- `AvailabilityDistributionMessage{msg: PoVFetchingRequest}`
+- `AvailabilityDistributionMessage{msg: FetchPoV}`
 
 Output:
 
-- NetworkBridgeMessage::SendRequests(`[Requests]`, IfDisconnected::TryConnect)
-- AvailabilityStore::QueryChunk(candidate_hash, index, response_channel)
-- AvailabilityStore::StoreChunk(candidate_hash, chunk)
-- AvailabilityStore::QueryAvailableData(candidate_hash, response_channel)
-- RuntimeApiRequest::SessionIndexForChild
-- RuntimeApiRequest::SessionInfo
-- RuntimeApiRequest::AvailabilityCores
+- `NetworkBridgeMessage::SendRequests(Requests, IfDisconnected::TryConnect)`
+- `AvailabilityStore::QueryChunk(candidate_hash, index, response_channel)`
+- `AvailabilityStore::StoreChunk(candidate_hash, chunk)`
+- `AvailabilityStore::QueryAvailableData(candidate_hash, response_channel)`
+- `RuntimeApiRequest::SessionIndexForChild`
+- `RuntimeApiRequest::SessionInfo`
+- `RuntimeApiRequest::AvailabilityCores`
 
 ## Functionality
 

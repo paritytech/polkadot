@@ -27,8 +27,7 @@ use polkadot_cli::{
 	create_default_subsystems,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi,
-		SpawnNamed,
+		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
 	},
 	Cli,
 };
@@ -42,8 +41,10 @@ use polkadot_node_subsystem_util::metrics::Metrics as _;
 // Filter wrapping related types.
 use malus::*;
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{
+	atomic::{AtomicUsize, Ordering},
+	Arc,
+};
 
 use structopt::StructOpt;
 

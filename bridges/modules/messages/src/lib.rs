@@ -1301,7 +1301,7 @@ mod tests {
 				Ok(vec![message(1, REGULAR_PAYLOAD)]).into(),
 				1,
 				REGULAR_PAYLOAD.declared_weight,
-			),);
+			));
 
 			assert_ok!(Pallet::<TestRuntime>::receive_messages_delivery_proof(
 				Origin::signed(1),
@@ -1660,7 +1660,7 @@ mod tests {
 				Ok(vec![invalid_message]).into(),
 				1,
 				0, // weight may be zero in this case (all messages are improperly encoded)
-			),);
+			));
 
 			assert_eq!(
 				InboundLanes::<TestRuntime>::get(&TEST_LANE_ID).last_delivered_nonce(),
@@ -1686,7 +1686,7 @@ mod tests {
 				.into(),
 				3,
 				REGULAR_PAYLOAD.declared_weight + REGULAR_PAYLOAD.declared_weight,
-			),);
+			));
 
 			assert_eq!(
 				InboundLanes::<TestRuntime>::get(&TEST_LANE_ID).last_delivered_nonce(),
@@ -1802,7 +1802,7 @@ mod tests {
 				TEST_LANE_ID,
 				1,
 				100,
-			),);
+			));
 			assert!(TestMessageDeliveryAndDispatchPayment::is_fee_paid(1, 100));
 		});
 	}

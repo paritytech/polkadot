@@ -1415,7 +1415,7 @@ pub(crate) mod tests {
 				example_header().compute_hash(),
 				1,
 				&[],
-			),);
+			));
 		});
 	}
 

@@ -33,7 +33,6 @@
 // --header=./file_header.txt
 // --output=./runtime/polkadot/src/weights/
 
-
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
@@ -44,8 +43,7 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo for WeightInfo<T> {
 	fn on_initialize_nothing() -> Weight {
-		(23_244_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
+		(23_244_000 as Weight).saturating_add(T::DbWeight::get().reads(8 as Weight))
 	}
 	fn on_initialize_open_signed() -> Weight {
 		(82_453_000 as Weight)
@@ -62,12 +60,12 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn elect_queued(_v: u32, _t: u32, _a: u32, _d: u32, ) -> Weight {
+	fn elect_queued(_v: u32, _t: u32, _a: u32, _d: u32) -> Weight {
 		(5_408_539_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
-	fn submit_unsigned(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
+	fn submit_unsigned(v: u32, t: u32, a: u32, d: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 15_000
 			.saturating_add((3_352_000 as Weight).saturating_mul(v as Weight))
@@ -80,7 +78,7 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 			.saturating_add(T::DbWeight::get().reads(7 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn feasibility_check(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
+	fn feasibility_check(v: u32, t: u32, a: u32, d: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 10_000
 			.saturating_add((3_365_000 as Weight).saturating_mul(v as Weight))
