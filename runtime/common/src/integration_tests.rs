@@ -374,7 +374,7 @@ fn basic_end_to_end_works() {
 			crowdloan::Event::<Test>::HandleBidResult(ParaId::from(para_2), Ok(())).into(),
 		);
 		run_to_block(110);
-		assert_eq!(last_event(), auctions::Event::<Test>::AuctionClosed(1).into(),);
+		assert_eq!(last_event(), auctions::Event::<Test>::AuctionClosed(1).into());
 
 		// Paras should have won slots
 		assert_eq!(

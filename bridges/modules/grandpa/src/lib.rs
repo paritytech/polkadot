@@ -777,7 +777,7 @@ mod tests {
 		run_test(|| {
 			<IsHalted<TestRuntime>>::put(true);
 
-			assert_noop!(submit_finality_proof(1), Error::<TestRuntime>::Halted,);
+			assert_noop!(submit_finality_proof(1), Error::<TestRuntime>::Halted);
 		})
 	}
 

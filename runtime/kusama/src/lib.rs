@@ -75,13 +75,7 @@ use sp_staking::SessionIndex;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
-use xcm::v0::{
-	BodyId,
-	Junction::Parachain,
-	MultiAsset::{self, AllConcreteFungible},
-	MultiLocation::{self, Null, X1},
-	NetworkId, Xcm,
-};
+use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	BackingToPlurality, ChildParachainAsNative, ChildParachainConvertsVia,
@@ -1205,14 +1199,14 @@ impl auctions::Config for Runtime {
 
 parameter_types! {
 	/// The location of the KSM token, from the context of this chain. Since this token is native to this
-	/// chain, we make it synonymous with it and thus it is the `Null` location, which means "equivalent to
+	/// chain, we make it synonymous with it and thus it is the `Here` location, which means "equivalent to
 	/// the context".
-	pub const KsmLocation: MultiLocation = MultiLocation::Null;
+	pub const KsmLocation: MultiLocation = MultiLocation::Here;
 	/// The Kusama network ID. This is named.
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
 	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
 	/// Kusama is a top-level relay-chain, there is no ancestry.
-	pub const Ancestry: MultiLocation = MultiLocation::Null;
+	pub const Ancestry: MultiLocation = MultiLocation::Here;
 	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
@@ -1264,12 +1258,12 @@ parameter_types! {
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime>,
+	xcm_sender::ChildParachainRouter<Runtime, xcm::AlwaysRelease>,
 );
 
 parameter_types! {
-	pub const KusamaForStatemint: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(1000)));
+	pub const Kusama: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(KsmLocation::get()) });
+	pub const KusamaForStatemint: (MultiAssetFilter, MultiLocation) = (Kusama::get(), X1(Parachain(1000)));
 }
 pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemint>,);
 
@@ -1317,65 +1311,14 @@ pub type LocalOriginToLocation = (
 	SignedToAccountId32<Origin, AccountId, KusamaNetwork>,
 );
 
-pub struct OnlyWithdrawTeleportForAccounts;
-impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)>
-	for OnlyWithdrawTeleportForAccounts
-{
-	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
-		use xcm::v0::{
-			Junction::{AccountId32, Plurality},
-			MultiAsset::{All, ConcreteFungible},
-			Order::{BuyExecution, DepositAsset, InitiateTeleport},
-			Xcm::WithdrawAsset,
-		};
-		match origin {
-			// Root and council are are allowed to execute anything.
-			Null | X1(Plurality { .. }) => true,
-			X1(AccountId32 { .. }) => {
-				// An account ID trying to send a message. We ensure that it's sensible.
-				// This checks that it's of the form:
-				// WithdrawAsset {
-				//   assets: [ ConcreteFungible { id: Null } ],
-				//   effects: [ BuyExecution, InitiateTeleport {
-				//     assets: All,
-				//     dest: Parachain,
-				//     effects: [ BuyExecution, DepositAssets {
-				//       assets: All,
-				//       dest: AccountId32,
-				//     } ]
-				//   } ]
-				// }
-				matches!(msg, WithdrawAsset { ref assets, ref effects }
-					if assets.len() == 1
-					&& matches!(assets[0], ConcreteFungible { id: Null, .. })
-					&& effects.len() == 2
-					&& matches!(effects[0], BuyExecution { .. })
-					&& matches!(effects[1], InitiateTeleport { ref assets, dest: X1(Parachain(..)), ref effects }
-						if assets.len() == 1
-						&& matches!(assets[0], All)
-						&& effects.len() == 2
-						&& matches!(effects[0], BuyExecution { .. })
-						&& matches!(effects[1], DepositAsset { ref assets, dest: X1(AccountId32{..}) }
-							if assets.len() == 1
-							&& matches!(assets[0], All)
-						)
-					)
-				)
-			},
-			// Nobody else is allowed to execute anything.
-			_ => false,
-		}
-	}
-}
-
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	// ...but they must match our filter, which requires them to be a simple withdraw + teleport.
-	type XcmExecuteFilter = OnlyWithdrawTeleportForAccounts;
+	// ...but they must match our filter, which rejects all.
+	type XcmExecuteFilter = ();
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
 	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;

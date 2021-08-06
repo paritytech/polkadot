@@ -27,7 +27,7 @@ use sp_std::{
 	marker::PhantomData,
 	prelude::*,
 };
-use xcm::v0::Outcome;
+use xcm::latest::Outcome;
 
 pub use pallet::*;
 
@@ -78,7 +78,7 @@ pub type MessageId = [u8; 32];
 /// and will be forwarded to the XCM Executor.
 pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
 
-impl<XcmExecutor: xcm::v0::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
+impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
 	fn process_upward_message(
 		origin: ParaId,
 		data: &[u8],
@@ -86,7 +86,7 @@ impl<XcmExecutor: xcm::v0::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<X
 	) -> Result<Weight, (MessageId, Weight)> {
 		use parity_scale_codec::DecodeLimit;
 		use xcm::{
-			v0::{Error as XcmError, Junction, MultiLocation, Xcm},
+			latest::{Error as XcmError, Junction, MultiLocation, Xcm},
 			VersionedXcm,
 		};
 
