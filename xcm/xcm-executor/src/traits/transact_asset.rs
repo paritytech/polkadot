@@ -193,7 +193,6 @@ impl TransactAsset for Tuple {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use MultiLocation::Here;
 
 	pub struct UnimplementedTransactor;
 	impl TransactAsset for UnimplementedTransactor {}
