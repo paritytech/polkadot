@@ -21,6 +21,8 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-vrf = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

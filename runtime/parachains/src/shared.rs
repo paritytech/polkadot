@@ -21,6 +21,7 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::v1::{CandidateHash, CoreIndex, SessionIndex, ValidatorId, ValidatorIndex};
+use sp_consensus_babe::digests::{CompatibleDigestItem, PreDigest};
 use sp_runtime::traits::{One, Zero};
 use sp_std::vec::Vec;
 
@@ -92,6 +93,17 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn pruneable_sessions)]
 	pub(super) type PruneableSessions<T: Config> = StorageMap<_, Twox64Concat, SessionIndex, ()>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn historical_babe_vrfs)]
+	pub(super) type HistoricalBabeVrfs<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		SessionIndex,
+		Twox64Concat,
+		T::BlockNumber,
+		Vec<Vec<u8>>,
+	>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -237,6 +249,36 @@ impl<T: Config> Pallet<T> {
 		session: SessionIndex,
 	) -> impl Iterator<Item = (CandidateHash, (T::BlockNumber, CoreIndex))> {
 		<IncludedCandidates<T>>::iter_prefix(session)
+	}
+
+	/// Records an included historical BABE VRF
+	pub fn extract_vrfs() -> Vec<Vec<u8>> {
+		<frame_system::Pallet<T>>::digest()
+			.logs
+			.into_iter()
+			.filter_map(|d| {
+				d.as_babe_pre_digest()
+					.map(|p| match p {
+						PreDigest::Primary(primary) => Some(primary.vrf_output.encode()),
+						PreDigest::SecondaryVRF(secondary) => Some(secondary.vrf_output.encode()),
+						PreDigest::SecondaryPlain(_) => None,
+					})
+					.flatten()
+			})
+			.collect()
+	}
+
+	pub fn note_vrfs(
+		session: SessionIndex,
+		block_number: T::BlockNumber,
+		vrfs: Vec<Vec<u8>>,
+	) -> bool {
+		if HistoricalBabeVrfs::<T>::get(session, block_number).is_none() {
+			HistoricalBabeVrfs::<T>::insert(session, block_number, vrfs);
+			true
+		} else {
+			false
+		}
 	}
 
 	/// Test function for setting the current session index.

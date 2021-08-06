@@ -268,6 +268,8 @@ pub mod pallet {
 				<scheduler::Pallet<T>>::group_validators,
 			)?;
 
+			let vrfs = <shared::Pallet<T>>::extract_vrfs();
+			let _ = <shared::Pallet<T>>::note_vrfs(current_session, now, vrfs);
 			// Note which of the scheduled cores were actually occupied by a backed candidate.
 			<scheduler::Pallet<T>>::occupied(&occupied);
 
@@ -336,6 +338,8 @@ fn limit_backed_candidates<T: Config>(
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof};
 
 	use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
 
@@ -503,6 +507,39 @@ mod tests {
 				// call has returned the appropriate post-dispatch weight for refund, and trust
 				// Substrate to do the right thing with that information.
 				assert_eq!(post_info.actual_weight.unwrap(), expected_weight);
+			});
+		}
+
+		// used for generating assignments where the validity of the VRF doesn't matter.
+		fn garbage_vrf() -> (VRFOutput, VRFProof) {
+			use sp_consensus_babe::Transcript;
+			let key = keyring::Sr25519Keyring::Alice.pair();
+			let key = key.as_ref();
+
+			use sp_runtime::ConsensusEngineId;
+			const BABE_ENGINE_ID: ConsensusEngineId = *b"BABE";
+			let (o, p, _) = key.vrf_sign(Transcript::new(&BABE_ENGINE_ID));
+			(VRFOutput(o.to_output()), VRFProof(p))
+		}
+
+		#[test]
+		fn test_vrf() {
+			use sp_runtime::{ConsensusEngineId, Digest, DigestItem};
+			const BABE_ENGINE_ID: ConsensusEngineId = *b"BABE";
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let mut digest = Digest::<<Test as frame_system::Config>::Hash>::default();
+				let (vrf_output, _) = garbage_vrf();
+				digest.push(DigestItem::PreRuntime(BABE_ENGINE_ID, vrf_output.encode()));
+				let (vrf_output, _) = garbage_vrf();
+				digest.push(DigestItem::PreRuntime(BABE_ENGINE_ID, vrf_output.encode()));
+				let (vrf_output, _) = garbage_vrf();
+				digest.push(DigestItem::PreRuntime(BABE_ENGINE_ID, vrf_output.encode()));
+				System::initialize(
+					&(1),
+					&Default::default(),
+					&digest,
+					frame_system::InitKind::Full,
+				);
 			});
 		}
 	}
