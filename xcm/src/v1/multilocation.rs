@@ -19,6 +19,7 @@
 use super::{super::v0::MultiLocation as MultiLocation0, Junction};
 use core::{mem, result};
 use parity_scale_codec::{self, Decode, Encode};
+use scale_info::TypeInfo;
 
 /// A relative path between state-bearing consensus systems.
 ///
@@ -42,7 +43,7 @@ use parity_scale_codec::{self, Decode, Encode};
 /// This specific `MultiLocation` implementation uses a Rust `enum` in order to make pattern matching easier.
 ///
 /// The `MultiLocation` value of `Here` simply refers to the interpreting consensus system.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
 pub enum MultiLocation {
 	/// The interpreting consensus system.
 	Here,
