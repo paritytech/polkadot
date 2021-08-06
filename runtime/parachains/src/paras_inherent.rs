@@ -139,7 +139,7 @@ pub mod pallet {
 		}
 
 		fn is_inherent(call: &Self::Call) -> bool {
-			matches!(call, Call::enter {..})
+			matches!(call, Call::enter { .. })
 		}
 	}
 
