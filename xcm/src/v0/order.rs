@@ -191,7 +191,7 @@ impl<Call> TryFrom<Order1<Call>> for Order<Call> {
 			},
 			Order1::QueryHolding { query_id, dest, assets } =>
 				QueryHolding { query_id, dest: dest.into(), assets: assets.into() },
-			Order1::BuyExecution { fees, weight, debt, halt_on_error, instructions, orders } => {
+			Order1::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } => {
 				if !orders.is_empty() {
 					return Err(())
 				}

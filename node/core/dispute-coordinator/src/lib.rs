@@ -498,7 +498,7 @@ async fn handle_new_activations(
 			Ok(SessionWindowUpdate::Advanced { new_window_end: window_end, .. }) => {
 				let session = window_end;
 				if state.highest_session.map_or(true, |s| s < session) {
-					tracing::trace!(target: LOG_TARGET, session, "Observed new session. Pruning",);
+					tracing::trace!(target: LOG_TARGET, session, "Observed new session. Pruning");
 
 					state.highest_session = Some(session);
 

@@ -481,7 +481,7 @@ mod tests {
 			.write(vec![BackendWriteOp::DeleteBlockEntry(block_entry.block_hash)])
 			.unwrap();
 
-		assert!(backend.load_block_entry(&block_entry.block_hash).unwrap().is_none(),);
+		assert!(backend.load_block_entry(&block_entry.block_hash).unwrap().is_none());
 	}
 
 	#[test]
@@ -491,7 +491,7 @@ mod tests {
 
 		let mut backend = DbBackend::new(db, config);
 
-		assert!(backend.load_first_block_number().unwrap().is_none(),);
+		assert!(backend.load_first_block_number().unwrap().is_none());
 
 		backend
 			.write(vec![
@@ -501,7 +501,7 @@ mod tests {
 			])
 			.unwrap();
 
-		assert_eq!(backend.load_first_block_number().unwrap(), Some(2),);
+		assert_eq!(backend.load_first_block_number().unwrap(), Some(2));
 
 		backend
 			.write(vec![
@@ -510,7 +510,7 @@ mod tests {
 			])
 			.unwrap();
 
-		assert_eq!(backend.load_first_block_number().unwrap(), Some(10),);
+		assert_eq!(backend.load_first_block_number().unwrap(), Some(10));
 	}
 
 	#[test]
@@ -521,7 +521,7 @@ mod tests {
 		let mut backend = DbBackend::new(db, config);
 
 		// Prove that it's cheap
-		assert!(backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap().is_empty(),);
+		assert!(backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap().is_empty());
 
 		backend
 			.write(vec![
@@ -584,9 +584,9 @@ mod tests {
 			])
 			.unwrap();
 
-		assert_eq!(backend.load_blocks_by_number(2).unwrap(), vec![Hash::repeat_byte(1)],);
+		assert_eq!(backend.load_blocks_by_number(2).unwrap(), vec![Hash::repeat_byte(1)]);
 
-		assert_eq!(backend.load_blocks_by_number(3).unwrap(), vec![],);
+		assert_eq!(backend.load_blocks_by_number(3).unwrap(), vec![]);
 
 		backend
 			.write(vec![
@@ -595,10 +595,10 @@ mod tests {
 			])
 			.unwrap();
 
-		assert_eq!(backend.load_blocks_by_number(2).unwrap(), vec![],);
+		assert_eq!(backend.load_blocks_by_number(2).unwrap(), vec![]);
 
-		assert_eq!(backend.load_blocks_by_number(5).unwrap(), vec![],);
+		assert_eq!(backend.load_blocks_by_number(5).unwrap(), vec![]);
 
-		assert_eq!(backend.load_blocks_by_number(10).unwrap(), vec![Hash::repeat_byte(3)],);
+		assert_eq!(backend.load_blocks_by_number(10).unwrap(), vec![Hash::repeat_byte(3)]);
 	}
 }

@@ -729,6 +729,6 @@ mod tests {
 		stream.append(&2u64);
 		stream.append(&3u64);
 
-		assert_eq!(Receipt::is_successful_raw_receipt(&stream.out()), Ok(false),);
+		assert_eq!(Receipt::is_successful_raw_receipt(&stream.out()), Ok(false));
 	}
 }
