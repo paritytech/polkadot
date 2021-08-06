@@ -267,8 +267,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 		if let Some((mut holding, effects)) = maybe_holding_effects {
 			for effect in effects {
-				total_surplus +=
-					Self::execute_effects(&origin, &mut holding, effect, trader, num_recursions + 1)?;
+				total_surplus += Self::execute_effects(
+					&origin,
+					&mut holding,
+					effect,
+					trader,
+					num_recursions + 1,
+				)?;
 			}
 		}
 
