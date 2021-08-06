@@ -40,9 +40,9 @@ fn send_works() {
 		let sender: MultiLocation =
 			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
 		let message = Xcm::ReserveAssetDeposited {
-			assets: (X1(Parent), SEND_AMOUNT).into(),
+			assets: (MultiLocation::with_parents(1).unwrap(), SEND_AMOUNT).into(),
 			effects: vec![
-				buy_execution((Parent, SEND_AMOUNT), weight),
+				buy_execution((MultiLocation::with_parents(1).unwrap(), SEND_AMOUNT), weight),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
@@ -50,7 +50,7 @@ fn send_works() {
 		assert_eq!(
 			sent_xcm(),
 			vec![(
-				MultiLocation::Here,
+				MultiLocation::here(),
 				RelayedFrom { who: sender.clone(), message: Box::new(message.clone()) }
 			)]
 		);
@@ -74,25 +74,16 @@ fn send_fails_when_xcm_router_blocks() {
 		let sender: MultiLocation =
 			Junction::AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
 		let message = Xcm::ReserveAssetDeposited {
-			assets: (Parent, SEND_AMOUNT).into(),
+			assets: (MultiLocation::with_parents(1).unwrap(), SEND_AMOUNT).into(),
 			effects: vec![
-				buy_execution((Parent, SEND_AMOUNT), weight),
+				buy_execution((MultiLocation::with_parents(1).unwrap(), SEND_AMOUNT), weight),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
 		assert_noop!(
 			XcmPallet::send(
 				Origin::signed(ALICE),
-				X8(
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent
-				),
+				MultiLocation::with_parents(8).unwrap(),
 				message.clone()
 			),
 			crate::Error::<Test>::SendFailure
@@ -114,8 +105,8 @@ fn teleport_assets_works() {
 		assert_ok!(XcmPallet::teleport_assets(
 			Origin::signed(ALICE),
 			RelayLocation::get(),
-			X1(AccountId32 { network: Any, id: BOB.into() }),
-			(Here, SEND_AMOUNT).into(),
+			X1(AccountId32 { network: Any, id: BOB.into() }).into(),
+			(MultiLocation::here(), SEND_AMOUNT).into(),
 			0,
 			weight,
 		));
@@ -144,7 +135,7 @@ fn reserve_transfer_assets_works() {
 			Origin::signed(ALICE),
 			Parachain(PARA_ID).into(),
 			dest.clone(),
-			(Here, SEND_AMOUNT).into(),
+			(MultiLocation::here(), SEND_AMOUNT).into(),
 			0,
 			weight
 		));
@@ -158,9 +149,12 @@ fn reserve_transfer_assets_works() {
 			vec![(
 				Parachain(PARA_ID).into(),
 				Xcm::ReserveAssetDeposited {
-					assets: (X1(Parent), SEND_AMOUNT).into(),
+					assets: (MultiLocation::with_parents(1).unwrap(), SEND_AMOUNT).into(),
 					effects: vec![
-						buy_execution((Parent, SEND_AMOUNT), weight),
+						buy_execution(
+							(MultiLocation::with_parents(1).unwrap(), SEND_AMOUNT),
+							weight
+						),
 						DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 					]
 				}
@@ -189,9 +183,9 @@ fn execute_withdraw_to_deposit_works() {
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
 			Box::new(Xcm::WithdrawAsset {
-				assets: (Here, SEND_AMOUNT).into(),
+				assets: (MultiLocation::here(), SEND_AMOUNT).into(),
 				effects: vec![
-					buy_execution((Here, SEND_AMOUNT), weight),
+					buy_execution((MultiLocation::here(), SEND_AMOUNT), weight),
 					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest }
 				],
 			}),
