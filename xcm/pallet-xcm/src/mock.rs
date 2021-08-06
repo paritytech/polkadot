@@ -75,7 +75,7 @@ impl SendXcm for TestSendXcm {
 pub struct TestSendXcmErrX8;
 impl SendXcm for TestSendXcmErrX8 {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
-		if dest.len() >= 8 {
+		if dest.len() == 8 {
 			Err(XcmError::Undefined)
 		} else {
 			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));

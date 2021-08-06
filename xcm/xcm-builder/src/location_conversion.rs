@@ -51,7 +51,7 @@ impl<AccountId: Default + Eq + Clone> Convert<MultiLocation, AccountId>
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if who.borrow() == &AccountId::default() {
-			Ok(MultiLocation::with_parents(1).expect("well-formed MultiLocation; qed"))
+			Ok(MultiLocation::with_parents::<1>())
 		} else {
 			Err(())
 		}
