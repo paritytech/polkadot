@@ -495,7 +495,7 @@ impl WildMultiAsset {
 		use WildMultiAsset::*;
 		match self {
 			AllOf { ref mut id, .. } => id.reanchor(prepend).map_err(|_| ()),
-			_ => Ok(()),
+			All => Ok(()),
 		}
 	}
 }
