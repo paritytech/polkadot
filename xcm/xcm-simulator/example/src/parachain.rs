@@ -270,8 +270,8 @@ pub mod mock_msg_queue {
 		) -> Weight {
 			for (_i, (_sent_at, data)) in iter.enumerate() {
 				let id = sp_io::hashing::blake2_256(&data[..]);
-				let maybe_msg = VersionedXcm::<T::Call>::decode_with_depth_limit(
-					MAX_RECURSION_LIMIT,
+				let maybe_msg = VersionedXcm::<T::Call>::decode_all_with_depth_limit(
+					xcm::MAX_XCM_DECODE_DEPTH,
 					&mut &data[..],
 				)
 				.map(Xcm::<T::Call>::try_from);
