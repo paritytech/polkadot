@@ -77,15 +77,23 @@ impl MultiLocation {
 	///
 	/// The resulting `MultiLocation` can be interpreted as the "current consensus system".
 	pub const fn here() -> MultiLocation {
-		MultiLocation { parents: 0, interior: Junctions::Null }
+		MultiLocation { parents: 0, interior: Junctions::Here }
 	}
 
-	/// Creates a new `MultiLocation` with the specified number of parents in the `P` const generic
-	/// parameter and a `Null` interior.
-	pub const fn with_parents<const P: u8>() -> MultiLocation {
-		// If this condition does not hold, then P may overflow MAX_MULTILOCATION_LENGTH.
+	/// Creates a new `MultiLocation` which evaluates to the parent context.
+	pub const fn parent() -> MultiLocation {
+		MultiLocation { parents: 1, interior: Junctions::Here }
+	}
+
+	/// Creates a new `MultiLocation` which evaluates to the grand parent context.
+	pub const fn grandparent() -> MultiLocation {
+		MultiLocation { parents: 2, interior: Junctions::Here }
+	}
+
+	/// Creates a new `MultiLocation` with `parents` and an empty (`Here`) interior.
+	pub const fn ancestor(parents: u8) -> MultiLocation {
 		const_assert!(MAX_MULTILOCATION_LENGTH >= 255);
-		MultiLocation { parents: P, interior: Junctions::Null }
+		MultiLocation { parents, interior: Junctions::Here }
 	}
 
 	/// Whether or not the `MultiLocation` has no parents and has a `Null` interior.
@@ -111,7 +119,7 @@ impl MultiLocation {
 	/// Returns boolean indicating whether or not `self` contains only the specified amount of
 	/// parents and no interior junctions.
 	pub const fn contains_parents_only(&self, count: u8) -> bool {
-		matches!(self.interior, Junctions::Null) && self.parents == count
+		matches!(self.interior, Junctions::Here) && self.parents == count
 	}
 
 	/// Returns the number of parents and junctions in `self`.
@@ -160,7 +168,7 @@ impl MultiLocation {
 
 	/// Mutates `self`, suffixing its interior junctions with `new`. Returns `Err` in case of overflow.
 	pub fn push_interior(&mut self, new: Junction) -> result::Result<(), ()> {
-		let mut n = Junctions::Null;
+		let mut n = Junctions::Here;
 		mem::swap(&mut self.interior, &mut n);
 		match n.pushed_with(new) {
 			Ok(result) => {
@@ -176,7 +184,7 @@ impl MultiLocation {
 
 	/// Mutates `self`, prefixing its interior junctions with `new`. Returns `Err` in case of overflow.
 	pub fn push_front_interior(&mut self, new: Junction) -> result::Result<(), ()> {
-		let mut n = Junctions::Null;
+		let mut n = Junctions::Here;
 		mem::swap(&mut self.interior, &mut n);
 		match n.pushed_front_with(new) {
 			Ok(result) => {
@@ -276,7 +284,7 @@ impl MultiLocation {
 	///     m.match_and_split(&MultiLocation::new(1, X1(PalletInstance(3))).unwrap()),
 	///     Some(&OnlyChild),
 	/// );
-	/// assert_eq!(m.match_and_split(&MultiLocation::new(1, Null).unwrap()), None);
+	/// assert_eq!(m.match_and_split(&MultiLocation::new(1, Here).unwrap()), None);
 	/// # }
 	/// ```
 	pub fn match_and_split(&self, prefix: &MultiLocation) -> Option<&Junction> {
@@ -370,7 +378,7 @@ impl From<Junction> for MultiLocation {
 
 impl From<()> for MultiLocation {
 	fn from(_: ()) -> Self {
-		MultiLocation { parents: 0, interior: Junctions::Null }
+		MultiLocation { parents: 0, interior: Junctions::Here }
 	}
 }
 impl From<(Junction,)> for MultiLocation {
@@ -425,7 +433,7 @@ impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction,
 
 impl From<[Junction; 0]> for MultiLocation {
 	fn from(_: [Junction; 0]) -> Self {
-		MultiLocation { parents: 0, interior: Junctions::Null }
+		MultiLocation { parents: 0, interior: Junctions::Here }
 	}
 }
 impl From<[Junction; 1]> for MultiLocation {
@@ -585,7 +593,7 @@ impl Junctions {
 	/// Returns first junction, or `None` if the location is empty.
 	pub fn first(&self) -> Option<&Junction> {
 		match &self {
-			Junctions::Null => None,
+			Junctions::Here => None,
 			Junctions::X1(ref a) => Some(a),
 			Junctions::X2(ref a, ..) => Some(a),
 			Junctions::X3(ref a, ..) => Some(a),
@@ -600,7 +608,7 @@ impl Junctions {
 	/// Returns last junction, or `None` if the location is empty.
 	pub fn last(&self) -> Option<&Junction> {
 		match &self {
-			Junctions::Null => None,
+			Junctions::Here => None,
 			Junctions::X1(ref a) => Some(a),
 			Junctions::X2(.., ref a) => Some(a),
 			Junctions::X3(.., ref a) => Some(a),
@@ -616,8 +624,8 @@ impl Junctions {
 	/// (second item in tuple) or `None` if it was empty.
 	pub fn split_first(self) -> (Junctions, Option<Junction>) {
 		match self {
-			Junctions::Null => (Junctions::Null, None),
-			Junctions::X1(a) => (Junctions::Null, Some(a)),
+			Junctions::Here => (Junctions::Here, None),
+			Junctions::X1(a) => (Junctions::Here, Some(a)),
 			Junctions::X2(a, b) => (Junctions::X1(b), Some(a)),
 			Junctions::X3(a, b, c) => (Junctions::X2(b, c), Some(a)),
 			Junctions::X4(a, b, c, d) => (Junctions::X3(b, c, d), Some(a)),
@@ -632,8 +640,8 @@ impl Junctions {
 	/// (second item in tuple) or `None` if it was empty.
 	pub fn split_last(self) -> (Junctions, Option<Junction>) {
 		match self {
-			Junctions::Null => (Junctions::Null, None),
-			Junctions::X1(a) => (Junctions::Null, Some(a)),
+			Junctions::Here => (Junctions::Here, None),
+			Junctions::X1(a) => (Junctions::Here, Some(a)),
 			Junctions::X2(a, b) => (Junctions::X1(a), Some(b)),
 			Junctions::X3(a, b, c) => (Junctions::X2(a, b), Some(c)),
 			Junctions::X4(a, b, c, d) => (Junctions::X3(a, b, c), Some(d)),
@@ -646,7 +654,7 @@ impl Junctions {
 
 	/// Removes the first element from `self`, returning it (or `None` if it was empty).
 	pub fn take_first(&mut self) -> Option<Junction> {
-		let mut d = Junctions::Null;
+		let mut d = Junctions::Here;
 		mem::swap(&mut *self, &mut d);
 		let (tail, head) = d.split_first();
 		*self = tail;
@@ -655,7 +663,7 @@ impl Junctions {
 
 	/// Removes the last element from `self`, returning it (or `None` if it was empty).
 	pub fn take_last(&mut self) -> Option<Junction> {
-		let mut d = Junctions::Null;
+		let mut d = Junctions::Here;
 		mem::swap(&mut *self, &mut d);
 		let (head, tail) = d.split_last();
 		*self = head;
@@ -666,7 +674,7 @@ impl Junctions {
 	/// `self` in case of overflow.
 	pub fn pushed_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
-			Junctions::Null => Junctions::X1(new),
+			Junctions::Here => Junctions::X1(new),
 			Junctions::X1(a) => Junctions::X2(a, new),
 			Junctions::X2(a, b) => Junctions::X3(a, b, new),
 			Junctions::X3(a, b, c) => Junctions::X4(a, b, c, new),
@@ -682,7 +690,7 @@ impl Junctions {
 	/// `self` in case of overflow.
 	pub fn pushed_front_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
-			Junctions::Null => Junctions::X1(new),
+			Junctions::Here => Junctions::X1(new),
 			Junctions::X1(a) => Junctions::X2(new, a),
 			Junctions::X2(a, b) => Junctions::X3(new, a, b),
 			Junctions::X3(a, b, c) => Junctions::X4(new, a, b, c),
@@ -697,7 +705,7 @@ impl Junctions {
 	/// Returns the number of junctions in `self`.
 	pub const fn len(&self) -> usize {
 		match &self {
-			Junctions::Null => 0,
+			Junctions::Here => 0,
 			Junctions::X1(..) => 1,
 			Junctions::X2(..) => 2,
 			Junctions::X3(..) => 3,
@@ -853,16 +861,16 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 		use Junctions::*;
 		match old {
 			MultiLocation0::Null => Ok(Here.into()),
-			MultiLocation0::X1(j0) if j0.is_parent() => Ok(MultiLocation::with_parents::<1>()),
+			MultiLocation0::X1(j0) if j0.is_parent() => Ok(MultiLocation::ancestor(1)),
 			MultiLocation0::X1(j0) => Ok(X1(j0.try_into()?).into()),
 			MultiLocation0::X2(j0, j1) if j0.is_parent() && j1.is_parent() =>
-				Ok(MultiLocation::with_parents::<2>()),
+				Ok(MultiLocation::ancestor(2)),
 			MultiLocation0::X2(j0, j1) if j0.is_parent() =>
 				Ok(MultiLocation { parents: 1, interior: X1(j1.try_into()?) }),
 			MultiLocation0::X2(j0, j1) => Ok(X2(j0.try_into()?, j1.try_into()?).into()),
 			MultiLocation0::X3(j0, j1, j2)
 				if j0.is_parent() && j1.is_parent() && j2.is_parent() =>
-				Ok(MultiLocation::with_parents::<3>()),
+				Ok(MultiLocation::ancestor(3)),
 			MultiLocation0::X3(j0, j1, j2) if j0.is_parent() && j1.is_parent() =>
 				Ok(MultiLocation { parents: 2, interior: X1(j2.try_into()?) }),
 			MultiLocation0::X3(j0, j1, j2) if j0.is_parent() =>
@@ -871,7 +879,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 				Ok(X3(j0.try_into()?, j1.try_into()?, j2.try_into()?).into()),
 			MultiLocation0::X4(j0, j1, j2, j3)
 				if j0.is_parent() && j1.is_parent() && j2.is_parent() && j3.is_parent() =>
-				Ok(MultiLocation::with_parents::<4>()),
+				Ok(MultiLocation::ancestor(4)),
 			MultiLocation0::X4(j0, j1, j2, j3)
 				if j0.is_parent() && j1.is_parent() && j2.is_parent() =>
 				Ok(MultiLocation { parents: 3, interior: X1(j3.try_into()?) }),
@@ -887,7 +895,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 				if j0.is_parent() &&
 					j1.is_parent() && j2.is_parent() &&
 					j3.is_parent() && j4.is_parent() =>
-				Ok(MultiLocation::with_parents::<5>()),
+				Ok(MultiLocation::ancestor(5)),
 			MultiLocation0::X5(j0, j1, j2, j3, j4)
 				if j0.is_parent() && j1.is_parent() && j2.is_parent() && j3.is_parent() =>
 				Ok(MultiLocation { parents: 4, interior: X1(j4.try_into()?) }),
@@ -916,7 +924,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 					j1.is_parent() && j2.is_parent() &&
 					j3.is_parent() && j4.is_parent() &&
 					j5.is_parent() =>
-				Ok(MultiLocation::with_parents::<6>()),
+				Ok(MultiLocation::ancestor(6)),
 			MultiLocation0::X6(j0, j1, j2, j3, j4, j5)
 				if j0.is_parent() &&
 					j1.is_parent() && j2.is_parent() &&
@@ -960,7 +968,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 					j1.is_parent() && j2.is_parent() &&
 					j3.is_parent() && j4.is_parent() &&
 					j5.is_parent() && j6.is_parent() =>
-				Ok(MultiLocation::with_parents::<7>()),
+				Ok(MultiLocation::ancestor(7)),
 			MultiLocation0::X7(j0, j1, j2, j3, j4, j5, j6)
 				if j0.is_parent() &&
 					j1.is_parent() && j2.is_parent() &&
@@ -1022,7 +1030,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 					j3.is_parent() && j4.is_parent() &&
 					j5.is_parent() && j6.is_parent() &&
 					j7.is_parent() =>
-				Ok(MultiLocation::with_parents::<8>()),
+				Ok(MultiLocation::ancestor(8)),
 			MultiLocation0::X8(j0, j1, j2, j3, j4, j5, j6, j7)
 				if j0.is_parent() &&
 					j1.is_parent() && j2.is_parent() &&
@@ -1126,7 +1134,7 @@ mod tests {
 			parents: 1,
 			interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }),
 		};
-		assert_eq!(m.match_and_split(&MultiLocation { parents: 1, interior: Null }), None);
+		assert_eq!(m.match_and_split(&MultiLocation { parents: 1, interior: Here }), None);
 		assert_eq!(
 			m.match_and_split(&MultiLocation { parents: 1, interior: X1(Parachain(42)) }),
 			Some(&AccountIndex64 { network: Any, index: 23 })
@@ -1171,10 +1179,10 @@ mod tests {
 
 		// cannot prepend to create overly long multilocation
 		let mut m = MultiLocation { parents: 253, interior: X1(Parachain(42)) };
-		let prefix = MultiLocation { parents: 2, interior: Null };
+		let prefix = MultiLocation { parents: 2, interior: Here };
 		assert_eq!(m.prepend_with(prefix.clone()), Err(prefix));
 
-		let prefix = MultiLocation { parents: 1, interior: Null };
+		let prefix = MultiLocation { parents: 1, interior: Here };
 		assert_eq!(m.prepend_with(prefix), Ok(()));
 		assert_eq!(m, MultiLocation { parents: 254, interior: X1(Parachain(42)) });
 	}
@@ -1193,7 +1201,7 @@ mod tests {
 		assert_eq!(iter.next_back(), None);
 		assert_eq!(second, &Parachain(3));
 
-		let res = Null
+		let res = Here
 			.pushed_with(first.clone())
 			.unwrap()
 			.pushed_with(second.clone())
@@ -1203,7 +1211,7 @@ mod tests {
 		assert_eq!(m, res);
 
 		// make sure there's no funny business with the 0 indexing
-		let m = Null;
+		let m = Here;
 		let mut iter = m.iter();
 
 		assert_eq!(iter.next(), None);

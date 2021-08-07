@@ -707,56 +707,56 @@ impl TryFrom<MultiLocation1> for MultiLocation {
 		}
 
 		match v1.interior {
-			Null => Ok(res),
-			X1(j0) => res.pushed_with(j0.into()).map_err(|_| ()),
+			Here => Ok(res),
+			X1(j0) => res.pushed_with(Junction::from(j0)).map_err(|_| ()),
 			X2(j0, j1) => res
-				.pushed_with(j0.into())
-				.and_then(|res| res.pushed_with(j1.into()))
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
 				.map_err(|_| ()),
 			X3(j0, j1, j2) => res
-				.pushed_with(j0.into())
-				.and_then(|res| res.pushed_with(j1.into()))
-				.and_then(|res| res.pushed_with(j2.into()))
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
 				.map_err(|_| ()),
 			X4(j0, j1, j2, j3) => res
-				.pushed_with(j0.into())
-				.and_then(|res| res.pushed_with(j1.into()))
-				.and_then(|res| res.pushed_with(j2.into()))
-				.and_then(|res| res.pushed_with(j3.into()))
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
 				.map_err(|_| ()),
 			X5(j0, j1, j2, j3, j4) => res
-				.pushed_with(j0.into())
-				.and_then(|res| res.pushed_with(j1.into()))
-				.and_then(|res| res.pushed_with(j2.into()))
-				.and_then(|res| res.pushed_with(j3.into()))
-				.and_then(|res| res.pushed_with(j4.into()))
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
 				.map_err(|_| ()),
 			X6(j0, j1, j2, j3, j4, j5) => res
-				.pushed_with(j0.into())
-				.and_then(|res| res.pushed_with(j1.into()))
-				.and_then(|res| res.pushed_with(j2.into()))
-				.and_then(|res| res.pushed_with(j3.into()))
-				.and_then(|res| res.pushed_with(j4.into()))
-				.and_then(|res| res.pushed_with(j5.into()))
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.and_then(|res| res.pushed_with(Junction::from(j5)))
 				.map_err(|_| ()),
 			X7(j0, j1, j2, j3, j4, j5, j6) => res
-				.pushed_with(j0.into())
-				.and_then(|res| res.pushed_with(j1.into()))
-				.and_then(|res| res.pushed_with(j2.into()))
-				.and_then(|res| res.pushed_with(j3.into()))
-				.and_then(|res| res.pushed_with(j4.into()))
-				.and_then(|res| res.pushed_with(j5.into()))
-				.and_then(|res| res.pushed_with(j6.into()))
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.and_then(|res| res.pushed_with(Junction::from(j5)))
+				.and_then(|res| res.pushed_with(Junction::from(j6)))
 				.map_err(|_| ()),
 			X8(j0, j1, j2, j3, j4, j5, j6, j7) => res
-				.pushed_with(j0.into())
-				.and_then(|res| res.pushed_with(j1.into()))
-				.and_then(|res| res.pushed_with(j2.into()))
-				.and_then(|res| res.pushed_with(j3.into()))
-				.and_then(|res| res.pushed_with(j4.into()))
-				.and_then(|res| res.pushed_with(j5.into()))
-				.and_then(|res| res.pushed_with(j6.into()))
-				.and_then(|res| res.pushed_with(j7.into()))
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.and_then(|res| res.pushed_with(Junction::from(j5)))
+				.and_then(|res| res.pushed_with(Junction::from(j6)))
+				.and_then(|res| res.pushed_with(Junction::from(j7)))
 				.map_err(|_| ()),
 		}
 	}

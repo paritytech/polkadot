@@ -159,7 +159,7 @@ impl From<Junction1> for Junction {
 			Junction1::AccountIndex64 { network, index } => Self::AccountIndex64 { network, index },
 			Junction1::AccountKey20 { network, key } => Self::AccountKey20 { network, key },
 			Junction1::PalletInstance(index) => Self::PalletInstance(index),
-			Junction1::GeneralIndex { id } => Self::GeneralIndex { id },
+			Junction1::GeneralIndex(id) => Self::GeneralIndex { id },
 			Junction1::GeneralKey(key) => Self::GeneralKey(key),
 			Junction1::OnlyChild => Self::OnlyChild,
 			Junction1::Plurality { id, part } => Self::Plurality { id: id.into(), part },
