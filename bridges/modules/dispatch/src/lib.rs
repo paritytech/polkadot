@@ -515,7 +515,7 @@ mod tests {
 	pub struct TestCallFilter;
 
 	impl Contains<Call> for TestCallFilter {
-		fn filter(call: &Call) -> bool {
+		fn contains(call: &Call) -> bool {
 			!matches!(*call, Call::System(frame_system::Call::fill_block(_)))
 		}
 	}

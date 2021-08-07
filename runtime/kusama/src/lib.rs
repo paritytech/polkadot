@@ -49,7 +49,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{All, Contains, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
+	traits::{Everything, Contains, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -982,7 +982,7 @@ impl Default for ProxyType {
 	}
 }
 impl InstanceFilter<Call> for ProxyType {
-	fn contains(&self, c: &Call) -> bool {
+	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
 			ProxyType::NonTransfer => matches!(
@@ -1272,7 +1272,7 @@ pub type Barrier = (
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// If the message is one that immediately attemps to pay for execution, then allow it.
-	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	AllowTopLevelPaidExecutionFrom<Everything>,
 	// Messages coming from system parachains need not pay for execution.
 	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 );
@@ -1320,8 +1320,8 @@ impl pallet_xcm::Config for Runtime {
 	// ...but they must match our filter, which rejects all.
 	type XcmExecuteFilter = ();
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
-	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
+	type XcmTeleportFilter = Everything;
+	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 	type LocationInverter = LocationInverter<Ancestry>;
 }

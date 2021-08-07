@@ -120,7 +120,7 @@ pub fn native_version() -> NativeVersion {
 
 pub struct BaseFilter;
 impl Contains<Call> for BaseFilter {
-	fn filter(call: &Call) -> bool {
+	fn contains(call: &Call) -> bool {
 		match call {
 			// These modules are all allowed to be called by transactions:
 			Call::Democracy(_) |

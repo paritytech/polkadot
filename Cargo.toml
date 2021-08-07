@@ -111,7 +111,7 @@ panic = "unwind"
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
-[patch."https://github.com/paritytech/polkadot"]
+[patch."https://github.com/paritytech/substrate"]
 node-template ={path = "/Users/gav/Core/substrate/bin/node-template/node" }
 frame-benchmarking ={path = "/Users/gav/Core/substrate/frame/benchmarking" }
 frame-support ={path = "/Users/gav/Core/substrate/frame/support" }
