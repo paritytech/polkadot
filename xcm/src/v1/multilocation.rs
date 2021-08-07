@@ -799,7 +799,7 @@ impl Junctions {
 	}
 
 	/// Returns a reference iterator over the junctions in reverse.
-	pub fn iter_rev(&self) -> impl Iterator {
+	pub fn iter_rev(&self) -> impl Iterator + '_ {
 		self.iter().rev()
 	}
 
