@@ -1115,7 +1115,7 @@ mod tests {
 			interior: X2(Parachain(42), AccountIndex64 { network: Any, index: 23 }),
 		};
 		let encoded = m.encode();
-		assert_eq!(encoded, [1, 2, 1, 168, 3, 0, 92].to_vec());
+		assert_eq!(encoded, [1, 2, 0, 168, 2, 0, 92].to_vec());
 		let decoded = MultiLocation::decode(&mut &encoded[..]);
 		assert_eq!(decoded, Ok(m));
 	}
