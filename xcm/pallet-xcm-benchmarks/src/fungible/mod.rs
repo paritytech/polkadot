@@ -21,9 +21,6 @@ pub mod pallet {
 		/// Maybe I can get this in some better way?
 		type CheckedAccount: Get<Option<Self::AccountId>>;
 
-		/// A valid destination location which can be used in benchmarks.
-		type ValidDestination: Get<MultiLocation>;
-
 		/// Give me a fungible asset that your asset transactor is going to accept.
 		fn get_multi_asset() -> xcm::latest::MultiAsset;
 	}

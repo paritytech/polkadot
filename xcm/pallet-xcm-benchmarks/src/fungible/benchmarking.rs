@@ -16,28 +16,18 @@
 
 use super::*;
 use crate::{
-	account_and_location, account_id_junction, create_holding, execute_order, execute_xcm,
-	AssetTransactorOf, OverArchingCallOf, XcmCallOf,
+	account_and_location, account_id_junction, execute_order, execute_xcm, worst_case_holding,
+	AssetTransactorOf, XcmCallOf,
 };
-use codec::Encode;
 use frame_benchmarking::{benchmarks_instance_pallet, impl_benchmark_test_suite};
-use frame_support::{
-	assert_ok, instances::Instance1, pallet_prelude::Get, traits::fungible::Inspect,
-};
+use frame_support::{assert_ok, pallet_prelude::Get, traits::fungible::Inspect};
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
 use xcm::latest::{Junction, MultiAssets, MultiLocation, Order, Xcm};
-use xcm_executor::{
-	traits::{Convert, TransactAsset},
-	Assets,
-};
+use xcm_executor::traits::{Convert, TransactAsset};
 
 // TODO: def. needs to be become a config, might also want to use bounded vec.
 const MAX_ASSETS: u32 = 25;
-
-/// The number of fungible assets in the holding.
-const HOLDING_FUNGIBLES: u32 = 99;
-const HOLDING_NON_FUNGIBLES: u32 = 99;
 
 benchmarks_instance_pallet! {
 	where_clause { where
@@ -58,7 +48,7 @@ benchmarks_instance_pallet! {
 		let asset = T::get_multi_asset();
 		let amount: u128 = T::TransactAsset::minimum_balance().try_into().unwrap();
 		// generate the holding with a bunch of stuff..
-		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+		let mut holding = worst_case_holding();
 		// .. and the specific asset that we want to take out.
 		holding.subsume(asset.clone());
 		// our dest must have no balance initially.
@@ -85,7 +75,7 @@ benchmarks_instance_pallet! {
 		let amount: u128 = T::TransactAsset::minimum_balance().try_into().unwrap();
 		// generate the holding with a bunch of stuff..
 		// TODO: maybe update this api
-		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+		let mut holding = worst_case_holding();
 		// .. and the specific asset that we want to take out.
 		holding.subsume(asset.clone());
 		// our dest must have no balance initially.
@@ -112,7 +102,7 @@ benchmarks_instance_pallet! {
 		let asset = T::get_multi_asset();
 		let amount: u128 = T::TransactAsset::minimum_balance().try_into().unwrap();
 		// generate the holding with a bunch of stuff..
-		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+		let mut holding = worst_case_holding();
 		// .. and the specific asset that we want to take out.
 		holding.subsume(asset.clone());
 
@@ -135,7 +125,7 @@ benchmarks_instance_pallet! {
 		let asset = T::get_multi_asset();
 		let amount: u128 = T::TransactAsset::minimum_balance().try_into().unwrap();
 		// generate the holding with a bunch of stuff..
-		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+		let mut holding = worst_case_holding();
 		// .. and the specific asset that we want to take out.
 		holding.subsume(asset.clone());
 

@@ -16,8 +16,8 @@
 
 use super::*;
 use crate::{
-	account, account_id_junction, create_holding, execute_order, execute_xcm, AssetTransactorOf,
-	OverArchingCallOf, XcmCallOf,
+	account, account_id_junction, execute_order, execute_xcm, worst_case_holding,
+	AssetTransactorOf, OverArchingCallOf, XcmCallOf,
 };
 use codec::Encode;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
@@ -36,10 +36,6 @@ use xcm_executor::{traits::TransactAsset, Assets};
 
 // TODO: def. needs to be become a config, might also want to use bounded vec.
 const MAX_ASSETS: u32 = 25;
-
-/// The number of fungible assets in the holding.
-const HOLDING_FUNGIBLES: u32 = 99;
-const HOLDING_NON_FUNGIBLES: u32 = 99;
 
 benchmarks! {
 	where_clause {
@@ -79,7 +75,7 @@ benchmarks! {
 		};
 
 		let amount: u128 = T::TransactAsset::minimum_balance(asset_id.into()).try_into().unwrap();
-		let mut holding: Assets = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
+		let mut holding: Assets = worst_case_holding();
 		holding.subsume(asset);
 		assert!(T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
 	}: {

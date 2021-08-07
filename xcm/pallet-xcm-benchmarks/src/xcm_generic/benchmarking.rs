@@ -15,38 +15,83 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{account_id_junction, execute_order, execute_xcm, OverArchingCallOf, XcmCallOf};
+use crate::{
+	account_id_junction, execute_order, execute_xcm, worst_case_holding, OverArchingCallOf,
+	XcmCallOf,
+};
 use codec::Encode;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
-use frame_support::{assert_ok, traits::fungible::Inspect as FungibleInspect, weights::Weight};
+use frame_support::{
+	assert_ok, pallet_prelude::Get, traits::fungible::Inspect as FungibleInspect, weights::Weight,
+};
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
-use xcm::{
-	latest::{Error as XcmError, Order, Outcome, Xcm},
-	opaque::latest::{AssetInstance, ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId},
+use xcm::latest::{
+	AssetId::*,
+	AssetInstance, Error as XcmError, ExecuteXcm, Junction,
+	Junction::*,
+	MultiAsset,
+	MultiAssetFilter::*,
+	MultiLocation::{self, *},
+	NetworkId, Order, Outcome, WildMultiAsset, Xcm,
 };
 use xcm_executor::{traits::TransactAsset, Assets};
 
-// TODO: def. needs to be become a config, might also want to use bounded vec.
-const MAX_ASSETS: u32 = 25;
-
-/// The number of fungible assets in the holding.
-const HOLDING_FUNGIBLES: u32 = 99;
-const HOLDING_NON_FUNGIBLES: u32 = 99;
-
 benchmarks! {
-	send_xcm {}: {}
 	order_noop {
 		let order = Order::<XcmCallOf<T>>::Noop;
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
-		let holding = Assets::default();
+		let holding = worst_case_holding();
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	}
-	xcm_reserve_asset_deposit {}: {} verify {}
-	xcm_receive_teleported_asset {}: {} verify {}
-	xcm_transfer_asset {}: {} verify {}
-	xcm_transfer_reserve_asset {}: {} verify {}
+
+	order_query_holding {
+		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let holding = worst_case_holding();
+
+		let order = Order::<XcmCallOf<T>>::QueryHolding {
+			query_id: Default::default(),
+			dest: T::ValidDestination::get(),
+			assets: Wild(WildMultiAsset::All), // TODO is worst case filter?
+		};
+
+	} : {
+		assert_ok!(execute_order::<T>(origin, holding, order));
+	} verify {
+		// The assert above is enough to validate this is completed.
+		// todo maybe XCM sender peek
+	}
+
+	// This benchmark does not use any additional orders or instructions. This should be managed
+	// by the `deep` and `shallow` implementation.
+	order_buy_execution {
+		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let holding = worst_case_holding();
+
+		let fee_asset = Concrete(Here);
+
+		let order = Order::<XcmCallOf<T>>::BuyExecution {
+			fees: (fee_asset, 100_000_000).into(), // should be something inside of holding
+			weight: 100_000_000, // TODO think about sensible numbers
+			debt: 100_000_000, // TODO think about sensible numbers
+			halt_on_error: false,
+			orders: Default::default(), // no orders
+			instructions: Default::default(), // no instructions
+		};
+	} : {
+		assert_ok!(execute_order::<T>(origin, holding, order));
+	} verify {
+
+	}
+	xcm_reserve_asset_deposited {}: {} verify {}
+	xcm_query_response {}: {} verify {}
+	xcm_transact {}: {} verify {}
+	xcm_hrmp_new_channel_open_request {}: {} verify {}
+	xcm_hrmp_channel_accepted {}: {} verify {}
+	xcm_hrmp_channel_closing {}: {} verify {}
+	xcm_relayed_from {}: {} verify {}
+
 }
 
 impl_benchmark_test_suite!(

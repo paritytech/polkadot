@@ -66,5 +66,5 @@ impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 parameter_types! {
 	pub Ancestry: MultiLocation = MultiLocation::X1(Junction::Parachain(101));
 	pub UnitWeightCost: Weight = 10;
-	pub WeightPrice: (MultiLocation, u128) = (MultiLocation::Here, 1_000_000_000_000);
+	pub WeightPrice: (MultiLocation, u128) = (MultiLocation::Here, 1_000_000);
 }

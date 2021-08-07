@@ -140,6 +140,7 @@ impl xcm_executor::Config for XcmConfig {
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 	type AccountIdConverter = AccountIdConverter;
+	type ValidDestination = ValidDestination;
 }
 
 parameter_types! {
@@ -154,7 +155,6 @@ impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
 	type CheckedAccount = CheckedAccount;
 
-	type ValidDestination = ValidDestination;
 	fn get_multi_asset() -> MultiAsset {
 		let amount =
 			<Balances as frame_support::traits::fungible::Inspect<u64>>::minimum_balance() as u128;

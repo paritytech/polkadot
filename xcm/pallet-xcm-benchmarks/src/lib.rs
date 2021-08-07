@@ -21,6 +21,7 @@
 use codec::Encode;
 use frame_support::{
 	dispatch::Weight,
+	pallet_prelude::Get,
 	traits::{
 		fungible::Inspect as FungibleInspect,
 		fungibles::Inspect as FungiblesInspect,
@@ -56,6 +57,9 @@ pub trait Config: frame_system::Config {
 
 	// temp?
 	type AccountIdConverter: Convert<MultiLocation, Self::AccountId>;
+
+	/// A valid destination location which can be used in benchmarks.
+	type ValidDestination: Get<MultiLocation>;
 }
 
 const SEED: u32 = 0;
@@ -70,12 +74,13 @@ pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as xcm_executor::Confi
 /// The call type of executor's config. Should eventually resolve to the same overarching call type.
 pub type XcmCallOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::Call;
 
-pub fn create_holding(
-	fungibles_count: u32,
-	fungibles_amount: u128,
-	non_fungibles_count: u32,
-) -> Assets {
-	(0..fungibles_count)
+/// The worst case number of assets in the holding.
+const HOLDING_FUNGIBLES: u32 = 99;
+const HOLDING_NON_FUNGIBLES: u32 = 99;
+
+pub fn worst_case_holding() -> Assets {
+	let fungibles_amount: u128 = 100; // TODO probably update
+	(0..HOLDING_FUNGIBLES)
 		.map(|i| {
 			MultiAsset {
 				id: Concrete(X1(GeneralIndex { id: i as u128 })),
@@ -83,7 +88,8 @@ pub fn create_holding(
 			}
 			.into()
 		})
-		.chain((0..non_fungibles_count).map(|i| MultiAsset {
+		.chain(core::iter::once(MultiAsset { id: Concrete(Here), fun: Fungible(u128::MAX) }))
+		.chain((0..HOLDING_NON_FUNGIBLES).map(|i| MultiAsset {
 			id: Concrete(X1(GeneralIndex { id: i as u128 })),
 			fun: NonFungible(asset_instance_from(i)),
 		}))

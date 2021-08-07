@@ -105,9 +105,17 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = DevNull;
 }
 
+parameter_types! {
+	pub const ValidDestination: MultiLocation = MultiLocation::X1(Junction::AccountId32 {
+		network: NetworkId::Any,
+		id: [0u8; 32],
+	});
+}
+
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 	type AccountIdConverter = ();
+	type ValidDestination = ValidDestination;
 }
 impl xcm_generic_benchmarks::Config for Test {}
 
