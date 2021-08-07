@@ -229,7 +229,7 @@ impl<C> ExecuteXcm<C> for () {
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
-/// let destination = MultiLocation::ancestor(1);
+/// let destination = MultiLocation::parent();
 ///
 /// assert!(
 ///     // Sender2 will block this.

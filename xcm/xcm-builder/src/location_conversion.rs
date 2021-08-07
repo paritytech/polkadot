@@ -51,7 +51,7 @@ impl<AccountId: Default + Eq + Clone> Convert<MultiLocation, AccountId>
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if who.borrow() == &AccountId::default() {
-			Ok(MultiLocation::ancestor(1))
+			Ok(MultiLocation::parent())
 		} else {
 			Err(())
 		}
@@ -244,7 +244,7 @@ mod tests {
 			pub Ancestry: MultiLocation = X2(account20(), account20()).into();
 		}
 
-		let input = MultiLocation::ancestor(2);
+		let input = MultiLocation::grandparent();
 		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
 		assert_eq!(inverted, X2(account20(), account20()).into());
 	}
@@ -259,7 +259,7 @@ mod tests {
 			pub Ancestry: MultiLocation = X1(PalletInstance(5)).into();
 		}
 
-		let input = MultiLocation::ancestor(2);
+		let input = MultiLocation::grandparent();
 		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
 		assert_eq!(inverted, X2(PalletInstance(5), OnlyChild).into());
 	}

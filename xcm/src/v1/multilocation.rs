@@ -861,10 +861,10 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 		use Junctions::*;
 		match old {
 			MultiLocation0::Null => Ok(Here.into()),
-			MultiLocation0::X1(j0) if j0.is_parent() => Ok(MultiLocation::ancestor(1)),
+			MultiLocation0::X1(j0) if j0.is_parent() => Ok(MultiLocation::parent()),
 			MultiLocation0::X1(j0) => Ok(X1(j0.try_into()?).into()),
 			MultiLocation0::X2(j0, j1) if j0.is_parent() && j1.is_parent() =>
-				Ok(MultiLocation::ancestor(2)),
+				Ok(MultiLocation::grandparent()),
 			MultiLocation0::X2(j0, j1) if j0.is_parent() =>
 				Ok(MultiLocation { parents: 1, interior: X1(j1.try_into()?) }),
 			MultiLocation0::X2(j0, j1) => Ok(X2(j0.try_into()?, j1.try_into()?).into()),
