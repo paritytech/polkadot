@@ -24,7 +24,7 @@ mod mock;
 mod tests;
 
 use codec::{Decode, Encode};
-use frame_support::traits::{Contains, EnsureOrigin, Filter, Get, OriginTrait};
+use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
 use sp_std::{boxed::Box, convert::TryInto, marker::PhantomData, prelude::*, vec};
 use xcm::latest::prelude::*;
