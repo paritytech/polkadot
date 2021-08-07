@@ -22,7 +22,6 @@ use core::{
 	mem, result,
 };
 use parity_scale_codec::{self, Decode, Encode};
-use static_assertions::const_assert;
 
 /// A relative path between state-bearing consensus systems.
 ///
@@ -60,17 +59,11 @@ impl Default for MultiLocation {
 	}
 }
 
-/// Maximum number of junctions a `MultiLocation` can contain.
-pub const MAX_MULTILOCATION_LENGTH: usize = 255;
-
 impl MultiLocation {
 	/// Creates a new `MultiLocation`, ensuring that the length of it does not exceed the maximum,
 	/// otherwise returns `Err`.
-	pub fn new(parents: u8, junctions: Junctions) -> result::Result<MultiLocation, ()> {
-		if parents as usize + junctions.len() > MAX_MULTILOCATION_LENGTH {
-			return Err(())
-		}
-		Ok(MultiLocation { parents, interior: junctions })
+	pub fn new(parents: u8, junctions: Junctions) -> MultiLocation {
+		MultiLocation { parents, interior: junctions }
 	}
 
 	/// Creates a new `MultiLocation` with 0 parents and a `Null` interior.
@@ -92,7 +85,6 @@ impl MultiLocation {
 
 	/// Creates a new `MultiLocation` with `parents` and an empty (`Here`) interior.
 	pub const fn ancestor(parents: u8) -> MultiLocation {
-		const_assert!(MAX_MULTILOCATION_LENGTH >= 255);
 		MultiLocation { parents, interior: Junctions::Here }
 	}
 
@@ -157,15 +149,6 @@ impl MultiLocation {
 		(multilocation, last)
 	}
 
-	/// Bumps the parent count up by `n`. Returns `Err` in case of overflow.
-	pub fn add_parents(&mut self, n: u8) -> result::Result<(), ()> {
-		if self.len() + (n as usize) > MAX_MULTILOCATION_LENGTH {
-			return Err(())
-		}
-		self.parents = self.parents.saturating_add(n);
-		Ok(())
-	}
-
 	/// Mutates `self`, suffixing its interior junctions with `new`. Returns `Err` in case of overflow.
 	pub fn push_interior(&mut self, new: Junction) -> result::Result<(), ()> {
 		let mut n = Junctions::Here;
@@ -198,40 +181,22 @@ impl MultiLocation {
 		}
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` with its parent count incremented by `n`, or
-	/// an `Err` with the original value of `self` in case of overflow.
-	pub fn added_with_parents(self, n: u8) -> result::Result<Self, Self> {
-		if self.len() + (n as usize) > MAX_MULTILOCATION_LENGTH {
-			return Err(self)
-		}
-		Ok(MultiLocation { parents: self.parents.saturating_add(n), ..self })
-	}
-
 	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with the original value of
 	/// `self` in case of overflow.
 	pub fn pushed_with_interior(self, new: Junction) -> result::Result<Self, Self> {
-		if self.len() >= MAX_MULTILOCATION_LENGTH {
-			return Err(self)
+		match self.interior.pushed_with(new) {
+			Ok(i) => Ok(MultiLocation { interior: i, parents: self.parents }),
+			Err(i) => Err(MultiLocation { interior: i, parents: self.parents }),
 		}
-		Ok(MultiLocation {
-			parents: self.parents,
-			interior: self.interior.pushed_with(new).expect("length is less than max length; qed"),
-		})
 	}
 
 	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the original value of
 	/// `self` in case of overflow.
 	pub fn pushed_front_with_interior(self, new: Junction) -> result::Result<Self, Self> {
-		if self.len() >= MAX_MULTILOCATION_LENGTH {
-			return Err(self)
+		match self.interior.pushed_front_with(new) {
+			Ok(i) => Ok(MultiLocation { interior: i, parents: self.parents }),
+			Err(i) => Err(MultiLocation { interior: i, parents: self.parents }),
 		}
-		Ok(MultiLocation {
-			parents: self.parents,
-			interior: self
-				.interior
-				.pushed_front_with(new)
-				.expect("length is less than max length; qed"),
-		})
 	}
 
 	/// Returns the junction at index `i`, or `None` if the location is a parent or if the location
@@ -279,12 +244,12 @@ impl MultiLocation {
 	/// ```rust
 	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
-	/// let mut m = MultiLocation::new(1, X2(PalletInstance(3), OnlyChild)).unwrap();
+	/// let mut m = MultiLocation::new(1, X2(PalletInstance(3), OnlyChild));
 	/// assert_eq!(
-	///     m.match_and_split(&MultiLocation::new(1, X1(PalletInstance(3))).unwrap()),
+	///     m.match_and_split(&MultiLocation::new(1, X1(PalletInstance(3)))),
 	///     Some(&OnlyChild),
 	/// );
-	/// assert_eq!(m.match_and_split(&MultiLocation::new(1, Here).unwrap()), None);
+	/// assert_eq!(m.match_and_split(&MultiLocation::new(1, Here)), None);
 	/// # }
 	/// ```
 	pub fn match_and_split(&self, prefix: &MultiLocation) -> Option<&Junction> {
@@ -303,9 +268,9 @@ impl MultiLocation {
 	/// ```rust
 	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
-	/// let mut m = MultiLocation::new(1, X2(Parachain(21), OnlyChild)).unwrap();
-	/// assert_eq!(m.append_with(MultiLocation::new(1, X1(PalletInstance(3))).unwrap()), Ok(()));
-	/// assert_eq!(m, MultiLocation::new(1, X2(Parachain(21), PalletInstance(3))).unwrap());
+	/// let mut m = MultiLocation::new(1, X2(Parachain(21), OnlyChild));
+	/// assert_eq!(m.append_with(MultiLocation::new(1, X1(PalletInstance(3)))), Ok(()));
+	/// assert_eq!(m, MultiLocation::new(1, X2(Parachain(21), PalletInstance(3))));
 	/// # }
 	/// ```
 	pub fn append_with(&mut self, suffix: MultiLocation) -> Result<(), MultiLocation> {
@@ -329,35 +294,42 @@ impl MultiLocation {
 	/// ```rust
 	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
-	/// let mut m = MultiLocation::new(2, X1(PalletInstance(3))).unwrap();
-	/// assert_eq!(m.prepend_with(MultiLocation::new(1, X2(Parachain(21), OnlyChild)).unwrap()), Ok(()));
-	/// assert_eq!(m, MultiLocation::new(1, X1(PalletInstance(3))).unwrap());
+	/// let mut m = MultiLocation::new(2, X1(PalletInstance(3)));
+	/// assert_eq!(m.prepend_with(MultiLocation::new(1, X2(Parachain(21), OnlyChild))), Ok(()));
+	/// assert_eq!(m, MultiLocation::new(1, X1(PalletInstance(3))));
 	/// # }
 	/// ```
 	pub fn prepend_with(&mut self, mut prefix: MultiLocation) -> Result<(), MultiLocation> {
-		let self_parents = self.parent_count();
-		let prepend_len = (self_parents as isize - prefix.interior.len() as isize).abs() as usize;
-		if self.interior.len() + prefix.parent_count() as usize + prepend_len >
-			MAX_MULTILOCATION_LENGTH
-		{
+		//     prefix     self (suffix)
+		// P .. P I .. I  p .. p i .. i
+		let prepend_interior = prefix.interior.len().saturating_sub(self.parents as usize);
+		let final_interior = self.interior.len().saturating_add(prepend_interior);
+		if final_interior > MAX_JUNCTIONS {
+			return Err(prefix)
+		}
+		let suffix_parents = (self.parents as usize).saturating_sub(prefix.interior.len());
+		let final_parents = (prefix.parents as usize).saturating_add(suffix_parents);
+		if final_parents > 255 {
 			return Err(prefix)
 		}
 
-		let mut final_parent_count = prefix.parents;
-		for _ in 0..self_parents {
-			if prefix.take_last().is_none() {
-				// If true, this means self parent count is greater than prefix junctions length;
-				// add the resulting self parent count to final_parent_count
-				final_parent_count += self.parents;
-				break
-			}
+		// cancel out the final item on the prefix interior for one of the suffix's parents.
+		while self.parents > 0 && prefix.take_last().is_some() {
 			self.dec_parent();
 		}
 
-		self.parents = final_parent_count;
+		// now we have either removed all suffix's parents or prefix interior.
+		// this means we can combine the prefix's and suffix's remaining parents/interior since
+		// we know that with at least one empty, the overall order will be respected:
+		//     prefix     self (suffix)
+		// P .. P   (I)   p .. p i .. i => P + p .. (no I) i
+		//  -- or --
+		// P .. P I .. I    (p)  i .. i => P (no p) .. I + i
+
+		self.parents = self.parents.saturating_add(prefix.parents);
 		for j in prefix.interior.into_iter().rev() {
 			self.push_front_interior(j).expect(
-				"self junctions len + prefix parent count + prepend len is less than max length; qed"
+				"final_interior no greater than MAX_JUNCTIONS; qed"
 			);
 		}
 		Ok(())
@@ -484,6 +456,9 @@ impl From<[Junction; 8]> for MultiLocation {
 		MultiLocation { parents: 0, interior: Junctions::X8(x0, x1, x2, x3, x4, x5, x6, x7) }
 	}
 }
+
+/// Maximum number of `Junction`s that a `Junctions` can contain.
+const MAX_JUNCTIONS: usize = 8;
 
 /// Non-parent junctions that can be constructed, up to the length of 8. This specific `Junctions`
 /// implementation uses a Rust `enum` in order to make pattern matching easier.
@@ -1157,8 +1132,11 @@ mod tests {
 
 		// cannot append to create overly long multilocation
 		let acc = AccountIndex64 { network: Any, index: 23 };
-		let mut m = MultiLocation { parents: 254, interior: X1(Parachain(42)) };
-		let suffix = MultiLocation::from(X2(PalletInstance(3), acc.clone()));
+		let mut m = MultiLocation {
+			parents: 254,
+			interior: X5(Parachain(42), OnlyChild, OnlyChild, OnlyChild, OnlyChild)
+		};
+		let suffix = MultiLocation::from(X4(PalletInstance(3), acc.clone(), OnlyChild, OnlyChild));
 		assert_eq!(m.append_with(suffix.clone()), Err(suffix));
 	}
 
@@ -1178,13 +1156,13 @@ mod tests {
 		);
 
 		// cannot prepend to create overly long multilocation
-		let mut m = MultiLocation { parents: 253, interior: X1(Parachain(42)) };
+		let mut m = MultiLocation { parents: 254, interior: X1(Parachain(42)) };
 		let prefix = MultiLocation { parents: 2, interior: Here };
 		assert_eq!(m.prepend_with(prefix.clone()), Err(prefix));
 
 		let prefix = MultiLocation { parents: 1, interior: Here };
 		assert_eq!(m.prepend_with(prefix), Ok(()));
-		assert_eq!(m, MultiLocation { parents: 254, interior: X1(Parachain(42)) });
+		assert_eq!(m, MultiLocation { parents: 255, interior: X1(Parachain(42)) });
 	}
 
 	#[test]
