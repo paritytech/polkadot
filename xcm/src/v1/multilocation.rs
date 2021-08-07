@@ -558,11 +558,7 @@ impl<'a> IntoIterator for &'a Junctions {
 	type Item = &'a Junction;
 	type IntoIter = JunctionsRefIterator<'a>;
 	fn into_iter(self) -> Self::IntoIter {
-		JunctionsRefIterator {
-			junctions: self,
-			next: 0,
-			back: 0,
-		}
+		JunctionsRefIterator { junctions: self, next: 0, back: 0 }
 	}
 }
 
@@ -791,11 +787,7 @@ impl Junctions {
 
 	/// Returns a reference iterator over the junctions.
 	pub fn iter(&self) -> JunctionsRefIterator {
-		JunctionsRefIterator {
-			junctions: self,
-			next: 0,
-			back: 0,
-		}
+		JunctionsRefIterator { junctions: self, next: 0, back: 0 }
 	}
 
 	/// Returns a reference iterator over the junctions in reverse.
