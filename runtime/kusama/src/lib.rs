@@ -1263,7 +1263,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Kusama: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(KsmLocation::get()) });
-	pub const KusamaForStatemint: (MultiAssetFilter, MultiLocation) = (Kusama::get(), MultiLocation::with_parachain_interior(1000));
+	pub const KusamaForStatemint: (MultiAssetFilter, MultiLocation) = (Kusama::get(), X1(Parachain(1000)).into());
 }
 pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemint>,);
 

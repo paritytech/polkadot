@@ -908,7 +908,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), MultiLocation::with_parachain_interior(1000));
+		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), X1(Parachain(1000)).into());
 }
 pub type TrustedTeleporters = (xcm_builder::Case<WestendForWestmint>,);
 
