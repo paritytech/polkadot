@@ -65,7 +65,7 @@ macro_rules! construct_runtime_prelude {
 			mod private {
 				use super::*;
 				pub(crate) fn [<create_uxt_ $runtime>](
-					raw_solution: EPM::RawSolution<EPM::CompactOf<Runtime>>,
+					raw_solution: EPM::RawSolution<EPM::SolutionOf<Runtime>>,
 					witness: u32,
 					signer: crate::signer::Signer,
 					nonce: crate::prelude::Index,
@@ -334,7 +334,7 @@ fn mine_unchecked<T: EPM::Config>(
 	ext: &mut Ext,
 	iterations: usize,
 	do_feasibility: bool,
-) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
+) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error> {
 	ext.execute_with(|| {
 		let (solution, _) = <EPM::Pallet<T>>::mine_solution(iterations)?;
 		if do_feasibility {
@@ -359,7 +359,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.len() == 0 {
 				println!("target = {:?}", (who, stake, targets));
-				return
+				return;
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -410,7 +410,7 @@ async fn main() {
 					why
 				);
 				std::thread::sleep(std::time::Duration::from_millis(2500));
-			},
+			}
 		}
 	};
 
@@ -427,7 +427,7 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Polkadot;
 			}
-		},
+		}
 		"kusama" | "kusama-dev" => {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::KusamaAccount,
@@ -437,7 +437,7 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Kusama;
 			}
-		},
+		}
 		"westend" => {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
@@ -447,11 +447,11 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Westend;
 			}
-		},
+		}
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return
-		},
+			return;
+		}
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
