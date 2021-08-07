@@ -571,14 +571,14 @@ impl IntoIterator for Junctions {
 }
 
 impl Junctions {
-	/// Convert `self` into a MultiLocation containing 0 parents.
+	/// Convert `self` into a `MultiLocation` containing 0 parents.
 	///
-	/// Similar to `Into::into`, except that this method can be used in a const eval context.
+	/// Similar to `Into::into`, except that this method can be used in a const evaluation context.
 	pub const fn into(self) -> MultiLocation {
 		self.into_with_parents(0)
 	}
 
-	/// Convert `self` into a MultiLocation containing `n` parents.
+	/// Convert `self` into a `MultiLocation` containing `n` parents.
 	///
 	/// Similar to `Self::into`, with the added ability to specify the number of parent junctions.
 	pub const fn into_with_parents(self, n: u8) -> MultiLocation {
