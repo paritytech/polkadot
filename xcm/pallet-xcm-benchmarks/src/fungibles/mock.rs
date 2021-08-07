@@ -29,11 +29,13 @@ use sp_runtime::{
 };
 use xcm::{
 	latest::Junction,
-	opaque::latest::{MultiAsset, MultiLocation},
+	opaque::latest::{AssetId, MultiAsset, MultiLocation},
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+
+type AccountId = u64;
 
 // For testing the pallet, we construct a mock runtime.
 frame_support::construct_runtime!(
@@ -66,7 +68,7 @@ impl frame_system::Config for Test {
 	type Hash = H256;
 	type Call = Call;
 	type Hashing = BlakeTwo256;
-	type AccountId = u64;
+	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
 	type Event = Event;
@@ -105,10 +107,12 @@ parameter_types! {
 	pub const MetadataDepositPerByte: u64 = 1 * ExistentialDeposit::get();
 }
 
+type AssetsAssetId = u32;
+
 impl pallet_assets::Config for Test {
 	type Event = Event;
 	type Balance = u64;
-	type AssetId = u32;
+	type AssetId = AssetsAssetId;
 	type Currency = Balances;
 	type ForceOrigin = frame_system::EnsureRoot<u64>;
 	type AssetDeposit = AssetDeposit;
@@ -131,13 +135,11 @@ impl Contains<u32> for CheckAsset {
 pub struct MatchAnyFungibles;
 impl xcm_executor::traits::MatchesFungibles<u32, u64> for MatchAnyFungibles {
 	fn matches_fungibles(m: &MultiAsset) -> Result<(u32, u64), xcm_executor::traits::Error> {
-		//                                                     ^^ TODO: this error is too out of scope.
+		//                                                      ^^ TODO: this error is too out of scope.
 		use sp_runtime::traits::SaturatedConversion;
 		match m {
-			MultiAsset::ConcreteFungible {
-				amount,
-				id: MultiLocation::X1(Junction::GeneralIndex { id }),
-			} => Ok(((*id).saturated_into(), (*amount).saturated_into::<u64>())),
+			MultiAsset { id: Concrete(X1(GeneralIndex { id })), fun: Fungible(amount) } =>
+				Ok(((*id).saturated_into::<u32>(), (*amount).saturated_into::<u64>())),
 			_ => Err(xcm_executor::traits::Error::AssetNotFound),
 		}
 	}
@@ -151,7 +153,7 @@ pub type AssetTransactor = xcm_builder::FungiblesAdapter<
 	Assets,
 	MatchAnyFungibles,
 	AccountIdConverter,
-	u64,
+	AccountId,
 	CheckAsset,
 	CheckedAccount,
 >;
@@ -189,9 +191,9 @@ impl xcm_assets_benchmarks::Config for Test {
 		}
 
 		let amount = <Assets as Inspect<u64>>::minimum_balance(id) as u128;
-		MultiAsset::ConcreteFungible {
-			id: MultiLocation::X1(Junction::GeneralIndex { id: id.into() }),
-			amount,
+		MultiAsset {
+			id: Concrete(X1(Junction::GeneralIndex { id: id.into() })),
+			fun: Fungible(amount),
 		}
 	}
 }

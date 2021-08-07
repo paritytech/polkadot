@@ -25,7 +25,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
-use xcm::latest::{Junction, MultiAsset, MultiLocation, NetworkId};
+use xcm::latest::{AssetId::*, Fungibility::*, Junction, MultiAsset, MultiLocation, NetworkId};
 use xcm_builder::{
 	AllowBenchmarks, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	IsChildSystemParachain, TakeWeightCredit,
@@ -107,7 +107,7 @@ impl xcm_executor::traits::MatchesFungible<u64> for MatchAnyFungible {
 	fn matches_fungible(m: &MultiAsset) -> Option<u64> {
 		use sp_runtime::traits::SaturatedConversion;
 		match m {
-			MultiAsset::ConcreteFungible { amount, .. } => Some((*amount).saturated_into::<u64>()),
+			MultiAsset { fun: Fungible(amount), .. } => Some((*amount).saturated_into::<u64>()),
 			_ => None,
 		}
 	}
@@ -122,17 +122,6 @@ pub type AssetTransactor = xcm_builder::CurrencyAdapter<
 	CheckedAccount,
 >;
 
-/// The barriers one of which must be passed for an XCM message to be executed.
-pub type Barrier = (
-	// Weight that is paid for may be consumed.
-	TakeWeightCredit,
-	// If the message is one that immediately attemps to pay for execution, then allow it.
-	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
-	// Messages coming from system parachains need not pay for execution.
-	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
-	AllowBenchmarks,
-);
-
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -142,7 +131,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = Barrier;
+	type Barrier = YesItShould;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
 	type Trader = xcm_builder::FixedRateOfConcreteFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
@@ -169,7 +158,7 @@ impl xcm_balances_benchmark::Config for Test {
 	fn get_multi_asset() -> MultiAsset {
 		let amount =
 			<Balances as frame_support::traits::fungible::Inspect<u64>>::minimum_balance() as u128;
-		MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount }
+		MultiAsset { id: Concrete(MultiLocation::Here), fun: Fungible(amount) }
 	}
 }
 
