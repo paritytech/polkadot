@@ -41,7 +41,7 @@ fn basic_setup_works() {
 		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 42, network: Any })).unwrap()),
 		Ok(42),
 	);
-	assert_eq!(to_account(MultiLocation::here()), Ok(3000));
+	assert_eq!(to_account(Here.into()), Ok(3000));
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn weigher_should_work() {
 			Order::DepositAsset {
 				assets: All.into(),
 				max_assets: 1,
-				beneficiary: MultiLocation::here(),
+				beneficiary: Here.into(),
 			},
 		],
 	}
@@ -72,7 +72,7 @@ fn weigher_should_work() {
 fn take_weight_credit_barrier_should_work() {
 	let mut message = opaque::Xcm::TransferAsset {
 		assets: (MultiLocation::with_parents::<1>(), 100).into(),
-		beneficiary: MultiLocation::here(),
+		beneficiary: Here.into(),
 	};
 
 	let mut weight_credit = 10;
@@ -101,7 +101,7 @@ fn take_weight_credit_barrier_should_work() {
 fn allow_unpaid_should_work() {
 	let mut message = opaque::Xcm::TransferAsset {
 		assets: (MultiLocation::with_parents::<1>(), 100).into(),
-		beneficiary: MultiLocation::here(),
+		beneficiary: Here.into(),
 	};
 
 	AllowUnpaidFrom::set(vec![MultiLocation::with_parents::<1>()]);
@@ -131,7 +131,7 @@ fn allow_paid_should_work() {
 
 	let mut message = opaque::Xcm::TransferAsset {
 		assets: (MultiLocation::with_parents::<1>(), 100).into(),
-		beneficiary: MultiLocation::here(),
+		beneficiary: Here.into(),
 	};
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
@@ -158,7 +158,7 @@ fn allow_paid_should_work() {
 			Order::DepositAsset {
 				assets: All.into(),
 				max_assets: 1,
-				beneficiary: MultiLocation::here(),
+				beneficiary: Here.into(),
 			},
 		],
 	};
@@ -187,7 +187,7 @@ fn allow_paid_should_work() {
 			Order::DepositAsset {
 				assets: All.into(),
 				max_assets: 1,
-				beneficiary: MultiLocation::here(),
+				beneficiary: Here.into(),
 			},
 		],
 	};
@@ -236,7 +236,7 @@ fn paying_reserve_deposit_should_work() {
 			Order::<TestCall>::DepositAsset {
 				assets: All.into(),
 				max_assets: 1,
-				beneficiary: MultiLocation::here(),
+				beneficiary: Here.into(),
 			},
 		],
 	};
@@ -251,19 +251,19 @@ fn transfer_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (MultiLocation::here(), 1000).into());
+	add_asset(1001, (Here.into(), 1000).into());
 	// They want to transfer 100 of them to their sibling parachain #2
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		X1(Parachain(1)).into(),
 		Xcm::TransferAsset {
-			assets: (MultiLocation::here(), 100).into(),
+			assets: (Here.into(), 100).into(),
 			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
 		},
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
-	assert_eq!(assets(3), vec![(MultiLocation::here(), 100).into()]);
-	assert_eq!(assets(1001), vec![(MultiLocation::here(), 900).into()]);
+	assert_eq!(assets(3), vec![(Here.into(), 100).into()]);
+	assert_eq!(assets(1001), vec![(Here.into(), 900).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 }
 
@@ -271,7 +271,7 @@ fn transfer_should_work() {
 fn reserve_transfer_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (MultiLocation::here(), 1000).into());
+	add_asset(1001, (Here.into(), 1000).into());
 	// The remote account owned by gav.
 	let three: MultiLocation = X1(AccountIndex64 { index: 3, network: Any }).into();
 
@@ -280,7 +280,7 @@ fn reserve_transfer_should_work() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		X1(Parachain(1)).into(),
 		Xcm::TransferReserveAsset {
-			assets: (MultiLocation::here(), 100).into(),
+			assets: (Here.into(), 100).into(),
 			dest: X1(Parachain(2)).into(),
 			effects: vec![Order::DepositAsset {
 				assets: All.into(),
@@ -292,7 +292,7 @@ fn reserve_transfer_should_work() {
 	);
 	assert_eq!(r, Outcome::Complete(10));
 
-	assert_eq!(assets(1002), vec![(MultiLocation::here(), 100).into()]);
+	assert_eq!(assets(1002), vec![(Here.into(), 100).into()]);
 	assert_eq!(
 		sent_xcm(),
 		vec![(

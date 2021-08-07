@@ -385,7 +385,7 @@ where
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
-		O::from(Origin::Xcm(MultiLocation::here()))
+		O::from(Origin::Xcm(Here.into()))
 	}
 }
 

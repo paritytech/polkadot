@@ -273,8 +273,8 @@ mod tests {
 
 		assert_eq!(
 			MultiTransactor::deposit_asset(
-				&(MultiLocation::here(), 1).into(),
-				&MultiLocation::here()
+				&(Here.into(), 1).into(),
+				&Here.into()
 			),
 			Err(XcmError::AssetNotFound)
 		);
@@ -286,8 +286,8 @@ mod tests {
 
 		assert_eq!(
 			MultiTransactor::deposit_asset(
-				&(MultiLocation::here(), 1).into(),
-				&MultiLocation::here()
+				&(Here.into(), 1).into(),
+				&Here.into()
 			),
 			Ok(()),
 		);
@@ -299,8 +299,8 @@ mod tests {
 
 		assert_eq!(
 			MultiTransactor::deposit_asset(
-				&(MultiLocation::here(), 1).into(),
-				&MultiLocation::here()
+				&(Here.into(), 1).into(),
+				&Here.into()
 			),
 			Err(XcmError::Overflow)
 		);
@@ -312,8 +312,8 @@ mod tests {
 
 		assert_eq!(
 			MultiTransactor::deposit_asset(
-				&(MultiLocation::here(), 1).into(),
-				&MultiLocation::here()
+				&(Here.into(), 1).into(),
+				&Here.into()
 			),
 			Ok(()),
 		);

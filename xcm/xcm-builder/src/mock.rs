@@ -257,7 +257,7 @@ parameter_types! {
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
-	pub static WeightPrice: (AssetId, u128) = (MultiLocation::here().into(), 1_000_000_000_000);
+	pub static WeightPrice: (AssetId, u128) = (Here.into().into(), 1_000_000_000_000);
 }
 
 pub type TestBarrier = (

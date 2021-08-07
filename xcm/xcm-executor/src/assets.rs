@@ -381,12 +381,12 @@ impl Assets {
 	/// ```
 	/// use xcm_executor::Assets;
 	/// use xcm::latest::prelude::*;
-	/// let assets_i_have: Assets = vec![ (MultiLocation::here(), 100).into(), (vec![0], 100).into() ].into();
-	/// let assets_they_want: MultiAssetFilter = vec![ (MultiLocation::here(), 200).into(), (vec![0], 50).into() ].into();
+	/// let assets_i_have: Assets = vec![ (Here.into(), 100).into(), (vec![0], 100).into() ].into();
+	/// let assets_they_want: MultiAssetFilter = vec![ (Here.into(), 200).into(), (vec![0], 50).into() ].into();
 	///
 	/// let assets_we_can_trade: Assets = assets_i_have.min(&assets_they_want);
 	/// assert_eq!(assets_we_can_trade.into_assets_iter().collect::<Vec<_>>(), vec![
-	/// 	(MultiLocation::here(), 100).into(), (vec![0], 50).into(),
+	/// 	(Here.into(), 100).into(), (vec![0], 50).into(),
 	/// ]);
 	/// ```
 	pub fn min(&self, mask: &MultiAssetFilter) -> Assets {
@@ -443,12 +443,12 @@ mod tests {
 	#[allow(non_snake_case)]
 	/// Concrete fungible constructor
 	fn CF(amount: u128) -> MultiAsset {
-		(MultiLocation::here(), amount).into()
+		(Here.into(), amount).into()
 	}
 	#[allow(non_snake_case)]
 	/// Concrete non-fungible constructor
 	fn CNF(instance_id: u8) -> MultiAsset {
-		(MultiLocation::here(), [instance_id; 4]).into()
+		(Here.into(), [instance_id; 4]).into()
 	}
 
 	fn test_assets() -> Assets {
@@ -562,8 +562,8 @@ mod tests {
 	#[test]
 	fn min_all_concrete_works() {
 		let assets = test_assets();
-		let fungible = Wild((MultiLocation::here(), WildFungible).into());
-		let non_fungible = Wild((MultiLocation::here(), WildNonFungible).into());
+		let fungible = Wild((Here.into(), WildFungible).into());
+		let non_fungible = Wild((Here.into(), WildNonFungible).into());
 
 		let fungible = assets.min(&fungible);
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();
@@ -626,8 +626,8 @@ mod tests {
 	#[test]
 	fn saturating_take_all_concrete_works() {
 		let mut assets = test_assets();
-		let fungible = Wild((MultiLocation::here(), WildFungible).into());
-		let non_fungible = Wild((MultiLocation::here(), WildNonFungible).into());
+		let fungible = Wild((Here.into(), WildFungible).into());
+		let non_fungible = Wild((Here.into(), WildNonFungible).into());
 
 		let fungible = assets.saturating_take(fungible);
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();

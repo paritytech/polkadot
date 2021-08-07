@@ -171,7 +171,7 @@ where
 		// We institute a root fallback so root can always represent the context. This
 		// guarantees that `successful_origin` will work.
 		if o.caller() == Origin::root().caller() {
-			Ok(MultiLocation::here())
+			Ok(Here.into())
 		} else {
 			Err(o)
 		}

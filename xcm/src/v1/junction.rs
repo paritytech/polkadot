@@ -20,6 +20,7 @@ use crate::v0::{BodyId as BodyId0, Junction as Junction0};
 use alloc::vec::Vec;
 use core::convert::TryFrom;
 use parity_scale_codec::{self, Decode, Encode};
+use super::{MultiLocation, Junctions};
 
 /// A global identifier of an account-bearing consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
@@ -152,10 +153,7 @@ pub enum Junction {
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
-	GeneralIndex {
-		#[codec(compact)]
-		id: u128,
-	},
+	GeneralIndex(#[codec(compact)] u128),
 	/// A nondescript datum acting as a key within the context location.
 	///
 	/// Usage will vary widely owing to its generality.
@@ -185,10 +183,26 @@ impl TryFrom<Junction0> for Junction {
 				Ok(Self::AccountIndex64 { network, index }),
 			Junction0::AccountKey20 { network, key } => Ok(Self::AccountKey20 { network, key }),
 			Junction0::PalletInstance(index) => Ok(Self::PalletInstance(index)),
-			Junction0::GeneralIndex { id } => Ok(Self::GeneralIndex { id }),
+			Junction0::GeneralIndex { id } => Ok(Self::GeneralIndex(id)),
 			Junction0::GeneralKey(key) => Ok(Self::GeneralKey(key)),
 			Junction0::OnlyChild => Ok(Self::OnlyChild),
 			Junction0::Plurality { id, part } => Ok(Self::Plurality { id: id.into(), part }),
 		}
+	}
+}
+
+impl Junction {
+	/// Convert `self` into a `MultiLocation` containing 0 parents.
+	///
+	/// Similar to `Into::into`, except that this method can be used in a const evaluation context.
+	pub const fn into(self) -> MultiLocation {
+		MultiLocation { parents: 0, interior: Junctions::X1(self) }
+	}
+
+	/// Convert `self` into a `MultiLocation` containing `n` parents.
+	///
+	/// Similar to `Self::into`, with the added ability to specify the number of parent junctions.
+	pub const fn into_exterior(self, n: u8) -> MultiLocation {
+		MultiLocation { parents: n, interior: Junctions::X1(self) }
 	}
 }

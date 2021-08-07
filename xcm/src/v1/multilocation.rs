@@ -485,7 +485,7 @@ impl From<[Junction; 8]> for MultiLocation {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
 pub enum Junctions {
 	/// The interpreting consensus system.
-	Null,
+	Here,
 	/// A relative path comprising 1 junction.
 	X1(Junction),
 	/// A relative path comprising 2 junctions.
@@ -572,13 +572,13 @@ impl Junctions {
 	///
 	/// Similar to `Into::into`, except that this method can be used in a const evaluation context.
 	pub const fn into(self) -> MultiLocation {
-		self.into_with_parents(0)
+		MultiLocation { parents: 0, interior: self }
 	}
 
 	/// Convert `self` into a `MultiLocation` containing `n` parents.
 	///
 	/// Similar to `Self::into`, with the added ability to specify the number of parent junctions.
-	pub const fn into_with_parents(self, n: u8) -> MultiLocation {
+	pub const fn into_exterior(self, n: u8) -> MultiLocation {
 		MultiLocation { parents: n, interior: self }
 	}
 
@@ -852,7 +852,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 	fn try_from(old: MultiLocation0) -> result::Result<Self, ()> {
 		use Junctions::*;
 		match old {
-			MultiLocation0::Null => Ok(MultiLocation::here()),
+			MultiLocation0::Null => Ok(Here.into()),
 			MultiLocation0::X1(j0) if j0.is_parent() => Ok(MultiLocation::with_parents::<1>()),
 			MultiLocation0::X1(j0) => Ok(X1(j0.try_into()?).into()),
 			MultiLocation0::X2(j0, j1) if j0.is_parent() && j1.is_parent() =>

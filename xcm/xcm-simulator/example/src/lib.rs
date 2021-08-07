@@ -111,7 +111,7 @@ mod tests {
 		);
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
-				MultiLocation::here(),
+				Here.into(),
 				X1(Parachain(1)).into(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -138,7 +138,7 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				MultiLocation::here(),
+				Here.into(),
 				MultiLocation::with_parents::<1>(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -165,7 +165,7 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				MultiLocation::here(),
+				Here.into(),
 				MultiLocation::new(1, X1(Parachain(2))).unwrap(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -192,7 +192,7 @@ mod tests {
 				relay_chain::Origin::signed(ALICE),
 				Box::new(X1(Parachain(1)).into()),
 				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() }).into()),
-				(MultiLocation::here(), 123).into(),
+				(Here.into(), 123).into(),
 				0,
 				3,
 			));
