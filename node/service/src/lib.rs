@@ -94,7 +94,7 @@ pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
 pub use sc_executor::NativeExecutionDispatch;
 pub use service::{
-	config::{DatabaseConfig, PrometheusConfig},
+	config::{DatabaseSource, PrometheusConfig},
 	ChainSpec, Configuration, Error as SubstrateServiceError, PruningMode, Role, RuntimeGenesis,
 	TFullBackend, TFullCallExecutor, TFullClient, TLightBackend, TLightCallExecutor, TLightClient,
 	TaskManager, TransactionPoolOptions,
