@@ -711,80 +711,52 @@ impl TryFrom<MultiLocation1> for MultiLocation {
 			X1(j0) => res.pushed_with(j0.into()).map_err(|_| ()),
 			X2(j0, j1) => res
 				.pushed_with(j0.into())
-				.map_err(|_| ())?
-				.pushed_with(j1.into())
+				.and_then(|res| res.pushed_with(j1.into()))
 				.map_err(|_| ()),
 			X3(j0, j1, j2) => res
 				.pushed_with(j0.into())
-				.map_err(|_| ())?
-				.pushed_with(j1.into())
-				.map_err(|_| ())?
-				.pushed_with(j2.into())
+				.and_then(|res| res.pushed_with(j1.into()))
+				.and_then(|res| res.pushed_with(j2.into()))
 				.map_err(|_| ()),
 			X4(j0, j1, j2, j3) => res
 				.pushed_with(j0.into())
-				.map_err(|_| ())?
-				.pushed_with(j1.into())
-				.map_err(|_| ())?
-				.pushed_with(j2.into())
-				.map_err(|_| ())?
-				.pushed_with(j3.into())
+				.and_then(|res| res.pushed_with(j1.into()))
+				.and_then(|res| res.pushed_with(j2.into()))
+				.and_then(|res| res.pushed_with(j3.into()))
 				.map_err(|_| ()),
 			X5(j0, j1, j2, j3, j4) => res
 				.pushed_with(j0.into())
-				.map_err(|_| ())?
-				.pushed_with(j1.into())
-				.map_err(|_| ())?
-				.pushed_with(j2.into())
-				.map_err(|_| ())?
-				.pushed_with(j3.into())
-				.map_err(|_| ())?
-				.pushed_with(j4.into())
+				.and_then(|res| res.pushed_with(j1.into()))
+				.and_then(|res| res.pushed_with(j2.into()))
+				.and_then(|res| res.pushed_with(j3.into()))
+				.and_then(|res| res.pushed_with(j4.into()))
 				.map_err(|_| ()),
 			X6(j0, j1, j2, j3, j4, j5) => res
 				.pushed_with(j0.into())
-				.map_err(|_| ())?
-				.pushed_with(j1.into())
-				.map_err(|_| ())?
-				.pushed_with(j2.into())
-				.map_err(|_| ())?
-				.pushed_with(j3.into())
-				.map_err(|_| ())?
-				.pushed_with(j4.into())
-				.map_err(|_| ())?
-				.pushed_with(j5.into())
+				.and_then(|res| res.pushed_with(j1.into()))
+				.and_then(|res| res.pushed_with(j2.into()))
+				.and_then(|res| res.pushed_with(j3.into()))
+				.and_then(|res| res.pushed_with(j4.into()))
+				.and_then(|res| res.pushed_with(j5.into()))
 				.map_err(|_| ()),
 			X7(j0, j1, j2, j3, j4, j5, j6) => res
 				.pushed_with(j0.into())
-				.map_err(|_| ())?
-				.pushed_with(j1.into())
-				.map_err(|_| ())?
-				.pushed_with(j2.into())
-				.map_err(|_| ())?
-				.pushed_with(j3.into())
-				.map_err(|_| ())?
-				.pushed_with(j4.into())
-				.map_err(|_| ())?
-				.pushed_with(j5.into())
-				.map_err(|_| ())?
-				.pushed_with(j6.into())
+				.and_then(|res| res.pushed_with(j1.into()))
+				.and_then(|res| res.pushed_with(j2.into()))
+				.and_then(|res| res.pushed_with(j3.into()))
+				.and_then(|res| res.pushed_with(j4.into()))
+				.and_then(|res| res.pushed_with(j5.into()))
+				.and_then(|res| res.pushed_with(j6.into()))
 				.map_err(|_| ()),
 			X8(j0, j1, j2, j3, j4, j5, j6, j7) => res
 				.pushed_with(j0.into())
-				.map_err(|_| ())?
-				.pushed_with(j1.into())
-				.map_err(|_| ())?
-				.pushed_with(j2.into())
-				.map_err(|_| ())?
-				.pushed_with(j3.into())
-				.map_err(|_| ())?
-				.pushed_with(j4.into())
-				.map_err(|_| ())?
-				.pushed_with(j5.into())
-				.map_err(|_| ())?
-				.pushed_with(j6.into())
-				.map_err(|_| ())?
-				.pushed_with(j7.into())
+				.and_then(|res| res.pushed_with(j1.into()))
+				.and_then(|res| res.pushed_with(j2.into()))
+				.and_then(|res| res.pushed_with(j3.into()))
+				.and_then(|res| res.pushed_with(j4.into()))
+				.and_then(|res| res.pushed_with(j5.into()))
+				.and_then(|res| res.pushed_with(j6.into()))
+				.and_then(|res| res.pushed_with(j7.into()))
 				.map_err(|_| ()),
 		}
 	}
