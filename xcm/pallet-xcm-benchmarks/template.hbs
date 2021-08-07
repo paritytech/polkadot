@@ -34,12 +34,12 @@ use sp_std::marker::PhantomData;
 
 /// Weights for {{pallet}} using the Substrate node and recommended hardware.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl WeightInfo<T> {
+impl<T: frame_system::Config> WeightInfo<T> {
 	{{~#each benchmarks as |benchmark|}}
 	{{~#each benchmark.comments as |comment|}}
 	// {{comment}}
 	{{~/each}}
-	fn {{benchmark.name~}}
+	pub(crate) fn {{benchmark.name~}}
 	(
 		{{~#each benchmark.components as |c| ~}}
 		{{~#if (not c.is_used)}}_{{/if}}{{c.name}}: u32, {{/each~}}

@@ -79,13 +79,13 @@ impl XcmWeightInfo<()> for WestendXcmWeight {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::order_deposit_asset())
 	}
-	fn order_deposit_reserved_asset(
+	fn order_deposit_reserve_asset(
 		assets: &MultiAssetFilter,
 		max_assets: &u32,
 		_dest: &MultiLocation,
 		_effects: &Vec<Order<()>>,
 	) -> Weight {
-		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::order_deposit_reserved_asset())
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::order_deposit_reserve_asset())
 	}
 	fn order_exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets) -> Weight {
 		Weight::MAX // todo fix
@@ -125,7 +125,7 @@ impl XcmWeightInfo<()> for WestendXcmWeight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_withdraw_asset())
 	}
 	fn xcm_reserve_asset_deposited(assets: &MultiAssets, _effects: &Vec<Order<()>>) -> Weight {
-		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_reserve_asset_deposited())
+		assets.weigh_multi_assets(XcmGeneric::<Runtime>::xcm_reserve_asset_deposited())
 	}
 	// TODO none of these need effects
 	fn xcm_receive_teleported_asset(assets: &MultiAssets, _effects: &Vec<Order<()>>) -> Weight {

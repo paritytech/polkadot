@@ -43,9 +43,8 @@ benchmarks! {
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	}
-	xcm_withdraw_asset {}: {} verify {}
 	xcm_reserve_asset_deposit {}: {} verify {}
-	xcm_teleport_asset {}: {} verify {}
+	xcm_receive_teleported_asset {}: {} verify {}
 	xcm_transfer_asset {}: {} verify {}
 	xcm_transfer_reserve_asset {}: {} verify {}
 }

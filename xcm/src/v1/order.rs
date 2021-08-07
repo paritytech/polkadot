@@ -250,7 +250,7 @@ impl<W: XcmWeightInfo<()>> GetWeight<W> for Order<()> {
 			Order::DepositAsset { assets, max_assets, beneficiary } =>
 				W::order_deposit_asset(assets, max_assets, beneficiary),
 			Order::DepositReserveAsset { assets, max_assets, dest, effects } =>
-				W::order_deposit_reserved_asset(assets, max_assets, dest, effects),
+				W::order_deposit_reserve_asset(assets, max_assets, dest, effects),
 			Order::ExchangeAsset { give, receive } => W::order_exchange_asset(give, receive),
 			Order::InitiateReserveWithdraw { assets, reserve, effects } =>
 				W::order_initiate_reserve_withdraw(assets, reserve, effects),

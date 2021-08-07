@@ -280,7 +280,7 @@ pub trait XcmWeightInfo<Call> {
 		max_assets: &u32,
 		dest: &MultiLocation,
 	) -> Weight;
-	fn order_deposit_reserved_asset(
+	fn order_deposit_reserve_asset(
 		assets: &MultiAssetFilter,
 		max_assets: &u32,
 		dest: &MultiLocation,

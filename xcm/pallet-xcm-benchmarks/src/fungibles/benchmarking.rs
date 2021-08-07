@@ -88,7 +88,7 @@ benchmarks! {
 		assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero())
 	}
 
-	order_deposit_reserved_asset {}: {} verify {}
+	order_deposit_reserve_asset {}: {} verify {}
 	order_exchange_asset {}: {} verify {}
 	order_initiate_reserve_withdraw {}: {} verify {}
 	order_initiate_teleport {}: {} verify {}
@@ -117,7 +117,7 @@ benchmarks! {
 		assert!(T::TransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
 	}
 	xcm_reserve_asset_deposit {}: {} verify {}
-	xcm_teleport_asset {}: {} verify {}
+	xcm_receive_teleported_asset {}: {} verify {}
 	xcm_transfer_asset_per_asset {
 		let a in 1..MAX_ASSETS+1;
 

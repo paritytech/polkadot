@@ -185,7 +185,9 @@ benchmarks_instance_pallet! {
 		// check one of the assets of origin.
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 	}
-	xcm_teleport_asset {}: {} verify {}
+	xcm_receive_teleported_asset {
+
+	}: {} verify {}
 	xcm_transfer_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
 		let ben_location = T::ValidDestination::get();
