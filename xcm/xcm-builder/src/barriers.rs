@@ -113,7 +113,7 @@ impl ShouldExecute for AllowBenchmarks {
 	fn should_execute<Call>(
 		_: &MultiLocation,
 		_: bool,
-		_: &xcm::v0::Xcm<Call>,
+		_: &xcm::latest::Xcm<Call>,
 		_: Weight,
 		_: &mut Weight,
 	) -> Result<(), ()> {
