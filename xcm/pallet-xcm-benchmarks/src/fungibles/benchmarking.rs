@@ -58,7 +58,7 @@ benchmarks! {
 	send_xcm {}: {}
 
 	// orders.
-	order_null {
+	order_noop {
 		let order = Order::<XcmCallOf<T>>::Null;
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
 		let holding = Assets::default();

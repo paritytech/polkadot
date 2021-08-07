@@ -16,10 +16,14 @@
 
 //! Cross-Consensus Message format data structures.
 
+use alloc::vec::Vec;
 use core::result;
 use parity_scale_codec::{Decode, Encode};
 
-use super::{MultiLocation, Xcm};
+use super::{
+	DoubleEncoded, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Order, OriginKind,
+	Response, Xcm,
+};
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Error {
@@ -260,4 +264,74 @@ impl SendXcm for Tuple {
 		)* );
 		Err(Error::CannotReachDestination(destination, message))
 	}
+}
+
+// A simple trait to get the weight of some object.
+pub trait GetWeight<W> {
+	fn weight(&self) -> Weight;
+}
+
+// TODO: Macro to generate this
+// The info needed to weight an XCM.
+pub trait XcmWeightInfo<Call> {
+	fn order_noop() -> Weight;
+	fn order_deposit_asset(
+		assets: &MultiAssetFilter,
+		max_assets: &u32,
+		dest: &MultiLocation,
+	) -> Weight;
+	fn order_deposit_reserved_asset(
+		assets: &MultiAssetFilter,
+		max_assets: &u32,
+		dest: &MultiLocation,
+		effects: &Vec<Order<()>>,
+	) -> Weight;
+	fn order_exchange_asset(give: &MultiAssetFilter, receive: &MultiAssets) -> Weight;
+	fn order_initiate_reserve_withdraw(
+		assets: &MultiAssetFilter,
+		reserve: &MultiLocation,
+		effects: &Vec<Order<()>>,
+	) -> Weight;
+	fn order_initiate_teleport(
+		assets: &MultiAssetFilter,
+		dest: &MultiLocation,
+		effects: &Vec<Order<()>>,
+	) -> Weight;
+	fn order_query_holding(
+		query_id: &u64,
+		dest: &MultiLocation,
+		assets: &MultiAssetFilter,
+	) -> Weight;
+	fn order_buy_execution(
+		fees: &MultiAsset,
+		weight: &u64,
+		debt: &u64,
+		halt_on_error: &bool,
+		orders: &Vec<Order<Call>>,
+		instructions: &Vec<Xcm<Call>>,
+	) -> Weight;
+	fn xcm_withdraw_asset(assets: &MultiAssets, effects: &Vec<Order<Call>>) -> Weight;
+	fn xcm_reserve_asset_deposited(assets: &MultiAssets, effects: &Vec<Order<Call>>) -> Weight;
+	fn xcm_receive_teleported_asset(assets: &MultiAssets, effects: &Vec<Order<Call>>) -> Weight;
+	fn xcm_query_response(query_id: &u64, response: &Response) -> Weight;
+	fn xcm_transfer_asset(assets: &MultiAssets, beneficiary: &MultiLocation) -> Weight;
+	fn xcm_transfer_reserve_asset(
+		assets: &MultiAssets,
+		dest: &MultiLocation,
+		effects: &Vec<Order<()>>,
+	) -> Weight;
+	// TODO: &Maybe remove call
+	fn xcm_transact(
+		origin_type: &OriginKind,
+		require_weight_at_most: &u64,
+		call: &DoubleEncoded<Call>,
+	) -> Weight;
+	fn xcm_hrmp_new_channel_open_request(
+		sender: &u32,
+		max_message_size: &u32,
+		max_capacity: &u32,
+	) -> Weight;
+	fn xcm_hrmp_channel_accepted(recipient: &u32) -> Weight;
+	fn xcm_hrmp_channel_closing(initiator: &u32, sender: &u32, recipient: &u32) -> Weight;
+	fn xcm_relayed_from(who: &MultiLocation, message: &alloc::boxed::Box<Xcm<Call>>) -> Weight;
 }

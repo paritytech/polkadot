@@ -40,7 +40,7 @@ pub use multiasset::{
 };
 pub use multilocation::MultiLocation;
 pub use order::Order;
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
+pub use traits::{Error, ExecuteXcm, GetWeight, Outcome, Result, SendXcm, Weight, XcmWeightInfo};
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
@@ -388,5 +388,30 @@ impl<Call> TryFrom<Xcm0<Call>> for Xcm<Call> {
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
 		})
+	}
+}
+
+impl<W: XcmWeightInfo<()>> GetWeight<W> for Xcm<()> {
+	fn weight(&self) -> Weight {
+		match self {
+			Xcm::WithdrawAsset { assets, effects } => W::xcm_withdraw_asset(assets, effects),
+			Xcm::ReserveAssetDeposited { assets, effects } =>
+				W::xcm_reserve_asset_deposited(assets, effects),
+			Xcm::ReceiveTeleportedAsset { assets, effects } =>
+				W::xcm_receive_teleported_asset(assets, effects),
+			Xcm::QueryResponse { query_id, response } => W::xcm_query_response(query_id, response),
+			Xcm::TransferAsset { assets, beneficiary } =>
+				W::xcm_transfer_asset(assets, beneficiary),
+			Xcm::TransferReserveAsset { assets, dest, effects } =>
+				W::xcm_transfer_reserve_asset(&assets, dest, effects),
+			Xcm::Transact { origin_type, require_weight_at_most, call } =>
+				W::xcm_transact(origin_type, require_weight_at_most, call),
+			Xcm::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				W::xcm_hrmp_new_channel_open_request(sender, max_message_size, max_capacity),
+			Xcm::HrmpChannelAccepted { recipient } => W::xcm_hrmp_channel_accepted(recipient),
+			Xcm::HrmpChannelClosing { initiator, sender, recipient } =>
+				W::xcm_hrmp_channel_closing(initiator, sender, recipient),
+			Xcm::RelayedFrom { who, message } => W::xcm_relayed_from(who, message),
+		}
 	}
 }

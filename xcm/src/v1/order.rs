@@ -19,6 +19,7 @@
 use super::{
 	super::v0::Order as Order0, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
 };
+use crate::latest::{GetWeight, Weight, XcmWeightInfo};
 use alloc::{vec, vec::Vec};
 use core::{
 	convert::{TryFrom, TryInto},
@@ -239,5 +240,26 @@ impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 				}
 			},
 		})
+	}
+}
+
+impl<W: XcmWeightInfo<()>> GetWeight<W> for Order<()> {
+	fn weight(&self) -> Weight {
+		match self {
+			Order::Noop => W::order_noop(),
+			Order::DepositAsset { assets, max_assets, beneficiary } =>
+				W::order_deposit_asset(assets, max_assets, beneficiary),
+			Order::DepositReserveAsset { assets, max_assets, dest, effects } =>
+				W::order_deposit_reserved_asset(assets, max_assets, dest, effects),
+			Order::ExchangeAsset { give, receive } => W::order_exchange_asset(give, receive),
+			Order::InitiateReserveWithdraw { assets, reserve, effects } =>
+				W::order_initiate_reserve_withdraw(assets, reserve, effects),
+			Order::InitiateTeleport { assets, dest, effects } =>
+				W::order_initiate_teleport(assets, dest, effects),
+			Order::QueryHolding { query_id, dest, assets } =>
+				W::order_query_holding(query_id, dest, assets),
+			Order::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } =>
+				W::order_buy_execution(fees, weight, debt, halt_on_error, orders, instructions),
+		}
 	}
 }
