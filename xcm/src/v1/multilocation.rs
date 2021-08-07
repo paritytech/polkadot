@@ -117,6 +117,12 @@ impl MultiLocation {
 		self.parents
 	}
 
+	/// Returns boolean indicating whether or not `self` contains only the specified amount of
+	/// parents and no interior junctions.
+	pub const fn contains_parents_only(&self, count: u8) -> bool {
+		matches!(self.interior, Junctions::Null) && self.parents == count
+	}
+
 	/// Returns the number of parents and junctions in `self`.
 	pub const fn len(&self) -> usize {
 		self.parent_count() as usize + self.interior.len()

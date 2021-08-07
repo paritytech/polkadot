@@ -45,10 +45,7 @@ where
 pub struct ParentAsSuperuser<Origin>(PhantomData<Origin>);
 impl<Origin: OriginTrait> ConvertOrigin<Origin> for ParentAsSuperuser<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		if kind == OriginKind::Superuser &&
-			origin.parent_count() == 1 &&
-			origin.interior().len() == 0
-		{
+		if kind == OriginKind::Superuser && origin.contains_parents_only(1) {
 			Ok(Origin::root())
 		} else {
 			Err(origin)
