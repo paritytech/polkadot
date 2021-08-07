@@ -116,8 +116,7 @@ impl<RelayOrigin: Get<Origin>, Origin> ConvertOrigin<Origin>
 	for RelayChainAsNative<RelayOrigin, Origin>
 {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		if kind == OriginKind::Native && origin.parent_count() == 1 && origin.interior().len() == 0
-		{
+		if kind == OriginKind::Native && origin.contains_parents_only(1) {
 			Ok(RelayOrigin::get())
 		} else {
 			Err(origin)
