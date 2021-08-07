@@ -390,7 +390,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
-	type CompactSolution = NposCompactSolution24;
+	type Solution = NposCompactSolution24;
 	type OnChainAccuracy = Perbill;
 	type Fallback = Fallback;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
