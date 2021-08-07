@@ -88,15 +88,6 @@ impl MultiLocation {
 		MultiLocation { parents: P, interior: Junctions::Null }
 	}
 
-	/// Creates a new `MultiLocation` with no parents and a single `Parachain` interior junction
-	/// specified by `para_id`.
-	///
-	/// The resulting `MultiLocation` can be interpreted as the child-parachain of the current
-	/// consensus system.
-	pub const fn with_parachain_interior(para_id: u32) -> MultiLocation {
-		MultiLocation { parents: 0, interior: Junctions::X1(Junction::Parachain(para_id)) }
-	}
-
 	/// Whether or not the `MultiLocation` has no parents and has a `Null` interior.
 	pub const fn is_here(&self) -> bool {
 		self.parents == 0 && self.interior.len() == 0

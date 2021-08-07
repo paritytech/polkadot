@@ -29,8 +29,8 @@ fn basic_setup_works() {
 		&MultiLocation::with_parents::<1>(),
 	));
 
-	assert_eq!(to_account(MultiLocation::with_parachain_interior(1)), Ok(1001));
-	assert_eq!(to_account(MultiLocation::with_parachain_interior(50)), Ok(1050));
+	assert_eq!(to_account(X1(Parachain(1)).into()), Ok(1001));
+	assert_eq!(to_account(X1(Parachain(50)).into()), Ok(1050));
 	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(1))).unwrap()), Ok(2001));
 	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(50))).unwrap()), Ok(2050));
 	assert_eq!(

@@ -102,7 +102,7 @@ pub mod pallet {
 		UnweighableMessage,
 		/// The assets to be sent are empty.
 		Empty,
-		/// Could not reanchor the assets to declare the fees for the destination chain.
+		/// Could not re-anchor the assets to declare the fees for the destination chain.
 		CannotReanchor,
 		/// Too many assets have been attempted for transfer.
 		TooManyAssets,
