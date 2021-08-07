@@ -118,29 +118,21 @@ impl BodyPart {
 /// A single item in a path to describe the relative location of a consensus system.
 ///
 /// Each item assumes a pre-existing location as its context and is defined in terms of it.
-///
-/// NOTE: The codec index starts at 1, because a previous iteration of `Junction` has a `Parent`
-///       variant occupying index 0. We deprecate `Junction::Parent` now by having a custom
-///       Encode/Decode implementation for `MultiLocation`. Refer to [`MultiLocation`] for more
-///       details.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
 pub enum Junction {
 	/// An indexed parachain belonging to and operated by the context.
 	///
 	/// Generally used when the context is a Polkadot Relay-chain.
-	#[codec(index = 1)]
 	Parachain(#[codec(compact)] u32),
 	/// A 32-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
 	/// the context.
 	///
 	/// Generally used when the context is a Substrate-based chain.
-	#[codec(index = 2)]
 	AccountId32 { network: NetworkId, id: [u8; 32] },
 	/// An 8-byte index for an account of a specific network that is respected as a sovereign endpoint within
 	/// the context.
 	///
 	/// May be used when the context is a Frame-based chain and includes e.g. an indices pallet.
-	#[codec(index = 3)]
 	AccountIndex64 {
 		network: NetworkId,
 		#[codec(compact)]
@@ -150,19 +142,16 @@ pub enum Junction {
 	/// the context.
 	///
 	/// May be used when the context is an Ethereum or Bitcoin chain or smart-contract.
-	#[codec(index = 4)]
 	AccountKey20 { network: NetworkId, key: [u8; 20] },
 	/// An instanced, indexed pallet that forms a constituent part of the context.
 	///
 	/// Generally used when the context is a Frame-based chain.
-	#[codec(index = 5)]
 	PalletInstance(u8),
 	/// A non-descript index within the context location.
 	///
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
-	#[codec(index = 6)]
 	GeneralIndex {
 		#[codec(compact)]
 		id: u128,
@@ -172,18 +161,15 @@ pub enum Junction {
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
-	#[codec(index = 7)]
 	GeneralKey(Vec<u8>),
 	/// The unambiguous child.
 	///
 	/// Not currently used except as a fallback when deriving ancestry.
-	#[codec(index = 8)]
 	OnlyChild,
 	/// A pluralistic body existing within consensus.
 	///
 	/// Typical to be used to represent a governance origin of a chain, but could in principle be used to represent
 	/// things such as multisigs also.
-	#[codec(index = 9)]
 	Plurality { id: BodyId, part: BodyPart },
 }
 
