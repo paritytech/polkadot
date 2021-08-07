@@ -24,7 +24,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{All, Filter, IsInVec, KeyOwnerProofSystem, OnRuntimeUpgrade, Randomness},
+	traits::{All, Contains, IsInVec, KeyOwnerProofSystem, OnRuntimeUpgrade, Randomness},
 	weights::Weight,
 	PalletId,
 };
@@ -266,7 +266,7 @@ construct_runtime! {
 }
 
 pub struct BaseFilter;
-impl Filter<Call> for BaseFilter {
+impl Contains<Call> for BaseFilter {
 	fn filter(_call: &Call) -> bool {
 		true
 	}
@@ -833,7 +833,7 @@ impl pallet_bridge_dispatch::Config<AtWococoFromRococoMessagesDispatch> for Runt
 	type Event = Event;
 	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
-	type CallFilter = frame_support::traits::AllowAll;
+	type CallFilter = frame_support::traits::Everything;
 	type EncodedCall = bridge_messages::FromRococoEncodedCall;
 	type SourceChainAccountId = bp_wococo::AccountId;
 	type TargetChainAccountPublic = sp_runtime::MultiSigner;
@@ -847,7 +847,7 @@ impl pallet_bridge_dispatch::Config<AtRococoFromWococoMessagesDispatch> for Runt
 	type Event = Event;
 	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
-	type CallFilter = frame_support::traits::AllowAll;
+	type CallFilter = frame_support::traits::Everything;
 	type EncodedCall = bridge_messages::FromWococoEncodedCall;
 	type SourceChainAccountId = bp_rococo::AccountId;
 	type TargetChainAccountPublic = sp_runtime::MultiSigner;

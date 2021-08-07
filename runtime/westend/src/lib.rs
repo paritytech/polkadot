@@ -58,7 +58,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{All, Filter, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
+	traits::{All, Contains, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -136,7 +136,7 @@ pub fn native_version() -> NativeVersion {
 
 /// Allow everything.
 pub struct BaseFilter;
-impl Filter<Call> for BaseFilter {
+impl Contains<Call> for BaseFilter {
 	fn filter(_: &Call) -> bool {
 		true
 	}

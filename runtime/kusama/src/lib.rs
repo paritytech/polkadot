@@ -49,7 +49,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{All, Filter, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
+	traits::{All, Contains, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -136,8 +136,8 @@ pub fn native_version() -> NativeVersion {
 
 /// Don't allow swaps until parathread story is more mature.
 pub struct BaseFilter;
-impl Filter<Call> for BaseFilter {
-	fn filter(c: &Call) -> bool {
+impl Contains<Call> for BaseFilter {
+	fn contains(c: &Call) -> bool {
 		!matches!(c, Call::Registrar(paras_registrar::Call::swap(..)))
 	}
 }
@@ -982,7 +982,7 @@ impl Default for ProxyType {
 	}
 }
 impl InstanceFilter<Call> for ProxyType {
-	fn filter(&self, c: &Call) -> bool {
+	fn contains(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
 			ProxyType::NonTransfer => matches!(

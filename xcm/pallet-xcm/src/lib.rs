@@ -24,7 +24,7 @@ mod mock;
 mod tests;
 
 use codec::{Decode, Encode};
-use frame_support::traits::{Contains, EnsureOrigin, Filter, Get, OriginTrait};
+use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
 use sp_std::{boxed::Box, convert::TryInto, marker::PhantomData, prelude::*, vec};
 use xcm::latest::prelude::*;
@@ -352,10 +352,10 @@ where
 ///
 /// May reasonably be used with `EnsureXcm`.
 pub struct IsMajorityOfBody<Prefix, Body>(PhantomData<(Prefix, Body)>);
-impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Filter<MultiLocation>
+impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
 	for IsMajorityOfBody<Prefix, Body>
 {
-	fn filter(l: &MultiLocation) -> bool {
+	fn contains(l: &MultiLocation) -> bool {
 		let maybe_suffix = l.match_and_split(&Prefix::get());
 		matches!(maybe_suffix, Some(Plurality { id, part }) if id == &Body::get() && part.is_majority())
 	}
@@ -364,7 +364,7 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Filter<MultiLocation>
 /// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter the
 /// `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);
-impl<O: OriginTrait + From<Origin>, F: Filter<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
+impl<O: OriginTrait + From<Origin>, F: Contains<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
 where
 	O::PalletsOrigin: From<Origin> + TryInto<Origin, Error = O::PalletsOrigin>,
 {
@@ -373,7 +373,7 @@ where
 	fn try_origin(outer: O) -> Result<Self::Success, O> {
 		outer.try_with_caller(|caller| {
 			caller.try_into().and_then(|Origin::Xcm(location)| {
-				if F::filter(&location) {
+				if F::contains(&location) {
 					Ok(location)
 				} else {
 					Err(Origin::Xcm(location).into())

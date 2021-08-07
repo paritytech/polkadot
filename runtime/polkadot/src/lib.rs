@@ -31,7 +31,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Filter, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
+	traits::{Contains, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -119,7 +119,7 @@ pub fn native_version() -> NativeVersion {
 }
 
 pub struct BaseFilter;
-impl Filter<Call> for BaseFilter {
+impl Contains<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
 			// These modules are all allowed to be called by transactions:

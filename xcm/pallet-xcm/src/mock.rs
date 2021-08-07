@@ -16,7 +16,7 @@
 
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{All, AllowAll},
+	traits::{All, Everything},
 	weights::Weight,
 };
 use polkadot_parachain::primitives::Id as ParaId;
@@ -108,7 +108,7 @@ impl frame_system::Config for Test {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type DbWeight = ();
-	type BaseCallFilter = AllowAll;
+	type BaseCallFilter = Everything;
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
