@@ -16,7 +16,7 @@ serde = "1.0.0"
 hex = "0.4.3"
 lazy_static = "1.4.0"
 paste = "1.0.5"
-thiserror = "1.0.0"
+thiserror = "1.0.26"
 
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
