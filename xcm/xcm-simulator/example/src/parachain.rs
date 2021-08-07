@@ -156,7 +156,6 @@ impl Config for XcmConfig {
 #[frame_support::pallet]
 pub mod mock_msg_queue {
 	use super::*;
-	use codec::DecodeLimit;
 	use frame_support::pallet_prelude::*;
 
 	#[pallet::config]
