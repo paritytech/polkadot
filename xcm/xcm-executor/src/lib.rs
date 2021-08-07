@@ -263,8 +263,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		};
 
 		if let Some((mut holding, effects)) = maybe_holding_effects {
-			for effect in effects {
-				total_surplus += Self::execute_effects(
+			for effect in effects.into_iter() {
+				total_surplus += Self::execute_orders(
 					&origin,
 					&mut holding,
 					effect,
@@ -285,11 +285,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		num_recursions: u32,
 	) -> Result<Weight, XcmError> {
 		log::trace!(
-			target: "xcm::execute_effects",
-			"origin: {:?}, holding: {:?}, effect: {:?}, recursion: {:?}",
+			target: "xcm::execute_orders",
+			"origin: {:?}, holding: {:?}, order: {:?}, recursion: {:?}",
 			origin,
 			holding,
-			effect,
+			order,
 			num_recursions,
 		);
 
@@ -343,6 +343,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				holding.subsume_assets(unspent);
 
 				let mut remaining_weight = weight;
+				for order in orders.into_iter() {
+					match Self::execute_orders(origin, holding, order, trader, num_recursions + 1) {
+						Err(e) if halt_on_error => return Err(e),
+						Err(_) => {},
+						Ok(surplus) => total_surplus += surplus,
+					}
+				}
 				for instruction in instructions.into_iter() {
 					match Self::do_execute_xcm(
 						origin.clone(),
