@@ -181,7 +181,7 @@ mod tests {
 				])
 			);
 
-			assert_eq!(ParasShared::active_validator_keys(), validators,);
+			assert_eq!(ParasShared::active_validator_keys(), validators);
 
 			assert_eq!(
 				ParasShared::active_validator_indices(),
@@ -219,7 +219,7 @@ mod tests {
 				validator_pubkeys(&[Sr25519Keyring::Ferdie, Sr25519Keyring::Bob,])
 			);
 
-			assert_eq!(ParasShared::active_validator_keys(), validators,);
+			assert_eq!(ParasShared::active_validator_keys(), validators);
 
 			assert_eq!(
 				ParasShared::active_validator_indices(),

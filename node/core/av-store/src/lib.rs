@@ -707,7 +707,7 @@ fn note_block_backed(
 ) -> Result<(), Error> {
 	let candidate_hash = candidate.hash();
 
-	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate backed",);
+	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate backed");
 
 	if load_meta(db, config, &candidate_hash)?.is_none() {
 		let meta = CandidateMeta {
@@ -748,7 +748,7 @@ fn note_block_included(
 		Some(mut meta) => {
 			let be_block = (BEBlockNumber(block.0), block.1);
 
-			tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate included",);
+			tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Candidate included");
 
 			meta.state = match meta.state {
 				State::Unavailable(at) => {
@@ -1194,7 +1194,7 @@ fn store_available_data(
 
 	subsystem.db.write(tx)?;
 
-	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Stored data and chunks",);
+	tracing::debug!(target: LOG_TARGET, ?candidate_hash, "Stored data and chunks");
 
 	Ok(())
 }

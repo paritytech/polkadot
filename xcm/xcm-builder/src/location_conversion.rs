@@ -19,7 +19,7 @@ use parity_scale_codec::Encode;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::AccountIdConversion;
 use sp_std::{borrow::Borrow, marker::PhantomData};
-use xcm::v0::{Junction, MultiLocation, NetworkId};
+use xcm::latest::{Junction, MultiLocation, NetworkId};
 use xcm_executor::traits::{Convert, InvertLocation};
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
@@ -155,7 +155,7 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone
 /// ```
 /// ```rust
 /// # use frame_support::parameter_types;
-/// # use xcm::v0::{MultiLocation::{self, *}, Junction::*, NetworkId::Any};
+/// # use xcm::latest::{MultiLocation::{self, *}, Junction::*, NetworkId::Any};
 /// # use xcm_builder::LocationInverter;
 /// # use xcm_executor::traits::InvertLocation;
 /// # fn main() {
@@ -200,7 +200,7 @@ mod tests {
 	use super::*;
 
 	use frame_support::parameter_types;
-	use xcm::v0::{Junction::*, MultiLocation::*, NetworkId::Any};
+	use xcm::latest::{Junction::*, MultiLocation::*, NetworkId::Any};
 
 	fn account20() -> Junction {
 		AccountKey20 { network: Any, key: Default::default() }

@@ -262,7 +262,7 @@ fn renice(pid: u32, niceness: i32) {
 	unsafe {
 		if -1 == libc::setpriority(libc::PRIO_PROCESS, pid, niceness) {
 			let err = std::io::Error::last_os_error();
-			tracing::warn!(target: LOG_TARGET, "failed to set the priority: {:?}", err,);
+			tracing::warn!(target: LOG_TARGET, "failed to set the priority: {:?}", err);
 		}
 	}
 }

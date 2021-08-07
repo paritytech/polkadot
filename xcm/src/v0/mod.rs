@@ -16,18 +16,20 @@
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
-use crate::{DoubleEncoded, VersionedMultiAsset, VersionedXcm};
+use crate::DoubleEncoded;
 use alloc::vec::Vec;
-use core::{convert::TryFrom, fmt::Debug, result};
+use core::{
+	convert::{TryFrom, TryInto},
+	result,
+};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
-mod junction;
 mod multi_asset;
 mod multi_location;
 mod order;
 mod traits;
-pub use junction::{BodyId, BodyPart, Junction, NetworkId};
+use super::v1::Xcm as Xcm1;
 pub use multi_asset::{AssetInstance, MultiAsset};
 pub use multi_location::MultiLocation;
 pub use order::Order;
@@ -36,7 +38,6 @@ pub use traits::{Error, ExecuteXcm, GetWeight, Outcome, Result, SendXcm, Weight,
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
-		junction::{BodyId, BodyPart, Junction::*, NetworkId},
 		multi_asset::{
 			AssetInstance::{self, *},
 			MultiAsset::{self, *},
@@ -44,43 +45,14 @@ pub mod prelude {
 		multi_location::MultiLocation::{self, *},
 		order::Order::{self, *},
 		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
-		OriginKind,
+		BodyId, BodyPart,
+		Junction::*,
+		NetworkId, OriginKind,
 		Xcm::{self, *},
 	};
 }
 
-// TODO: #2841 #XCMENCODE Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode
-//   the number of items in the vector.
-
-/// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
-#[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum OriginKind {
-	/// Origin should just be the native dispatch origin representation for the sender in the
-	/// local runtime framework. For Cumulus/Frame chains this is the `Parachain` or `Relay` origin
-	/// if coming from a chain, though there may be others if the `MultiLocation` XCM origin has a
-	/// primary/native dispatch origin form.
-	Native,
-
-	/// Origin should just be the standard account-based origin with the sovereign account of
-	/// the sender. For Cumulus/Frame chains, this is the `Signed` origin.
-	SovereignAccount,
-
-	/// Origin should be the super-user. For Cumulus/Frame chains, this is the `Root` origin.
-	/// This will not usually be an available option.
-	Superuser,
-
-	/// Origin should be interpreted as an XCM native origin and the `MultiLocation` should be
-	/// encoded directly in the dispatch origin unchanged. For Cumulus/Frame chains, this will be
-	/// the `pallet_xcm::Origin::Xcm` type.
-	Xcm,
-}
-
-/// Response data to a query.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum Response {
-	/// Some assets.
-	Assets(Vec<MultiAsset>),
-}
+pub use super::v1::{BodyId, BodyPart, Junction, NetworkId, OriginKind, Response};
 
 /// Cross-Consensus Message: A message from one consensus system to another.
 ///
@@ -275,21 +247,6 @@ pub enum Xcm<Call> {
 	RelayedFrom { who: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
 }
 
-impl<Call> From<Xcm<Call>> for VersionedXcm<Call> {
-	fn from(x: Xcm<Call>) -> Self {
-		VersionedXcm::V0(x)
-	}
-}
-
-impl<Call> TryFrom<VersionedXcm<Call>> for Xcm<Call> {
-	type Error = ();
-	fn try_from(x: VersionedXcm<Call>) -> result::Result<Self, ()> {
-		match x {
-			VersionedXcm::V0(x) => Ok(x),
-		}
-	}
-}
-
 impl<Call> Xcm<Call> {
 	pub fn into<C>(self) -> Xcm<C> {
 		Xcm::from(self)
@@ -359,4 +316,57 @@ pub mod opaque {
 	pub type Xcm = super::Xcm<()>;
 
 	pub use super::order::opaque::*;
+}
+
+impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
+	type Error = ();
+	fn try_from(x: Xcm1<Call>) -> result::Result<Xcm<Call>, ()> {
+		use Xcm::*;
+		Ok(match x {
+			Xcm1::WithdrawAsset { assets, effects } => WithdrawAsset {
+				assets: assets.into(),
+				effects: effects
+					.into_iter()
+					.map(Order::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Xcm1::ReserveAssetDeposited { assets, effects } => ReserveAssetDeposit {
+				assets: assets.into(),
+				effects: effects
+					.into_iter()
+					.map(Order::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Xcm1::ReceiveTeleportedAsset { assets, effects } => TeleportAsset {
+				assets: assets.into(),
+				effects: effects
+					.into_iter()
+					.map(Order::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Xcm1::QueryResponse { query_id: u64, response } =>
+				QueryResponse { query_id: u64, response },
+			Xcm1::TransferAsset { assets, beneficiary } =>
+				TransferAsset { assets: assets.into(), dest: beneficiary.into() },
+			Xcm1::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
+				assets: assets.into(),
+				dest: dest.into(),
+				effects: effects
+					.into_iter()
+					.map(Order::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Xcm1::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
+			Xcm1::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
+			Xcm1::HrmpChannelClosing { initiator, sender, recipient } =>
+				HrmpChannelClosing { initiator, sender, recipient },
+			Xcm1::Transact { origin_type, require_weight_at_most, call } =>
+				Transact { origin_type, require_weight_at_most, call: call.into() },
+			Xcm1::RelayedFrom { who, message } => RelayedFrom {
+				who: who.into(),
+				message: alloc::boxed::Box::new((*message).try_into()?),
+			},
+		})
+	}
 }

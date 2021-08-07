@@ -16,8 +16,9 @@
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
-use super::{GetWeight, MultiAsset, MultiLocation, Weight, Xcm, XcmWeightInfo};
+use super::{super::v1::Order as Order1, MultiAsset, MultiLocation, Xcm};
 use alloc::vec::Vec;
+use core::{convert::TryFrom, result};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
@@ -153,22 +154,53 @@ impl<Call> Order<Call> {
 	}
 }
 
-impl<W: XcmWeightInfo<()>> GetWeight<W> for Order<()> {
-	fn weight(&self) -> Weight {
-		match self {
-			Order::Null => W::order_null(),
-			Order::DepositAsset { assets, dest } => W::order_deposit_asset(assets, dest),
-			Order::DepositReserveAsset { assets, dest, effects } =>
-				W::order_deposit_reserved_asset(assets, dest, effects),
-			Order::ExchangeAsset { give, receive } => W::order_exchange_asset(give, receive),
-			Order::InitiateReserveWithdraw { assets, reserve, effects } =>
-				W::order_initiate_reserve_withdraw(assets, reserve, effects),
-			Order::InitiateTeleport { assets, dest, effects } =>
-				W::order_initiate_teleport(assets, dest, effects),
-			Order::QueryHolding { query_id, dest, assets } =>
-				W::order_query_holding(query_id, dest, assets),
-			Order::BuyExecution { fees, weight, debt, halt_on_error, xcm } =>
-				W::order_buy_execution(fees, weight, debt, halt_on_error, xcm),
-		}
+impl<Call> TryFrom<Order1<Call>> for Order<Call> {
+	type Error = ();
+	fn try_from(old: Order1<Call>) -> result::Result<Order<Call>, ()> {
+		use Order::*;
+		Ok(match old {
+			Order1::Noop => Null,
+			Order1::DepositAsset { assets, beneficiary, .. } =>
+				DepositAsset { assets: assets.into(), dest: beneficiary.into() },
+			Order1::DepositReserveAsset { assets, dest, effects, .. } => DepositReserveAsset {
+				assets: assets.into(),
+				dest: dest.into(),
+				effects: effects
+					.into_iter()
+					.map(Order::<()>::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Order1::ExchangeAsset { give, receive } =>
+				ExchangeAsset { give: give.into(), receive: receive.into() },
+			Order1::InitiateReserveWithdraw { assets, reserve, effects } =>
+				InitiateReserveWithdraw {
+					assets: assets.into(),
+					reserve: reserve.into(),
+					effects: effects
+						.into_iter()
+						.map(Order::<()>::try_from)
+						.collect::<result::Result<_, _>>()?,
+				},
+			Order1::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
+				assets: assets.into(),
+				dest: dest.into(),
+				effects: effects
+					.into_iter()
+					.map(Order::<()>::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Order1::QueryHolding { query_id, dest, assets } =>
+				QueryHolding { query_id, dest: dest.into(), assets: assets.into() },
+			Order1::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } => {
+				if !orders.is_empty() {
+					return Err(())
+				}
+				let xcm = instructions
+					.into_iter()
+					.map(Xcm::<Call>::try_from)
+					.collect::<result::Result<_, _>>()?;
+				BuyExecution { fees: fees.into(), weight, debt, halt_on_error, xcm }
+			},
+		})
 	}
 }

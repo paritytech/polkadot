@@ -470,7 +470,7 @@ mod tests {
 			assert_ok!(Exchange::import_peer_transaction(
 				Origin::signed(SUBMITTER),
 				(true, transaction),
-			),);
+			));
 
 			// ensure that the transfer has been marked as completed
 			assert!(<Exchange as crate::Store>::Transfers::contains_key(0u64));
@@ -485,7 +485,7 @@ mod tests {
 			assert_ok!(Exchange::import_peer_transaction(
 				Origin::signed(SUBMITTER),
 				(true, transaction(0)),
-			),);
+			));
 
 			// ensure that the transfer has been marked as completed
 			assert!(<Exchange as crate::Store>::Transfers::contains_key(0u64));
