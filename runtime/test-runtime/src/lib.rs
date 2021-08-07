@@ -79,6 +79,7 @@ pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
 pub mod constants;
+pub mod xcm_config;
 use constants::{currency::*, fee::*, time::*};
 
 // Make the WASM binary available.
@@ -488,6 +489,31 @@ impl parachains_ump::Config for Runtime {
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
+parameter_types! {
+	pub const BaseXcmWeight: frame_support::weights::Weight = 1_000;
+	pub const AnyNetwork: xcm::latest::NetworkId = xcm::latest::NetworkId::Any;
+}
+
+pub type LocalOriginToLocation = xcm_builder::SignedToAccountId32<Origin, AccountId, AnyNetwork>;
+
+impl pallet_xcm::Config for Runtime {
+	// The config types here are entirely configurable, since the only one that is sorely needed
+	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
+	type Event = Event;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type LocationInverter = xcm_config::InvertNothing;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
+	type XcmRouter = xcm_config::DoNothingRouter;
+	type XcmExecuteFilter =
+		frame_support::traits::All<(xcm::latest::MultiLocation, xcm::latest::Xcm<Call>)>;
+	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
+	type XcmTeleportFilter =
+		frame_support::traits::All<(xcm::latest::MultiLocation, Vec<xcm::latest::MultiAsset>)>;
+	type XcmReserveTransferFilter =
+		frame_support::traits::All<(xcm::latest::MultiLocation, Vec<xcm::latest::MultiAsset>)>;
+}
+
 impl parachains_hrmp::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
@@ -543,6 +569,7 @@ construct_runtime! {
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
+		Xcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},

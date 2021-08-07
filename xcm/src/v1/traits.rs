@@ -89,6 +89,8 @@ pub enum Error {
 	AssetNotFound,
 	/// The given message cannot be translated into a format that the destination can be expected to interpret.
 	DestinationUnsupported,
+	/// `execute_xcm` has been called too many times recursively.
+	RecursionLimitReached,
 }
 
 impl From<()> for Error {
