@@ -350,7 +350,7 @@ impl MultiLocation {
 		}
 
 		self.parents = final_parent_count;
-		for j in prefix.interior.into_iter_rev() {
+		for j in prefix.interior.into_iter().rev() {
 			self.push_front_interior(j).expect(
 				"self junctions len + prefix parent count + prepend len is less than max length; qed"
 			);
@@ -515,30 +515,42 @@ impl Iterator for JunctionsIterator {
 	}
 }
 
-pub struct JunctionsReverseIterator(Junctions);
-impl Iterator for JunctionsReverseIterator {
-	type Item = Junction;
-	fn next(&mut self) -> Option<Junction> {
+impl DoubleEndedIterator for JunctionsIterator {
+	fn next_back(&mut self) -> Option<Junction> {
 		self.0.take_last()
 	}
 }
 
-pub struct JunctionsRefIterator<'a>(&'a Junctions, usize);
+pub struct JunctionsRefIterator<'a> {
+	junctions: &'a Junctions,
+	next: usize,
+	back: usize,
+}
+
 impl<'a> Iterator for JunctionsRefIterator<'a> {
 	type Item = &'a Junction;
 	fn next(&mut self) -> Option<&'a Junction> {
-		let result = self.0.at(self.1);
-		self.1 += 1;
+		if self.next.saturating_add(self.back) >= self.junctions.len() {
+			return None
+		}
+
+		let result = self.junctions.at(self.next);
+		self.next += 1;
 		result
 	}
 }
 
-pub struct JunctionsReverseRefIterator<'a>(&'a Junctions, usize);
-impl<'a> Iterator for JunctionsReverseRefIterator<'a> {
-	type Item = &'a Junction;
-	fn next(&mut self) -> Option<&'a Junction> {
-		self.1 += 1;
-		self.0.at(self.0.len().checked_sub(self.1)?)
+impl<'a> DoubleEndedIterator for JunctionsRefIterator<'a> {
+	fn next_back(&mut self) -> Option<&'a Junction> {
+		let next_back = self.back.saturating_add(1);
+		// checked_sub here, because if the result is less than 0, we end iteration
+		let index = self.junctions.len().checked_sub(next_back)?;
+		if self.next > index {
+			return None
+		}
+		self.back = next_back;
+
+		self.junctions.at(index)
 	}
 }
 
@@ -546,7 +558,11 @@ impl<'a> IntoIterator for &'a Junctions {
 	type Item = &'a Junction;
 	type IntoIter = JunctionsRefIterator<'a>;
 	fn into_iter(self) -> Self::IntoIter {
-		JunctionsRefIterator(self, 0)
+		JunctionsRefIterator {
+			junctions: self,
+			next: 0,
+			back: 0,
+		}
 	}
 }
 
@@ -775,17 +791,21 @@ impl Junctions {
 
 	/// Returns a reference iterator over the junctions.
 	pub fn iter(&self) -> JunctionsRefIterator {
-		JunctionsRefIterator(&self, 0)
+		JunctionsRefIterator {
+			junctions: self,
+			next: 0,
+			back: 0,
+		}
 	}
 
 	/// Returns a reference iterator over the junctions in reverse.
-	pub fn iter_rev(&self) -> JunctionsReverseRefIterator {
-		JunctionsReverseRefIterator(&self, 0)
+	pub fn iter_rev(&self) -> impl Iterator {
+		self.iter().rev()
 	}
 
 	/// Consumes `self` and returns an iterator over the junctions in reverse.
-	pub fn into_iter_rev(self) -> JunctionsReverseIterator {
-		JunctionsReverseIterator(self)
+	pub fn into_iter_rev(self) -> impl Iterator {
+		self.into_iter().rev()
 	}
 
 	/// Ensures that self begins with `prefix` and that it has a single `Junction` item following.
@@ -1154,5 +1174,36 @@ mod tests {
 		let prefix = MultiLocation { parents: 1, interior: Null };
 		assert_eq!(m.prepend_with(prefix), Ok(()));
 		assert_eq!(m, MultiLocation { parents: 254, interior: X1(Parachain(42)) });
+	}
+
+	#[test]
+	fn double_ended_ref_iteration_works() {
+		let m = X3(Parachain(1000), Parachain(3), PalletInstance(5));
+		let mut iter = m.iter();
+
+		let first = iter.next().unwrap();
+		assert_eq!(first, &Parachain(1000));
+		let third = iter.next_back().unwrap();
+		assert_eq!(third, &PalletInstance(5));
+		let second = iter.next_back().unwrap();
+		assert_eq!(iter.next(), None);
+		assert_eq!(iter.next_back(), None);
+		assert_eq!(second, &Parachain(3));
+
+		let res = Null
+			.pushed_with(first.clone())
+			.unwrap()
+			.pushed_with(second.clone())
+			.unwrap()
+			.pushed_with(third.clone())
+			.unwrap();
+		assert_eq!(m, res);
+
+		// make sure there's no funny business with the 0 indexing
+		let m = Null;
+		let mut iter = m.iter();
+
+		assert_eq!(iter.next(), None);
+		assert_eq!(iter.next_back(), None);
 	}
 }
