@@ -46,7 +46,11 @@ fn send_works() {
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
-		assert_ok!(XcmPallet::send(Origin::signed(ALICE), RelayLocation::get(), message.clone()));
+		assert_ok!(XcmPallet::send(
+			Origin::signed(ALICE),
+			Box::new(RelayLocation::get()),
+			Box::new(message.clone())
+		));
 		assert_eq!(
 			sent_xcm(),
 			vec![(
@@ -83,7 +87,7 @@ fn send_fails_when_xcm_router_blocks() {
 		assert_noop!(
 			XcmPallet::send(
 				Origin::signed(ALICE),
-				X8(
+				Box::new(X8(
 					Junction::Parent,
 					Junction::Parent,
 					Junction::Parent,
@@ -92,8 +96,8 @@ fn send_fails_when_xcm_router_blocks() {
 					Junction::Parent,
 					Junction::Parent,
 					Junction::Parent
-				),
-				message.clone()
+				)),
+				Box::new(message.clone())
 			),
 			crate::Error::<Test>::SendFailure
 		);
@@ -113,8 +117,8 @@ fn teleport_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::teleport_assets(
 			Origin::signed(ALICE),
-			RelayLocation::get(),
-			X1(AccountId32 { network: Any, id: BOB.into() }),
+			Box::new(RelayLocation::get()),
+			Box::new(X1(AccountId32 { network: Any, id: BOB.into() })),
 			(Here, SEND_AMOUNT).into(),
 			0,
 			weight,
@@ -142,8 +146,8 @@ fn reserve_transfer_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			Origin::signed(ALICE),
-			Parachain(PARA_ID).into(),
-			dest.clone(),
+			Box::new(Parachain(PARA_ID).into()),
+			Box::new(dest.clone()),
 			(Here, SEND_AMOUNT).into(),
 			0,
 			weight
