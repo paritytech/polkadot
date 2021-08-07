@@ -190,15 +190,9 @@ mod tests {
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::reserve_transfer_assets(
 				relay_chain::Origin::signed(ALICE),
-<<<<<<< HEAD
-				X1(Parachain(1)).into(),
-				X1(AccountId32 { network: Any, id: ALICE.into() }).into(),
+				Box::new(X1(Parachain(1)).into()),
+				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() }).into()),
 				(MultiLocation::here(), 123).into(),
-=======
-				Box::new(X1(Parachain(1))),
-				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() })),
-				(Here, 123).into(),
->>>>>>> origin/master
 				0,
 				3,
 			));
