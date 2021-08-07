@@ -19,7 +19,7 @@ use frame_support::{dispatch::GetDispatchInfo, weights::Weight};
 use parity_scale_codec::Decode;
 use sp_runtime::traits::Saturating;
 use sp_std::result::Result;
-use xcm::latest::{Error, MultiAsset, MultiLocation, Xcm};
+use xcm::latest::{Error, GetWeight, MultiAsset, MultiLocation, Order, Xcm, XcmWeightInfo};
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {
@@ -103,10 +103,14 @@ where
 			},
 			// These XCM
 			Xcm::WithdrawAsset { effects, .. } |
-			Xcm::ReserveAssetDeposit { effects, .. } |
-			Xcm::TeleportAsset { effects, .. } => {
-				let inner: Weight = effects.iter_mut().map(|effect| effect.weight()).sum();
-				message.weight().saturating_add(inner)
+			Xcm::ReserveAssetDeposited { effects, .. } |
+			Xcm::ReceiveTeleportedAsset { effects, .. } => {
+				let mut extra = 0;
+				for order in effects.iter_mut() {
+					extra.saturating_accrue(Self::shallow_order(order)?);
+				}
+				extra.saturating_accrue(message.weight());
+				extra
 			},
 			// The shallow weight of `Transact` is the full weight of the message, thus there is no
 			// deeper weight.
@@ -132,21 +136,11 @@ where
 			Xcm::RelayedFrom { ref mut message, .. } => Self::deep(message.as_mut())?,
 			// These XCM have internal effects which are not accounted for in the `shallow` weight.
 			Xcm::WithdrawAsset { effects, .. } |
-			Xcm::ReserveAssetDeposit { effects, .. } |
-			Xcm::TeleportAsset { effects, .. } => {
+			Xcm::ReserveAssetDeposited { effects, .. } |
+			Xcm::ReceiveTeleportedAsset { effects, .. } => {
 				let mut extra: Weight = 0;
-				for effect in effects.iter_mut() {
-					match effect {
-						Order::BuyExecution { xcm, .. } =>
-							for message in xcm.iter_mut() {
-								extra.saturating_accrue({
-									let shallow = Self::shallow(message)?;
-									let deep = Self::deep(message)?;
-									shallow.saturating_add(deep)
-								});
-							},
-						_ => {},
-					}
+				for order in effects.iter_mut() {
+					extra.saturating_accrue(Self::deep_order(order)?);
 				}
 				extra
 			},
@@ -161,5 +155,46 @@ where
 		};
 
 		Ok(weight)
+	}
+}
+
+impl<W, C> FinalXcmWeight<W, C>
+where
+	W: XcmWeightInfo<C>,
+	C: Decode + GetDispatchInfo,
+	Xcm<C>: GetWeight<W>,
+	Order<C>: GetWeight<W>,
+{
+	fn shallow_order(order: &mut Order<C>) -> Result<Weight, ()> {
+		Ok(match order {
+			Order::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } => {
+				// On success, execution of this will result in more weight being consumed but
+				// we don't count it here since this is only the *shallow*, non-negotiable weight
+				// spend and doesn't count weight placed behind a `BuyExecution` since it will not
+				// be definitely consumed from any existing weight credit if execution of the message
+				// is attempted.
+				W::order_buy_execution(fees, weight, debt, halt_on_error, orders, instructions)
+			},
+			_ => 0, // TODO check
+		})
+	}
+	fn deep_order(order: &mut Order<C>) -> Result<Weight, ()> {
+		Ok(match order {
+			Order::BuyExecution { orders, instructions, .. } => {
+				let mut extra = 0;
+				for instruction in instructions.iter_mut() {
+					extra.saturating_accrue(
+						Self::shallow(instruction)?.saturating_add(Self::deep(instruction)?),
+					);
+				}
+				for order in orders.iter_mut() {
+					extra.saturating_accrue(
+						Self::shallow_order(order)?.saturating_add(Self::deep_order(order)?),
+					);
+				}
+				extra
+			},
+			_ => 0,
+		})
 	}
 }

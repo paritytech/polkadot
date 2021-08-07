@@ -338,7 +338,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					holding.subsume(w);
 				}
 			},
-			Order::Null => {
+			Order::Noop => {
 				// nada
 			},
 			_ => return Err(XcmError::UnhandledEffect)?,

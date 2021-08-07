@@ -16,11 +16,10 @@
 
 //! Cross-Consensus Message format data structures.
 
-use alloc::vec::Vec;
 use core::result;
 use parity_scale_codec::{Decode, Encode};
 
-use super::{DoubleEncoded, MultiAsset, MultiLocation, Order, OriginKind, Response, Xcm};
+use super::{MultiLocation, Xcm};
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Error {
