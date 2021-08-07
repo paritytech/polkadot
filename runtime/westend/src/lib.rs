@@ -1459,7 +1459,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 
-			use xcm::v0::MultiAsset;
+			use xcm::latest::MultiAsset;
 
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
@@ -1473,7 +1473,10 @@ sp_api::impl_runtime_apis! {
 				type ValidDestination = Westend;
 
 				fn get_multi_asset() -> MultiAsset {
-					MultiAsset::ConcreteFungible { id: WndLocation::get(), amount: 1 * UNITS }
+					MultiAsset {
+						id: Concrete(WndLocation::get()),
+						fun: Fungible(1 * UNITS),
+					}
 				}
 			}
 

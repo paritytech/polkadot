@@ -2,12 +2,16 @@ mod xcm_balances;
 mod xcm_generic;
 
 use frame_support::weights::Weight;
+use sp_runtime::traits::Saturating;
 use xcm_balances::WeightInfo as XcmBalancesWeight;
 
 use crate::{Runtime, WndLocation};
 use sp_std::prelude::*;
 use xcm::{
-	v0::{MultiAsset, MultiLocation, Order, OriginKind, Response, Xcm, XcmWeightInfo},
+	latest::{
+		AssetId::*, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Order, OriginKind,
+		Response, Xcm, XcmWeightInfo,
+	},
 	DoubleEncoded,
 };
 use xcm_generic::WeightInfo as XcmGeneric;
@@ -21,7 +25,7 @@ impl From<&MultiAsset> for AssetTypes {
 	fn from(asset: &MultiAsset) -> Self {
 		let wnd_location = WndLocation::get();
 		match asset {
-			MultiAsset::ConcreteFungible { id: wnd_location, .. } => AssetTypes::Balances,
+			MultiAsset { id: Concrete(wnd_location), .. } => AssetTypes::Balances,
 			_ => AssetTypes::Unknown,
 		}
 	}
@@ -32,48 +36,69 @@ trait WeighMultiAssets {
 	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight;
 }
 
-impl WeighMultiAssets for Vec<MultiAsset> {
+// TODO wild case
+impl WeighMultiAssets for MultiAssetFilter {
 	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight {
-		self.into_iter()
+		match self {
+			Self::Definite(assets) => assets
+				.inner()
+				.into_iter()
+				.map(|m| <AssetTypes as From<&MultiAsset>>::from(m))
+				.map(|t| match t {
+					AssetTypes::Balances => balances_weight,
+					AssetTypes::Unknown => Weight::MAX,
+				})
+				.fold(0, |acc, x| acc.saturating_add(x)),
+			_ => Weight::MAX,
+		}
+	}
+}
+
+impl WeighMultiAssets for MultiAssets {
+	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight {
+		self.inner()
+			.into_iter()
 			.map(|m| <AssetTypes as From<&MultiAsset>>::from(m))
 			.map(|t| match t {
 				AssetTypes::Balances => balances_weight,
 				AssetTypes::Unknown => Weight::MAX,
 			})
-			.sum()
+			.fold(0, |acc, x| acc.saturating_add(x))
 	}
 }
 
 pub struct WestendXcmWeight;
 impl XcmWeightInfo<()> for WestendXcmWeight {
-	fn send_xcm() -> Weight {
-		XcmGeneric::<Runtime>::send_xcm()
+	fn order_noop() -> Weight {
+		XcmGeneric::<Runtime>::order_noop()
 	}
-	fn order_null() -> Weight {
-		XcmGeneric::<Runtime>::order_null()
-	}
-	fn order_deposit_asset(assets: &Vec<MultiAsset>, _dest: &MultiLocation) -> Weight {
+	fn order_deposit_asset(
+		assets: &MultiAssetFilter,
+		max_assets: &u32,
+		_dest: &MultiLocation,
+	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::order_deposit_asset())
 	}
 	fn order_deposit_reserved_asset(
-		assets: &Vec<MultiAsset>,
+		assets: &MultiAssetFilter,
+		max_assets: &u32,
 		_dest: &MultiLocation,
 		_effects: &Vec<Order<()>>,
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::order_deposit_reserved_asset())
 	}
-	fn order_exchange_asset(_give: &Vec<MultiAsset>, _receive: &Vec<MultiAsset>) -> Weight {
+	fn order_exchange_asset(_give: &MultiAssetFilter, _receive: &MultiAssets) -> Weight {
 		Weight::MAX // todo fix
 	}
 	fn order_initiate_reserve_withdraw(
-		assets: &Vec<MultiAsset>,
+		assets: &MultiAssetFilter,
 		_reserve: &MultiLocation,
 		_effects: &Vec<Order<()>>,
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::order_initiate_reserve_withdraw())
 	}
 	fn order_initiate_teleport(
-		assets: &Vec<MultiAsset>,
+		assets: &MultiAssetFilter,
 		_dest: &MultiLocation,
 		_effects: &Vec<Order<()>>,
 	) -> Weight {
@@ -82,7 +107,7 @@ impl XcmWeightInfo<()> for WestendXcmWeight {
 	fn order_query_holding(
 		_query_id: &u64,
 		_dest: &MultiLocation,
-		_assets: &Vec<MultiAsset>,
+		_assets: &MultiAssetFilter,
 	) -> Weight {
 		XcmGeneric::<Runtime>::order_query_holding()
 	}
@@ -91,28 +116,29 @@ impl XcmWeightInfo<()> for WestendXcmWeight {
 		_weight: &u64,
 		_debt: &u64,
 		_halt_on_error: &bool,
+		_order: &Vec<Order<()>>,
 		_xcm: &Vec<Xcm<()>>,
 	) -> Weight {
 		XcmGeneric::<Runtime>::order_buy_execution()
 	}
-	fn xcm_withdraw_asset(assets: &Vec<MultiAsset>, _effects: &Vec<Order<()>>) -> Weight {
+	fn xcm_withdraw_asset(assets: &MultiAssets, _effects: &Vec<Order<()>>) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_withdraw_asset())
 	}
-	fn xcm_reserve_asset_deposit(assets: &Vec<MultiAsset>, _effects: &Vec<Order<()>>) -> Weight {
-		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_reserve_asset_deposit())
+	fn xcm_reserve_asset_deposited(assets: &MultiAssets, _effects: &Vec<Order<()>>) -> Weight {
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_reserve_asset_deposited())
 	}
 	// TODO none of these need effects
-	fn xcm_teleport_asset(assets: &Vec<MultiAsset>, _effects: &Vec<Order<()>>) -> Weight {
-		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_teleport_asset())
+	fn xcm_receive_teleported_asset(assets: &MultiAssets, _effects: &Vec<Order<()>>) -> Weight {
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_receive_teleported_asset())
 	}
 	fn xcm_query_response(_query_id: &u64, _response: &Response) -> Weight {
 		XcmGeneric::<Runtime>::xcm_query_response()
 	}
-	fn xcm_transfer_asset(assets: &Vec<MultiAsset>, _dest: &MultiLocation) -> Weight {
+	fn xcm_transfer_asset(assets: &MultiAssets, _dest: &MultiLocation) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::xcm_transfer_asset())
 	}
 	fn xcm_transfer_reserve_asset(
-		assets: &Vec<MultiAsset>,
+		assets: &MultiAssets,
 		_dest: &MultiLocation,
 		_effects: &Vec<Order<()>>,
 	) -> Weight {
@@ -125,12 +151,12 @@ impl XcmWeightInfo<()> for WestendXcmWeight {
 	) -> Weight {
 		XcmGeneric::<Runtime>::xcm_transact()
 	}
-	fn xcm_hrmp_channel_open_request(
+	fn xcm_hrmp_new_channel_open_request(
 		_sender: &u32,
 		_max_message_size: &u32,
 		_max_capacity: &u32,
 	) -> Weight {
-		XcmGeneric::<Runtime>::xcm_hrmp_channel_open_request()
+		XcmGeneric::<Runtime>::xcm_hrmp_new_channel_open_request()
 	}
 	fn xcm_hrmp_channel_accepted(_recipient: &u32) -> Weight {
 		XcmGeneric::<Runtime>::xcm_hrmp_channel_accepted()

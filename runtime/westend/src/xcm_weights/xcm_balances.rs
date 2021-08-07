@@ -20,10 +20,10 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	pub fn xcm_withdraw_asset() -> Weight {
 		10
 	}
-	pub fn xcm_reserve_asset_deposit() -> Weight {
+	pub fn xcm_reserve_asset_deposited() -> Weight {
 		10
 	}
-	pub fn xcm_teleport_asset() -> Weight {
+	pub fn xcm_receive_teleported_asset() -> Weight {
 		10
 	}
 	pub fn xcm_transfer_asset() -> Weight {
