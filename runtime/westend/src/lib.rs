@@ -1406,6 +1406,7 @@ sp_api::impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+			type XcmGeneric = pallet_xcm_benchmarks::xcm_generic::Pallet::<Runtime>;
 
 			let mut list = Vec::<BenchmarkList>::new();
 
@@ -1436,6 +1437,7 @@ sp_api::impl_runtime_apis! {
 
 			// XCM Benchmarks
 			list_benchmark!(list, extra, pallet_xcm_benchmarks, XcmBalances);
+			list_benchmark!(list, extra, pallet_xcm_benchmarks, XcmGeneric);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1464,13 +1466,22 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = LocationConverter;
+				type ValidDestination = Westend;
+			}
+
+			impl pallet_xcm_benchmarks::xcm_generic::Config for Runtime {
+				type Call = Call;
+
+				fn worst_case_response() -> (u64, Response) {
+					let assets: MultiAssets = (Concrete(WndLocation::get()), 1 * UNITS).into();
+					(0, Response::Assets(assets))
+				}
 			}
 
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
 				type TransactAsset = Balances;
 
 				type CheckedAccount = CheckAccount;
-				type ValidDestination = Westend;
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
@@ -1481,6 +1492,7 @@ sp_api::impl_runtime_apis! {
 			}
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+			type XcmGeneric = pallet_xcm_benchmarks::xcm_generic::Pallet::<Runtime>;
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -1527,6 +1539,7 @@ sp_api::impl_runtime_apis! {
 
 			// XCM Benchmarks
 			add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmBalances);
+			add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmGeneric);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

@@ -16,25 +16,29 @@
 
 use super::*;
 use crate::{
-	account_id_junction, execute_order, execute_xcm, worst_case_holding, OverArchingCallOf,
-	XcmCallOf,
+	account_and_location, account_id_junction, execute_order, execute_xcm, worst_case_holding,
+	OverArchingCallOf, XcmCallOf,
 };
 use codec::Encode;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::{
-	assert_ok, pallet_prelude::Get, traits::fungible::Inspect as FungibleInspect, weights::Weight,
+	assert_ok, dispatch::GetDispatchInfo, pallet_prelude::Get,
+	traits::fungible::Inspect as FungibleInspect, weights::Weight,
 };
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
-use xcm::latest::{
-	AssetId::*,
-	AssetInstance, Error as XcmError, ExecuteXcm, Junction,
-	Junction::*,
-	MultiAsset,
-	MultiAssetFilter::*,
-	MultiLocation::{self, *},
-	NetworkId, Order, Outcome, WildMultiAsset, Xcm,
+use xcm::{
+	latest::prelude::{OriginKind::SovereignAccount, *},
+	DoubleEncoded,
 };
+// AssetId::*,
+// AssetInstance, Error as XcmError, ExecuteXcm, Junction,
+// Junction::*,
+// MultiAsset,
+// MultiAssetFilter::*,
+// MultiAssets,
+// MultiLocation::{self, *},
+// NetworkId, Order, Outcome, WildMultiAsset, Xcm,
 use xcm_executor::{traits::TransactAsset, Assets};
 
 benchmarks! {
@@ -84,13 +88,97 @@ benchmarks! {
 	} verify {
 
 	}
-	xcm_reserve_asset_deposited {}: {} verify {}
-	xcm_query_response {}: {} verify {}
-	xcm_transact {}: {} verify {}
-	xcm_hrmp_new_channel_open_request {}: {} verify {}
-	xcm_hrmp_channel_accepted {}: {} verify {}
-	xcm_hrmp_channel_closing {}: {} verify {}
-	xcm_relayed_from {}: {} verify {}
+
+	// Worst case scenario for this benchmark is a large number of assets to
+	// filter through the reserve.
+	xcm_reserve_asset_deposited {
+		let (sender_account, sender_location) = account_and_location::<T>(1);
+		let assets: MultiAssets = (Concrete(Here), 100).into();// TODO worst case
+
+		// no effects to isolate this benchmark
+		let effects: Vec<Order<_>> = Default::default();
+		let xcm = Xcm::ReserveAssetDeposited { assets, effects };
+	}: {
+		assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
+	} verify {
+		// The assert above is enough to show this XCM succeeded
+	}
+
+	xcm_query_response {
+		let (sender_account, sender_location) = account_and_location::<T>(1);
+		let (query_id, response) = T::worst_case_response();
+		let xcm = Xcm::QueryResponse { query_id, response };
+	}: {
+		assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
+	} verify {
+		// The assert above is enough to show this XCM succeeded
+	}
+
+	// We don't care about the call itself, since that is accounted for in the weight parameter
+	// and included in the final weight calculation. So this is just the overhead of submitting
+	// a noop call.
+	xcm_transact {
+		let (sender_account, sender_location) = account_and_location::<T>(1);
+		let noop_call: <T as Config>::Call = frame_system::Call::remark_with_event(Default::default()).into();
+		let double_encoded_noop_call: DoubleEncoded<_> = noop_call.encode().into();
+
+		let xcm = Xcm::Transact {
+			origin_type: SovereignAccount,
+			require_weight_at_most: noop_call.get_dispatch_info().weight,
+			call: double_encoded_noop_call,
+		};
+
+		let num_events = frame_system::Pallet::<T>::events().len();
+	}: {
+		assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
+	} verify {
+		// TODO make better assertion?
+		let num_events2 = frame_system::Pallet::<T>::events().len();
+		assert_eq!(num_events + 1, num_events2);
+	}
+
+	xcm_hrmp_new_channel_open_request {
+		let (sender_account, sender_location) = account_and_location::<T>(1);
+		// Inputs here should not matter to weight.
+		// let xcm = Xcm::HrmpNewChannelOpenRequest {
+		// 	sender: Default::default(),
+		// 	max_message_size: Default::default(),
+		// 	max_capacity: Default::default(),
+		// };
+	}: {
+		// assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
+		// currently unhandled
+	} verify {
+
+	}
+	xcm_hrmp_channel_accepted {}: {
+				// currently unhandled
+	} verify {}
+	xcm_hrmp_channel_closing {}: {
+				// currently unhandled
+	} verify {}
+
+	// We want to measure this benchmark with a noop XCM to isolate specifically
+	// the overhead of `RelayedFrom`. The weight of the inner XCM should be accounted
+	// for when calculating the total weight.
+	xcm_relayed_from {
+		let (sender_account, sender_location) = account_and_location::<T>(1);
+
+		 // when these two inputs are empty, we basically noop
+		let noop_xcm = Xcm::ReserveAssetDeposited {
+			assets: Vec::<MultiAsset>::new().into(),
+			effects: Default::default(),
+		};
+
+		let xcm = Xcm::RelayedFrom {
+			who: Here,
+			message: Box::new(noop_xcm),
+		};
+	}: {
+		assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
+	} verify {
+		// the assert above verifies the XCM completed successfully.
+	}
 
 }
 

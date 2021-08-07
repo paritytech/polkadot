@@ -27,10 +27,8 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup, Zero},
 	BuildStorage,
 };
-use xcm::{
-	latest::Junction,
-	opaque::latest::{MultiAsset, MultiLocation},
-};
+use xcm::latest::prelude::*;
+use xcm_executor::traits::ConvertOrigin;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -95,8 +93,8 @@ impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
 	type XcmSender = DevNull;
 	type AssetTransactor = NoAssetTransactor;
-	type OriginConverter = ();
-	type IsReserve = ();
+	type OriginConverter = AlwaysSignedByDefault;
+	type IsReserve = AllAssetLocationsPass;
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
 	type Barrier = YesItShould;
@@ -114,13 +112,28 @@ parameter_types! {
 
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
-	type AccountIdConverter = ();
+	type AccountIdConverter = AccountIdConverter;
 	type ValidDestination = ValidDestination;
 }
-impl xcm_generic_benchmarks::Config for Test {}
+
+impl xcm_generic_benchmarks::Config for Test {
+	type Call = Call;
+
+	fn worst_case_response() -> (u64, Response) {
+		let assets: MultiAssets = (Concrete(Here), 100).into();
+		(0, Response::Assets(assets))
+	}
+}
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
 	sp_tracing::try_init_simple();
 	t.into()
+}
+
+pub struct AlwaysSignedByDefault;
+impl ConvertOrigin<Origin> for AlwaysSignedByDefault {
+	fn convert_origin(_origin: MultiLocation, _kind: OriginKind) -> Result<Origin, MultiLocation> {
+		Ok(Origin::signed(Default::default()))
+	}
 }
