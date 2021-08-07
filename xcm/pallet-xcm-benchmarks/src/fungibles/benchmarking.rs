@@ -28,9 +28,9 @@ use frame_support::{
 };
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
-use xcm::{
-	opaque::v0::{AssetInstance, ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId},
-	v0::{Error as XcmError, Order, Outcome, Xcm},
+use xcm::latest::{
+	AssetInstance, Error as XcmError, ExecuteXcm, Junction, MultiAsset, MultiAssets, MultiLocation,
+	NetworkId, Order, Outcome, Xcm,
 };
 use xcm_executor::{traits::TransactAsset, Assets};
 
@@ -59,7 +59,7 @@ benchmarks! {
 
 	// orders.
 	order_noop {
-		let order = Order::<XcmCallOf<T>>::Null;
+		let order = Order::<XcmCallOf<T>>::Noop;
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
 		let holding = Assets::default();
 	}: {
@@ -73,13 +73,14 @@ benchmarks! {
 
 		let asset =  T::get_multi_asset(asset_id);
 		let order = Order::<XcmCallOf<T>>::DepositAsset {
-			assets: vec![ asset.clone() ],
-			dest: MultiLocation::X1(account_id_junction::<T>(2)),
+			assets: asset.clone().into(),
+			max_assets: 1,
+			beneficiary: MultiLocation::X1(account_id_junction::<T>(2)),
 		};
 
 		let amount: u128 = T::TransactAsset::minimum_balance(asset_id.into()).try_into().unwrap();
 		let mut holding: Assets = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
-		holding.saturating_subsume(asset);
+		holding.subsume(asset);
 		assert!(T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
@@ -99,13 +100,13 @@ benchmarks! {
 		let a in 1..MAX_ASSETS+1;
 
 		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
-		let assets = (1..=a).map(|i| {
+		let assets: MultiAssets = (1..=a).map(|i| {
 			let asset = T::get_multi_asset(i);
 			// give all of these assets to the origin.
 			<AssetTransactorOf<T>>::deposit_asset(&asset, &origin).unwrap();
 			asset
 		})
-		.collect::<Vec<_>>();
+		.collect::<Vec<_>>().into();
 		// check just one of the asset ids, namely 1.
 		assert!(!T::TransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
 		let xcm = Xcm::WithdrawAsset::<XcmCallOf<T>> { assets, effects: vec![] };
@@ -121,9 +122,9 @@ benchmarks! {
 		let a in 1..MAX_ASSETS+1;
 
 		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
-		let dest = (account_id_junction::<T>(2)).into();
+		let beneficiary = (account_id_junction::<T>(2)).into();
 
-		let assets = (1..a).map(|asset_id| {
+		let assets: MultiAssets = (1..a).map(|asset_id| {
 			let asset = T::get_multi_asset(asset_id);
 			// Note that we deposit a new asset with twice the amount into the sender to prevent it
 			// being dying.
@@ -137,9 +138,9 @@ benchmarks! {
 			// return asset
 			asset
 		})
-		.collect::<Vec<_>>();
+		.collect::<Vec<_>>().into();
 
-		let xcm = Xcm::TransferAsset { assets, dest };
+		let xcm = Xcm::TransferAsset { assets, beneficiary };
 	}: {
 		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
 	} verify {

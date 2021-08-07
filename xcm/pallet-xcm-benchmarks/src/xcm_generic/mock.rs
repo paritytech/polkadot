@@ -28,8 +28,8 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm::{
-	opaque::v0::{MultiAsset, MultiLocation},
-	v0::Junction,
+	latest::Junction,
+	opaque::latest::{MultiAsset, MultiLocation},
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;

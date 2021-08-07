@@ -9,7 +9,7 @@ mod mock;
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::pallet_prelude::Get;
-	use xcm::v0::{MultiAsset, MultiLocation};
+	use xcm::latest::{MultiAsset, MultiLocation};
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
@@ -25,7 +25,7 @@ pub mod pallet {
 		type ValidDestination: Get<MultiLocation>;
 
 		/// Give me a fungible asset that your asset transactor is going to accept.
-		fn get_multi_asset() -> xcm::v0::MultiAsset;
+		fn get_multi_asset() -> xcm::latest::MultiAsset;
 	}
 
 	#[pallet::pallet]

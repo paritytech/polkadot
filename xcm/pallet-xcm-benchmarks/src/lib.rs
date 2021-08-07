@@ -28,9 +28,14 @@ use frame_support::{
 	},
 };
 use sp_std::prelude::*;
-use xcm::v0::{
-	AssetInstance, Error as XcmError, ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId,
-	Order, Outcome, Xcm,
+use xcm::latest::{
+	AssetId::*,
+	AssetInstance, Error as XcmError, ExecuteXcm,
+	Fungibility::*,
+	Junction::{self, *},
+	MultiAsset,
+	MultiLocation::{self, *},
+	NetworkId, Order, Outcome, Xcm,
 };
 use xcm_executor::{traits::Convert, Assets};
 
@@ -72,15 +77,15 @@ pub fn create_holding(
 ) -> Assets {
 	(0..fungibles_count)
 		.map(|i| {
-			MultiAsset::ConcreteFungible {
-				id: MultiLocation::X1(Junction::GeneralIndex { id: i as u128 }),
-				amount: fungibles_amount * i as u128,
+			MultiAsset {
+				id: Concrete(X1(GeneralIndex { id: i as u128 })),
+				fun: Fungible(fungibles_amount * i as u128),
 			}
 			.into()
 		})
-		.chain((0..non_fungibles_count).map(|i| MultiAsset::ConcreteNonFungible {
-			class: MultiLocation::X1(Junction::GeneralIndex { id: i as u128 }),
-			instance: asset_instance_from(i),
+		.chain((0..non_fungibles_count).map(|i| MultiAsset {
+			id: Concrete(X1(GeneralIndex { id: i as u128 })),
+			fun: NonFungible(asset_instance_from(i)),
 		}))
 		.collect::<Vec<_>>()
 		.into()
@@ -100,7 +105,7 @@ pub fn execute_order<T: Config>(
 	mut holding: Assets,
 	order: Order<XcmCallOf<T>>,
 ) -> Result<Weight, XcmError> {
-	ExecutorOf::<T>::do_execute_effects(&origin, &mut holding, order)
+	ExecutorOf::<T>::do_execute_orders(&origin, &mut holding, order)
 }
 
 /// Execute an xcm.

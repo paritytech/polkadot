@@ -16,14 +16,14 @@
 
 use crate::*;
 use frame_support::{parameter_types, weights::Weight};
-use xcm::opaque::v0::{prelude::XcmResult, Junction, MultiLocation, Response, Xcm};
+use xcm::opaque::latest::{prelude::XcmResult, Junction, MultiLocation, Response, Xcm};
 
 pub struct YesItShould;
 impl xcm_executor::traits::ShouldExecute for YesItShould {
 	fn should_execute<Call>(
 		_: &MultiLocation,
 		_: bool,
-		_: &xcm::v0::Xcm<Call>,
+		_: &xcm::latest::Xcm<Call>,
 		_: Weight,
 		_: &mut Weight,
 	) -> Result<(), ()> {
@@ -33,7 +33,7 @@ impl xcm_executor::traits::ShouldExecute for YesItShould {
 
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
-impl xcm::opaque::v0::SendXcm for DevNull {
+impl xcm::opaque::latest::SendXcm for DevNull {
 	fn send_xcm(_: MultiLocation, _: Xcm) -> XcmResult {
 		Ok(())
 	}

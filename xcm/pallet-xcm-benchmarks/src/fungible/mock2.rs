@@ -26,7 +26,7 @@ use sp_runtime::{
 	BuildStorage,
 };
 
-use xcm::v0::{
+use xcm::latest::{
 	Junction::Parachain,
 	MultiAsset::{self, AllConcreteFungible},
 	MultiLocation::{self, Null, X1},
@@ -142,7 +142,7 @@ impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)>
 	for OnlyWithdrawTeleportForAccounts
 {
 	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
-		use xcm::v0::{
+		use xcm::latest::{
 			Junction::AccountId32,
 			MultiAsset::{All, ConcreteFungible},
 			Order::{BuyExecution, DepositAsset, InitiateTeleport},

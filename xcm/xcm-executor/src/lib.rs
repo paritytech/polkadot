@@ -347,12 +347,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	pub fn do_execute_effects(
+	pub fn do_execute_orders(
 		origin: &MultiLocation,
 		holding: &mut Assets,
-		effect: Order<Config::Call>,
+		order: Order<Config::Call>,
 	) -> Result<Weight, XcmError> {
 		let mut trader = Config::Trader::new();
-		Self::execute_effects(origin, holding, effect, &mut trader)
+		Self::execute_orders(origin, holding, order, &mut trader)
 	}
 }

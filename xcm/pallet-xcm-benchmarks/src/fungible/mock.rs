@@ -25,7 +25,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
-use xcm::v0::{Junction, MultiAsset, MultiLocation, NetworkId};
+use xcm::latest::{Junction, MultiAsset, MultiLocation, NetworkId};
 use xcm_builder::{
 	AllowBenchmarks, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	IsChildSystemParachain, TakeWeightCredit,

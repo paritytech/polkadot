@@ -22,8 +22,8 @@ use frame_support::{assert_ok, traits::fungible::Inspect as FungibleInspect, wei
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
 use xcm::{
-	opaque::v0::{AssetInstance, ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId},
-	v0::{Error as XcmError, Order, Outcome, Xcm},
+	latest::{Error as XcmError, Order, Outcome, Xcm},
+	opaque::latest::{AssetInstance, ExecuteXcm, Junction, MultiAsset, MultiLocation, NetworkId},
 };
 use xcm_executor::{traits::TransactAsset, Assets};
 
@@ -37,7 +37,7 @@ const HOLDING_NON_FUNGIBLES: u32 = 99;
 benchmarks! {
 	send_xcm {}: {}
 	order_noop {
-		let order = Order::<XcmCallOf<T>>::Null;
+		let order = Order::<XcmCallOf<T>>::Noop;
 		let origin = MultiLocation::X1(account_id_junction::<T>(1));
 		let holding = Assets::default();
 	}: {

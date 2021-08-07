@@ -26,7 +26,7 @@ use frame_support::{
 };
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
-use xcm::v0::{Junction, MultiLocation, Order, Xcm};
+use xcm::latest::{Junction, MultiAssets, MultiLocation, Order, Xcm};
 use xcm_executor::{
 	traits::{Convert, TransactAsset},
 	Assets,
@@ -60,21 +60,22 @@ benchmarks_instance_pallet! {
 		// generate the holding with a bunch of stuff..
 		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
 		// .. and the specific asset that we want to take out.
-		holding.saturating_subsume(asset.clone());
+		holding.subsume(asset.clone());
 		// our dest must have no balance initially.
-		let dest_location = T::ValidDestination::get();
-		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
-		assert!(T::TransactAsset::balance(&dest_account).is_zero());
+		let ben_location = T::ValidDestination::get();
+		let ben_account = T::AccountIdConverter::convert(ben_location.clone()).unwrap();
+		assert!(T::TransactAsset::balance(&ben_account).is_zero());
 
 		let order = Order::<XcmCallOf<T>>::DepositAsset {
-			assets: vec![asset.clone()],
-			dest: dest_location,
+			assets: asset.into(),
+			max_assets: 1,
+			beneficiary: ben_location,
 		};
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	} verify {
 		// dest should have received some asset.
-		assert!(!T::TransactAsset::balance(&dest_account).is_zero())
+		assert!(!T::TransactAsset::balance(&ben_account).is_zero())
 	}
 
 	order_deposit_reserve_asset {
@@ -86,7 +87,7 @@ benchmarks_instance_pallet! {
 		// TODO: maybe update this api
 		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
 		// .. and the specific asset that we want to take out.
-		holding.saturating_subsume(asset.clone());
+		holding.subsume(asset.clone());
 		// our dest must have no balance initially.
 		let dest_location = T::ValidDestination::get();
 		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
@@ -94,7 +95,8 @@ benchmarks_instance_pallet! {
 
 		let effects = Vec::new(); // No effects to isolate the order
 		let order = Order::<XcmCallOf<T>>::DepositReserveAsset {
-			assets: vec![asset.clone()],
+			assets: asset.into(),
+			max_assets: 1,
 			dest: dest_location,
 			effects,
 		};
@@ -112,11 +114,12 @@ benchmarks_instance_pallet! {
 		// generate the holding with a bunch of stuff..
 		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
 		// .. and the specific asset that we want to take out.
-		holding.saturating_subsume(asset.clone());
+		holding.subsume(asset.clone());
 
 		let effects = Vec::new(); // No effects to isolate the order
 		let order = Order::<XcmCallOf<T>>::DepositReserveAsset {
-			assets: vec![asset.clone()],
+			assets: asset.into(),
+			max_assets: 1,
 			dest: T::ValidDestination::get(),
 			effects,
 		};
@@ -134,11 +137,11 @@ benchmarks_instance_pallet! {
 		// generate the holding with a bunch of stuff..
 		let mut holding = create_holding(HOLDING_FUNGIBLES, amount, HOLDING_NON_FUNGIBLES);
 		// .. and the specific asset that we want to take out.
-		holding.saturating_subsume(asset.clone());
+		holding.subsume(asset.clone());
 
 		let effects = Vec::new(); // No effects to isolate the order
 		let order = Order::<XcmCallOf<T>>::InitiateTeleport {
-			assets: vec![asset.clone()],
+			assets: asset.into(),
 			dest: T::ValidDestination::get(),
 			effects,
 		};
@@ -175,7 +178,7 @@ benchmarks_instance_pallet! {
 		// check the assets of origin.
 		assert!(!T::TransactAsset::balance(&sender_account).is_zero());
 		// TODO: probably we can and should just use the opaque xcm/order types.
-		let xcm = Xcm::WithdrawAsset::<XcmCallOf<T>> { assets: vec![asset], effects: vec![] };
+		let xcm = Xcm::WithdrawAsset::<XcmCallOf<T>> { assets: vec![asset].into(), effects: vec![] };
 	}: {
 		assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
 	} verify {
@@ -185,19 +188,19 @@ benchmarks_instance_pallet! {
 	xcm_teleport_asset {}: {} verify {}
 	xcm_transfer_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let dest_location = T::ValidDestination::get();
-		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
+		let ben_location = T::ValidDestination::get();
+		let ben_account = T::AccountIdConverter::convert(ben_location.clone()).unwrap();
 
 		let asset = T::get_multi_asset();
 		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
-		let assets = vec![ asset ];
-		assert!(T::TransactAsset::balance(&dest_account).is_zero());
-		let xcm = Xcm::TransferAsset { assets, dest: dest_location };
+		let assets: MultiAssets = vec![ asset ].into();
+		assert!(T::TransactAsset::balance(&ben_account).is_zero());
+		let xcm = Xcm::TransferAsset { assets, beneficiary: ben_location };
 	}: {
 		assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
 	} verify {
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
-		assert!(!T::TransactAsset::balance(&dest_account).is_zero());
+		assert!(!T::TransactAsset::balance(&ben_account).is_zero());
 	}
 
 	xcm_transfer_reserve_asset {
@@ -207,7 +210,7 @@ benchmarks_instance_pallet! {
 
 		let asset = T::get_multi_asset();
 		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
-		let assets = vec![ asset ];
+		let assets: MultiAssets = vec![ asset ].into();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 		let effects = Vec::new(); // No effects to isolate the xcm
 		let xcm = Xcm::TransferReserveAsset { assets, dest: dest_location, effects };
