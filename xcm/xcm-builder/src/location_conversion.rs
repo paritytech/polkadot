@@ -109,12 +109,10 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone
 	Convert<MultiLocation, AccountId> for AccountId32Aliases<Network, AccountId>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		let id = match location.interior() {
-			Junctions::X1(Junction::AccountId32 { id, network: NetworkId::Any })
-				if location.parent_count() == 0 =>
-				*id,
-			Junctions::X1(Junction::AccountId32 { id, network })
-				if network == &Network::get() && location.parent_count() == 0 =>
+		let id = match (location.parent_count(), location.interior()) {
+			(0, Junctions::X1(Junction::AccountId32 { id, network: NetworkId::Any })) => *id,
+			(0, Junctions::X1(Junction::AccountId32 { id, network }))
+				if network == &Network::get() =>
 				*id,
 			_ => return Err(location),
 		};
@@ -131,12 +129,10 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone
 	Convert<MultiLocation, AccountId> for AccountKey20Aliases<Network, AccountId>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		let key = match location.interior() {
-			Junctions::X1(Junction::AccountKey20 { key, network: NetworkId::Any })
-				if location.parent_count() == 0 =>
-				*key,
-			Junctions::X1(Junction::AccountKey20 { key, network })
-				if network == &Network::get() && location.parent_count() == 0 =>
+		let key = match (location.parent_count(), location.interior()) {
+			(0, Junctions::X1(Junction::AccountKey20 { key, network: NetworkId::Any })) => *key,
+			(0, Junctions::X1(Junction::AccountKey20 { key, network }))
+				if network == &Network::get() =>
 				*key,
 			_ => return Err(location),
 		};
