@@ -60,13 +60,12 @@ impl Default for MultiLocation {
 }
 
 impl MultiLocation {
-	/// Creates a new `MultiLocation`, ensuring that the length of it does not exceed the maximum,
-	/// otherwise returns `Err`.
+	/// Creates a new `MultiLocation` with the given number of parents and interior junctions.
 	pub fn new(parents: u8, junctions: Junctions) -> MultiLocation {
 		MultiLocation { parents, interior: junctions }
 	}
 
-	/// Creates a new `MultiLocation` with 0 parents and a `Null` interior.
+	/// Creates a new `MultiLocation` with 0 parents and a `Here` interior.
 	///
 	/// The resulting `MultiLocation` can be interpreted as the "current consensus system".
 	pub const fn here() -> MultiLocation {
@@ -88,7 +87,7 @@ impl MultiLocation {
 		MultiLocation { parents, interior: Junctions::Here }
 	}
 
-	/// Whether or not the `MultiLocation` has no parents and has a `Null` interior.
+	/// Whether or not the `MultiLocation` has no parents and has a `Here` interior.
 	pub const fn is_here(&self) -> bool {
 		self.parents == 0 && self.interior.len() == 0
 	}
