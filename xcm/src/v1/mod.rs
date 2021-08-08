@@ -50,9 +50,9 @@ pub mod prelude {
 	pub use super::{
 		super::v0::{
 			BodyId, BodyPart,
-			Junction::*,
 			NetworkId::{self, *},
 		},
+		junction::Junction::*,
 		multiasset::{
 			AssetId::{self, *},
 			AssetInstance::{self, *},
