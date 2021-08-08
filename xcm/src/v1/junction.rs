@@ -16,105 +16,11 @@
 
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
-use super::{Junctions, MultiLocation};
-use crate::v0::{BodyId as BodyId0, Junction as Junction0};
+use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
+use crate::v0::Junction as Junction0;
 use alloc::vec::Vec;
 use core::convert::TryFrom;
 use parity_scale_codec::{self, Decode, Encode};
-
-/// A global identifier of an account-bearing consensus system.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
-pub enum NetworkId {
-	/// Unidentified/any.
-	Any,
-	/// Some named network.
-	Named(Vec<u8>),
-	/// The Polkadot Relay chain
-	Polkadot,
-	/// Kusama.
-	Kusama,
-}
-
-/// An identifier of a pluralistic body.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
-pub enum BodyId {
-	/// The only body in its context.
-	Unit,
-	/// A named body.
-	Named(Vec<u8>),
-	/// An indexed body.
-	Index(#[codec(compact)] u32),
-	/// The unambiguous executive body (for Polkadot, this would be the Polkadot council).
-	Executive,
-	/// The unambiguous technical body (for Polkadot, this would be the Technical Committee).
-	Technical,
-	/// The unambiguous legislative body (for Polkadot, this could be considered the opinion of a majority of
-	/// lock-voters).
-	Legislative,
-	/// The unambiguous judicial body (this doesn't exist on Polkadot, but if it were to get a "grand oracle", it
-	/// may be considered as that).
-	Judicial,
-}
-
-impl From<BodyId0> for BodyId {
-	fn from(old: BodyId0) -> Self {
-		use BodyId0::*;
-		match old {
-			Unit => Self::Unit,
-			Named(name) => Self::Named(name),
-			Index { id } => Self::Index(id),
-			Executive => Self::Executive,
-			Technical => Self::Technical,
-			Legislative => Self::Legislative,
-			Judicial => Self::Judicial,
-		}
-	}
-}
-
-/// A part of a pluralistic body.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
-pub enum BodyPart {
-	/// The body's declaration, under whatever means it decides.
-	Voice,
-	/// A given number of members of the body.
-	Members {
-		#[codec(compact)]
-		count: u32,
-	},
-	/// A given number of members of the body, out of some larger caucus.
-	Fraction {
-		#[codec(compact)]
-		nom: u32,
-		#[codec(compact)]
-		denom: u32,
-	},
-	/// No less than the given proportion of members of the body.
-	AtLeastProportion {
-		#[codec(compact)]
-		nom: u32,
-		#[codec(compact)]
-		denom: u32,
-	},
-	/// More than than the given proportion of members of the body.
-	MoreThanProportion {
-		#[codec(compact)]
-		nom: u32,
-		#[codec(compact)]
-		denom: u32,
-	},
-}
-
-impl BodyPart {
-	/// Returns `true` if the part represents a strict majority (> 50%) of the body in question.
-	pub fn is_majority(&self) -> bool {
-		match self {
-			BodyPart::Fraction { nom, denom } if *nom * 2 > *denom => true,
-			BodyPart::AtLeastProportion { nom, denom } if *nom * 2 > *denom => true,
-			BodyPart::MoreThanProportion { nom, denom } if *nom * 2 >= *denom => true,
-			_ => false,
-		}
-	}
-}
 
 /// A single item in a path to describe the relative location of a consensus system.
 ///
@@ -183,7 +89,7 @@ impl TryFrom<Junction0> for Junction {
 				Ok(Self::AccountIndex64 { network, index }),
 			Junction0::AccountKey20 { network, key } => Ok(Self::AccountKey20 { network, key }),
 			Junction0::PalletInstance(index) => Ok(Self::PalletInstance(index)),
-			Junction0::GeneralIndex { id } => Ok(Self::GeneralIndex(id)),
+			Junction0::GeneralIndex(id) => Ok(Self::GeneralIndex(id)),
 			Junction0::GeneralKey(key) => Ok(Self::GeneralKey(key)),
 			Junction0::OnlyChild => Ok(Self::OnlyChild),
 			Junction0::Plurality { id, part } => Ok(Self::Plurality { id: id.into(), part }),

@@ -16,9 +16,21 @@
 
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
-use crate::v1::{BodyId as BodyId1, BodyPart, Junction as Junction1, NetworkId};
 use alloc::vec::Vec;
-use parity_scale_codec::{self, Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
+
+/// A global identifier of an account-bearing consensus system.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+pub enum NetworkId {
+	/// Unidentified/any.
+	Any,
+	/// Some named network.
+	Named(Vec<u8>),
+	/// The Polkadot Relay chain
+	Polkadot,
+	/// Kusama.
+	Kusama,
+}
 
 /// An identifier of a pluralistic body.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
@@ -28,11 +40,7 @@ pub enum BodyId {
 	/// A named body.
 	Named(Vec<u8>),
 	/// An indexed body.
-	// TODO: parity-scale-codec#262: Change to be a tuple.
-	Index {
-		#[codec(compact)]
-		id: u32,
-	},
+	Index(#[codec(compact)] u32),
 	/// The unambiguous executive body (for Polkadot, this would be the Polkadot council).
 	Executive,
 	/// The unambiguous technical body (for Polkadot, this would be the Technical Committee).
@@ -45,17 +53,47 @@ pub enum BodyId {
 	Judicial,
 }
 
-impl From<BodyId1> for BodyId {
-	fn from(v1: BodyId1) -> Self {
-		use BodyId1::*;
-		match v1 {
-			Unit => Self::Unit,
-			Named(name) => Self::Named(name),
-			Index(id) => Self::Index { id },
-			Executive => Self::Executive,
-			Technical => Self::Technical,
-			Legislative => Self::Legislative,
-			Judicial => Self::Judicial,
+/// A part of a pluralistic body.
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+pub enum BodyPart {
+	/// The body's declaration, under whatever means it decides.
+	Voice,
+	/// A given number of members of the body.
+	Members {
+		#[codec(compact)]
+		count: u32,
+	},
+	/// A given number of members of the body, out of some larger caucus.
+	Fraction {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
+	/// No less than the given proportion of members of the body.
+	AtLeastProportion {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
+	/// More than than the given proportion of members of the body.
+	MoreThanProportion {
+		#[codec(compact)]
+		nom: u32,
+		#[codec(compact)]
+		denom: u32,
+	},
+}
+
+impl BodyPart {
+	/// Returns `true` if the part represents a strict majority (> 50%) of the body in question.
+	pub fn is_majority(&self) -> bool {
+		match self {
+			BodyPart::Fraction { nom, denom } if *nom * 2 > *denom => true,
+			BodyPart::AtLeastProportion { nom, denom } if *nom * 2 > *denom => true,
+			BodyPart::MoreThanProportion { nom, denom } if *nom * 2 >= *denom => true,
+			_ => false,
 		}
 	}
 }
@@ -102,10 +140,7 @@ pub enum Junction {
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
-	GeneralIndex {
-		#[codec(compact)]
-		id: u128,
-	},
+	GeneralIndex(#[codec(compact)] u128),
 	/// A nondescript datum acting as a key within the context location.
 	///
 	/// Usage will vary widely owing to its generality.
@@ -121,6 +156,23 @@ pub enum Junction {
 	/// Typical to be used to represent a governance origin of a chain, but could in principle be used to represent
 	/// things such as multisigs also.
 	Plurality { id: BodyId, part: BodyPart },
+}
+
+impl From<crate::v1::Junction> for Junction {
+	fn from(v1: crate::v1::Junction) -> Junction {
+		use crate::v1::Junction::*;
+		match v1 {
+			Parachain(id) => Self::Parachain(id),
+			AccountId32 { network, id } => Self::AccountId32 { network, id },
+			AccountIndex64 { network, index } => Self::AccountIndex64 { network, index },
+			AccountKey20 { network, key } => Self::AccountKey20 { network, key },
+			PalletInstance(index) => Self::PalletInstance(index),
+			GeneralIndex(index) => Self::GeneralIndex(index),
+			GeneralKey(key) => Self::GeneralKey(key),
+			OnlyChild => Self::OnlyChild,
+			Plurality { id, part } => Self::Plurality { id, part },
+		}
+	}
 }
 
 impl Junction {
@@ -147,22 +199,6 @@ impl Junction {
 			Junction::GeneralKey(..) |
 			Junction::OnlyChild |
 			Junction::Plurality { .. } => true,
-		}
-	}
-}
-
-impl From<Junction1> for Junction {
-	fn from(v1: Junction1) -> Self {
-		match v1 {
-			Junction1::Parachain(id) => Self::Parachain(id),
-			Junction1::AccountId32 { network, id } => Self::AccountId32 { network, id },
-			Junction1::AccountIndex64 { network, index } => Self::AccountIndex64 { network, index },
-			Junction1::AccountKey20 { network, key } => Self::AccountKey20 { network, key },
-			Junction1::PalletInstance(index) => Self::PalletInstance(index),
-			Junction1::GeneralIndex(id) => Self::GeneralIndex { id },
-			Junction1::GeneralKey(key) => Self::GeneralKey(key),
-			Junction1::OnlyChild => Self::OnlyChild,
-			Junction1::Plurality { id, part } => Self::Plurality { id: id.into(), part },
 		}
 	}
 }
