@@ -166,7 +166,7 @@ mod tests {
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here.into(),
-				MultiLocation::new(1, X1(Parachain(2))).unwrap(),
+				MultiLocation::new(1, X1(Parachain(2))),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
