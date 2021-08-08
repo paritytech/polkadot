@@ -9,8 +9,6 @@ mod mock;
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::pallet_prelude::Get;
-	use xcm::latest::{MultiAsset, MultiLocation};
-
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
 		/// The type of `fungible` that is being used under the hood.

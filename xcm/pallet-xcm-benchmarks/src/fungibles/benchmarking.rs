@@ -17,21 +17,16 @@
 use super::*;
 use crate::{
 	account, account_id_junction, execute_order, execute_xcm, worst_case_holding,
-	AssetTransactorOf, OverArchingCallOf, XcmCallOf,
+	AssetTransactorOf, XcmCallOf,
 };
-use codec::Encode;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::{
 	assert_ok,
 	traits::fungibles::{Inspect, Mutate},
-	weights::Weight,
 };
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
-use xcm::latest::{
-	AssetInstance, Error as XcmError, ExecuteXcm, Junction, MultiAsset, MultiAssets, MultiLocation,
-	NetworkId, Order, Outcome, Xcm,
-};
+use xcm::latest::prelude::*;
 use xcm_executor::{traits::TransactAsset, Assets};
 
 // TODO: def. needs to be become a config, might also want to use bounded vec.

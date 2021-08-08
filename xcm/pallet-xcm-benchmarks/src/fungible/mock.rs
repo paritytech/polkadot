@@ -18,18 +18,14 @@
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
 use frame_support::{parameter_types, traits::All};
-use polkadot_primitives::v1::Id as ParaId;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
-use xcm::latest::{AssetId::*, Fungibility::*, Junction, MultiAsset, MultiLocation, NetworkId};
-use xcm_builder::{
-	AllowBenchmarks, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	IsChildSystemParachain, TakeWeightCredit,
-};
+use xcm::latest::prelude::*;
+use xcm_builder::AllowUnpaidExecutionFrom;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -131,9 +127,9 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = YesItShould;
+	type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
-	type Trader = xcm_builder::FixedRateOfConcreteFungible<WeightPrice, ()>;
+	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 }
 
@@ -145,7 +141,7 @@ impl crate::Config for Test {
 
 parameter_types! {
 	pub const CheckedAccount: Option<u64> = Some(100);
-	pub const ValidDestination: MultiLocation = MultiLocation::X1(Junction::AccountId32 {
+	pub const ValidDestination: MultiLocation = X1(AccountId32 {
 		network: NetworkId::Any,
 		id: [0u8; 32],
 	});

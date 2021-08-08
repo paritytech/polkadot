@@ -17,17 +17,15 @@
 //! A mock runtime for xcm benchmarking.
 
 use crate::{mock::*, xcm_generic as xcm_generic_benchmarks, *};
-use frame_support::{
-	parameter_types,
-	traits::{fungibles::Inspect, Contains},
-};
+use frame_support::{parameter_types, traits::All};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup, Zero},
+	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
 use xcm::latest::prelude::*;
+use xcm_builder::AllowUnpaidExecutionFrom;
 use xcm_executor::traits::ConvertOrigin;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -97,9 +95,9 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = AllAssetLocationsPass;
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = YesItShould;
+	type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
-	type Trader = xcm_builder::FixedRateOfConcreteFungible<WeightPrice, ()>;
+	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 }
 

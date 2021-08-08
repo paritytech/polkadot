@@ -23,11 +23,8 @@ use frame_benchmarking::{benchmarks_instance_pallet, impl_benchmark_test_suite};
 use frame_support::{assert_ok, pallet_prelude::Get, traits::fungible::Inspect};
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
-use xcm::latest::{Junction, MultiAssets, MultiLocation, Order, Xcm};
+use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, TransactAsset};
-
-// TODO: def. needs to be become a config, might also want to use bounded vec.
-const MAX_ASSETS: u32 = 25;
 
 benchmarks_instance_pallet! {
 	where_clause { where

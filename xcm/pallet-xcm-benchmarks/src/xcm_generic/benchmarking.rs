@@ -17,29 +17,12 @@
 use super::*;
 use crate::{
 	account_and_location, account_id_junction, execute_order, execute_xcm, worst_case_holding,
-	OverArchingCallOf, XcmCallOf,
+	XcmCallOf,
 };
 use codec::Encode;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
-use frame_support::{
-	assert_ok, dispatch::GetDispatchInfo, pallet_prelude::Get,
-	traits::fungible::Inspect as FungibleInspect, weights::Weight,
-};
-use sp_runtime::traits::Zero;
-use sp_std::{convert::TryInto, prelude::*, vec};
-use xcm::{
-	latest::prelude::{OriginKind::SovereignAccount, *},
-	DoubleEncoded,
-};
-// AssetId::*,
-// AssetInstance, Error as XcmError, ExecuteXcm, Junction,
-// Junction::*,
-// MultiAsset,
-// MultiAssetFilter::*,
-// MultiAssets,
-// MultiLocation::{self, *},
-// NetworkId, Order, Outcome, WildMultiAsset, Xcm,
-use xcm_executor::{traits::TransactAsset, Assets};
+use frame_support::{assert_ok, dispatch::GetDispatchInfo, pallet_prelude::Get};
+use xcm::{latest::prelude::*, DoubleEncoded};
 
 benchmarks! {
 	order_noop {
@@ -123,7 +106,7 @@ benchmarks! {
 		let double_encoded_noop_call: DoubleEncoded<_> = noop_call.encode().into();
 
 		let xcm = Xcm::Transact {
-			origin_type: SovereignAccount,
+			origin_type: OriginKind::SovereignAccount,
 			require_weight_at_most: noop_call.get_dispatch_info().weight,
 			call: double_encoded_noop_call,
 		};

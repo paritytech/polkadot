@@ -47,7 +47,7 @@ pub mod prelude {
 	pub use super::{
 		junction::{
 			BodyId, BodyPart,
-			Junction::*,
+			Junction::{self, *},
 			NetworkId::{self, *},
 		},
 		multiasset::{

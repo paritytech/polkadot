@@ -19,7 +19,7 @@
 use crate::{fungibles as xcm_assets_benchmarks, mock::*, *};
 use frame_support::{
 	parameter_types,
-	traits::{fungibles::Inspect, Contains},
+	traits::{fungibles::Inspect, All, Contains},
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -27,10 +27,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup, Zero},
 	BuildStorage,
 };
-use xcm::{
-	latest::Junction,
-	opaque::latest::{AssetId, MultiAsset, MultiLocation},
-};
+use xcm_builder::AllowUnpaidExecutionFrom;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -171,9 +168,9 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = (); // no one can teleport.
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = YesItShould;
+	type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
-	type Trader = xcm_builder::FixedRateOfConcreteFungible<WeightPrice, ()>;
+	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 }
 

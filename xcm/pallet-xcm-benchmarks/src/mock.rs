@@ -16,21 +16,8 @@
 
 use crate::*;
 use frame_support::{parameter_types, weights::Weight};
-use xcm::latest::{prelude::XcmResult, Junction, MultiLocation, OriginKind, Response, Xcm};
+use xcm::latest::prelude::*;
 use xcm_executor::traits::FilterAssetLocation;
-
-pub struct YesItShould;
-impl xcm_executor::traits::ShouldExecute for YesItShould {
-	fn should_execute<Call>(
-		_: &MultiLocation,
-		_: bool,
-		_: &xcm::latest::Xcm<Call>,
-		_: Weight,
-		_: &mut Weight,
-	) -> Result<(), ()> {
-		Ok(())
-	}
-}
 
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
@@ -67,7 +54,7 @@ impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 parameter_types! {
 	pub Ancestry: MultiLocation = MultiLocation::X1(Junction::Parachain(101));
 	pub UnitWeightCost: Weight = 10;
-	pub WeightPrice: (MultiLocation, u128) = (MultiLocation::Here, 1_000_000);
+	pub WeightPrice: (AssetId, u128) = (Concrete(Here), 1_000_000);
 }
 
 pub struct AllAssetLocationsPass;
