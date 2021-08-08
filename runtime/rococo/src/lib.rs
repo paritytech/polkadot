@@ -24,7 +24,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{All, Filter, IsInVec, KeyOwnerProofSystem, OnRuntimeUpgrade, Randomness},
+	traits::{Contains, Everything, IsInVec, KeyOwnerProofSystem, OnRuntimeUpgrade, Randomness},
 	weights::Weight,
 	PalletId,
 };
@@ -266,8 +266,8 @@ construct_runtime! {
 }
 
 pub struct BaseFilter;
-impl Filter<Call> for BaseFilter {
-	fn filter(_call: &Call) -> bool {
+impl Contains<Call> for BaseFilter {
+	fn contains(_call: &Call) -> bool {
 		true
 	}
 }
@@ -650,7 +650,7 @@ parameter_types! {
 use xcm_builder::{AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, TakeWeightCredit};
 pub type Barrier = (
 	TakeWeightCredit,
-	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	AllowTopLevelPaidExecutionFrom<Everything>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>, // <- Trusted parachains get free execution
 );
 
@@ -692,8 +692,8 @@ impl pallet_xcm::Config for Runtime {
 	// ...but they must match our filter, which right now rejects everything.
 	type XcmExecuteFilter = ();
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
-	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
+	type XcmTeleportFilter = Everything;
+	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 	type LocationInverter = LocationInverter<Ancestry>;
 }
@@ -833,7 +833,7 @@ impl pallet_bridge_dispatch::Config<AtWococoFromRococoMessagesDispatch> for Runt
 	type Event = Event;
 	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
-	type CallFilter = frame_support::traits::AllowAll;
+	type CallFilter = frame_support::traits::Everything;
 	type EncodedCall = bridge_messages::FromRococoEncodedCall;
 	type SourceChainAccountId = bp_wococo::AccountId;
 	type TargetChainAccountPublic = sp_runtime::MultiSigner;
@@ -847,7 +847,7 @@ impl pallet_bridge_dispatch::Config<AtRococoFromWococoMessagesDispatch> for Runt
 	type Event = Event;
 	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
-	type CallFilter = frame_support::traits::AllowAll;
+	type CallFilter = frame_support::traits::Everything;
 	type EncodedCall = bridge_messages::FromWococoEncodedCall;
 	type SourceChainAccountId = bp_rococo::AccountId;
 	type TargetChainAccountPublic = sp_runtime::MultiSigner;
