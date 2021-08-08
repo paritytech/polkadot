@@ -52,7 +52,7 @@ pub mod prelude {
 			BodyId, BodyPart,
 			NetworkId::{self, *},
 		},
-		junction::Junction::*,
+		junction::Junction::{self, *},
 		multiasset::{
 			AssetId::{self, *},
 			AssetInstance::{self, *},
