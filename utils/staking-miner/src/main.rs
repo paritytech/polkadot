@@ -359,7 +359,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.len() == 0 {
 				println!("target = {:?}", (who, stake, targets));
-				return;
+				return
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -410,7 +410,7 @@ async fn main() {
 					why
 				);
 				std::thread::sleep(std::time::Duration::from_millis(2500));
-			}
+			},
 		}
 	};
 
@@ -427,7 +427,7 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Polkadot;
 			}
-		}
+		},
 		"kusama" | "kusama-dev" => {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::KusamaAccount,
@@ -437,7 +437,7 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Kusama;
 			}
-		}
+		},
 		"westend" => {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
@@ -447,11 +447,11 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Westend;
 			}
-		}
+		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return;
-		}
+			return
+		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
