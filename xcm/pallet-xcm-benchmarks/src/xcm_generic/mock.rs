@@ -17,7 +17,7 @@
 //! A mock runtime for xcm benchmarking.
 
 use crate::{mock::*, xcm_generic as xcm_generic_benchmarks, *};
-use frame_support::{parameter_types, traits::All};
+use frame_support::{parameter_types, traits::Everything};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -49,7 +49,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for Test {
-	type BaseCallFilter = frame_support::traits::AllowAll;
+	type BaseCallFilter = Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
@@ -95,7 +95,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = AllAssetLocationsPass;
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
+	type Barrier = AllowUnpaidExecutionFrom<Everything>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;

@@ -19,7 +19,7 @@
 use crate::{fungibles as xcm_assets_benchmarks, mock::*, *};
 use frame_support::{
 	parameter_types,
-	traits::{fungibles::Inspect, All, Contains},
+	traits::{fungibles::Inspect, Contains, Everything},
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -55,7 +55,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for Test {
-	type BaseCallFilter = frame_support::traits::AllowAll;
+	type BaseCallFilter = Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
@@ -168,7 +168,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsReserve = ();
 	type IsTeleporter = (); // no one can teleport.
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
-	type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
+	type Barrier = AllowUnpaidExecutionFrom<Everything>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;

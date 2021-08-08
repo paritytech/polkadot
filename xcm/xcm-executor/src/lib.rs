@@ -384,6 +384,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		order: Order<Config::Call>,
 	) -> Result<Weight, XcmError> {
 		let mut trader = Config::Trader::new();
-		Self::execute_orders(origin, holding, order, &mut trader)
+		Self::execute_orders(origin, holding, order, &mut trader, 0)
 	}
 }
