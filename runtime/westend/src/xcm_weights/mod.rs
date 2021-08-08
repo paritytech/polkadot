@@ -2,7 +2,6 @@ mod xcm_balances;
 mod xcm_generic;
 
 use frame_support::weights::Weight;
-use sp_runtime::traits::Saturating;
 use xcm_balances::WeightInfo as XcmBalancesWeight;
 
 use crate::{Runtime, WndLocation};
@@ -23,9 +22,8 @@ pub enum AssetTypes {
 
 impl From<&MultiAsset> for AssetTypes {
 	fn from(asset: &MultiAsset) -> Self {
-		let wnd_location = WndLocation::get();
 		match asset {
-			MultiAsset { id: Concrete(wnd_location), .. } => AssetTypes::Balances,
+			MultiAsset { id: Concrete(Here), .. } => AssetTypes::Balances,
 			_ => AssetTypes::Unknown,
 		}
 	}
@@ -74,14 +72,14 @@ impl XcmWeightInfo<()> for WestendXcmWeight {
 	}
 	fn order_deposit_asset(
 		assets: &MultiAssetFilter,
-		max_assets: &u32,
+		_max_assets: &u32, // TODO use max assets?
 		_dest: &MultiLocation,
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::order_deposit_asset())
 	}
 	fn order_deposit_reserve_asset(
 		assets: &MultiAssetFilter,
-		max_assets: &u32,
+		_max_assets: &u32, // TODO use max assets?
 		_dest: &MultiLocation,
 		_effects: &Vec<Order<()>>,
 	) -> Weight {
