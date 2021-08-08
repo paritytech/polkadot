@@ -566,9 +566,9 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 				let result = async_std::fs::remove_file(&condemned).await;
 				tracing::trace!(
 					target: LOG_TARGET,
-					"Sweeping the artifact file {}: {:?}",
+					?result,
+					"Sweeping the artifact file {}",
 					condemned.display(),
-					result,
 				);
 			},
 		}

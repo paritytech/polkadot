@@ -81,13 +81,13 @@ pub async fn start_work(
 		artifact.path.display(),
 	);
 
-	if let Err(err) = send_request(&mut stream, &artifact.path, &validation_params).await {
+	if let Err(error) = send_request(&mut stream, &artifact.path, &validation_params).await {
 		tracing::warn!(
 			target: LOG_TARGET,
 			worker_pid = %pid,
 			validation_code_hash = ?artifact.id.code_hash,
-			"failed to send an execute request: {:?}",
-			err,
+			?error,
+			"failed to send an execute request",
 		);
 		return Outcome::IoErr
 	}
@@ -95,13 +95,13 @@ pub async fn start_work(
 	let response = futures::select! {
 		response = recv_response(&mut stream).fuse() => {
 			match response {
-				Err(err) => {
+				Err(error) => {
 					tracing::warn!(
 						target: LOG_TARGET,
 						worker_pid = %pid,
 						validation_code_hash = ?artifact.id.code_hash,
-						"failed to recv an execute response: {:?}",
-						err,
+						?error,
+						"failed to recv an execute response",
 					);
 					return Outcome::IoErr
 				},

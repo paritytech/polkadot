@@ -225,7 +225,7 @@ fn handle_to_pool(
 			}
 		},
 		ToPool::Kill(worker) => {
-			tracing::debug!(target: LOG_TARGET, "killing the worker {:?}", worker);
+			tracing::debug!(target: LOG_TARGET, ?worker, "killing prepare worker");
 			// It may be absent if it were previously already removed by `purge_dead`.
 			let _ = spawned.remove(worker);
 		},

@@ -193,7 +193,7 @@ fn handle_worker_spawned(queue: &mut Queue, idle: IdleWorker, handle: WorkerHand
 	queue.workers.spawn_inflight -= 1;
 	let worker = queue.workers.running.insert(WorkerData { idle: Some(idle), handle });
 
-	tracing::debug!(target: LOG_TARGET, "worker spawned {:?}", worker);
+	tracing::debug!(target: LOG_TARGET, ?worker, "execute worker spawned");
 
 	if let Some(job) = queue.queue.pop_front() {
 		assign(queue, worker, job);
@@ -232,8 +232,8 @@ fn handle_job_finish(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact_id.code_hash,
 		worker_rip = idle_worker.is_none(),
-		"job finished. result: {:?}",
-		result,
+		?result,
+		"job finished.",
 	);
 
 	// First we send the result. It may fail due the other end of the channel being dropped, that's
@@ -300,8 +300,8 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 	tracing::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?job.artifact.id,
-		"assigning the execute worker {:?}",
-		worker,
+		?worker,
+		"assigning the execute worker",
 	);
 
 	let idle = queue.workers.claim_idle(worker).expect(

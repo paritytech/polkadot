@@ -365,9 +365,9 @@ async fn handle_worker_concluded(
 	tracing::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact_id.code_hash,
-		"prepare worker {:?} concluded, rip={:?}",
-		worker,
-		rip,
+		?worker,
+		?rip,
+		"prepare worker concluded",
 	);
 
 	reply(&mut queue.from_queue_tx, FromQueue::Prepared(artifact_id))?;
@@ -401,7 +401,7 @@ async fn handle_worker_concluded(
 }
 
 async fn handle_worker_rip(queue: &mut Queue, worker: Worker) -> Result<(), Fatal> {
-	tracing::debug!(target: LOG_TARGET, "prepare worker {:?} ripped", worker);
+	tracing::debug!(target: LOG_TARGET, ?worker, "prepare worker ripped");
 
 	let worker_data = queue.workers.remove(worker);
 	if let Some(WorkerData { job: Some(job), .. }) = worker_data {
