@@ -35,7 +35,10 @@ use polkadot_runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_support::{construct_runtime, parameter_types, traits::KeyOwnerProofSystem};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{Everything, KeyOwnerProofSystem},
+};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
@@ -505,13 +508,10 @@ impl pallet_xcm::Config for Runtime {
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
 	type XcmRouter = xcm_config::DoNothingRouter;
-	type XcmExecuteFilter =
-		frame_support::traits::All<(xcm::latest::MultiLocation, xcm::latest::Xcm<Call>)>;
+	type XcmExecuteFilter = Everything;
 	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
-	type XcmTeleportFilter =
-		frame_support::traits::All<(xcm::latest::MultiLocation, Vec<xcm::latest::MultiAsset>)>;
-	type XcmReserveTransferFilter =
-		frame_support::traits::All<(xcm::latest::MultiLocation, Vec<xcm::latest::MultiAsset>)>;
+	type XcmTeleportFilter = Everything;
+	type XcmReserveTransferFilter = Everything;
 }
 
 impl parachains_hrmp::Config for Runtime {
