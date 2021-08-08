@@ -61,8 +61,8 @@ benchmarks! {
 
 		let order = Order::<XcmCallOf<T>>::BuyExecution {
 			fees: (fee_asset, 100_000_000).into(), // should be something inside of holding
-			weight: 100_000_000, // TODO think about sensible numbers
-			debt: 100_000_000, // TODO think about sensible numbers
+			weight: 0, // TODO think about sensible numbers
+			debt: 0, // TODO think about sensible numbers
 			halt_on_error: false,
 			orders: Default::default(), // no orders
 			instructions: Default::default(), // no instructions
