@@ -174,7 +174,7 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 			(Native, MultiLocation { parents: 1, interior: Here }) => Ok(TestOrigin::Relay),
 			(Native, MultiLocation { parents: 0, interior: X1(AccountIndex64 { index, .. }) }) =>
 				Ok(TestOrigin::Signed(index)),
-			_ => Err(origin),
+			(_, origin) => Err(origin),
 		}
 	}
 }
