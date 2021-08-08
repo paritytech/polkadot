@@ -16,8 +16,8 @@
 
 use frame_support::{parameter_types, traits::Everything, weights::Weight};
 use xcm::latest::{
-	Error as XcmError, Junction::*, MultiAsset, MultiLocation, MultiLocation::*, NetworkId,
-	Result as XcmResult, SendXcm, Xcm,
+	Error as XcmError, Junction::*, MultiAsset, MultiLocation, NetworkId, Result as XcmResult,
+	SendXcm, Xcm,
 };
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
@@ -52,7 +52,7 @@ impl TransactAsset for DummyAssetTransactor {
 	}
 
 	fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
-		let asset: MultiAsset = (X1(Parent), 100_000).into();
+		let asset: MultiAsset = (MultiLocation::parent(), 100_000).into();
 		Ok(asset.into())
 	}
 }
