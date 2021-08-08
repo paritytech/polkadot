@@ -74,7 +74,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		);
 
 		// post upgrade tests, a simple balance transfer
-		node.submit_extrinsic(balances::Call::transfer(dest.into(), balance), from)
+		node.submit_extrinsic(balances::Call::transfer(dest.into(), balance), Some(from))
 			.await?;
 		node.seal_blocks(1).await;
 

@@ -15,7 +15,7 @@ erasure-coding = { package = "polkadot-erasure-coding", path = "../../../erasure
 statement-table = { package = "polkadot-statement-table", path = "../../../statement-table" }
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 tracing = "0.1.26"
-thiserror = "1.0.23"
+thiserror = "1.0.26"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
