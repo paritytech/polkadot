@@ -110,9 +110,7 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let id = match (location.parent_count(), location.interior()) {
 			(0, X1(AccountId32 { id, network: NetworkId::Any })) => *id,
-			(0, X1(AccountId32 { id, network }))
-				if network == &Network::get() =>
-				*id,
+			(0, X1(AccountId32 { id, network })) if network == &Network::get() => *id,
 			_ => return Err(location),
 		};
 		Ok(id.into())
@@ -130,9 +128,7 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let key = match (location.parent_count(), location.interior()) {
 			(0, X1(AccountKey20 { key, network: NetworkId::Any })) => *key,
-			(0, X1(AccountKey20 { key, network }))
-				if network == &Network::get() =>
-				*key,
+			(0, X1(AccountKey20 { key, network })) if network == &Network::get() => *key,
 			_ => return Err(location),
 		};
 		Ok(key.into())
@@ -226,10 +222,7 @@ mod tests {
 
 		let input = MultiLocation::new(3, X2(Parachain(2), account32()));
 		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
-		assert_eq!(
-			inverted,
-			MultiLocation::new(2, X3(Parachain(1), account20(), account20()))
-		);
+		assert_eq!(inverted, MultiLocation::new(2, X3(Parachain(1), account20(), account20())));
 	}
 
 	// Network Topology

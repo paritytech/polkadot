@@ -266,11 +266,8 @@ pub mod mock_msg_queue {
 						Self::deposit_event(Event::UnsupportedVersion(id));
 					},
 					Ok(Ok(x)) => {
-						let outcome = T::XcmExecutor::execute_xcm(
-							MultiLocation::parent(),
-							x,
-							limit,
-						);
+						let outcome =
+							T::XcmExecutor::execute_xcm(MultiLocation::parent(), x, limit);
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
 					},
 				}
