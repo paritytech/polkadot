@@ -4,15 +4,9 @@ mod xcm_generic;
 use frame_support::weights::Weight;
 use xcm_balances::WeightInfo as XcmBalancesWeight;
 
-use crate::{Runtime, WndLocation};
+use crate::Runtime;
 use sp_std::prelude::*;
-use xcm::{
-	latest::{
-		AssetId::*, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Order, OriginKind,
-		Response, Xcm, XcmWeightInfo,
-	},
-	DoubleEncoded,
-};
+use xcm::{latest::prelude::*, DoubleEncoded};
 use xcm_generic::WeightInfo as XcmGeneric;
 
 pub enum AssetTypes {

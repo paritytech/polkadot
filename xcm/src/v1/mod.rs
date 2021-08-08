@@ -66,6 +66,7 @@ pub mod prelude {
 		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
 		OriginKind, Response,
 		Xcm::{self, *},
+		XcmWeightInfo,
 	};
 }
 
