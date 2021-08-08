@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{parameter_types, traits::All, weights::Weight};
+use frame_support::{parameter_types, traits::Everything, weights::Weight};
 use xcm::latest::{
 	Error as XcmError, Junction::*, MultiAsset, MultiLocation, MultiLocation::*, NetworkId,
 	Result as XcmResult, SendXcm, Xcm,
@@ -43,7 +43,7 @@ impl SendXcm for DoNothingRouter {
 	}
 }
 
-pub type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
+pub type Barrier = AllowUnpaidExecutionFrom<Everything>;
 
 pub struct DummyAssetTransactor;
 impl TransactAsset for DummyAssetTransactor {
