@@ -12267,7 +12267,6 @@ dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "static_assertions",
 ]
 
 [[package]]
