@@ -340,6 +340,12 @@ impl From<Junctions> for MultiLocation {
 	}
 }
 
+impl From<(u8, Junctions)> for MultiLocation {
+	fn from((parents, interior): (u8, Junctions)) -> Self {
+		MultiLocation { parents, interior }
+	}
+}
+
 impl From<Junction> for MultiLocation {
 	fn from(x: Junction) -> Self {
 		MultiLocation { parents: 0, interior: Junctions::X1(x) }
@@ -398,6 +404,91 @@ impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction,
 			parents: 0,
 			interior: Junctions::X8(x.0, x.1, x.2, x.3, x.4, x.5, x.6, x.7),
 		}
+	}
+}
+
+impl From<(u8,)> for MultiLocation {
+	fn from((parents,): (u8,)) -> Self {
+		MultiLocation { parents, interior: Junctions::Here }
+	}
+}
+impl From<(u8, Junction)> for MultiLocation {
+	fn from((parents, j0): (u8, Junction)) -> Self {
+		MultiLocation { parents, interior: Junctions::X1(j0) }
+	}
+}
+impl From<(u8, Junction, Junction)> for MultiLocation {
+	fn from((parents, j0, j1): (u8, Junction, Junction)) -> Self {
+		MultiLocation { parents, interior: Junctions::X2(j0, j1) }
+	}
+}
+impl From<(u8, Junction, Junction, Junction)> for MultiLocation {
+	fn from((parents, j0, j1, j2): (u8, Junction, Junction, Junction)) -> Self {
+		MultiLocation { parents, interior: Junctions::X3(j0, j1, j2) }
+	}
+}
+impl From<(u8, Junction, Junction, Junction, Junction)> for MultiLocation {
+	fn from((parents, j0, j1, j2, j3): (u8, Junction, Junction, Junction, Junction)) -> Self {
+		MultiLocation { parents, interior: Junctions::X4(j0, j1, j2, j3) }
+	}
+}
+impl From<(u8, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
+	fn from(
+		(parents, j0, j1, j2, j3, j4): (u8, Junction, Junction, Junction, Junction, Junction),
+	) -> Self {
+		MultiLocation { parents, interior: Junctions::X5(j0, j1, j2, j3, j4) }
+	}
+}
+impl From<(u8, Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
+	fn from(
+		(parents, j0, j1, j2, j3, j4, j5): (
+			u8,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+		),
+	) -> Self {
+		MultiLocation { parents, interior: Junctions::X6(j0, j1, j2, j3, j4, j5) }
+	}
+}
+impl From<(u8, Junction, Junction, Junction, Junction, Junction, Junction, Junction)>
+	for MultiLocation
+{
+	fn from(
+		(parents, j0, j1, j2, j3, j4, j5, j6): (
+			u8,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+		),
+	) -> Self {
+		MultiLocation { parents, interior: Junctions::X7(j0, j1, j2, j3, j4, j5, j6) }
+	}
+}
+impl From<(u8, Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)>
+	for MultiLocation
+{
+	fn from(
+		(parents, j0, j1, j2, j3, j4, j5, j6, j7): (
+			u8,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+			Junction,
+		),
+	) -> Self {
+		MultiLocation { parents, interior: Junctions::X8(j0, j1, j2, j3, j4, j5, j6, j7) }
 	}
 }
 
