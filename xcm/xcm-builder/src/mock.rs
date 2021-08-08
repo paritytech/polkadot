@@ -170,10 +170,10 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, _) => Ok(TestOrigin::Signed(to_account(origin)?)),
 			(Native, MultiLocation { parents: 0, interior: X1(Parachain(id)) }) =>
-				Ok(TestOrigin::Parachain(*id)),
+				Ok(TestOrigin::Parachain(id)),
 			(Native, MultiLocation { parents: 1, interior: Here }) => Ok(TestOrigin::Relay),
 			(Native, MultiLocation { parents: 0, interior: X1(AccountIndex64 { index, .. }) }) =>
-				Ok(TestOrigin::Signed(*index)),
+				Ok(TestOrigin::Signed(index)),
 			_ => Err(origin),
 		}
 	}
