@@ -785,11 +785,13 @@ impl Junctions {
 	}
 
 	/// Returns a reference iterator over the junctions in reverse.
+	#[deprecated(note = "Please use iter().rev()")]
 	pub fn iter_rev(&self) -> impl Iterator + '_ {
 		self.iter().rev()
 	}
 
 	/// Consumes `self` and returns an iterator over the junctions in reverse.
+	#[deprecated(note = "Please use into_iter().rev()")]
 	pub fn into_iter_rev(self) -> impl Iterator {
 		self.into_iter().rev()
 	}
