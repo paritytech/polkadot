@@ -272,10 +272,7 @@ mod tests {
 			(UnimplementedTransactor, NotFoundTransactor, UnimplementedTransactor);
 
 		assert_eq!(
-			MultiTransactor::deposit_asset(
-				&(Here.into(), 1).into(),
-				&Here.into()
-			),
+			MultiTransactor::deposit_asset(&(Here.into(), 1).into(), &Here.into()),
 			Err(XcmError::AssetNotFound)
 		);
 	}
@@ -284,13 +281,7 @@ mod tests {
 	fn unimplemented_and_not_found_continue_iteration() {
 		type MultiTransactor = (UnimplementedTransactor, NotFoundTransactor, SuccessfulTransactor);
 
-		assert_eq!(
-			MultiTransactor::deposit_asset(
-				&(Here.into(), 1).into(),
-				&Here.into()
-			),
-			Ok(()),
-		);
+		assert_eq!(MultiTransactor::deposit_asset(&(Here.into(), 1).into(), &Here.into()), Ok(()),);
 	}
 
 	#[test]
@@ -298,10 +289,7 @@ mod tests {
 		type MultiTransactor = (OverflowTransactor, SuccessfulTransactor);
 
 		assert_eq!(
-			MultiTransactor::deposit_asset(
-				&(Here.into(), 1).into(),
-				&Here.into()
-			),
+			MultiTransactor::deposit_asset(&(Here.into(), 1).into(), &Here.into()),
 			Err(XcmError::Overflow)
 		);
 	}
@@ -310,12 +298,6 @@ mod tests {
 	fn success_stops_iteration() {
 		type MultiTransactor = (SuccessfulTransactor, OverflowTransactor);
 
-		assert_eq!(
-			MultiTransactor::deposit_asset(
-				&(Here.into(), 1).into(),
-				&Here.into()
-			),
-			Ok(()),
-		);
+		assert_eq!(MultiTransactor::deposit_asset(&(Here.into(), 1).into(), &Here.into()), Ok(()),);
 	}
 }

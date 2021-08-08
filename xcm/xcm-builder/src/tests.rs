@@ -20,10 +20,7 @@ use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]
 fn basic_setup_works() {
-	add_reserve(
-		MultiLocation::parent(),
-		Wild((MultiLocation::parent(), WildFungible).into()),
-	);
+	add_reserve(MultiLocation::parent(), Wild((MultiLocation::parent(), WildFungible).into()));
 	assert!(<TestConfig as Config>::IsReserve::filter_asset_location(
 		&(MultiLocation::parent(), 100).into(),
 		&MultiLocation::parent(),
@@ -57,11 +54,7 @@ fn weigher_should_work() {
 				orders: vec![],
 				instructions: vec![],
 			},
-			Order::DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
-				beneficiary: Here.into(),
-			},
+			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
 		],
 	}
 	.into();
@@ -155,11 +148,7 @@ fn allow_paid_should_work() {
 				orders: vec![],
 				instructions: vec![],
 			},
-			Order::DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
-				beneficiary: Here.into(),
-			},
+			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
 		],
 	};
 
@@ -184,11 +173,7 @@ fn allow_paid_should_work() {
 				orders: vec![],
 				instructions: vec![],
 			},
-			Order::DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
-				beneficiary: Here.into(),
-			},
+			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
 		],
 	};
 
@@ -214,10 +199,7 @@ fn allow_paid_should_work() {
 #[test]
 fn paying_reserve_deposit_should_work() {
 	AllowPaidFrom::set(vec![MultiLocation::parent()]);
-	add_reserve(
-		MultiLocation::parent(),
-		(MultiLocation::parent(), WildFungible).into(),
-	);
+	add_reserve(MultiLocation::parent(), (MultiLocation::parent(), WildFungible).into());
 	WeightPrice::set((MultiLocation::parent().into(), 1_000_000_000_000));
 
 	let origin = MultiLocation::parent();
