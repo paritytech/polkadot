@@ -29,15 +29,7 @@ use frame_support::{
 	},
 };
 use sp_std::prelude::*;
-use xcm::latest::{
-	AssetId::*,
-	AssetInstance, Error as XcmError, ExecuteXcm,
-	Fungibility::*,
-	Junction::{self, *},
-	MultiAsset,
-	MultiLocation::{self, *},
-	NetworkId, Order, Outcome, Xcm,
-};
+use xcm::latest::prelude::*;
 use xcm_executor::{traits::Convert, Assets};
 
 pub mod fungible;

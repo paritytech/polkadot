@@ -16,7 +16,6 @@
 
 use crate::*;
 use frame_support::{parameter_types, weights::Weight};
-use xcm::latest::prelude::*;
 use xcm_executor::traits::FilterAssetLocation;
 
 // An xcm sender/receiver akin to > /dev/null

@@ -24,7 +24,6 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
-use xcm::latest::prelude::*;
 use xcm_builder::AllowUnpaidExecutionFrom;
 use xcm_executor::traits::ConvertOrigin;
 

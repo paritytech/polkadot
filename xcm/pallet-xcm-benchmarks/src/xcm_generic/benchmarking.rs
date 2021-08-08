@@ -22,6 +22,7 @@ use crate::{
 use codec::Encode;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::{assert_ok, dispatch::GetDispatchInfo, pallet_prelude::Get};
+use sp_std::prelude::*;
 use xcm::{latest::prelude::*, DoubleEncoded};
 
 benchmarks! {
@@ -155,7 +156,7 @@ benchmarks! {
 
 		let xcm = Xcm::RelayedFrom {
 			who: Here,
-			message: Box::new(noop_xcm),
+			message: sp_std::boxed::Box::new(noop_xcm),
 		};
 	}: {
 		assert_ok!(execute_xcm::<T>(sender_location, xcm).ensure_complete());
