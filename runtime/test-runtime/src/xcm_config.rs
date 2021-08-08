@@ -16,8 +16,7 @@
 
 use frame_support::{parameter_types, traits::Everything, weights::Weight};
 use xcm::latest::{
-	Error as XcmError, MultiAsset, MultiLocation, NetworkId, Result as XcmResult,
-	SendXcm, Xcm,
+	Error as XcmError, MultiAsset, MultiLocation, NetworkId, Result as XcmResult, SendXcm, Xcm,
 };
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
