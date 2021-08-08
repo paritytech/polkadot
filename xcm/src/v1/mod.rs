@@ -43,6 +43,7 @@ pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
+		// These parts of XCM v0 have been unchanged in XCM v1
 		super::v0::{
 			BodyId, BodyPart,
 			Junction::*,
