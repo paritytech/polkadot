@@ -1436,8 +1436,9 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
 
 			// XCM Benchmarks
-			list_benchmark!(list, extra, pallet_xcm_benchmarks, XcmBalances);
-			list_benchmark!(list, extra, pallet_xcm_benchmarks, XcmGeneric);
+			// NOTE: Make sure you point to the individual modules below.
+			list_benchmark!(list, extra, pallet_xcm_benchmarks::fungible, XcmBalances);
+			list_benchmark!(list, extra, pallet_xcm_benchmarks::xcm_generic, XcmGeneric);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1538,8 +1539,9 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
 
 			// XCM Benchmarks
-			add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmBalances);
-			add_benchmark!(params, batches, pallet_xcm_benchmarks, XcmGeneric);
+			// NOTE: Make sure you point to the individual modules below.
+			add_benchmark!(params, batches, pallet_xcm_benchmarks::fungible, XcmBalances);
+			add_benchmark!(params, batches, pallet_xcm_benchmarks::xcm_generic, XcmGeneric);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
