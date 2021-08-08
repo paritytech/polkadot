@@ -16,9 +16,9 @@
 
 //! Cross-Consensus Message format data structures.
 
+use super::Junction;
+use crate::v1::MultiLocation as MultiLocation1;
 use core::{convert::TryFrom, mem, result};
-
-use super::{super::v1::MultiLocation as MultiLocation1, Junction};
 use parity_scale_codec::{self, Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.

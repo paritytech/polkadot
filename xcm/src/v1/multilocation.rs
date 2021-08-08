@@ -16,7 +16,8 @@
 
 //! Cross-Consensus Message format data structures.
 
-use super::{super::v0::MultiLocation as MultiLocation0, Junction};
+use super::Junction;
+use crate::v0::MultiLocation as MultiLocation0;
 use core::{
 	convert::{TryFrom, TryInto},
 	mem, result,
