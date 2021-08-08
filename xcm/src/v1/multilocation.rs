@@ -21,7 +21,7 @@ use core::{
 	convert::{TryFrom, TryInto},
 	mem, result,
 };
-use parity_scale_codec::{self, Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.
 ///
@@ -48,9 +48,9 @@ use parity_scale_codec::{self, Decode, Encode};
 #[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
-	pub(crate) parents: u8,
+	pub parents: u8,
 	/// The interior (i.e. non-parent) junctions that this `MultiLocation` contains.
-	pub(crate) interior: Junctions,
+	pub interior: Junctions,
 }
 
 impl Default for MultiLocation {
