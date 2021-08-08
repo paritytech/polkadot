@@ -152,9 +152,9 @@ pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 		// Children at 1000+id
 		X1(Parachain(id)) if l.parent_count() == 0 => 1000 + *id as u64,
 		// Self at 3000
-		Null if l.parent_count() == 0 => 3000,
+		Here if l.parent_count() == 0 => 3000,
 		// Parent at 3001
-		Null if l.parent_count() == 1 => 3001,
+		Here if l.parent_count() == 1 => 3001,
 		_ => return Err(l),
 	})
 }
@@ -171,7 +171,7 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 			(SovereignAccount, _) => Ok(TestOrigin::Signed(to_account(origin)?)),
 			(Native, X1(Parachain(id))) if origin.parent_count() == 0 =>
 				Ok(TestOrigin::Parachain(*id)),
-			(Native, Null) if origin.parent_count() == 1 => Ok(TestOrigin::Relay),
+			(Native, Here) if origin.parent_count() == 1 => Ok(TestOrigin::Relay),
 			(Native, X1(AccountIndex64 { index, .. })) if origin.parent_count() == 0 =>
 				Ok(TestOrigin::Signed(*index)),
 			_ => Err(origin),

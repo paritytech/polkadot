@@ -19,7 +19,7 @@ use parity_scale_codec::Encode;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::AccountIdConversion;
 use sp_std::{borrow::Borrow, marker::PhantomData};
-use xcm::latest::{Junction, Junctions, MultiLocation, NetworkId};
+use xcm::latest::{Junction::*, Junctions::*, MultiLocation, NetworkId};
 use xcm_executor::traits::{Convert, InvertLocation};
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
@@ -65,7 +65,7 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		let location = location.borrow();
 		match location.interior() {
-			Junctions::X1(Junction::Parachain(id)) if location.parent_count() == 0 =>
+			X1(Parachain(id)) if location.parent_count() == 0 =>
 				Ok(ParaId::from(*id).into_account()),
 			_ => Err(()),
 		}
@@ -73,7 +73,7 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if let Some(id) = ParaId::try_from_account(who.borrow()) {
-			Ok(Junction::Parachain(id.into()).into())
+			Ok(Parachain(id.into()).into())
 		} else {
 			Err(())
 		}
@@ -87,7 +87,7 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		let location = location.borrow();
 		match location.interior() {
-			Junctions::X1(Junction::Parachain(id)) if location.parent_count() == 1 =>
+			X1(Parachain(id)) if location.parent_count() == 1 =>
 				Ok(ParaId::from(*id).into_account()),
 			_ => Err(()),
 		}
@@ -95,8 +95,7 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if let Some(id) = ParaId::try_from_account(who.borrow()) {
-			Ok(MultiLocation::new(1, Junctions::X1(Junction::Parachain(id.into())))
-				.expect("well-formed MultiLocation; qed"))
+			Ok(MultiLocation::new(1, X1(Parachain(id.into()))))
 		} else {
 			Err(())
 		}
@@ -110,8 +109,8 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let id = match (location.parent_count(), location.interior()) {
-			(0, Junctions::X1(Junction::AccountId32 { id, network: NetworkId::Any })) => *id,
-			(0, Junctions::X1(Junction::AccountId32 { id, network }))
+			(0, X1(AccountId32 { id, network: NetworkId::Any })) => *id,
+			(0, X1(AccountId32 { id, network }))
 				if network == &Network::get() =>
 				*id,
 			_ => return Err(location),
@@ -120,7 +119,7 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone
 	}
 
 	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
-		Ok(Junction::AccountId32 { id: who.into(), network: Network::get() }.into())
+		Ok(AccountId32 { id: who.into(), network: Network::get() }.into())
 	}
 }
 
@@ -130,8 +129,8 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let key = match (location.parent_count(), location.interior()) {
-			(0, Junctions::X1(Junction::AccountKey20 { key, network: NetworkId::Any })) => *key,
-			(0, Junctions::X1(Junction::AccountKey20 { key, network }))
+			(0, X1(AccountKey20 { key, network: NetworkId::Any })) => *key,
+			(0, X1(AccountKey20 { key, network }))
 				if network == &Network::get() =>
 				*key,
 			_ => return Err(location),
@@ -140,7 +139,7 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone
 	}
 
 	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
-		let j = Junction::AccountKey20 { key: who.into(), network: Network::get() };
+		let j = AccountKey20 { key: who.into(), network: Network::get() };
 		Ok(j.into())
 	}
 }
@@ -169,27 +168,26 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone
 ///     ).into();
 /// }
 ///
-/// let input = MultiLocation::new(2, X2(Parachain(2), AccountId32 { network: Any, id: Default::default() })).unwrap();
+/// let input = MultiLocation::new(2, X2(Parachain(2), AccountId32 { network: Any, id: Default::default() }));
 /// let inverted = LocationInverter::<Ancestry>::invert_location(&input);
 /// assert_eq!(inverted, MultiLocation::new(
 ///     2,
 ///     X2(Parachain(1), AccountKey20 { network: Any, key: Default::default() }),
-/// ).unwrap());
+/// ));
 /// # }
 /// ```
 pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
 impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry> {
 	fn invert_location(location: &MultiLocation) -> MultiLocation {
 		let mut ancestry = Ancestry::get();
-		let mut junctions = Junctions::Here;
+		let mut junctions = Here;
 		for _ in 0..location.parent_count() {
 			junctions = junctions
-				.pushed_with(ancestry.take_first_interior().unwrap_or(Junction::OnlyChild))
+				.pushed_with(ancestry.take_first_interior().unwrap_or(OnlyChild))
 				.expect("ancestry is well-formed and has less than 8 non-parent junctions; qed");
 		}
 		let parents = location.interior().len() as u8;
 		MultiLocation::new(parents, junctions)
-			.expect("parents + junctions len must equal location len; qed")
 	}
 }
 
@@ -198,7 +196,7 @@ mod tests {
 	use super::*;
 
 	use frame_support::parameter_types;
-	use xcm::latest::{Junction::*, Junctions::*, MultiLocation, NetworkId::Any};
+	use xcm::latest::{Junction, NetworkId::Any};
 
 	fn account20() -> Junction {
 		AccountKey20 { network: Any, key: Default::default() }
@@ -226,11 +224,11 @@ mod tests {
 			pub Ancestry: MultiLocation = X3(Parachain(1), account20(), account20()).into();
 		}
 
-		let input = MultiLocation::new(3, X2(Parachain(2), account32())).unwrap();
+		let input = MultiLocation::new(3, X2(Parachain(2), account32()));
 		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
 		assert_eq!(
 			inverted,
-			MultiLocation::new(2, X3(Parachain(1), account20(), account20())).unwrap()
+			MultiLocation::new(2, X3(Parachain(1), account20(), account20()))
 		);
 	}
 

@@ -28,14 +28,14 @@ fn basic_setup_works() {
 
 	assert_eq!(to_account(X1(Parachain(1)).into()), Ok(1001));
 	assert_eq!(to_account(X1(Parachain(50)).into()), Ok(1050));
-	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(1))).unwrap()), Ok(2001));
-	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(50))).unwrap()), Ok(2050));
+	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(1)))), Ok(2001));
+	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(50)))), Ok(2050));
 	assert_eq!(
-		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 1, network: Any })).unwrap()),
+		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 1, network: Any }))),
 		Ok(1),
 	);
 	assert_eq!(
-		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 42, network: Any })).unwrap()),
+		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 42, network: Any }))),
 		Ok(42),
 	);
 	assert_eq!(to_account(Here.into()), Ok(3000));
