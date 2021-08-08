@@ -63,9 +63,8 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 	Convert<MultiLocation, AccountId> for ChildParachainConvertsVia<ParaId, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		let location = location.borrow();
-		match location.interior() {
-			X1(Parachain(id)) if location.parent_count() == 0 =>
+		match location.borrow() {
+			MultiLocation { parents: 0, interior: X1(Parachain(id)) } =>
 				Ok(ParaId::from(*id).into_account()),
 			_ => Err(()),
 		}
@@ -85,9 +84,8 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 	Convert<MultiLocation, AccountId> for SiblingParachainConvertsVia<ParaId, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		let location = location.borrow();
-		match location.interior() {
-			X1(Parachain(id)) if location.parent_count() == 1 =>
+		match location.borrow() {
+			MultiLocation { parents: 1, interior: X1(Parachain(id)) } =>
 				Ok(ParaId::from(*id).into_account()),
 			_ => Err(()),
 		}
@@ -108,9 +106,14 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone
 	Convert<MultiLocation, AccountId> for AccountId32Aliases<Network, AccountId>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		let id = match (location.parent_count(), location.interior()) {
-			(0, X1(AccountId32 { id, network: NetworkId::Any })) => *id,
-			(0, X1(AccountId32 { id, network })) if network == &Network::get() => *id,
+		let id = match location {
+			MultiLocation {
+				parents: 0,
+				interior: X1(AccountId32 { id, network: NetworkId::Any }),
+			} => id,
+			MultiLocation { parents: 0, interior: X1(AccountId32 { id, network }) }
+				if network == Network::get() =>
+				id,
 			_ => return Err(location),
 		};
 		Ok(id.into())
@@ -126,9 +129,14 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone
 	Convert<MultiLocation, AccountId> for AccountKey20Aliases<Network, AccountId>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
-		let key = match (location.parent_count(), location.interior()) {
-			(0, X1(AccountKey20 { key, network: NetworkId::Any })) => *key,
-			(0, X1(AccountKey20 { key, network })) if network == &Network::get() => *key,
+		let key = match location {
+			MultiLocation {
+				parents: 0,
+				interior: X1(AccountKey20 { key, network: NetworkId::Any }),
+			} => key,
+			MultiLocation { parents: 0, interior: X1(AccountKey20 { key, network }) }
+				if network == Network::get() =>
+				key,
 			_ => return Err(location),
 		};
 		Ok(key.into())

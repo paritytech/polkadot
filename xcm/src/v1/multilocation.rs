@@ -327,9 +327,8 @@ impl MultiLocation {
 
 		self.parents = self.parents.saturating_add(prefix.parents);
 		for j in prefix.interior.into_iter().rev() {
-			self.push_front_interior(j).expect(
-				"final_interior no greater than MAX_JUNCTIONS; qed"
-			);
+			self.push_front_interior(j)
+				.expect("final_interior no greater than MAX_JUNCTIONS; qed");
 		}
 		Ok(())
 	}
@@ -1135,7 +1134,7 @@ mod tests {
 		let acc = AccountIndex64 { network: Any, index: 23 };
 		let mut m = MultiLocation {
 			parents: 254,
-			interior: X5(Parachain(42), OnlyChild, OnlyChild, OnlyChild, OnlyChild)
+			interior: X5(Parachain(42), OnlyChild, OnlyChild, OnlyChild, OnlyChild),
 		};
 		let suffix = MultiLocation::from(X4(PalletInstance(3), acc.clone(), OnlyChild, OnlyChild));
 		assert_eq!(m.append_with(suffix.clone()), Err(suffix));

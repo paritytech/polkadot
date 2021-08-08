@@ -144,17 +144,17 @@ impl TransactAsset for TestAssetTransactor {
 }
 
 pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
-	Ok(match l.interior() {
+	Ok(match l {
 		// Siblings at 2000+id
-		X1(Parachain(id)) if l.parent_count() == 1 => 2000 + *id as u64,
+		MultiLocation { parents: 1, interior: X1(Parachain(id)) } => 2000 + id as u64,
 		// Accounts are their number
-		X1(AccountIndex64 { index, .. }) if l.parent_count() == 0 => *index,
+		MultiLocation { parents: 0, interior: X1(AccountIndex64 { index, .. }) } => index,
 		// Children at 1000+id
-		X1(Parachain(id)) if l.parent_count() == 0 => 1000 + *id as u64,
+		MultiLocation { parents: 0, interior: X1(Parachain(id)) } => 1000 + id as u64,
 		// Self at 3000
-		Here if l.parent_count() == 0 => 3000,
+		MultiLocation { parents: 0, interior: Here } => 3000,
 		// Parent at 3001
-		Here if l.parent_count() == 1 => 3001,
+		MultiLocation { parents: 1, interior: Here } => 3001,
 		_ => return Err(l),
 	})
 }
@@ -166,13 +166,13 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 		kind: OriginKind,
 	) -> Result<TestOrigin, MultiLocation> {
 		use OriginKind::*;
-		match (kind, origin.interior()) {
+		match (kind, origin) {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, _) => Ok(TestOrigin::Signed(to_account(origin)?)),
-			(Native, X1(Parachain(id))) if origin.parent_count() == 0 =>
+			(Native, MultiLocation { parents: 0, interior: X1(Parachain(id)) }) =>
 				Ok(TestOrigin::Parachain(*id)),
-			(Native, Here) if origin.parent_count() == 1 => Ok(TestOrigin::Relay),
-			(Native, X1(AccountIndex64 { index, .. })) if origin.parent_count() == 0 =>
+			(Native, MultiLocation { parents: 1, interior: Here }) => Ok(TestOrigin::Relay),
+			(Native, MultiLocation { parents: 0, interior: X1(AccountIndex64 { index, .. }) }) =>
 				Ok(TestOrigin::Signed(*index)),
 			_ => Err(origin),
 		}

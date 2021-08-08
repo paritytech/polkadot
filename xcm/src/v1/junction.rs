@@ -16,11 +16,11 @@
 
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
+use super::{Junctions, MultiLocation};
 use crate::v0::{BodyId as BodyId0, Junction as Junction0};
 use alloc::vec::Vec;
 use core::convert::TryFrom;
 use parity_scale_codec::{self, Decode, Encode};
-use super::{MultiLocation, Junctions};
 
 /// A global identifier of an account-bearing consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
