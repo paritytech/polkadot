@@ -20,7 +20,7 @@ use frame_support::traits::{EnsureOrigin, Get, GetBacking, OriginTrait};
 use frame_system::RawOrigin as SystemRawOrigin;
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{convert::TryInto, marker::PhantomData};
-use xcm::latest::{BodyId, BodyPart, Junction, MultiLocation, NetworkId, OriginKind};
+use xcm::latest::{BodyId, BodyPart, Junction, Junctions::*, MultiLocation, NetworkId, OriginKind};
 use xcm_executor::traits::{Convert, ConvertOrigin};
 
 /// Sovereign accounts use the system's `Signed` origin with an account ID derived from the `LocationConverter`.
@@ -45,9 +45,10 @@ where
 pub struct ParentAsSuperuser<Origin>(PhantomData<Origin>);
 impl<Origin: OriginTrait> ConvertOrigin<Origin> for ParentAsSuperuser<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X1(Junction::Parent)) => Ok(Origin::root()),
-			(_, origin) => Err(origin),
+		if kind == OriginKind::Superuser && origin.contains_parents_only(1) {
+			Ok(Origin::root())
+		} else {
+			Err(origin)
 		}
 	}
 }
@@ -58,9 +59,10 @@ impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Superuser, MultiLocation::X1(Junction::Parachain(id)))
-				if ParaId::from(id).is_system() =>
-				Ok(Origin::root()),
+			(
+				OriginKind::Superuser,
+				MultiLocation { parents: 0, interior: X1(Junction::Parachain(id)) },
+			) if ParaId::from(id).is_system() => Ok(Origin::root()),
 			(_, origin) => Err(origin),
 		}
 	}
@@ -74,7 +76,7 @@ impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 		match (kind, origin) {
 			(
 				OriginKind::Superuser,
-				MultiLocation::X2(Junction::Parent, Junction::Parachain(id)),
+				MultiLocation { parents: 1, interior: X1(Junction::Parachain(id)) },
 			) if ParaId::from(id).is_system() => Ok(Origin::root()),
 			(_, origin) => Err(origin),
 		}
@@ -87,8 +89,10 @@ impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Or
 {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X1(Junction::Parachain(id))) =>
-				Ok(Origin::from(ParachainOrigin::from(id))),
+			(
+				OriginKind::Native,
+				MultiLocation { parents: 0, interior: X1(Junction::Parachain(id)) },
+			) => Ok(Origin::from(ParachainOrigin::from(id))),
 			(_, origin) => Err(origin),
 		}
 	}
@@ -102,8 +106,10 @@ impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Or
 {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X2(Junction::Parent, Junction::Parachain(id))) =>
-				Ok(Origin::from(ParachainOrigin::from(id))),
+			(
+				OriginKind::Native,
+				MultiLocation { parents: 1, interior: X1(Junction::Parachain(id)) },
+			) => Ok(Origin::from(ParachainOrigin::from(id))),
 			(_, origin) => Err(origin),
 		}
 	}
@@ -115,9 +121,10 @@ impl<RelayOrigin: Get<Origin>, Origin> ConvertOrigin<Origin>
 	for RelayChainAsNative<RelayOrigin, Origin>
 {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X1(Junction::Parent)) => Ok(RelayOrigin::get()),
-			(_, origin) => Err(origin),
+		if kind == OriginKind::Native && origin.contains_parents_only(1) {
+			Ok(RelayOrigin::get())
+		} else {
+			Err(origin)
 		}
 	}
 }
@@ -130,8 +137,10 @@ where
 {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X1(Junction::AccountId32 { id, network }))
-				if matches!(network, NetworkId::Any) || network == Network::get() =>
+			(
+				OriginKind::Native,
+				MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { id, network }) },
+			) if matches!(network, NetworkId::Any) || network == Network::get() =>
 				Ok(Origin::signed(id.into())),
 			(_, origin) => Err(origin),
 		}
@@ -146,8 +155,10 @@ where
 {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
 		match (kind, origin) {
-			(OriginKind::Native, MultiLocation::X1(Junction::AccountKey20 { key, network }))
-				if matches!(network, NetworkId::Any) || network == Network::get() =>
+			(
+				OriginKind::Native,
+				MultiLocation { parents: 0, interior: X1(Junction::AccountKey20 { key, network }) },
+			) if (matches!(network, NetworkId::Any) || network == Network::get()) =>
 				Ok(Origin::signed(key.into())),
 			(_, origin) => Err(origin),
 		}
@@ -170,7 +181,7 @@ where
 		// We institute a root fallback so root can always represent the context. This
 		// guarantees that `successful_origin` will work.
 		if o.caller() == Origin::root().caller() {
-			Ok(MultiLocation::Here)
+			Ok(Here.into())
 		} else {
 			Err(o)
 		}

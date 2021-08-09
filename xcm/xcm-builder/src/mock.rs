@@ -146,16 +146,16 @@ impl TransactAsset for TestAssetTransactor {
 pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 	Ok(match l {
 		// Siblings at 2000+id
-		X2(Parent, Parachain(id)) => 2000 + id as u64,
+		MultiLocation { parents: 1, interior: X1(Parachain(id)) } => 2000 + id as u64,
 		// Accounts are their number
-		X1(AccountIndex64 { index, .. }) => index,
+		MultiLocation { parents: 0, interior: X1(AccountIndex64 { index, .. }) } => index,
 		// Children at 1000+id
-		X1(Parachain(id)) => 1000 + id as u64,
+		MultiLocation { parents: 0, interior: X1(Parachain(id)) } => 1000 + id as u64,
 		// Self at 3000
-		Here => 3000,
+		MultiLocation { parents: 0, interior: Here } => 3000,
 		// Parent at 3001
-		X1(Parent) => 3001,
-		l => return Err(l),
+		MultiLocation { parents: 1, interior: Here } => 3001,
+		_ => return Err(l),
 	})
 }
 
@@ -169,9 +169,11 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 		match (kind, origin) {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
-			(Native, X1(Parachain(id))) => Ok(TestOrigin::Parachain(id)),
-			(Native, X1(Parent)) => Ok(TestOrigin::Relay),
-			(Native, X1(AccountIndex64 { index, .. })) => Ok(TestOrigin::Signed(index)),
+			(Native, MultiLocation { parents: 0, interior: X1(Parachain(id)) }) =>
+				Ok(TestOrigin::Parachain(id)),
+			(Native, MultiLocation { parents: 1, interior: Here }) => Ok(TestOrigin::Relay),
+			(Native, MultiLocation { parents: 0, interior: X1(AccountIndex64 { index, .. }) }) =>
+				Ok(TestOrigin::Signed(index)),
 			(_, origin) => Err(origin),
 		}
 	}
@@ -247,7 +249,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 }
 
 parameter_types! {
-	pub TestAncestry: MultiLocation = X1(Parachain(42));
+	pub TestAncestry: MultiLocation = X1(Parachain(42)).into();
 	pub UnitWeightCost: Weight = 10;
 }
 parameter_types! {
@@ -255,7 +257,7 @@ parameter_types! {
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
-	pub static WeightPrice: (AssetId, u128) = (Here.into(), 1_000_000_000_000);
+	pub static WeightPrice: (AssetId, u128) = (From::from(Here), 1_000_000_000_000);
 }
 
 pub type TestBarrier = (

@@ -16,7 +16,7 @@
 
 use frame_support::{parameter_types, traits::Everything, weights::Weight};
 use xcm::latest::{
-	Error as XcmError, Junction::*, MultiAsset, MultiLocation, MultiLocation::*, NetworkId,
+	Error as XcmError, Junctions::Here, MultiAsset, MultiLocation, NetworkId, Parent,
 	Result as XcmResult, SendXcm, Xcm,
 };
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
@@ -52,7 +52,7 @@ impl TransactAsset for DummyAssetTransactor {
 	}
 
 	fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
-		let asset: MultiAsset = (X1(Parent), 100_000).into();
+		let asset: MultiAsset = (Parent, 100_000).into();
 		Ok(asset.into())
 	}
 }
@@ -71,7 +71,7 @@ impl WeightTrader for DummyWeightTrader {
 pub struct InvertNothing;
 impl InvertLocation for InvertNothing {
 	fn invert_location(_: &MultiLocation) -> MultiLocation {
-		MultiLocation::Here
+		Here.into()
 	}
 }
 

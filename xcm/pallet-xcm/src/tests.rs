@@ -40,7 +40,7 @@ fn send_works() {
 		let sender: MultiLocation =
 			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
 		let message = Xcm::ReserveAssetDeposited {
-			assets: (X1(Parent), SEND_AMOUNT).into(),
+			assets: (Parent, SEND_AMOUNT).into(),
 			effects: vec![
 				buy_execution((Parent, SEND_AMOUNT), weight),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
@@ -54,7 +54,7 @@ fn send_works() {
 		assert_eq!(
 			sent_xcm(),
 			vec![(
-				MultiLocation::Here,
+				Here.into(),
 				RelayedFrom { who: sender.clone(), message: Box::new(message.clone()) }
 			)]
 		);
@@ -87,16 +87,7 @@ fn send_fails_when_xcm_router_blocks() {
 		assert_noop!(
 			XcmPallet::send(
 				Origin::signed(ALICE),
-				Box::new(X8(
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent
-				)),
+				Box::new(MultiLocation::ancestor(8)),
 				Box::new(message.clone())
 			),
 			crate::Error::<Test>::SendFailure
@@ -118,7 +109,7 @@ fn teleport_assets_works() {
 		assert_ok!(XcmPallet::teleport_assets(
 			Origin::signed(ALICE),
 			Box::new(RelayLocation::get()),
-			Box::new(X1(AccountId32 { network: Any, id: BOB.into() })),
+			Box::new(AccountId32 { network: Any, id: BOB.into() }.into()),
 			(Here, SEND_AMOUNT).into(),
 			0,
 			weight,
@@ -162,7 +153,7 @@ fn reserve_transfer_assets_works() {
 			vec![(
 				Parachain(PARA_ID).into(),
 				Xcm::ReserveAssetDeposited {
-					assets: (X1(Parent), SEND_AMOUNT).into(),
+					assets: (Parent, SEND_AMOUNT).into(),
 					effects: vec![
 						buy_execution((Parent, SEND_AMOUNT), weight),
 						DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },

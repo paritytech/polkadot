@@ -102,7 +102,7 @@ pub mod pallet {
 		UnweighableMessage,
 		/// The assets to be sent are empty.
 		Empty,
-		/// Could not reanchor the assets to declare the fees for the destination chain.
+		/// Could not re-anchor the assets to declare the fees for the destination chain.
 		CannotReanchor,
 		/// Too many assets have been attempted for transfer.
 		TooManyAssets,
@@ -306,9 +306,10 @@ pub mod pallet {
 			dest: MultiLocation,
 			message: Xcm<()>,
 		) -> Result<(), XcmError> {
-			let message = match interior {
-				MultiLocation::Here => message,
-				who => Xcm::<()>::RelayedFrom { who, message: Box::new(message) },
+			let message = if interior.is_here() {
+				message
+			} else {
+				Xcm::<()>::RelayedFrom { who: interior, message: Box::new(message) }
 			};
 			log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
 			T::XcmRouter::send_xcm(dest, message)
@@ -384,7 +385,7 @@ where
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
-		O::from(Origin::Xcm(MultiLocation::Here))
+		O::from(Origin::Xcm(Here.into()))
 	}
 }
 
@@ -393,9 +394,9 @@ where
 pub struct XcmPassthrough<Origin>(PhantomData<Origin>);
 impl<Origin: From<crate::Origin>> ConvertOrigin<Origin> for XcmPassthrough<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin) {
-			(OriginKind::Xcm, l) => Ok(crate::Origin::Xcm(l).into()),
-			(_, origin) => Err(origin),
+		match kind {
+			OriginKind::Xcm => Ok(crate::Origin::Xcm(origin).into()),
+			_ => Err(origin),
 		}
 	}
 }
