@@ -32,7 +32,7 @@ use xcm_executor::traits::MatchesFungible;
 /// # Example
 ///
 /// ```
-/// use xcm::latest::MultiLocation;
+/// use xcm::latest::{MultiLocation, Parent};
 /// use xcm_builder::IsConcrete;
 /// use xcm_executor::traits::MatchesFungible;
 ///
