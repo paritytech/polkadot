@@ -141,16 +141,28 @@ impl RequestFromBackersPhase {
 		params: &InteractionParams,
 		sender: &mut impl SubsystemSender,
 	) -> Result<AvailableData, RecoveryError> {
-		tracing::trace!(
+		tracing::debug!(
 			target: LOG_TARGET,
 			candidate_hash = ?params.candidate_hash,
 			erasure_root = ?params.erasure_root,
 			"Requesting from backers",
 		);
 		loop {
+            tracing::debug!(
+                target: LOG_TARGET,
+                candidate_hash = ?params.candidate_hash,
+                erasure_root = ?params.erasure_root,
+                "Entering from_backers loop.",
+            );
 			// Pop the next backer, and proceed to next phase if we're out.
 			let validator_index =
 				self.shuffled_backers.pop().ok_or_else(|| RecoveryError::Unavailable)?;
+            tracing::debug!(
+                target: LOG_TARGET,
+                candidate_hash = ?params.candidate_hash,
+                erasure_root = ?params.erasure_root,
+                "Succeeded to get past Unavailable error.",
+            );
 
 			// Request data.
 			let (req, res) = OutgoingRequest::new(
@@ -160,24 +172,27 @@ impl RequestFromBackersPhase {
 				req_res::v1::AvailableDataFetchingRequest { candidate_hash: params.candidate_hash },
 			);
 
-			sender
-				.send_message(
-					NetworkBridgeMessage::SendRequests(
-						vec![Requests::AvailableDataFetching(req)],
-						IfDisconnected::TryConnect,
-					)
-					.into(),
-				)
-				.await;
+			sender.send_message(NetworkBridgeMessage::SendRequests(
+				vec![Requests::AvailableDataFetching(req)],
+				IfDisconnected::TryConnect,
+			).into()).await;
+            tracing::debug!(
+                target: LOG_TARGET,
+                candidate_hash = ?params.candidate_hash,
+                erasure_root = ?params.erasure_root,
+                "Succeeded in sending Available Data Fetching message.",
+            );
 
 			match res.await {
 				Ok(req_res::v1::AvailableDataFetchingResponse::AvailableData(data)) => {
-					if reconstructed_data_matches_root(
-						params.validators.len(),
-						&params.erasure_root,
-						&data,
-					) {
-						tracing::trace!(
+                    tracing::debug!(
+                        target: LOG_TARGET,
+                        candidate_hash = ?params.candidate_hash,
+                        erasure_root = ?params.erasure_root,
+                        "Data is available.",
+                    );
+					if reconstructed_data_matches_root(params.validators.len(), &params.erasure_root, &data) {
+						tracing::debug!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
 							"Received full data",
@@ -194,8 +209,15 @@ impl RequestFromBackersPhase {
 
 						// it doesn't help to report the peer with req/res.
 					}
-				},
-				Ok(req_res::v1::AvailableDataFetchingResponse::NoSuchData) => {},
+				}
+				Ok(req_res::v1::AvailableDataFetchingResponse::NoSuchData) => {
+                    tracing::debug!(
+                        target: LOG_TARGET,
+                        candidate_hash = ?params.candidate_hash,
+                        erasure_root = ?params.erasure_root,
+                        "DataFetching Response NoSuchData",
+                    );
+                }
 				Err(e) => tracing::debug!(
 					target: LOG_TARGET,
 					candidate_hash = ?params.candidate_hash,
@@ -241,8 +263,9 @@ impl RequestChunksPhase {
 		let max_requests = std::cmp::min(N_PARALLEL, params.threshold);
 		while self.requesting_chunks.len() < max_requests {
 			if let Some(validator_index) = self.shuffling.pop_back() {
+                let now = std::time::Instant::now();
 				let validator = params.validator_authority_keys[validator_index.0 as usize].clone();
-				tracing::trace!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					?validator,
 					?validator_index,
@@ -256,23 +279,43 @@ impl RequestChunksPhase {
 					index: validator_index,
 				};
 
-				let (req, res) =
-					OutgoingRequest::new(Recipient::Authority(validator), raw_request.clone());
+				let (req, res) = OutgoingRequest::new(
+					Recipient::Authority(validator.clone()),
+					raw_request.clone(),
+				);
 
-				sender
-					.send_message(
-						NetworkBridgeMessage::SendRequests(
-							vec![Requests::ChunkFetching(req)],
-							IfDisconnected::TryConnect,
-						)
-						.into(),
-					)
-					.await;
-
+				sender.send_message(NetworkBridgeMessage::SendRequests(
+					vec![Requests::ChunkFetching(req)],
+					IfDisconnected::TryConnect,
+				).into()).await;
+                
+                let candidate_hash = params.candidate_hash.clone();
 				self.requesting_chunks.push(Box::pin(async move {
-					match res.await {
-						Ok(req_res::v1::ChunkFetchingResponse::Chunk(chunk)) =>
-							Ok(Some(chunk.recombine_into_chunk(&raw_request))),
+                    let output = res.await;
+
+                    let after = std::time::Instant::now();
+                    let elapsed = after.duration_since(now).as_millis();
+                    if elapsed > std::time::Duration::from_secs(3).as_millis() {
+                        tracing::debug!(
+                            target: LOG_TARGET,
+                            ?validator,
+                            ?validator_index,
+                            ?candidate_hash,
+                            "TIMEOUT REACHED. CHUNK TIMED OUT.",
+                        );
+                    } else {
+                        tracing::debug!(
+                            target: LOG_TARGET,
+                            ?validator,
+                            ?validator_index,
+                            ?candidate_hash,
+                            "Response received after {:?} millis",
+                            elapsed,
+                        );
+                    }
+					match output {
+						Ok(req_res::v1::ChunkFetchingResponse::Chunk(chunk))
+							=> Ok(Some(chunk.recombine_into_chunk(&raw_request))),
 						Ok(req_res::v1::ChunkFetchingResponse::NoSuchChunk) => Ok(None),
 						Err(e) => Err((validator_index, e)),
 					}
@@ -302,13 +345,15 @@ impl RequestChunksPhase {
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
 								?validator_index,
+                                candidate_hash = ?params.candidate_hash,
 								"Merkle proof mismatch",
 							);
 						} else {
-							tracing::trace!(
+							tracing::debug!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
 								?validator_index,
+                                candidate_hash = ?params.candidate_hash,
 								"Received valid chunk.",
 							);
 							self.received_chunks.insert(validator_index, chunk);
@@ -318,17 +363,25 @@ impl RequestChunksPhase {
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
 							?validator_index,
+                            candidate_hash = ?params.candidate_hash,
 							"Invalid Merkle proof",
 						);
 					}
-				},
-				Ok(None) => {},
+				}
+				Ok(None) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+                        candidate_hash = ?params.candidate_hash,
+						"Reached Ok(None)",
+					);
+                }
 				Err((validator_index, e)) => {
 					tracing::debug!(
 						target: LOG_TARGET,
 						candidate_hash= ?params.candidate_hash,
 						err = ?e,
 						?validator_index,
+                        candidate_hash = ?params.candidate_hash,
 						"Failure requesting chunk",
 					);
 
@@ -496,10 +549,23 @@ impl<S: SubsystemSender> Interaction<S> {
 				.await;
 
 			match rx.await {
-				Ok(Some(data)) => return Ok(data),
-				Ok(None) => {},
+				Ok(Some(data)) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?self.params.candidate_hash,
+                        "Data is available. Succeeded.",
+					);
+                    return Ok(data);
+                }
+				Ok(None) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?self.params.candidate_hash,
+                        "Data is None",
+					)
+                }
 				Err(oneshot::Canceled) => {
-					tracing::warn!(
+					tracing::debug!(
 						target: LOG_TARGET,
 						candidate_hash = ?self.params.candidate_hash,
 						"Failed to reach the availability store",
@@ -513,17 +579,48 @@ impl<S: SubsystemSender> Interaction<S> {
 			// meaningful we can do.
 			match self.phase {
 				InteractionPhase::RequestFromBackers(ref mut from_backers) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?self.params.candidate_hash,
+                        "Requesting from Backers",
+					);
 					match from_backers.run(&self.params, &mut self.sender).await {
-						Ok(data) => break Ok(data),
-						Err(RecoveryError::Invalid) => break Err(RecoveryError::Invalid),
-						Err(RecoveryError::Unavailable) =>
-							self.phase = InteractionPhase::RequestChunks(RequestChunksPhase::new(
-								self.params.validators.len() as _,
-							)),
+						Ok(data) => {
+                            tracing::debug!(
+                                target: LOG_TARGET,
+                                candidate_hash = ?self.params.candidate_hash,
+                                "From Backers has returned",
+                            );
+                            break Ok(data)
+                        },
+						Err(RecoveryError::Invalid) => {
+                            tracing::debug!(
+                                target: LOG_TARGET,
+                                candidate_hash = ?self.params.candidate_hash,
+                                "RecoveryError Invalid encountered",
+                            );
+                            break Err(RecoveryError::Invalid)
+                        }
+						Err(RecoveryError::Unavailable) => {
+                            tracing::debug!(
+                                target: LOG_TARGET,
+                                candidate_hash = ?self.params.candidate_hash,
+                                "RecoveryError Unavailable encountered",
+                            );
+							self.phase = InteractionPhase::RequestChunks(
+								RequestChunksPhase::new(self.params.validators.len() as _)
+							)
+						}
 					}
-				},
-				InteractionPhase::RequestChunks(ref mut from_all) =>
-					break from_all.run(&self.params, &mut self.sender).await,
+				}
+				InteractionPhase::RequestChunks(ref mut from_all) => {
+                    tracing::debug!(
+                        target: LOG_TARGET,
+                        candidate_hash = ?self.params.candidate_hash,
+                        "Request Chunks encountered",
+                    );
+					break from_all.run(&self.params, &mut self.sender).await
+				}
 			}
 		}
 	}
@@ -648,6 +745,11 @@ where
 	Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
 {
 	let candidate_hash = receipt.hash();
+    tracing::debug!(
+        target: LOG_TARGET,
+        ?candidate_hash,
+        "Interaction launched.",
+    );
 
 	let params = InteractionParams {
 		validator_authority_keys: session_info.discovery_keys.clone(),
@@ -670,6 +772,12 @@ where
 
 	let (remote, remote_handle) = interaction.run().remote_handle();
 
+    tracing::debug!(
+        target: LOG_TARGET,
+        ?candidate_hash,
+        "Creating Interaction handle.",
+    );
+
 	state.interactions.push(InteractionHandle {
 		candidate_hash,
 		remote: remote_handle,
@@ -677,12 +785,18 @@ where
 	});
 
 	if let Err(e) = ctx.spawn("recovery interaction", Box::pin(remote)) {
-		tracing::warn!(
+		tracing::debug!(
 			target: LOG_TARGET,
 			err = ?e,
 			"Failed to spawn a recovery interaction task",
 		);
-	}
+	} else {
+        tracing::debug!(
+            target: LOG_TARGET,
+            ?candidate_hash,
+            "Recovery interaction task spawned successfully.",
+        );
+    }
 
 	Ok(())
 }
@@ -701,6 +815,11 @@ where
 	Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
 {
 	let candidate_hash = receipt.hash();
+    tracing::debug!(
+        target: LOG_TARGET,
+        ?candidate_hash,
+        "Entering handle recovery function.",
+    );
 
 	let span = jaeger::Span::new(candidate_hash, "availbility-recovery")
 		.with_stage(jaeger::Stage::AvailabilityRecovery);
@@ -712,14 +831,37 @@ where
 				err = ?e,
 				"Error responding with an availability recovery result",
 			);
-		}
-		return Ok(())
-	}
+		} else {
+            tracing::debug!(
+                target: LOG_TARGET,
+                ?candidate_hash,
+                "Response of result succeeded.",
+            );
+        }
+		return Ok(());
+	} else {
+        tracing::debug!(
+            target: LOG_TARGET,
+            ?candidate_hash,
+            "Candidate not in availability LRU.",
+        );
+    }
 
 	if let Some(i) = state.interactions.iter_mut().find(|i| i.candidate_hash == candidate_hash) {
+        tracing::debug!(
+            target: LOG_TARGET,
+            ?candidate_hash,
+            "Candidate hash found, pushing response sender.",
+        );
 		i.awaiting.push(response_sender);
-		return Ok(())
-	}
+		return Ok(());
+	} else {
+        tracing::debug!(
+            target: LOG_TARGET,
+            ?candidate_hash,
+            "Candidate hash not found in interactions.",
+        );
+    }
 
 	let _span = span.child("not-cached");
 	let session_info = request_session_info(state.live_block.1, session_index, ctx.sender())
@@ -729,11 +871,27 @@ where
 
 	let _span = span.child("session-info-ctx-received");
 	match session_info {
-		Some(session_info) =>
-			launch_interaction(state, ctx, session_info, receipt, backing_group, response_sender)
-				.await,
+		Some(session_info) => {
+            tracing::debug!(
+                target: LOG_TARGET,
+                ?candidate_hash,
+                "Launching Interaction.",
+            );
+			launch_interaction(
+				state,
+				ctx,
+				session_info,
+				receipt,
+				backing_group,
+				response_sender,
+			).await
+		}
 		None => {
-			tracing::warn!(target: LOG_TARGET, "SessionInfo is `None` at {:?}", state.live_block);
+			tracing::debug!(
+				target: LOG_TARGET,
+                ?candidate_hash,
+				"SessionInfo is `None` at {:?}", state.live_block,
+			);
 			response_sender
 				.send(Err(RecoveryError::Unavailable))
 				.map_err(|_| error::Error::CanceledResponseSender)?;
