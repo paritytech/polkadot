@@ -146,7 +146,7 @@ impl AssetId {
 /// Classification of whether an asset is fungible or not, along with a mandatory amount or instance.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
 pub enum Fungibility {
-	Fungible(u128),
+	Fungible(#[codec(compact)] u128),
 	NonFungible(AssetInstance),
 }
 
