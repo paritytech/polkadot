@@ -53,7 +53,7 @@ impl From<Error> for XcmError {
 /// # Example
 /// ```
 /// use frame_support::parameter_types;
-/// use xcm::latest::MultiLocation;
+/// use xcm::latest::prelude::*;
 /// use xcm_builder::{ParentIsDefault, CurrencyAdapter, IsConcrete};
 ///
 /// /// Our chain's account id.
