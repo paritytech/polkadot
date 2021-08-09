@@ -110,7 +110,7 @@ fn teleport_assets_works() {
 			Origin::signed(ALICE),
 			Box::new(RelayLocation::get()),
 			Box::new(AccountId32 { network: Any, id: BOB.into() }.into()),
-			(Here.into(), SEND_AMOUNT).into(),
+			(Here, SEND_AMOUNT).into(),
 			0,
 			weight,
 		));
@@ -139,7 +139,7 @@ fn reserve_transfer_assets_works() {
 			Origin::signed(ALICE),
 			Box::new(Parachain(PARA_ID).into()),
 			Box::new(dest.clone()),
-			(Here.into(), SEND_AMOUNT).into(),
+			(Here, SEND_AMOUNT).into(),
 			0,
 			weight
 		));
@@ -184,7 +184,7 @@ fn execute_withdraw_to_deposit_works() {
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
 			Box::new(Xcm::WithdrawAsset {
-				assets: (Here.into(), SEND_AMOUNT).into(),
+				assets: (Here, SEND_AMOUNT).into(),
 				effects: vec![
 					buy_execution((Here.into(), SEND_AMOUNT), weight),
 					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest }
