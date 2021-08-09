@@ -70,7 +70,7 @@ impl WeightTrader for DummyWeightTrader {
 pub struct InvertNothing;
 impl InvertLocation for InvertNothing {
 	fn invert_location(_: &MultiLocation) -> MultiLocation {
-		MultiLocation::here()
+		Junction::Here.into()
 	}
 }
 
