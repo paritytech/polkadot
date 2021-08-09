@@ -27,30 +27,32 @@ use core::{
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
+mod junction;
 pub mod multiasset;
 mod multilocation;
 mod order;
 mod traits; // the new multiasset.
 
+pub use junction::Junction;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
 };
-pub use multilocation::MultiLocation;
+pub use multilocation::{Ancestor, AncestorThen, Junctions, MultiLocation, Parent, ParentThen};
 pub use order::Order;
 pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
 // These parts of XCM v0 have been unchanged in XCM v1, and are re-imported here.
-pub use super::v0::{BodyId, BodyPart, Junction, NetworkId, OriginKind};
+pub use super::v0::{BodyId, BodyPart, NetworkId, OriginKind};
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
 		super::v0::{
 			BodyId, BodyPart,
-			Junction::*,
 			NetworkId::{self, *},
 		},
+		junction::Junction::{self, *},
 		multiasset::{
 			AssetId::{self, *},
 			AssetInstance::{self, *},
@@ -61,7 +63,11 @@ pub mod prelude {
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
 		},
-		multilocation::MultiLocation::{self, *},
+		multilocation::{
+			Ancestor, AncestorThen,
+			Junctions::{self, *},
+			MultiLocation, Parent, ParentThen,
+		},
 		opaque,
 		order::Order::{self, *},
 		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
@@ -352,10 +358,10 @@ impl<Call> TryFrom<Xcm0<Call>> for Xcm<Call> {
 			Xcm0::QueryResponse { query_id: u64, response } =>
 				QueryResponse { query_id: u64, response: response.try_into()? },
 			Xcm0::TransferAsset { assets, dest } =>
-				TransferAsset { assets: assets.try_into()?, beneficiary: dest.into() },
+				TransferAsset { assets: assets.try_into()?, beneficiary: dest.try_into()? },
 			Xcm0::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
 				assets: assets.try_into()?,
-				dest: dest.into(),
+				dest: dest.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::try_from)
@@ -369,7 +375,7 @@ impl<Call> TryFrom<Xcm0<Call>> for Xcm<Call> {
 			Xcm0::Transact { origin_type, require_weight_at_most, call } =>
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			Xcm0::RelayedFrom { who, message } => RelayedFrom {
-				who: who.into(),
+				who: who.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
 		})

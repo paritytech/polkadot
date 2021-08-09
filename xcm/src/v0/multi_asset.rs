@@ -17,8 +17,12 @@
 //! Cross-Consensus Message format data structures.
 
 use super::MultiLocation;
-use crate::v1::{MultiAsset as MultiAsset1, MultiAssetFilter, MultiAssets, WildMultiAsset};
+use crate::v1::{MultiAssetFilter, MultiAssets, WildMultiAsset};
 use alloc::{vec, vec::Vec};
+use core::{
+	convert::{TryFrom, TryInto},
+	result,
+};
 use parity_scale_codec::{self, Decode, Encode};
 
 pub use crate::v1::AssetInstance;
@@ -290,53 +294,64 @@ impl MultiAsset {
 	}
 }
 
-impl From<MultiAsset1> for MultiAsset {
-	fn from(a: MultiAsset1) -> MultiAsset {
+impl TryFrom<crate::v1::MultiAsset> for MultiAsset {
+	type Error = ();
+
+	fn try_from(m: crate::v1::MultiAsset) -> result::Result<MultiAsset, ()> {
 		use crate::v1::{AssetId::*, Fungibility::*};
 		use MultiAsset::*;
-		match (a.id, a.fun) {
-			(Concrete(id), Fungible(amount)) => ConcreteFungible { id: id.into(), amount },
+		Ok(match (m.id, m.fun) {
+			(Concrete(id), Fungible(amount)) => ConcreteFungible { id: id.try_into()?, amount },
 			(Concrete(class), NonFungible(instance)) =>
-				ConcreteNonFungible { class: class.into(), instance },
+				ConcreteNonFungible { class: class.try_into()?, instance },
 			(Abstract(id), Fungible(amount)) => AbstractFungible { id, amount },
 			(Abstract(class), NonFungible(instance)) => AbstractNonFungible { class, instance },
-		}
+		})
 	}
 }
 
-impl From<MultiAssets> for Vec<MultiAsset> {
-	fn from(a: MultiAssets) -> Vec<MultiAsset> {
-		a.drain().into_iter().map(MultiAsset::from).collect()
+impl TryFrom<MultiAssets> for Vec<MultiAsset> {
+	type Error = ();
+
+	fn try_from(m: MultiAssets) -> result::Result<Vec<MultiAsset>, ()> {
+		m.drain().into_iter().map(MultiAsset::try_from).collect()
 	}
 }
 
-impl From<WildMultiAsset> for MultiAsset {
-	fn from(a: WildMultiAsset) -> MultiAsset {
+impl TryFrom<WildMultiAsset> for MultiAsset {
+	type Error = ();
+
+	fn try_from(m: WildMultiAsset) -> result::Result<MultiAsset, ()> {
 		use crate::v1::{AssetId::*, WildFungibility::*};
 		use MultiAsset::*;
-		match a {
+		Ok(match m {
 			WildMultiAsset::All => All,
 			WildMultiAsset::AllOf { id, fun } => match (id, fun) {
-				(Concrete(id), Fungible) => AllConcreteFungible { id: id.into() },
-				(Concrete(class), NonFungible) => AllConcreteNonFungible { class: class.into() },
+				(Concrete(id), Fungible) => AllConcreteFungible { id: id.try_into()? },
+				(Concrete(class), NonFungible) =>
+					AllConcreteNonFungible { class: class.try_into()? },
 				(Abstract(id), Fungible) => AllAbstractFungible { id },
 				(Abstract(class), NonFungible) => AllAbstractNonFungible { class },
 			},
-		}
+		})
 	}
 }
 
-impl From<WildMultiAsset> for Vec<MultiAsset> {
-	fn from(a: WildMultiAsset) -> Vec<MultiAsset> {
-		vec![a.into()]
+impl TryFrom<WildMultiAsset> for Vec<MultiAsset> {
+	type Error = ();
+
+	fn try_from(m: WildMultiAsset) -> result::Result<Vec<MultiAsset>, ()> {
+		Ok(vec![m.try_into()?])
 	}
 }
 
-impl From<MultiAssetFilter> for Vec<MultiAsset> {
-	fn from(a: MultiAssetFilter) -> Vec<MultiAsset> {
-		match a {
-			MultiAssetFilter::Definite(assets) => assets.into(),
-			MultiAssetFilter::Wild(wildcard) => wildcard.into(),
+impl TryFrom<MultiAssetFilter> for Vec<MultiAsset> {
+	type Error = ();
+
+	fn try_from(m: MultiAssetFilter) -> result::Result<Vec<MultiAsset>, ()> {
+		match m {
+			MultiAssetFilter::Definite(assets) => assets.try_into(),
+			MultiAssetFilter::Wild(wildcard) => wildcard.try_into(),
 		}
 	}
 }

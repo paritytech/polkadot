@@ -32,16 +32,16 @@ use xcm_executor::traits::MatchesFungible;
 /// # Example
 ///
 /// ```
-/// use xcm::latest::prelude::*;
+/// use xcm::latest::{MultiLocation, Parent};
 /// use xcm_builder::IsConcrete;
 /// use xcm_executor::traits::MatchesFungible;
 ///
 /// frame_support::parameter_types! {
-/// 	pub TargetLocation: MultiLocation = X1(Parent);
+/// 	pub TargetLocation: MultiLocation = Parent.into();
 /// }
 ///
 /// # fn main() {
-/// let asset = (X1(Parent), 999).into();
+/// let asset = (Parent, 999).into();
 /// // match `asset` if it is a concrete asset in `TargetLocation`.
 /// assert_eq!(<IsConcrete<TargetLocation> as MatchesFungible<u128>>::matches_fungible(&asset), Some(999));
 /// # }

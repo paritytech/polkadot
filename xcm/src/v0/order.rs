@@ -18,7 +18,10 @@
 
 use super::{super::v1::Order as Order1, MultiAsset, MultiLocation, Xcm};
 use alloc::vec::Vec;
-use core::{convert::TryFrom, result};
+use core::{
+	convert::{TryFrom, TryInto},
+	result,
+};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
@@ -161,36 +164,36 @@ impl<Call> TryFrom<Order1<Call>> for Order<Call> {
 		Ok(match old {
 			Order1::Noop => Null,
 			Order1::DepositAsset { assets, beneficiary, .. } =>
-				DepositAsset { assets: assets.into(), dest: beneficiary.into() },
+				DepositAsset { assets: assets.try_into()?, dest: beneficiary.try_into()? },
 			Order1::DepositReserveAsset { assets, dest, effects, .. } => DepositReserveAsset {
-				assets: assets.into(),
-				dest: dest.into(),
+				assets: assets.try_into()?,
+				dest: dest.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
 			Order1::ExchangeAsset { give, receive } =>
-				ExchangeAsset { give: give.into(), receive: receive.into() },
+				ExchangeAsset { give: give.try_into()?, receive: receive.try_into()? },
 			Order1::InitiateReserveWithdraw { assets, reserve, effects } =>
 				InitiateReserveWithdraw {
-					assets: assets.into(),
-					reserve: reserve.into(),
+					assets: assets.try_into()?,
+					reserve: reserve.try_into()?,
 					effects: effects
 						.into_iter()
 						.map(Order::<()>::try_from)
 						.collect::<result::Result<_, _>>()?,
 				},
 			Order1::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
-				assets: assets.into(),
-				dest: dest.into(),
+				assets: assets.try_into()?,
+				dest: dest.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
 			Order1::QueryHolding { query_id, dest, assets } =>
-				QueryHolding { query_id, dest: dest.into(), assets: assets.into() },
+				QueryHolding { query_id, dest: dest.try_into()?, assets: assets.try_into()? },
 			Order1::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } => {
 				if !orders.is_empty() {
 					return Err(())
@@ -199,7 +202,7 @@ impl<Call> TryFrom<Order1<Call>> for Order<Call> {
 					.into_iter()
 					.map(Xcm::<Call>::try_from)
 					.collect::<result::Result<_, _>>()?;
-				BuyExecution { fees: fees.into(), weight, debt, halt_on_error, xcm }
+				BuyExecution { fees: fees.try_into()?, weight, debt, halt_on_error, xcm }
 			},
 		})
 	}

@@ -583,9 +583,9 @@ impl parachains_paras::Config for Runtime {
 }
 
 parameter_types! {
-	pub const RocLocation: MultiLocation = MultiLocation::Here;
+	pub const RocLocation: MultiLocation = Here.into();
 	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
-	pub const Ancestry: MultiLocation = MultiLocation::Here;
+	pub const Ancestry: MultiLocation = Here.into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -625,10 +625,10 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Rococo: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(RocLocation::get()) });
-	pub const RococoForTick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(100)));
-	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(110)));
-	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(120)));
-	pub const RococoForStatemint: (MultiAssetFilter, MultiLocation) = (Rococo::get(), X1(Parachain(1001)));
+	pub const RococoForTick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(100).into());
+	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(110).into());
+	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(120).into());
+	pub const RococoForStatemint: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1001).into());
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
@@ -640,10 +640,10 @@ pub type TrustedTeleporters = (
 parameter_types! {
 	pub AllowUnpaidFrom: Vec<MultiLocation> =
 		vec![
-			X1(Parachain(100)),
-			X1(Parachain(110)),
-			X1(Parachain(120)),
-			X1(Parachain(1001))
+			Parachain(100).into(),
+			Parachain(110).into(),
+			Parachain(120).into(),
+			Parachain(1001).into(),
 		];
 }
 
