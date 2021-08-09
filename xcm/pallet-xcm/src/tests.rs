@@ -40,9 +40,9 @@ fn send_works() {
 		let sender: MultiLocation =
 			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
 		let message = Xcm::ReserveAssetDeposited {
-			assets: (MultiLocation::parent(), SEND_AMOUNT).into(),
+			assets: (Parent, SEND_AMOUNT).into(),
 			effects: vec![
-				buy_execution((MultiLocation::parent(), SEND_AMOUNT), weight),
+				buy_execution((Parent, SEND_AMOUNT), weight),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
@@ -78,9 +78,9 @@ fn send_fails_when_xcm_router_blocks() {
 		let sender: MultiLocation =
 			Junction::AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
 		let message = Xcm::ReserveAssetDeposited {
-			assets: (MultiLocation::parent(), SEND_AMOUNT).into(),
+			assets: (Parent, SEND_AMOUNT).into(),
 			effects: vec![
-				buy_execution((MultiLocation::parent(), SEND_AMOUNT), weight),
+				buy_execution((Parent, SEND_AMOUNT), weight),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
@@ -153,9 +153,9 @@ fn reserve_transfer_assets_works() {
 			vec![(
 				Parachain(PARA_ID).into(),
 				Xcm::ReserveAssetDeposited {
-					assets: (MultiLocation::parent(), SEND_AMOUNT).into(),
+					assets: (Parent, SEND_AMOUNT).into(),
 					effects: vec![
-						buy_execution((MultiLocation::parent(), SEND_AMOUNT), weight),
+						buy_execution((Parent, SEND_AMOUNT), weight),
 						DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 					]
 				}

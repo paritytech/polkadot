@@ -120,7 +120,7 @@ pub type XcmOriginToCallOrigin = (
 
 parameter_types! {
 	pub const UnitWeightCost: Weight = 1;
-	pub KsmPerSecond: (AssetId, u128) = (Concrete(MultiLocation::parent()), 1);
+	pub KsmPerSecond: (AssetId, u128) = (Concrete(Parent.into()), 1);
 }
 
 pub type LocalAssetTransactor =
@@ -267,7 +267,7 @@ pub mod mock_msg_queue {
 					},
 					Ok(Ok(x)) => {
 						let outcome =
-							T::XcmExecutor::execute_xcm(MultiLocation::parent(), x, limit);
+							T::XcmExecutor::execute_xcm(Parent.into(), x, limit);
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
 					},
 				}

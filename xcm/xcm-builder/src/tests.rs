@@ -20,10 +20,10 @@ use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]
 fn basic_setup_works() {
-	add_reserve(MultiLocation::parent(), Wild((MultiLocation::parent(), WildFungible).into()));
+	add_reserve(Parent.into(), Wild((Parent, WildFungible).into()));
 	assert!(<TestConfig as Config>::IsReserve::filter_asset_location(
-		&(MultiLocation::parent(), 100).into(),
-		&MultiLocation::parent(),
+		&(Parent, 100).into(),
+		&Parent.into(),
 	));
 
 	assert_eq!(to_account(X1(Parachain(1)).into()), Ok(1001));
@@ -44,10 +44,10 @@ fn basic_setup_works() {
 #[test]
 fn weigher_should_work() {
 	let mut message = opaque::Xcm::ReserveAssetDeposited {
-		assets: (MultiLocation::parent(), 100).into(),
+		assets: (Parent, 100).into(),
 		effects: vec![
 			Order::BuyExecution {
-				fees: (MultiLocation::parent(), 1).into(),
+				fees: (Parent, 1).into(),
 				weight: 0,
 				debt: 30,
 				halt_on_error: true,
@@ -64,13 +64,13 @@ fn weigher_should_work() {
 #[test]
 fn take_weight_credit_barrier_should_work() {
 	let mut message = opaque::Xcm::TransferAsset {
-		assets: (MultiLocation::parent(), 100).into(),
+		assets: (Parent, 100).into(),
 		beneficiary: Here.into(),
 	};
 
 	let mut weight_credit = 10;
 	let r = TakeWeightCredit::should_execute(
-		&MultiLocation::parent(),
+		&Parent.into(),
 		true,
 		&mut message,
 		10,
@@ -80,7 +80,7 @@ fn take_weight_credit_barrier_should_work() {
 	assert_eq!(weight_credit, 0);
 
 	let r = TakeWeightCredit::should_execute(
-		&MultiLocation::parent(),
+		&Parent.into(),
 		true,
 		&mut message,
 		10,
@@ -93,11 +93,11 @@ fn take_weight_credit_barrier_should_work() {
 #[test]
 fn allow_unpaid_should_work() {
 	let mut message = opaque::Xcm::TransferAsset {
-		assets: (MultiLocation::parent(), 100).into(),
+		assets: (Parent, 100).into(),
 		beneficiary: Here.into(),
 	};
 
-	AllowUnpaidFrom::set(vec![MultiLocation::parent()]);
+	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&X1(Parachain(1)).into(),
@@ -109,7 +109,7 @@ fn allow_unpaid_should_work() {
 	assert_eq!(r, Err(()));
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
-		&MultiLocation::parent(),
+		&Parent.into(),
 		true,
 		&mut message,
 		10,
@@ -120,10 +120,10 @@ fn allow_unpaid_should_work() {
 
 #[test]
 fn allow_paid_should_work() {
-	AllowPaidFrom::set(vec![MultiLocation::parent()]);
+	AllowPaidFrom::set(vec![Parent.into()]);
 
 	let mut message = opaque::Xcm::TransferAsset {
-		assets: (MultiLocation::parent(), 100).into(),
+		assets: (Parent, 100).into(),
 		beneficiary: Here.into(),
 	};
 
@@ -136,9 +136,9 @@ fn allow_paid_should_work() {
 	);
 	assert_eq!(r, Err(()));
 
-	let fees = (MultiLocation::parent(), 1).into();
+	let fees = (Parent, 1).into();
 	let mut underpaying_message = opaque::Xcm::ReserveAssetDeposited {
-		assets: (MultiLocation::parent(), 100).into(),
+		assets: (Parent, 100).into(),
 		effects: vec![
 			Order::BuyExecution {
 				fees,
@@ -153,7 +153,7 @@ fn allow_paid_should_work() {
 	};
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&MultiLocation::parent(),
+		&Parent.into(),
 		true,
 		&mut underpaying_message,
 		30,
@@ -161,9 +161,9 @@ fn allow_paid_should_work() {
 	);
 	assert_eq!(r, Err(()));
 
-	let fees = (MultiLocation::parent(), 1).into();
+	let fees = (Parent, 1).into();
 	let mut paying_message = opaque::Xcm::ReserveAssetDeposited {
-		assets: (MultiLocation::parent(), 100).into(),
+		assets: (Parent, 100).into(),
 		effects: vec![
 			Order::BuyExecution {
 				fees,
@@ -187,7 +187,7 @@ fn allow_paid_should_work() {
 	assert_eq!(r, Err(()));
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&MultiLocation::parent(),
+		&Parent.into(),
 		true,
 		&mut paying_message,
 		30,
@@ -198,14 +198,14 @@ fn allow_paid_should_work() {
 
 #[test]
 fn paying_reserve_deposit_should_work() {
-	AllowPaidFrom::set(vec![MultiLocation::parent()]);
-	add_reserve(MultiLocation::parent(), (MultiLocation::parent(), WildFungible).into());
-	WeightPrice::set((MultiLocation::parent().into(), 1_000_000_000_000));
+	AllowPaidFrom::set(vec![Parent.into()]);
+	add_reserve(Parent.into(), (Parent, WildFungible).into());
+	WeightPrice::set((Parent.into(), 1_000_000_000_000));
 
-	let origin = MultiLocation::parent();
-	let fees = (MultiLocation::parent(), 30).into();
+	let origin = Parent.into();
+	let fees = (Parent, 30).into();
 	let message = Xcm::<TestCall>::ReserveAssetDeposited {
-		assets: (MultiLocation::parent(), 100).into(),
+		assets: (Parent, 100).into(),
 		effects: vec![
 			Order::<TestCall>::BuyExecution {
 				fees,
@@ -225,7 +225,7 @@ fn paying_reserve_deposit_should_work() {
 	let weight_limit = 50;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(30));
-	assert_eq!(assets(3000), vec![(MultiLocation::parent(), 70).into()]);
+	assert_eq!(assets(3000), vec![(Parent, 70).into()]);
 }
 
 #[test]
@@ -280,7 +280,7 @@ fn reserve_transfer_should_work() {
 		vec![(
 			X1(Parachain(2)).into(),
 			Xcm::ReserveAssetDeposited {
-				assets: (MultiLocation::parent(), 100).into(),
+				assets: (Parent, 100).into(),
 				effects: vec![Order::DepositAsset {
 					assets: All.into(),
 					max_assets: 1,
@@ -293,9 +293,9 @@ fn reserve_transfer_should_work() {
 
 #[test]
 fn transacting_should_work() {
-	AllowUnpaidFrom::set(vec![MultiLocation::parent()]);
+	AllowUnpaidFrom::set(vec![Parent.into()]);
 
-	let origin = MultiLocation::parent();
+	let origin = Parent.into();
 	let message = Xcm::<TestCall>::Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 50,
@@ -308,9 +308,9 @@ fn transacting_should_work() {
 
 #[test]
 fn transacting_should_respect_max_weight_requirement() {
-	AllowUnpaidFrom::set(vec![MultiLocation::parent()]);
+	AllowUnpaidFrom::set(vec![Parent.into()]);
 
-	let origin = MultiLocation::parent();
+	let origin = Parent.into();
 	let message = Xcm::<TestCall>::Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 40,
@@ -323,9 +323,9 @@ fn transacting_should_respect_max_weight_requirement() {
 
 #[test]
 fn transacting_should_refund_weight() {
-	AllowUnpaidFrom::set(vec![MultiLocation::parent()]);
+	AllowUnpaidFrom::set(vec![Parent.into()]);
 
-	let origin = MultiLocation::parent();
+	let origin = Parent.into();
 	let message = Xcm::<TestCall>::Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 50,
@@ -340,13 +340,13 @@ fn transacting_should_refund_weight() {
 fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let one: MultiLocation = X1(AccountIndex64 { index: 1, network: Any }).into();
 	AllowPaidFrom::set(vec![one.clone()]);
-	add_asset(1, (MultiLocation::parent(), 100).into());
-	WeightPrice::set((MultiLocation::parent().into(), 1_000_000_000_000));
+	add_asset(1, (Parent, 100).into());
+	WeightPrice::set((Parent.into(), 1_000_000_000_000));
 
 	let origin = one.clone();
-	let fees = (MultiLocation::parent(), 100).into();
+	let fees = (Parent, 100).into();
 	let message = Xcm::<TestCall>::WithdrawAsset {
-		assets: (MultiLocation::parent(), 100).into(), // enough for 100 units of weight.
+		assets: (Parent, 100).into(), // enough for 100 units of weight.
 		effects: vec![
 			Order::<TestCall>::BuyExecution {
 				fees,
@@ -371,17 +371,17 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let weight_limit = 100;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(50));
-	assert_eq!(assets(1), vec![(MultiLocation::parent(), 50).into()]);
+	assert_eq!(assets(1), vec![(Parent, 50).into()]);
 }
 
 #[test]
 fn prepaid_result_of_query_should_get_free_execution() {
 	let query_id = 33;
-	let origin = MultiLocation::parent();
+	let origin: MultiLocation = Parent.into();
 	// We put this in manually here, but normally this would be done at the point of crafting the message.
 	expect_response(query_id, origin.clone());
 
-	let the_response = Response::Assets((MultiLocation::parent(), 100).into());
+	let the_response = Response::Assets((Parent, 100).into());
 	let message = Xcm::<TestCall>::QueryResponse { query_id, response: the_response.clone() };
 	let weight_limit = 10;
 

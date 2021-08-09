@@ -139,7 +139,7 @@ mod tests {
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here.into(),
-				MultiLocation::parent(),
+				Parent.into(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,

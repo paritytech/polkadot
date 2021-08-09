@@ -23,7 +23,7 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use super::{Junction, Junctions::X1, MultiLocation};
+use super::MultiLocation;
 use alloc::{vec, vec::Vec};
 use core::{
 	cmp::Ordering,
@@ -101,15 +101,9 @@ pub enum AssetId {
 	Abstract(Vec<u8>),
 }
 
-impl From<MultiLocation> for AssetId {
-	fn from(x: MultiLocation) -> Self {
-		Self::Concrete(x)
-	}
-}
-
-impl From<Junction> for AssetId {
-	fn from(x: Junction) -> Self {
-		Self::Concrete(X1(x).into())
+impl<T: Into<MultiLocation>> From<T> for AssetId {
+	fn from(x: T) -> Self {
+		Self::Concrete(x.into())
 	}
 }
 

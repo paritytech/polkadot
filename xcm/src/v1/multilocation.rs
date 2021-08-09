@@ -335,6 +335,38 @@ impl MultiLocation {
 	}
 }
 
+/// A unit struct which can be converted into a `MultiLocation` of `parents` value 1.
+pub struct Parent;
+impl From<Parent> for MultiLocation {
+	fn from(_: Parent) -> Self {
+		MultiLocation { parents: 1, interior: Junctions::Here }
+	}
+}
+
+/// A tuple struct which can be converted into a `MultiLocation` of `parents` value 1 with the inner interior.
+pub struct ParentThen(Junctions);
+impl From<ParentThen> for MultiLocation {
+	fn from(x: ParentThen) -> Self {
+		MultiLocation { parents: 1, interior: x.0 }
+	}
+}
+
+/// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value.
+pub struct Ancestor(u8);
+impl From<Ancestor> for MultiLocation {
+	fn from(x: Ancestor) -> Self {
+		MultiLocation { parents: x.0, interior: Junctions::Here }
+	}
+}
+
+/// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value and the inner interior.
+pub struct AncestorThen(u8, Junctions);
+impl From<AncestorThen> for MultiLocation {
+	fn from(x: AncestorThen) -> Self {
+		MultiLocation { parents: x.0, interior: x.1 }
+	}
+}
+
 impl From<Junctions> for MultiLocation {
 	fn from(junctions: Junctions) -> Self {
 		MultiLocation { parents: 0, interior: junctions }
@@ -928,7 +960,7 @@ impl TryFrom<MultiLocation0> for MultiLocation {
 		use Junctions::*;
 		match old {
 			MultiLocation0::Null => Ok(Here.into()),
-			MultiLocation0::X1(j0) if j0.is_parent() => Ok(MultiLocation::parent()),
+			MultiLocation0::X1(j0) if j0.is_parent() => Ok(Parent.into()),
 			MultiLocation0::X1(j0) => Ok(X1(j0.try_into()?).into()),
 			MultiLocation0::X2(j0, j1) if j0.is_parent() && j1.is_parent() =>
 				Ok(MultiLocation::grandparent()),

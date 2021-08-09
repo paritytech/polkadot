@@ -19,7 +19,7 @@ use parity_scale_codec::Encode;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::AccountIdConversion;
 use sp_std::{borrow::Borrow, marker::PhantomData};
-use xcm::latest::{Junction::*, Junctions::*, MultiLocation, NetworkId};
+use xcm::latest::{Junction::*, Junctions::*, MultiLocation, NetworkId, Parent};
 use xcm_executor::traits::{Convert, InvertLocation};
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
@@ -51,7 +51,7 @@ impl<AccountId: Default + Eq + Clone> Convert<MultiLocation, AccountId>
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if who.borrow() == &AccountId::default() {
-			Ok(MultiLocation::parent())
+			Ok(Parent.into())
 		} else {
 			Err(())
 		}

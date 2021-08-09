@@ -38,7 +38,7 @@ pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
 };
-pub use multilocation::{Junctions, MultiLocation};
+pub use multilocation::{Junctions, MultiLocation, Parent, ParentThen, Ancestor, AncestorThen};
 pub use order::Order;
 pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
@@ -65,7 +65,7 @@ pub mod prelude {
 		},
 		multilocation::{
 			Junctions::{self, *},
-			MultiLocation,
+			MultiLocation, Parent, ParentThen, Ancestor, AncestorThen,
 		},
 		opaque,
 		order::Order::{self, *},
