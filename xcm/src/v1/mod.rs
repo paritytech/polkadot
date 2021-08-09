@@ -16,7 +16,7 @@
 
 //! Version 1 of the Cross-Consensus Message format data structures.
 
-use super::v0::Xcm as Xcm0;
+use super::v0::{Response as Response0, Xcm as Xcm0};
 use crate::DoubleEncoded;
 use alloc::vec::Vec;
 use core::{
@@ -27,13 +27,11 @@ use core::{
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
-mod junction;
 pub mod multiasset;
 mod multilocation;
 mod order;
 mod traits; // the new multiasset.
 
-pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
@@ -42,10 +40,13 @@ pub use multilocation::MultiLocation;
 pub use order::Order;
 pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
+// These parts of XCM v0 have been unchanged in XCM v1, and are re-imported here.
+pub use super::v0::{BodyId, BodyPart, Junction, NetworkId, OriginKind};
+
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
-		junction::{
+		super::v0::{
 			BodyId, BodyPart,
 			Junction::*,
 			NetworkId::{self, *},
@@ -67,32 +68,6 @@ pub mod prelude {
 		OriginKind, Response,
 		Xcm::{self, *},
 	};
-}
-
-// TODO: #2841 #XCMENCODE Efficient encodings for MultiAssets, Vec<Order>, using initial byte values 128+ to encode
-//   the number of items in the vector.
-
-/// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
-#[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, Debug)]
-pub enum OriginKind {
-	/// Origin should just be the native dispatch origin representation for the sender in the
-	/// local runtime framework. For Cumulus/Frame chains this is the `Parachain` or `Relay` origin
-	/// if coming from a chain, though there may be others if the `MultiLocation` XCM origin has a
-	/// primary/native dispatch origin form.
-	Native,
-
-	/// Origin should just be the standard account-based origin with the sovereign account of
-	/// the sender. For Cumulus/Frame chains, this is the `Signed` origin.
-	SovereignAccount,
-
-	/// Origin should be the super-user. For Cumulus/Frame chains, this is the `Root` origin.
-	/// This will not usually be an available option.
-	Superuser,
-
-	/// Origin should be interpreted as an XCM native origin and the `MultiLocation` should be
-	/// encoded directly in the dispatch origin unchanged. For Cumulus/Frame chains, this will be
-	/// the `pallet_xcm::Origin::Xcm` type.
-	Xcm,
 }
 
 /// Response data to a query.
@@ -338,6 +313,16 @@ pub mod opaque {
 	pub use super::order::opaque::*;
 }
 
+// Convert from a v0 response to a v1 response
+impl TryFrom<Response0> for Response {
+	type Error = ();
+	fn try_from(old_response: Response0) -> result::Result<Self, ()> {
+		match old_response {
+			Response0::Assets(assets) => Ok(Self::Assets(assets.try_into()?)),
+		}
+	}
+}
+
 impl<Call> TryFrom<Xcm0<Call>> for Xcm<Call> {
 	type Error = ();
 	fn try_from(old: Xcm0<Call>) -> result::Result<Xcm<Call>, ()> {
@@ -365,7 +350,7 @@ impl<Call> TryFrom<Xcm0<Call>> for Xcm<Call> {
 					.collect::<result::Result<_, _>>()?,
 			},
 			Xcm0::QueryResponse { query_id: u64, response } =>
-				QueryResponse { query_id: u64, response },
+				QueryResponse { query_id: u64, response: response.try_into()? },
 			Xcm0::TransferAsset { assets, dest } =>
 				TransferAsset { assets: assets.try_into()?, beneficiary: dest.into() },
 			Xcm0::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
