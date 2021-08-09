@@ -34,11 +34,7 @@ async fn call_function_actually_work(task_executor: TaskExecutor) {
 	assert!(object.contains_key("jsonrpc"), "key jsonrpc exists");
 	let result = object.get("result");
 	let result = result.expect("key result exists");
-	assert_eq!(
-		result.as_str().map(|x| x.starts_with("0x")),
-		Some(true),
-		"result starts with 0x",
-	);
+	assert_eq!(result.as_str().map(|x| x.starts_with("0x")), Some(true), "result starts with 0x");
 
 	alice.task_manager.clean_shutdown().await;
 }

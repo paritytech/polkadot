@@ -483,12 +483,12 @@ mod tests {
 		);
 
 		strategy.remove_le_nonces_from_source_queue(5);
-		assert_eq!(source_queue_nonces(&strategy.source_queue), vec![6, 7, 8, 9],);
+		assert_eq!(source_queue_nonces(&strategy.source_queue), vec![6, 7, 8, 9]);
 
 		strategy.remove_le_nonces_from_source_queue(9);
-		assert_eq!(source_queue_nonces(&strategy.source_queue), Vec::<MessageNonce>::new(),);
+		assert_eq!(source_queue_nonces(&strategy.source_queue), Vec::<MessageNonce>::new());
 
 		strategy.remove_le_nonces_from_source_queue(100);
-		assert_eq!(source_queue_nonces(&strategy.source_queue), Vec::<MessageNonce>::new(),);
+		assert_eq!(source_queue_nonces(&strategy.source_queue), Vec::<MessageNonce>::new());
 	}
 }

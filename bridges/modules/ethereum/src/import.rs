@@ -336,7 +336,7 @@ mod tests {
 				Some(vec![validators_change_receipt(latest_block_id.hash)]),
 			)
 			.unwrap();
-			assert_eq!(finalized_blocks, vec![(parent_id, Some(100))],);
+			assert_eq!(finalized_blocks, vec![(parent_id, Some(100))]);
 			assert!(storage.header(&ctx.genesis.compute_hash()).is_none());
 			latest_block_id = rolling_last_block_id;
 
@@ -362,7 +362,7 @@ mod tests {
 					None,
 				)
 				.unwrap();
-				assert_eq!(finalized_blocks, vec![],);
+				assert_eq!(finalized_blocks, vec![]);
 				latest_block_id = rolling_last_block_id;
 				step += 3;
 			}

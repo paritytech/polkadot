@@ -22,7 +22,7 @@ use thiserror::Error;
 
 use futures::channel::oneshot;
 
-use polkadot_node_subsystem_util::{Fault, runtime, unwrap_non_fatal};
+use polkadot_node_subsystem_util::{runtime, unwrap_non_fatal, Fault};
 use polkadot_subsystem::SubsystemError;
 
 use crate::LOG_TARGET;
@@ -113,9 +113,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them
-pub fn log_error(result: Result<()>, ctx: &'static str)
-	-> std::result::Result<(), Fatal>
-{
+pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), Fatal> {
 	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
 		tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
 	}

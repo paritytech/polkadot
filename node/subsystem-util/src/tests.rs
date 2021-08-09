@@ -15,18 +15,25 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use assert_matches::assert_matches;
 use executor::block_on;
-use thiserror::Error;
+use futures::{channel::mpsc, executor, future, Future, FutureExt, SinkExt, StreamExt};
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_subsystem::{
-	messages::{AllMessages, CollatorProtocolMessage}, ActiveLeavesUpdate, FromOverseer, OverseerSignal,
-	SpawnedSubsystem, ActivatedLeaf, LeafStatus,
+	messages::{AllMessages, CollatorProtocolMessage},
+	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, SpawnedSubsystem,
 };
-use assert_matches::assert_matches;
-use futures::{channel::mpsc, executor, StreamExt, future, Future, FutureExt, SinkExt};
-use polkadot_primitives::v1::Hash;
 use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
-use std::{pin::Pin, sync::{Arc, atomic::{AtomicUsize, Ordering}}, time::Duration};
+use polkadot_primitives::v1::Hash;
+use std::{
+	pin::Pin,
+	sync::{
+		atomic::{AtomicUsize, Ordering},
+		Arc,
+	},
+	time::Duration,
+};
+use thiserror::Error;
 
 // basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
 // you can leave the subsystem itself to the job manager.
@@ -46,7 +53,7 @@ struct FakeCollatorProtocolJob {
 #[derive(Debug, Error)]
 enum Error {
 	#[error(transparent)]
-	Sending(#[from]mpsc::SendError),
+	Sending(#[from] mpsc::SendError),
 }
 
 impl JobTrait for FakeCollatorProtocolJob {
@@ -72,10 +79,12 @@ impl JobTrait for FakeCollatorProtocolJob {
 			let job = FakeCollatorProtocolJob { receiver };
 
 			if run_args {
-				sender.send_message(CollatorProtocolMessage::Invalid(
-					Default::default(),
-					Default::default(),
-				)).await;
+				sender
+					.send_message(CollatorProtocolMessage::Invalid(
+						Default::default(),
+						Default::default(),
+					))
+					.await;
 			}
 
 			// it isn't necessary to break run_loop into its own function,
@@ -92,7 +101,7 @@ impl FakeCollatorProtocolJob {
 			match self.receiver.next().await {
 				Some(_csm) => {
 					unimplemented!("we'd report the collator to the peer set manager here, but that's not implemented yet");
-				}
+				},
 				None => break,
 			}
 		}
@@ -102,32 +111,21 @@ impl FakeCollatorProtocolJob {
 }
 
 // with the job defined, it's straightforward to get a subsystem implementation.
-type FakeCollatorProtocolSubsystem<Spawner> =
-	JobSubsystem<FakeCollatorProtocolJob, Spawner>;
+type FakeCollatorProtocolSubsystem<Spawner> = JobSubsystem<FakeCollatorProtocolJob, Spawner>;
 
 // this type lets us pretend to be the overseer
 type OverseerHandle = test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>;
 
-fn test_harness<T: Future<Output = ()>>(
-	run_args: bool,
-	test: impl FnOnce(OverseerHandle) -> T,
-) {
+fn test_harness<T: Future<Output = ()>>(run_args: bool, test: impl FnOnce(OverseerHandle) -> T) {
 	let _ = env_logger::builder()
 		.is_test(true)
-		.filter(
-			None,
-			log::LevelFilter::Trace,
-		)
+		.filter(None, log::LevelFilter::Trace)
 		.try_init();
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, overseer_handle) = make_subsystem_context(pool.clone());
 
-	let subsystem = FakeCollatorProtocolSubsystem::new(
-		pool,
-		run_args,
-		(),
-	).run(context);
+	let subsystem = FakeCollatorProtocolSubsystem::new(pool, run_args, ()).run(context);
 	let test_future = test(overseer_handle);
 
 	futures::pin_mut!(subsystem, test_future);
@@ -155,19 +153,14 @@ fn starting_and_stopping_job_works() {
 				}),
 			)))
 			.await;
-		assert_matches!(
-			overseer_handle.recv().await,
-			AllMessages::CollatorProtocol(_)
-		);
+		assert_matches!(overseer_handle.recv().await, AllMessages::CollatorProtocol(_));
 		overseer_handle
 			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::stop_work(relay_parent),
 			)))
 			.await;
 
-		overseer_handle
-			.send(FromOverseer::Signal(OverseerSignal::Conclude))
-			.await;
+		overseer_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	});
 }
 
@@ -189,20 +182,13 @@ fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 
 		// send to a non running job
 		overseer_handle
-			.send(FromOverseer::Communication {
-				msg: Default::default(),
-			})
+			.send(FromOverseer::Communication { msg: Default::default() })
 			.await;
 
 		// the subsystem is still alive
-		assert_matches!(
-			overseer_handle.recv().await,
-			AllMessages::CollatorProtocol(_)
-		);
+		assert_matches!(overseer_handle.recv().await, AllMessages::CollatorProtocol(_));
 
-		overseer_handle
-			.send(FromOverseer::Signal(OverseerSignal::Conclude))
-			.await;
+		overseer_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	});
 }
 
@@ -216,7 +202,6 @@ fn test_subsystem_impl_and_name_derivation() {
 	assert_eq!(name, "FakeCollatorProtocol");
 }
 
-
 #[test]
 fn tick_tack_metronome() {
 	let n = Arc::new(AtomicUsize::default());
@@ -226,13 +211,15 @@ fn tick_tack_metronome() {
 	let metronome = {
 		let n = n.clone();
 		let stream = Metronome::new(Duration::from_millis(137_u64));
-		stream.for_each(move |_res| {
-			let _ = n.fetch_add(1, Ordering::Relaxed);
-			let mut tick = tick.clone();
-			async move {
-				tick.send(()).await.expect("Test helper channel works. qed");
-			}
-		}).fuse()
+		stream
+			.for_each(move |_res| {
+				let _ = n.fetch_add(1, Ordering::Relaxed);
+				let mut tick = tick.clone();
+				async move {
+					tick.send(()).await.expect("Test helper channel works. qed");
+				}
+			})
+			.fuse()
 	};
 
 	let f2 = async move {
@@ -244,7 +231,8 @@ fn tick_tack_metronome() {
 		assert_eq!(n.load(Ordering::Relaxed), 3_usize);
 		block.next().await;
 		assert_eq!(n.load(Ordering::Relaxed), 4_usize);
-	}.fuse();
+	}
+	.fuse();
 
 	futures::pin_mut!(f2);
 	futures::pin_mut!(metronome);

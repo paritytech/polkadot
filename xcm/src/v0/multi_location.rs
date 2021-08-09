@@ -16,11 +16,10 @@
 
 //! Cross-Consensus Message format data structures.
 
-use core::{result, mem, convert::TryFrom};
-
-use parity_scale_codec::{self, Encode, Decode};
 use super::Junction;
-use crate::VersionedMultiLocation;
+use crate::v1::MultiLocation as MultiLocation1;
+use core::{convert::TryFrom, mem, result};
+use parity_scale_codec::{self, Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.
 ///
@@ -110,13 +109,19 @@ impl From<(Junction, Junction, Junction, Junction, Junction, Junction)> for Mult
 		MultiLocation::X6(x.0, x.1, x.2, x.3, x.4, x.5)
 	}
 }
-impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
+impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction)>
+	for MultiLocation
+{
 	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
 		MultiLocation::X7(x.0, x.1, x.2, x.3, x.4, x.5, x.6)
 	}
 }
-impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
+impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)>
+	for MultiLocation
+{
+	fn from(
+		x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction),
+	) -> Self {
 		MultiLocation::X8(x.0, x.1, x.2, x.3, x.4, x.5, x.6, x.7)
 	}
 }
@@ -249,11 +254,13 @@ impl MultiLocation {
 			MultiLocation::X1(a) => (MultiLocation::Null, Some(a)),
 			MultiLocation::X2(a, b) => (MultiLocation::X1(b), Some(a)),
 			MultiLocation::X3(a, b, c) => (MultiLocation::X2(b, c), Some(a)),
-			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(b, c, d), Some(a)),
-			MultiLocation::X5(a, b, c ,d, e) => (MultiLocation::X4(b, c, d, e), Some(a)),
-			MultiLocation::X6(a, b, c ,d, e, f) => (MultiLocation::X5(b, c, d, e, f), Some(a)),
-			MultiLocation::X7(a, b, c ,d, e, f, g) => (MultiLocation::X6(b, c, d, e, f, g), Some(a)),
-			MultiLocation::X8(a, b, c ,d, e, f, g, h) => (MultiLocation::X7(b, c, d, e, f, g, h), Some(a)),
+			MultiLocation::X4(a, b, c, d) => (MultiLocation::X3(b, c, d), Some(a)),
+			MultiLocation::X5(a, b, c, d, e) => (MultiLocation::X4(b, c, d, e), Some(a)),
+			MultiLocation::X6(a, b, c, d, e, f) => (MultiLocation::X5(b, c, d, e, f), Some(a)),
+			MultiLocation::X7(a, b, c, d, e, f, g) =>
+				(MultiLocation::X6(b, c, d, e, f, g), Some(a)),
+			MultiLocation::X8(a, b, c, d, e, f, g, h) =>
+				(MultiLocation::X7(b, c, d, e, f, g, h), Some(a)),
 		}
 	}
 
@@ -265,11 +272,13 @@ impl MultiLocation {
 			MultiLocation::X1(a) => (MultiLocation::Null, Some(a)),
 			MultiLocation::X2(a, b) => (MultiLocation::X1(a), Some(b)),
 			MultiLocation::X3(a, b, c) => (MultiLocation::X2(a, b), Some(c)),
-			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(a, b, c), Some(d)),
+			MultiLocation::X4(a, b, c, d) => (MultiLocation::X3(a, b, c), Some(d)),
 			MultiLocation::X5(a, b, c, d, e) => (MultiLocation::X4(a, b, c, d), Some(e)),
 			MultiLocation::X6(a, b, c, d, e, f) => (MultiLocation::X5(a, b, c, d, e), Some(f)),
-			MultiLocation::X7(a, b, c, d, e, f, g) => (MultiLocation::X6(a, b, c, d, e, f), Some(g)),
-			MultiLocation::X8(a, b, c, d, e, f, g, h) => (MultiLocation::X7(a, b, c, d, e, f, g), Some(h)),
+			MultiLocation::X7(a, b, c, d, e, f, g) =>
+				(MultiLocation::X6(a, b, c, d, e, f), Some(g)),
+			MultiLocation::X8(a, b, c, d, e, f, g, h) =>
+				(MultiLocation::X7(a, b, c, d, e, f, g), Some(h)),
 		}
 	}
 
@@ -474,19 +483,30 @@ impl MultiLocation {
 		let mut n = MultiLocation::Null;
 		mem::swap(&mut *self, &mut n);
 		match n.pushed_with(new) {
-			Ok(result) => { *self = result; Ok(()) }
-			Err(old) => { *self = old; Err(()) }
+			Ok(result) => {
+				*self = result;
+				Ok(())
+			},
+			Err(old) => {
+				*self = old;
+				Err(())
+			},
 		}
 	}
-
 
 	/// Mutates `self`, prefixing it with `new`. Returns `Err` in case of overflow.
 	pub fn push_front(&mut self, new: Junction) -> result::Result<(), ()> {
 		let mut n = MultiLocation::Null;
 		mem::swap(&mut *self, &mut n);
 		match n.pushed_front_with(new) {
-			Ok(result) => { *self = result; Ok(()) }
-			Err(old) => { *self = old; Err(()) }
+			Ok(result) => {
+				*self = result;
+				Ok(())
+			},
+			Err(old) => {
+				*self = old;
+				Err(())
+			},
 		}
 	}
 
@@ -558,10 +578,10 @@ impl MultiLocation {
 		while let Some(j) = iter.next() {
 			if j == &Junction::Parent {
 				match normalized.last() {
-					None | Some(Junction::Parent) => {}
+					None | Some(Junction::Parent) => {},
 					Some(_) => {
 						normalized.take_last();
-						continue;
+						continue
 					},
 				}
 			}
@@ -571,7 +591,6 @@ impl MultiLocation {
 
 		core::mem::swap(self, &mut normalized);
 	}
-
 
 	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalized form is returned,
 	/// removing any internal `[Non-Parent, Parent]`  combinations.
@@ -596,7 +615,7 @@ impl MultiLocation {
 				let mut suffix = prefix;
 				core::mem::swap(self, &mut suffix);
 				Err(suffix)
-			}
+			},
 		}
 	}
 
@@ -630,7 +649,7 @@ impl MultiLocation {
 
 		// Pre-pending this prefix would create a multi-location with too many junctions.
 		if self.len() + prefix.len() - 2 * skipped > MAX_MULTILOCATION_LENGTH {
-			return Err(prefix);
+			return Err(prefix)
 		}
 
 		// Here we cancel out `[Non-Parent, Parent]` items (normalization), where
@@ -638,21 +657,22 @@ impl MultiLocation {
 		// comes from the front of the original location.
 		//
 		// We calculated already how many of these there should be above.
-		for _ in 0 .. skipped {
-				let _non_parent = prefix.take_last();
-				let _parent = self.take_first();
-				debug_assert!(
-					_non_parent.is_some() && _non_parent != Some(Junction::Parent),
-					"prepend_with should always remove a non-parent from the end of the prefix",
-				);
-				debug_assert!(
-					_parent == Some(Junction::Parent),
-					"prepend_with should always remove a parent from the front of the location",
-				);
+		for _ in 0..skipped {
+			let _non_parent = prefix.take_last();
+			let _parent = self.take_first();
+			debug_assert!(
+				_non_parent.is_some() && _non_parent != Some(Junction::Parent),
+				"prepend_with should always remove a non-parent from the end of the prefix",
+			);
+			debug_assert!(
+				_parent == Some(Junction::Parent),
+				"prepend_with should always remove a parent from the front of the location",
+			);
 		}
 
 		for j in prefix.into_iter_rev() {
-			self.push_front(j).expect("len + prefix minus 2*skipped is less than max length; qed");
+			self.push_front(j)
+				.expect("len + prefix minus 2*skipped is less than max length; qed");
 		}
 		Ok(())
 	}
@@ -676,17 +696,68 @@ impl MultiLocation {
 	}
 }
 
-impl From<MultiLocation> for VersionedMultiLocation {
-	fn from(x: MultiLocation) -> Self {
-		VersionedMultiLocation::V0(x)
-	}
-}
-
-impl TryFrom<VersionedMultiLocation> for MultiLocation {
+impl TryFrom<MultiLocation1> for MultiLocation {
 	type Error = ();
-	fn try_from(x: VersionedMultiLocation) -> result::Result<Self, ()> {
-		match x {
-			VersionedMultiLocation::V0(x) => Ok(x),
+	fn try_from(v1: MultiLocation1) -> result::Result<Self, ()> {
+		use crate::v1::Junctions::*;
+		let mut res = Self::Null;
+
+		for _ in 0..v1.parents {
+			res.push(Junction::Parent)?;
+		}
+
+		match v1.interior {
+			Here => Ok(res),
+			X1(j0) => res.pushed_with(Junction::from(j0)).map_err(|_| ()),
+			X2(j0, j1) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.map_err(|_| ()),
+			X3(j0, j1, j2) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.map_err(|_| ()),
+			X4(j0, j1, j2, j3) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.map_err(|_| ()),
+			X5(j0, j1, j2, j3, j4) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.map_err(|_| ()),
+			X6(j0, j1, j2, j3, j4, j5) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.and_then(|res| res.pushed_with(Junction::from(j5)))
+				.map_err(|_| ()),
+			X7(j0, j1, j2, j3, j4, j5, j6) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.and_then(|res| res.pushed_with(Junction::from(j5)))
+				.and_then(|res| res.pushed_with(Junction::from(j6)))
+				.map_err(|_| ()),
+			X8(j0, j1, j2, j3, j4, j5, j6, j7) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.and_then(|res| res.pushed_with(Junction::from(j5)))
+				.and_then(|res| res.pushed_with(Junction::from(j6)))
+				.and_then(|res| res.pushed_with(Junction::from(j7)))
+				.map_err(|_| ()),
 		}
 	}
 }
@@ -734,7 +805,16 @@ mod tests {
 
 		// Can handle shared prefix and resizing correctly.
 		let mut m = X1(Parent);
-		let prefix = X8(Parachain(100), OnlyChild, OnlyChild, OnlyChild, OnlyChild, OnlyChild, OnlyChild, Parent);
+		let prefix = X8(
+			Parachain(100),
+			OnlyChild,
+			OnlyChild,
+			OnlyChild,
+			OnlyChild,
+			OnlyChild,
+			OnlyChild,
+			Parent,
+		);
 		assert_eq!(m.prepend_with(prefix.clone()), Ok(()));
 		assert_eq!(m, X5(Parachain(100), OnlyChild, OnlyChild, OnlyChild, OnlyChild));
 
@@ -783,8 +863,8 @@ mod tests {
 		m.canonicalize();
 		assert_eq!(m, Null);
 
-		let mut m = X4( Parent, Parent, Parachain(1), Parachain(2));
+		let mut m = X4(Parent, Parent, Parachain(1), Parachain(2));
 		m.canonicalize();
-		assert_eq!(m, X4( Parent, Parent, Parachain(1), Parachain(2)));
+		assert_eq!(m, X4(Parent, Parent, Parachain(1), Parachain(2)));
 	}
 }

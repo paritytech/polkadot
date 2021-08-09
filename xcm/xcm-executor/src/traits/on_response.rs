@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcm::v0::{Response, MultiLocation};
 use frame_support::weights::Weight;
+use xcm::latest::{MultiLocation, Response};
 
 /// Define what needs to be done upon receiving a query response.
 pub trait OnResponse {
@@ -25,6 +25,10 @@ pub trait OnResponse {
 	fn on_response(origin: MultiLocation, query_id: u64, response: Response) -> Weight;
 }
 impl OnResponse for () {
-	fn expecting_response(_origin: &MultiLocation, _query_id: u64) -> bool { false }
-	fn on_response(_origin: MultiLocation, _query_id: u64, _response: Response) -> Weight { 0 }
+	fn expecting_response(_origin: &MultiLocation, _query_id: u64) -> bool {
+		false
+	}
+	fn on_response(_origin: MultiLocation, _query_id: u64, _response: Response) -> Weight {
+		0
+	}
 }
