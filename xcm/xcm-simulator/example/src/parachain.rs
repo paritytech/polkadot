@@ -39,7 +39,6 @@ use xcm::{
 	v0::{
 		Error as XcmError, ExecuteXcm,
 		Junction::{Parachain, Parent},
-		MultiAsset,
 		MultiLocation::{self, X1},
 		NetworkId, Outcome, Xcm,
 	},
