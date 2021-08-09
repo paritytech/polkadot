@@ -380,10 +380,6 @@ impl NetworkBridgeMessage {
 /// Availability Distribution Message.
 #[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
-	/// Incoming network request for an availability chunk.
-	ChunkFetchingRequest(IncomingRequest<req_res_v1::ChunkFetchingRequest>),
-	/// Incoming network request for a seconded PoV.
-	PoVFetchingRequest(IncomingRequest<req_res_v1::PoVFetchingRequest>),
 	/// Instruct availability distribution to fetch a remote PoV.
 	///
 	/// NOTE: The result of this fetch is not yet locally validated and could be bogus.
@@ -868,16 +864,6 @@ pub enum ApprovalDistributionMessage {
 #[derive(Debug)]
 pub enum GossipSupportMessage {}
 
-impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {
-	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
-		Self::PoVFetchingRequest(req)
-	}
-}
-impl From<IncomingRequest<req_res_v1::ChunkFetchingRequest>> for AvailabilityDistributionMessage {
-	fn from(req: IncomingRequest<req_res_v1::ChunkFetchingRequest>) -> Self {
-		Self::ChunkFetchingRequest(req)
-	}
-}
 impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
 	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
 		Self::CollationFetchingRequest(req)

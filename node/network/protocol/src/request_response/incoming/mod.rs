@@ -29,8 +29,7 @@ use super::IsRequest;
 use crate::UnifiedReputationChange;
 
 mod error;
-use error::Result;
-pub use error::{Error, Fatal, NonFatal};
+pub use error::{Error, Fatal, NonFatal, Result};
 
 /// A request coming in, including a sender for sending responses.
 ///
@@ -208,13 +207,16 @@ where
 	///
 	/// Any received request will be decoded, on decoding errors the provided reputation changes
 	/// will be applied and an error will be reported.
-	pub async fn recv(
+	pub async fn recv<F>(
 		&mut self,
-		reputation_changes: Vec<UnifiedReputationChange>,
-	) -> Result<IncomingRequest<Req>> {
+		reputation_changes: F,
+	) -> Result<IncomingRequest<Req>>
+	where
+		F: FnOnce() ->  Vec<UnifiedReputationChange>
+		{
 		let req = match self.raw.next().await {
 			None => return Err(Fatal::RequestChannelExhausted.into()),
-			Some(raw) => IncomingRequest::<Req>::try_from_raw(raw, reputation_changes)?,
+			Some(raw) => IncomingRequest::<Req>::try_from_raw(raw, reputation_changes())?,
 		};
 		Ok(req)
 	}

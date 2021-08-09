@@ -51,4 +51,5 @@ pub enum NonFatal {
 	DecodingErrorNoReputationChange(PeerId, #[source] DecodingError),
 }
 
+/// General result based on above `Error`.
 pub type Result<T> = std::result::Result<T, Error>;

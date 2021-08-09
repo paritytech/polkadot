@@ -103,7 +103,11 @@ pub enum NonFatal {
 	Runtime(#[from] runtime::NonFatal),
 }
 
+/// General result type for fatal/nonfatal errors.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Results which are never fatal.
+pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
 
 /// Utility for eating top level errors and log them.
 ///

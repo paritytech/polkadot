@@ -45,7 +45,7 @@ pub mod incoming;
 /// Everything related to handling of outgoing requests.
 pub mod outgoing;
 
-pub use incoming::IncomingRequest;
+pub use incoming::{IncomingRequest, IncomingRequestReceiver};
 
 pub use outgoing::{OutgoingRequest, OutgoingResult, Recipient, Requests, ResponseSender};
 
