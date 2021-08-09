@@ -2107,13 +2107,9 @@ async fn launch_approval(
 	}
 
 	let candidate_hash = candidate.hash();
+	let para_id = candidate.descriptor.para_id;
 
-	tracing::trace!(
-		target: LOG_TARGET,
-		?candidate_hash,
-		para_id = ?candidate.descriptor.para_id,
-		"Recovering data.",
-	);
+	tracing::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Recovering data.");
 
 	let timer = metrics.time_recover_and_approve();
 	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
@@ -2149,6 +2145,8 @@ async fn launch_approval(
 					&RecoveryError::Unavailable => {
 						tracing::warn!(
 							target: LOG_TARGET,
+							?para_id,
+							?candidate_hash,
 							"Data unavailable for candidate {:?}",
 							(candidate_hash, candidate.descriptor.para_id),
 						);
@@ -2158,6 +2156,8 @@ async fn launch_approval(
 					&RecoveryError::Invalid => {
 						tracing::warn!(
 							target: LOG_TARGET,
+							?para_id,
+							?candidate_hash,
 							"Data recovery invalid for candidate {:?}",
 							(candidate_hash, candidate.descriptor.para_id),
 						);
@@ -2200,8 +2200,6 @@ async fn launch_approval(
 		};
 
 		let (val_tx, val_rx) = oneshot::channel();
-
-		let para_id = candidate.descriptor.para_id;
 
 		sender
 			.send_message(
@@ -2274,6 +2272,8 @@ async fn launch_approval(
 				tracing::error!(
 					target: LOG_TARGET,
 					err = ?e,
+					?candidate_hash,
+					?para_id,
 					"Failed to validate candidate due to internal error",
 				);
 				metrics_guard.take().on_approval_error();
