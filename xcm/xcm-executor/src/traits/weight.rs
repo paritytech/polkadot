@@ -76,11 +76,27 @@ pub trait WeightTrader: Sized {
 	}
 }
 
-impl WeightTrader for () {
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl WeightTrader for Tuple {
 	fn new() -> Self {
-		()
+		for_tuples!( ( #( Tuple::new() ),* ) )
 	}
-	fn buy_weight(&mut self, _: Weight, _: Assets) -> Result<Assets, Error> {
-		Err(Error::Unimplemented)
+
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
+		for_tuples!( #(
+			if let Ok(assets) = Tuple.buy_weight(weight, payment.clone()) {
+				return Ok(assets);
+			}
+		)* );
+		Err(Error::TooExpensive)
+	}
+
+	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
+		for_tuples!( #(
+			if let Some(asset) = Tuple.refund_weight(weight) {
+				return Some(asset);
+			}
+		)* );
+		None
 	}
 }
