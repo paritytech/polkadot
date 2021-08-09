@@ -15,9 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{mock::*, *};
+use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
 use xcm::latest::prelude::*;
 use xcm_executor::{traits::*, Config, XcmExecutor};
-use frame_support::{weights::constants::WEIGHT_PER_SECOND, assert_err};
 
 #[test]
 fn basic_setup_works() {
@@ -402,10 +402,7 @@ fn weight_trader_tuple_should_work() {
 		Ok(fungible_multi_asset(Here, 5).into()),
 	);
 	// trader one refunds
-	assert_eq!(
-		traders.refund_weight(2),
-		Some(fungible_multi_asset(Here, 2)),
-	);
+	assert_eq!(traders.refund_weight(2), Some(fungible_multi_asset(Here, 2)));
 
 	let mut traders = MultiTraders::new();
 	// trader one failed; trader two buys weight
@@ -414,10 +411,7 @@ fn weight_trader_tuple_should_work() {
 		Ok(fungible_multi_asset(PARA_1, 5).into()),
 	);
 	// trader two refunds
-	assert_eq!(
-		traders.refund_weight(2),
-		Some(fungible_multi_asset(PARA_1, 2)),
-	);
+	assert_eq!(traders.refund_weight(2), Some(fungible_multi_asset(PARA_1, 2)));
 
 	let mut traders = MultiTraders::new();
 	// all traders fails
