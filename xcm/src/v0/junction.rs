@@ -40,11 +40,7 @@ pub enum BodyId {
 	/// A named body.
 	Named(Vec<u8>),
 	/// An indexed body.
-	// TODO: parity-scale-codec#262: Change to be a tuple.
-	Index {
-		#[codec(compact)]
-		id: u32,
-	},
+	Index(#[codec(compact)] u32),
 	/// The unambiguous executive body (for Polkadot, this would be the Polkadot council).
 	Executive,
 	/// The unambiguous technical body (for Polkadot, this would be the Technical Committee).

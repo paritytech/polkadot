@@ -23,10 +23,11 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use frame_support::traits::{Contains, EnsureOrigin, Filter, Get, OriginTrait};
+use codec::{Decode, Encode};
+use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
 use sp_std::{boxed::Box, convert::TryInto, marker::PhantomData, prelude::*, vec};
-use xcm::v0::prelude::*;
+use xcm::latest::prelude::*;
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -87,7 +88,7 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		Attempted(xcm::v0::Outcome),
+		Attempted(xcm::latest::Outcome),
 		Sent(MultiLocation, MultiLocation, Xcm<()>),
 	}
 
@@ -113,15 +114,19 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(100_000_000)]
-		pub fn send(origin: OriginFor<T>, dest: MultiLocation, message: Xcm<()>) -> DispatchResult {
+		pub fn send(
+			origin: OriginFor<T>,
+			dest: Box<MultiLocation>,
+			message: Box<Xcm<()>>,
+		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			Self::send_xcm(origin_location.clone(), dest.clone(), message.clone()).map_err(
+			Self::send_xcm(origin_location.clone(), *dest.clone(), *message.clone()).map_err(
 				|e| match e {
 					XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
 					_ => Error::<T>::SendFailure,
 				},
 			)?;
-			Self::deposit_event(Event::Sent(origin_location, dest, message));
+			Self::deposit_event(Event::Sent(origin_location, *dest, *message));
 			Ok(())
 		}
 
@@ -134,16 +139,16 @@ pub mod pallet {
 		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
 		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
 		///   an `AccountId32` value.
-		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
-		///   `dest` side.
+		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
+		///   `dest` side. May not be empty.
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
 		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
 			let mut message = Xcm::WithdrawAsset {
 				assets: assets.clone(),
 				effects: sp_std::vec![ InitiateTeleport {
-					assets: sp_std::vec![ All ],
-					dest: dest.clone(),
+					assets: Wild(All),
+					dest: *dest.clone(),
 					effects: sp_std::vec![],
 				} ]
 			};
@@ -151,24 +156,31 @@ pub mod pallet {
 		})]
 		pub fn teleport_assets(
 			origin: OriginFor<T>,
-			dest: MultiLocation,
-			beneficiary: MultiLocation,
-			assets: Vec<MultiAsset>,
+			dest: Box<MultiLocation>,
+			beneficiary: Box<MultiLocation>,
+			assets: MultiAssets,
+			fee_asset_item: u32,
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
-			let value = (origin_location, assets);
+			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
 			let inv_dest = T::LocationInverter::invert_location(&dest);
-			let mut fees = assets.first().ok_or(Error::<T>::Empty)?.clone();
-			fees.reanchor(&inv_dest).map_err(|_| Error::<T>::CannotReanchor)?;
+			let fees = assets
+				.get(fee_asset_item as usize)
+				.ok_or(Error::<T>::Empty)?
+				.clone()
+				.reanchored(&inv_dest)
+				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let max_assets = assets.len() as u32;
+			let assets = assets.into();
 			let mut message = Xcm::WithdrawAsset {
 				assets,
 				effects: vec![InitiateTeleport {
-					assets: vec![All],
-					dest,
+					assets: Wild(All),
+					dest: *dest,
 					effects: vec![
 						BuyExecution {
 							fees,
@@ -176,9 +188,10 @@ pub mod pallet {
 							weight: 0,
 							debt: dest_weight,
 							halt_on_error: false,
-							xcm: vec![],
+							orders: vec![],
+							instructions: vec![],
 						},
-						DepositAsset { assets: vec![All], dest: beneficiary },
+						DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
 					],
 				}],
 			};
@@ -203,43 +216,51 @@ pub mod pallet {
 		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
 		///   `dest` side.
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
-		///   `ReserveAssetDeposit { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		///   `ReserveAssetDeposited { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
 			let mut message = Xcm::TransferReserveAsset {
 				assets: assets.clone(),
-				dest: dest.clone(),
+				dest: *dest.clone(),
 				effects: sp_std::vec![],
 			};
 			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
 		})]
 		pub fn reserve_transfer_assets(
 			origin: OriginFor<T>,
-			dest: MultiLocation,
-			beneficiary: MultiLocation,
-			assets: Vec<MultiAsset>,
+			dest: Box<MultiLocation>,
+			beneficiary: Box<MultiLocation>,
+			assets: MultiAssets,
+			fee_asset_item: u32,
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
-			let value = (origin_location, assets);
+			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
 			let inv_dest = T::LocationInverter::invert_location(&dest);
-			let mut fees = assets.first().ok_or(Error::<T>::Empty)?.clone();
-			fees.reanchor(&inv_dest).map_err(|_| Error::<T>::CannotReanchor)?;
+			let fees = assets
+				.get(fee_asset_item as usize)
+				.ok_or(Error::<T>::Empty)?
+				.clone()
+				.reanchored(&inv_dest)
+				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let max_assets = assets.len() as u32;
+			let assets = assets.into();
 			let mut message = Xcm::TransferReserveAsset {
 				assets,
-				dest,
+				dest: *dest,
 				effects: vec![
 					BuyExecution {
 						fees,
-						// Zero weight for additional XCM (since there are none to execute)
+						// Zero weight for additional instructions/orders (since there are none to execute)
 						weight: 0,
-						debt: dest_weight,
+						debt: dest_weight, // covers this, `TransferReserveAsset` xcm, and `DepositAsset` order.
 						halt_on_error: false,
-						xcm: vec![],
+						orders: vec![],
+						instructions: vec![],
 					},
-					DepositAsset { assets: vec![All], dest: beneficiary },
+					DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
 				],
 			};
 			let weight =
@@ -286,7 +307,7 @@ pub mod pallet {
 			message: Xcm<()>,
 		) -> Result<(), XcmError> {
 			let message = match interior {
-				MultiLocation::Null => message,
+				MultiLocation::Here => message,
 				who => Xcm::<()>::RelayedFrom { who, message: Box::new(message) },
 			};
 			log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
@@ -331,10 +352,10 @@ where
 ///
 /// May reasonably be used with `EnsureXcm`.
 pub struct IsMajorityOfBody<Prefix, Body>(PhantomData<(Prefix, Body)>);
-impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Filter<MultiLocation>
+impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
 	for IsMajorityOfBody<Prefix, Body>
 {
-	fn filter(l: &MultiLocation) -> bool {
+	fn contains(l: &MultiLocation) -> bool {
 		let maybe_suffix = l.match_and_split(&Prefix::get());
 		matches!(maybe_suffix, Some(Plurality { id, part }) if id == &Body::get() && part.is_majority())
 	}
@@ -343,7 +364,7 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Filter<MultiLocation>
 /// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter the
 /// `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);
-impl<O: OriginTrait + From<Origin>, F: Filter<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
+impl<O: OriginTrait + From<Origin>, F: Contains<MultiLocation>> EnsureOrigin<O> for EnsureXcm<F>
 where
 	O::PalletsOrigin: From<Origin> + TryInto<Origin, Error = O::PalletsOrigin>,
 {
@@ -352,7 +373,7 @@ where
 	fn try_origin(outer: O) -> Result<Self::Success, O> {
 		outer.try_with_caller(|caller| {
 			caller.try_into().and_then(|Origin::Xcm(location)| {
-				if F::filter(&location) {
+				if F::contains(&location) {
 					Ok(location)
 				} else {
 					Err(Origin::Xcm(location).into())
@@ -363,7 +384,7 @@ where
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
-		O::from(Origin::Xcm(MultiLocation::Null))
+		O::from(Origin::Xcm(MultiLocation::Here))
 	}
 }
 

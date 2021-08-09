@@ -16,7 +16,7 @@
 
 use parity_scale_codec::{Decode, Encode};
 use sp_std::{borrow::Borrow, convert::TryFrom, prelude::*, result::Result};
-use xcm::v0::{MultiLocation, OriginKind};
+use xcm::latest::{MultiLocation, OriginKind};
 
 /// Generic third-party conversion trait. Use this when you don't want to force the user to use default
 /// implementations of `From` and `Into` for the types you wish to convert between.
@@ -139,7 +139,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// which is passed to the next convert item.
 ///
 /// ```rust
-/// # use xcm::v0::{MultiLocation, Junction, OriginKind};
+/// # use xcm::latest::{MultiLocation, Junction, OriginKind};
 /// # use xcm_executor::traits::ConvertOrigin;
 /// // A convertor that will bump the para id and pass it to the next one.
 /// struct BumpParaId;
