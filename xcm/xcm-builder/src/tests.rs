@@ -63,10 +63,8 @@ fn weigher_should_work() {
 
 #[test]
 fn take_weight_credit_barrier_should_work() {
-	let mut message = opaque::Xcm::TransferAsset {
-		assets: (Parent, 100).into(),
-		beneficiary: Here.into(),
-	};
+	let mut message =
+		opaque::Xcm::TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() };
 
 	let mut weight_credit = 10;
 	let r = TakeWeightCredit::should_execute(
@@ -92,10 +90,8 @@ fn take_weight_credit_barrier_should_work() {
 
 #[test]
 fn allow_unpaid_should_work() {
-	let mut message = opaque::Xcm::TransferAsset {
-		assets: (Parent, 100).into(),
-		beneficiary: Here.into(),
-	};
+	let mut message =
+		opaque::Xcm::TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() };
 
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
@@ -122,10 +118,8 @@ fn allow_unpaid_should_work() {
 fn allow_paid_should_work() {
 	AllowPaidFrom::set(vec![Parent.into()]);
 
-	let mut message = opaque::Xcm::TransferAsset {
-		assets: (Parent, 100).into(),
-		beneficiary: Here.into(),
-	};
+	let mut message =
+		opaque::Xcm::TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() };
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parachain(1).into(),
