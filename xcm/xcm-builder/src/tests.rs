@@ -100,7 +100,7 @@ fn allow_unpaid_should_work() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
-		&X1(Parachain(1)).into(),
+		&Parachain(1).into(),
 		true,
 		&mut message,
 		10,
@@ -128,7 +128,7 @@ fn allow_paid_should_work() {
 	};
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&X1(Parachain(1)).into(),
+		&Parachain(1).into(),
 		true,
 		&mut message,
 		10,
@@ -178,7 +178,7 @@ fn allow_paid_should_work() {
 	};
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&X1(Parachain(1)).into(),
+		&Parachain(1).into(),
 		true,
 		&mut paying_message,
 		30,
@@ -236,7 +236,7 @@ fn transfer_should_work() {
 	add_asset(1001, (Here, 1000).into());
 	// They want to transfer 100 of them to their sibling parachain #2
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		X1(Parachain(1)).into(),
+		Parachain(1).into(),
 		Xcm::TransferAsset {
 			assets: (Here, 100).into(),
 			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
@@ -260,10 +260,10 @@ fn reserve_transfer_should_work() {
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		X1(Parachain(1)).into(),
+		Parachain(1).into(),
 		Xcm::TransferReserveAsset {
 			assets: (Here, 100).into(),
-			dest: X1(Parachain(2)).into(),
+			dest: Parachain(2).into(),
 			effects: vec![Order::DepositAsset {
 				assets: All.into(),
 				max_assets: 1,
@@ -278,7 +278,7 @@ fn reserve_transfer_should_work() {
 	assert_eq!(
 		sent_xcm(),
 		vec![(
-			X1(Parachain(2)).into(),
+			Parachain(2).into(),
 			Xcm::ReserveAssetDeposited {
 				assets: (Parent, 100).into(),
 				effects: vec![Order::DepositAsset {
