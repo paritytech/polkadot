@@ -20,12 +20,19 @@ use std::sync::Arc;
 
 use futures::channel::oneshot;
 
-use polkadot_node_network_protocol::{UnifiedReputationChange as Rep, request_response::{IncomingRequest, IncomingRequestReceiver, incoming, v1}};
+use polkadot_node_network_protocol::{
+	request_response::{incoming, v1, IncomingRequest, IncomingRequestReceiver},
+	UnifiedReputationChange as Rep,
+};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
-use polkadot_subsystem::{SubsystemSender, jaeger, messages::AvailabilityStoreMessage};
+use polkadot_subsystem::{jaeger, messages::AvailabilityStoreMessage, SubsystemSender};
 
-use crate::{LOG_TARGET, error::{NonFatal, NonFatalResult, Result}, metrics::{Metrics, FAILED, NOT_FOUND, SUCCEEDED}};
+use crate::{
+	error::{NonFatal, NonFatalResult, Result},
+	metrics::{Metrics, FAILED, NOT_FOUND, SUCCEEDED},
+	LOG_TARGET,
+};
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Received message could not be decoded.");
 
@@ -34,14 +41,14 @@ pub async fn run_pov_receiver<Sender>(
 	mut sender: Sender,
 	mut receiver: IncomingRequestReceiver<v1::PoVFetchingRequest>,
 	metrics: Metrics,
-)
-where Sender: SubsystemSender
+) where
+	Sender: SubsystemSender,
 {
 	loop {
 		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await {
 			Ok(msg) => {
 				answer_pov_request_log(&mut sender, msg, &metrics).await;
-			}
+			},
 			Err(incoming::Error::Fatal(f)) => {
 				tracing::debug!(
 					target: LOG_TARGET,
@@ -49,16 +56,11 @@ where Sender: SubsystemSender
 					"Shutting down POV receiver."
 				);
 				return
-			}
+			},
 			Err(incoming::Error::NonFatal(error)) => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?error,
-					"Error decoding incoming PoV request."
-				);
-			}
+				tracing::debug!(target: LOG_TARGET, ?error, "Error decoding incoming PoV request.");
+			},
 		}
-
 	}
 }
 
@@ -67,14 +69,14 @@ pub async fn run_chunk_receiver<Sender>(
 	mut sender: Sender,
 	mut receiver: IncomingRequestReceiver<v1::ChunkFetchingRequest>,
 	metrics: Metrics,
-)
-where Sender: SubsystemSender
+) where
+	Sender: SubsystemSender,
 {
 	loop {
 		match receiver.recv(|| vec![COST_INVALID_REQUEST]).await {
 			Ok(msg) => {
 				answer_chunk_request_log(&mut sender, msg, &metrics).await;
-			}
+			},
 			Err(incoming::Error::Fatal(f)) => {
 				tracing::debug!(
 					target: LOG_TARGET,
@@ -82,16 +84,15 @@ where Sender: SubsystemSender
 					"Shutting down chunk receiver."
 				);
 				return
-			}
+			},
 			Err(incoming::Error::NonFatal(error)) => {
 				tracing::debug!(
 					target: LOG_TARGET,
 					?error,
 					"Error decoding incoming chunk request."
 				);
-			}
+			},
 		}
-
 	}
 }
 
@@ -218,7 +219,10 @@ where
 	Sender: SubsystemSender,
 {
 	let (tx, rx) = oneshot::channel();
-	sender.send_message(AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx).into())
+	sender
+		.send_message(
+			AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx).into(),
+		)
 		.await;
 
 	let result = rx.await.map_err(|e| {
@@ -243,7 +247,8 @@ where
 	Sender: SubsystemSender,
 {
 	let (tx, rx) = oneshot::channel();
-	sender.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx).into())
+	sender
+		.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx).into())
 		.await;
 
 	let result = rx.await.map_err(|e| NonFatal::QueryAvailableDataResponseChannel(e))?;

@@ -207,13 +207,10 @@ where
 	///
 	/// Any received request will be decoded, on decoding errors the provided reputation changes
 	/// will be applied and an error will be reported.
-	pub async fn recv<F>(
-		&mut self,
-		reputation_changes: F,
-	) -> Result<IncomingRequest<Req>>
+	pub async fn recv<F>(&mut self, reputation_changes: F) -> Result<IncomingRequest<Req>>
 	where
-		F: FnOnce() ->  Vec<UnifiedReputationChange>
-		{
+		F: FnOnce() -> Vec<UnifiedReputationChange>,
+	{
 		let req = match self.raw.next().await {
 			None => return Err(Fatal::RequestChannelExhausted.into()),
 			Some(raw) => IncomingRequest::<Req>::try_from_raw(raw, reputation_changes())?,

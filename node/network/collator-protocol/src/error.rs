@@ -81,7 +81,7 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 		Err(Error::NonFatal(error)) => {
 			tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
 			Ok(())
-		}
+		},
 		Ok(()) => Ok(()),
 	}
 }

@@ -18,17 +18,15 @@ use futures::{future::Either, FutureExt, StreamExt, TryFutureExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 
+use polkadot_node_network_protocol::request_response::{v1, IncomingRequestReceiver};
 use polkadot_subsystem::{
 	messages::AvailabilityDistributionMessage, overseer, FromOverseer, OverseerSignal,
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
-use polkadot_node_network_protocol::request_response::{
-	IncomingRequestReceiver, v1
-};
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-use error::{Fatal, Result, log_error};
+use error::{log_error, Fatal, Result};
 
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
@@ -87,7 +85,11 @@ where
 
 impl AvailabilityDistributionSubsystem {
 	/// Create a new instance of the availability distribution.
-	pub fn new(keystore: SyncCryptoStorePtr, recvs: IncomingRequestReceivers, metrics: Metrics) -> Self {
+	pub fn new(
+		keystore: SyncCryptoStorePtr,
+		recvs: IncomingRequestReceivers,
+		metrics: Metrics,
+	) -> Self {
 		let runtime = RuntimeInfo::new(Some(keystore));
 		Self { runtime, recvs, metrics }
 	}
@@ -98,16 +100,9 @@ impl AvailabilityDistributionSubsystem {
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 		Context: overseer::SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
-		let Self {
-			mut runtime,
-			recvs,
-			metrics,
-		} = self;
+		let Self { mut runtime, recvs, metrics } = self;
 
-		let IncomingRequestReceivers {
-			pov_req_receiver,
-			chunk_req_receiver,
-		} = recvs;
+		let IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver } = recvs;
 		let mut requester = Requester::new(metrics.clone()).fuse();
 
 		{
@@ -115,12 +110,14 @@ impl AvailabilityDistributionSubsystem {
 			ctx.spawn(
 				"pov-receiver",
 				run_pov_receiver(sender.clone(), pov_req_receiver, metrics.clone()).boxed(),
-			).map_err(Fatal::SpawnTask)?;
+			)
+			.map_err(Fatal::SpawnTask)?;
 
 			ctx.spawn(
 				"chunk-receiver",
 				run_chunk_receiver(sender, chunk_req_receiver, metrics.clone()).boxed(),
-			).map_err(Fatal::SpawnTask)?;
+			)
+			.map_err(Fatal::SpawnTask)?;
 		}
 
 		loop {
