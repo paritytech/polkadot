@@ -863,8 +863,8 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const WndLocation: MultiLocation = MultiLocation::Here;
-	pub const Ancestry: MultiLocation = MultiLocation::Here;
+	pub const WndLocation: MultiLocation = Here.into();
+	pub const Ancestry: MultiLocation = Here.into();
 	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
@@ -905,7 +905,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), X1(Parachain(1000)));
+		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Parachain(1000).into());
 }
 pub type TrustedTeleporters = (xcm_builder::Case<WestendForWestmint>,);
 

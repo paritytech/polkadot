@@ -33,13 +33,14 @@ mod traits;
 use super::v1::{Response as Response1, Xcm as Xcm1};
 pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use multi_asset::{AssetInstance, MultiAsset};
-pub use multi_location::MultiLocation;
+pub use multi_location::MultiLocation::{self, *};
 pub use order::Order;
 pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
+		junction::{BodyId, Junction::*},
 		multi_asset::{
 			AssetInstance::{self, *},
 			MultiAsset::{self, *},
@@ -47,9 +48,8 @@ pub mod prelude {
 		multi_location::MultiLocation::{self, *},
 		order::Order::{self, *},
 		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
-		BodyId, BodyPart,
 		Junction::*,
-		NetworkId, OriginKind,
+		OriginKind,
 		Xcm::{self, *},
 	};
 }
@@ -321,11 +321,12 @@ pub mod opaque {
 }
 
 // Convert from a v1 response to a v0 response
-impl From<Response1> for Response {
-	fn from(new_response: Response1) -> Self {
-		match new_response {
-			Response1::Assets(assets) => Self::Assets(assets.into()),
-		}
+impl TryFrom<Response1> for Response {
+	type Error = ();
+	fn try_from(new_response: Response1) -> result::Result<Self, ()> {
+		Ok(match new_response {
+			Response1::Assets(assets) => Self::Assets(assets.try_into()?),
+		})
 	}
 }
 
@@ -335,33 +336,33 @@ impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
 		use Xcm::*;
 		Ok(match x {
 			Xcm1::WithdrawAsset { assets, effects } => WithdrawAsset {
-				assets: assets.into(),
+				assets: assets.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
 			Xcm1::ReserveAssetDeposited { assets, effects } => ReserveAssetDeposit {
-				assets: assets.into(),
+				assets: assets.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
 			Xcm1::ReceiveTeleportedAsset { assets, effects } => TeleportAsset {
-				assets: assets.into(),
+				assets: assets.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
 			Xcm1::QueryResponse { query_id: u64, response } =>
-				QueryResponse { query_id: u64, response: response.into() },
+				QueryResponse { query_id: u64, response: response.try_into()? },
 			Xcm1::TransferAsset { assets, beneficiary } =>
-				TransferAsset { assets: assets.into(), dest: beneficiary.into() },
+				TransferAsset { assets: assets.try_into()?, dest: beneficiary.try_into()? },
 			Xcm1::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
-				assets: assets.into(),
-				dest: dest.into(),
+				assets: assets.try_into()?,
+				dest: dest.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::try_from)
@@ -375,7 +376,7 @@ impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
 			Xcm1::Transact { origin_type, require_weight_at_most, call } =>
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			Xcm1::RelayedFrom { who, message } => RelayedFrom {
-				who: who.into(),
+				who: who.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
 		})

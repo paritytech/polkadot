@@ -71,7 +71,7 @@ impl SendXcm for TestSendXcm {
 pub struct TestSendXcmErrX8;
 impl SendXcm for TestSendXcmErrX8 {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
-		if let MultiLocation::X8(..) = dest {
+		if dest.len() == 8 {
 			Err(XcmError::Undefined)
 		} else {
 			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
@@ -129,9 +129,9 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-	pub const RelayLocation: MultiLocation = MultiLocation::Here;
+	pub const RelayLocation: MultiLocation = Here.into();
 	pub const AnyNetwork: NetworkId = NetworkId::Any;
-	pub Ancestry: MultiLocation = MultiLocation::Here;
+	pub Ancestry: MultiLocation = Here.into();
 	pub UnitWeightCost: Weight = 1_000;
 }
 

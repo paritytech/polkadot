@@ -53,7 +53,7 @@ impl From<Error> for XcmError {
 /// # Example
 /// ```
 /// use frame_support::parameter_types;
-/// use xcm::latest::{MultiLocation, Junction};
+/// use xcm::latest::prelude::*;
 /// use xcm_builder::{ParentIsDefault, CurrencyAdapter, IsConcrete};
 ///
 /// /// Our chain's account id.
@@ -61,7 +61,7 @@ impl From<Error> for XcmError {
 ///
 /// /// Our relay chain's location.
 /// parameter_types! {
-///     RelayChain: MultiLocation = MultiLocation::X1(Junction::Parent);
+///     RelayChain: MultiLocation = Parent.into();
 ///     CheckingAccount: AccountId = Default::default();
 /// }
 ///
