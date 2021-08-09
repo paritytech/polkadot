@@ -20,9 +20,11 @@
 use thiserror::Error;
 
 use polkadot_node_primitives::disputes::DisputeMessageCheckError;
+use polkadot_node_subsystem_util::runtime;
 use polkadot_subsystem::SubsystemError;
 
-#[derive(Debug, Error, From)]
+#[derive(Debug, Error, derive_more::From)]
+#[error(transparent)]
 pub enum Error {
 	/// All fatal errors.
 	Fatal(Fatal),
@@ -41,6 +43,7 @@ impl From<runtime::Error> for Error {
 
 /// Fatal errors of this subsystem.
 #[derive(Debug, Error)]
+#[error(transparent)]
 pub enum Fatal {
 	/// Spawning a running task failed.
 	#[error("Spawning subsystem task failed")]

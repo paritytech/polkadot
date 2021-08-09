@@ -31,7 +31,7 @@ use lru::LruCache;
 use polkadot_node_network_protocol::{
 	authority_discovery::AuthorityDiscovery,
 	request_response::{
-		request::{OutgoingResponse, OutgoingResponseSender},
+		incoming::{OutgoingResponse, OutgoingResponseSender},
 		v1::{DisputeRequest, DisputeResponse},
 		IncomingRequest,
 	},

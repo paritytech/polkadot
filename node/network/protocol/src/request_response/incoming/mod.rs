@@ -16,16 +16,20 @@
 
 use std::marker::PhantomData;
 
-use futures::channel::oneshot;
-use thiserror::Error;
+use futures::{
+	channel::{mpsc, oneshot},
+	StreamExt,
+};
 
-use parity_scale_codec::{Decode, Encode, Error as DecodingError};
+use parity_scale_codec::{Decode, Encode};
 
-use sc_network::{config as netconfig, PeerId};
+use sc_network::{config as netconfig, config::RequestResponseConfig, PeerId};
 
+use super::IsRequest;
 use crate::UnifiedReputationChange;
 
 mod error;
+use error::Result;
 pub use error::{Error, Fatal, NonFatal};
 
 /// A request coming in, including a sender for sending responses.
@@ -52,9 +56,10 @@ where
 	/// This Register that config with substrate networking and receive incoming requests via the
 	/// returned `IncomingRequestReceiver`.
 	pub fn get_config_receiver() -> (IncomingRequestReceiver<Self>, RequestResponseConfig) {
-		let (raw_receiver, cfg) = Self::PROTOCOL.get_config();
-		(IncomingRequestReceiver { raw }, cfg)
+		let (raw, cfg) = Req::PROTOCOL.get_config();
+		(IncomingRequestReceiver { raw, phantom: PhantomData {} }, cfg)
 	}
+
 	/// Create new `IncomingRequest`.
 	pub fn new(
 		peer: PeerId,
@@ -79,7 +84,7 @@ where
 	fn try_from_raw(
 		raw: sc_network::config::IncomingRequest,
 		reputation_changes: Vec<UnifiedReputationChange>,
-	) -> Result<Self, NonFatal> {
+	) -> std::result::Result<Self, NonFatal> {
 		let sc_network::config::IncomingRequest { payload, peer, pending_response } = raw;
 		let payload = match Req::decode(&mut payload.as_ref()) {
 			Ok(payload) => payload,
@@ -104,7 +109,7 @@ where
 	/// Send the response back.
 	///
 	/// Calls [`OutgoingResponseSender::send_response`].
-	pub fn send_response(self, resp: Req::Response) -> Result<(), Req::Response> {
+	pub fn send_response(self, resp: Req::Response) -> std::result::Result<(), Req::Response> {
 		self.pending_response.send_response(resp)
 	}
 
@@ -114,11 +119,10 @@ where
 	pub fn send_outgoing_response(
 		self,
 		resp: OutgoingResponse<<Req as IsRequest>::Response>,
-	) -> Result<(), ()> {
+	) -> std::result::Result<(), ()> {
 		self.pending_response.send_outgoing_response(resp)
 	}
 }
-
 
 /// Sender for sending back responses on an `IncomingRequest`.
 #[derive(Debug)]
@@ -138,7 +142,7 @@ where
 	///
 	/// `netconfig::OutgoingResponse` exposes a way of modifying the peer's reputation. If needed we
 	/// can change this function to expose this feature as well.
-	pub fn send_response(self, resp: Req::Response) -> Result<(), Req::Response> {
+	pub fn send_response(self, resp: Req::Response) -> std::result::Result<(), Req::Response> {
 		self.pending_response
 			.send(netconfig::OutgoingResponse {
 				result: Ok(resp.encode()),
@@ -156,7 +160,7 @@ where
 	pub fn send_outgoing_response(
 		self,
 		resp: OutgoingResponse<<Req as IsRequest>::Response>,
-	) -> Result<(), ()> {
+	) -> std::result::Result<(), ()> {
 		let OutgoingResponse { result, reputation_changes, sent_feedback } = resp;
 
 		let response = netconfig::OutgoingResponse {
@@ -176,7 +180,7 @@ pub struct OutgoingResponse<Response> {
 	/// The payload of the response.
 	///
 	/// `Err(())` if none is available e.g. due an error while handling the request.
-	pub result: Result<Response, ()>,
+	pub result: std::result::Result<Response, ()>,
 
 	/// Reputation changes accrued while handling the request. To be applied to the reputation of
 	/// the peer sending the request.
@@ -191,13 +195,14 @@ pub struct OutgoingResponse<Response> {
 ///
 /// Takes care of decoding and handling of invalid encoded requests.
 pub struct IncomingRequestReceiver<Req> {
-	raw: mpsc::Receiver<network::IncomingRequest>,
+	raw: mpsc::Receiver<netconfig::IncomingRequest>,
 	phantom: PhantomData<Req>,
 }
 
 impl<Req> IncomingRequestReceiver<Req>
 where
 	Req: IsRequest + Decode,
+	Req::Response: Encode,
 {
 	/// Try to receive the next incoming request.
 	///
@@ -206,10 +211,11 @@ where
 	pub async fn recv(
 		&mut self,
 		reputation_changes: Vec<UnifiedReputationChange>,
-	) -> Result<Req> {
-		match self.raw.next().await {
-			None => Fatal::RequestChannelExhausted.into(),
-			Some(raw) => IncomingRequest<Req>::try_from_raw(raw, reputation_changes)?,
-		}
+	) -> Result<IncomingRequest<Req>> {
+		let req = match self.raw.next().await {
+			None => return Err(Fatal::RequestChannelExhausted.into()),
+			Some(raw) => IncomingRequest::<Req>::try_from_raw(raw, reputation_changes)?,
+		};
+		Ok(req)
 	}
 }

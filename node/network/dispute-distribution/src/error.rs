@@ -24,7 +24,8 @@ use polkadot_subsystem::SubsystemError;
 
 use crate::{sender, LOG_TARGET};
 
-#[derive(Debug, Error, From)]
+#[derive(Debug, Error, derive_more::From)]
+#[error(transparent)]
 pub enum Error {
 	/// Fatal errors of dispute distribution.
 	Fatal(Fatal),
@@ -84,8 +85,10 @@ pub type FatalResult<T> = std::result::Result<T, Fatal>;
 pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), Fatal> {
 	match result {
 		Err(Error::Fatal(f)) => Err(f),
-		Err(Error::NonFatal(e)) =>
-			tracing::warn!(target: LOG_TARGET, error = ?error, ctx),
+		Err(Error::NonFatal(error)) => {
+			tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+			Ok(())
+		}
 		Ok(()) => Ok(()),
 	}
 }

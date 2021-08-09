@@ -26,7 +26,7 @@ use sp_core::Pair;
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
 	request_response::{
-		request::OutgoingResponse,
+		incoming::OutgoingResponse,
 		v1::{CollationFetchingRequest, CollationFetchingResponse},
 		IncomingRequest,
 	},

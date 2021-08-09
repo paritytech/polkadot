@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use futures::channel::oneshot;
 
-use polkadot_node_network_protocol::request_response::{request::IncomingRequest, v1};
+use polkadot_node_network_protocol::request_response::{v1, IncomingRequest};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_primitives::v1::{CandidateHash, ValidatorIndex};
 use polkadot_subsystem::{jaeger, messages::AvailabilityStoreMessage, SubsystemContext};

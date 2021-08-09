@@ -17,7 +17,7 @@
 
 //! Error handling related code and Error/Result definitions.
 
-use polkadot_node_network_protocol::request_response::request::RequestError;
+use polkadot_node_network_protocol::request_response::outgoing::RequestError;
 use thiserror::Error;
 
 use futures::channel::oneshot;
@@ -27,7 +27,8 @@ use polkadot_subsystem::SubsystemError;
 
 use crate::LOG_TARGET;
 
-#[derive(Debug, Error, From)]
+#[derive(Debug, Error, derive_more::From)]
+#[error(transparent)]
 pub enum Error {
 	/// All fatal errors.
 	Fatal(Fatal),
@@ -111,8 +112,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), Fatal> {
 	match result {
 		Err(Error::Fatal(f)) => Err(f),
-		Err(Error::NonFatal(e)) =>
-			tracing::warn!(target: LOG_TARGET, error = ?error, ctx),
+		Err(Error::NonFatal(error)) => {
+			tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+			Ok(())
+		}
 		Ok(()) => Ok(()),
 	}
 }

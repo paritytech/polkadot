@@ -28,11 +28,9 @@ use crate::LOG_TARGET;
 /// General result.
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// Result for fatal only failures.
-pub type FatalResult<T> = std::result::Result<T, Fatal>;
-
 /// Errors for statement distribution.
-#[derive(Debug, Error, From)]
+#[derive(Debug, Error, derive_more::From)]
+#[error(transparent)]
 pub enum Error {
 	/// All fatal errors.
 	Fatal(Fatal),
@@ -80,8 +78,10 @@ pub enum NonFatal {
 pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), Fatal> {
 	match result {
 		Err(Error::Fatal(f)) => Err(f),
-		Err(Error::NonFatal(e)) =>
-			tracing::warn!(target: LOG_TARGET, error = ?error, ctx),
+		Err(Error::NonFatal(error)) => {
+			tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+			Ok(())
+		}
 		Ok(()) => Ok(()),
 	}
 }

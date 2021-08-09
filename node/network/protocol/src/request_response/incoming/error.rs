@@ -16,12 +16,14 @@
 
 //! Error handling related code and Error/Result definitions.
 
+use sc_network::PeerId;
 use thiserror::Error;
 
-use parity_scale_codec::{Decode, Encode, Error as DecodingError};
+use parity_scale_codec::Error as DecodingError;
 
-
-#[derive(Debug, Error, From)]
+/// Errors that happen during receival/decoding of incoming requests.
+#[derive(Debug, Error, derive_more::From)]
+#[error(transparent)]
 pub enum Error {
 	/// All fatal errors.
 	Fatal(Fatal),

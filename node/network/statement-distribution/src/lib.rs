@@ -1564,8 +1564,7 @@ impl StatementDistribution {
 						Ok(true) => break,
 						Ok(false) => {},
 						Err(Error::Fatal(f)) => return Err(f),
-						Err(Error::Err(error)) =>
-							tracing::debug!(target: LOG_TARGET, ?error),
+						Err(Error::NonFatal(error)) => tracing::debug!(target: LOG_TARGET, ?error),
 					}
 				},
 				MuxedMessage::Requester(result) => {

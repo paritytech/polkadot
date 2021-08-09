@@ -22,7 +22,7 @@ use futures::{
 
 use polkadot_node_network_protocol::{
 	request_response::{
-		request::OutgoingResponse,
+		incoming::OutgoingResponse,
 		v1::{StatementFetchingRequest, StatementFetchingResponse},
 		IncomingRequest, MAX_PARALLEL_STATEMENT_REQUESTS,
 	},

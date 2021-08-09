@@ -925,9 +925,7 @@ where
 // Kept out of the proc macro, for sake of simplicity reduce the need to make even
 // more types to the proc macro logic.
 
-use polkadot_node_network_protocol::request_response::{
-	request::IncomingRequest, v1 as req_res_v1,
-};
+use polkadot_node_network_protocol::request_response::{v1 as req_res_v1, IncomingRequest};
 
 impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {

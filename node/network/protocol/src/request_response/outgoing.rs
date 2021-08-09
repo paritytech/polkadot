@@ -24,7 +24,56 @@ use sc_network::PeerId;
 
 use polkadot_primitives::v1::AuthorityDiscoveryId;
 
-use super::{Protocol, request::IsRequest};
+use super::{v1, IsRequest, Protocol};
+
+/// All requests that can be sent to the network bridge via `NetworkBridgeMessage::SendRequest`.
+#[derive(Debug)]
+pub enum Requests {
+	/// Request an availability chunk from a node.
+	ChunkFetching(OutgoingRequest<v1::ChunkFetchingRequest>),
+	/// Fetch a collation from a collator which previously announced it.
+	CollationFetching(OutgoingRequest<v1::CollationFetchingRequest>),
+	/// Fetch a PoV from a validator which previously sent out a seconded statement.
+	PoVFetching(OutgoingRequest<v1::PoVFetchingRequest>),
+	/// Request full available data from a node.
+	AvailableDataFetching(OutgoingRequest<v1::AvailableDataFetchingRequest>),
+	/// Requests for fetching large statements as part of statement distribution.
+	StatementFetching(OutgoingRequest<v1::StatementFetchingRequest>),
+	/// Requests for notifying about an ongoing dispute.
+	DisputeSending(OutgoingRequest<v1::DisputeRequest>),
+}
+
+impl Requests {
+	/// Get the protocol this request conforms to.
+	pub fn get_protocol(&self) -> Protocol {
+		match self {
+			Self::ChunkFetching(_) => Protocol::ChunkFetching,
+			Self::CollationFetching(_) => Protocol::CollationFetching,
+			Self::PoVFetching(_) => Protocol::PoVFetching,
+			Self::AvailableDataFetching(_) => Protocol::AvailableDataFetching,
+			Self::StatementFetching(_) => Protocol::StatementFetching,
+			Self::DisputeSending(_) => Protocol::DisputeSending,
+		}
+	}
+
+	/// Encode the request.
+	///
+	/// The corresponding protocol is returned as well, as we are now leaving typed territory.
+	///
+	/// Note: `Requests` is just an enum collecting all supported requests supported by network
+	/// bridge, it is never sent over the wire. This function just encodes the individual requests
+	/// contained in the `enum`.
+	pub fn encode_request(self) -> (Protocol, OutgoingRequest<Vec<u8>>) {
+		match self {
+			Self::ChunkFetching(r) => r.encode_request(),
+			Self::CollationFetching(r) => r.encode_request(),
+			Self::PoVFetching(r) => r.encode_request(),
+			Self::AvailableDataFetching(r) => r.encode_request(),
+			Self::StatementFetching(r) => r.encode_request(),
+			Self::DisputeSending(r) => r.encode_request(),
+		}
+	}
+}
 
 /// Used by the network to send us a response to a request.
 pub type ResponseSender = oneshot::Sender<Result<Vec<u8>, network::RequestFailure>>;
@@ -135,4 +184,3 @@ impl From<oneshot::Canceled> for RequestError {
 		Self::Canceled(err)
 	}
 }
-

@@ -1526,13 +1526,14 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.14"
+version = "0.99.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cc7b9cef1e351660e5443924e4f43ab25fbbed3e9a5f052df3677deb4d6b320"
+checksum = "40eebddd2156ce1bb37b20bbe5151340a31828b1f2d22ba4141f3531710e38df"
 dependencies = [
  "convert_case",
  "proc-macro2",
  "quote",
+ "rustc_version 0.3.3",
  "syn",
 ]
 
@@ -2470,7 +2471,7 @@ dependencies = [
  "cc",
  "libc",
  "log",
- "rustc_version",
+ "rustc_version 0.2.3",
  "winapi 0.3.9",
 ]
 
@@ -2848,7 +2849,7 @@ dependencies = [
  "itoa",
  "log",
  "net2",
- "rustc_version",
+ "rustc_version 0.2.3",
  "time",
  "tokio 0.1.22",
  "tokio-buf",
@@ -5627,7 +5628,7 @@ checksum = "f842b1982eb6c2fe34036a4fbfb06dd185a3f5c8edfaacdf7d1ea10b07de6252"
 dependencies = [
  "lock_api 0.3.4",
  "parking_lot_core 0.6.2",
- "rustc_version",
+ "rustc_version 0.2.3",
 ]
 
 [[package]]
@@ -5661,7 +5662,7 @@ dependencies = [
  "cloudabi 0.0.3",
  "libc",
  "redox_syscall 0.1.56",
- "rustc_version",
+ "rustc_version 0.2.3",
  "smallvec 0.6.13",
  "winapi 0.3.9",
 ]
@@ -5925,6 +5926,7 @@ name = "polkadot-availability-distribution"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "derive_more",
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "lru",
@@ -6036,6 +6038,7 @@ version = "0.1.0"
 dependencies = [
  "always-assert",
  "assert_matches",
+ "derive_more",
  "env_logger 0.8.4",
  "futures 0.3.15",
  "futures-timer 3.0.2",
@@ -6072,6 +6075,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
+ "derive_more",
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "lazy_static",
@@ -6504,6 +6508,7 @@ name = "polkadot-node-network-protocol"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "derive_more",
  "futures 0.3.15",
  "parity-scale-codec",
  "polkadot-node-jaeger",
@@ -6610,6 +6615,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
+ "derive_more",
  "env_logger 0.8.4",
  "futures 0.3.15",
  "futures-timer 3.0.2",
@@ -7125,6 +7131,7 @@ version = "0.1.0"
 dependencies = [
  "arrayvec 0.5.2",
  "assert_matches",
+ "derive_more",
  "futures 0.3.15",
  "futures-timer 3.0.2",
  "indexmap",
@@ -8121,6 +8128,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
 dependencies = [
  "semver 0.9.0",
+]
+
+[[package]]
+name = "rustc_version"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0dfe2087c51c460008730de8b57e6a320782fbfb312e1f4d520e6c6fae155ee"
+dependencies = [
+ "semver 0.11.0",
 ]
 
 [[package]]
@@ -9606,7 +9622,7 @@ dependencies = [
  "rand 0.7.3",
  "rand_core 0.5.1",
  "ring",
- "rustc_version",
+ "rustc_version 0.2.3",
  "sha2 0.9.2",
  "subtle 2.2.3",
  "x25519-dalek 0.6.0",

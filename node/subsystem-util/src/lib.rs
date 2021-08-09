@@ -86,7 +86,6 @@ pub mod rolling_session_window;
 pub mod runtime;
 
 mod determine_new_blocks;
-mod error_handling;
 
 #[cfg(test)]
 mod tests;

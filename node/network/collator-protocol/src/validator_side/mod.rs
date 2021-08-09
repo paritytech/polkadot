@@ -36,7 +36,7 @@ use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
 	request_response as req_res,
 	request_response::{
-		request::{Recipient, RequestError},
+		outgoing::{Recipient, RequestError},
 		v1::{CollationFetchingRequest, CollationFetchingResponse},
 		OutgoingRequest, Requests,
 	},

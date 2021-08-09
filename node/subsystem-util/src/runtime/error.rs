@@ -26,7 +26,8 @@ use polkadot_primitives::v1::SessionIndex;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Errors for `Runtime` cache.
-#[derive(Debug, Error, From)]
+#[derive(Debug, Error, derive_more::From)]
+#[error(transparent)]
 pub enum Error {
 	/// All fatal errors.
 	Fatal(Fatal),

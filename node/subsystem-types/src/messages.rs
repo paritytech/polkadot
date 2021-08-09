@@ -29,7 +29,7 @@ pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
-	request_response::{request::IncomingRequest, v1 as req_res_v1, Requests},
+	request_response::{v1 as req_res_v1, IncomingRequest, Requests},
 	v1 as protocol_v1, PeerId, UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
