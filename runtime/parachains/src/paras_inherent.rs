@@ -222,11 +222,7 @@ pub mod pallet {
 					None => continue,
 				};
 
-				T::DisputesHandler::process_included(
-					current_session,
-					*candidate_hash,
-					revert_to,
-				);
+				T::DisputesHandler::process_included(current_session, *candidate_hash, revert_to);
 			}
 
 			// Handle timeouts for any availability core work.
@@ -280,6 +276,9 @@ pub mod pallet {
 
 			// And track that we've finished processing the inherent for this block.
 			Included::<T>::set(Some(()));
+
+			// Prune candidates incrementally with each block inclusion.
+			shared::Pallet::<T>::prune_ancient_sessions(shared::MAX_CANDIDATES_TO_PRUNE);
 
 			Ok(Some(
 				MINIMAL_INCLUSION_INHERENT_WEIGHT +

@@ -619,10 +619,12 @@ impl<T: Config> Pallet<T> {
 			for to_prune in to_prune {
 				// This should be small, as disputes are rare, so `None` is fine.
 				<Disputes<T>>::remove_prefix(to_prune, None);
-
-				// This is larger, and will be extracted to the `shared` module for more proper pruning.
-				// TODO: https://github.com/paritytech/polkadot/issues/3469
-				shared::Pallet::<T>::prune_included_candidates(to_prune);
+				// Mark the session as pruneable so that its candidates can be incrementally
+				// removed over the course of many block inclusions.
+				shared::Pallet::<T>::mark_session_pruneable(to_prune);
+				// TODO(ladi): remove this call, currently allows unit tests to pass. Need to
+				// figure out how to invoke paras_inherent::enter in run_to_block.
+				shared::Pallet::<T>::prune_ancient_sessions(shared::MAX_CANDIDATES_TO_PRUNE);
 				SpamSlots::<T>::remove(to_prune);
 			}
 

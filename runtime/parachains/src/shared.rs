@@ -36,6 +36,11 @@ pub use pallet::*;
 // which guarantees that at least one full session has passed before any changes are applied.
 pub(crate) const SESSION_DELAY: SessionIndex = 2;
 
+// `MAX_CANDIDATES_TO_PRUNE` is used to upper bound the number of ancient candidates that can be
+// pruned when a new block is included. This is used to distribute the cost of pruning over
+// multiple blocks rather than pruning all historical candidates upon starting a new session.
+pub(crate) const MAX_CANDIDATES_TO_PRUNE: usize = 200;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -78,6 +83,15 @@ pub mod pallet {
 		CandidateHash,
 		(T::BlockNumber, CoreIndex),
 	>;
+
+	/// The set of all past sessions that have yet to fully pruned. Sessions are added to this set
+	/// upon moving to new current session, and removed after all of their included candidates
+	/// have been removed. This set is tracked independently so that the cost of removing included
+	/// candidates can be amortized over multiple blocks rather than removing all candidates upon
+	/// transitioning to a new session.
+	#[pallet::storage]
+	#[pallet::getter(fn pruneable_sessions)]
+	pub(super) type PruneableSessions<T: Config> = StorageMap<_, Twox64Concat, SessionIndex, ()>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
@@ -129,6 +143,55 @@ impl<T: Config> Pallet<T> {
 		Self::session_index().saturating_add(SESSION_DELAY)
 	}
 
+	/// Adds a session that is no longer in the dispute window as pruneable. Subsequent block
+	/// inclusions will incrementally remove old candidates to avoid taking the performance hit of
+	/// removing all candidates at once.
+	pub(crate) fn mark_session_pruneable(session: SessionIndex) {
+		PruneableSessions::<T>::insert(session, ());
+	}
+
+	/// Prunes up to `max_candidates_to_prune` candidates from `IncludedCandidates` that belong to
+	/// non-active sessions.
+	pub(crate) fn prune_ancient_sessions(max_candidates_to_prune: usize) {
+		let mut to_prune = Vec::new();
+		let mut n_candidates = 0;
+		let mut incomplete_session = None;
+		for session in PruneableSessions::<T>::iter_keys() {
+			let mut hashes = Vec::new();
+			for candidate_hash in IncludedCandidates::<T>::iter_key_prefix(session) {
+				// Exit condition when this session still has more candidates to prune; mark the
+				// session as incomplete so the remaining candidates can be pruned in a subsequent
+				// invocation.
+				if n_candidates >= max_candidates_to_prune {
+					incomplete_session = Some(session);
+					break
+				}
+				hashes.push(candidate_hash);
+				n_candidates += 1;
+			}
+
+			to_prune.push((session, hashes));
+			// Exit condition when all candidates from this session were selected for pruning.
+			if n_candidates >= max_candidates_to_prune {
+				break
+			}
+		}
+
+		for (session, candidate_hashes) in to_prune {
+			for candidate_hash in candidate_hashes {
+				IncludedCandidates::<T>::remove(session, candidate_hash);
+			}
+
+			// Prune the session only if it was not marked as incomplete.
+			match incomplete_session {
+				Some(incomplete_session) if incomplete_session != session =>
+					PruneableSessions::<T>::remove(session),
+				None => PruneableSessions::<T>::remove(session),
+				_ => {},
+			}
+		}
+	}
+
 	/// Records an included candidate, returning the block height that should be reverted to if the
 	/// block is found to be invalid. This method will return `None` if and only if `included_in`
 	/// is zero.
@@ -164,9 +227,9 @@ impl<T: Config> Pallet<T> {
 		<IncludedCandidates<T>>::get(session, candidate_hash)
 	}
 
-	/// Prunes all candidates that were included in the `to_prune` session.
-	pub(crate) fn prune_included_candidates(to_prune: SessionIndex) {
-		<IncludedCandidates<T>>::remove_prefix(to_prune, None);
+	#[cfg(test)]
+	pub(crate) fn is_pruneable_session(session: &SessionIndex) -> bool {
+		<PruneableSessions<T>>::contains_key(session)
 	}
 
 	#[cfg(test)]
@@ -327,34 +390,174 @@ mod tests {
 	}
 
 	#[test]
-	fn prune_included_candidate_removes_all_candidates_with_same_session() {
+	fn prune_ancient_sessions_no_incomplete_session() {
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			let session = 1;
+			let candidate_hash1 = CandidateHash(sp_core::H256::repeat_byte(1));
+			let candidate_hash2 = CandidateHash(sp_core::H256::repeat_byte(2));
+			let block_number = 1;
+			let core_index = CoreIndex(0);
+
+			assert_eq!(
+				ParasShared::note_included_candidate(
+					session,
+					candidate_hash1,
+					block_number,
+					core_index,
+				),
+				Some(block_number - 1),
+			);
+			assert_eq!(
+				ParasShared::note_included_candidate(
+					session,
+					candidate_hash2,
+					block_number,
+					core_index,
+				),
+				Some(block_number - 1),
+			);
+			assert!(ParasShared::is_included_candidate(&session, &candidate_hash1));
+			assert!(ParasShared::is_included_candidate(&session, &candidate_hash2));
+
+			// Prune before any sessions are marked pruneable.
+			ParasShared::prune_ancient_sessions(2);
+
+			// Both candidates should still exist.
+			assert!(ParasShared::is_included_candidate(&session, &candidate_hash1));
+			assert!(ParasShared::is_included_candidate(&session, &candidate_hash2));
+
+			// Mark the candidates' session as pruneable.
+			ParasShared::mark_session_pruneable(session);
+			assert!(ParasShared::is_pruneable_session(&session));
+
+			// Prune the sessions, which should remove both candidates. The session should not be
+			// marked as incomplete since there are exactly two candidates.
+			ParasShared::prune_ancient_sessions(2);
+
+			assert!(!ParasShared::is_pruneable_session(&session));
+			assert!(!ParasShared::is_included_candidate(&session, &candidate_hash1));
+			assert!(!ParasShared::is_included_candidate(&session, &candidate_hash2));
+		})
+	}
+
+	#[test]
+	fn prune_ancient_sessions_incomplete_session() {
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			let session = 1;
+			let candidate_hash1 = CandidateHash(sp_core::H256::repeat_byte(1));
+			let candidate_hash2 = CandidateHash(sp_core::H256::repeat_byte(2));
+			let block_number = 1;
+			let core_index = CoreIndex(0);
+
+			assert_eq!(
+				ParasShared::note_included_candidate(
+					session,
+					candidate_hash1,
+					block_number,
+					core_index,
+				),
+				Some(block_number - 1),
+			);
+			assert_eq!(
+				ParasShared::note_included_candidate(
+					session,
+					candidate_hash2,
+					block_number,
+					core_index,
+				),
+				Some(block_number - 1),
+			);
+			assert!(ParasShared::is_included_candidate(&session, &candidate_hash1));
+			assert!(ParasShared::is_included_candidate(&session, &candidate_hash2));
+
+			// Prune before any sessions are marked pruneable.
+			ParasShared::prune_ancient_sessions(1);
+
+			// Both candidates should still exist.
+			assert!(ParasShared::is_included_candidate(&session, &candidate_hash1));
+			assert!(ParasShared::is_included_candidate(&session, &candidate_hash2));
+
+			// Mark the candidates' session as pruneable.
+			ParasShared::mark_session_pruneable(session);
+			assert!(ParasShared::is_pruneable_session(&session));
+
+			// Prune the sessions, which should remove one of the candidates. The session will be
+			// marked as incomplete so the session should remain unpruned.
+			ParasShared::prune_ancient_sessions(1);
+
+			assert!(ParasShared::is_pruneable_session(&session));
+			assert!(!ParasShared::is_included_candidate(&session, &candidate_hash1));
+			assert!(ParasShared::is_included_candidate(&session, &candidate_hash2));
+		})
+	}
+
+	#[test]
+	fn prune_ancient_sessions_complete_and_incomplete_sessions() {
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			let session1 = 1;
+			let session2 = 2;
 			let candidate_hash1 = CandidateHash(sp_core::H256::repeat_byte(1));
 			let candidate_hash2 = CandidateHash(sp_core::H256::repeat_byte(2));
 			let candidate_hash3 = CandidateHash(sp_core::H256::repeat_byte(3));
+			let block_number1 = 1;
+			let block_number2 = 2;
+			let core_index = CoreIndex(0);
 
-			assert!(
-				ParasShared::note_included_candidate(1, candidate_hash1, 1, CoreIndex(0)).is_some()
+			assert_eq!(
+				ParasShared::note_included_candidate(
+					session1,
+					candidate_hash1,
+					block_number1,
+					core_index,
+				),
+				Some(block_number1 - 1),
 			);
-			assert!(
-				ParasShared::note_included_candidate(1, candidate_hash2, 1, CoreIndex(0)).is_some()
+			assert_eq!(
+				ParasShared::note_included_candidate(
+					session2,
+					candidate_hash2,
+					block_number2,
+					core_index,
+				),
+				Some(block_number2 - 1),
 			);
-			assert!(
-				ParasShared::note_included_candidate(2, candidate_hash3, 2, CoreIndex(0)).is_some()
+			assert_eq!(
+				ParasShared::note_included_candidate(
+					session2,
+					candidate_hash3,
+					block_number2,
+					core_index,
+				),
+				Some(block_number2 - 1),
 			);
+			assert!(ParasShared::is_included_candidate(&session1, &candidate_hash1));
+			assert!(ParasShared::is_included_candidate(&session2, &candidate_hash2));
+			assert!(ParasShared::is_included_candidate(&session2, &candidate_hash3));
 
-			assert_eq!(ParasShared::included_candidates_iter_prefix(1).count(), 2);
-			assert_eq!(ParasShared::included_candidates_iter_prefix(2).count(), 1);
+			// Prune before any sessions are marked pruneable.
+			ParasShared::prune_ancient_sessions(2);
 
-			ParasShared::prune_included_candidates(1);
+			// Both candidates should still exist.
+			assert!(ParasShared::is_included_candidate(&session1, &candidate_hash1));
+			assert!(ParasShared::is_included_candidate(&session2, &candidate_hash2));
+			assert!(ParasShared::is_included_candidate(&session2, &candidate_hash3));
 
-			assert_eq!(ParasShared::included_candidates_iter_prefix(1).count(), 0);
-			assert_eq!(ParasShared::included_candidates_iter_prefix(2).count(), 1);
+			// Mark the candidates' session as pruneable.
+			ParasShared::mark_session_pruneable(session1);
+			ParasShared::mark_session_pruneable(session2);
+			assert!(ParasShared::is_pruneable_session(&session1));
+			assert!(ParasShared::is_pruneable_session(&session2));
 
-			ParasShared::prune_included_candidates(2);
+			// Prune the sessions, which should remove one candidate from each session. The first
+			// session should be pruned while the second session will be marked as incomplete, and
+			// so should remain in the set of pruneable sessions.
+			ParasShared::prune_ancient_sessions(2);
 
-			assert_eq!(ParasShared::included_candidates_iter_prefix(1).count(), 0);
-			assert_eq!(ParasShared::included_candidates_iter_prefix(2).count(), 0);
-		});
+			assert!(!ParasShared::is_pruneable_session(&session1));
+			assert!(ParasShared::is_pruneable_session(&session2));
+			assert!(!ParasShared::is_included_candidate(&session1, &candidate_hash1));
+			assert!(ParasShared::is_included_candidate(&session2, &candidate_hash2));
+			assert!(!ParasShared::is_included_candidate(&session2, &candidate_hash3));
+		})
 	}
 }
