@@ -266,8 +266,7 @@ pub mod mock_msg_queue {
 						Self::deposit_event(Event::UnsupportedVersion(id));
 					},
 					Ok(Ok(x)) => {
-						let outcome =
-							T::XcmExecutor::execute_xcm(Parent.into(), x, limit);
+						let outcome = T::XcmExecutor::execute_xcm(Parent.into(), x, limit);
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
 					},
 				}
