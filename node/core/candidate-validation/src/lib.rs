@@ -79,8 +79,12 @@ impl CandidateValidationSubsystem {
 	/// strategy.
 	///
 	/// Check out [`IsolationStrategy`] to get more details.
-	pub fn with_config(config: Config, metrics: Metrics, pvf_metrics: polkadot_node_core_pvf::Metrics) -> Self {
-		CandidateValidationSubsystem { config, metrics, pvf_metrics, }
+	pub fn with_config(
+		config: Config,
+		metrics: Metrics,
+		pvf_metrics: polkadot_node_core_pvf::Metrics,
+	) -> Self {
+		CandidateValidationSubsystem { config, metrics, pvf_metrics }
 	}
 }
 
@@ -90,10 +94,15 @@ where
 	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future =
-			run(ctx, self.metrics, self.pvf_metrics, self.config.artifacts_cache_path, self.config.program_path)
-				.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-				.boxed();
+		let future = run(
+			ctx,
+			self.metrics,
+			self.pvf_metrics,
+			self.config.artifacts_cache_path,
+			self.config.program_path,
+		)
+		.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
+		.boxed();
 		SpawnedSubsystem { name: "candidate-validation-subsystem", future }
 	}
 }
