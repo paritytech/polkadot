@@ -92,6 +92,7 @@ impl OverseerGen for BehaveMaleficient {
 				CandidateValidationSubsystem::with_config(
 					candidate_validation_config,
 					Metrics::register(registry)?,
+					polkadot_node_core_pvf::Metrics::register(registry)?,
 				),
 				Skippy::default(),
 			),
