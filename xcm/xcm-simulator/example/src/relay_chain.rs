@@ -87,10 +87,10 @@ impl shared::Config for Runtime {}
 impl configuration::Config for Runtime {}
 
 parameter_types! {
-	pub const KsmLocation: MultiLocation = Here.into();
+	pub const KsmLocation: MultiLocation = Here;
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
 	pub const AnyNetwork: NetworkId = NetworkId::Any;
-	pub Ancestry: MultiLocation = Here.into();
+	pub Ancestry: MultiLocation = Here;
 	pub UnitWeightCost: Weight = 1_000;
 }
 
