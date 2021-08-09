@@ -388,14 +388,14 @@ fn weight_trader_tuple_should_work() {
 		pub static PARA1WeightPrice: (AssetId, u128) = (PARA_1.into(), WEIGHT_PER_SECOND.into());
 	}
 
-	type MultiTraders = (
+	type Traders = (
 		// trader one
 		FixedRateOfFungible<HereWeightPrice, ()>,
 		// trader two
 		FixedRateOfFungible<PARA1WeightPrice, ()>,
 	);
 
-	let mut traders = MultiTraders::new();
+	let mut traders = Traders::new();
 	// trader one buys weight
 	assert_eq!(
 		traders.buy_weight(5, fungible_multi_asset(Here, 10).into()),
@@ -404,7 +404,7 @@ fn weight_trader_tuple_should_work() {
 	// trader one refunds
 	assert_eq!(traders.refund_weight(2), Some(fungible_multi_asset(Here, 2)));
 
-	let mut traders = MultiTraders::new();
+	let mut traders = Traders::new();
 	// trader one failed; trader two buys weight
 	assert_eq!(
 		traders.buy_weight(5, fungible_multi_asset(PARA_1, 10).into()),
@@ -413,7 +413,7 @@ fn weight_trader_tuple_should_work() {
 	// trader two refunds
 	assert_eq!(traders.refund_weight(2), Some(fungible_multi_asset(PARA_1, 2)));
 
-	let mut traders = MultiTraders::new();
+	let mut traders = Traders::new();
 	// all traders fails
 	assert_err!(
 		traders.buy_weight(5, fungible_multi_asset(PARA_2, 10).into()),
