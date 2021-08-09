@@ -186,7 +186,7 @@ fn execute_withdraw_to_deposit_works() {
 			Box::new(Xcm::WithdrawAsset {
 				assets: (Here, SEND_AMOUNT).into(),
 				effects: vec![
-					buy_execution((Here.into(), SEND_AMOUNT), weight),
+					buy_execution((Here, SEND_AMOUNT), weight),
 					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest }
 				],
 			}),
