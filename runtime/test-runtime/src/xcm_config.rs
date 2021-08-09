@@ -16,7 +16,7 @@
 
 use frame_support::{parameter_types, traits::Everything, weights::Weight};
 use xcm::latest::{
-	Error as XcmError, MultiAsset, MultiLocation, NetworkId, Result as XcmResult, SendXcm, Xcm, Parent,
+	Error as XcmError, MultiAsset, MultiLocation, NetworkId, Result as XcmResult, SendXcm, Xcm, Parent, Junction::Here,
 };
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
@@ -70,7 +70,7 @@ impl WeightTrader for DummyWeightTrader {
 pub struct InvertNothing;
 impl InvertLocation for InvertNothing {
 	fn invert_location(_: &MultiLocation) -> MultiLocation {
-		Junction::Here.into()
+		Here.into()
 	}
 }
 
