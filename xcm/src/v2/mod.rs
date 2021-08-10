@@ -75,7 +75,7 @@ pub enum Response {
 	/// Some assets.
 	Assets(MultiAssets),
 	/// The outcome of an XCM instruction.
-	ExecutionOutcome(Outcome),
+	ExecutionResult(Result),
 }
 
 /// Cross-Consensus Message: A message from one consensus system to another.
@@ -270,13 +270,18 @@ pub enum Xcm<Call> {
 
 	/// Attempt execution of the inner `message` and then report the outcome of that `dest`.
 	///
-	/// A `QueryResponse` message is sent to `dest` with the given `query_id` and the outcome of
-	/// executing the `message`.
+	/// A `QueryResponse` message of type `ExecutionOutcome` is sent to `dest` with the given
+	/// `query_id` and the outcome of executing the `message`.
 	///
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	Report { query_id: u64, dest: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> }
+	#[codec(index = 11)]
+	ReportOutcome {
+		#[codec(compact)] query_id: u64,
+		dest: MultiLocation,
+		message: alloc::boxed::Box<Xcm<Call>>,
+	},
 }
 
 impl<Call> Xcm<Call> {
@@ -309,8 +314,8 @@ impl<Call> Xcm<Call> {
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			RelayedFrom { who, message } =>
 				RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
-			Report { query_id, dest, message } =>
-				Report { query_id, dest, message: alloc::boxed::Box::new((*message).into()) },
+			ReportOutcome { query_id, dest, message } =>
+				ReportOutcome { query_id, dest, message: alloc::boxed::Box::new((*message).into()) },
 		}
 	}
 }

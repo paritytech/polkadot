@@ -258,6 +258,25 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				total_surplus = total_surplus.saturating_add(surplus);
 				None
 			},
+			(origin, Xcm::ReportOutcome { query_id, dest, message }) => {
+				let result = Self::do_execute_xcm(
+					origin,
+					top_level,
+					*message,
+					weight_credit,
+					None,
+					trader,
+					num_recursions + 1,
+				);
+				if let Ok(ref surplus) = result {
+					total_surplus = total_surplus.saturating_add(*surplus);
+				}
+				Config::XcmSender::send_xcm(
+					dest,
+					Xcm::QueryResponse { query_id, response: Response::ExecutionResult(result) },
+				)?;
+				None
+			},
 			_ => Err(XcmError::UnhandledXcmMessage)?, // Unhandled XCM message.
 		};
 
