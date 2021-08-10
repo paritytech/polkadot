@@ -23,7 +23,7 @@ use polkadot_primitives::v1::{
 	AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce, ParachainHost,
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
-use sc_executor::native_executor_instance;
+use sc_executor::{native_executor_instance, NativeExecutor};
 use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockStatus;
@@ -37,7 +37,8 @@ use std::sync::Arc;
 
 pub type FullBackend = sc_service::TFullBackend<Block>;
 
-pub type FullClient<RuntimeApi, Executor> = sc_service::TFullClient<Block, RuntimeApi, Executor>;
+pub type FullClient<RuntimeApi, ExecutorInstance> =
+	sc_service::TFullClient<Block, RuntimeApi, NativeExecutor<ExecutorInstance>>;
 
 native_executor_instance!(
 	pub PolkadotExecutor,
