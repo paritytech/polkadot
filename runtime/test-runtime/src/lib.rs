@@ -506,12 +506,12 @@ impl pallet_xcm::Config for Runtime {
 	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
 	type XcmRouter = xcm_config::DoNothingRouter;
 	type XcmExecuteFilter =
-		frame_support::traits::All<(xcm::v0::MultiLocation, xcm::v0::Xcm<Call>)>;
+		frame_support::traits::Everything;
 	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
 	type XcmTeleportFilter =
-		frame_support::traits::All<(xcm::v0::MultiLocation, Vec<xcm::v0::MultiAsset>)>;
+		frame_support::traits::Everything;
 	type XcmReserveTransferFilter =
-		frame_support::traits::All<(xcm::v0::MultiLocation, Vec<xcm::v0::MultiAsset>)>;
+		frame_support::traits::Everything;
 }
 
 impl parachains_hrmp::Config for Runtime {
