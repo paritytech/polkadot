@@ -33,7 +33,8 @@ pub use error::{Error, Fatal, NonFatal, Result};
 
 /// A request coming in, including a sender for sending responses.
 ///
-/// `IncomingRequest`s are produced by `RequestMultiplexer` on behalf of the network bridge.
+/// Typed `IncomingRequest`s, see `IncomingRequest::get_config_receiver` and substrate
+/// `NetworkConfiguration` for more information.
 #[derive(Debug)]
 pub struct IncomingRequest<Req> {
 	/// `PeerId` of sending peer.
@@ -54,7 +55,7 @@ where
 	///
 	/// This Register that config with substrate networking and receive incoming requests via the
 	/// returned `IncomingRequestReceiver`.
-	pub fn get_config_receiver() -> (IncomingRequestReceiver<Self>, RequestResponseConfig) {
+	pub fn get_config_receiver() -> (IncomingRequestReceiver<Req>, RequestResponseConfig) {
 		let (raw, cfg) = Req::PROTOCOL.get_config();
 		(IncomingRequestReceiver { raw, phantom: PhantomData {} }, cfg)
 	}
