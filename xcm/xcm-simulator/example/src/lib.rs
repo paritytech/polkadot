@@ -87,10 +87,10 @@ pub fn relay_ext() -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
 	pallet_balances::GenesisConfig::<Runtime> {
-			balances: vec![(ALICE, INITIAL_BALANCE), (para_account_id(1), INITIAL_BALANCE)]
-		}
-		.assimilate_storage(&mut t)
-		.unwrap();
+		balances: vec![(ALICE, INITIAL_BALANCE), (para_account_id(1), INITIAL_BALANCE)],
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
@@ -321,9 +321,12 @@ mod tests {
 				parachain::MsgQueue::received_dmp(),
 				vec![(
 					Parent.into(),
-					QueryResponse { query_id: query_id_set, response: Response::Assets(MultiAssets::new()) }
+					QueryResponse {
+						query_id: query_id_set,
+						response: Response::Assets(MultiAssets::new())
+					}
 				)]
 			);
 		});
 	}
-}	
+}

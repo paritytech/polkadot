@@ -224,7 +224,7 @@ pub mod mock_msg_queue {
 						// we just report the weight used.
 						Outcome::Incomplete(w, e) => (Ok(w), Event::Fail(Some(hash), e)),
 					}
-				},
+				}
 				Err(()) => (Err(XcmError::UnhandledXcmVersion), Event::BadVersion(Some(hash))),
 			};
 			Self::deposit_event(event);
@@ -267,15 +267,15 @@ pub mod mock_msg_queue {
 				match maybe_msg {
 					Err(_) => {
 						Self::deposit_event(Event::InvalidFormat(id));
-					},
+					}
 					Ok(Err(())) => {
 						Self::deposit_event(Event::UnsupportedVersion(id));
-					},
+					}
 					Ok(Ok(x)) => {
 						let outcome = T::XcmExecutor::execute_xcm(Parent.into(), x.clone(), limit);
 						<ReceivedDmp<T>>::mutate(|y| y.push((Parent.into(), x)));
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
-					},
+					}
 				}
 			}
 			limit
