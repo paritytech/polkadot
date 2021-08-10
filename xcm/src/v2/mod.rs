@@ -262,18 +262,20 @@ pub enum Xcm<Call> {
 	/// A message to indicate that the embedded XCM is actually arriving on behalf of some consensus
 	/// location within the origin.
 	///
-	/// Safety: `who` must be an interior location of the context. This basically means that no `Parent`
-	/// junctions are allowed in it. This should be verified at the time of XCM execution.
-	///
 	/// Kind: *Instruction*
 	///
 	/// Errors:
 	#[codec(index = 10)]
-	RelayedFrom { who: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
+	RelayedFrom { who: Junctions, message: alloc::boxed::Box<Xcm<Call>> },
 
-	/// Attempt execution of the inner `xcm` message and then report the outcome of that `dest`.
+	/// Attempt execution of the inner `message` and then report the outcome of that `dest`.
 	///
-	/// A `QueryResponse` message is sent to `dest` with the given `query_id` following the
+	/// A `QueryResponse` message is sent to `dest` with the given `query_id` and the outcome of
+	/// executing the `message`.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
 	Report { query_id: u64, dest: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> }
 }
 
