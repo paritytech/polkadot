@@ -634,7 +634,7 @@ where
 	Executor: NativeExecutionDispatch + 'static,
 	OverseerGenerator: OverseerGen,
 {
-    use polkadot_node_network_protocol::request_response::IncomingRequest;
+	use polkadot_node_network_protocol::request_response::IncomingRequest;
 
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;

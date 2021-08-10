@@ -21,10 +21,10 @@ use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
+use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
 use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandle};
 use polkadot_primitives::v1::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
-use polkadot_node_network_protocol::request_response::{IncomingRequestReceiver, v1 as request_v1};
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
 use sp_api::ProvideRuntimeApi;
@@ -77,7 +77,8 @@ where
 	pub pov_req_receiver: IncomingRequestReceiver<request_v1::PoVFetchingRequest>,
 	pub chunk_req_receiver: IncomingRequestReceiver<request_v1::ChunkFetchingRequest>,
 	pub collation_req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
-	pub available_data_req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+	pub available_data_req_receiver:
+		IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 	pub statement_req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
 	pub dispute_req_receiver: IncomingRequestReceiver<request_v1::DisputeRequest>,
 	/// Prometheus registry, commonly used for production systems, less so for test.
@@ -167,7 +168,9 @@ where
 			IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver },
 			Metrics::register(registry)?,
 		),
-		availability_recovery: AvailabilityRecoverySubsystem::with_chunks_only(available_data_req_receiver),
+		availability_recovery: AvailabilityRecoverySubsystem::with_chunks_only(
+			available_data_req_receiver,
+		),
 		availability_store: AvailabilityStoreSubsystem::new(
 			parachains_db.clone(),
 			availability_config,

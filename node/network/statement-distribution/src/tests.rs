@@ -22,7 +22,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_network_protocol::{
 	request_response::{
 		v1::{StatementFetchingRequest, StatementFetchingResponse},
-		Recipient, Requests,
+		IncomingRequest, Recipient, Requests,
 	},
 	view, ObservedRole,
 };
@@ -699,11 +699,14 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
+	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
+
 	let bg = async move {
-		let s = StatementDistribution {
-			metrics: Default::default(),
-			keystore: Arc::new(LocalKeystore::in_memory()),
-		};
+		let s = StatementDistribution::new(
+			Arc::new(LocalKeystore::in_memory()),
+			statement_req_receiver,
+			Default::default(),
+		);
 		s.run(ctx).await.unwrap();
 	};
 
@@ -888,21 +891,18 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
+	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
+
 	let bg = async move {
-		let s =
-			StatementDistribution { metrics: Default::default(), keystore: make_ferdie_keystore() };
+		let s = StatementDistribution::new(
+			make_ferdie_keystore(),
+			statement_req_receiver,
+			Default::default(),
+		);
 		s.run(ctx).await.unwrap();
 	};
 
-	let (mut tx_reqs, rx_reqs) = mpsc::channel(1);
-
 	let test_fut = async move {
-		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::StatementFetchingReceiver(rx_reqs),
-			})
-			.await;
-
 		// register our active heads.
 		handle
 			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
@@ -1290,7 +1290,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			payload: inner_req.encode(),
 			pending_response,
 		};
-		tx_reqs.send(req).await.unwrap();
+		req_cfg.inbound_queue.as_mut().unwrap().send(req).await.unwrap();
 		assert_matches!(
 			response_rx.await.unwrap().result,
 			Err(()) => {}
@@ -1308,7 +1308,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			payload: inner_req.encode(),
 			pending_response,
 		};
-		tx_reqs.send(req).await.unwrap();
+		req_cfg.inbound_queue.as_mut().unwrap().send(req).await.unwrap();
 		assert_matches!(
 			response_rx.await.unwrap().result,
 			Err(()) => {}
@@ -1325,7 +1325,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 			payload: inner_req.encode(),
 			pending_response,
 		};
-		tx_reqs.send(req).await.unwrap();
+		req_cfg.inbound_queue.as_mut().unwrap().send(req).await.unwrap();
 		let StatementFetchingResponse::Statement(committed) =
 			Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
 		assert_eq!(committed, candidate);
@@ -1390,21 +1390,18 @@ fn share_prioritizes_backing_group() {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
+	let (statement_req_receiver, mut req_cfg) = IncomingRequest::get_config_receiver();
+
 	let bg = async move {
-		let s =
-			StatementDistribution { metrics: Default::default(), keystore: make_ferdie_keystore() };
+		let s = StatementDistribution::new(
+			make_ferdie_keystore(),
+			statement_req_receiver,
+			Default::default(),
+		);
 		s.run(ctx).await.unwrap();
 	};
 
-	let (mut tx_reqs, rx_reqs) = mpsc::channel(1);
-
 	let test_fut = async move {
-		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::StatementFetchingReceiver(rx_reqs),
-			})
-			.await;
-
 		// register our active heads.
 		handle
 			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
@@ -1632,7 +1629,7 @@ fn share_prioritizes_backing_group() {
 			payload: inner_req.encode(),
 			pending_response,
 		};
-		tx_reqs.send(req).await.unwrap();
+		req_cfg.inbound_queue.as_mut().unwrap().send(req).await.unwrap();
 		let StatementFetchingResponse::Statement(committed) =
 			Decode::decode(&mut response_rx.await.unwrap().result.unwrap().as_ref()).unwrap();
 		assert_eq!(committed, candidate);
@@ -1679,21 +1676,17 @@ fn peer_cant_flood_with_large_statements() {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
+	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver();
 	let bg = async move {
-		let s =
-			StatementDistribution { metrics: Default::default(), keystore: make_ferdie_keystore() };
+		let s = StatementDistribution::new(
+			make_ferdie_keystore(),
+			statement_req_receiver,
+			Default::default(),
+		);
 		s.run(ctx).await.unwrap();
 	};
 
-	let (_, rx_reqs) = mpsc::channel(1);
-
 	let test_fut = async move {
-		handle
-			.send(FromOverseer::Communication {
-				msg: StatementDistributionMessage::StatementFetchingReceiver(rx_reqs),
-			})
-			.await;
-
 		// register our active heads.
 		handle
 			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
