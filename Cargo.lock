@@ -7143,7 +7143,6 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
- "sc-network",
  "sp-application-crypto",
  "sp-core",
  "sp-keyring",

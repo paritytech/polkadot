@@ -22,7 +22,7 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
-use futures::channel::{mpsc, oneshot};
+use futures::channel::oneshot;
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
@@ -659,8 +659,6 @@ pub enum StatementDistributionMessage {
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
-	/// Get receiver for receiving incoming network requests for statement fetching.
-	StatementFetchingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
