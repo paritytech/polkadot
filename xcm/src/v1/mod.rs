@@ -372,7 +372,7 @@ impl<Call> TryFrom<Xcm0<Call>> for Xcm<Call> {
 			Xcm0::Transact { origin_type, require_weight_at_most, call } =>
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			Xcm0::RelayedFrom { who, message } => RelayedFrom {
-				who: who.try_into()?,
+				who: MultiLocation::try_from(who)?.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
 		})
