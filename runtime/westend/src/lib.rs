@@ -1124,7 +1124,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(RemoveCollectiveFlip, MigratePalletVersionToStorageVersion),
+	MigratePalletVersionToStorageVersion,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1137,16 +1137,6 @@ impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
 		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
 			AllPalletsWithSystem,
 		>(&RocksDbWeight::get())
-	}
-}
-
-pub struct RemoveCollectiveFlip;
-impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
-	fn on_runtime_upgrade() -> Weight {
-		use frame_support::storage::migration;
-		// Remove the storage value `RandomMaterial` from removed pallet `RandomnessCollectiveFlip`
-		migration::remove_storage_prefix(b"RandomnessCollectiveFlip", b"RandomMaterial", b"");
-		<Runtime as frame_system::Config>::DbWeight::get().writes(1)
 	}
 }
 
