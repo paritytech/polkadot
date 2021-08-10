@@ -178,6 +178,8 @@ fn teleport_to_statemine_works() {
 			Order::DepositAsset { assets: vec![All], dest: X2(Parent, Parachain(PARA_ID)) },
 		];
 		let weight = 3 * BaseXcmWeight::get();
+		
+		// teleports not allowed to community chains...
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
