@@ -15,19 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::weights::Weight;
-
 use sp_runtime::traits::AccountIdConversion;
-
-
 use polkadot_parachain::primitives::Id as ParaId;
-
 use xcm::opaque::v0::prelude::*;
 use xcm::opaque::v0::{Response};
 use xcm::v0::{MultiLocation::*, Order};
 use xcm_executor::XcmExecutor;
-
 use crate::mock;
-
 use crate::integration_mock::{
 	AccountId, Balances, BaseXcmWeight, ExistentialDeposit, kusama_like_with_balances, XcmConfig
 };
