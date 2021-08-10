@@ -1714,8 +1714,8 @@ pub fn kusama_local_testnet_config() -> Result<KusamaChainSpec, String> {
 	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
 
 	Ok(KusamaChainSpec::from_genesis(
-		"Kusama Local Testnet",
-		"kusama_local_testnet",
+		"Kusama",
+		"kusama",
 		ChainType::Local,
 		move || kusama_local_testnet_genesis(wasm_binary),
 		vec![],
