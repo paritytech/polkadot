@@ -28,9 +28,8 @@ use thiserror::Error;
 pub use sc_network::IfDisconnected;
 
 use polkadot_node_network_protocol::{
-	peer_set::PeerSet,
-	request_response::{v1 as req_res_v1, IncomingRequest, Requests},
-	v1 as protocol_v1, PeerId, UnifiedReputationChange,
+	peer_set::PeerSet, request_response::Requests, v1 as protocol_v1, PeerId,
+	UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
@@ -404,9 +403,6 @@ pub enum AvailabilityRecoveryMessage {
 		Option<GroupIndex>, // Optional backing group to request from first.
 		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
 	),
-	/// Incoming network request for available data.
-	#[from]
-	AvailableDataFetchingRequest(IncomingRequest<req_res_v1::AvailableDataFetchingRequest>),
 }
 
 /// Bitfield distribution message.
