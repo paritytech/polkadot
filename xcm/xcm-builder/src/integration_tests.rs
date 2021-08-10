@@ -193,7 +193,8 @@ fn teleport_to_statemine_works() {
 			},
 			weight,
 		);
-		// teleports not allowed to community chains
+		
+		// ... but is allowed from statemine to kusama. 
 		assert_eq!(r, Outcome::Incomplete(weight, XcmError::UntrustedTeleportLocation));
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
