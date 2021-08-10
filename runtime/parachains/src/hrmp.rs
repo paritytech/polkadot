@@ -1066,7 +1066,7 @@ impl<T: Config> Pallet<T> {
 
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::opaque::{v1::Xcm, VersionedXcm};
+			use xcm::opaque::{latest::Xcm, VersionedXcm};
 
 			VersionedXcm::from(Xcm::HrmpChannelAccepted { recipient: u32::from(origin) }).encode()
 		};
@@ -1106,7 +1106,7 @@ impl<T: Config> Pallet<T> {
 		let config = <configuration::Pallet<T>>::config();
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::opaque::{v1::Xcm, VersionedXcm};
+			use xcm::opaque::{latest::Xcm, VersionedXcm};
 
 			VersionedXcm::from(Xcm::HrmpChannelClosing {
 				initiator: u32::from(origin),
