@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::convert::TryInto;
 use crate::mock::*;
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
+use std::convert::TryInto;
 use xcm::v1::prelude::*;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
