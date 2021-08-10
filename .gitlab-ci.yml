@@ -238,7 +238,7 @@ generate-impl-guide:
   script:
     - mdbook build roadmap/implementers-guide
 
-build-rust-doc:
+build-rustdoc:
   stage:                           build
   <<:                              *docker-env
   <<:                              *rules-test
@@ -421,7 +421,7 @@ publish-s3-release:                &publish-s3
     - aws s3 ls s3://${AWS_BUCKET}/${PREFIX}/${EXTRATAG}/
         --recursive --human-readable --summarize
 
-publish-docs:
+publish-rustdoc:
   stage:                           publish
   <<:                              *kubernetes-env
   image:                           paritytech/tools:latest
