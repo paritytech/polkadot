@@ -20,10 +20,7 @@ use polkadot_runtime_parachains::origin;
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
-use xcm::{
-	latest::prelude::*,
-	opaque::latest::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
-};
+use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
@@ -54,15 +51,15 @@ construct_runtime!(
 );
 
 thread_local! {
-	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm)>> = RefCell::new(Vec::new());
+	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
 }
-pub fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
+pub fn sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
 /// Sender that never returns error, always sends
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> SendResult {
+	fn send_xcm(dest: MultiLocation, msg: Xcm<()>) -> SendResult {
 		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
 		Ok(())
 	}
@@ -70,9 +67,9 @@ impl SendXcm for TestSendXcm {
 /// Sender that returns error if `X8` junction and stops routing
 pub struct TestSendXcmErrX8;
 impl SendXcm for TestSendXcmErrX8 {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> SendResult {
+	fn send_xcm(dest: MultiLocation, msg: Xcm<()>) -> SendResult {
 		if dest.len() == 8 {
-			Err(SendError::Transport)
+			Err(SendError::Transport("Destination location full"))
 		} else {
 			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
 			Ok(())
