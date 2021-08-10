@@ -295,7 +295,7 @@ impl<Call> Xcm<Call> {
 			},
 			TeleportAsset { assets, effects } =>
 				TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
-			QueryResponse { query_id: u64, response } => QueryResponse { query_id: u64, response },
+			QueryResponse { query_id, response } => QueryResponse { query_id, response },
 			TransferAsset { assets, dest } => TransferAsset { assets, dest },
 			TransferReserveAsset { assets, dest, effects } =>
 				TransferReserveAsset { assets, dest, effects },

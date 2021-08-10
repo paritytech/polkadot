@@ -17,15 +17,10 @@
 //! Version 1 of the Cross-Consensus Message format data structures.
 
 use super::{
-	super::v0::Order as OldOrder,
-	super::v2::Order as NewOrder,
-	MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
+	super::v1::Order as OldOrder, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
 };
-use alloc::{vec, vec::Vec};
-use core::{
-	convert::{TryFrom, TryInto},
-	result,
-};
+use alloc::vec::Vec;
+use core::{convert::TryFrom, result};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
@@ -195,70 +190,13 @@ impl<Call> TryFrom<OldOrder<Call>> for Order<Call> {
 	fn try_from(old: OldOrder<Call>) -> result::Result<Order<Call>, ()> {
 		use Order::*;
 		Ok(match old {
-			OldOrder::Null => Noop,
-			OldOrder::DepositAsset { assets, dest } => DepositAsset {
-				assets: assets.try_into()?,
-				max_assets: 1,
-				beneficiary: dest.try_into()?,
-			},
-			OldOrder::DepositReserveAsset { assets, dest, effects } => DepositReserveAsset {
-				assets: assets.try_into()?,
-				max_assets: 1,
-				dest: dest.try_into()?,
-				effects: effects
-					.into_iter()
-					.map(Order::<()>::try_from)
-					.collect::<result::Result<_, _>>()?,
-			},
-			OldOrder::ExchangeAsset { give, receive } =>
-				ExchangeAsset { give: give.try_into()?, receive: receive.try_into()? },
-			OldOrder::InitiateReserveWithdraw { assets, reserve, effects } =>
-				InitiateReserveWithdraw {
-					assets: assets.try_into()?,
-					reserve: reserve.try_into()?,
-					effects: effects
-						.into_iter()
-						.map(Order::<()>::try_from)
-						.collect::<result::Result<_, _>>()?,
-				},
-			OldOrder::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
-				assets: assets.try_into()?,
-				dest: dest.try_into()?,
-				effects: effects
-					.into_iter()
-					.map(Order::<()>::try_from)
-					.collect::<result::Result<_, _>>()?,
-			},
-			OldOrder::QueryHolding { query_id, dest, assets } =>
-				QueryHolding { query_id, dest: dest.try_into()?, assets: assets.try_into()? },
-			OldOrder::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
-				let instructions =
-					xcm.into_iter().map(Xcm::<Call>::try_from).collect::<result::Result<_, _>>()?;
-				BuyExecution {
-					fees: fees.try_into()?,
-					weight,
-					debt,
-					halt_on_error,
-					orders: vec![],
-					instructions,
-				}
-			},
-		})
-	}
-}
-
-impl<Call> TryFrom<NewOrder<Call>> for Order<Call> {
-	type Error = ();
-	fn try_from(old: NewOrder<Call>) -> result::Result<Order<Call>, ()> {
-		use Order::*;
-		Ok(match old {
-			NewOrder::Noop => Noop,
-			NewOrder::DepositAsset { assets, max_assets, beneficiary } => DepositAsset {
+			OldOrder::Noop => Noop,
+			OldOrder::DepositAsset { assets, max_assets, beneficiary } => DepositAsset {
 				assets,
 				max_assets,
 				beneficiary,
 			},
-			NewOrder::DepositReserveAsset { assets, max_assets, dest, effects } => DepositReserveAsset {
+			OldOrder::DepositReserveAsset { assets, max_assets, dest, effects } => DepositReserveAsset {
 				assets,
 				max_assets,
 				dest,
@@ -267,8 +205,8 @@ impl<Call> TryFrom<NewOrder<Call>> for Order<Call> {
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			NewOrder::ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
-			NewOrder::InitiateReserveWithdraw { assets, reserve, effects } =>
+			OldOrder::ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
+			OldOrder::InitiateReserveWithdraw { assets, reserve, effects } =>
 				InitiateReserveWithdraw {
 					assets,
 					reserve,
@@ -277,7 +215,7 @@ impl<Call> TryFrom<NewOrder<Call>> for Order<Call> {
 						.map(Order::<()>::try_from)
 						.collect::<result::Result<_, _>>()?,
 				},
-			NewOrder::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
+			OldOrder::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
 				assets,
 				dest,
 				effects: effects
@@ -285,9 +223,9 @@ impl<Call> TryFrom<NewOrder<Call>> for Order<Call> {
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			NewOrder::QueryHolding { query_id, dest, assets } =>
+			OldOrder::QueryHolding { query_id, dest, assets } =>
 				QueryHolding { query_id, dest, assets },
-			NewOrder::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } =>
+			OldOrder::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } =>
 				BuyExecution {
 					fees,
 					weight,
