@@ -34,6 +34,13 @@ use std::{
 
 pub use metered_channel as metered;
 
+/// Memory allocation stats tracking.
+#[cfg(feature = "memory-stats")]
+pub mod memory_stats;
+
+#[cfg(feature = "memory-stats")]
+pub use self::memory_stats::{MemoryAllocationSnapshot, MemoryAllocationTracker};
+
 /// This module reexports Prometheus types and defines the [`Metrics`] trait.
 pub mod metrics {
 	/// Reexport Substrate Prometheus types.
