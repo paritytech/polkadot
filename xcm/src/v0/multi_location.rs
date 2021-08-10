@@ -16,9 +16,9 @@
 
 //! Cross-Consensus Message format data structures.
 
-use core::{mem, result};
-
-use super::{super::v1::MultiLocation as MultiLocation1, Junction};
+use super::Junction;
+use crate::v1::MultiLocation as MultiLocation1;
+use core::{convert::TryFrom, mem, result};
 use parity_scale_codec::{self, Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.
@@ -696,20 +696,68 @@ impl MultiLocation {
 	}
 }
 
-impl From<MultiLocation1> for MultiLocation {
-	fn from(old: MultiLocation1) -> Self {
-		use MultiLocation::*;
-		match old {
-			MultiLocation1::Here => Null,
-			MultiLocation1::X1(j0) => X1(j0),
-			MultiLocation1::X2(j0, j1) => X2(j0, j1),
-			MultiLocation1::X3(j0, j1, j2) => X3(j0, j1, j2),
-			MultiLocation1::X4(j0, j1, j2, j3) => X4(j0, j1, j2, j3),
-			MultiLocation1::X5(j0, j1, j2, j3, j4) => X5(j0, j1, j2, j3, j4),
-			MultiLocation1::X6(j0, j1, j2, j3, j4, j5) => X6(j0, j1, j2, j3, j4, j5),
-			MultiLocation1::X7(j0, j1, j2, j3, j4, j5, j6) => X7(j0, j1, j2, j3, j4, j5, j6),
-			MultiLocation1::X8(j0, j1, j2, j3, j4, j5, j6, j7) =>
-				X8(j0, j1, j2, j3, j4, j5, j6, j7),
+impl TryFrom<MultiLocation1> for MultiLocation {
+	type Error = ();
+	fn try_from(v1: MultiLocation1) -> result::Result<Self, ()> {
+		use crate::v1::Junctions::*;
+		let mut res = Self::Null;
+
+		for _ in 0..v1.parents {
+			res.push(Junction::Parent)?;
+		}
+
+		match v1.interior {
+			Here => Ok(res),
+			X1(j0) => res.pushed_with(Junction::from(j0)).map_err(|_| ()),
+			X2(j0, j1) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.map_err(|_| ()),
+			X3(j0, j1, j2) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.map_err(|_| ()),
+			X4(j0, j1, j2, j3) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.map_err(|_| ()),
+			X5(j0, j1, j2, j3, j4) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.map_err(|_| ()),
+			X6(j0, j1, j2, j3, j4, j5) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.and_then(|res| res.pushed_with(Junction::from(j5)))
+				.map_err(|_| ()),
+			X7(j0, j1, j2, j3, j4, j5, j6) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.and_then(|res| res.pushed_with(Junction::from(j5)))
+				.and_then(|res| res.pushed_with(Junction::from(j6)))
+				.map_err(|_| ()),
+			X8(j0, j1, j2, j3, j4, j5, j6, j7) => res
+				.pushed_with(Junction::from(j0))
+				.and_then(|res| res.pushed_with(Junction::from(j1)))
+				.and_then(|res| res.pushed_with(Junction::from(j2)))
+				.and_then(|res| res.pushed_with(Junction::from(j3)))
+				.and_then(|res| res.pushed_with(Junction::from(j4)))
+				.and_then(|res| res.pushed_with(Junction::from(j5)))
+				.and_then(|res| res.pushed_with(Junction::from(j6)))
+				.and_then(|res| res.pushed_with(Junction::from(j7)))
+				.map_err(|_| ()),
 		}
 	}
 }

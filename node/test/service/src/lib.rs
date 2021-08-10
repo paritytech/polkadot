@@ -41,7 +41,7 @@ use sc_network::{
 	multiaddr,
 };
 use service::{
-	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
+	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
 	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskExecutor, TaskManager,
 	TransactionStorageMode,
 };
@@ -146,7 +146,7 @@ pub fn node_config(
 		network: network_config,
 		keystore: KeystoreConfig::InMemory,
 		keystore_remote: Default::default(),
-		database: DatabaseConfig::RocksDb { path: root.join("db"), cache_size: 128 },
+		database: DatabaseSource::RocksDb { path: root.join("db"), cache_size: 128 },
 		state_cache_size: 16777216,
 		state_cache_child_ratio: None,
 		state_pruning: Default::default(),

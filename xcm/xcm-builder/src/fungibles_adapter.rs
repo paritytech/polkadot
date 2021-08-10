@@ -38,18 +38,24 @@ impl<Prefix: Get<MultiLocation>, AssetId: Clone, ConvertAssetId: Convert<u128, A
 	fn convert_ref(id: impl Borrow<MultiLocation>) -> result::Result<AssetId, ()> {
 		let prefix = Prefix::get();
 		let id = id.borrow();
-		if !prefix.iter().enumerate().all(|(index, item)| id.at(index) == Some(item)) {
+		if prefix.parent_count() != id.parent_count() ||
+			prefix
+				.interior()
+				.iter()
+				.enumerate()
+				.any(|(index, junction)| id.interior().at(index) != Some(junction))
+		{
 			return Err(())
 		}
-		match id.at(prefix.len()) {
-			Some(Junction::GeneralIndex { id }) => ConvertAssetId::convert_ref(id),
+		match id.interior().at(prefix.interior().len()) {
+			Some(Junction::GeneralIndex(id)) => ConvertAssetId::convert_ref(id),
 			_ => Err(()),
 		}
 	}
 	fn reverse_ref(what: impl Borrow<AssetId>) -> result::Result<MultiLocation, ()> {
 		let mut location = Prefix::get();
 		let id = ConvertAssetId::reverse_ref(what)?;
-		location.push(Junction::GeneralIndex { id }).map_err(|_| ())?;
+		location.push_interior(Junction::GeneralIndex(id))?;
 		Ok(location)
 	}
 }
