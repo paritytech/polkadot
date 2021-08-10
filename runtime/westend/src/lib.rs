@@ -908,8 +908,9 @@ pub type XcmRouter = (
 );
 
 parameter_types! {
+	pub const Westmint: MultiLocation = Parachain(1000).into();
 	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Parachain(1000).into());
+		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Westmint::get());
 }
 pub type TrustedTeleporters = (xcm_builder::Case<WestendForWestmint>,);
 
@@ -1466,7 +1467,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = LocationConverter;
-				type ValidDestination = Westend;
+				type ValidDestination = Westmint;
 			}
 
 			impl pallet_xcm_benchmarks::xcm_generic::Config for Runtime {
