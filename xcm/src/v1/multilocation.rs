@@ -247,7 +247,7 @@ impl MultiLocation {
 	/// ```rust
 	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
-	/// let mut m = MultiLocation::new(1, X2(Parachain(21)));
+	/// let mut m = MultiLocation::new(1, X1(Parachain(21)));
 	/// assert_eq!(m.append_with(X1(PalletInstance(3))), Ok(()));
 	/// assert_eq!(m, MultiLocation::new(1, X2(Parachain(21), PalletInstance(3))));
 	/// # }
