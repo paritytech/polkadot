@@ -41,6 +41,9 @@ pub use config::Config;
 /// The XCM executor.
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
+/// The maximum recursion limit for `execute_xcm` and `execute_effects`.
+pub const MAX_RECURSION_LIMIT: u32 = 8;
+
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	fn execute_xcm_in_credit(
 		origin: MultiLocation,
@@ -56,7 +59,6 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			weight_limit,
 			weight_credit,
 		);
-		// TODO: #2841 #HARDENXCM We should identify recursive bombs here and bail.
 		let mut message = Xcm::<Config::Call>::from(message);
 		let shallow_weight = match Config::Weigher::shallow(&mut message) {
 			Ok(x) => x,
@@ -81,6 +83,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			&mut weight_credit,
 			Some(shallow_weight),
 			&mut trader,
+			0,
 		);
 		drop(trader);
 		log::trace!(target: "xcm::execute_xcm", "result: {:?}", &result);
@@ -110,16 +113,23 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		weight_credit: &mut Weight,
 		maybe_shallow_weight: Option<Weight>,
 		trader: &mut Config::Trader,
+		num_recursions: u32,
 	) -> Result<Weight, XcmError> {
 		log::trace!(
 			target: "xcm::do_execute_xcm",
-			"origin: {:?}, top_level: {:?}, message: {:?}, weight_credit: {:?}, maybe_shallow_weight: {:?}",
+			"origin: {:?}, top_level: {:?}, message: {:?}, weight_credit: {:?}, maybe_shallow_weight: {:?}, recursion: {:?}",
 			origin,
 			top_level,
 			message,
 			weight_credit,
 			maybe_shallow_weight,
+			num_recursions,
 		);
+
+		if num_recursions > MAX_RECURSION_LIMIT {
+			return Err(XcmError::RecursionLimitReached)
+		}
+
 		// This is the weight of everything that cannot be paid for. This basically means all computation
 		// except any XCM which is behind an Order::BuyExecution.
 		let shallow_weight = maybe_shallow_weight
@@ -242,8 +252,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(who.is_interior(), XcmError::EscalationOfPrivilege);
 				let mut origin = origin;
 				origin.append_with(who).map_err(|_| XcmError::MultiLocationFull)?;
-				let surplus =
-					Self::do_execute_xcm(origin, top_level, *message, weight_credit, None, trader)?;
+				let surplus = Self::do_execute_xcm(
+					origin,
+					top_level,
+					*message,
+					weight_credit,
+					None,
+					trader,
+					num_recursions + 1,
+				)?;
 				total_surplus = total_surplus.saturating_add(surplus);
 				None
 			},
@@ -251,8 +268,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		};
 
 		if let Some((mut holding, effects)) = maybe_holding_effects {
-			for effect in effects.into_iter() {
-				total_surplus += Self::execute_effects(&origin, &mut holding, effect, trader)?;
+			for effect in effects {
+				total_surplus += Self::execute_effects(
+					&origin,
+					&mut holding,
+					effect,
+					trader,
+					num_recursions + 1,
+				)?;
 			}
 		}
 
@@ -264,14 +287,21 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		holding: &mut Assets,
 		effect: Order<Config::Call>,
 		trader: &mut Config::Trader,
+		num_recursions: u32,
 	) -> Result<Weight, XcmError> {
 		log::trace!(
 			target: "xcm::execute_effects",
-			"origin: {:?}, holding: {:?}, effect: {:?}",
+			"origin: {:?}, holding: {:?}, effect: {:?}, recursion: {:?}",
 			origin,
 			holding,
 			effect,
+			num_recursions,
 		);
+
+		if num_recursions > MAX_RECURSION_LIMIT {
+			return Err(XcmError::RecursionLimitReached)
+		}
+
 		let mut total_surplus = 0;
 		match effect {
 			Order::DepositAsset { assets, dest } => {
@@ -317,7 +347,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				holding.saturating_subsume_all(unspent);
 
 				let mut remaining_weight = weight;
-				for message in xcm.into_iter() {
+				for message in xcm {
 					match Self::do_execute_xcm(
 						origin.clone(),
 						false,
@@ -325,6 +355,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						&mut remaining_weight,
 						None,
 						trader,
+						num_recursions + 1,
 					) {
 						Err(e) if halt_on_error => return Err(e),
 						Err(_) => {},
