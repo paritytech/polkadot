@@ -50,9 +50,11 @@ mod config;
 mod errors;
 mod spans;
 
-pub use self::config::{JaegerConfig, JaegerConfigBuilder};
-pub use self::errors::JaegerError;
-pub use self::spans::{PerLeafSpan, Span, Stage};
+pub use self::{
+	config::{JaegerConfig, JaegerConfigBuilder},
+	errors::JaegerError,
+	spans::{PerLeafSpan, Span, Stage},
+};
 
 use self::spans::TraceIdentifier;
 
@@ -84,13 +86,13 @@ impl Jaeger {
 		Jaeger::Prep(cfg)
 	}
 
-	/// Spawn the background task in order to send the tracing information out via udp
+	/// Spawn the background task in order to send the tracing information out via UDP
 	#[cfg(target_os = "unknown")]
 	pub fn launch<S: SpawnNamed>(self, _spawner: S) -> result::Result<(), JaegerError> {
 		Ok(())
 	}
 
-	/// Spawn the background task in order to send the tracing information out via udp
+	/// Spawn the background task in order to send the tracing information out via UDP
 	#[cfg(not(target_os = "unknown"))]
 	pub fn launch<S: SpawnNamed>(self, spawner: S) -> result::Result<(), JaegerError> {
 		let cfg = match self {
@@ -103,8 +105,9 @@ impl Jaeger {
 
 		log::info!("🐹 Collecting jaeger spans for {:?}", &jaeger_agent);
 
-		let (traces_in, mut traces_out) =
-			mick_jaeger::init(mick_jaeger::Config { service_name: format!("polkadot-{}", cfg.node_name) });
+		let (traces_in, mut traces_out) = mick_jaeger::init(mick_jaeger::Config {
+			service_name: format!("polkadot-{}", cfg.node_name),
+		});
 
 		// Spawn a background task that pulls span information and sends them on the network.
 		spawner.spawn(
@@ -120,7 +123,7 @@ impl Jaeger {
 					},
 					Err(e) => {
 						log::warn!(target: "jaeger", "UDP socket open error: {}", e);
-					}
+					},
 				}
 			}),
 		);

@@ -16,16 +16,17 @@
 
 //! Metered variant of mpsc channels to be able to extract metrics.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{
+	atomic::{AtomicUsize, Ordering},
+	Arc,
+};
 
 use derive_more::{Add, Display};
 
 mod bounded;
 mod unbounded;
 
-pub use self::bounded::*;
-pub use self::unbounded::*;
+pub use self::{bounded::*, unbounded::*};
 
 /// A peek into the inner state of a meter.
 #[derive(Debug, Clone, Default)]
@@ -74,8 +75,7 @@ impl Meter {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::executor::block_on;
-	use futures::StreamExt;
+	use futures::{executor::block_on, StreamExt};
 
 	#[derive(Clone, Copy, Debug, Default)]
 	struct Msg {
@@ -137,8 +137,8 @@ mod tests {
 		});
 	}
 
-	use std::time::Duration;
 	use futures_timer::Delay;
+	use std::time::Duration;
 
 	#[test]
 	fn stream_and_sink() {
@@ -169,14 +169,13 @@ mod tests {
 	#[test]
 	fn failed_send_does_not_inc_sent() {
 		let (mut bounded, _) = channel::<Msg>(5);
-		let (mut unbounded, _) = unbounded::<Msg>();
+		let (unbounded, _) = unbounded::<Msg>();
 
 		block_on(async move {
 			assert!(bounded.send(Msg::default()).await.is_err());
 			assert!(bounded.try_send(Msg::default()).is_err());
 			assert_eq!(bounded.meter().read(), Readout { sent: 0, received: 0 });
 
-			assert!(unbounded.send(Msg::default()).await.is_err());
 			assert!(unbounded.unbounded_send(Msg::default()).is_err());
 			assert_eq!(unbounded.meter().read(), Readout { sent: 0, received: 0 });
 		});

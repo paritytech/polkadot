@@ -20,12 +20,13 @@ use crate::LOG_TARGET;
 use async_std::{
 	io,
 	os::unix::net::{UnixListener, UnixStream},
-	path::{PathBuf, Path},
+	path::{Path, PathBuf},
 };
 use futures::{
-	AsyncRead, AsyncWrite, AsyncReadExt as _, AsyncWriteExt as _, FutureExt as _, never::Never,
+	never::Never, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, FutureExt as _,
 };
 use futures_timer::Delay;
+use pin_project::pin_project;
 use rand::Rng;
 use std::{
 	fmt, mem,
@@ -33,7 +34,6 @@ use std::{
 	task::{Context, Poll},
 	time::Duration,
 };
-use pin_project::pin_project;
 
 /// This is publicly exposed only for integration tests.
 #[doc(hidden)]
@@ -47,9 +47,7 @@ pub async fn spawn_with_program_path(
 	with_transient_socket_path(debug_id, |socket_path| {
 		let socket_path = socket_path.to_owned();
 		async move {
-			let listener = UnixListener::bind(&socket_path)
-				.await
-				.map_err(|_| SpawnErr::Bind)?;
+			let listener = UnixListener::bind(&socket_path).await.map_err(|_| SpawnErr::Bind)?;
 
 			let handle = WorkerHandle::spawn(program_path, extra_args, socket_path)
 				.map_err(|_| SpawnErr::ProcessSpawn)?;
@@ -85,45 +83,44 @@ where
 	result
 }
 
-/// Returns a path under the location for temporary files. The file name will start with the given
-/// prefix.
+/// Returns a path under the given `dir`. The file name will start with the given prefix.
 ///
 /// There is only a certain number of retries. If exceeded this function will give up and return an
 /// error.
-pub async fn tmpfile(prefix: &str) -> io::Result<PathBuf> {
-	fn tmppath(prefix: &str) -> PathBuf {
+pub async fn tmpfile_in(prefix: &str, dir: &Path) -> io::Result<PathBuf> {
+	fn tmppath(prefix: &str, dir: &Path) -> PathBuf {
 		use rand::distributions::Alphanumeric;
 
 		const DESCRIMINATOR_LEN: usize = 10;
 
 		let mut buf = Vec::with_capacity(prefix.len() + DESCRIMINATOR_LEN);
 		buf.extend(prefix.as_bytes());
-		buf.extend(
-			rand::thread_rng()
-				.sample_iter(&Alphanumeric)
-				.take(DESCRIMINATOR_LEN),
-		);
+		buf.extend(rand::thread_rng().sample_iter(&Alphanumeric).take(DESCRIMINATOR_LEN));
 
 		let s = std::str::from_utf8(&buf)
 			.expect("the string is collected from a valid utf-8 sequence; qed");
 
-		let mut temp_dir = PathBuf::from(std::env::temp_dir());
-		temp_dir.push(s);
-		temp_dir
+		let mut file = dir.to_owned();
+		file.push(s);
+		file
 	}
 
 	const NUM_RETRIES: usize = 50;
 
 	for _ in 0..NUM_RETRIES {
-		let candidate_path = tmppath(prefix);
+		let candidate_path = tmppath(prefix, dir);
 		if !candidate_path.exists().await {
 			return Ok(candidate_path)
 		}
 	}
 
-	Err(
-		io::Error::new(io::ErrorKind::Other, "failed to create a temporary file")
-	)
+	Err(io::Error::new(io::ErrorKind::Other, "failed to create a temporary file"))
+}
+
+/// The same as [`tmpfile_in`], but uses [`std::env::temp_dir`] as the directory.
+pub async fn tmpfile(prefix: &str) -> io::Result<PathBuf> {
+	let temp_dir = PathBuf::from(std::env::temp_dir());
+	tmpfile_in(prefix, &temp_dir).await
 }
 
 pub fn worker_event_loop<F, Fut>(debug_id: &'static str, socket_path: &str, mut event_loop: F)
@@ -172,7 +169,7 @@ pub enum SpawnErr {
 	Accept,
 	/// An error happened during spawning the process.
 	ProcessSpawn,
-	/// The deadline alloted for the worker spawning and connecting to the socket has elapsed.
+	/// The deadline allotted for the worker spawning and connecting to the socket has elapsed.
 	AcceptTimeout,
 }
 
@@ -182,7 +179,7 @@ pub enum SpawnErr {
 /// has been terminated. Since the worker is running in another process it is obviously not necessarily
 ///  to poll this future to make the worker run, it's only for termination detection.
 ///
-/// This future relies on the fact that a child process's stdout fd is closed upon it's termination.
+/// This future relies on the fact that a child process's stdout `fd` is closed upon it's termination.
 #[pin_project]
 pub struct WorkerHandle {
 	child: async_process::Child,
@@ -240,17 +237,17 @@ impl futures::Future for WorkerHandle {
 			Ok(0) => {
 				// 0 means EOF means the child was terminated. Resolve.
 				Poll::Ready(())
-			}
+			},
 			Ok(_bytes_read) => {
 				// weird, we've read something. Pretend that never happened and reschedule ourselves.
 				cx.waker().wake_by_ref();
 				Poll::Pending
-			}
+			},
 			Err(_) => {
 				// The implementation is guaranteed to not to return WouldBlock and Interrupted. This
 				// leaves us with a legit errors which we suppose were due to termination.
 				Poll::Ready(())
-			}
+			},
 		}
 	}
 }

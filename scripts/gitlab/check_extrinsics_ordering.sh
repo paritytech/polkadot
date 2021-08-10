@@ -5,7 +5,7 @@ set -e
 #shellcheck source=../common/lib.sh
 . "$(dirname "${0}")/../common/lib.sh"
 
-HEAD_BIN=./target/release/polkadot
+HEAD_BIN=./artifacts/polkadot
 HEAD_WS=ws://localhost:9944
 RELEASE_WS=ws://localhost:9945
 

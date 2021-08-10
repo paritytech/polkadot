@@ -14,18 +14,19 @@
 
 //! Large statement responding background task logic.
 
-use futures::{SinkExt, StreamExt, channel::{mpsc, oneshot}, stream::FuturesUnordered};
-
-use parity_scale_codec::Decode;
+use futures::{
+	channel::{mpsc, oneshot},
+	stream::FuturesUnordered,
+	SinkExt, StreamExt,
+};
 
 use polkadot_node_network_protocol::{
-	PeerId, UnifiedReputationChange as Rep,
 	request_response::{
-		IncomingRequest, MAX_PARALLEL_STATEMENT_REQUESTS, request::OutgoingResponse,
-		v1::{
-			StatementFetchingRequest, StatementFetchingResponse
-		},
+		request::OutgoingResponse,
+		v1::{StatementFetchingRequest, StatementFetchingResponse},
+		IncomingRequest, MAX_PARALLEL_STATEMENT_REQUESTS,
 	},
+	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
 
@@ -35,20 +36,19 @@ const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request")
 
 /// Messages coming from a background task.
 pub enum ResponderMessage {
-	/// Get an update of availble peers to try for fetching a given statement.
+	/// Get an update of available peers to try for fetching a given statement.
 	GetData {
 		requesting_peer: PeerId,
 		relay_parent: Hash,
 		candidate_hash: CandidateHash,
-		tx: oneshot::Sender<CommittedCandidateReceipt>
+		tx: oneshot::Sender<CommittedCandidateReceipt>,
 	},
 }
-
 
 /// A fetching task, taking care of fetching large statements via request/response.
 ///
 /// A fetch task does not know about a particular `Statement` instead it just tries fetching a
-/// `CommittedCandidateReceipt` from peers, whether or not this can be used to re-assemble one ore
+/// `CommittedCandidateReceipt` from peers, whether this can be used to re-assemble one ore
 /// many `SignedFullStatement`s needs to be verified by the caller.
 pub async fn respond(
 	mut receiver: mpsc::Receiver<sc_network::config::IncomingRequest>,
@@ -76,65 +76,41 @@ pub async fn respond(
 
 		let raw = match receiver.next().await {
 			None => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					"Shutting down request responder"
-				);
+				tracing::debug!(target: LOG_TARGET, "Shutting down request responder");
 				return
-			}
+			},
 			Some(v) => v,
 		};
 
-		let sc_network::config::IncomingRequest {
-			payload,
-			peer,
-			pending_response,
-		} = raw;
-
-		let payload = match StatementFetchingRequest::decode(&mut payload.as_ref()) {
+		let req = match IncomingRequest::<StatementFetchingRequest>::try_from_raw(
+			raw,
+			vec![COST_INVALID_REQUEST],
+		) {
 			Err(err) => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?err,
-					"Decoding request failed"
-				);
-				report_peer(pending_response, COST_INVALID_REQUEST);
+				tracing::debug!(target: LOG_TARGET, ?err, "Decoding request failed");
 				continue
-			}
+			},
 			Ok(payload) => payload,
 		};
 
-		let req = IncomingRequest::new(
-			peer,
-			payload,
-			pending_response
-		);
-
 		let (tx, rx) = oneshot::channel();
-		if let Err(err) = sender.feed(
-			ResponderMessage::GetData {
-				requesting_peer: peer,
+		if let Err(err) = sender
+			.feed(ResponderMessage::GetData {
+				requesting_peer: req.peer,
 				relay_parent: req.payload.relay_parent,
 				candidate_hash: req.payload.candidate_hash,
 				tx,
-			}
-		).await {
-			tracing::debug!(
-				target: LOG_TARGET,
-				?err,
-				"Shutting down responder"
-			);
+			})
+			.await
+		{
+			tracing::debug!(target: LOG_TARGET, ?err, "Shutting down responder");
 			return
 		}
 		let response = match rx.await {
 			Err(err) => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?err,
-					"Requested data not found."
-				);
+				tracing::debug!(target: LOG_TARGET, ?err, "Requested data not found.");
 				Err(())
-			}
+			},
 			Ok(v) => Ok(StatementFetchingResponse::Statement(v)),
 		};
 		let (pending_sent_tx, pending_sent_rx) = oneshot::channel();
@@ -145,27 +121,7 @@ pub async fn respond(
 		};
 		pending_out.push(pending_sent_rx);
 		if let Err(_) = req.send_outgoing_response(response) {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"Sending response failed"
-			);
+			tracing::debug!(target: LOG_TARGET, "Sending response failed");
 		}
-	}
-}
-
-/// Report peer who sent us a request.
-fn report_peer(
-	tx: oneshot::Sender<sc_network::config::OutgoingResponse>,
-	rep: Rep,
-) {
-	if let Err(_) = tx.send(sc_network::config::OutgoingResponse {
-		result: Err(()),
-		reputation_changes: vec![rep.into_base_rep()],
-		sent_feedback: None,
-	}) {
-		tracing::debug!(
-			target: LOG_TARGET,
-			"Reporting peer failed."
-		);
 	}
 }

@@ -1,0 +1,21 @@
+[package]
+name = "polkadot-overseer-gen-proc-macro"
+version = "0.9.9"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+description = "Generate an overseer including builder pattern and message wrapper from a single annotated struct definition."
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = { version = "1.0.60", features = ["full", "extra-traits"] }
+quote = "1.0.9"
+proc-macro2 = "1.0.26"
+proc-macro-crate = "1.0.0"
+
+[dev-dependencies]
+assert_matches = "1.5.0"

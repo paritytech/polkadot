@@ -14,11 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{result::Result, marker::PhantomData};
-use xcm::v0::{Xcm, Order, MultiLocation};
+//! Various implementations for `ShouldExecute`.
+
 use frame_support::{ensure, traits::Contains, weights::Weight};
+use polkadot_parachain::primitives::IsSystem;
+use sp_std::{marker::PhantomData, result::Result};
+use xcm::latest::{Junction, Junctions, MultiLocation, Order, Xcm};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
+/// Execution barrier that just takes `shallow_weight` from `weight_credit`.
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
 	fn should_execute<Call>(
@@ -33,6 +37,8 @@ impl ShouldExecute for TakeWeightCredit {
 	}
 }
 
+/// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking payments into
+/// account.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(
@@ -45,19 +51,21 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		ensure!(T::contains(origin), ());
 		ensure!(top_level, ());
 		match message {
-			Xcm::TeleportAsset { effects, .. }
-			| Xcm::WithdrawAsset { effects, ..}
-			| Xcm::ReserveAssetDeposit { effects, ..}
-			if matches!(
+			Xcm::ReceiveTeleportedAsset { effects, .. } |
+			Xcm::WithdrawAsset { effects, .. } |
+			Xcm::ReserveAssetDeposited { effects, .. }
+				if matches!(
 					effects.first(),
 					Some(Order::BuyExecution { debt, ..}) if *debt >= shallow_weight
-				)
-			=> Ok(()),
+				) =>
+				Ok(()),
 			_ => Err(()),
 		}
 	}
 }
 
+/// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`) without any payments.
+/// Use only for executions from trusted origin groups.
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	fn should_execute<Call>(
@@ -72,6 +80,19 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	}
 }
 
+/// Allows a message only if it is from a system-level child parachain.
+pub struct IsChildSystemParachain<ParaId>(PhantomData<ParaId>);
+impl<ParaId: IsSystem + From<u32>> Contains<MultiLocation> for IsChildSystemParachain<ParaId> {
+	fn contains(l: &MultiLocation) -> bool {
+		matches!(
+			l.interior(),
+			Junctions::X1(Junction::Parachain(id))
+				if ParaId::from(*id).is_system() && l.parent_count() == 0,
+		)
+	}
+}
+
+/// Allows only messages if the generic `ResponseHandler` expects them via `expecting_response`.
 pub struct AllowKnownQueryResponses<ResponseHandler>(PhantomData<ResponseHandler>);
 impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<ResponseHandler> {
 	fn should_execute<Call>(
@@ -82,8 +103,9 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		match message {
-			Xcm::QueryResponse { query_id, .. } if ResponseHandler::expecting_response(origin, *query_id)
-			=> Ok(()),
+			Xcm::QueryResponse { query_id, .. }
+				if ResponseHandler::expecting_response(origin, *query_id) =>
+				Ok(()),
 			_ => Err(()),
 		}
 	}

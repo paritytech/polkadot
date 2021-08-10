@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of Parity Bridges Common.
 
 // Parity Bridges Common is free software: you can redistribute it and/or modify
@@ -34,20 +34,20 @@ frame_support::parameter_types! {
 		kovan_validators_configuration();
 }
 
-/// Max number of finalized headers to keep. It is equivalent of ~24 hours of
-/// finalized blocks on current Kovan chain.
+/// Max number of finalized headers to keep. It is equivalent of approximately
+/// 24 hours of finalized blocks on current Kovan chain.
 const FINALIZED_HEADERS_TO_KEEP: u64 = 20_000;
 
 /// Aura engine configuration for Kovan chain.
 pub fn kovan_aura_configuration() -> AuraConfiguration {
 	AuraConfiguration {
-		empty_steps_transition: u64::max_value(),
+		empty_steps_transition: u64::MAX,
 		strict_empty_steps_transition: 0,
 		validate_step_transition: 0x16e360,
 		validate_score_transition: 0x41a3c4,
-		two_thirds_majority_transition: u64::max_value(),
+		two_thirds_majority_transition: u64::MAX,
 		min_gas_limit: 0x1388.into(),
-		max_gas_limit: U256::max_value(),
+		max_gas_limit: U256::MAX,
 		maximum_extra_data_size: 0x20,
 	}
 }

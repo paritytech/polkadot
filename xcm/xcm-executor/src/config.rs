@@ -14,18 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcm::v0::SendXcm;
-use frame_support::dispatch::{Dispatchable, Parameter};
-use frame_support::weights::{PostDispatchInfo, GetDispatchInfo};
 use crate::traits::{
-	TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, ShouldExecute, WeightTrader, WeightBounds,
-	OnResponse,
+	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
+	WeightBounds, WeightTrader,
 };
+use frame_support::{
+	dispatch::{Dispatchable, Parameter},
+	weights::{GetDispatchInfo, PostDispatchInfo},
+};
+use xcm::latest::SendXcm;
 
-/// The trait to parametrize the `XcmExecutor`.
+/// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
 	/// The outer call dispatch type.
-	type Call: Parameter + Dispatchable<PostInfo=PostDispatchInfo> + GetDispatchInfo;
+	type Call: Parameter + Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo;
 
 	/// How to send an onward XCM message.
 	type XcmSender: SendXcm;

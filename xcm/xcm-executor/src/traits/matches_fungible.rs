@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcm::v0::MultiAsset;
+use xcm::latest::MultiAsset;
 
 pub trait MatchesFungible<Balance> {
 	fn matches_fungible(a: &MultiAsset) -> Option<Balance>;
@@ -26,6 +26,7 @@ impl<Balance> MatchesFungible<Balance> for Tuple {
 		for_tuples!( #(
 			match Tuple::matches_fungible(a) { o @ Some(_) => return o, _ => () }
 		)* );
+		log::trace!(target: "xcm::matches_fungible", "did not match fungible asset: {:?}", &a);
 		None
 	}
 }

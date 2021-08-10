@@ -14,21 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::worker::{self, Outcome};
 use crate::{
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
 };
-use super::{
-	worker::{self, Outcome},
-};
-use std::{fmt, sync::Arc, task::Poll, time::Duration};
+use always_assert::never;
+use assert_matches::assert_matches;
 use async_std::path::{Path, PathBuf};
 use futures::{
-	Future, FutureExt, StreamExt, channel::mpsc, future::BoxFuture, stream::FuturesUnordered,
+	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
 };
 use slotmap::HopSlotMap;
-use assert_matches::assert_matches;
-use always_assert::never;
+use std::{fmt, sync::Arc, task::Poll, time::Duration};
 
 slotmap::new_key_type! { pub struct Worker; }
 
@@ -60,8 +58,11 @@ pub enum ToPool {
 	/// Request the given worker to start working on the given code.
 	///
 	/// Once the job either succeeded or failed, a [`FromPool::Concluded`] message will be sent back.
+	/// It's also possible that the worker dies before handling the message in which case [`FromPool::Rip`]
+	/// will be sent back.
 	///
-	/// This should not be sent again until the concluded message is received.
+	/// In either case, the worker is considered busy and no further `StartWork` messages should be
+	/// sent until either `Concluded` or `Rip` message is received.
 	StartWork {
 		worker: Worker,
 		code: Arc<Vec<u8>>,
@@ -77,7 +78,7 @@ pub enum FromPool {
 	Spawned(Worker),
 
 	/// The given worker either succeeded or failed the given job. Under any circumstances the
-	/// artifact file has been written. The bool says whether the worker ripped.
+	/// artifact file has been written. The `bool` says whether the worker ripped.
 	Concluded(Worker, bool),
 
 	/// The given worker ceased to exist.
@@ -104,6 +105,7 @@ type Mux = FuturesUnordered<BoxFuture<'static, PoolEvent>>;
 
 struct Pool {
 	program_path: PathBuf,
+	cache_path: PathBuf,
 	spawn_timeout: Duration,
 	to_pool: mpsc::Receiver<ToPool>,
 	from_pool: mpsc::UnboundedSender<FromPool>,
@@ -117,6 +119,7 @@ struct Fatal;
 async fn run(
 	Pool {
 		program_path,
+		cache_path,
 		spawn_timeout,
 		to_pool,
 		mut from_pool,
@@ -141,6 +144,7 @@ async fn run(
 				let to_pool = break_if_fatal!(to_pool.ok_or(Fatal));
 				handle_to_pool(
 					&program_path,
+					&cache_path,
 					spawn_timeout,
 					&mut spawned,
 					&mut mux,
@@ -164,7 +168,7 @@ async fn purge_dead(
 			// The idle token is missing, meaning this worker is now occupied: skip it. This is
 			// because the worker process is observed by the work task and should it reach the
 			// deadline or be terminated it will be handled by the corresponding mux event.
-			continue;
+			continue
 		}
 
 		if let Poll::Ready(()) = futures::poll!(&mut data.handle) {
@@ -173,14 +177,16 @@ async fn purge_dead(
 		}
 	}
 	for w in to_remove {
-		let _ = spawned.remove(w);
-		reply(from_pool, FromPool::Rip(w))?;
+		if spawned.remove(w).is_some() {
+			reply(from_pool, FromPool::Rip(w))?;
+		}
 	}
 	Ok(())
 }
 
 fn handle_to_pool(
 	program_path: &Path,
+	cache_path: &Path,
 	spawn_timeout: Duration,
 	spawned: &mut HopSlotMap<Worker, WorkerData>,
 	mux: &mut Mux,
@@ -188,19 +194,22 @@ fn handle_to_pool(
 ) {
 	match to_pool {
 		ToPool::Spawn => {
+			tracing::debug!(target: LOG_TARGET, "spawning a new prepare worker");
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
-		}
-		ToPool::StartWork {
-			worker,
-			code,
-			artifact_path,
-			background_priority,
-		} => {
+		},
+		ToPool::StartWork { worker, code, artifact_path, background_priority } => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					mux.push(
-						start_work_task(worker, idle, code, artifact_path, background_priority)
-							.boxed(),
+						start_work_task(
+							worker,
+							idle,
+							code,
+							cache_path.to_owned(),
+							artifact_path,
+							background_priority,
+						)
+						.boxed(),
 					);
 				} else {
 					// idle token is present after spawn and after a job is concluded;
@@ -214,16 +223,16 @@ fn handle_to_pool(
 				// That's a relatively normal situation since the queue may send `start_work` and
 				// before receiving it the pool would report that the worker died.
 			}
-		}
+		},
 		ToPool::Kill(worker) => {
+			tracing::debug!(target: LOG_TARGET, ?worker, "killing prepare worker");
 			// It may be absent if it were previously already removed by `purge_dead`.
 			let _ = spawned.remove(worker);
-		}
-		ToPool::BumpPriority(worker) => {
+		},
+		ToPool::BumpPriority(worker) =>
 			if let Some(data) = spawned.get(worker) {
 				worker::bump_priority(&data.handle);
-			}
-		}
+			},
 	}
 }
 
@@ -234,15 +243,11 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 		match worker::spawn(&program_path, spawn_timeout).await {
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"failed to spawn a prepare worker: {:?}",
-					err,
-				);
+				tracing::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err);
 
 				// Assume that the failure intermittent and retry after a delay.
 				Delay::new(Duration::from_secs(3)).await;
-			}
+			},
 		}
 	}
 }
@@ -251,10 +256,12 @@ async fn start_work_task(
 	worker: Worker,
 	idle: IdleWorker,
 	code: Arc<Vec<u8>>,
+	cache_path: PathBuf,
 	artifact_path: PathBuf,
 	background_priority: bool,
 ) -> PoolEvent {
-	let outcome = worker::start_work(idle, code, artifact_path, background_priority).await;
+	let outcome =
+		worker::start_work(idle, code, &cache_path, artifact_path, background_priority).await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
@@ -265,15 +272,12 @@ fn handle_mux(
 ) -> Result<(), Fatal> {
 	match event {
 		PoolEvent::Spawn(idle, handle) => {
-			let worker = spawned.insert(WorkerData {
-				idle: Some(idle),
-				handle,
-			});
+			let worker = spawned.insert(WorkerData { idle: Some(idle), handle });
 
 			reply(from_pool, FromPool::Spawned(worker))?;
 
 			Ok(())
-		}
+		},
 		PoolEvent::StartWork(worker, outcome) => {
 			match outcome {
 				Outcome::Concluded(idle) => {
@@ -281,8 +285,8 @@ fn handle_mux(
 						None => {
 							// Perhaps the worker was killed meanwhile and the result is no longer
 							// relevant.
-							return Ok(());
-						}
+							return Ok(())
+						},
 						Some(data) => data,
 					};
 
@@ -294,16 +298,23 @@ fn handle_mux(
 					reply(from_pool, FromPool::Concluded(worker, false))?;
 
 					Ok(())
-				}
+				},
+				Outcome::Unreachable => {
+					if spawned.remove(worker).is_some() {
+						reply(from_pool, FromPool::Rip(worker))?;
+					}
+
+					Ok(())
+				},
 				Outcome::DidntMakeIt => {
-					if let Some(_data) = spawned.remove(worker) {
+					if spawned.remove(worker).is_some() {
 						reply(from_pool, FromPool::Concluded(worker, true))?;
 					}
 
 					Ok(())
-				}
+				},
 			}
-		}
+		},
 	}
 }
 
@@ -314,17 +325,15 @@ fn reply(from_pool: &mut mpsc::UnboundedSender<FromPool>, m: FromPool) -> Result
 /// Spins up the pool and returns the future that should be polled to make the pool functional.
 pub fn start(
 	program_path: PathBuf,
+	cache_path: PathBuf,
 	spawn_timeout: Duration,
-) -> (
-	mpsc::Sender<ToPool>,
-	mpsc::UnboundedReceiver<FromPool>,
-	impl Future<Output = ()>,
-) {
+) -> (mpsc::Sender<ToPool>, mpsc::UnboundedReceiver<FromPool>, impl Future<Output = ()>) {
 	let (to_pool_tx, to_pool_rx) = mpsc::channel(10);
 	let (from_pool_tx, from_pool_rx) = mpsc::unbounded();
 
 	let run = run(Pool {
 		program_path,
+		cache_path,
 		spawn_timeout,
 		to_pool: to_pool_rx,
 		from_pool: from_pool_tx,

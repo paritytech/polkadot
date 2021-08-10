@@ -17,12 +17,14 @@
 //! Requester takes care of requesting erasure chunks for candidates that are pending
 //! availability.
 
-use std::collections::{
-	hash_map::{Entry, HashMap},
-	hash_set::HashSet,
+use std::{
+	collections::{
+		hash_map::{Entry, HashMap},
+		hash_set::HashSet,
+	},
+	iter::IntoIterator,
+	pin::Pin,
 };
-use std::iter::IntoIterator;
-use std::pin::Pin;
 
 use futures::{
 	channel::mpsc,
@@ -30,16 +32,17 @@ use futures::{
 	Stream,
 };
 
-use sp_keystore::SyncCryptoStorePtr;
-
-use polkadot_node_subsystem_util::request_availability_cores;
-use polkadot_primitives::v1::{CandidateHash, CoreState, Hash, OccupiedCore};
+use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
+use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
 use polkadot_subsystem::{
-	messages::AllMessages, ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
+	messages::AllMessages, ActivatedLeaf, ActiveLeavesUpdate, SubsystemContext,
 };
 
-use super::{error::recv_runtime, session_cache::SessionCache, LOG_TARGET, Metrics};
-use crate::error::Error;
+use super::{Metrics, LOG_TARGET};
+
+/// Cache for session information.
+mod session_cache;
+use session_cache::SessionCache;
 
 /// A task fetching a particular chunk.
 mod fetch_task;
@@ -76,41 +79,27 @@ impl Requester {
 	///
 	/// You must feed it with `ActiveLeavesUpdate` via `update_fetching_heads` and make it progress
 	/// by advancing the stream.
-	#[tracing::instrument(level = "trace", skip(keystore, metrics), fields(subsystem = LOG_TARGET))]
-	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+	pub fn new(metrics: Metrics) -> Self {
 		let (tx, rx) = mpsc::channel(1);
-		Requester {
-			fetches: HashMap::new(),
-			session_cache: SessionCache::new(keystore),
-			tx,
-			rx,
-			metrics,
-		}
+		Requester { fetches: HashMap::new(), session_cache: SessionCache::new(), tx, rx, metrics }
 	}
 	/// Update heads that need availability distribution.
 	///
-	/// For all active heads we will be fetching our chunks for availabilty distribution.
-	#[tracing::instrument(level = "trace", skip(self, ctx, update), fields(subsystem = LOG_TARGET))]
+	/// For all active heads we will be fetching our chunks for availability distribution.
 	pub async fn update_fetching_heads<Context>(
 		&mut self,
 		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
 		update: ActiveLeavesUpdate,
 	) -> super::Result<()>
 	where
 		Context: SubsystemContext,
 	{
-		tracing::trace!(
-			target: LOG_TARGET,
-			?update,
-			"Update fetching heads"
-		);
-		let ActiveLeavesUpdate {
-			activated,
-			deactivated,
-		} = update;
+		tracing::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
+		let ActiveLeavesUpdate { activated, deactivated } = update;
 		// Order important! We need to handle activated, prior to deactivated, otherwise we might
 		// cancel still needed jobs.
-		self.start_requesting_chunks(ctx, activated.into_iter()).await?;
+		self.start_requesting_chunks(ctx, runtime, activated.into_iter()).await?;
 		self.stop_requesting_chunks(deactivated.into_iter());
 		Ok(())
 	}
@@ -119,19 +108,20 @@ impl Requester {
 	async fn start_requesting_chunks<Context>(
 		&mut self,
 		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
 		new_heads: impl Iterator<Item = ActivatedLeaf>,
 	) -> super::Result<()>
 	where
 		Context: SubsystemContext,
 	{
 		for ActivatedLeaf { hash: leaf, .. } in new_heads {
-			let cores = query_occupied_cores(ctx, leaf).await?;
+			let cores = get_occupied_cores(ctx, leaf).await?;
 			tracing::trace!(
 				target: LOG_TARGET,
 				occupied_cores = ?cores,
 				"Query occupied core"
 			);
-			self.add_cores(ctx, leaf, cores).await?;
+			self.add_cores(ctx, runtime, leaf, cores).await?;
 		}
 		Ok(())
 	}
@@ -150,12 +140,13 @@ impl Requester {
 	///
 	/// Starting requests where necessary.
 	///
-	/// Note: The passed in `leaf` is not the same as CandidateDescriptor::relay_parent in the
-	/// given cores. The latter is the relay_parent this candidate considers its parent, while the
+	/// Note: The passed in `leaf` is not the same as `CandidateDescriptor::relay_parent` in the
+	/// given cores. The latter is the `relay_parent` this candidate considers its parent, while the
 	/// passed in leaf might be some later block where the candidate is still pending availability.
 	async fn add_cores<Context>(
 		&mut self,
 		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
 		leaf: Hash,
 		cores: impl IntoIterator<Item = OccupiedCore>,
 	) -> super::Result<()>
@@ -177,6 +168,7 @@ impl Requester {
 						.session_cache
 						.with_session_info(
 							ctx,
+							runtime,
 							// We use leaf here, as relay_parent must be in the same session as the
 							// leaf. (Cores are dropped at session boundaries.) At the same time,
 							// only leaves are guaranteed to be fetchable by the state trie.
@@ -189,7 +181,7 @@ impl Requester {
 						e.insert(FetchTask::start(task_cfg, ctx).await?);
 					}
 					// Not a validator, nothing to do.
-				}
+				},
 			}
 		}
 		Ok(())
@@ -199,52 +191,22 @@ impl Requester {
 impl Stream for Requester {
 	type Item = AllMessages;
 
-	fn poll_next(
-		mut self: Pin<&mut Self>,
-		ctx: &mut Context,
-	) -> Poll<Option<AllMessages>> {
+	fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<AllMessages>> {
 		loop {
 			match Pin::new(&mut self.rx).poll_next(ctx) {
-				Poll::Ready(Some(FromFetchTask::Message(m))) =>
-					return Poll::Ready(Some(m)),
+				Poll::Ready(Some(FromFetchTask::Message(m))) => return Poll::Ready(Some(m)),
 				Poll::Ready(Some(FromFetchTask::Concluded(Some(bad_boys)))) => {
 					self.session_cache.report_bad_log(bad_boys);
 					continue
-				}
-				Poll::Ready(Some(FromFetchTask::Concluded(None))) =>
-					continue,
+				},
+				Poll::Ready(Some(FromFetchTask::Concluded(None))) => continue,
 				Poll::Ready(Some(FromFetchTask::Failed(candidate_hash))) => {
 					// Make sure we retry on next block still pending availability.
 					self.fetches.remove(&candidate_hash);
-				}
-				Poll::Ready(None) =>
-					return Poll::Ready(None),
-				Poll::Pending =>
-					return Poll::Pending,
+				},
+				Poll::Ready(None) => return Poll::Ready(None),
+				Poll::Pending => return Poll::Pending,
 			}
 		}
 	}
-}
-
-/// Query all hashes and descriptors of candidates pending availability at a particular block.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
-async fn query_occupied_cores<Context>(
-	ctx: &mut Context,
-	relay_parent: Hash,
-) -> Result<Vec<OccupiedCore>, Error>
-where
-	Context: SubsystemContext,
-{
-	let cores = recv_runtime(request_availability_cores(relay_parent, ctx.sender()).await).await?;
-
-	Ok(cores
-		.into_iter()
-		.filter_map(|core_state| {
-			if let CoreState::Occupied(occupied) = core_state {
-				Some(occupied)
-			} else {
-				None
-			}
-		})
-		.collect())
 }

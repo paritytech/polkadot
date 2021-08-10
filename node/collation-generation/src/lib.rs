@@ -18,36 +18,30 @@
 
 #![deny(missing_docs)]
 
-use futures::{
-	channel::mpsc,
-	future::FutureExt,
-	join,
-	select,
-	sink::SinkExt,
-	stream::StreamExt,
-};
-use polkadot_node_primitives::{
-	CollationGenerationConfig, AvailableData, PoV,
-};
+use futures::{channel::mpsc, future::FutureExt, join, select, sink::SinkExt, stream::StreamExt};
+use parity_scale_codec::Encode;
+use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
-	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
-	request_availability_cores, request_persisted_validation_data,
-	request_validators, request_validation_code,
 	metrics::{self, prometheus},
+	request_availability_cores, request_persisted_validation_data, request_validation_code,
+	request_validators,
 };
 use polkadot_primitives::v1::{
-	collator_signature_payload, CandidateCommitments,
-	CandidateDescriptor, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
-	PersistedValidationData,
+	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
+	CoreState, Hash, OccupiedCoreAssumption, PersistedValidationData,
 };
-use parity_scale_codec::Encode;
 use sp_core::crypto::Pair;
 use std::sync::Arc;
 
 mod error;
+
+#[cfg(test)]
+mod tests;
 
 const LOG_TARGET: &'static str = "parachain::collation-generation";
 
@@ -60,10 +54,7 @@ pub struct CollationGenerationSubsystem {
 impl CollationGenerationSubsystem {
 	/// Create a new instance of the `CollationGenerationSubsystem`.
 	pub fn new(metrics: Metrics) -> Self {
-		Self {
-			config: None,
-			metrics,
-		}
+		Self { config: None, metrics }
 	}
 
 	/// Run this subsystem
@@ -77,10 +68,10 @@ impl CollationGenerationSubsystem {
 	///
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(mut self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = CollationGenerationMessage>,
+		Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
 	{
 		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
 		// expected to generate precisely one message. We don't want to block the main loop
@@ -110,22 +101,21 @@ impl CollationGenerationSubsystem {
 	// note: this doesn't strictly need to be a separate function; it's more an administrative function
 	// so that we don't clutter the run loop. It could in principle be inlined directly into there.
 	// it should hopefully therefore be ok that it's an async function mutably borrowing self.
-	#[tracing::instrument(level = "trace", skip(self, ctx, sender), fields(subsystem = LOG_TARGET))]
 	async fn handle_incoming<Context>(
 		&mut self,
-		incoming: SubsystemResult<FromOverseer<Context::Message>>,
+		incoming: SubsystemResult<FromOverseer<<Context as SubsystemContext>::Message>>,
 		ctx: &mut Context,
 		sender: &mpsc::Sender<AllMessages>,
 	) -> bool
 	where
 		Context: SubsystemContext<Message = CollationGenerationMessage>,
+		Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
 	{
-		use polkadot_node_subsystem::ActiveLeavesUpdate;
-		use polkadot_node_subsystem::FromOverseer::{Communication, Signal};
-		use polkadot_node_subsystem::OverseerSignal::{ActiveLeaves, BlockFinalized, Conclude};
-
 		match incoming {
-			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, .. }))) => {
+			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated,
+				..
+			}))) => {
 				// follow the procedure from the guide
 				if let Some(config) = &self.config {
 					let metrics = self.metrics.clone();
@@ -135,15 +125,17 @@ impl CollationGenerationSubsystem {
 						ctx,
 						metrics,
 						sender,
-					).await {
+					)
+					.await
+					{
 						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to handle new activations");
 					}
 				}
 
 				false
-			}
-			Ok(Signal(Conclude)) => true,
-			Ok(Communication {
+			},
+			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => true,
+			Ok(FromOverseer::Communication {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
@@ -152,8 +144,8 @@ impl CollationGenerationSubsystem {
 					self.config = Some(Arc::new(config));
 				}
 				false
-			}
-			Ok(Signal(BlockFinalized(..))) => false,
+			},
+			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => false,
 			Err(err) => {
 				tracing::error!(
 					target: LOG_TARGET,
@@ -162,29 +154,27 @@ impl CollationGenerationSubsystem {
 					err
 				);
 				true
-			}
+			},
 		}
 	}
 }
 
-impl<Context> Subsystem<Context> for CollationGenerationSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for CollationGenerationSubsystem
 where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
+	Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
 			self.run(ctx).await;
 			Ok(())
-		}.boxed();
-
-		SpawnedSubsystem {
-			name: "collation-generation-subsystem",
-			future,
 		}
+		.boxed();
+
+		SpawnedSubsystem { name: "collation-generation-subsystem", future }
 	}
 }
 
-#[tracing::instrument(level = "trace", skip(ctx, metrics, sender, activated), fields(subsystem = LOG_TARGET))]
 async fn handle_new_activations<Context: SubsystemContext>(
 	config: Arc<CollationGenerationConfig>,
 	activated: impl IntoIterator<Item = Hash>,
@@ -212,9 +202,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			let _availability_core_timer = metrics.time_new_activations_availability_core();
 
 			let (scheduled_core, assumption) = match core {
-				CoreState::Scheduled(scheduled_core) => {
-					(scheduled_core, OccupiedCoreAssumption::Free)
-				}
+				CoreState::Scheduled(scheduled_core) =>
+					(scheduled_core, OccupiedCoreAssumption::Free),
 				CoreState::Occupied(_occupied_core) => {
 					// TODO: https://github.com/paritytech/polkadot/issues/1573
 					tracing::trace!(
@@ -223,8 +212,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						relay_parent = ?relay_parent,
 						"core is occupied. Keep going.",
 					);
-					continue;
-				}
+					continue
+				},
 				CoreState::Free => {
 					tracing::trace!(
 						target: LOG_TARGET,
@@ -232,7 +221,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						"core is free. Keep going.",
 					);
 					continue
-				}
+				},
 			};
 
 			if scheduled_core.para_id != config.para_id {
@@ -244,7 +233,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					their_para = %scheduled_core.para_id,
 					"core is not assigned to our para. Keep going.",
 				);
-				continue;
+				continue
 			}
 
 			// we get validation data and validation code synchronously for each core instead of
@@ -271,7 +260,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						"validation data is not available",
 					);
 					continue
-				}
+				},
 			};
 
 			let validation_code = match request_validation_code(
@@ -294,141 +283,144 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						"validation code is not available",
 					);
 					continue
-				}
+				},
 			};
 			let validation_code_hash = validation_code.hash();
 
 			let task_config = config.clone();
 			let mut task_sender = sender.clone();
 			let metrics = metrics.clone();
-			ctx.spawn("collation generation collation builder", Box::pin(async move {
-				let persisted_validation_data_hash = validation_data.hash();
+			ctx.spawn(
+				"collation generation collation builder",
+				Box::pin(async move {
+					let persisted_validation_data_hash = validation_data.hash();
 
-				let (collation, result_sender) = match (task_config.collator)(relay_parent, &validation_data).await {
-					Some(collation) => collation.into_inner(),
-					None => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							para_id = %scheduled_core.para_id,
-							"collator returned no collation on collate",
+					let (collation, result_sender) =
+						match (task_config.collator)(relay_parent, &validation_data).await {
+							Some(collation) => collation.into_inner(),
+							None => {
+								tracing::debug!(
+									target: LOG_TARGET,
+									para_id = %scheduled_core.para_id,
+									"collator returned no collation on collate",
+								);
+								return
+							},
+						};
+
+					// Apply compression to the block data.
+					let pov = {
+						let pov = polkadot_node_primitives::maybe_compress_pov(
+							collation.proof_of_validity,
 						);
-						return
-					}
-				};
+						let encoded_size = pov.encoded_size();
 
-				// Apply compression to the block data.
-				let pov = {
-					let pov = polkadot_node_primitives::maybe_compress_pov(collation.proof_of_validity);
-					let encoded_size = pov.encoded_size();
+						// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
+						// that honest collators never produce a PoV which is uncompressed.
+						//
+						// As such, honest collators never produce an uncompressed PoV which starts with
+						// a compression magic number, which would lead validators to reject the collation.
+						if encoded_size > validation_data.max_pov_size as usize {
+							tracing::debug!(
+								target: LOG_TARGET,
+								para_id = %scheduled_core.para_id,
+								size = encoded_size,
+								max_size = validation_data.max_pov_size,
+								"PoV exceeded maximum size"
+							);
 
-					// As long as `POV_BOMB_LIMIT` is at least `max_pov_size`, this ensures
-					// that honest collators never produce a PoV which is uncompressed.
-					//
-					// As such, honest collators never produce an uncompressed PoV which starts with
-					// a compression magic number, which would lead validators to reject the collation.
-					if encoded_size > validation_data.max_pov_size as usize {
-						tracing::debug!(
-							target: LOG_TARGET,
-							para_id = %scheduled_core.para_id,
-							size = encoded_size,
-							max_size = validation_data.max_pov_size,
-							"PoV exceeded maximum size"
-						);
+							return
+						}
 
-						return
-					}
+						pov
+					};
 
-					pov
-				};
+					let pov_hash = pov.hash();
 
-				let pov_hash = pov.hash();
+					let signature_payload = collator_signature_payload(
+						&relay_parent,
+						&scheduled_core.para_id,
+						&persisted_validation_data_hash,
+						&pov_hash,
+						&validation_code_hash,
+					);
 
-				let signature_payload = collator_signature_payload(
-					&relay_parent,
-					&scheduled_core.para_id,
-					&persisted_validation_data_hash,
-					&pov_hash,
-					&validation_code_hash,
-				);
+					let erasure_root =
+						match erasure_root(n_validators, validation_data, pov.clone()) {
+							Ok(erasure_root) => erasure_root,
+							Err(err) => {
+								tracing::error!(
+									target: LOG_TARGET,
+									para_id = %scheduled_core.para_id,
+									err = ?err,
+									"failed to calculate erasure root",
+								);
+								return
+							},
+						};
 
-				let erasure_root = match erasure_root(
-					n_validators,
-					validation_data,
-					pov.clone(),
-				) {
-					Ok(erasure_root) => erasure_root,
-					Err(err) => {
-						tracing::error!(
+					let commitments = CandidateCommitments {
+						upward_messages: collation.upward_messages,
+						horizontal_messages: collation.horizontal_messages,
+						new_validation_code: collation.new_validation_code,
+						head_data: collation.head_data,
+						processed_downward_messages: collation.processed_downward_messages,
+						hrmp_watermark: collation.hrmp_watermark,
+					};
+
+					let ccr = CandidateReceipt {
+						commitments_hash: commitments.hash(),
+						descriptor: CandidateDescriptor {
+							signature: task_config.key.sign(&signature_payload),
+							para_id: scheduled_core.para_id,
+							relay_parent,
+							collator: task_config.key.public(),
+							persisted_validation_data_hash,
+							pov_hash,
+							erasure_root,
+							para_head: commitments.head_data.hash(),
+							validation_code_hash,
+						},
+					};
+
+					tracing::debug!(
+						target: LOG_TARGET,
+						candidate_hash = ?ccr.hash(),
+						?pov_hash,
+						?relay_parent,
+						para_id = %scheduled_core.para_id,
+						"candidate is generated",
+					);
+					metrics.on_collation_generated();
+
+					if let Err(err) = task_sender
+						.send(AllMessages::CollatorProtocol(
+							CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender),
+						))
+						.await
+					{
+						tracing::warn!(
 							target: LOG_TARGET,
 							para_id = %scheduled_core.para_id,
 							err = ?err,
-							"failed to calculate erasure root",
+							"failed to send collation result",
 						);
-						return
 					}
-				};
-
-				let commitments = CandidateCommitments {
-					upward_messages: collation.upward_messages,
-					horizontal_messages: collation.horizontal_messages,
-					new_validation_code: collation.new_validation_code,
-					head_data: collation.head_data,
-					processed_downward_messages: collation.processed_downward_messages,
-					hrmp_watermark: collation.hrmp_watermark,
-				};
-
-				let ccr = CandidateReceipt {
-					commitments_hash: commitments.hash(),
-					descriptor: CandidateDescriptor {
-						signature: task_config.key.sign(&signature_payload),
-						para_id: scheduled_core.para_id,
-						relay_parent,
-						collator: task_config.key.public(),
-						persisted_validation_data_hash,
-						pov_hash,
-						erasure_root,
-						para_head: commitments.head_data.hash(),
-						validation_code_hash: validation_code_hash,
-					},
-				};
-
-				tracing::debug!(
-					target: LOG_TARGET,
-					candidate_hash = ?ccr.hash(),
-					?pov_hash,
-					?relay_parent,
-					para_id = %scheduled_core.para_id,
-					"candidate is generated",
-				);
-				metrics.on_collation_generated();
-
-				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
-					CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender)
-				)).await {
-					tracing::warn!(
-						target: LOG_TARGET,
-						para_id = %scheduled_core.para_id,
-						err = ?err,
-						"failed to send collation result",
-					);
-				}
-			})).await?;
+				}),
+			)?;
 		}
 	}
 
 	Ok(())
 }
 
-#[tracing::instrument(level = "trace", fields(subsystem = LOG_TARGET))]
 fn erasure_root(
 	n_validators: usize,
 	persisted_validation: PersistedValidationData,
 	pov: PoV,
 ) -> crate::error::Result<Hash> {
-	let available_data = AvailableData {
-		validation_data: persisted_validation,
-		pov: Arc::new(pov),
-	};
+	let available_data =
+		AvailableData { validation_data: persisted_validation, pov: Arc::new(pov) };
 
 	let chunks = polkadot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
 	Ok(polkadot_erasure_coding::branches(&chunks).root())
@@ -442,7 +434,7 @@ struct MetricsInner {
 	new_activations_per_availability_core: prometheus::Histogram,
 }
 
-/// CollationGenerationSubsystem metrics.
+/// `CollationGenerationSubsystem` metrics.
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
@@ -459,13 +451,21 @@ impl Metrics {
 	}
 
 	/// Provide a timer per relay parents which updates on drop.
-	fn time_new_activations_relay_parent(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.new_activations_per_relay_parent.start_timer())
+	fn time_new_activations_relay_parent(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.new_activations_per_relay_parent.start_timer())
 	}
 
 	/// Provide a timer per availability core which updates on drop.
-	fn time_new_activations_availability_core(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.new_activations_per_availability_core.start_timer())
+	fn time_new_activations_availability_core(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.new_activations_per_availability_core.start_timer())
 	}
 }
 
@@ -508,365 +508,5 @@ impl metrics::Metrics for Metrics {
 			)?,
 		};
 		Ok(Metrics(Some(metrics)))
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	mod handle_new_activations {
-		use super::super::*;
-		use futures::{
-			lock::Mutex,
-			task::{Context as FuturesContext, Poll},
-			Future,
-		};
-		use polkadot_node_primitives::{Collation, CollationResult, BlockData, PoV, POV_BOMB_LIMIT};
-		use polkadot_node_subsystem::messages::{
-			AllMessages, RuntimeApiMessage, RuntimeApiRequest,
-		};
-		use polkadot_node_subsystem_test_helpers::{
-			subsystem_test_harness, TestSubsystemContextHandle,
-		};
-		use polkadot_primitives::v1::{
-			CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode,
-		};
-		use std::pin::Pin;
-
-		fn test_collation() -> Collation {
-			Collation {
-				upward_messages: Default::default(),
-				horizontal_messages: Default::default(),
-				new_validation_code: Default::default(),
-				head_data: Default::default(),
-				proof_of_validity: PoV {
-					block_data: BlockData(Vec::new()),
-				},
-				processed_downward_messages: Default::default(),
-				hrmp_watermark: Default::default(),
-			}
-		}
-
-		fn test_collation_compressed() -> Collation {
-			let mut collation = test_collation();
-			let compressed = PoV {
-				block_data: BlockData(sp_maybe_compressed_blob::compress(
-					&collation.proof_of_validity.block_data.0,
-					POV_BOMB_LIMIT,
-				).unwrap())
-			};
-			collation.proof_of_validity = compressed;
-			collation
-		}
-
-		fn test_validation_data() -> PersistedValidationData {
-			let mut persisted_validation_data: PersistedValidationData = Default::default();
-			persisted_validation_data.max_pov_size = 1024;
-			persisted_validation_data
-		}
-
-		// Box<dyn Future<Output = Collation> + Unpin + Send
-		struct TestCollator;
-
-		impl Future for TestCollator {
-			type Output = Option<CollationResult>;
-
-			fn poll(self: Pin<&mut Self>, _cx: &mut FuturesContext) -> Poll<Self::Output> {
-				Poll::Ready(Some(CollationResult { collation: test_collation(), result_sender: None }))
-			}
-		}
-
-		impl Unpin for TestCollator {}
-
-		fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
-			Arc::new(CollationGenerationConfig {
-				key: CollatorPair::generate().0,
-				collator: Box::new(|_: Hash, _vd: &PersistedValidationData| {
-					TestCollator.boxed()
-				}),
-				para_id: para_id.into(),
-			})
-		}
-
-		fn scheduled_core_for<Id: Into<ParaId>>(para_id: Id) -> ScheduledCore {
-			ScheduledCore {
-				para_id: para_id.into(),
-				collator: None,
-			}
-		}
-
-		#[test]
-		fn requests_availability_per_relay_parent() {
-			let activated_hashes: Vec<Hash> = vec![
-				[1; 32].into(),
-				[4; 32].into(),
-				[9; 32].into(),
-				[16; 32].into(),
-			];
-
-			let requested_availability_cores = Arc::new(Mutex::new(Vec::new()));
-
-			let overseer_requested_availability_cores = requested_availability_cores.clone();
-			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
-				loop {
-					match handle.try_recv().await {
-						None => break,
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::AvailabilityCores(tx)))) => {
-							overseer_requested_availability_cores.lock().await.push(hash);
-							tx.send(Ok(vec![])).unwrap();
-						}
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(_hash, RuntimeApiRequest::Validators(tx)))) => {
-							tx.send(Ok(vec![Default::default(); 3])).unwrap();
-						}
-						Some(msg) => panic!("didn't expect any other overseer requests given no availability cores; got {:?}", msg),
-					}
-				}
-			};
-
-			let (tx, _rx) = mpsc::channel(0);
-
-			let subsystem_activated_hashes = activated_hashes.clone();
-			subsystem_test_harness(overseer, |mut ctx| async move {
-				handle_new_activations(
-					test_config(123u32),
-					subsystem_activated_hashes,
-					&mut ctx,
-					Metrics(None),
-					&tx,
-				)
-				.await
-				.unwrap();
-			});
-
-			let mut requested_availability_cores = Arc::try_unwrap(requested_availability_cores)
-				.expect("overseer should have shut down by now")
-				.into_inner();
-			requested_availability_cores.sort();
-
-			assert_eq!(requested_availability_cores, activated_hashes);
-		}
-
-		#[test]
-		fn requests_validation_data_for_scheduled_matches() {
-			let activated_hashes: Vec<Hash> = vec![
-				Hash::repeat_byte(1),
-				Hash::repeat_byte(4),
-				Hash::repeat_byte(9),
-				Hash::repeat_byte(16),
-			];
-
-			let requested_validation_data = Arc::new(Mutex::new(Vec::new()));
-
-			let overseer_requested_validation_data = requested_validation_data.clone();
-			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
-				loop {
-					match handle.try_recv().await {
-						None => break,
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							hash,
-							RuntimeApiRequest::AvailabilityCores(tx),
-						))) => {
-							tx.send(Ok(vec![
-								CoreState::Free,
-								// this is weird, see explanation below
-								CoreState::Scheduled(scheduled_core_for(
-									(hash.as_fixed_bytes()[0] * 4) as u32,
-								)),
-								CoreState::Scheduled(scheduled_core_for(
-									(hash.as_fixed_bytes()[0] * 5) as u32,
-								)),
-							]))
-							.unwrap();
-						}
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							hash,
-							RuntimeApiRequest::PersistedValidationData(
-								_para_id,
-								_occupied_core_assumption,
-								tx,
-							),
-						))) => {
-							overseer_requested_validation_data
-								.lock()
-								.await
-								.push(hash);
-							tx.send(Ok(Default::default())).unwrap();
-						}
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							_hash,
-							RuntimeApiRequest::Validators(tx),
-						))) => {
-							tx.send(Ok(vec![Default::default(); 3])).unwrap();
-						}
-						Some(msg) => {
-							panic!("didn't expect any other overseer requests; got {:?}", msg)
-						}
-					}
-				}
-			};
-
-			let (tx, _rx) = mpsc::channel(0);
-
-			subsystem_test_harness(overseer, |mut ctx| async move {
-				handle_new_activations(test_config(16), activated_hashes, &mut ctx, Metrics(None), &tx)
-					.await
-					.unwrap();
-			});
-
-			let requested_validation_data = Arc::try_unwrap(requested_validation_data)
-				.expect("overseer should have shut down by now")
-				.into_inner();
-
-			// the only activated hash should be from the 4 hash:
-			// each activated hash generates two scheduled cores: one with its value * 4, one with its value * 5
-			// given that the test configuration has a para_id of 16, there's only one way to get that value: with the 4
-			// hash.
-			assert_eq!(requested_validation_data, vec![[4; 32].into()]);
-		}
-
-		#[test]
-		fn sends_distribute_collation_message() {
-			let activated_hashes: Vec<Hash> = vec![
-				Hash::repeat_byte(1),
-				Hash::repeat_byte(4),
-				Hash::repeat_byte(9),
-				Hash::repeat_byte(16),
-			];
-
-			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
-				loop {
-					match handle.try_recv().await {
-						None => break,
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							hash,
-							RuntimeApiRequest::AvailabilityCores(tx),
-						))) => {
-							tx.send(Ok(vec![
-								CoreState::Free,
-								// this is weird, see explanation below
-								CoreState::Scheduled(scheduled_core_for(
-									(hash.as_fixed_bytes()[0] * 4) as u32,
-								)),
-								CoreState::Scheduled(scheduled_core_for(
-									(hash.as_fixed_bytes()[0] * 5) as u32,
-								)),
-							]))
-							.unwrap();
-						}
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							_hash,
-							RuntimeApiRequest::PersistedValidationData(
-								_para_id,
-								_occupied_core_assumption,
-								tx,
-							),
-						))) => {
-							tx.send(Ok(Some(test_validation_data()))).unwrap();
-						}
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							_hash,
-							RuntimeApiRequest::Validators(tx),
-						))) => {
-							tx.send(Ok(vec![Default::default(); 3])).unwrap();
-						}
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							_hash,
-							RuntimeApiRequest::ValidationCode(
-								_para_id,
-								OccupiedCoreAssumption::Free,
-								tx,
-							),
-						))) => {
-							tx.send(Ok(Some(ValidationCode(vec![1, 2, 3])))).unwrap();
-						}
-						Some(msg) => {
-							panic!("didn't expect any other overseer requests; got {:?}", msg)
-						}
-					}
-				}
-			};
-
-			let config = test_config(16);
-			let subsystem_config = config.clone();
-
-			let (tx, rx) = mpsc::channel(0);
-
-			// empty vec doesn't allocate on the heap, so it's ok we throw it away
-			let sent_messages = Arc::new(Mutex::new(Vec::new()));
-			let subsystem_sent_messages = sent_messages.clone();
-			subsystem_test_harness(overseer, |mut ctx| async move {
-				handle_new_activations(subsystem_config, activated_hashes, &mut ctx, Metrics(None), &tx)
-					.await
-					.unwrap();
-
-				std::mem::drop(tx);
-
-				// collect all sent messages
-				*subsystem_sent_messages.lock().await = rx.collect().await;
-			});
-
-			let sent_messages = Arc::try_unwrap(sent_messages)
-				.expect("subsystem should have shut down by now")
-				.into_inner();
-
-			// we expect a single message to be sent, containing a candidate receipt.
-			// we don't care too much about the commitments_hash right now, but let's ensure that we've calculated the
-			// correct descriptor
-			let expect_pov_hash = test_collation_compressed().proof_of_validity.hash();
-			let expect_validation_data_hash = test_validation_data().hash();
-			let expect_relay_parent = Hash::repeat_byte(4);
-			let expect_validation_code_hash = ValidationCode(vec![1, 2, 3]).hash();
-			let expect_payload = collator_signature_payload(
-				&expect_relay_parent,
-				&config.para_id,
-				&expect_validation_data_hash,
-				&expect_pov_hash,
-				&expect_validation_code_hash,
-			);
-			let expect_descriptor = CandidateDescriptor {
-				signature: config.key.sign(&expect_payload),
-				para_id: config.para_id,
-				relay_parent: expect_relay_parent,
-				collator: config.key.public(),
-				persisted_validation_data_hash: expect_validation_data_hash,
-				pov_hash: expect_pov_hash,
-				erasure_root: Default::default(), // this isn't something we're checking right now
-				para_head: test_collation().head_data.hash(),
-				validation_code_hash: expect_validation_code_hash,
-			};
-
-			assert_eq!(sent_messages.len(), 1);
-			match &sent_messages[0] {
-				AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
-					CandidateReceipt { descriptor, .. },
-					_pov,
-					..
-				)) => {
-					// signature generation is non-deterministic, so we can't just assert that the
-					// expected descriptor is correct. What we can do is validate that the produced
-					// descriptor has a valid signature, then just copy in the generated signature
-					// and check the rest of the fields for equality.
-					assert!(CollatorPair::verify(
-						&descriptor.signature,
-						&collator_signature_payload(
-							&descriptor.relay_parent,
-							&descriptor.para_id,
-							&descriptor.persisted_validation_data_hash,
-							&descriptor.pov_hash,
-							&descriptor.validation_code_hash,
-						)
-						.as_ref(),
-						&descriptor.collator,
-					));
-					let expect_descriptor = {
-						let mut expect_descriptor = expect_descriptor;
-						expect_descriptor.signature = descriptor.signature.clone();
-						expect_descriptor.erasure_root = descriptor.erasure_root.clone();
-						expect_descriptor
-					};
-					assert_eq!(descriptor, &expect_descriptor);
-				}
-				_ => panic!("received wrong message type"),
-			}
-		}
 	}
 }

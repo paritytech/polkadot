@@ -131,7 +131,7 @@ Ensure a vector is present in `pending_known` for each hash in the view that doe
 
 Invoke `unify_with_peer(peer, view)` to catch them up to messages we have.
 
-We also need to use the `view.finalized_number` to remove the `PeerId` from any blocks that it won't be wanting information about anymore. Note that we have to be on guard for peers doing crazy stuff like jumping their 'finalized_number` forward 10 trillion blocks to try and get us stuck in a loop for ages.
+We also need to use the `view.finalized_number` to remove the `PeerId` from any blocks that it won't be wanting information about anymore. Note that we have to be on guard for peers doing crazy stuff like jumping their `finalized_number` forward 10 trillion blocks to try and get us stuck in a loop for ages.
 
 One of the safeguards we can implement is to reject view updates from peers where the new `finalized_number` is less than the previous.
 
@@ -192,7 +192,7 @@ We maintain a few invariants:
 
 The algorithm is the following:
 
-  * Load the BlockEntry using `assignment.block_hash`. If it does not exist, report the source if it is `MessageSource::Peer` and return.
+  * Load the `BlockEntry` using `assignment.block_hash`. If it does not exist, report the source if it is `MessageSource::Peer` and return.
   * Compute a fingerprint for the `assignment` using `claimed_candidate_index`.
   * If the source is `MessageSource::Peer(sender)`:
     * check if `peer` appears under `known_by` and whether the fingerprint is in the knowledge of the peer. If the peer does not know the block, report for providing data out-of-view and proceed. If the peer does know the block and the `sent` knowledge contains the fingerprint, report for providing replicate data and return, otherwise, insert into the `received` knowledge and return.
@@ -218,7 +218,7 @@ The algorithm is the following:
 
 Imports an approval signature referenced by block hash and candidate index:
 
-  * Load the BlockEntry using `approval.block_hash` and the candidate entry using `approval.candidate_entry`. If either does not exist, report the source if it is `MessageSource::Peer` and return.
+  * Load the `BlockEntry` using `approval.block_hash` and the candidate entry using `approval.candidate_entry`. If either does not exist, report the source if it is `MessageSource::Peer` and return.
   * Compute a fingerprint for the approval.
   * Compute a fingerprint for the corresponding assignment. If the `BlockEntry`'s knowledge does not contain that fingerprint, then report the source if it is `MessageSource::Peer` and return. All references to a fingerprint after this refer to the approval's, not the assignment's.
   * If the source is `MessageSource::Peer(sender)`:
@@ -247,8 +247,6 @@ For each block in the view:
   2. Load the `BlockEntry` for the block. If the block is unknown, or the number is less than or equal to the view's finalized number go to step 6.
   3. Inspect the `known_by` set of the `BlockEntry`. If the peer is already present, go to step 6.
   4. Add the peer to `known_by` with a cloned version of `block_entry.knowledge`. and add the hash of the block to `fresh_blocks`.
-  5. Return to step 2 with the ancestor of the block, keeping track of the block depth (+1).
+  5. Return to step 2 with the ancestor of the block.
 
-6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer if the block depth threshold is not reached, otherwise, send only assignments and approvals origination with the local source.
-
-The reason we only send our local assignments and approvals when a certain block depth is reached when unifying with a peer is to avoid DoS attacks. It also helps when a node starts with a large difference between finalized and the highest block.
+6. For each block in `fresh_blocks`, send all assignments and approvals for all candidates in those blocks to the peer.

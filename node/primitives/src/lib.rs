@@ -24,34 +24,53 @@
 
 use std::pin::Pin;
 
-use serde::{Serialize, Deserialize};
 use futures::Future;
 use parity_scale_codec::{Decode, Encode};
+use serde::{Deserialize, Serialize};
 
-pub use sp_core::traits::SpawnNamed;
 pub use sp_consensus_babe::{
-	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots as BabeAllowedSlots,
+	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
+};
+pub use sp_core::traits::SpawnNamed;
+
+use polkadot_primitives::v1::{
+	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
+	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
+	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
+	ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
 };
 
-use polkadot_primitives::v1::{CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HeadData, Id as ParaId, OutboundHrmpMessage, PersistedValidationData, Signed, UpwardMessage, ValidationCode, BlakeTwo256, HashT, ValidatorIndex};
 pub use polkadot_parachain::primitives::BlockData;
 
 pub mod approval;
 
-/// The bomb limit for decompressing code blobs.
-pub const VALIDATION_CODE_BOMB_LIMIT: usize = 16 * 1024 * 1024;
+/// Disputes related types.
+pub mod disputes;
+pub use disputes::{
+	CandidateVotes, DisputeMessage, DisputeMessageCheckError, InvalidDisputeVote,
+	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
+};
 
-/// Maximum PoV size we support right now.
-pub const MAX_POV_SIZE: u32 = 20 * 1024 * 1024;
+/// The bomb limit for decompressing code blobs.
+pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
 
 /// The bomb limit for decompressing PoV blobs.
-pub const POV_BOMB_LIMIT: usize = MAX_POV_SIZE as usize;
+pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
+
+/// It would be nice to draw this from the chain state, but we have no tools for it right now.
+/// On Polkadot this is 1 day, and on Kusama it's 6 hours.
+///
+/// Number of sessions we want to consider in disputes.
+pub const DISPUTE_WINDOW: SessionIndex = 6;
+
+/// The cumulative weight of a block in a fork-choice rule.
+pub type BlockWeight = u32;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
 /// This is the committed candidate receipt instead of the bare candidate receipt. As such,
 /// it gives access to the commitments to validators who have not executed the candidate. This
-/// is necessary to allow a block-producing validator to include candidates from outside of the para
+/// is necessary to allow a block-producing validator to include candidates from outside the para
 /// it is assigned to.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 pub enum Statement {
@@ -113,6 +132,9 @@ impl EncodeAs<CompactStatement> for Statement {
 /// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
 /// Only the compact `SignedStatement` is suitable for submission to the chain.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
+
+/// Variant of `SignedFullStatement` where the signature has not yet been verified.
+pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatement>;
 
 /// Candidate invalidity details
 #[derive(Debug)]
@@ -193,21 +215,34 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	pub hrmp_watermark: BlockNumber,
 }
 
+/// Signal that is being returned back when a collation was seconded by a validator.
+#[derive(Debug)]
+pub struct CollationSecondedSignal {
+	/// The hash of the relay chain block that was used as context to sign [`Self::statement`].
+	pub relay_parent: Hash,
+	/// The statement about seconding the collation.
+	///
+	/// Anything else than [`Statement::Seconded`](Statement::Seconded) is forbidden here.
+	pub statement: SignedFullStatement,
+}
+
 /// Result of the [`CollatorFn`] invocation.
 pub struct CollationResult {
 	/// The collation that was build.
 	pub collation: Collation,
 	/// An optional result sender that should be informed about a successfully seconded collation.
 	///
-	/// There is no guarantee that this sender is informed ever about any result, it is completly okay to just drop it.
+	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
 	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
 	/// collation.
-	pub result_sender: Option<futures::channel::oneshot::Sender<SignedFullStatement>>,
+	pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
 }
 
 impl CollationResult {
 	/// Convert into the inner values.
-	pub fn into_inner(self) -> (Collation, Option<futures::channel::oneshot::Sender<SignedFullStatement>>) {
+	pub fn into_inner(
+		self,
+	) -> (Collation, Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>) {
 		(self.collation, self.result_sender)
 	}
 }
@@ -219,7 +254,10 @@ impl CollationResult {
 ///
 /// Returns an optional [`CollationResult`].
 pub type CollatorFn = Box<
-	dyn Fn(Hash, &PersistedValidationData) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
+	dyn Fn(
+			Hash,
+			&PersistedValidationData,
+		) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
 		+ Send
 		+ Sync,
 >;
@@ -264,8 +302,7 @@ pub struct ErasureChunk {
 #[cfg(not(target_os = "unknown"))]
 pub fn maybe_compress_pov(pov: PoV) -> PoV {
 	let PoV { block_data: BlockData(raw) } = pov;
-	let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
-		.unwrap_or(raw);
+	let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT).unwrap_or(raw);
 
 	let pov = PoV { block_data: BlockData(raw) };
 	pov

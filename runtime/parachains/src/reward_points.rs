@@ -21,8 +21,9 @@
 //! which doesn't currently mention availability bitfields. As such, we don't reward them
 //! for the time being, although we will build schemes to do so in the future.
 
-use primitives::v1::ValidatorIndex;
+use crate::shared;
 use pallet_staking::SessionInterface;
+use primitives::v1::ValidatorIndex;
 
 /// The amount of era points given by backing a candidate that is included.
 pub const BACKING_POINTS: u32 = 20;
@@ -30,26 +31,106 @@ pub const BACKING_POINTS: u32 = 20;
 /// Rewards validators for participating in parachains with era points in pallet-staking.
 pub struct RewardValidatorsWithEraPoints<C>(sp_std::marker::PhantomData<C>);
 
-fn reward_by_indices<C, I>(points: u32, indices: I) where
-	C: pallet_staking::Config,
-	I: IntoIterator<Item = ValidatorIndex>
+fn validators_to_reward<C, T, I>(
+	validators: &'_ [T],
+	indirect_indices: I,
+) -> impl IntoIterator<Item = &'_ T>
+where
+	C: shared::Config,
+	I: IntoIterator<Item = ValidatorIndex>,
 {
-	// Fetch the validators from the _session_ because sessions are offset from eras
-	// and we are rewarding for behavior in current session.
-	let validators = C::SessionInterface::validators();
-	let rewards = indices.into_iter()
-		.filter_map(|i| validators.get(i.0 as usize).map(|v| v.clone()))
-		.map(|v| (v, points));
+	let validator_indirection = <shared::Pallet<C>>::active_validator_indices();
 
-	<pallet_staking::Module<C>>::reward_by_ids(rewards);
+	indirect_indices
+		.into_iter()
+		.filter_map(move |i| validator_indirection.get(i.0 as usize).map(|v| v.clone()))
+		.filter_map(move |i| validators.get(i.0 as usize))
 }
 
 impl<C> crate::inclusion::RewardValidators for RewardValidatorsWithEraPoints<C>
-	where C: pallet_staking::Config
+where
+	C: pallet_staking::Config + shared::Config,
 {
-	fn reward_backing(validators: impl IntoIterator<Item=ValidatorIndex>) {
-		reward_by_indices::<C, _>(BACKING_POINTS, validators);
+	fn reward_backing(indirect_indices: impl IntoIterator<Item = ValidatorIndex>) {
+		// Fetch the validators from the _session_ because sessions are offset from eras
+		// and we are rewarding for behavior in current session.
+		let validators = C::SessionInterface::validators();
+
+		let rewards = validators_to_reward::<C, _, _>(&validators, indirect_indices)
+			.into_iter()
+			.map(|v| (v.clone(), BACKING_POINTS));
+
+		<pallet_staking::Pallet<C>>::reward_by_ids(rewards);
 	}
 
-	fn reward_bitfields(_validators: impl IntoIterator<Item=ValidatorIndex>) { }
+	fn reward_bitfields(_validators: impl IntoIterator<Item = ValidatorIndex>) {}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::{
+		configuration::HostConfiguration,
+		mock::{new_test_ext, MockGenesisConfig, ParasShared, Test},
+	};
+	use keyring::Sr25519Keyring;
+	use primitives::v1::ValidatorId;
+
+	#[test]
+	fn rewards_based_on_indirection() {
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+
+		fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+			val_ids.iter().map(|v| v.public().into()).collect()
+		}
+
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			let mut config = HostConfiguration::default();
+			config.max_validators = None;
+
+			let pubkeys = validator_pubkeys(&validators);
+
+			let shuffled_pubkeys =
+				ParasShared::initializer_on_new_session(1, [1; 32], &config, pubkeys);
+
+			assert_eq!(
+				shuffled_pubkeys,
+				validator_pubkeys(&[
+					Sr25519Keyring::Ferdie,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+					Sr25519Keyring::Dave,
+					Sr25519Keyring::Alice,
+				])
+			);
+
+			assert_eq!(
+				ParasShared::active_validator_indices(),
+				vec![
+					ValidatorIndex(4),
+					ValidatorIndex(1),
+					ValidatorIndex(2),
+					ValidatorIndex(3),
+					ValidatorIndex(0),
+				]
+			);
+
+			assert_eq!(
+				validators_to_reward::<Test, _, _>(
+					&validators,
+					vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)],
+				)
+				.into_iter()
+				.copied()
+				.collect::<Vec<_>>(),
+				vec![Sr25519Keyring::Ferdie, Sr25519Keyring::Bob, Sr25519Keyring::Charlie],
+			);
+		})
+	}
 }

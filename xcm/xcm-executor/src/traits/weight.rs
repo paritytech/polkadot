@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::result::Result;
-use xcm::v0::{Xcm, MultiAsset};
-use frame_support::weights::Weight;
 use crate::Assets;
+use frame_support::weights::Weight;
+use sp_std::result::Result;
+use xcm::latest::{Error, MultiAsset, MultiLocation, Xcm};
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {
@@ -41,23 +41,46 @@ pub trait WeightBounds<Call> {
 	///
 	/// This is guaranteed equal to the eventual sum of all `shallow` XCM messages that get executed through
 	/// any internal effects. Inner XCM messages may be executed by:
-	/// - Order::BuyExecution
+	/// - `Order::BuyExecution`
 	fn deep(message: &mut Xcm<Call>) -> Result<Weight, ()>;
+
+	/// Return the total weight for executing `message`.
+	fn weight(message: &mut Xcm<Call>) -> Result<Weight, ()> {
+		Self::shallow(message)?.checked_add(Self::deep(message)?).ok_or(())
+	}
+}
+
+/// A means of getting approximate weight consumption for a given destination message executor and a
+/// message.
+pub trait UniversalWeigher {
+	/// Get the upper limit of weight required for `dest` to execute `message`.
+	fn weigh(dest: MultiLocation, message: Xcm<()>) -> Result<Weight, ()>;
 }
 
 /// Charge for weight in order to execute XCM.
-pub trait WeightTrader {
+pub trait WeightTrader: Sized {
 	/// Create a new trader instance.
 	fn new() -> Self;
 
 	/// Purchase execution weight credit in return for up to a given `fee`. If less of the fee is required
 	/// then the surplus is returned. If the `fee` cannot be used to pay for the `weight`, then an error is
 	/// returned.
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, ()>;
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error>;
 
 	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight was
 	/// purchased using `buy_weight`.
 	///
 	/// Default implementation refunds nothing.
-	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset { MultiAsset::None }
+	fn refund_weight(&mut self, _weight: Weight) -> Option<MultiAsset> {
+		None
+	}
+}
+
+impl WeightTrader for () {
+	fn new() -> Self {
+		()
+	}
+	fn buy_weight(&mut self, _: Weight, _: Assets) -> Result<Assets, Error> {
+		Err(Error::Unimplemented)
+	}
 }

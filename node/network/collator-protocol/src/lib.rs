@@ -18,44 +18,30 @@
 //! This subsystem implements both sides of the collator protocol.
 
 #![deny(missing_docs, unused_crate_dependencies)]
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
 use std::time::Duration;
 
-use futures::{channel::oneshot, FutureExt, TryFutureExt};
-use thiserror::Error;
+use futures::{FutureExt, TryFutureExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep};
-use polkadot_node_subsystem_util::{self as util, metrics::prometheus};
 use polkadot_primitives::v1::CollatorPair;
+
 use polkadot_subsystem::{
-	errors::RuntimeApiError,
-	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage},
-	SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
+	errors::SubsystemError,
+	messages::{CollatorProtocolMessage, NetworkBridgeMessage},
+	overseer, SpawnedSubsystem, SubsystemContext, SubsystemSender,
 };
+
+mod error;
+use error::Result;
 
 mod collator_side;
 mod validator_side;
 
 const LOG_TARGET: &'static str = "parachain::collator-protocol";
-
-#[derive(Debug, Error)]
-enum Error {
-	#[error(transparent)]
-	Subsystem(#[from] SubsystemError),
-	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
-	#[error(transparent)]
-	UtilError(#[from] util::Error),
-	#[error(transparent)]
-	Prometheus(#[from] prometheus::PrometheusError),
-}
-
-type Result<T> = std::result::Result<T, Error>;
 
 /// A collator eviction policy - how fast to evict collators which are inactive.
 #[derive(Debug, Clone, Copy)]
@@ -101,38 +87,28 @@ impl CollatorProtocolSubsystem {
 	/// If `id` is `None` this is a validator side of the protocol.
 	/// Caller must provide a registry for prometheus metrics.
 	pub fn new(protocol_side: ProtocolSide) -> Self {
-		Self {
-			protocol_side,
-		}
+		Self { protocol_side }
 	}
 
-	#[tracing::instrument(skip(self, ctx), fields(subsystem = LOG_TARGET))]
 	async fn run<Context>(self, ctx: Context) -> Result<()>
 	where
+		Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
-			ProtocolSide::Validator { keystore, eviction_policy, metrics } => validator_side::run(
-				ctx,
-				keystore,
-				eviction_policy,
-				metrics,
-			).await,
-			ProtocolSide::Collator(local_peer_id, collator_pair, metrics) => collator_side::run(
-				ctx,
-				local_peer_id,
-				collator_pair,
-				metrics,
-			).await,
-		}.map_err(|e| {
-			SubsystemError::with_origin("collator-protocol", e).into()
-		})
+			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
+				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
+			ProtocolSide::Collator(local_peer_id, collator_pair, metrics) =>
+				collator_side::run(ctx, local_peer_id, collator_pair, metrics).await,
+		}
 	}
 }
 
-impl<Context> Subsystem<Context> for CollatorProtocolSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for CollatorProtocolSubsystem
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage> + Sync + Send,
+	Context: SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	<Context as SubsystemContext>::Sender: SubsystemSender,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
@@ -140,15 +116,11 @@ where
 			.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
 			.boxed();
 
-		SpawnedSubsystem {
-			name: "collator-protocol-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "collator-protocol-subsystem", future }
 	}
 }
 
 /// Modify the reputation of a peer based on its behavior.
-#[tracing::instrument(level = "trace", skip(ctx), fields(subsystem = LOG_TARGET))]
 async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext,
@@ -160,7 +132,5 @@ where
 		"reputation change for peer",
 	);
 
-	ctx.send_message(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::ReportPeer(peer, rep),
-	)).await;
+	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await;
 }

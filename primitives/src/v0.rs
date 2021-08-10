@@ -17,34 +17,26 @@
 //! Primitives which are necessary for parachain execution from a relay-chain
 //! perspective.
 
-use sp_std::prelude::*;
-#[cfg(feature = "std")]
-use sp_std::convert::TryInto;
-use sp_std::cmp::Ordering;
+use sp_std::{cmp::Ordering, prelude::*};
 
-use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
-#[cfg(feature = "std")]
-use serde::{Serialize, Deserialize};
+use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "std")]
 use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
-
 #[cfg(feature = "std")]
-use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
+use serde::{Deserialize, Serialize};
+
+use application_crypto::KeyTypeId;
+use inherents::InherentIdentifier;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
-use inherents::InherentIdentifier;
-#[cfg(feature = "std")]
-use application_crypto::AppKey;
-use application_crypto::KeyTypeId;
 
-pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
-pub use polkadot_core_primitives::*;
 pub use parity_scale_codec::Compact;
+pub use polkadot_core_primitives::*;
+pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, IdentifyAccount, Verify};
 
 pub use polkadot_parachain::primitives::{
-	Id, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
-	ValidationCode,
+	BlockData, HeadData, Id, UpwardMessage, ValidationCode, LOWEST_USER_ID,
 };
 
 /// The key type ID for a collator key.
@@ -186,11 +178,9 @@ pub struct Info {
 }
 
 /// An `Info` value for a standard leased parachain.
-pub const PARACHAIN_INFO: Info = Info {
-	scheduling: Scheduling::Always,
-};
+pub const PARACHAIN_INFO: Info = Info { scheduling: Scheduling::Always };
 
-/// Auxilliary for when there's an attempt to swap two parachains/parathreads.
+/// Auxiliary for when there's an attempt to swap two parachains/parathreads.
 pub trait SwapAux {
 	/// Result describing whether it is possible to swap two parachains. Doesn't mutate state.
 	fn ensure_can_swap(one: Id, other: Id) -> Result<(), &'static str>;
@@ -206,8 +196,12 @@ pub trait SwapAux {
 }
 
 impl SwapAux for () {
-	fn ensure_can_swap(_: Id, _: Id) -> Result<(), &'static str> { Err("Swapping disabled") }
-	fn on_swap(_: Id, _: Id) -> Result<(), &'static str> { Err("Swapping disabled") }
+	fn ensure_can_swap(_: Id, _: Id) -> Result<(), &'static str> {
+		Err("Swapping disabled")
+	}
+	fn on_swap(_: Id, _: Id) -> Result<(), &'static str> {
+		Err("Swapping disabled")
+	}
 }
 
 /// Identifier for a chain, either one of a number of parachains or the relay chain.
@@ -306,7 +300,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 	pov_block_hash: &H,
 	collator: &CollatorId,
 	signature: &CollatorSignature,
-) -> Result<(),()> {
+) -> Result<(), ()> {
 	let payload = collator_signature_payload(relay_parent, parachain_index, pov_block_hash);
 	if signature.verify(&payload[..], collator) {
 		Ok(())
@@ -377,10 +371,7 @@ impl<H: AsRef<[u8]>, N> CandidateReceipt<H, N> {
 			commitments,
 		};
 
-		let omitted = OmittedValidationData {
-			global_validation,
-			local_validation,
-		};
+		let omitted = OmittedValidationData { global_validation, local_validation };
 
 		(abridged, omitted)
 	}
@@ -396,7 +387,8 @@ impl Ord for CandidateReceipt {
 	fn cmp(&self, other: &Self) -> Ordering {
 		// TODO: compare signatures or something more sane
 		// https://github.com/paritytech/polkadot/issues/222
-		self.parachain_index.cmp(&other.parachain_index)
+		self.parachain_index
+			.cmp(&other.parachain_index)
 			.then_with(|| self.head_data.cmp(&other.head_data))
 	}
 }
@@ -433,7 +425,7 @@ pub struct AbridgedCandidateReceipt<H = Hash> {
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,
-	/// The hash of the pov-block.
+	/// The hash of the `pov-block`.
 	pub pov_block_hash: H,
 	/// Commitments made as a result of validation.
 	pub commitments: CandidateCommitments<H>,
@@ -441,11 +433,11 @@ pub struct AbridgedCandidateReceipt<H = Hash> {
 
 /// A candidate-receipt with commitments directly included.
 pub struct CommitedCandidateReceipt<H = Hash> {
-	/// The descriptor of the candidae.
+	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor,
 
 	/// The commitments of the candidate receipt.
-	pub commitments: CandidateCommitments<H>
+	pub commitments: CandidateCommitments<H>,
 }
 
 impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
@@ -486,10 +478,7 @@ impl AbridgedCandidateReceipt {
 			commitments,
 		} = self;
 
-		let OmittedValidationData {
-			global_validation,
-			local_validation,
-		} = omitted;
+		let OmittedValidationData { global_validation, local_validation } = omitted;
 
 		CandidateReceipt {
 			parachain_index,
@@ -548,7 +537,8 @@ impl Ord for AbridgedCandidateReceipt {
 	fn cmp(&self, other: &Self) -> Ordering {
 		// TODO: compare signatures or something more sane
 		// https://github.com/paritytech/polkadot/issues/222
-		self.parachain_index.cmp(&other.parachain_index)
+		self.parachain_index
+			.cmp(&other.parachain_index)
 			.then_with(|| self.head_data.cmp(&other.head_data))
 	}
 }
@@ -567,9 +557,9 @@ pub struct CandidateDescriptor<H = Hash> {
 	/// The collator's relay-chain account ID
 	pub collator: CollatorId,
 	/// Signature on blake2-256 of components of this receipt:
-	/// The para ID, the relay parent, and the pov_hash.
+	/// The para ID, the relay parent, and the `pov_hash`.
 	pub signature: CollatorSignature,
-	/// The hash of the pov-block.
+	/// The hash of the `pov-block`.
 	pub pov_hash: H,
 }
 
@@ -588,12 +578,12 @@ pub struct CollationInfo {
 	pub signature: CollatorSignature,
 	/// The head-data
 	pub head_data: HeadData,
-	/// blake2-256 Hash of the pov-block
+	/// blake2-256 Hash of the `pov-block`
 	pub pov_block_hash: Hash,
 }
 
 impl CollationInfo {
-	/// Check integrity vs. a pov-block.
+	/// Check integrity vs. a `pov-block`.
 	pub fn check_signature(&self) -> Result<(), ()> {
 		check_collator_signature(
 			&self.relay_parent,
@@ -678,6 +668,14 @@ pub enum CompactStatement {
 	Valid(CandidateHash),
 }
 
+impl CompactStatement {
+	/// Yields the payload used for validator signatures on this kind
+	/// of statement.
+	pub fn signing_payload(&self, context: &SigningContext) -> Vec<u8> {
+		(self, context).encode()
+	}
+}
+
 // Inner helper for codec on `CompactStatement`.
 #[derive(Encode, Decode)]
 enum CompactStatementInner {
@@ -709,10 +707,12 @@ impl parity_scale_codec::Encode for CompactStatement {
 }
 
 impl parity_scale_codec::Decode for CompactStatement {
-	fn decode<I: parity_scale_codec::Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+	fn decode<I: parity_scale_codec::Input>(
+		input: &mut I,
+	) -> Result<Self, parity_scale_codec::Error> {
 		let maybe_magic = <[u8; 4]>::decode(input)?;
 		if maybe_magic != BACKING_STATEMENT_MAGIC {
-			return Err(parity_scale_codec::Error::from("invalid magic string"));
+			return Err(parity_scale_codec::Error::from("invalid magic string"))
 		}
 
 		Ok(match CompactStatementInner::decode(input)? {
@@ -730,9 +730,6 @@ impl CompactStatement {
 		}
 	}
 }
-
-/// A signed compact statement, suitable to be sent to the chain.
-pub type SignedStatement = Signed<CompactStatement>;
 
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
@@ -765,14 +762,10 @@ impl ValidityAttestation {
 		signing_context: &SigningContext<H>,
 	) -> Vec<u8> {
 		match *self {
-			ValidityAttestation::Implicit(_) => (
-				CompactStatement::Seconded(candidate_hash),
-				signing_context,
-			).encode(),
-			ValidityAttestation::Explicit(_) => (
-				CompactStatement::Valid(candidate_hash),
-				signing_context,
-			).encode(),
+			ValidityAttestation::Implicit(_) =>
+				(CompactStatement::Seconded(candidate_hash), signing_context).encode(),
+			ValidityAttestation::Explicit(_) =>
+				(CompactStatement::Valid(candidate_hash), signing_context).encode(),
 		}
 	}
 }
@@ -866,156 +859,6 @@ pub mod id {
 	pub const PARACHAIN_HOST: ApiId = *b"parahost";
 }
 
-/// This helper trait ensures that we can encode Statement as CompactStatement,
-/// and anything as itself.
-///
-/// This resembles `parity_scale_codec::EncodeLike`, but it's distinct:
-/// EncodeLike is a marker trait which asserts at the typesystem level that
-/// one type's encoding is a valid encoding for another type. It doesn't
-/// perform any type conversion when encoding.
-///
-/// This trait, on the other hand, provides a method which can be used to
-/// simultaneously convert and encode one type as another.
-pub trait EncodeAs<T> {
-	/// Convert Self into T, then encode T.
-	///
-	/// This is useful when T is a subset of Self, reducing encoding costs;
-	/// its signature also means that we do not need to clone Self in order
-	/// to retain ownership, as we would if we were to do
-	/// `self.clone().into().encode()`.
-	fn encode_as(&self) -> Vec<u8>;
-}
-
-impl<T: Encode> EncodeAs<T> for T {
-	fn encode_as(&self) -> Vec<u8> {
-		self.encode()
-	}
-}
-
-/// A signed type which encapsulates the common desire to sign some data and validate a signature.
-///
-/// Note that the internal fields are not public; they are all accessable by immutable getters.
-/// This reduces the chance that they are accidentally mutated, invalidating the signature.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
-pub struct Signed<Payload, RealPayload = Payload> {
-	/// The payload is part of the signed data. The rest is the signing context,
-	/// which is known both at signing and at validation.
-	payload: Payload,
-	/// The index of the validator signing this statement.
-	validator_index: ValidatorIndex,
-	/// The signature by the validator of the signed payload.
-	signature: ValidatorSignature,
-	/// This ensures the real payload is tracked at the typesystem level.
-	real_payload: sp_std::marker::PhantomData<RealPayload>,
-}
-
-// We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
-// the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
-// because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
-// own trait which does what we need: EncodeAs.
-impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPayload> {
-	fn payload_data<H: Encode>(payload: &Payload, context: &SigningContext<H>) -> Vec<u8> {
-		// equivalent to (real_payload, context).encode()
-		let mut out = payload.encode_as();
-		out.extend(context.encode());
-		out
-	}
-
-	/// Used to create a `Signed` from already existing parts.
-	#[cfg(feature = "std")]
-	pub fn new<H: Encode>(
-		payload: Payload,
-		validator_index: ValidatorIndex,
-		signature: ValidatorSignature,
-		context: &SigningContext<H>,
-		key: &ValidatorId,
-	) -> Option<Self> {
-		let s = Self {
-			payload,
-			validator_index,
-			signature,
-			real_payload: std::marker::PhantomData,
-		};
-
-		s.check_signature(context, key).ok()?;
-
-		Some(s)
-	}
-
-	/// Sign this payload with the given context and key, storing the validator index.
-	#[cfg(feature = "std")]
-	pub async fn sign<H: Encode>(
-		keystore: &SyncCryptoStorePtr,
-		payload: Payload,
-		context: &SigningContext<H>,
-		validator_index: ValidatorIndex,
-		key: &ValidatorId,
-	) -> Result<Option<Self>, KeystoreError> {
-		let data = Self::payload_data(&payload, context);
-		let signature = CryptoStore::sign_with(
-			&**keystore,
-			ValidatorId::ID,
-			&key.into(),
-			&data,
-		).await?;
-
-		let signature = match signature {
-			Some(sig) => sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?,
-			None => return Ok(None),
-		};
-
-		Ok(Some(Self {
-			payload,
-			validator_index,
-			signature,
-			real_payload: std::marker::PhantomData,
-		}))
-	}
-
-	/// Validate the payload given the context and public key.
-	pub fn check_signature<H: Encode>(&self, context: &SigningContext<H>, key: &ValidatorId) -> Result<(), ()> {
-		let data = Self::payload_data(&self.payload, context);
-		if self.signature.verify(data.as_slice(), key) { Ok(()) } else { Err(()) }
-	}
-
-	/// Immutably access the payload.
-	#[inline]
-	pub fn payload(&self) -> &Payload {
-		&self.payload
-	}
-
-	/// Immutably access the validator index.
-	#[inline]
-	pub fn validator_index(&self) -> ValidatorIndex {
-		self.validator_index
-	}
-
-	/// Immutably access the signature.
-	#[inline]
-	pub fn signature(&self) -> &ValidatorSignature {
-		&self.signature
-	}
-
-	/// Discard signing data, get the payload
-	// Note: can't `impl<P, R> From<Signed<P, R>> for P` because the orphan rule exception doesn't
-	// handle this case yet. Likewise can't `impl<P, R> Into<P> for Signed<P, R>` because it might
-	// potentially conflict with the global blanket impl, even though it currently doesn't.
-	#[inline]
-	pub fn into_payload(self) -> Payload {
-		self.payload
-	}
-
-	/// Convert `Payload` into `RealPayload`.
-	pub fn convert_payload(&self) -> Signed<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
-		Signed {
-			signature: self.signature.clone(),
-			validator_index: self.validator_index,
-			payload: self.payload().into(),
-			real_payload: sp_std::marker::PhantomData,
-		}
-	}
-}
-
 /// Custom validity errors used in Polkadot while validating transactions.
 #[repr(u8)]
 pub enum ValidityError {
@@ -1057,13 +900,14 @@ pub mod fisherman {
 	/// An `AppCrypto` type to allow submitting signed transactions using the fisherman
 	/// application key as signer.
 	pub struct FishermanAppCrypto;
-	impl frame_system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAppCrypto {
+	impl frame_system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature>
+		for FishermanAppCrypto
+	{
 		type RuntimeAppPublic = FishermanId;
 		type GenericSignature = primitives::sr25519::Signature;
 		type GenericPublic = primitives::sr25519::Public;
 	}
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -1083,10 +927,7 @@ mod tests {
 		let h = Hash::default();
 		assert_eq!(h.as_ref().len(), 32);
 
-		let _payload = collator_signature_payload(
-			&Hash::repeat_byte(1),
-			&5u32.into(),
-			&Hash::repeat_byte(2),
-		);
+		let _payload =
+			collator_signature_payload(&Hash::repeat_byte(1), &5u32.into(), &Hash::repeat_byte(2));
 	}
 }

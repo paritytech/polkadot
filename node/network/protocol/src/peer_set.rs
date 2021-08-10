@@ -17,7 +17,10 @@
 //! All peersets and protocols used for parachains.
 
 use sc_network::config::{NonDefaultSetConfig, SetConfig};
-use std::{borrow::Cow, ops::{Index, IndexMut}};
+use std::{
+	borrow::Cow,
+	ops::{Index, IndexMut},
+};
 use strum::{EnumIter, IntoEnumIterator};
 
 /// The peer-sets and thus the protocols which are used for the network.
@@ -30,7 +33,7 @@ pub enum PeerSet {
 	Collation,
 }
 
-/// Whether or not a node is an authority or not.
+/// Whether a node is an authority or not.
 ///
 /// Peer set configuration gets adjusted accordingly.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -53,6 +56,7 @@ impl PeerSet {
 		match self {
 			PeerSet::Validation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
+				fallback_names: Vec::new(),
 				max_notification_size,
 				set_config: sc_network::config::SetConfig {
 					// we allow full nodes to connect to validators for gossip
@@ -67,6 +71,7 @@ impl PeerSet {
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
+				fallback_names: Vec::new(),
 				max_notification_size,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:
@@ -77,7 +82,7 @@ impl PeerSet {
 						sc_network::config::NonReservedPeerMode::Accept
 					} else {
 						sc_network::config::NonReservedPeerMode::Deny
-					}
+					},
 				},
 			},
 		}

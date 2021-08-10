@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! # XCM-Builder
+//!
+//! Types and helpers for *building* XCM configuration.
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
@@ -23,30 +27,37 @@ mod tests;
 
 mod location_conversion;
 pub use location_conversion::{
-	Account32Hash, ParentIsDefault, ChildParachainConvertsVia, SiblingParachainConvertsVia, AccountId32Aliases,
-	AccountKey20Aliases, LocationInverter,
+	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
+	LocationInverter, ParentIsDefault, SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;
 pub use origin_conversion::{
-	SovereignSignedViaLocation, ParentAsSuperuser, ChildSystemParachainAsSuperuser, SiblingSystemParachainAsSuperuser,
-	ChildParachainAsNative, SiblingParachainAsNative, RelayChainAsNative, SignedAccountId32AsNative,
-	SignedAccountKey20AsNative, EnsureXcmOrigin, SignedToAccountId32, BackingToPlurality,
+	BackingToPlurality, ChildParachainAsNative, ChildSystemParachainAsSuperuser, EnsureXcmOrigin,
+	ParentAsSuperuser, RelayChainAsNative, SiblingParachainAsNative,
+	SiblingSystemParachainAsSuperuser, SignedAccountId32AsNative, SignedAccountKey20AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation,
 };
 
 mod barriers;
 pub use barriers::{
-	TakeWeightCredit, AllowUnpaidExecutionFrom, AllowTopLevelPaidExecutionFrom, AllowKnownQueryResponses,
+	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
+	IsChildSystemParachain, TakeWeightCredit,
 };
 
 mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
 
 mod fungibles_adapter;
-pub use fungibles_adapter::FungiblesAdapter;
+pub use fungibles_adapter::{
+	AsPrefixedGeneralIndex, ConvertedAbstractAssetId, ConvertedConcreteAssetId, FungiblesAdapter,
+	FungiblesMutateAdapter, FungiblesTransferAdapter,
+};
 
 mod weight;
-pub use weight::{FixedRateOfConcreteFungible, FixedWeightBounds};
+#[allow(deprecated)]
+pub use weight::FixedRateOfConcreteFungible;
+pub use weight::{FixedRateOfFungible, FixedWeightBounds, TakeRevenue, UsingComponents};
 
 mod matches_fungible;
 pub use matches_fungible::{IsAbstract, IsConcrete};

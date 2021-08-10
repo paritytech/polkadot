@@ -101,6 +101,14 @@ check-line-width:
     - ./scripts/gitlab/check_line_width.sh
   allow_failure:                   true
 
+cargo-fmt:
+  stage:                           test
+  <<:                              *kubernetes-env
+  <<:                              *rules-pr-only
+  script:
+    - cargo +nightly fmt --all -- --check
+  allow_failure:                   true
+
 test-deterministic-wasm:
   stage:                           test
   <<:                              *rules-test
@@ -164,6 +172,18 @@ check-runtime-benchmarks:
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
+spellcheck:
+  stage:                           test
+  <<:                              *docker-env
+  <<:                              *rules-pr-only
+  script:
+    - cargo spellcheck --version
+    # compare with the commit parent to the PR, given it's from a default branch
+    - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
+    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
+        -r $(git diff --name-only ${CI_COMMIT_SHA} $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH}))
+  allow_failure:                   true
+
 build-adder-collator:
   stage:                           test
   <<:                              *collect-artifacts
@@ -173,6 +193,7 @@ build-adder-collator:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   script:
     - time cargo build --release --verbose -p test-parachain-adder-collator
     - sccache -s
@@ -262,8 +283,8 @@ publish-polkadot-image:
     DOCKERFILE:                    Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/synth-wave
   rules:
-  # Don't run on releases - this is handled by the Github Action here:
-  # .github/workflows/publish-docker-release.yml
+    # Don't run on releases - this is handled by the Github Action here:
+    # .github/workflows/publish-docker-release.yml
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -292,18 +313,45 @@ publish-adder-collator-image:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         build-adder-collator
       artifacts:                   true
   after_script:
     - buildah logout "$IMAGE_NAME"
     # pass artifacts to the trigger-simnet job
-    - echo "COLLATOR_IMAGE=$IMAGE_NAME" > ./artifacts/collator.env
-    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
+    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" > ./artifacts/collator.env
   artifacts:
     reports:
       # this artifact is used in trigger-simnet job
       dotenv: ./artifacts/collator.env
+
+.update_weights:                   &update-weights
+  stage:                           build
+  when:                            manual
+  tags:
+    - weights
+  variables:
+    RUNTIME:                       polkadot
+  artifacts:
+    paths:
+      - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  script: |
+    ./scripts/run_benches_for_runtime.sh $RUNTIME
+    git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+
+update_polkadot_weights:
+  <<:                              *update-weights
+
+update_kusama_weights:
+  <<:                              *update-weights
+  variables:
+    RUNTIME:                       kusama
+
+update_westend_weights:
+  <<:                              *update-weights
+  variables:
+    RUNTIME:                       westend
 
 #### stage:                        publish
 
@@ -364,6 +412,7 @@ deploy-polkasync-kusama:
 trigger-simnet:
   stage:                           deploy
   image:                           paritytech/tools:latest
+  <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
@@ -381,8 +430,9 @@ trigger-simnet:
   variables:
     TRGR_PROJECT:                  ${CI_PROJECT_NAME}
     TRGR_REF:                      ${CI_COMMIT_REF_NAME}
-    # simnet project ID
+    # Simnet project ID
     DWNSTRM_ID:                    332
   script:
-    # API trigger for a simnet job
-    - ./scripts/gitlab/trigger_pipeline.sh
+    # API trigger for a Simnet job, argument value is set in the project variables
+    - ./scripts/gitlab/trigger_pipeline.sh --simnet-version=${SIMNET_REF}
+  allow_failure:                   true

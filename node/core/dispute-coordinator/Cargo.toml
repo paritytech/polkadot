@@ -1,0 +1,30 @@
+[package]
+name = "polkadot-node-core-dispute-coordinator"
+version = "0.9.9"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
+futures = "0.3.12"
+tracing = "0.1.26"
+parity-scale-codec = "2"
+kvdb = "0.10.0"
+derive_more = "0.99.14"
+thiserror = "1.0.26"
+
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-primitives = { path = "../../primitives" }
+polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[dev-dependencies]
+kvdb-memorydb = "0.10.0"
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers"}
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+assert_matches = "1.4.0"
+polkadot-overseer = { path = "../../overseer" }

@@ -14,8 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcm::v0::{MultiAsset, MultiLocation};
+use xcm::latest::{MultiAsset, MultiLocation};
 
+/// Filters assets/location pairs.
+///
+/// Can be amalgamated into tuples. If any item returns `true`, it short-circuits, else `false` is returned.
 pub trait FilterAssetLocation {
 	/// A filter to distinguish between asset/location pairs.
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool;
@@ -27,6 +30,12 @@ impl FilterAssetLocation for Tuple {
 		for_tuples!( #(
 			if Tuple::filter_asset_location(what, origin) { return true }
 		)* );
+		log::trace!(
+			target: "xcm::filter_asset_location",
+			"got filtered: what: {:?}, origin: {:?}",
+			what,
+			origin,
+		);
 		false
 	}
 }
