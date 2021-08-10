@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::{
-	traits::{Everything, EnsureOrigin, OriginTrait},
+	traits::{EnsureOrigin, Everything, OriginTrait},
 	weights::Weight,
 };
 use xcm::v0::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult, SendXcm, Xcm};
