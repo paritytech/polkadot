@@ -123,7 +123,7 @@ publish-rustdoc:
     - rm -rf .git/config
     - git config user.email "devops-team@parity.io"
     - git config user.name "${GITHUB_USER}"
-    - git config remote.origin.url "https://${GITHUB_TOKEN}@github.com/paritytech/substrate.git"
+    - git config remote.origin.url "https://${GITHUB_TOKEN}@github.com/paritytech/polkadot.git"
     - git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
     - git fetch origin gh-pages
     # Save README and docs
