@@ -923,7 +923,7 @@ impl Junctions {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::latest::{Junctions::*, Junction::*};
+	/// # use xcm::v1::{Junctions::*, Junction::*};
 	/// # fn main() {
 	/// let mut m = X3(Parachain(2), PalletInstance(3), OnlyChild);
 	/// assert_eq!(m.match_and_split(&X2(Parachain(2), PalletInstance(3))), Some(&OnlyChild));
