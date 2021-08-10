@@ -28,6 +28,9 @@ use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
+///
+/// The holding is a temporary register used to keep track of all assets in motion, e.g. withdrawn from accounts
+/// or teleported in via XCM.
 #[derive(Derivative, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
@@ -132,17 +135,17 @@ pub enum Order<Call> {
 	},
 
 	/// Pay for the execution of some XCM `instructions` and `orders` with up to `weight` picoseconds of execution time,
-	/// paying for this with up to `fees` from the Holding Register.
+	/// paying for this with up to `fees` from holding (the assets holding register).
 	///
 	/// - `fees`: The asset(s) to remove from holding to pay for fees.
-	/// - `weight`: The amount of weight to purchase; this should be at least the shallow weight of `effects` and `xcm`.
+	/// - `weight`: The amount of weight to purchase; this should be at least the shallow weight of `orders` and `instructions`.
 	/// - `debt`: The amount of weight-debt already incurred to be paid off; this should be equal to the unpaid weight of
 	///   any surrounding operations/orders.
-	/// - `halt_on_error`: If `true`, the execution of the `orders` and `operations` will halt on the first failure. If
+	/// - `halt_on_error`: If `true`, the execution of the `orders` and `instructions` will halt on the first failure. If
 	///   `false`, then execution will continue regardless.
-	/// - `orders`: Orders to be executed with the existing Holding Register; execution of these orders happens PRIOR to
-	///   execution of the `operations`. The (shallow) weight for these must be paid for with the `weight` purchased.
-	/// - `instructions`: XCM instructions to be executed outside of the context of the current Holding Register;
+	/// - `orders`: Orders to be executed with the existing holding; execution of these orders happens PRIOR to
+	///   execution of the `instructions`. The (shallow) weight for these must be paid for with the `weight` purchased.
+	/// - `instructions`: XCM instructions to be executed outside of the context of the current holding;
 	///   execution of these instructions happens AFTER the execution of the `orders`. The (shallow) weight for these
 	///   must be paid for with the `weight` purchased.
 	/// Errors:
