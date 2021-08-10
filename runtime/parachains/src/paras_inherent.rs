@@ -268,6 +268,8 @@ pub mod pallet {
 				<scheduler::Pallet<T>>::group_validators,
 			)?;
 
+			let vrfs = <shared::Pallet<T>>::extract_vrfs();
+			let _ = <shared::Pallet<T>>::note_vrfs(current_session, now, vrfs);
 			// Note which of the scheduled cores were actually occupied by a backed candidate.
 			<scheduler::Pallet<T>>::occupied(&occupied);
 
@@ -336,6 +338,11 @@ fn limit_backed_candidates<T: Config>(
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	use primitives::v1::{CandidateHash, CoreIndex, Hash, SessionIndex, Slot};
+
+	use keyring::Sr25519Keyring;
+	use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof};
 
 	use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
 
@@ -503,6 +510,118 @@ mod tests {
 				// call has returned the appropriate post-dispatch weight for refund, and trust
 				// Substrate to do the right thing with that information.
 				assert_eq!(post_info.actual_weight.unwrap(), expected_weight);
+			});
+		}
+
+		// used for generating assignments where the validity of the VRF doesn't matter.
+		fn garbage_vrf(keyring: Sr25519Keyring) -> (VRFOutput, VRFProof) {
+			use sp_consensus_babe::Transcript;
+			let key = keyring.pair();
+			let key = key.as_ref();
+
+			use sp_runtime::ConsensusEngineId;
+			const BABE_ENGINE_ID: ConsensusEngineId = *b"BABE";
+			let (o, p, _) = key.vrf_sign(Transcript::new(&BABE_ENGINE_ID));
+			(VRFOutput(o.to_output()), VRFProof(p))
+		}
+
+		fn setup_vrf(
+			incomplete_session: bool,
+		) -> (
+			SessionIndex,
+			<Test as frame_system::Config>::BlockNumber,
+			<Test as frame_system::Config>::BlockNumber,
+		) {
+			use sp_consensus_babe::digests::{
+				CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest,
+			};
+			use sp_runtime::{Digest, DigestItem};
+			let slot = Slot::from(1);
+			let mut digest = Digest::<<Test as frame_system::Config>::Hash>::default();
+
+			let (vrf_output, vrf_proof) = garbage_vrf(Sr25519Keyring::Alice);
+			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
+			)));
+
+			let (vrf_output, vrf_proof) = garbage_vrf(Sr25519Keyring::Bob);
+			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
+			)));
+
+			let (vrf_output, vrf_proof) = garbage_vrf(Sr25519Keyring::Charlie);
+			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
+				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
+			)));
+
+			let block: <Test as frame_system::Config>::BlockNumber = 1;
+			let next_block: <Test as frame_system::Config>::BlockNumber = 2;
+
+			System::initialize(&block, &Default::default(), &digest, frame_system::InitKind::Full);
+
+			let vrfs = shared::Pallet::<Test>::extract_vrfs();
+			assert_eq!(vrfs.len(), 3);
+
+			let session: SessionIndex = 1;
+			assert!(shared::Pallet::<Test>::note_vrfs(session, block, vrfs));
+
+			// Assert that all VRFs have been stored
+			assert_eq!(shared::Pallet::<Test>::historical_vrfs(session, block).len(), 3);
+
+			System::initialize(
+				&next_block,
+				&Default::default(),
+				&digest,
+				frame_system::InitKind::Full,
+			);
+
+			let vrfs = shared::Pallet::<Test>::extract_vrfs();
+			assert_eq!(vrfs.len(), 3);
+
+			assert!(shared::Pallet::<Test>::note_vrfs(session, next_block, vrfs));
+
+			// Assert that all VRFs have been stored
+			assert_eq!(shared::Pallet::<Test>::historical_vrfs(session, block).len(), 3);
+			assert_eq!(shared::Pallet::<Test>::historical_vrfs(session, next_block).len(), 3);
+
+			if incomplete_session {
+				for i in 0..crate::shared::MAX_CANDIDATES_TO_PRUNE + 1 {
+					let candidate_hash = CandidateHash(Hash::repeat_byte(i as u8));
+					shared::Pallet::<Test>::note_included_candidate(
+						session,
+						candidate_hash,
+						block,
+						CoreIndex(0),
+					);
+				}
+			}
+
+			// Mark session as pruneable, prune that session
+			shared::Pallet::<Test>::mark_session_pruneable(session);
+			shared::Pallet::<Test>::prune_ancient_sessions(1);
+
+			(session, block, next_block)
+		}
+
+		#[test]
+		fn test_vrf_prune_on_complete_session() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let (session, block, next_block) = setup_vrf(false);
+				// Since the session is complete, ensure that all VRFs have been removed.
+				// Note that if the session was incomplete, we would only prune the first block
+				assert_eq!(shared::Pallet::<Test>::historical_vrfs(session, block).len(), 0);
+				assert_eq!(shared::Pallet::<Test>::historical_vrfs(session, next_block).len(), 0);
+			});
+		}
+
+		#[test]
+		fn test_vrf_prune_on_incomplete_session() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let (session, block, next_block) = setup_vrf(true);
+				// Since the session is incomplete, ensure that only one block has been removed.
+				// Note that if the session was complete, we would prune all blocks
+				assert_eq!(shared::Pallet::<Test>::historical_vrfs(session, block).len(), 0);
+				assert_eq!(shared::Pallet::<Test>::historical_vrfs(session, next_block).len(), 3);
 			});
 		}
 	}

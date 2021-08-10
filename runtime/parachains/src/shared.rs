@@ -21,6 +21,7 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::v1::{CandidateHash, CoreIndex, SessionIndex, ValidatorId, ValidatorIndex};
+use sp_consensus_babe::digests::{CompatibleDigestItem, PreDigest};
 use sp_runtime::traits::{One, Zero};
 use sp_std::vec::Vec;
 
@@ -93,6 +94,17 @@ pub mod pallet {
 	#[pallet::getter(fn pruneable_sessions)]
 	pub(super) type PruneableSessions<T: Config> = StorageMap<_, Twox64Concat, SessionIndex, ()>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn historical_babe_vrfs)]
+	pub(super) type HistoricalBabeVrfs<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		SessionIndex,
+		Twox64Concat,
+		T::BlockNumber,
+		Vec<Vec<u8>>,
+	>;
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {}
 }
@@ -153,8 +165,11 @@ impl<T: Config> Pallet<T> {
 	/// Prunes up to `max_candidates_to_prune` candidates from `IncludedCandidates` that belong to
 	/// non-active sessions.
 	pub(crate) fn prune_ancient_sessions(max_candidates_to_prune: usize) {
-		let mut to_prune = Vec::new();
+		let mut to_prune_candidates = Vec::new();
+		let mut to_prune_blocks = Vec::new();
+
 		let mut n_candidates = 0;
+
 		let mut incomplete_session = None;
 		for session in PruneableSessions::<T>::iter_keys() {
 			let mut hashes = Vec::new();
@@ -170,24 +185,33 @@ impl<T: Config> Pallet<T> {
 				n_candidates += 1;
 			}
 
-			to_prune.push((session, hashes));
+			for block_number in HistoricalBabeVrfs::<T>::iter_key_prefix(session) {
+				to_prune_blocks.push((session, block_number));
+				if incomplete_session.is_some() {
+					break
+				}
+			}
+
+			to_prune_candidates.push((session, hashes));
 			// Exit condition when all candidates from this session were selected for pruning.
 			if n_candidates >= max_candidates_to_prune {
 				break
 			}
 		}
 
-		for (session, candidate_hashes) in to_prune {
+		for (session, block_number) in to_prune_blocks {
+			HistoricalBabeVrfs::<T>::remove(session, block_number);
+		}
+
+		for (session, candidate_hashes) in to_prune_candidates {
 			for candidate_hash in candidate_hashes {
 				IncludedCandidates::<T>::remove(session, candidate_hash);
 			}
 
 			// Prune the session only if it was not marked as incomplete.
 			match incomplete_session {
-				Some(incomplete_session) if incomplete_session != session =>
-					PruneableSessions::<T>::remove(session),
-				None => PruneableSessions::<T>::remove(session),
-				_ => {},
+				Some(incomplete_session) if incomplete_session == session => {},
+				_ => PruneableSessions::<T>::remove(session),
 			}
 		}
 	}
@@ -237,6 +261,40 @@ impl<T: Config> Pallet<T> {
 		session: SessionIndex,
 	) -> impl Iterator<Item = (CandidateHash, (T::BlockNumber, CoreIndex))> {
 		<IncludedCandidates<T>>::iter_prefix(session)
+	}
+
+	/// Records an included historical BABE VRF
+	pub fn extract_vrfs() -> Vec<Vec<u8>> {
+		<frame_system::Pallet<T>>::digest()
+			.logs
+			.into_iter()
+			.filter_map(|d| {
+				d.as_babe_pre_digest()
+					.map(|p| match p {
+						PreDigest::Primary(primary) => Some(primary.vrf_output.encode()),
+						PreDigest::SecondaryVRF(secondary) => Some(secondary.vrf_output.encode()),
+						PreDigest::SecondaryPlain(_) => None,
+					})
+					.flatten()
+			})
+			.collect()
+	}
+
+	pub fn note_vrfs(
+		session: SessionIndex,
+		block_number: T::BlockNumber,
+		vrfs: Vec<Vec<u8>>,
+	) -> bool {
+		if HistoricalBabeVrfs::<T>::get(session, block_number).is_none() {
+			HistoricalBabeVrfs::<T>::insert(session, block_number, vrfs);
+			true
+		} else {
+			false
+		}
+	}
+
+	pub fn historical_vrfs(session: SessionIndex, block_number: T::BlockNumber) -> Vec<Vec<u8>> {
+		HistoricalBabeVrfs::<T>::get(session, block_number).unwrap_or_default()
 	}
 
 	/// Test function for setting the current session index.
