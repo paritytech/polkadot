@@ -75,14 +75,14 @@ pub fn worst_case_holding() -> Assets {
 	(0..HOLDING_FUNGIBLES)
 		.map(|i| {
 			MultiAsset {
-				id: Concrete(X1(GeneralIndex { id: i as u128 })),
+				id: Concrete(GeneralIndex(i as u128).into()),
 				fun: Fungible(fungibles_amount * i as u128),
 			}
 			.into()
 		})
-		.chain(core::iter::once(MultiAsset { id: Concrete(Here), fun: Fungible(u128::MAX) }))
+		.chain(core::iter::once(MultiAsset { id: Concrete(Here.into()), fun: Fungible(u128::MAX) }))
 		.chain((0..HOLDING_NON_FUNGIBLES).map(|i| MultiAsset {
-			id: Concrete(X1(GeneralIndex { id: i as u128 })),
+			id: Concrete(GeneralIndex(i as u128).into()),
 			fun: NonFungible(asset_instance_from(i)),
 		}))
 		.collect::<Vec<_>>()
@@ -128,7 +128,7 @@ fn account_id_junction<T: frame_system::Config>(index: u32) -> Junction {
 }
 
 pub fn account_and_location<T: Config>(index: u32) -> (T::AccountId, MultiLocation) {
-	let location = MultiLocation::X1(account_id_junction::<T>(index));
+	let location: MultiLocation = account_id_junction::<T>(index).into();
 	let account = T::AccountIdConverter::convert(location.clone()).unwrap();
 
 	(account, location)

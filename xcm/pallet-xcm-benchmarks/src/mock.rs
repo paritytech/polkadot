@@ -39,7 +39,7 @@ pub struct AccountIdConverter;
 impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 	fn convert(ml: MultiLocation) -> Result<u64, MultiLocation> {
 		match ml {
-			MultiLocation::X1(Junction::AccountId32 { id, .. }) =>
+			MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { id, .. }) } =>
 				Ok(<u64 as codec::Decode>::decode(&mut &*id.to_vec()).unwrap()),
 			_ => Err(ml),
 		}
@@ -51,9 +51,9 @@ impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 }
 
 parameter_types! {
-	pub Ancestry: MultiLocation = MultiLocation::X1(Junction::Parachain(101));
+	pub Ancestry: MultiLocation = Junction::Parachain(101).into();
 	pub UnitWeightCost: Weight = 10;
-	pub WeightPrice: (AssetId, u128) = (Concrete(Here), 1_000_000);
+	pub WeightPrice: (AssetId, u128) = (Concrete(Here.into()), 1_000_000);
 }
 
 pub struct AllAssetLocationsPass;

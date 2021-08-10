@@ -28,14 +28,14 @@ use xcm::{latest::prelude::*, DoubleEncoded};
 benchmarks! {
 	order_noop {
 		let order = Order::<XcmCallOf<T>>::Noop;
-		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let origin: MultiLocation = account_id_junction::<T>(1).into();
 		let holding = worst_case_holding();
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
 	}
 
 	order_query_holding {
-		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let origin: MultiLocation = account_id_junction::<T>(1).into();
 		let holding = worst_case_holding();
 
 		let order = Order::<XcmCallOf<T>>::QueryHolding {
@@ -54,10 +54,10 @@ benchmarks! {
 	// This benchmark does not use any additional orders or instructions. This should be managed
 	// by the `deep` and `shallow` implementation.
 	order_buy_execution {
-		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let origin: MultiLocation = account_id_junction::<T>(1).into();
 		let holding = worst_case_holding();
 
-		let fee_asset = Concrete(Here);
+		let fee_asset = Concrete(Here.into());
 
 		let order = Order::<XcmCallOf<T>>::BuyExecution {
 			fees: (fee_asset, 100_000_000).into(), // should be something inside of holding
@@ -77,7 +77,7 @@ benchmarks! {
 	// filter through the reserve.
 	xcm_reserve_asset_deposited {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let assets: MultiAssets = (Concrete(Here), 100).into();// TODO worst case
+		let assets: MultiAssets = (Concrete(Here.into()), 100).into();// TODO worst case
 
 		// no effects to isolate this benchmark
 		let effects: Vec<Order<_>> = Default::default();
@@ -155,7 +155,7 @@ benchmarks! {
 		};
 
 		let xcm = Xcm::RelayedFrom {
-			who: Here,
+			who: Here.into(),
 			message: sp_std::boxed::Box::new(noop_xcm),
 		};
 	}: {

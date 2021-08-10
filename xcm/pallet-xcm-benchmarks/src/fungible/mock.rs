@@ -144,7 +144,7 @@ parameter_types! {
 	pub const ValidDestination: MultiLocation = X1(AccountId32 {
 		network: NetworkId::Any,
 		id: [0u8; 32],
-	});
+	}).into();
 }
 
 impl xcm_balances_benchmark::Config for Test {
@@ -154,7 +154,7 @@ impl xcm_balances_benchmark::Config for Test {
 	fn get_multi_asset() -> MultiAsset {
 		let amount =
 			<Balances as frame_support::traits::fungible::Inspect<u64>>::minimum_balance() as u128;
-		MultiAsset { id: Concrete(MultiLocation::Here), fun: Fungible(amount) }
+		MultiAsset { id: Concrete(Here.into()), fun: Fungible(amount) }
 	}
 }
 

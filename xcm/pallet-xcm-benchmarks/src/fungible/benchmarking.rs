@@ -40,7 +40,7 @@ benchmarks_instance_pallet! {
 	}
 
 	order_deposit_asset {
-		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let origin: MultiLocation = account_id_junction::<T>(1).into();
 
 		let asset = T::get_multi_asset();
 		let amount: u128 = T::TransactAsset::minimum_balance().try_into().unwrap();
@@ -66,7 +66,7 @@ benchmarks_instance_pallet! {
 	}
 
 	order_deposit_reserve_asset {
-		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let origin: MultiLocation = account_id_junction::<T>(1).into();
 
 		let asset = T::get_multi_asset();
 		let amount: u128 = T::TransactAsset::minimum_balance().try_into().unwrap();
@@ -95,7 +95,7 @@ benchmarks_instance_pallet! {
 	}
 
 	order_initiate_reserve_withdraw {
-		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let origin: MultiLocation = account_id_junction::<T>(1).into();
 		let asset = T::get_multi_asset();
 		let amount: u128 = T::TransactAsset::minimum_balance().try_into().unwrap();
 		// generate the holding with a bunch of stuff..

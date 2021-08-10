@@ -135,8 +135,10 @@ impl xcm_executor::traits::MatchesFungibles<u32, u64> for MatchAnyFungibles {
 		//                                                      ^^ TODO: this error is too out of scope.
 		use sp_runtime::traits::SaturatedConversion;
 		match m {
-			MultiAsset { id: Concrete(X1(GeneralIndex { id })), fun: Fungible(amount) } =>
-				Ok(((*id).saturated_into::<u32>(), (*amount).saturated_into::<u64>())),
+			MultiAsset {
+				id: Concrete(MultiLocation { parents: 0, interior: X1(GeneralIndex(inner_id)) }),
+				fun: Fungible(amount),
+			} => Ok(((*inner_id).saturated_into::<u32>(), (*amount).saturated_into::<u64>())),
 			_ => Err(xcm_executor::traits::Error::AssetNotFound),
 		}
 	}
@@ -144,10 +146,10 @@ impl xcm_executor::traits::MatchesFungibles<u32, u64> for MatchAnyFungibles {
 
 parameter_types! {
 	pub const CheckedAccount: u64 = 100;
-	pub const ValidDestination: MultiLocation = MultiLocation::X1(Junction::AccountId32 {
+	pub const ValidDestination: MultiLocation = Junction::AccountId32 {
 		network: NetworkId::Any,
 		id: [0u8; 32],
-	});
+	}.into();
 }
 
 pub type AssetTransactor = xcm_builder::FungiblesAdapter<
@@ -193,10 +195,7 @@ impl xcm_assets_benchmarks::Config for Test {
 		}
 
 		let amount = <Assets as Inspect<u64>>::minimum_balance(id) as u128;
-		MultiAsset {
-			id: Concrete(X1(Junction::GeneralIndex { id: id.into() })),
-			fun: Fungible(amount),
-		}
+		MultiAsset { id: Concrete(GeneralIndex(id.into()).into()), fun: Fungible(amount) }
 	}
 }
 

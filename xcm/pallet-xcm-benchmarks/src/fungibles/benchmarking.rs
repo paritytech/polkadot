@@ -51,7 +51,7 @@ benchmarks! {
 	// orders.
 	order_noop {
 		let order = Order::<XcmCallOf<T>>::Noop;
-		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let origin: MultiLocation = account_id_junction::<T>(1).into();
 		let holding = Assets::default();
 	}: {
 		assert_ok!(execute_order::<T>(origin, holding, order));
@@ -60,13 +60,13 @@ benchmarks! {
 	order_deposit_asset_per_asset {
 		// create one asset with our desired id.
 		let asset_id = 9;
-		let origin = MultiLocation::X1(account_id_junction::<T>(1));
+		let origin: MultiLocation = account_id_junction::<T>(1).into();
 
 		let asset =  T::get_multi_asset(asset_id);
 		let order = Order::<XcmCallOf<T>>::DepositAsset {
 			assets: asset.clone().into(),
 			max_assets: 1,
-			beneficiary: MultiLocation::X1(account_id_junction::<T>(2)),
+			beneficiary: account_id_junction::<T>(2).into(),
 		};
 
 		let amount: u128 = T::TransactAsset::minimum_balance(asset_id.into()).try_into().unwrap();

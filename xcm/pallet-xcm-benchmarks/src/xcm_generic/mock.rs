@@ -101,10 +101,10 @@ impl xcm_executor::Config for XcmConfig {
 }
 
 parameter_types! {
-	pub const ValidDestination: MultiLocation = MultiLocation::X1(Junction::AccountId32 {
+	pub const ValidDestination: MultiLocation = Junction::AccountId32 {
 		network: NetworkId::Any,
 		id: [0u8; 32],
-	});
+	}.into();
 }
 
 impl crate::Config for Test {
@@ -117,7 +117,7 @@ impl xcm_generic_benchmarks::Config for Test {
 	type Call = Call;
 
 	fn worst_case_response() -> (u64, Response) {
-		let assets: MultiAssets = (Concrete(Here), 100).into();
+		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
 		(0, Response::Assets(assets))
 	}
 }
