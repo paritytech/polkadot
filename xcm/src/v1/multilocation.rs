@@ -1241,7 +1241,7 @@ mod tests {
 	fn append_with_works() {
 		let acc = AccountIndex64 { network: Any, index: 23 };
 		let mut m = MultiLocation { parents: 1, interior: X1(Parachain(42)) };
-		assert_eq!(m.append_with(MultiLocation::from(X2(PalletInstance(3), acc.clone()))), Ok(()));
+		assert_eq!(m.append_with(X2(PalletInstance(3), acc.clone())), Ok(()));
 		assert_eq!(
 			m,
 			MultiLocation {
@@ -1252,12 +1252,12 @@ mod tests {
 
 		// cannot append to create overly long multilocation
 		let acc = AccountIndex64 { network: Any, index: 23 };
-		let mut m = MultiLocation {
+		let m = MultiLocation {
 			parents: 254,
 			interior: X5(Parachain(42), OnlyChild, OnlyChild, OnlyChild, OnlyChild),
 		};
-		let suffix = MultiLocation::from(X4(PalletInstance(3), acc.clone(), OnlyChild, OnlyChild));
-		assert_eq!(m.append_with(suffix.clone()), Err(suffix));
+		let suffix = X4(PalletInstance(3), acc.clone(), OnlyChild, OnlyChild);
+		assert_eq!(m.clone().append_with(suffix.clone()), Err(suffix));
 	}
 
 	#[test]
