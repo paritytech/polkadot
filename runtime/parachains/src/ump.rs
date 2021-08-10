@@ -84,14 +84,18 @@ impl<XcmExecutor: xcm::v0::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<X
 		data: &[u8],
 		max_weight: Weight,
 	) -> Result<Weight, (MessageId, Weight)> {
+		use parity_scale_codec::DecodeLimit;
 		use xcm::{
 			v0::{Error as XcmError, Junction, MultiLocation, Xcm},
 			VersionedXcm,
 		};
 
 		let id = sp_io::hashing::blake2_256(&data[..]);
-		let maybe_msg =
-			VersionedXcm::<C::Call>::decode(&mut &data[..]).map(Xcm::<C::Call>::try_from);
+		let maybe_msg = VersionedXcm::<C::Call>::decode_all_with_depth_limit(
+			xcm::MAX_XCM_DECODE_DEPTH,
+			&mut &data[..],
+		)
+		.map(Xcm::<C::Call>::try_from);
 		match maybe_msg {
 			Err(_) => {
 				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
