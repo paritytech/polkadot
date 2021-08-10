@@ -297,9 +297,6 @@ pub enum DisputeDistributionMessage {
 	/// Tell dispute distribution to distribute an explicit dispute statement to
 	/// validators.
 	SendDispute(DisputeMessage),
-
-	/// Get receiver for receiving incoming network requests for dispute sending.
-	DisputeSendingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// Messages received by the network bridge subsystem.

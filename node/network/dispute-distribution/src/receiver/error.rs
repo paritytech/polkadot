@@ -19,7 +19,7 @@
 
 use thiserror::Error;
 
-use polkadot_node_network_protocol::{request_response::incoming::Error as ReceiveError, PeerId};
+use polkadot_node_network_protocol::{request_response::incoming, PeerId};
 use polkadot_node_subsystem_util::runtime;
 
 use crate::LOG_TARGET;
@@ -42,16 +42,25 @@ impl From<runtime::Error> for Error {
 	}
 }
 
+impl From<incoming::Error> for Error {
+	fn from(o: incoming::Error) -> Self {
+		match o {
+			incoming::Error::Fatal(f) => Self::Fatal(Fatal::IncomingRequest(f)),
+			incoming::Error::NonFatal(f) => Self::NonFatal(NonFatal::IncomingRequest(f)),
+		}
+	}
+}
+
 /// Fatal errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum Fatal {
-	/// Request channel returned `None`. Likely a system shutdown.
-	#[error("Request channel stream finished.")]
-	RequestChannelFinished,
-
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
 	Runtime(#[from] runtime::Fatal),
+
+	/// Errors coming from receiving incoming requests.
+	#[error("Retrieving next incoming request failed.")]
+	IncomingRequest(#[from] incoming::Fatal),
 }
 
 /// Non-fatal errors of this subsystem.
@@ -60,10 +69,6 @@ pub enum NonFatal {
 	/// Answering request failed.
 	#[error("Sending back response to peer {0} failed.")]
 	SendResponse(PeerId),
-
-	/// Getting request from raw request failed.
-	#[error("Decoding request failed.")]
-	FromRawRequest(#[source] ReceiveError),
 
 	/// Setting reputation for peer failed.
 	#[error("Changing peer's ({0}) reputation failed.")]
@@ -84,17 +89,20 @@ pub enum NonFatal {
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information")]
 	Runtime(#[from] runtime::NonFatal),
+
+	/// Errors coming from receiving incoming requests.
+	#[error("Retrieving next incoming request failed.")]
+	IncomingRequest(#[from] incoming::NonFatal),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub type FatalResult<T> = std::result::Result<T, Fatal>;
 pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
 
 /// Utility for eating top level errors and log them.
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
-/// consume top-level errors by simply logging them
+/// consume top-level errors by simply logging them.
 pub fn log_error(result: Result<()>) -> std::result::Result<(), Fatal> {
 	match result {
 		Err(Error::Fatal(f)) => Err(f),
