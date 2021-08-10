@@ -165,8 +165,6 @@ pub enum CollatorProtocolMessage {
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
-	/// Incoming network request for a collation.
-	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	///
 	/// The hash is the relay parent.
@@ -858,9 +856,3 @@ pub enum ApprovalDistributionMessage {
 /// Message to the Gossip Support subsystem.
 #[derive(Debug)]
 pub enum GossipSupportMessage {}
-
-impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
-	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
-		Self::CollationFetchingRequest(req)
-	}
-}

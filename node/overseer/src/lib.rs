@@ -927,11 +927,6 @@ where
 
 use polkadot_node_network_protocol::request_response::{v1 as req_res_v1, IncomingRequest};
 
-impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages {
-	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
-		From::<CollatorProtocolMessage>::from(From::from(req))
-	}
-}
 impl From<IncomingRequest<req_res_v1::AvailableDataFetchingRequest>> for AllMessages {
 	fn from(req: IncomingRequest<req_res_v1::AvailableDataFetchingRequest>) -> Self {
 		From::<AvailabilityRecoveryMessage>::from(From::from(req))
