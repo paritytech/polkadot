@@ -432,6 +432,7 @@ impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
 				who,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
+			_ => return Err(()),
 		})
 	}
 }
@@ -442,6 +443,7 @@ impl TryFrom<NewResponse> for Response {
 	fn try_from(response: NewResponse) -> result::Result<Self, ()> {
 		match response {
 			NewResponse::Assets(assets) => Ok(Self::Assets(assets)),
+			_ => Err(()),
 		}
 	}
 }

@@ -62,7 +62,7 @@ pub fn sent_xcm() -> Vec<(MultiLocation, Xcm)> {
 /// Sender that never returns error, always sends
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
+	fn send_xcm(dest: MultiLocation, msg: Xcm) -> SendResult {
 		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
 		Ok(())
 	}
@@ -70,9 +70,9 @@ impl SendXcm for TestSendXcm {
 /// Sender that returns error if `X8` junction and stops routing
 pub struct TestSendXcmErrX8;
 impl SendXcm for TestSendXcmErrX8 {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult {
+	fn send_xcm(dest: MultiLocation, msg: Xcm) -> SendResult {
 		if dest.len() == 8 {
-			Err(XcmError::Undefined)
+			Err(SendError::Transport)
 		} else {
 			SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
 			Ok(())

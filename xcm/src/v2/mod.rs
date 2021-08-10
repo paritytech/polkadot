@@ -28,18 +28,18 @@ use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
 mod order;
-mod traits; // the new multiasset.
+mod traits;
 
+pub use order::Order;
+pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm, SendError, SendResult};
+// These parts of XCM v1 have been unchanged in XCM v2, and are re-imported here.
 pub use super::v1::{
 	Junction, AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
 	Ancestor, AncestorThen, Junctions, MultiLocation, Parent, ParentThen,
 	BodyId, BodyPart, NetworkId, OriginKind,
 };
-pub use order::Order;
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
-// These parts of XCM v0 have been unchanged in XCM v1, and are re-imported here.
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
@@ -60,7 +60,10 @@ pub mod prelude {
 		MultiLocation, Parent, ParentThen,
 		opaque,
 		order::Order::{self, *},
-		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
+		traits::{
+			ExecuteXcm, Error as XcmError, Result as XcmResult, Outcome,
+			SendXcm, SendResult, SendError,
+		},
 		OriginKind, Response,
 		Xcm::{self, *},
 	};
@@ -71,6 +74,8 @@ pub mod prelude {
 pub enum Response {
 	/// Some assets.
 	Assets(MultiAssets),
+	/// The outcome of an XCM instruction.
+	ExecutionOutcome(Outcome),
 }
 
 /// Cross-Consensus Message: A message from one consensus system to another.
@@ -265,6 +270,11 @@ pub enum Xcm<Call> {
 	/// Errors:
 	#[codec(index = 10)]
 	RelayedFrom { who: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
+
+	/// Attempt execution of the inner `xcm` message and then report the outcome of that `dest`.
+	///
+	/// A `QueryResponse` message is sent to `dest` with the given `query_id` following the
+	Report { query_id: u64, dest: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> }
 }
 
 impl<Call> Xcm<Call> {
@@ -297,6 +307,8 @@ impl<Call> Xcm<Call> {
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			RelayedFrom { who, message } =>
 				RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
+			Report { query_id, dest, message } =>
+				Report { query_id, dest, message: alloc::boxed::Box::new((*message).into()) },
 		}
 	}
 }

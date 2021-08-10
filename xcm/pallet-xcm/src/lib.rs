@@ -122,7 +122,7 @@ pub mod pallet {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
 			Self::send_xcm(origin_location.clone(), *dest.clone(), *message.clone()).map_err(
 				|e| match e {
-					XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
+					SendError::CannotReachDestination(..) => Error::<T>::Unreachable,
 					_ => Error::<T>::SendFailure,
 				},
 			)?;
@@ -305,7 +305,7 @@ pub mod pallet {
 			interior: MultiLocation,
 			dest: MultiLocation,
 			message: Xcm<()>,
-		) -> Result<(), XcmError> {
+		) -> Result<(), SendError> {
 			let message = if interior.is_here() {
 				message
 			} else {

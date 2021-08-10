@@ -37,11 +37,6 @@ pub enum Error {
 	UntrustedReserveLocation,
 	UntrustedTeleportLocation,
 	DestinationBufferOverflow,
-	/// The message and destination was recognized as being reachable but the operation could not be completed.
-	/// A human-readable explanation of the specific issue is provided.
-	SendFailed(#[codec(skip)] &'static str),
-	/// The message and destination combination was not recognized as being reachable.
-	CannotReachDestination(MultiLocation, Xcm<()>),
 	MultiLocationFull,
 	FailedToDecode,
 	BadOrigin,
@@ -91,11 +86,28 @@ pub enum Error {
 	DestinationUnsupported,
 	/// `execute_xcm` has been called too many times recursively.
 	RecursionLimitReached,
+	/// Destination is routable, but there is some issue with the transport mechanism.
+	///
+	/// A human-readable explanation of the specific issue is provided.
+	Transport(#[codec(skip)] &'static str),
+	/// Destination is known to be unroutable.
+	Unroutable,
 }
 
 impl From<()> for Error {
 	fn from(_: ()) -> Self {
 		Self::Undefined
+	}
+}
+
+impl From<SendError> for Error {
+	fn from(e: SendError) -> Self {
+		match e {
+			SendError::CannotReachDestination(..) | SendError::Unroutable => Error::Unroutable,
+			SendError::Transport(s) => Error::Transport(s),
+			SendError::DestinationUnsupported => Error::DestinationUnsupported,
+			SendError::ExceedsMaxMessageSize => Error::ExceedsMaxMessageSize,
+		}
 	}
 }
 
@@ -179,6 +191,31 @@ impl<C> ExecuteXcm<C> for () {
 	}
 }
 
+/// Error result value when attempting to send an XCM message.
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
+pub enum SendError {
+	/// The message and destination combination was not recognized as being reachable.
+	/// 
+	/// This is not considered fatal: if there are alternative transport routes available, then
+	/// they may be attempted. For this reason, the destination and message are contained.
+	CannotReachDestination(MultiLocation, Xcm<()>),
+	/// Destination is routable, but there is some issue with the transport mechanism. This is
+	/// considered fatal.
+	/// A human-readable explanation of the specific issue is provided.
+	Transport(#[codec(skip)] &'static str),
+	/// Destination is known to be unroutable. This is considered fatal.
+	Unroutable,
+	/// The given message cannot be translated into a format that the destination can be expected
+	/// to interpret.
+	DestinationUnsupported,
+	/// Message could not be sent due to its size exceeding the maximum allowed by the transport
+	/// layer.
+	ExceedsMaxMessageSize,
+}
+
+/// Result value when attempting to send an XCM message.
+pub type SendResult = result::Result<(), SendError>;
+
 /// Utility for sending an XCM message.
 ///
 /// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
@@ -188,27 +225,25 @@ impl<C> ExecuteXcm<C> for () {
 ///
 /// # Example
 /// ```rust
-/// # use xcm::v2::{MultiLocation, Xcm, Junction, Junctions, Error, OriginKind, SendXcm, Result, Parent};
+/// # use xcm::v0::{MultiLocation, Xcm, Junction, SendError, OriginKind, SendXcm, SendResult};
 /// # use parity_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.
 /// struct Sender1;
 /// impl SendXcm for Sender1 {
-///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         return Err(Error::CannotReachDestination(destination, message))
+///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> SendResult {
+///         return Err(SendError::CannotReachDestination(destination, message))
 ///     }
 /// }
 ///
 /// /// A sender that accepts a message that has an X2 junction, otherwise stops the routing.
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
-///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         if matches!(destination.interior(), Junctions::X2(j1, j2))
-///             && destination.parent_count() == 0
-///         {
+///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> SendResult {
+///         if let MultiLocation::X2(j1, j2) = destination {
 ///             Ok(())
 ///         } else {
-///             Err(Error::Undefined)
+///             Err(SendError::Transport)
 ///         }
 ///     }
 /// }
@@ -216,13 +251,10 @@ impl<C> ExecuteXcm<C> for () {
 /// /// A sender that accepts a message from an X1 parent junction, passing through otherwise.
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
-///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         if matches!(destination.interior(), Junctions::Here)
-///             && destination.parent_count() == 1
-///         {
-///             Ok(())
-///         } else {
-///             Err(Error::CannotReachDestination(destination, message))
+///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> SendResult {
+///         match destination {
+///             MultiLocation::X1(j) if j == Junction::Parent => Ok(()),
+///             _ => Err(SendError::CannotReachDestination(destination, message)),
 ///         }
 ///     }
 /// }
@@ -231,7 +263,7 @@ impl<C> ExecuteXcm<C> for () {
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
-/// let destination: MultiLocation = Parent.into();
+/// let destination = MultiLocation::X1(Junction::Parent);
 ///
 /// assert!(
 ///     // Sender2 will block this.
@@ -252,19 +284,19 @@ pub trait SendXcm {
 	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
 	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
 	/// trying other type fields.
-	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result;
+	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> SendResult;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl SendXcm for Tuple {
-	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> SendResult {
 		for_tuples!( #(
 			// we shadow `destination` and `message` in each expansion for the next one.
 			let (destination, message) = match Tuple::send_xcm(destination, message) {
-				Err(Error::CannotReachDestination(d, m)) => (d, m),
+				Err(SendError::CannotReachDestination(d, m)) => (d, m),
 				o @ _ => return o,
 			};
 		)* );
-		Err(Error::CannotReachDestination(destination, message))
+		Err(SendError::CannotReachDestination(destination, message))
 	}
 }

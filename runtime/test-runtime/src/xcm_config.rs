@@ -15,10 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::{parameter_types, traits::Everything, weights::Weight};
-use xcm::latest::{
-	Error as XcmError, Junctions::Here, MultiAsset, MultiLocation, NetworkId, Parent,
-	Result as XcmResult, SendXcm, Xcm,
-};
+use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
 	traits::{InvertLocation, TransactAsset, WeightTrader},
@@ -38,7 +35,7 @@ pub type LocalOriginToLocation = (
 
 pub struct DoNothingRouter;
 impl SendXcm for DoNothingRouter {
-	fn send_xcm(_dest: MultiLocation, _msg: Xcm<()>) -> XcmResult {
+	fn send_xcm(_dest: MultiLocation, _msg: Xcm<()>) -> SendResult {
 		Ok(())
 	}
 }
