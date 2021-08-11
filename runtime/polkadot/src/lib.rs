@@ -350,11 +350,10 @@ parameter_types! {
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
-	pub const SignedDepositBase: Balance = deposit(1, 0);
-	// A typical solution occupies within an order of magnitude of 50kb.
-	// This formula is currently adjusted such that a typical solution will spend an amount equal
-	// to the base deposit for every 50 kb.
-	pub const SignedDepositByte: Balance = deposit(1, 0) / (50 * 1024);
+	// 40 DOTs fixed deposit..
+	pub const SignedDepositBase: Balance = deposit(2, 0);
+	// 0.01 DOT per KB of solution data.
+	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1 DOT as reward
 	pub SignedRewardBase: Balance = 1 * UNITS;
 	// fallback: emergency phase.
@@ -1549,7 +1548,7 @@ mod test_fees {
 	use pallet_transaction_payment::Multiplier;
 	use parity_scale_codec::Encode;
 	use separator::Separatable;
-	use sp_runtime::FixedPointNumber;
+	use sp_runtime::{assert_eq_error_rate, FixedPointNumber};
 
 	#[test]
 	fn payout_weight_portion() {
@@ -1673,6 +1672,14 @@ mod test_fees {
 
 		println!("can support {} nominators to yield a weight of {}", active, weight_with(active));
 		assert!(active > target_voters, "we need to reevaluate the weight of the election system");
+	}
+
+	#[test]
+	fn signed_deposit_is_sensible() {
+		// ensure this number does not change, or that it is checked after each change.
+		// a 1 MB solution should take (40 + 10) DOTs of deposit.
+		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
+		assert_eq_error_rate!(deposit, 50 * DOLLARS, DOLLARS);
 	}
 }
 
