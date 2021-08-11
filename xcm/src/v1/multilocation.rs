@@ -325,24 +325,24 @@ impl From<Parent> for MultiLocation {
 /// A tuple struct which can be converted into a `MultiLocation` of `parents` value 1 with the inner interior.
 pub struct ParentThen(Junctions);
 impl From<ParentThen> for MultiLocation {
-	fn from(x: ParentThen) -> Self {
-		MultiLocation { parents: 1, interior: x.0 }
+	fn from(ParentThen(interior): ParentThen) -> Self {
+		MultiLocation { parents: 1, interior }
 	}
 }
 
 /// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value.
 pub struct Ancestor(u8);
 impl From<Ancestor> for MultiLocation {
-	fn from(x: Ancestor) -> Self {
-		MultiLocation { parents: x.0, interior: Junctions::Here }
+	fn from(Ancestor(parents): Ancestor) -> Self {
+		MultiLocation { parents, interior: Junctions::Here }
 	}
 }
 
 /// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value and the inner interior.
 pub struct AncestorThen(u8, Junctions);
 impl From<AncestorThen> for MultiLocation {
-	fn from(x: AncestorThen) -> Self {
-		MultiLocation { parents: x.0, interior: x.1 }
+	fn from(AncestorThen(parents, interior): AncestorThen) -> Self {
+		MultiLocation { parents, interior }
 	}
 }
 

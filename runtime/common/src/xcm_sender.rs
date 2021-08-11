@@ -27,7 +27,8 @@ pub struct ChildParachainRouter<T, W>(PhantomData<(T, W)>);
 impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
 	for ChildParachainRouter<T, W>
 {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result {
+	fn send_xcm(dest: impl Into<MultiLocation>, msg: Xcm) -> Result {
+		let dest = dest.into();
 		match dest {
 			MultiLocation { parents: 0, interior: Junctions::X1(Junction::Parachain(id)) } => {
 				// Downward message passing.

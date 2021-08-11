@@ -192,9 +192,10 @@ macro_rules! decl_test_network {
 		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
 
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
-			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
+			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::XcmResult {
 				use $crate::{UmpSink, XcmpMessageHandlerT};
 
+				let destination = destination.into();
 				match destination.interior() {
 					$crate::Junctions::Here if destination.parent_count() == 1 => {
 						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
@@ -223,9 +224,10 @@ macro_rules! decl_test_network {
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
 		impl $crate::SendXcm for RelayChainXcmRouter {
-			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
+			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::XcmResult {
 				use $crate::DmpMessageHandlerT;
 
+				let destination = destination.into();
 				match destination.interior() {
 					$(
 						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 0 => {

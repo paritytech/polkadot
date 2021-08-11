@@ -194,15 +194,16 @@ impl<C> ExecuteXcm<C> for () {
 /// /// A sender that only passes the message through and does nothing.
 /// struct Sender1;
 /// impl SendXcm for Sender1 {
-///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         return Err(Error::CannotReachDestination(destination, message))
+///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> Result {
+///         return Err(Error::CannotReachDestination(destination.into(), message))
 ///     }
 /// }
 ///
 /// /// A sender that accepts a message that has an X2 junction, otherwise stops the routing.
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
-///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> Result {
+///         let destination = destination.into();
 ///         if matches!(destination.interior(), Junctions::X2(j1, j2))
 ///             && destination.parent_count() == 0
 ///         {
@@ -216,7 +217,8 @@ impl<C> ExecuteXcm<C> for () {
 /// /// A sender that accepts a message from an X1 parent junction, passing through otherwise.
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
-///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+///     fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> Result {
+///         let destination = destination.into();
 ///         if matches!(destination.interior(), Junctions::Here)
 ///             && destination.parent_count() == 1
 ///         {
@@ -252,12 +254,12 @@ pub trait SendXcm {
 	/// If it is not a destination which can be reached with this type but possibly could by others, then it *MUST*
 	/// return `CannotReachDestination`. Any other error will cause the tuple implementation to exit early without
 	/// trying other type fields.
-	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result;
+	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> Result;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl SendXcm for Tuple {
-	fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
+	fn send_xcm(destination: impl Into<MultiLocation>, message: Xcm<()>) -> Result {
 		for_tuples!( #(
 			// we shadow `destination` and `message` in each expansion for the next one.
 			let (destination, message) = match Tuple::send_xcm(destination, message) {
@@ -265,6 +267,6 @@ impl SendXcm for Tuple {
 				o @ _ => return o,
 			};
 		)* );
-		Err(Error::CannotReachDestination(destination, message))
+		Err(Error::CannotReachDestination(destination.into(), message))
 	}
 }
