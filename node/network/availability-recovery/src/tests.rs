@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{sync::Arc, time::Duration};
+use std::{convert::TryFrom, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use futures::{executor, future};
@@ -25,7 +25,7 @@ use parity_scale_codec::Encode;
 use super::*;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
-use polkadot_node_primitives::{BlockData, PoV};
+use polkadot_node_primitives::{BlockData, PoV, Proof};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
 use polkadot_subsystem::{
@@ -365,7 +365,7 @@ fn derive_erasure_chunks_with_proofs_and_root(
 		.map(|(index, (proof, chunk))| ErasureChunk {
 			chunk: chunk.to_vec(),
 			index: ValidatorIndex(index as _),
-			proof,
+			proof: Proof::try_from(proof).unwrap(),
 		})
 		.collect::<Vec<ErasureChunk>>();
 

@@ -21,6 +21,7 @@
 
 use std::{
 	collections::{BTreeSet, HashMap, HashSet},
+	convert::TryFrom,
 	io,
 	sync::Arc,
 	time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
@@ -32,7 +33,7 @@ use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use polkadot_node_primitives::{AvailableData, ErasureChunk};
+use polkadot_node_primitives::{AvailableData, ErasureChunk, Proof};
 use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},
@@ -1177,7 +1178,7 @@ fn store_available_data(
 	let erasure_chunks = chunks.iter().zip(branches.map(|(proof, _)| proof)).enumerate().map(
 		|(index, (chunk, proof))| ErasureChunk {
 			chunk: chunk.clone(),
-			proof,
+			proof: Proof::try_from(proof).unwrap(),
 			index: ValidatorIndex(index as u32),
 		},
 	);

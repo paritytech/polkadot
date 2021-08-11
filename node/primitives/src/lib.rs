@@ -22,11 +22,12 @@
 
 #![deny(missing_docs)]
 
-use std::pin::Pin;
+use std::{convert::TryFrom, pin::Pin};
 
+use bounded_vec::BoundedVec;
 use futures::Future;
-use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
+use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 pub use sp_consensus_babe::{
 	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -50,6 +51,9 @@ pub use disputes::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, InvalidDisputeVote,
 	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
 };
+
+const MERKLE_NODE_MAX_SIZE: usize = 347;
+const MERKLE_PROOF_MAX_DEPTH: usize = 3;
 
 /// The bomb limit for decompressing code blobs.
 pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
@@ -287,6 +291,96 @@ pub struct AvailableData {
 	pub validation_data: PersistedValidationData,
 }
 
+/// This is a convenience type to allow the ErasureChunk proof to Decode into a nested BoundedVec
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub struct Proof(BoundedVec<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, 1, MERKLE_PROOF_MAX_DEPTH>);
+
+impl Proof {
+	fn as_vec(&self) -> Vec<Vec<u8>> {
+		self.0.as_vec().iter().map(|v| v.as_vec().clone()).collect()
+	}
+}
+
+impl TryFrom<Vec<Vec<u8>>> for Proof {
+	type Error = &'static str;
+
+	fn try_from(input: Vec<Vec<u8>>) -> Result<Self, Self::Error> {
+		if input.len() > MERKLE_PROOF_MAX_DEPTH {
+			return Err("Merkle max proof depth exceeded.")
+		}
+		let mut out = Vec::new();
+		for element in input.into_iter() {
+			let data: BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE> =
+				BoundedVec::from_vec(element).map_err(|_| "Merkle node max size exceeded.")?;
+			out.push(data);
+		}
+		Ok(Proof(BoundedVec::from_vec(out).expect("Buffer size is deterined above. QED")))
+	}
+}
+
+impl Decode for Proof {
+	fn decode<I: Input>(value: &mut I) -> Result<Self, CodecError> {
+		match value.remaining_len()? {
+			Some(l) if l % MERKLE_NODE_MAX_SIZE != 0 =>
+				return Err("At least one intermediate node in Proof is unpadded.".into()),
+			Some(l) if (l / MERKLE_NODE_MAX_SIZE) > MERKLE_PROOF_MAX_DEPTH =>
+				return Err("Supplied proof depth exceeds maximum proof depth.".into()),
+			None => return Err("Buffer is empty.".into()),
+			_ => {},
+		}
+		let mut out = Vec::new();
+		while let Ok(Some(_)) = value.remaining_len() {
+			let mut temp = [0u8; MERKLE_NODE_MAX_SIZE];
+			value.read(&mut temp)?;
+			let bounded_temp: BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE> =
+				BoundedVec::from_vec(temp.to_vec())
+					.expect("Buffer is specifically set to bounded vector's upper bound. QED");
+			out.push(bounded_temp);
+		}
+		BoundedVec::from_vec(out).map(Self).map_err(|_| {
+			"Length of proof is ensured to be less than bouned. This Error in unreachable".into()
+		})
+	}
+}
+
+impl Encode for Proof {
+	fn size_hint(&self) -> usize {
+		MERKLE_NODE_MAX_SIZE * MERKLE_PROOF_MAX_DEPTH
+	}
+
+	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+		let mut out = Vec::new();
+		for element in self.0.iter() {
+			let temp = element.as_vec();
+			let mut element_vec = [0u8; MERKLE_NODE_MAX_SIZE];
+			element_vec[..temp.len()].copy_from_slice(&temp.as_slice());
+			out.extend(element_vec);
+		}
+		f(&out.as_ref())
+	}
+}
+
+impl Serialize for Proof {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_bytes(&self.encode())
+	}
+}
+
+impl<'de> Deserialize<'de> for Proof {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		// Deserialize the string and get individual components
+		let s = Vec::<u8>::deserialize(deserializer)?;
+		let mut slice = s.as_slice();
+		Decode::decode(&mut slice).map_err(de::Error::custom)
+	}
+}
+
 /// A chunk of erasure-encoded block data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, Serialize, Deserialize, Debug, Hash)]
 pub struct ErasureChunk {
@@ -295,7 +389,14 @@ pub struct ErasureChunk {
 	/// The index of this erasure-encoded chunk of data.
 	pub index: ValidatorIndex,
 	/// Proof for this chunk's branch in the Merkle tree.
-	pub proof: Vec<Vec<u8>>,
+	pub proof: Proof,
+}
+
+impl ErasureChunk {
+	/// Convert bounded Vec Proof to regular Vec<Vec<u8>>
+	pub fn proof_as_vec(&self) -> Vec<Vec<u8>> {
+		self.proof.as_vec()
+	}
 }
 
 /// Compress a PoV, unless it exceeds the [`POV_BOMB_LIMIT`].

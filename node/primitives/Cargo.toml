@@ -6,6 +6,7 @@ edition = "2018"
 description = "Primitives types for the Node-side"
 
 [dependencies]
+bounded-vec = "0.4"
 futures = "0.3.15"
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }

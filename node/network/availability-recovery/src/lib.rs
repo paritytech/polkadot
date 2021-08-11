@@ -286,9 +286,11 @@ impl RequestChunksPhase {
 
 					let validator_index = chunk.index;
 
-					if let Ok(anticipated_hash) =
-						branch_hash(&params.erasure_root, &chunk.proof, chunk.index.0 as usize)
-					{
+					if let Ok(anticipated_hash) = branch_hash(
+						&params.erasure_root,
+						&chunk.proof_as_vec(),
+						chunk.index.0 as usize,
+					) {
 						let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 
 						if erasure_chunk_hash != anticipated_hash {
