@@ -105,26 +105,15 @@ functions. Compare the metadata of the current and new runtimes and ensure that
 the `module index, call index` tuples map to the same set of functions. In case
 of a breaking change, increase `transaction_version`.
 
-To verify the order has not changed:
+To verify the order has not changed, you may manually start the following [Github Action](https://github.com/paritytech/polkadot/actions/workflows/extrinsic-ordering-check-from-bin.yml). It takes around a minute to run and will produce the report as artifact you need to manually check.
 
-1. Download the latest release-candidate binary either from the draft-release
-on Github, or
-[AWS](https://releases.parity.io/polkadot/x86_64-debian:stretch/{{ env.VERSION }}-rc1/polkadot)
-(adjust the rc in this URL as necessary).
-2. Run the release-candidate binary using a local chain:
-`./polkadot --chain=polkadot-local` or `./polkadot --chain=kusama-local`
-3. Use [`polkadot-js-tools`](https://github.com/polkadot-js/tools) to compare
-the metadata:
-  - For Polkadot: `docker run --network host jacogr/polkadot-js-tools metadata wss://rpc.polkadot.io ws://localhost:9944`
-  - For Kusama: `docker run --network host jacogr/polkadot-js-tools metadata wss://kusama-rpc.polkadot.io ws://localhost:9944`
-4. Things to look for in the output are lines like:
+The things to look for in the output are lines like:
   - `[Identity] idx 28 -> 25 (calls 15)` - indicates the index for `Identity` has changed
   - `[+] Society, Recovery` - indicates the new version includes 2 additional modules/pallets.
   - If no indices have changed, every modules line should look something like `[Identity] idx 25 (calls 15)`
 
 Note: Adding new functions to the runtime does not constitute a breaking change
-as long as they are added to the end of a pallet (i.e., does not break any
-other call index).
+as long as the indexes did not change.
 
 ### Proxy Filtering
 
