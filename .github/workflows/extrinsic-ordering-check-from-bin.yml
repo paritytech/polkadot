@@ -54,7 +54,11 @@ jobs:
         run: |
           CMD="docker run --network host jacogr/polkadot-js-tools metadata wss://rpc.polkadot.io ws://localhost:9944"
           echo -e "Running:\n$CMD"
-          $CMD | tee output.txt
+          $CMD > output.txt
+          sed -z -i 's/\n\n/\n/g' output.txt
+
+      - name: Show result
+        run: cat output.txt
 
       - name: Stop our local node
         run: pkill polkadot
