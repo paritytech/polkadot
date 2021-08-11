@@ -581,7 +581,7 @@ impl<T: Config> Pallet<T> {
 				// end of loop reached means that the candidate didn't appear in the non-traversed
 				// section of the `scheduled` slice. either it was not scheduled or didn't appear in
 				// `candidates` in the correct order.
-				ensure!(false, Error::<T>::UnscheduledCandidate,);
+				ensure!(false, Error::<T>::UnscheduledCandidate);
 			}
 
 			// check remainder of scheduled cores, if any.
@@ -917,7 +917,7 @@ impl<T: Config> CandidateCheckContext<T> {
 						self.relay_parent_number.saturating_sub(last) >=
 							self.config.validation_upgrade_frequency
 				});
-			ensure!(valid_upgrade_attempt, AcceptanceCheckErr::PrematureCodeUpgrade,);
+			ensure!(valid_upgrade_attempt, AcceptanceCheckErr::PrematureCodeUpgrade);
 			ensure!(
 				new_validation_code.0.len() <= self.config.max_code_size as _,
 				AcceptanceCheckErr::NewCodeTooLarge,
@@ -1673,7 +1673,7 @@ mod tests {
 				*votes.get_mut(2).unwrap() = true;
 
 				votes
-			},);
+			});
 
 			// and check that chain head was enacted.
 			assert_eq!(Paras::para_head(&chain_a), Some(vec![1, 2, 3, 4].into()));

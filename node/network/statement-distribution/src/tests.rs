@@ -641,7 +641,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 			.get(&hash_b)
 			.unwrap()
 			.sent_statements
-			.contains(&fingerprint),);
+			.contains(&fingerprint));
 
 		assert!(peer_data
 			.get(&peer_c)
@@ -650,7 +650,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 			.get(&hash_b)
 			.unwrap()
 			.sent_statements
-			.contains(&fingerprint),);
+			.contains(&fingerprint));
 
 		let message = handle.recv().await;
 		assert_matches!(

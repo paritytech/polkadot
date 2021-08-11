@@ -387,7 +387,7 @@ enum CollatorProtocolMessage {
     ///
     /// The result sender should be informed when at least one parachain validator seconded the collation. It is also
     /// completely okay to just drop the sender.
-    DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
+    DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<CollationSecondedSignal>>),
     /// Fetch a collation under the given relay-parent for the given ParaId.
     FetchCollation(Hash, ParaId, ResponseChannel<(CandidateReceipt, PoV)>),
     /// Report a collator as having provided an invalid collation. This should lead to disconnect

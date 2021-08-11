@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.9.8"
+version = "0.9.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -21,6 +21,7 @@ sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch =
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -60,12 +61,12 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 
 # External Crates
 futures = "0.3.15"
-hex-literal = "0.3.1"
+hex-literal = "0.3.3"
 tracing = "0.1.26"
 serde = { version = "1.0.123", features = ["derive"] }
-thiserror = "1.0.23"
+thiserror = "1.0.26"
 kvdb = "0.10.0"
-kvdb-rocksdb = { version = "0.12.0", optional = true }
+kvdb-rocksdb = { version = "0.14.0", optional = true }
 async-trait = "0.1.42"
 
 # Polkadot

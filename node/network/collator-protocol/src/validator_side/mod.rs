@@ -397,7 +397,7 @@ impl ActiveParas {
 						)
 					},
 					None => {
-						tracing::trace!(target: LOG_TARGET, ?relay_parent, "Not a validator",);
+						tracing::trace!(target: LOG_TARGET, ?relay_parent, "Not a validator");
 
 						continue
 					},

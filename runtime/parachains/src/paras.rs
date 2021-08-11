@@ -1538,7 +1538,7 @@ mod tests {
 			{
 				Paras::note_new_head(para_id, Default::default(), expected_at);
 
-				assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(expected_at),);
+				assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(expected_at));
 				assert_eq!(
 					<Paras as Store>::PastCodeHash::get(&(para_id, expected_at)),
 					Some(original_code.hash()),
@@ -1629,7 +1629,7 @@ mod tests {
 
 				Paras::note_new_head(para_id, Default::default(), expected_at + 4);
 
-				assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(expected_at),);
+				assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(expected_at));
 
 				// Some hypothetical block which would have triggered the code change
 				// should still use the old code.
@@ -2000,7 +2000,7 @@ mod tests {
 			run_to_block(10, None);
 			Paras::note_new_head(para_id, Default::default(), 7);
 
-			assert_eq!(Paras::past_code_meta(&para_id).upgrade_times, vec![upgrade_at(2, 10)],);
+			assert_eq!(Paras::past_code_meta(&para_id).upgrade_times, vec![upgrade_at(2, 10)]);
 
 			assert_eq!(fetch_validation_code_at(para_id, 2, None), Some(old_code.clone()));
 			assert_eq!(fetch_validation_code_at(para_id, 3, None), Some(old_code.clone()));

@@ -93,7 +93,7 @@ pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
 pub use sc_executor::NativeExecutionDispatch;
 pub use service::{
-	config::{DatabaseConfig, PrometheusConfig},
+	config::{DatabaseSource, PrometheusConfig},
 	ChainSpec, Configuration, Error as SubstrateServiceError, PruningMode, Role, RuntimeGenesis,
 	TFullBackend, TFullCallExecutor, TFullClient, TLightBackend, TLightCallExecutor, TLightClient,
 	TaskManager, TransactionPoolOptions,
@@ -321,10 +321,7 @@ fn new_partial<RuntimeApi, Executor>(
 		sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
 		(
-			impl Fn(
-				polkadot_rpc::DenyUnsafe,
-				polkadot_rpc::SubscriptionTaskExecutor,
-			) -> polkadot_rpc::RpcExtension,
+			impl service::RpcExtensionBuilder,
 			(
 				babe::BabeBlockImport<
 					Block,
@@ -468,7 +465,7 @@ where
 
 		move |deny_unsafe,
 		      subscription_executor: polkadot_rpc::SubscriptionTaskExecutor|
-		      -> polkadot_rpc::RpcExtension {
+		      -> Result<polkadot_rpc::RpcExtension, service::Error> {
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -493,7 +490,7 @@ where
 				},
 			};
 
-			polkadot_rpc::create_full(deps)
+			polkadot_rpc::create_full(deps).map_err(Into::into)
 		}
 	};
 

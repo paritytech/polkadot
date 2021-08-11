@@ -564,7 +564,7 @@ mod tests {
 				window.cache_session_info_for_head(&mut ctx, hash, &header).await.unwrap();
 
 				assert_eq!(window.earliest_session, Some(session));
-				assert_eq!(window.session_info, vec![dummy_session_info(session)],);
+				assert_eq!(window.session_info, vec![dummy_session_info(session)]);
 			})
 		};
 

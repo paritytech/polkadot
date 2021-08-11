@@ -368,7 +368,7 @@ fn requests_check_validation_outputs() {
 				),
 			})
 			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validation_outputs_results[&para_a],);
+		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validation_outputs_results[&para_a]);
 
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
@@ -379,7 +379,7 @@ fn requests_check_validation_outputs() {
 				),
 			})
 			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validation_outputs_results[&para_b],);
+		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validation_outputs_results[&para_b]);
 
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -664,7 +664,7 @@ fn requests_inbound_hrmp_channels_contents() {
 				),
 			})
 			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), para_b_inbound_channels,);
+		assert_eq!(rx.await.unwrap().unwrap(), para_b_inbound_channels);
 
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};

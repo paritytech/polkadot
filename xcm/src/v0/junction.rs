@@ -17,7 +17,7 @@
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
 use alloc::vec::Vec;
-use parity_scale_codec::{self, Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 /// A global identifier of an account-bearing consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
@@ -40,11 +40,7 @@ pub enum BodyId {
 	/// A named body.
 	Named(Vec<u8>),
 	/// An indexed body.
-	// TODO: parity-scale-codec#262: Change to be a tuple.
-	Index {
-		#[codec(compact)]
-		id: u32,
-	},
+	Index(#[codec(compact)] u32),
 	/// The unambiguous executive body (for Polkadot, this would be the Polkadot council).
 	Executive,
 	/// The unambiguous technical body (for Polkadot, this would be the Technical Committee).
@@ -144,10 +140,7 @@ pub enum Junction {
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
-	GeneralIndex {
-		#[codec(compact)]
-		id: u128,
-	},
+	GeneralIndex(#[codec(compact)] u128),
 	/// A nondescript datum acting as a key within the context location.
 	///
 	/// Usage will vary widely owing to its generality.
@@ -163,6 +156,23 @@ pub enum Junction {
 	/// Typical to be used to represent a governance origin of a chain, but could in principle be used to represent
 	/// things such as multisigs also.
 	Plurality { id: BodyId, part: BodyPart },
+}
+
+impl From<crate::v1::Junction> for Junction {
+	fn from(v1: crate::v1::Junction) -> Junction {
+		use crate::v1::Junction::*;
+		match v1 {
+			Parachain(id) => Self::Parachain(id),
+			AccountId32 { network, id } => Self::AccountId32 { network, id },
+			AccountIndex64 { network, index } => Self::AccountIndex64 { network, index },
+			AccountKey20 { network, key } => Self::AccountKey20 { network, key },
+			PalletInstance(index) => Self::PalletInstance(index),
+			GeneralIndex(index) => Self::GeneralIndex(index),
+			GeneralKey(key) => Self::GeneralKey(key),
+			OnlyChild => Self::OnlyChild,
+			Plurality { id, part } => Self::Plurality { id, part },
+		}
+	}
 }
 
 impl Junction {

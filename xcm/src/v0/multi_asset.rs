@@ -16,40 +16,16 @@
 
 //! Cross-Consensus Message format data structures.
 
-use alloc::vec::Vec;
-use core::{convert::TryFrom, result};
-
-use super::{MultiLocation, VersionedMultiAsset};
+use super::MultiLocation;
+use crate::v1::{MultiAssetFilter, MultiAssets, WildMultiAsset};
+use alloc::{vec, vec::Vec};
+use core::{
+	convert::{TryFrom, TryInto},
+	result,
+};
 use parity_scale_codec::{self, Decode, Encode};
 
-/// A general identifier for an instance of a non-fungible asset class.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
-pub enum AssetInstance {
-	/// Undefined - used if the NFA class has only one instance.
-	Undefined,
-
-	/// A compact index. Technically this could be greater than `u128`, but this implementation supports only
-	/// values up to `2**128 - 1`.
-	Index {
-		#[codec(compact)]
-		id: u128,
-	},
-
-	/// A 4-byte fixed-length datum.
-	Array4([u8; 4]),
-
-	/// An 8-byte fixed-length datum.
-	Array8([u8; 8]),
-
-	/// A 16-byte fixed-length datum.
-	Array16([u8; 16]),
-
-	/// A 32-byte fixed-length datum.
-	Array32([u8; 32]),
-
-	/// An arbitrary piece of data. Use only when necessary.
-	Blob(Vec<u8>),
-}
+pub use crate::v1::AssetInstance;
 
 /// A single general identifier for an asset.
 ///
@@ -318,17 +294,64 @@ impl MultiAsset {
 	}
 }
 
-impl From<MultiAsset> for VersionedMultiAsset {
-	fn from(x: MultiAsset) -> Self {
-		VersionedMultiAsset::V0(x)
+impl TryFrom<crate::v1::MultiAsset> for MultiAsset {
+	type Error = ();
+
+	fn try_from(m: crate::v1::MultiAsset) -> result::Result<MultiAsset, ()> {
+		use crate::v1::{AssetId::*, Fungibility::*};
+		use MultiAsset::*;
+		Ok(match (m.id, m.fun) {
+			(Concrete(id), Fungible(amount)) => ConcreteFungible { id: id.try_into()?, amount },
+			(Concrete(class), NonFungible(instance)) =>
+				ConcreteNonFungible { class: class.try_into()?, instance },
+			(Abstract(id), Fungible(amount)) => AbstractFungible { id, amount },
+			(Abstract(class), NonFungible(instance)) => AbstractNonFungible { class, instance },
+		})
 	}
 }
 
-impl TryFrom<VersionedMultiAsset> for MultiAsset {
+impl TryFrom<MultiAssets> for Vec<MultiAsset> {
 	type Error = ();
-	fn try_from(x: VersionedMultiAsset) -> result::Result<Self, ()> {
-		match x {
-			VersionedMultiAsset::V0(x) => Ok(x),
+
+	fn try_from(m: MultiAssets) -> result::Result<Vec<MultiAsset>, ()> {
+		m.drain().into_iter().map(MultiAsset::try_from).collect()
+	}
+}
+
+impl TryFrom<WildMultiAsset> for MultiAsset {
+	type Error = ();
+
+	fn try_from(m: WildMultiAsset) -> result::Result<MultiAsset, ()> {
+		use crate::v1::{AssetId::*, WildFungibility::*};
+		use MultiAsset::*;
+		Ok(match m {
+			WildMultiAsset::All => All,
+			WildMultiAsset::AllOf { id, fun } => match (id, fun) {
+				(Concrete(id), Fungible) => AllConcreteFungible { id: id.try_into()? },
+				(Concrete(class), NonFungible) =>
+					AllConcreteNonFungible { class: class.try_into()? },
+				(Abstract(id), Fungible) => AllAbstractFungible { id },
+				(Abstract(class), NonFungible) => AllAbstractNonFungible { class },
+			},
+		})
+	}
+}
+
+impl TryFrom<WildMultiAsset> for Vec<MultiAsset> {
+	type Error = ();
+
+	fn try_from(m: WildMultiAsset) -> result::Result<Vec<MultiAsset>, ()> {
+		Ok(vec![m.try_into()?])
+	}
+}
+
+impl TryFrom<MultiAssetFilter> for Vec<MultiAsset> {
+	type Error = ();
+
+	fn try_from(m: MultiAssetFilter) -> result::Result<Vec<MultiAsset>, ()> {
+		match m {
+			MultiAssetFilter::Definite(assets) => assets.try_into(),
+			MultiAssetFilter::Wild(wildcard) => wildcard.try_into(),
 		}
 	}
 }
@@ -367,29 +390,20 @@ mod tests {
 			.contains(&AbstractFungible { id: vec![99u8], amount: 100 }));
 
 		// For non-fungibles, containing is equality.
-		assert!(!AbstractNonFungible {
-			class: vec![99u8],
-			instance: AssetInstance::Index { id: 9 }
-		}
-		.contains(&AbstractNonFungible {
-			class: vec![98u8],
-			instance: AssetInstance::Index { id: 9 }
-		}));
-		assert!(!AbstractNonFungible {
-			class: vec![99u8],
-			instance: AssetInstance::Index { id: 8 }
-		}
-		.contains(&AbstractNonFungible {
-			class: vec![99u8],
-			instance: AssetInstance::Index { id: 9 }
-		}));
-		assert!(AbstractNonFungible {
-			class: vec![99u8],
-			instance: AssetInstance::Index { id: 9 }
-		}
-		.contains(&AbstractNonFungible {
-			class: vec![99u8],
-			instance: AssetInstance::Index { id: 9 }
-		}));
+		assert!(!AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index(9) }
+			.contains(&AbstractNonFungible {
+				class: vec![98u8],
+				instance: AssetInstance::Index(9)
+			}));
+		assert!(!AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index(8) }
+			.contains(&AbstractNonFungible {
+				class: vec![99u8],
+				instance: AssetInstance::Index(9)
+			}));
+		assert!(AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index(9) }
+			.contains(&AbstractNonFungible {
+				class: vec![99u8],
+				instance: AssetInstance::Index(9)
+			}));
 	}
 }

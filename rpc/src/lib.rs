@@ -105,7 +105,9 @@ pub struct FullDeps<C, P, SC, B> {
 }
 
 /// Instantiate all RPC extensions.
-pub fn create_full<C, P, SC, B>(deps: FullDeps<C, P, SC, B>) -> RpcExtension
+pub fn create_full<C, P, SC, B>(
+	deps: FullDeps<C, P, SC, B>,
+) -> Result<RpcExtension, Box<dyn std::error::Error + Send + Sync>>
 where
 	C: ProvideRuntimeApi<Block>
 		+ HeaderBackend<Block>
@@ -166,7 +168,7 @@ where
 		shared_authority_set,
 		shared_epoch_changes,
 		deny_unsafe,
-	)));
+	)?));
 
 	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
 		beefy_gadget_rpc::BeefyRpcHandler::new(
@@ -175,7 +177,7 @@ where
 		),
 	));
 
-	io
+	Ok(io)
 }
 
 /// Instantiate all RPC extensions for light node.
