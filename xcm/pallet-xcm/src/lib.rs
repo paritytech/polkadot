@@ -122,7 +122,7 @@ pub mod pallet {
 			message: Box<Xcm<()>>,
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			let interior =
+			let interior: Junctions =
 				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
 			Self::send_xcm(interior, *dest.clone(), *message.clone()).map_err(|e| match e {
 				XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
@@ -304,10 +304,12 @@ pub mod pallet {
 		/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
 		/// location. A null `dest` is not handled.
 		pub fn send_xcm(
-			interior: Junctions,
-			dest: MultiLocation,
+			interior: impl Into<Junctions>,
+			dest: impl Into<MultiLocation>,
 			message: Xcm<()>,
 		) -> Result<(), XcmError> {
+			let interior = interior.into();
+			let dest = dest.into();
 			let message = if let Junctions::Here = interior {
 				message
 			} else {
