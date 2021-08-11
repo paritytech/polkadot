@@ -145,7 +145,8 @@ pub trait ExecuteXcm<Call> {
 	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
 	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
 	/// other aspects.
-	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome {
+	fn execute_xcm(origin: impl Into<MultiLocation>, message: Xcm<Call>, weight_limit: Weight) -> Outcome {
+		let origin = origin.into();
 		log::debug!(
 			target: "xcm::execute_xcm",
 			"origin: {:?}, message: {:?}, weight_limit: {:?}",
@@ -161,7 +162,7 @@ pub trait ExecuteXcm<Call> {
 	/// Some amount of `weight_credit` may be provided which, depending on the implementation, may allow
 	/// execution without associated payment.
 	fn execute_xcm_in_credit(
-		origin: MultiLocation,
+		origin: impl Into<MultiLocation>,
 		message: Xcm<Call>,
 		weight_limit: Weight,
 		weight_credit: Weight,
@@ -170,7 +171,7 @@ pub trait ExecuteXcm<Call> {
 
 impl<C> ExecuteXcm<C> for () {
 	fn execute_xcm_in_credit(
-		_origin: MultiLocation,
+		_origin: impl Into<MultiLocation>,
 		_message: Xcm<C>,
 		_weight_limit: Weight,
 		_weight_credit: Weight,
