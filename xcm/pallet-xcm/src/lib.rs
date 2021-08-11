@@ -102,10 +102,12 @@ pub mod pallet {
 		UnweighableMessage,
 		/// The assets to be sent are empty.
 		Empty,
-		/// Could not reanchor the assets to declare the fees for the destination chain.
+		/// Could not re-anchor the assets to declare the fees for the destination chain.
 		CannotReanchor,
 		/// Too many assets have been attempted for transfer.
 		TooManyAssets,
+		/// Origin is invalid for sending.
+		InvalidOrigin,
 	}
 
 	#[pallet::hooks]
@@ -120,12 +122,12 @@ pub mod pallet {
 			message: Box<Xcm<()>>,
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			Self::send_xcm(origin_location.clone(), *dest.clone(), *message.clone()).map_err(
-				|e| match e {
-					XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
-					_ => Error::<T>::SendFailure,
-				},
-			)?;
+			let interior =
+				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
+			Self::send_xcm(interior, *dest.clone(), *message.clone()).map_err(|e| match e {
+				XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
+				_ => Error::<T>::SendFailure,
+			})?;
 			Self::deposit_event(Event::Sent(origin_location, *dest, *message));
 			Ok(())
 		}
@@ -302,13 +304,14 @@ pub mod pallet {
 		/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
 		/// location. A null `dest` is not handled.
 		pub fn send_xcm(
-			interior: MultiLocation,
+			interior: Junctions,
 			dest: MultiLocation,
 			message: Xcm<()>,
 		) -> Result<(), XcmError> {
-			let message = match interior {
-				MultiLocation::Here => message,
-				who => Xcm::<()>::RelayedFrom { who, message: Box::new(message) },
+			let message = if let Junctions::Here = interior {
+				message
+			} else {
+				Xcm::<()>::RelayedFrom { who: interior, message: Box::new(message) }
 			};
 			log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
 			T::XcmRouter::send_xcm(dest, message)
@@ -384,7 +387,7 @@ where
 
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
-		O::from(Origin::Xcm(MultiLocation::Here))
+		O::from(Origin::Xcm(Here.into()))
 	}
 }
 
@@ -393,9 +396,9 @@ where
 pub struct XcmPassthrough<Origin>(PhantomData<Origin>);
 impl<Origin: From<crate::Origin>> ConvertOrigin<Origin> for XcmPassthrough<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
-		match (kind, origin) {
-			(OriginKind::Xcm, l) => Ok(crate::Origin::Xcm(l).into()),
-			(_, origin) => Err(origin),
+		match kind {
+			OriginKind::Xcm => Ok(crate::Origin::Xcm(origin).into()),
+			_ => Err(origin),
 		}
 	}
 }

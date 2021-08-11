@@ -194,12 +194,15 @@ impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 		use Order::*;
 		Ok(match old {
 			Order0::Null => Noop,
-			Order0::DepositAsset { assets, dest } =>
-				DepositAsset { assets: assets.try_into()?, max_assets: 1, beneficiary: dest.into() },
+			Order0::DepositAsset { assets, dest } => DepositAsset {
+				assets: assets.try_into()?,
+				max_assets: 1,
+				beneficiary: dest.try_into()?,
+			},
 			Order0::DepositReserveAsset { assets, dest, effects } => DepositReserveAsset {
 				assets: assets.try_into()?,
 				max_assets: 1,
-				dest: dest.into(),
+				dest: dest.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::<()>::try_from)
@@ -210,7 +213,7 @@ impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 			Order0::InitiateReserveWithdraw { assets, reserve, effects } =>
 				InitiateReserveWithdraw {
 					assets: assets.try_into()?,
-					reserve: reserve.into(),
+					reserve: reserve.try_into()?,
 					effects: effects
 						.into_iter()
 						.map(Order::<()>::try_from)
@@ -218,14 +221,14 @@ impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 				},
 			Order0::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
 				assets: assets.try_into()?,
-				dest: dest.into(),
+				dest: dest.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
 			Order0::QueryHolding { query_id, dest, assets } =>
-				QueryHolding { query_id, dest: dest.into(), assets: assets.try_into()? },
+				QueryHolding { query_id, dest: dest.try_into()?, assets: assets.try_into()? },
 			Order0::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				let instructions =
 					xcm.into_iter().map(Xcm::<Call>::try_from).collect::<result::Result<_, _>>()?;

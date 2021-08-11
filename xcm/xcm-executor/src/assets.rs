@@ -430,7 +430,6 @@ impl Assets {
 mod tests {
 	use super::*;
 	use xcm::latest::prelude::*;
-	use MultiLocation::Here;
 	#[allow(non_snake_case)]
 	/// Abstract fungible constructor
 	fn AF(id: u8, amount: u128) -> MultiAsset {

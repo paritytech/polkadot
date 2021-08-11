@@ -112,7 +112,7 @@ mod tests {
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
 				Here,
-				X1(Parachain(1)),
+				Parachain(1).into(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
@@ -139,7 +139,7 @@ mod tests {
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,
-				X1(Parent),
+				Parent.into(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
@@ -166,7 +166,7 @@ mod tests {
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,
-				X2(Parent, Parachain(2)),
+				MultiLocation::new(1, X1(Parachain(2))),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
@@ -190,8 +190,8 @@ mod tests {
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::reserve_transfer_assets(
 				relay_chain::Origin::signed(ALICE),
-				Box::new(X1(Parachain(1))),
-				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() })),
+				Box::new(X1(Parachain(1)).into()),
+				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() }).into()),
 				(Here, 123).into(),
 				0,
 				3,
