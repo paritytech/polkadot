@@ -100,11 +100,11 @@ pub enum Response {
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum Xcm<Call> {
-	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
-	/// orders (`effects`).
+	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into the Holding Register.
+	/// Execute the orders (`effects`).
 	///
-	/// - `assets`: The asset(s) to be withdrawn into holding.
-	/// - `effects`: The order(s) to execute on the holding account.
+	/// - `assets`: The asset(s) to be withdrawn into the Holding Register.
+	/// - `effects`: The order(s) to execute on the Holding Register.
 	///
 	/// Kind: *Instruction*.
 	///
@@ -115,10 +115,10 @@ pub enum Xcm<Call> {
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin` system.
 	///
 	/// Some orders are given (`effects`) which should be executed once the corresponding derivative assets have
-	/// been placed into `holding`.
+	/// been placed into the Holding Register.
 	///
-	/// - `assets`: The asset(s) that are minted into holding.
-	/// - `effects`: The order(s) to execute on the holding account.
+	/// - `assets`: The asset(s) that are minted into the Holding Register.
+	/// - `effects`: The order(s) to execute on the Holding Register.
 	///
 	/// Safety: `origin` must be trusted to have received and be storing `assets` such that they may later be
 	/// withdrawn should this system send a corresponding message.
@@ -133,10 +133,10 @@ pub enum Xcm<Call> {
 	/// created on this system.
 	///
 	/// Some orders are given (`effects`) which should be executed once the corresponding derivative assets have
-	/// been placed into `holding`.
+	/// been placed into the Holding Register.
 	///
-	/// - `assets`: The asset(s) that are minted into holding.
-	/// - `effects`: The order(s) to execute on the holding account.
+	/// - `assets`: The asset(s) that are minted into the Holding Register.
+	/// - `effects`: The order(s) to execute on the Holding Register.
 	///
 	/// Safety: `origin` must be trusted to have irrevocably destroyed the `assets` prior as a consequence of
 	/// sending this message.
@@ -147,7 +147,7 @@ pub enum Xcm<Call> {
 	#[codec(index = 2)]
 	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order<Call>> },
 
-	/// Indication of the contents of the holding account corresponding to the `QueryHolding` order of `query_id`.
+	/// Indication of the contents of the Holding Register corresponding to the `QueryHolding` order of `query_id`.
 	///
 	/// - `query_id`: The identifier of the query that resulted in this message being sent.
 	/// - `assets`: The message content.

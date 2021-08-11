@@ -25,7 +25,11 @@ use core::{
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
-/// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
+/// An instruction to be executed on some or all of the assets in the Holding Register, used by
+/// asset-related XCM messages.
+///
+/// The Holding Register is a temporary place used to keep track of all assets in motion,
+/// e.g. withdrawn from accounts or teleported in via XCM.
 #[derive(Derivative, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
@@ -35,22 +39,22 @@ pub enum Order<Call> {
 	#[codec(index = 0)]
 	Null,
 
-	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
+	/// Remove the asset(s) (`assets`) from the Holding Register and place equivalent assets under the ownership of `dest` within
 	/// this consensus system.
 	///
-	/// - `assets`: The asset(s) to remove from holding.
+	/// - `assets`: The asset(s) to remove from the Holding Register.
 	/// - `dest`: The new owner for the assets.
 	///
 	/// Errors:
 	#[codec(index = 1)]
 	DepositAsset { assets: Vec<MultiAsset>, dest: MultiLocation },
 
-	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
+	/// Remove the asset(s) (`assets`) from the Holding Register and place equivalent assets under the ownership of `dest` within
 	/// this consensus system.
 	///
 	/// Send an onward XCM message to `dest` of `ReserveAssetDeposit` with the given `effects`.
 	///
-	/// - `assets`: The asset(s) to remove from holding.
+	/// - `assets`: The asset(s) to remove from the Holding Register.
 	/// - `dest`: The new owner for the assets.
 	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposit` which is sent onwards to
 	///   `dest`.
@@ -59,11 +63,11 @@ pub enum Order<Call> {
 	#[codec(index = 2)]
 	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
-	/// Remove the asset(s) (`give`) from holding and replace them with alternative assets.
+	/// Remove the asset(s) (`give`) from the Holding Register and replace them with alternative assets.
 	///
-	/// The minimum amount of assets to be received into holding for the order not to fail may be stated.
+	/// The minimum amount of assets to be received into the Holding Register for the order not to fail may be stated.
 	///
-	/// - `give`: The asset(s) to remove from holding.
+	/// - `give`: The asset(s) to remove from the Holding Register.
 	/// - `receive`: The minimum amount of assets(s) which `give` should be exchanged for. The meaning of wildcards
 	///   is undefined and they should be not be used.
 	///
@@ -71,9 +75,9 @@ pub enum Order<Call> {
 	#[codec(index = 3)]
 	ExchangeAsset { give: Vec<MultiAsset>, receive: Vec<MultiAsset> },
 
-	/// Remove the asset(s) (`assets`) from holding and send a `WithdrawAsset` XCM message to a reserve location.
+	/// Remove the asset(s) (`assets`) from the Holding Register and send a `WithdrawAsset` XCM message to a reserve location.
 	///
-	/// - `assets`: The asset(s) to remove from holding.
+	/// - `assets`: The asset(s) to remove from the Holding Register.
 	/// - `reserve`: A valid location that acts as a reserve for all asset(s) in `assets`. The sovereign account
 	///   of this consensus system *on the reserve location* will have appropriate assets withdrawn and `effects` will
 	///   be executed on them. There will typically be only one valid location on any given asset/chain combination.
@@ -87,22 +91,22 @@ pub enum Order<Call> {
 		effects: Vec<Order<()>>,
 	},
 
-	/// Remove the asset(s) (`assets`) from holding and send a `TeleportAsset` XCM message to a destination location.
+	/// Remove the asset(s) (`assets`) from the Holding Register and send a `TeleportAsset` XCM message to a destination location.
 	///
-	/// - `assets`: The asset(s) to remove from holding.
-	/// - `destination`: A valid location that has a bi-lateral teleportation arrangement.
+	/// - `assets`: The asset(s) to remove from the Holding Register.
+	/// - `dest`: A valid location that has a bi-lateral teleportation arrangement.
 	/// - `effects`: The orders to execute on the assets once arrived *on the destination location*.
 	///
 	/// Errors:
 	#[codec(index = 5)]
 	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
-	/// Send a `Balances` XCM message with the `assets` value equal to the holding contents, or a portion thereof.
+	/// Send a `Balances` XCM message with the `assets` value equal to the the Holding Register contents, or a portion thereof.
 	///
 	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
 	/// - `dest`: A valid destination for the returned XCM message. This may be limited to the current origin.
 	/// - `assets`: A filter for the assets that should be reported back. The assets reported back will be, asset-
-	///   wise, *the lesser of this value and the holding account*. No wildcards will be used when reporting assets
+	///   wise, *the lesser of this value and the Holding Register*. No wildcards will be used when reporting assets
 	///   back.
 	///
 	/// Errors:
@@ -115,7 +119,7 @@ pub enum Order<Call> {
 	},
 
 	/// Pay for the execution of some XCM with up to `weight` picoseconds of execution time, paying for this with
-	/// up to `fees` from the holding account.
+	/// up to `fees` from the Holding Register.
 	///
 	/// Errors:
 	#[codec(index = 7)]
