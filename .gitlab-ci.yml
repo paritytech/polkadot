@@ -144,7 +144,7 @@ test-build-linux-stable:
     # we're using the bin built here, instead of having a parallel `build-linux-release`
     - time cargo build --release --verbose --bin polkadot
     - sccache -s
-    # pack-artifacts
+    # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - mv ./target/release/polkadot ./artifacts/.
@@ -430,6 +430,11 @@ publish-rustdoc:
   rules:
     - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME == "master"
+  # `needs:` can be removed after CI image gets nonroot. In this case `needs:` stops other
+  # artifacts from being dowloaded by this job.
+  needs:
+    - job:                         build-rustdoc
+      artifacts:                   true
   script:
     - rm -rf /tmp/*
     # Set git config
