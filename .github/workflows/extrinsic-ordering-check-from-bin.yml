@@ -1,0 +1,68 @@
+# This workflow performs the Extrinsic Ordering Check on demand using a binary
+
+name: Extrinsic Ordering Check from Binary
+on:
+  workflow_dispatch:
+    inputs:
+      reference_url:
+        description: The WebSocket url of the reference node
+        default: wss://rpc.polkadot.io
+        required: true
+      binary_url:
+        description: A url to a Linux binary for the node containing the runtime to test
+        default: https://some/url/polkadot
+        required: true
+      chain:
+        description: The name of the chain under test. Usually, you would pass a local chain
+        default: polkadot-local
+        required: true
+
+jobs:
+  check:
+    name: Run check
+    runs-on: ubuntu-latest
+    env:
+      CHAIN: ${{github.event.inputs.chain}}
+
+    steps:
+      # - name: Ensure that the 'chain' is a local one
+      #   env:
+      #   run: |
+      #     if [[ $CHAIN == *"local"* ]] ; then
+      #       echo OK, we will run the test on $CHAIN
+      #       exit 0
+      #     else
+      #       echo Err, you need to pass a local chain such as 'polkadot-local', $CHAIN does not cut it
+      #       exit 1
+      #     fi
+
+      - name: Fetch binary
+        env:
+          BIN_URL: ${{github.event.inputs.binary_url}}
+        run: |
+          echo Fetching $BIN_URL
+          wget $BIN_URL
+          chmod a+x polkadot
+          ./polkadot --version
+
+      - name: Start local node
+        run: |
+          echo Running on $CHAIN
+          ./polkadot --chain=$CHAIN &
+
+      - name: Compare the metadata
+        run: |
+          CMD="docker run --network host jacogr/polkadot-js-tools metadata wss://rpc.polkadot.io ws://localhost:9944"
+          echo Running $CMD
+          OUTPUT=$($CMD)
+          echo $OUTPUT | tee output.txt
+
+      - name: Stop our local node
+        run: pkill polkadot
+
+      - name: Save output as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: $CHAIN
+          path: |
+            output.txt
