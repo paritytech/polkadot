@@ -264,15 +264,6 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	}
 }
 
-// If we're using prometheus, use a registry with a prefix of `polkadot`.
-fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
-	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
-		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
-	}
-
-	Ok(())
-}
-
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
 #[cfg(any(test, feature = "full-node"))]
@@ -347,8 +338,6 @@ where
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	Executor: NativeExecutionDispatch + 'static,
 {
-	set_prometheus_registry(config)?;
-
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -1037,7 +1026,6 @@ where
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
 	Dispatch: NativeExecutionDispatch + 'static,
 {
-	set_prometheus_registry(&mut config)?;
 	use sc_client_api::backend::RemoteBackend;
 
 	let telemetry = config

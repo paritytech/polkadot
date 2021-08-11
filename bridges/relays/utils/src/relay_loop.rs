@@ -18,7 +18,7 @@ use crate::metrics::{Metrics, MetricsAddress, MetricsParams, PrometheusError, St
 use crate::{FailedClient, MaybeConnectionError};
 
 use async_trait::async_trait;
-use std::{fmt::Debug, future::Future, net::SocketAddr, time::Duration};
+use std::{fmt::Debug, future::Future, iter, net::SocketAddr, time::Duration};
 use substrate_prometheus_endpoint::{init_prometheus, Registry};
 
 /// Default pause between reconnect attempts.
@@ -270,7 +270,8 @@ fn create_metrics_registry(prefix: Option<String>) -> Registry {
 	match prefix {
 		Some(prefix) => {
 			assert!(!prefix.is_empty(), "Metrics prefix can not be empty");
-			Registry::new_custom(Some(prefix), None).expect("only fails if prefix is empty; prefix is not empty; qed")
+			Registry::new_custom(None, Some(iter::once((String::from("chain"), prefix)).collect()))
+				.expect("only fails if prefix is empty; prefix is not empty; qed")
 		}
 		None => Registry::new(),
 	}
