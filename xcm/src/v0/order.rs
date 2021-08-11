@@ -46,6 +46,7 @@ pub enum Order<Call> {
 	/// - `dest`: The new owner for the assets.
 	///
 	/// Errors:
+	/// - Errors occuring when trying to deposit the asset(s).
 	#[codec(index = 1)]
 	DepositAsset { assets: Vec<MultiAsset>, dest: MultiLocation },
 
@@ -60,6 +61,8 @@ pub enum Order<Call> {
 	///   `dest`.
 	///
 	/// Errors:
+	/// - Errors occuring when trying to deposit the asset(s).
+	/// - Errors occuring when trying to send the `ReserveAssetDeposited` XCM.
 	#[codec(index = 2)]
 	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
@@ -84,6 +87,7 @@ pub enum Order<Call> {
 	/// - `effects`: The orders to execute on the assets once withdrawn *on the reserve location*.
 	///
 	/// Errors:
+	/// - Errors occuring when trying to send the `WithdrawAsset` XCM.
 	#[codec(index = 4)]
 	InitiateReserveWithdraw {
 		assets: Vec<MultiAsset>,
@@ -98,6 +102,7 @@ pub enum Order<Call> {
 	/// - `effects`: The orders to execute on the assets once arrived *on the destination location*.
 	///
 	/// Errors:
+	/// - Errors occuring when trying to send the `ReceiveTeleportedAsset` XCM.
 	#[codec(index = 5)]
 	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order<()>> },
 
@@ -110,6 +115,7 @@ pub enum Order<Call> {
 	///   back.
 	///
 	/// Errors:
+	/// - Errors occuring when trying to send the `QueryResponse` XCM.
 	#[codec(index = 6)]
 	QueryHolding {
 		#[codec(compact)]
@@ -118,10 +124,23 @@ pub enum Order<Call> {
 		assets: Vec<MultiAsset>,
 	},
 
-	/// Pay for the execution of some XCM with up to `weight` picoseconds of execution time, paying for this with
-	/// up to `fees` from the Holding Register.
+	/// Pay for the execution of some XCM with up to `weight` picoseconds of execution time, paying
+	/// for this with up to `fees` from the Holding Register.
+	///
+	/// - `fees`: The asset(s) to remove from the Holding Register to pay for fees.
+	/// - `weight`: The amount of weight to purchase; this should be at least the shallow weight of
+	///   `orders` and `instructions`.
+	/// - `debt`: The amount of weight-debt already incurred to be paid off; this should be equal to
+	///   the unpaid weight of any surrounding operations/orders.
+	/// - `halt_on_error`: If `true`, the execution of the `xcm`s will halt on the first failure. If
+	///   `false`, then execution will continue regardless.
+	/// - `xcm`: XCM instructions to be executed outside of the context of the current Holding
+	///   Register.
 	///
 	/// Errors:
+	/// - `Overflow`, if weight calculation overflows
+	/// - `NotHoldingFees`, if the fees are not present in the Holding Register
+	/// - Errors returned by the execution of `orders` and `instructions`.
 	#[codec(index = 7)]
 	BuyExecution {
 		fees: MultiAsset,
