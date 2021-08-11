@@ -103,7 +103,7 @@ build-rustdoc:
     - mv ./target/doc ./crate-docs
     # FIXME: remove me after CI image gets nonroot
     - chown -R nonroot:nonroot ./crate-docs
-    - echo "<meta http-equiv=refresh content=0;url=polkadot/index.html>" > ./crate-docs/index.html
+    - echo "<meta http-equiv=refresh content=0;url=polkadot_service/index.html>" > ./crate-docs/index.html
     - sccache -s
 
 publish-rustdoc:
