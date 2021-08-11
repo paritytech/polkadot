@@ -53,9 +53,8 @@ jobs:
       - name: Compare the metadata
         run: |
           CMD="docker run --network host jacogr/polkadot-js-tools metadata wss://rpc.polkadot.io ws://localhost:9944"
-          echo Running $CMD
-          OUTPUT=$($CMD)
-          echo $OUTPUT | tee output.txt
+          echo -e "Running:\n$CMD"
+          $CMD | tee output.txt
 
       - name: Stop our local node
         run: pkill polkadot
@@ -63,6 +62,6 @@ jobs:
       - name: Save output as artifact
         uses: actions/upload-artifact@v2
         with:
-          name: $CHAIN
+          name: ${{ env.CHAIN }}
           path: |
             output.txt
