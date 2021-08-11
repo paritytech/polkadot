@@ -234,17 +234,16 @@ impl<C> ExecuteXcm<C> for () {
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
-/// let destination: MultiLocation = Parent.into();
 ///
 /// assert!(
 ///     // Sender2 will block this.
-///     <(Sender1, Sender2, Sender3) as SendXcm>::send_xcm(destination.clone(), message.clone())
+///     <(Sender1, Sender2, Sender3) as SendXcm>::send_xcm(Parent, message.clone())
 ///         .is_err()
 /// );
 ///
 /// assert!(
 ///     // Sender3 will catch this.
-///     <(Sender1, Sender3) as SendXcm>::send_xcm(destination.clone(), message.clone())
+///     <(Sender1, Sender3) as SendXcm>::send_xcm(Parent, message.clone())
 ///         .is_ok()
 /// );
 /// # }
