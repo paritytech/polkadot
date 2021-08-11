@@ -331,11 +331,8 @@ parameter_types! {
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 128;
-	pub const SignedDepositBase: Balance = deposit(1, 0);
-	// A typical solution occupies within an order of magnitude of 50kb.
-	// This formula is currently adjusted such that a typical solution will spend an amount equal
-	// to the base deposit for every 50 kb.
-	pub const SignedDepositByte: Balance = deposit(1, 0) / (50 * 1024);
+	pub const SignedDepositBase: Balance = deposit(2, 0);
+	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1 WND as reward
 	pub SignedRewardBase: Balance = 1 * UNITS;
 	// fallback: emergency phase.
@@ -708,11 +705,13 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Slots(..) |
 				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
 			),
-			ProxyType::Staking =>
-				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..)),
+			ProxyType::Staking => {
+				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
+			}
 			ProxyType::SudoBalances => match c {
-				Call::Sudo(pallet_sudo::Call::sudo(ref x)) =>
-					matches!(x.as_ref(), &Call::Balances(..)),
+				Call::Sudo(pallet_sudo::Call::sudo(ref x)) => {
+					matches!(x.as_ref(), &Call::Balances(..))
+				}
 				Call::Utility(..) => true,
 				_ => false,
 			},
@@ -720,8 +719,9 @@ impl InstanceFilter<Call> for ProxyType {
 				c,
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) | Call::Utility(..)
 			),
-			ProxyType::CancelProxy =>
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..))),
+			ProxyType::CancelProxy => {
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..)))
+			}
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
