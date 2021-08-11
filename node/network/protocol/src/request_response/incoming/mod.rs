@@ -47,7 +47,7 @@ pub struct IncomingRequest<Req> {
 
 impl<Req> IncomingRequest<Req>
 where
-	Req: IsRequest + Decode,
+	Req: IsRequest + Decode + Encode,
 	Req::Response: Encode,
 {
 	/// Create configuration for `NetworkConfiguration::request_response_porotocols` and a
@@ -104,6 +104,17 @@ where
 			},
 		};
 		Ok(Self::new(peer, payload, pending_response))
+	}
+
+	/// Convert into raw untyped substrate `IncomingRequest`.
+	///
+	/// This is mostly useful for testing.
+	pub fn into_raw(self) -> sc_network::config::IncomingRequest {
+		sc_network::config::IncomingRequest {
+			peer: self.peer,
+			payload: self.payload.encode(),
+			pending_response: self.pending_response.pending_response,
+		}
 	}
 
 	/// Send the response back.
@@ -201,7 +212,7 @@ pub struct IncomingRequestReceiver<Req> {
 
 impl<Req> IncomingRequestReceiver<Req>
 where
-	Req: IsRequest + Decode,
+	Req: IsRequest + Decode + Encode,
 	Req::Response: Encode,
 {
 	/// Try to receive the next incoming request.
