@@ -162,11 +162,11 @@ pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 pub struct TestOriginConverter;
 impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 	fn convert_origin(
-		origin: MultiLocation,
+		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<TestOrigin, MultiLocation> {
 		use OriginKind::*;
-		match (kind, origin) {
+		match (kind, origin.into()) {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
 			(Native, MultiLocation { parents: 0, interior: X1(Parachain(id)) }) =>
