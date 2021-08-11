@@ -196,7 +196,6 @@ fn paying_reserve_deposit_should_work() {
 	add_reserve(Parent.into(), (Parent, WildFungible).into());
 	WeightPrice::set((Parent.into(), 1_000_000_000_000));
 
-	let origin = Parent.into();
 	let fees = (Parent, 30).into();
 	let message = Xcm::<TestCall>::ReserveAssetDeposited {
 		assets: (Parent, 100).into(),
@@ -217,7 +216,7 @@ fn paying_reserve_deposit_should_work() {
 		],
 	};
 	let weight_limit = 50;
-	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(30));
 	assert_eq!(assets(3000), vec![(Parent, 70).into()]);
 }
@@ -230,7 +229,7 @@ fn transfer_should_work() {
 	add_asset(1001, (Here, 1000).into());
 	// They want to transfer 100 of them to their sibling parachain #2
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1).into(),
+		Parachain(1),
 		Xcm::TransferAsset {
 			assets: (Here, 100).into(),
 			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
@@ -254,7 +253,7 @@ fn reserve_transfer_should_work() {
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
-		Parachain(1).into(),
+		Parachain(1),
 		Xcm::TransferReserveAsset {
 			assets: (Here, 100).into(),
 			dest: Parachain(2).into(),
@@ -289,14 +288,13 @@ fn reserve_transfer_should_work() {
 fn transacting_should_work() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
-	let origin = Parent.into();
 	let message = Xcm::<TestCall>::Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 50,
 		call: TestCall::Any(50, None).encode().into(),
 	};
 	let weight_limit = 60;
-	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(60));
 }
 
@@ -304,14 +302,13 @@ fn transacting_should_work() {
 fn transacting_should_respect_max_weight_requirement() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
-	let origin = Parent.into();
 	let message = Xcm::<TestCall>::Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 40,
 		call: TestCall::Any(50, None).encode().into(),
 	};
 	let weight_limit = 60;
-	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
 	assert_eq!(r, Outcome::Incomplete(60, XcmError::TooMuchWeightRequired));
 }
 
@@ -319,14 +316,13 @@ fn transacting_should_respect_max_weight_requirement() {
 fn transacting_should_refund_weight() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
-	let origin = Parent.into();
 	let message = Xcm::<TestCall>::Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 50,
 		call: TestCall::Any(50, Some(30)).encode().into(),
 	};
 	let weight_limit = 60;
-	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(40));
 }
 
@@ -371,20 +367,19 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 #[test]
 fn prepaid_result_of_query_should_get_free_execution() {
 	let query_id = 33;
-	let origin: MultiLocation = Parent.into();
 	// We put this in manually here, but normally this would be done at the point of crafting the message.
-	expect_response(query_id, origin.clone());
+	expect_response(query_id, Parent.into());
 
 	let the_response = Response::Assets((Parent, 100).into());
 	let message = Xcm::<TestCall>::QueryResponse { query_id, response: the_response.clone() };
 	let weight_limit = 10;
 
 	// First time the response gets through since we're expecting it...
-	let r = XcmExecutor::<TestConfig>::execute_xcm(origin.clone(), message.clone(), weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message.clone(), weight_limit);
 	assert_eq!(r, Outcome::Complete(10));
 	assert_eq!(response(query_id).unwrap(), the_response);
 
 	// Second time it doesn't, since we're not.
-	let r = XcmExecutor::<TestConfig>::execute_xcm(origin.clone(), message.clone(), weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message.clone(), weight_limit);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::Barrier));
 }
