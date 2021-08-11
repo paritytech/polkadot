@@ -111,7 +111,7 @@ mod tests {
 		);
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
-				Here.into(),
+				Here,
 				Parachain(1).into(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -138,7 +138,7 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				Here.into(),
+				Here,
 				Parent.into(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -165,7 +165,7 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				Here.into(),
+				Here,
 				MultiLocation::new(1, X1(Parachain(2))),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,

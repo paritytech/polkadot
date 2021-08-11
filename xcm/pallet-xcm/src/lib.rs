@@ -106,6 +106,8 @@ pub mod pallet {
 		CannotReanchor,
 		/// Too many assets have been attempted for transfer.
 		TooManyAssets,
+		/// Origin is invalid for sending.
+		InvalidOrigin,
 	}
 
 	#[pallet::hooks]
@@ -120,12 +122,12 @@ pub mod pallet {
 			message: Box<Xcm<()>>,
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			Self::send_xcm(origin_location.clone(), *dest.clone(), *message.clone()).map_err(
-				|e| match e {
-					XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
-					_ => Error::<T>::SendFailure,
-				},
-			)?;
+			let interior =
+				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
+			Self::send_xcm(interior, *dest.clone(), *message.clone()).map_err(|e| match e {
+				XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
+				_ => Error::<T>::SendFailure,
+			})?;
 			Self::deposit_event(Event::Sent(origin_location, *dest, *message));
 			Ok(())
 		}
@@ -302,11 +304,11 @@ pub mod pallet {
 		/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
 		/// location. A null `dest` is not handled.
 		pub fn send_xcm(
-			interior: MultiLocation,
+			interior: Junctions,
 			dest: MultiLocation,
 			message: Xcm<()>,
 		) -> Result<(), XcmError> {
-			let message = if interior.is_here() {
+			let message = if let Junctions::Here = interior {
 				message
 			} else {
 				Xcm::<()>::RelayedFrom { who: interior, message: Box::new(message) }
