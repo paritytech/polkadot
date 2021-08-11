@@ -210,14 +210,14 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			bitfields_signed_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_bitfields_signed_total",
+					"polkadot_parachain_bitfields_signed_total",
 					"Number of bitfields signed.",
 				)?,
 				registry,
 			)?,
 			run: prometheus::register(
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_bitfield_signing_run",
+					"polkadot_parachain_bitfield_signing_run",
 					"Time spent within `bitfield_signing::run`",
 				))?,
 				registry,
