@@ -398,7 +398,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
-	type CompactSolution = NposCompactSolution16;
+	type Solution = NposCompactSolution16;
 	type Fallback = Fallback;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureOneOf<
@@ -443,7 +443,7 @@ type SlashCancelOrigin = EnsureOneOf<
 
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution16 as sp_npos_elections::CompactSolution>::LIMIT as u32;
+		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -994,14 +994,16 @@ impl InstanceFilter<Call> for ProxyType {
 					Call::Treasury(..) | Call::Bounties(..) |
 					Call::Tips(..) | Call::Utility(..)
 			),
-			ProxyType::Staking =>
-				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..)),
+			ProxyType::Staking => {
+				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
+			},
 			ProxyType::IdentityJudgement => matches!(
 				c,
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) | Call::Utility(..)
 			),
-			ProxyType::CancelProxy =>
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..))),
+			ProxyType::CancelProxy => {
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..)))
+			},
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
