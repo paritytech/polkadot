@@ -113,7 +113,7 @@ The things to look for in the output are lines like:
   - If no indices have changed, every modules line should look something like `[Identity] idx 25 (calls 15)`
 
 Note: Adding new functions to the runtime does not constitute a breaking change
-as long as teh indexes did not change.
+as long as the indexes did not change.
 
 ### Proxy Filtering
 
