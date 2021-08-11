@@ -23,23 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CHAIN: ${{github.event.inputs.chain}}
+      BIN_URL: ${{github.event.inputs.binary_url}}
+      REF_URL: ${{github.event.inputs.reference_url}}
 
     steps:
-      # - name: Ensure that the 'chain' is a local one
-      #   env:
-      #   run: |
-      #     if [[ $CHAIN == *"local"* ]] ; then
-      #       echo OK, we will run the test on $CHAIN
-      #       exit 0
-      #     else
-      #       echo Err, you need to pass a local chain such as 'polkadot-local', $CHAIN does not cut it
-      #       exit 1
-      #     fi
-
       - name: Fetch binary
-        env:
-          BIN_URL: ${{github.event.inputs.binary_url}}
-          REF_URL: ${{github.event.inputs.reference_url}}
         run: |
           echo Fetching $BIN_URL
           wget $BIN_URL
