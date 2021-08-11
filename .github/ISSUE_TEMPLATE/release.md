@@ -112,7 +112,7 @@ on Github, or
 [AWS](https://releases.parity.io/polkadot/x86_64-debian:stretch/{{ env.VERSION }}-rc1/polkadot)
 (adjust the rc in this URL as necessary).
 2. Run the release-candidate binary using a local chain:
-`./polkadot --chain=polkadot-local` or `./polkadot --chain=kusama.local`
+`./polkadot --chain=polkadot-local` or `./polkadot --chain=kusama-local`
 3. Use [`polkadot-js-tools`](https://github.com/polkadot-js/tools) to compare
 the metadata:
   - For Polkadot: `docker run --network host jacogr/polkadot-js-tools metadata wss://rpc.polkadot.io ws://localhost:9944`
