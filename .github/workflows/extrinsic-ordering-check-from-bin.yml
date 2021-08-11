@@ -39,6 +39,7 @@ jobs:
       - name: Fetch binary
         env:
           BIN_URL: ${{github.event.inputs.binary_url}}
+          REF_URL: ${{github.event.inputs.reference_url}}
         run: |
           echo Fetching $BIN_URL
           wget $BIN_URL
@@ -50,9 +51,18 @@ jobs:
           echo Running on $CHAIN
           ./polkadot --chain=$CHAIN &
 
+      - name: Prepare output
+        run: |
+          VERSION=$(./polkadot --version)
+          echo "Metadata comparison:" >> output.txt
+          echo "Date: $(date)" >> output.txt
+          echo "Reference: $REF_URL" >> output.txt
+          echo "Target version: $VERSION" >> output.txt
+          echo "-------------------------------------------" >> output.txt
+
       - name: Compare the metadata
         run: |
-          CMD="docker run --network host jacogr/polkadot-js-tools metadata wss://rpc.polkadot.io ws://localhost:9944"
+          CMD="docker run --network host jacogr/polkadot-js-tools metadata $REF_URL ws://localhost:9944"
           echo -e "Running:\n$CMD"
           $CMD > output.txt
           sed -z -i 's/\n\n/\n/g' output.txt
