@@ -40,7 +40,6 @@ pub use super::v1::{
 	BodyId, BodyPart, NetworkId, OriginKind,
 };
 
-
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{

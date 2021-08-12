@@ -122,16 +122,12 @@ pub mod pallet {
 			message: Box<Xcm<()>>,
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			let interior = origin_location
-				.clone()
-				.try_into()
-				.map_err(|_| Error::<T>::InvalidOrigin)?;
-			Self::send_xcm(interior, *dest.clone(), *message.clone()).map_err(
-				|e| match e {
-					SendError::CannotReachDestination(..) => Error::<T>::Unreachable,
-					_ => Error::<T>::SendFailure,
-				},
-			)?;
+			let interior =
+				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
+			Self::send_xcm(interior, *dest.clone(), *message.clone()).map_err(|e| match e {
+				SendError::CannotReachDestination(..) => Error::<T>::Unreachable,
+				_ => Error::<T>::SendFailure,
+			})?;
 			Self::deposit_event(Event::Sent(origin_location, *dest, *message));
 			Ok(())
 		}

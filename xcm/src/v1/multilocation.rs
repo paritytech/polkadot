@@ -181,7 +181,10 @@ impl MultiLocation {
 
 	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the original value of
 	/// `self` in case of overflow.
-	pub fn pushed_front_with_interior(self, new: Junction) -> result::Result<Self, (Self, Junction)> {
+	pub fn pushed_front_with_interior(
+		self,
+		new: Junction,
+	) -> result::Result<Self, (Self, Junction)> {
 		match self.interior.pushed_front_with(new) {
 			Ok(i) => Ok(MultiLocation { interior: i, parents: self.parents }),
 			Err((i, j)) => Err((MultiLocation { interior: i, parents: self.parents }, j)),
@@ -256,7 +259,7 @@ impl MultiLocation {
 	/// ```rust
 	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
-	/// let mut m = MultiLocation::new(1, X2(Parachain(21)));
+	/// let mut m = MultiLocation::new(1, X1(Parachain(21)));
 	/// assert_eq!(m.append_with(X1(PalletInstance(3))), Ok(()));
 	/// assert_eq!(m, MultiLocation::new(1, X2(Parachain(21), PalletInstance(3))));
 	/// # }
@@ -757,8 +760,14 @@ impl Junctions {
 		let mut dummy = Junctions::Here;
 		mem::swap(self, &mut dummy);
 		match dummy.pushed_with(new) {
-			Ok(s) => { *self = s; Ok(()) }
-			Err((s, j)) => { *self = s; Err(j) }
+			Ok(s) => {
+				*self = s;
+				Ok(())
+			},
+			Err((s, j)) => {
+				*self = s;
+				Err(j)
+			},
 		}
 	}
 
@@ -767,8 +776,14 @@ impl Junctions {
 		let mut dummy = Junctions::Here;
 		mem::swap(self, &mut dummy);
 		match dummy.pushed_front_with(new) {
-			Ok(s) => { *self = s; Ok(()) }
-			Err((s, j)) => { *self = s; Err(j) }
+			Ok(s) => {
+				*self = s;
+				Ok(())
+			},
+			Err((s, j)) => {
+				*self = s;
+				Err(j)
+			},
 		}
 	}
 

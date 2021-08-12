@@ -18,6 +18,7 @@ use std::convert::TryInto;
 use crate::mock::*;
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
+use std::convert::TryInto;
 use xcm::latest::prelude::*;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);

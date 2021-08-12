@@ -30,7 +30,7 @@ mod multi_asset;
 mod multi_location;
 mod order;
 mod traits;
-use super::v1::{Response as Response1, Xcm as Xcm1, MultiLocation as MultiLocation1};
+use super::v1::{MultiLocation as MultiLocation1, Response as Response1, Xcm as Xcm1};
 pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use multi_asset::{AssetInstance, MultiAsset};
 pub use multi_location::MultiLocation::{self, *};
