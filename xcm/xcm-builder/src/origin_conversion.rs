@@ -32,7 +32,10 @@ impl<LocationConverter: Convert<MultiLocation, Origin::AccountId>, Origin: Origi
 where
 	Origin::AccountId: Clone,
 {
-	fn convert_origin(origin: impl Into<MultiLocation>, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		if let OriginKind::SovereignAccount = kind {
 			let location = LocationConverter::convert(origin)?;
@@ -45,7 +48,10 @@ where
 
 pub struct ParentAsSuperuser<Origin>(PhantomData<Origin>);
 impl<Origin: OriginTrait> ConvertOrigin<Origin> for ParentAsSuperuser<Origin> {
-	fn convert_origin(origin: impl Into<MultiLocation>, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		if kind == OriginKind::Superuser && origin.contains_parents_only(1) {
 			Ok(Origin::root())
@@ -59,7 +65,10 @@ pub struct ChildSystemParachainAsSuperuser<ParaId, Origin>(PhantomData<(ParaId, 
 impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 	for ChildSystemParachainAsSuperuser<ParaId, Origin>
 {
-	fn convert_origin(origin: impl Into<MultiLocation>, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		match (kind, origin.into()) {
 			(
 				OriginKind::Superuser,
@@ -74,7 +83,10 @@ pub struct SiblingSystemParachainAsSuperuser<ParaId, Origin>(PhantomData<(ParaId
 impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 	for SiblingSystemParachainAsSuperuser<ParaId, Origin>
 {
-	fn convert_origin(origin: impl Into<MultiLocation>, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		match (kind, origin.into()) {
 			(
 				OriginKind::Superuser,
@@ -89,7 +101,10 @@ pub struct ChildParachainAsNative<ParachainOrigin, Origin>(PhantomData<(Parachai
 impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Origin>
 	for ChildParachainAsNative<ParachainOrigin, Origin>
 {
-	fn convert_origin(origin: impl Into<MultiLocation>, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		match (kind, origin.into()) {
 			(
 				OriginKind::Native,
@@ -106,7 +121,10 @@ pub struct SiblingParachainAsNative<ParachainOrigin, Origin>(
 impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Origin>
 	for SiblingParachainAsNative<ParachainOrigin, Origin>
 {
-	fn convert_origin(origin: impl Into<MultiLocation>, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		match (kind, origin.into()) {
 			(
 				OriginKind::Native,
@@ -122,7 +140,10 @@ pub struct RelayChainAsNative<RelayOrigin, Origin>(PhantomData<(RelayOrigin, Ori
 impl<RelayOrigin: Get<Origin>, Origin> ConvertOrigin<Origin>
 	for RelayChainAsNative<RelayOrigin, Origin>
 {
-	fn convert_origin(origin: impl Into<MultiLocation>, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		if kind == OriginKind::Native && origin.contains_parents_only(1) {
 			Ok(RelayOrigin::get())
@@ -138,7 +159,10 @@ impl<Network: Get<NetworkId>, Origin: OriginTrait> ConvertOrigin<Origin>
 where
 	Origin::AccountId: From<[u8; 32]>,
 {
-	fn convert_origin(origin: impl Into<MultiLocation>, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		match (kind, origin.into()) {
 			(
 				OriginKind::Native,
@@ -156,7 +180,10 @@ impl<Network: Get<NetworkId>, Origin: OriginTrait> ConvertOrigin<Origin>
 where
 	Origin::AccountId: From<[u8; 20]>,
 {
-	fn convert_origin(origin: impl Into<MultiLocation>, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		match (kind, origin.into()) {
 			(
 				OriginKind::Native,

@@ -28,7 +28,11 @@ impl OnResponse for () {
 	fn expecting_response(_origin: &MultiLocation, _query_id: u64) -> bool {
 		false
 	}
-	fn on_response(_origin: impl Into<MultiLocation>, _query_id: u64, _response: Response) -> Weight {
+	fn on_response(
+		_origin: impl Into<MultiLocation>,
+		_query_id: u64,
+		_response: Response,
+	) -> Weight {
 		0
 	}
 }

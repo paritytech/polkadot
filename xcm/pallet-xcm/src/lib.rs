@@ -397,7 +397,10 @@ where
 /// this crate's `Origin::Xcm` value.
 pub struct XcmPassthrough<Origin>(PhantomData<Origin>);
 impl<Origin: From<crate::Origin>> ConvertOrigin<Origin> for XcmPassthrough<Origin> {
-	fn convert_origin(origin: impl Into<MultiLocation>, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
 		match kind {
 			OriginKind::Xcm => Ok(crate::Origin::Xcm(origin).into()),
