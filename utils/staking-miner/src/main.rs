@@ -511,7 +511,6 @@ mod tests {
 	use super::*;
 
 	fn get_version<T: frame_system::Config>() -> sp_version::RuntimeVersion {
-		use frame_support::traits::Get;
 		T::Version::get()
 	}
 

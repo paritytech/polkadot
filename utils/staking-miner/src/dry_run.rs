@@ -39,7 +39,7 @@ fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 async fn print_info<T: EPM::Config>(
 	client: &WsClient,
 	ext: &mut Ext,
-	raw_solution: &EPM::RawSolution<EPM::CompactOf<T>>,
+	raw_solution: &EPM::RawSolution<EPM::SolutionOf<T>>,
 	extrinsic: sp_core::Bytes,
 ) where
 	<T as EPM::Config>::Currency: Currency<T::AccountId, Balance = Balance>,
