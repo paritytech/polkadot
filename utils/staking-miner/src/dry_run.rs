@@ -64,9 +64,10 @@ async fn print_info<T: EPM::Config>(
 		let deposit = EPM::Pallet::<T>::deposit_for(&raw_solution, snapshot_size);
 		log::info!(
 			target: LOG_TARGET,
-			"solution score {:?} / deposit {:?}",
+			"solution score {:?} / deposit {:?} / length {:?}",
 			&raw_solution.score.iter().map(|x| Token::from(*x)).collect::<Vec<_>>(),
 			Token::from(deposit),
+			raw_solution.encode().len(),
 		);
 	});
 

@@ -94,8 +94,9 @@ macro_rules! construct_runtime_prelude {
 					let address = <Runtime as frame_system::Config>::Lookup::unlookup(account.clone());
 					let extrinsic = UncheckedExtrinsic::new_signed(call, address, signature.into(), extra);
 					log::debug!(
-						target: crate::LOG_TARGET, "constructed extrinsic {}",
-						sp_core::hexdisplay::HexDisplay::from(&extrinsic.encode())
+						target: crate::LOG_TARGET, "constructed extrinsic {} with length {}",
+						sp_core::hexdisplay::HexDisplay::from(&extrinsic.encode()),
+						extrinsic.encode().len(),
 					);
 					extrinsic
 				}
