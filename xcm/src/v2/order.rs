@@ -118,6 +118,9 @@ pub enum Order<Call> {
 	/// - `assets`: A filter for the assets that should be reported back. The assets reported back will be, asset-
 	///   wise, *the lesser of this value and the holding register*. No wildcards will be used when reporting assets
 	///   back.
+	/// - `max_response_weight`: The maxmimum amount of weight that the `QueryResponse` item which
+	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
+	///   response may not execute at all.
 	///
 	/// Errors:
 	#[codec(index = 6)]
@@ -126,6 +129,8 @@ pub enum Order<Call> {
 		query_id: u64,
 		dest: MultiLocation,
 		assets: MultiAssetFilter,
+		#[codec(compact)]
+		max_response_weight: u64,
 	},
 
 	/// Pay for the execution of some XCM `instructions` and `orders` with up to `weight` picoseconds of execution time,
@@ -175,7 +180,7 @@ impl<Call> Order<Call> {
 				InitiateReserveWithdraw { assets, reserve, effects },
 			InitiateTeleport { assets, dest, effects } =>
 				InitiateTeleport { assets, dest, effects },
-			QueryHolding { query_id, dest, assets } => QueryHolding { query_id, dest, assets },
+			QueryHolding { query_id, dest, assets, max_response_weight } => QueryHolding { query_id, dest, assets, max_response_weight },
 			BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } => {
 				let orders = orders.into_iter().map(Order::from).collect();
 				let instructions = instructions.into_iter().map(Xcm::from).collect();
@@ -224,7 +229,7 @@ impl<Call> TryFrom<OldOrder<Call>> for Order<Call> {
 					.collect::<result::Result<_, _>>()?,
 			},
 			OldOrder::QueryHolding { query_id, dest, assets } =>
-				QueryHolding { query_id, dest, assets },
+				QueryHolding { query_id, dest, assets, max_response_weight: 0 },
 			OldOrder::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } =>
 				BuyExecution {
 					fees,

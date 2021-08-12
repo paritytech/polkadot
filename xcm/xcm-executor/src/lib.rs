@@ -239,8 +239,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// execution has taken.
 				None
 			},
-			(origin, Xcm::QueryResponse { query_id, response }) => {
-				Config::ResponseHandler::on_response(origin, query_id, response);
+			(origin, Xcm::QueryResponse { query_id, response, max_weight }) => {
+				Config::ResponseHandler::on_response(origin, query_id, response, max_weight);
 				None
 			},
 			(origin, Xcm::RelayedFrom { who, message }) => {
@@ -258,7 +258,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				total_surplus = total_surplus.saturating_add(surplus);
 				None
 			},
-			(origin, Xcm::ReportOutcome { query_id, dest, message }) => {
+			(origin, Xcm::ReportOutcome { query_id, dest, message, max_response_weight }) => {
 				let result = Self::do_execute_xcm(
 					origin,
 					top_level,
@@ -272,9 +272,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let result = result.map(|surplus| {
 					total_surplus = total_surplus.saturating_add(surplus);
 				});
+				let max_weight = max_response_weight;
 				Config::XcmSender::send_xcm(
 					dest,
-					Xcm::QueryResponse { query_id, response: Response::ExecutionResult(result) },
+					Xcm::QueryResponse { query_id, response: Response::ExecutionResult(result), max_weight },
 				)?;
 				None
 			},
@@ -345,11 +346,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(assets, &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::ReceiveTeleportedAsset { assets, effects })?;
 			},
-			Order::QueryHolding { query_id, dest, assets } => {
+			Order::QueryHolding { query_id, dest, assets, max_response_weight } => {
 				let assets = Self::reanchored(holding.min(&assets), &dest);
+				let max_weight = max_response_weight;
 				Config::XcmSender::send_xcm(
 					dest,
-					Xcm::QueryResponse { query_id, response: Response::Assets(assets) },
+					Xcm::QueryResponse { query_id, response: Response::Assets(assets), max_weight },
 				)?;
 			},
 			Order::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } => {

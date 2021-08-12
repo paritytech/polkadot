@@ -376,7 +376,7 @@ fn prepaid_result_of_query_should_get_free_execution() {
 	expect_response(query_id, origin.clone());
 
 	let the_response = Response::Assets((Parent, 100).into());
-	let message = Xcm::<TestCall>::QueryResponse { query_id, response: the_response.clone() };
+	let message = Xcm::<TestCall>::QueryResponse { query_id, response: the_response.clone(), max_weight: 10 };
 	let weight_limit = 10;
 
 	// First time the response gets through since we're expecting it...

@@ -402,8 +402,13 @@ impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			NewXcm::QueryResponse { query_id: u64, response } =>
-				QueryResponse { query_id: u64, response: response.try_into()? },
+			NewXcm::QueryResponse { query_id: u64, response, max_weight } => {
+				// Cannot handle special response weights.
+				if max_weight > 0 {
+					return Err(())
+				}
+				QueryResponse { query_id: u64, response: response.try_into()? }
+			}
 			NewXcm::TransferAsset { assets, beneficiary } =>
 				TransferAsset { assets, beneficiary },
 			NewXcm::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {

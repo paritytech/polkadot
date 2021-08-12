@@ -376,7 +376,7 @@ pub mod pallet {
 			responder: MultiLocation,
 			maybe_notify: Option<(u8, u8)>,
 			timeout: T::BlockNumber,
-		) -> Option<u64> {
+		) -> u64 {
 			QueryCount::<T>::mutate(|q| {
 				let r = *q;
 				*q += 1;
@@ -385,11 +385,43 @@ pub mod pallet {
 					maybe_notify,
 					timeout,
 				});
-				Some(r)
+				r
 			})
 		}
+
+		/// Consume `message` and return another which is equivalent to it except that it reports
+		/// back the outcome and dispatches `notify` on this chain.
+		/// 
+		/// - `message`: The message whose outcome should be reported.
+		/// - `responder`: The origin from which a response should be expected.
+		/// - `notify`: A dispatchable function which will be called once the outcome of `message`
+		///   is known. It may be a dispatable in any pallet of the local chain, but other than
+		///   the usual origin, it must accept exactly two arguments: `query_id: QueryId` and
+		///   `outcome: ResponseOutcome`, and in that order. It should expect that the origin is
+		///   `Origin::Response` and will contain the responser's location.
+		/// - `timeout`: The block numebr after which it is permissable for `notify` not to be
+		///   called even if a response is received.
+		/// 
+		/// NOTE: `notify` gets called as part of handling an incoming message, so it should be
+		/// lightweight. Its weight is estimated during this function and stored ready for
+		/// weighing `ReportOutcome` on the way back. If it turns out to be heavier once it returns
+		/// then reporting the outcome will fail. Futhermore if the estimate is too high, then it
+		/// may be put in the overweight queue and need to be manually executed.
+		pub fn on_report(
+			message: Xcm<()>,
+			responder: MultiLocation,
+			notify: impl Into<<T as Config>::Call>,
+			timeout: T::BlockNumber,
+		) -> Xcm<()> {
+			let dest = T::LocationInverter::invert_location(&responder);
+			let notify: <T as Config>::Call = notify.into();
+			let max_response_weight = notify.get_dispatch_info().weight;
+			let query_id = Self::new_notify_query(responder, notify, timeout);
+			Xcm::ReportOutcome { dest, query_id, message: Box::new(message), max_response_weight }
+		}
+
 		/// Attempt to create a new query ID and register it as a query that is yet to respond.
-		pub fn new_query(responder: MultiLocation, timeout: T::BlockNumber) -> Option<u64> {
+		pub fn new_query(responder: MultiLocation, timeout: T::BlockNumber) -> u64 {
 			Self::do_new_query(responder, None, timeout)
 		}
 
@@ -397,10 +429,12 @@ pub mod pallet {
 		/// which will call a dispatchable when a response happens.
 		pub fn new_notify_query(
 			responder: MultiLocation,
-			notify: impl Into<<T as Config>::Call> + Encode,
+			notify: impl Into<<T as Config>::Call>,
 			timeout: T::BlockNumber,
-		) -> Option<u64> {
-			let notify = notify.using_encoded(|mut bytes| Decode::decode(&mut bytes)).ok()?;
+		) -> u64 {
+			let notify = notify.into()
+				.using_encoded(|mut bytes| Decode::decode(&mut bytes))
+				.expect("decode input is output of Call encode; Call guaranteed to have two enums; qed");
 			Self::do_new_query(responder, Some(notify), timeout)
 		}
 	}
@@ -415,7 +449,7 @@ pub mod pallet {
 		}
 
 		/// Handler for receiving a `response` from `origin` relating to `query_id`.
-		fn on_response(origin: MultiLocation, query_id: QueryId, response: Response) -> Weight {
+		fn on_response(origin: MultiLocation, query_id: QueryId, response: Response, max_weight: Weight) -> Weight {
 			if let Some(QueryStatus::Pending { responder, maybe_notify, .. }) = Queries::<T>::get(query_id) {
 				if MultiLocation::try_from(responder).map_or(false, |r| origin == r) {
 					return match maybe_notify {
@@ -426,6 +460,7 @@ pub mod pallet {
 							let bare = (pallet_index, call_index, query_id, response);
 							if let Ok(call) = bare.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes)) {
 								let weight = call.get_dispatch_info().weight;
+								if weight > max_weight { return 0 }
 								let dispatch_origin = Origin::Response(origin).into();
 								match call.dispatch(dispatch_origin) {
 									Ok(post_info) => post_info.actual_weight,

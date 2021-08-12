@@ -285,8 +285,13 @@ impl<Call> TryFrom<NewOrder<Call>> for Order<Call> {
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			NewOrder::QueryHolding { query_id, dest, assets } =>
-				QueryHolding { query_id, dest, assets },
+			NewOrder::QueryHolding { query_id, dest, assets, max_response_weight } => {
+				// Cannot handle special response weights.
+				if max_response_weight > 0 {
+					return Err(())
+				}
+				QueryHolding { query_id, dest, assets }
+			},
 			NewOrder::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } =>
 				BuyExecution {
 					fees,

@@ -150,6 +150,8 @@ pub enum Xcm<Call> {
 		#[codec(compact)]
 		query_id: u64,
 		response: Response,
+		#[codec(compact)]
+		max_weight: u64,
 	},
 
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets under the
@@ -275,9 +277,12 @@ pub enum Xcm<Call> {
 	/// Errors:
 	#[codec(index = 11)]
 	ReportOutcome {
-		#[codec(compact)] query_id: u64,
+		#[codec(compact)]
+		query_id: u64,
 		dest: MultiLocation,
 		message: alloc::boxed::Box<Xcm<Call>>,
+		#[codec(compact)]
+		max_response_weight: u64,
 	},
 }
 
@@ -298,7 +303,7 @@ impl<Call> Xcm<Call> {
 				assets,
 				effects: effects.into_iter().map(Order::into).collect(),
 			},
-			QueryResponse { query_id, response } => QueryResponse { query_id, response },
+			QueryResponse { query_id, response, max_weight } => QueryResponse { query_id, response, max_weight },
 			TransferAsset { assets, beneficiary } => TransferAsset { assets, beneficiary },
 			TransferReserveAsset { assets, dest, effects } =>
 				TransferReserveAsset { assets, dest, effects },
@@ -311,8 +316,8 @@ impl<Call> Xcm<Call> {
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			RelayedFrom { who, message } =>
 				RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
-			ReportOutcome { query_id, dest, message } =>
-				ReportOutcome { query_id, dest, message: alloc::boxed::Box::new((*message).into()) },
+			ReportOutcome { query_id, dest, message, max_response_weight } =>
+				ReportOutcome { query_id, dest, message: alloc::boxed::Box::new((*message).into()), max_response_weight },
 		}
 	}
 }
@@ -362,7 +367,7 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 					.collect::<result::Result<_, _>>()?,
 			},
 			OldXcm::QueryResponse { query_id: u64, response } =>
-				QueryResponse { query_id: u64, response: response.try_into()? },
+				QueryResponse { query_id: u64, response: response.try_into()?, max_weight: 50_000_000 },
 			OldXcm::TransferAsset { assets, beneficiary } =>
 				TransferAsset { assets, beneficiary },
 			OldXcm::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {

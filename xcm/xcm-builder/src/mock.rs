@@ -225,6 +225,7 @@ impl OnResponse for TestResponseHandler {
 		_origin: MultiLocation,
 		query_id: u64,
 		response: xcm::latest::Response,
+		_max_weight: Weight,
 	) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut().entry(query_id).and_modify(|v| {
