@@ -66,7 +66,7 @@ macro_rules! construct_runtime_prelude {
 			mod private {
 				use super::*;
 				pub(crate) fn [<create_uxt_ $runtime>](
-					raw_solution: EPM::RawSolution<EPM::CompactOf<Runtime>>,
+					raw_solution: EPM::RawSolution<EPM::SolutionOf<Runtime>>,
 					witness: u32,
 					signer: crate::signer::Signer,
 					nonce: crate::prelude::Index,
@@ -331,7 +331,7 @@ fn mine_unchecked<T: EPM::Config>(
 	ext: &mut Ext,
 	iterations: usize,
 	do_feasibility: bool,
-) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
+) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error> {
 	ext.execute_with(|| {
 		let (solution, _) = <EPM::Pallet<T>>::mine_solution(iterations)?;
 		if do_feasibility {
