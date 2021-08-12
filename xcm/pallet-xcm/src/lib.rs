@@ -26,8 +26,8 @@ mod tests;
 use codec::{Decode, Encode};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
-use sp_std::{boxed::Box, convert::TryInto, marker::PhantomData, prelude::*, vec};
-use xcm::latest::prelude::*;
+use sp_std::{boxed::Box, convert::{TryFrom, TryInto}, marker::PhantomData, prelude::*, vec};
+use xcm::{VersionedMultiLocation, latest::prelude::*};
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -36,10 +36,11 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::pallet_prelude::*;
+	use frame_support::{dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo}, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
-	use sp_runtime::traits::AccountIdConversion;
-	use xcm_executor::traits::{InvertLocation, WeightBounds};
+	use sp_runtime::traits::{AccountIdConversion, BlockNumberProvider};
+	use xcm_executor::traits::{InvertLocation, OnResponse, WeightBounds};
+	use frame_system::Config as SysConfig;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -53,7 +54,7 @@ pub mod pallet {
 
 		/// Required origin for sending XCM messages. If successful, the it resolves to `MultiLocation`
 		/// which exists as an interior location within this chain's XCM context.
-		type SendXcmOrigin: EnsureOrigin<Self::Origin, Success = MultiLocation>;
+		type SendXcmOrigin: EnsureOrigin<<Self as SysConfig>::Origin, Success = MultiLocation>;
 
 		/// The type used to actually dispatch an XCM to its destination.
 		type XcmRouter: SendXcm;
@@ -61,13 +62,13 @@ pub mod pallet {
 		/// Required origin for executing XCM messages, including the teleport functionality. If successful,
 		/// then it resolves to `MultiLocation` which exists as an interior location within this chain's XCM
 		/// context.
-		type ExecuteXcmOrigin: EnsureOrigin<Self::Origin, Success = MultiLocation>;
+		type ExecuteXcmOrigin: EnsureOrigin<<Self as SysConfig>::Origin, Success = MultiLocation>;
 
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
-		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<Self::Call>)>;
+		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<<Self as SysConfig>::Call>)>;
 
 		/// Something to execute an XCM message.
-		type XcmExecutor: ExecuteXcm<Self::Call>;
+		type XcmExecutor: ExecuteXcm<<Self as SysConfig>::Call>;
 
 		/// Our XCM filter which messages to be teleported using the dedicated extrinsic must pass.
 		type XcmTeleportFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
@@ -76,10 +77,17 @@ pub mod pallet {
 		type XcmReserveTransferFilter: Contains<(MultiLocation, Vec<MultiAsset>)>;
 
 		/// Means of measuring the weight consumed by an XCM message locally.
-		type Weigher: WeightBounds<Self::Call>;
+		type Weigher: WeightBounds<<Self as SysConfig>::Call>;
 
 		/// Means of inverting a location.
 		type LocationInverter: InvertLocation;
+
+		/// The outer `Origin` type.
+		type Origin: From<Origin> + From<<Self as SysConfig>::Origin>;
+
+		/// The outer `Call` type.
+		type Call: Parameter + GetDispatchInfo
+			+ Dispatchable<Origin = <Self as Config>::Origin, PostInfo = PostDispatchInfo>;
 	}
 
 	/// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
@@ -90,6 +98,20 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		Attempted(xcm::latest::Outcome),
 		Sent(MultiLocation, MultiLocation, Xcm<()>),
+	}
+
+	#[pallet::origin]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+	pub enum Origin {
+		/// It comes from somewhere in the XCM space wanting to transact.
+		Xcm(MultiLocation),
+		/// It comes as an expected response from an XCM location.
+		Response(MultiLocation),
+	}
+	impl From<MultiLocation> for Origin {
+		fn from(location: MultiLocation) -> Origin {
+			Origin::Xcm(location)
+		}
 	}
 
 	#[pallet::error]
@@ -110,6 +132,34 @@ pub mod pallet {
 		InvalidOrigin,
 	}
 
+	/// The status of a query.
+	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	pub enum QueryStatus<BlockNumber> {
+		/// The query was sent but no response has yet been received.
+		Pending {
+			responder: VersionedMultiLocation,
+			maybe_notify: Option<(u8, u8)>,
+			timeout: BlockNumber,
+		},
+		/// A response has been received.
+		Ready {
+			response: Response,
+			at: BlockNumber,
+		},
+	}
+
+	/// Value of a query, must be unique for each query.
+	pub type QueryId = u64;
+
+	/// The latest available query index.
+	#[pallet::storage]
+	pub(super) type QueryCount<T: Config> = StorageValue<_, QueryId, ValueQuery>;
+	
+	/// The ongoing queries.
+	#[pallet::storage]
+	pub(super) type Queries<T: Config> =
+		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
+		
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -287,7 +337,7 @@ pub mod pallet {
 		#[pallet::weight(max_weight.saturating_add(100_000_000u64))]
 		pub fn execute(
 			origin: OriginFor<T>,
-			message: Box<Xcm<T::Call>>,
+			message: Box<Xcm<<T as SysConfig>::Call>>,
 			max_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
@@ -322,35 +372,83 @@ pub mod pallet {
 			AccountIdConversion::<T::AccountId>::into_account(&ID)
 		}
 
+		fn do_new_query(
+			responder: MultiLocation,
+			maybe_notify: Option<(u8, u8)>,
+			timeout: T::BlockNumber,
+		) -> Option<u64> {
+			QueryCount::<T>::mutate(|q| {
+				let r = *q;
+				*q += 1;
+				Queries::<T>::insert(r, QueryStatus::Pending {
+					responder: responder.into(),
+					maybe_notify,
+					timeout,
+				});
+				Some(r)
+			})
+		}
 		/// Attempt to create a new query ID and register it as a query that is yet to respond.
-		pub fn new_query(responder: MultiLocation) -> Option<u64> {
-			None
+		pub fn new_query(responder: MultiLocation, timeout: T::BlockNumber) -> Option<u64> {
+			Self::do_new_query(responder, None, timeout)
+		}
+
+		/// Attempt to create a new query ID and register it as a query that is yet to respond, and
+		/// which will call a dispatchable when a response happens.
+		pub fn new_notify_query(
+			responder: MultiLocation,
+			notify: impl Into<<T as Config>::Call> + Encode,
+			timeout: T::BlockNumber,
+		) -> Option<u64> {
+			let notify = notify.using_encoded(|mut bytes| Decode::decode(&mut bytes)).ok()?;
+			Self::do_new_query(responder, Some(notify), timeout)
 		}
 	}
 
 	impl<T: Config> OnResponse for Pallet<T> {
 		/// Returns `true` if we are expecting a response from `origin` for query `query_id`.
-		fn expecting_response(origin: &MultiLocation, query_id: u64) -> bool {
-
+		fn expecting_response(origin: &MultiLocation, query_id: QueryId) -> bool {
+			if let Some(QueryStatus::Pending { responder, .. }) = Queries::<T>::get(query_id) {
+				return MultiLocation::try_from(responder).map_or(false, |r| origin == &r)
+			}
+			false
 		}
 
 		/// Handler for receiving a `response` from `origin` relating to `query_id`.
-		fn on_response(origin: MultiLocation, query_id: u64, response: Response) -> Weight {
-
-		}
-	}
-	
-	/// Origin for the parachains module.
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-	#[pallet::origin]
-	pub enum Origin {
-		/// It comes from somewhere in the XCM space.
-		Xcm(MultiLocation),
-	}
-
-	impl From<MultiLocation> for Origin {
-		fn from(location: MultiLocation) -> Origin {
-			Origin::Xcm(location)
+		fn on_response(origin: MultiLocation, query_id: QueryId, response: Response) -> Weight {
+			if let Some(QueryStatus::Pending { responder, maybe_notify, .. }) = Queries::<T>::get(query_id) {
+				if MultiLocation::try_from(responder).map_or(false, |r| origin == r) {
+					return match maybe_notify {
+						Some((pallet_index, call_index)) => {
+							// This is a bit horrible, but we happen to know that the `Call` will
+							// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
+							// So we just encode that and then re-encode to a real Call.
+							let bare = (pallet_index, call_index, query_id, response);
+							if let Ok(call) = bare.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes)) {
+								let weight = call.get_dispatch_info().weight;
+								let dispatch_origin = Origin::Response(origin).into();
+								match call.dispatch(dispatch_origin) {
+									Ok(post_info) => post_info.actual_weight,
+									Err(error_and_info) => {
+										// Not much to do with the result as it is. It's up to the parachain to ensure that the
+										// message makes sense.
+										error_and_info.post_info.actual_weight
+									},
+								}
+								.unwrap_or(weight)
+							} else {
+								0
+							}
+						},
+						None => {
+							let at = frame_system::Pallet::<T>::current_block_number();
+							Queries::<T>::insert(query_id, QueryStatus::Ready { response, at });
+							0
+						}
+					}
+				}
+			}
+			0
 		}
 	}
 }
@@ -392,12 +490,10 @@ where
 
 	fn try_origin(outer: O) -> Result<Self::Success, O> {
 		outer.try_with_caller(|caller| {
-			caller.try_into().and_then(|Origin::Xcm(location)| {
-				if F::contains(&location) {
-					Ok(location)
-				} else {
-					Err(Origin::Xcm(location).into())
-				}
+			caller.try_into().and_then(|o| match o {
+				Origin::Xcm(location) if F::contains(&location) => Ok(location),
+				Origin::Xcm(location) => Err(Origin::Xcm(location).into()),
+				o => Err(o.into()),
 			})
 		})
 	}

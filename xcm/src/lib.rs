@@ -53,6 +53,94 @@ impl Decode for Unsupported {
 	}
 }
 
+/// A single `MultiLocation` value, together with its version code.
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum VersionedMultiLocation {
+	V0(v0::MultiLocation),
+	V1(v1::MultiLocation),
+}
+
+impl From<v0::MultiLocation> for VersionedMultiLocation {
+	fn from(x: v0::MultiLocation) -> Self {
+		VersionedMultiLocation::V0(x)
+	}
+}
+
+impl From<v1::MultiLocation> for VersionedMultiLocation {
+	fn from(x: v1::MultiLocation) -> Self {
+		VersionedMultiLocation::V1(x)
+	}
+}
+
+impl TryFrom<VersionedMultiLocation> for v0::MultiLocation {
+	type Error = ();
+	fn try_from(x: VersionedMultiLocation) -> Result<Self, ()> {
+		use VersionedMultiLocation::*;
+		match x {
+			V0(x) => Ok(x),
+			V1(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
+	type Error = ();
+	fn try_from(x: VersionedMultiLocation) -> Result<Self, ()> {
+		use VersionedMultiLocation::*;
+		match x {
+			V0(x) => x.try_into(),
+			V1(x) => Ok(x),
+		}
+	}
+}
+
+/// A single `MultiAsset` value, together with its version code.
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum VersionedMultiAsset {
+	V0(v0::MultiAsset),
+	V1(v1::MultiAsset),
+}
+
+impl From<v0::MultiAsset> for VersionedMultiAsset {
+	fn from(x: v0::MultiAsset) -> Self {
+		VersionedMultiAsset::V0(x)
+	}
+}
+
+impl From<v1::MultiAsset> for VersionedMultiAsset {
+	fn from(x: v1::MultiAsset) -> Self {
+		VersionedMultiAsset::V1(x)
+	}
+}
+
+impl TryFrom<VersionedMultiAsset> for v0::MultiAsset {
+	type Error = ();
+	fn try_from(x: VersionedMultiAsset) -> Result<Self, ()> {
+		use VersionedMultiAsset::*;
+		match x {
+			V0(x) => Ok(x),
+			V1(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
+	type Error = ();
+	fn try_from(x: VersionedMultiAsset) -> Result<Self, ()> {
+		use VersionedMultiAsset::*;
+		match x {
+			V0(x) => x.try_into(),
+			V1(x) => Ok(x),
+		}
+	}
+}
+
 /// A single XCM message, together with its version code.
 #[derive(Derivative, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
