@@ -11,7 +11,6 @@ tracing = "0.1.26"
 polkadot-primitives = { path = "../../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.10" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
@@ -19,7 +18,8 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.2"
 indexmap = "1.7.0"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
-thiserror = "1.0.23"
+derive_more = "0.99.11"
+thiserror = "1.0.26"
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
@@ -30,4 +30,5 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 futures-timer = "3.0.2"

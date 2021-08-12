@@ -14,5 +14,6 @@ parity-scale-codec = { version = "2.0.0", default-features = false, features = [
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 strum = { version = "0.20", features = ["derive"] }
+derive_more = "0.99.11"
 futures = "0.3.15"
 thiserror = "1.0.23"

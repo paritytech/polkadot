@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 always-assert = "0.1.2"
+derive_more = "0.99.14"
 futures = "0.3.15"
 futures-timer = "3"
 thiserror = "1.0.23"
@@ -29,5 +30,6 @@ assert_matches = "1.4.0"
 sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "polkadot-v0.9.10" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
+parity-scale-codec = { version = "2.0.0", features = ["std"]  }
 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
