@@ -14,17 +14,23 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use futures::{channel::mpsc, executor, pending, pin_mut, poll, select, stream, FutureExt};
+use futures::{executor, pending, pin_mut, poll, select, stream, FutureExt};
 use std::{collections::HashMap, sync::atomic, task::Poll};
 
 use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange};
-use polkadot_node_primitives::{BlockData, CollationGenerationConfig, CollationResult, PoV};
+use polkadot_node_primitives::{
+	BlockData, CollationGenerationConfig, CollationResult, DisputeMessage, InvalidDisputeVote, PoV,
+	UncheckedDisputeMessage, ValidDisputeVote,
+};
 use polkadot_node_subsystem_types::{
 	jaeger,
 	messages::{NetworkBridgeEvent, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_primitives::v1::{CandidateHash, CollatorPair};
+use polkadot_primitives::v1::{
+	CandidateHash, CollatorPair, InvalidDisputeStatementKind, ValidDisputeStatementKind,
+	ValidatorIndex,
+};
 
 use crate::{self as overseer, gen::Delay, HeadSupportsParachains, Overseer};
 use metered_channel as metered;
@@ -772,8 +778,27 @@ fn test_dispute_participation_msg() -> DisputeParticipationMessage {
 }
 
 fn test_dispute_distribution_msg() -> DisputeDistributionMessage {
-	let (_, receiver) = mpsc::channel(1);
-	DisputeDistributionMessage::DisputeSendingReceiver(receiver)
+	let dummy_dispute_message = UncheckedDisputeMessage {
+		candidate_receipt: Default::default(),
+		session_index: 0,
+		invalid_vote: InvalidDisputeVote {
+			validator_index: ValidatorIndex(0),
+			signature: Default::default(),
+			kind: InvalidDisputeStatementKind::Explicit,
+		},
+		valid_vote: ValidDisputeVote {
+			validator_index: ValidatorIndex(0),
+			signature: Default::default(),
+			kind: ValidDisputeStatementKind::Explicit,
+		},
+	};
+
+	DisputeDistributionMessage::SendDispute(
+		// We just need dummy data here:
+		unsafe {
+			std::mem::transmute::<UncheckedDisputeMessage, DisputeMessage>(dummy_dispute_message)
+		},
+	)
 }
 
 fn test_chain_selection_msg() -> ChainSelectionMessage {

@@ -80,6 +80,7 @@ polkadot-rpc = { path = "../../rpc" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
+polkadot-node-network-protocol = { path = "../network/protocol" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot" }

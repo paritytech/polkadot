@@ -20,6 +20,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.26"
 rand = "0.8.3"
+derive_more = "0.99.11"
 lru = "0.6.6"
 
 [dev-dependencies]
