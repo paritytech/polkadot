@@ -70,8 +70,18 @@ async fn print_info<T: EPM::Config>(
 		);
 	});
 
-	let info = rpc::<Vec<u8>>(client, "payment_queryInfo", params! { extrinsic }).await;
-	log::info!(target: LOG_TARGET, "payment_queryInfo: {:?}", info);
+	let info = rpc::<pallet_transaction_payment::RuntimeDispatchInfo<Balance>>(
+		client,
+		"payment_queryInfo",
+		params! { extrinsic },
+	)
+	.await;
+	log::info!(
+		target: LOG_TARGET,
+		"payment_queryInfo: (fee = {}) {:?}",
+		info.as_ref().map(|d| Token::from(d.partial_fee)).unwrap_or(Token::from(0)),
+		info,
+	);
 }
 
 /// Find the stake threshold in order to have at most `count` voters.
