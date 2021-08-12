@@ -46,3 +46,6 @@ pub type Ext = sp_io::TestExternalities;
 
 /// The key pair type being used. We "strongly" assume sr25519 for simplicity.
 pub type Pair = sp_core::sr25519::Pair;
+
+/// A dynamic token type used to represent account balances.
+pub type Token = sub_tokens::dynamic::DynamicToken;
