@@ -244,7 +244,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				None
 			},
 			(origin, Xcm::RelayedFrom { who, message }) => {
-				ensure!(who.parent_count() == 0, XcmError::EscalationOfPrivilege);
 				let mut origin = origin;
 				origin.append_with(who).map_err(|_| XcmError::MultiLocationFull)?;
 				let surplus = Self::do_execute_xcm(

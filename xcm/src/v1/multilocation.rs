@@ -149,53 +149,36 @@ impl MultiLocation {
 		(multilocation, last)
 	}
 
-	/// Mutates `self`, suffixing its interior junctions with `new`. Returns `Err` in case of overflow.
-	pub fn push_interior(&mut self, new: Junction) -> result::Result<(), ()> {
-		let mut n = Junctions::Here;
-		mem::swap(&mut self.interior, &mut n);
-		match n.pushed_with(new) {
-			Ok(result) => {
-				self.interior = result;
-				Ok(())
-			},
-			Err(old) => {
-				self.interior = old;
-				Err(())
-			},
-		}
+	/// Mutates `self`, suffixing its interior junctions with `new`. Returns `Err` with `new` in
+	/// case of overflow.
+	pub fn push_interior(&mut self, new: Junction) -> result::Result<(), Junction> {
+		self.interior.push(new)
 	}
 
-	/// Mutates `self`, prefixing its interior junctions with `new`. Returns `Err` in case of overflow.
-	pub fn push_front_interior(&mut self, new: Junction) -> result::Result<(), ()> {
-		let mut n = Junctions::Here;
-		mem::swap(&mut self.interior, &mut n);
-		match n.pushed_front_with(new) {
-			Ok(result) => {
-				self.interior = result;
-				Ok(())
-			},
-			Err(old) => {
-				self.interior = old;
-				Err(())
-			},
-		}
+	/// Mutates `self`, prefixing its interior junctions with `new`. Returns `Err` with `new` in
+	/// case of overflow.
+	pub fn push_front_interior(&mut self, new: Junction) -> result::Result<(), Junction> {
+		self.interior.push_front(new)
 	}
 
-	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with the original value of
+	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with theoriginal value of
 	/// `self` in case of overflow.
-	pub fn pushed_with_interior(self, new: Junction) -> result::Result<Self, Self> {
+	pub fn pushed_with_interior(self, new: Junction) -> result::Result<Self, (Self, Junction)> {
 		match self.interior.pushed_with(new) {
 			Ok(i) => Ok(MultiLocation { interior: i, parents: self.parents }),
-			Err(i) => Err(MultiLocation { interior: i, parents: self.parents }),
+			Err((i, j)) => Err((MultiLocation { interior: i, parents: self.parents }, j)),
 		}
 	}
 
 	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the original value of
 	/// `self` in case of overflow.
-	pub fn pushed_front_with_interior(self, new: Junction) -> result::Result<Self, Self> {
+	pub fn pushed_front_with_interior(
+		self,
+		new: Junction,
+	) -> result::Result<Self, (Self, Junction)> {
 		match self.interior.pushed_front_with(new) {
 			Ok(i) => Ok(MultiLocation { interior: i, parents: self.parents }),
-			Err(i) => Err(MultiLocation { interior: i, parents: self.parents }),
+			Err((i, j)) => Err((MultiLocation { interior: i, parents: self.parents }, j)),
 		}
 	}
 
@@ -259,8 +242,7 @@ impl MultiLocation {
 		self.interior.match_and_split(&prefix.interior)
 	}
 
-	/// Mutate `self` so that it is suffixed with `suffix`. The correct normalized form is returned,
-	/// removing any internal [Non-Parent, `Parent`]  combinations.
+	/// Mutate `self` so that it is suffixed with `suffix`.
 	///
 	/// Does not modify `self` and returns `Err` with `suffix` in case of overflow.
 	///
@@ -268,22 +250,19 @@ impl MultiLocation {
 	/// ```rust
 	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
-	/// let mut m = MultiLocation::new(1, X2(Parachain(21), OnlyChild));
-	/// assert_eq!(m.append_with(MultiLocation::new(1, X1(PalletInstance(3)))), Ok(()));
+	/// let mut m = MultiLocation::new(1, X1(Parachain(21)));
+	/// assert_eq!(m.append_with(X1(PalletInstance(3))), Ok(()));
 	/// assert_eq!(m, MultiLocation::new(1, X2(Parachain(21), PalletInstance(3))));
 	/// # }
 	/// ```
-	pub fn append_with(&mut self, suffix: MultiLocation) -> Result<(), MultiLocation> {
-		let mut prefix = suffix;
-		core::mem::swap(self, &mut prefix);
-		match self.prepend_with(prefix) {
-			Ok(()) => Ok(()),
-			Err(prefix) => {
-				let mut suffix = prefix;
-				core::mem::swap(self, &mut suffix);
-				Err(suffix)
-			},
+	pub fn append_with(&mut self, suffix: Junctions) -> Result<(), Junctions> {
+		if self.interior.len().saturating_add(suffix.len()) > MAX_JUNCTIONS {
+			return Err(suffix)
 		}
+		for j in suffix.into_iter() {
+			self.interior.push(j).expect("Already checked the sum of the len()s; qed")
+		}
+		Ok(())
 	}
 
 	/// Mutate `self` so that it is prefixed with `prefix`.
@@ -767,9 +746,41 @@ impl Junctions {
 		tail
 	}
 
-	/// Consumes `self` and returns a `Junctions` suffixed with `new`, or an `Err` with the original value of
-	/// `self` in case of overflow.
-	pub fn pushed_with(self, new: Junction) -> result::Result<Self, Self> {
+	/// Mutates `self` to be appended with `new` or returns an `Err` with `new` if would overflow.
+	pub fn push(&mut self, new: Junction) -> result::Result<(), Junction> {
+		let mut dummy = Junctions::Here;
+		mem::swap(self, &mut dummy);
+		match dummy.pushed_with(new) {
+			Ok(s) => {
+				*self = s;
+				Ok(())
+			},
+			Err((s, j)) => {
+				*self = s;
+				Err(j)
+			},
+		}
+	}
+
+	/// Mutates `self` to be prepended with `new` or returns an `Err` with `new` if would overflow.
+	pub fn push_front(&mut self, new: Junction) -> result::Result<(), Junction> {
+		let mut dummy = Junctions::Here;
+		mem::swap(self, &mut dummy);
+		match dummy.pushed_front_with(new) {
+			Ok(s) => {
+				*self = s;
+				Ok(())
+			},
+			Err((s, j)) => {
+				*self = s;
+				Err(j)
+			},
+		}
+	}
+
+	/// Consumes `self` and returns a `Junctions` suffixed with `new`, or an `Err` with the
+	/// original value of `self` and `new` in case of overflow.
+	pub fn pushed_with(self, new: Junction) -> result::Result<Self, (Self, Junction)> {
 		Ok(match self {
 			Junctions::Here => Junctions::X1(new),
 			Junctions::X1(a) => Junctions::X2(a, new),
@@ -779,13 +790,13 @@ impl Junctions {
 			Junctions::X5(a, b, c, d, e) => Junctions::X6(a, b, c, d, e, new),
 			Junctions::X6(a, b, c, d, e, f) => Junctions::X7(a, b, c, d, e, f, new),
 			Junctions::X7(a, b, c, d, e, f, g) => Junctions::X8(a, b, c, d, e, f, g, new),
-			s => Err(s)?,
+			s => Err((s, new))?,
 		})
 	}
 
-	/// Consumes `self` and returns a `Junctions` prefixed with `new`, or an `Err` with the original value of
-	/// `self` in case of overflow.
-	pub fn pushed_front_with(self, new: Junction) -> result::Result<Self, Self> {
+	/// Consumes `self` and returns a `Junctions` prefixed with `new`, or an `Err` with the
+	/// original value of `self` and `new` in case of overflow.
+	pub fn pushed_front_with(self, new: Junction) -> result::Result<Self, (Self, Junction)> {
 		Ok(match self {
 			Junctions::Here => Junctions::X1(new),
 			Junctions::X1(a) => Junctions::X2(new, a),
@@ -795,7 +806,7 @@ impl Junctions {
 			Junctions::X5(a, b, c, d, e) => Junctions::X6(new, a, b, c, d, e),
 			Junctions::X6(a, b, c, d, e, f) => Junctions::X7(new, a, b, c, d, e, f),
 			Junctions::X7(a, b, c, d, e, f, g) => Junctions::X8(new, a, b, c, d, e, f, g),
-			s => Err(s)?,
+			s => Err((s, new))?,
 		})
 	}
 
@@ -1245,7 +1256,7 @@ mod tests {
 	fn append_with_works() {
 		let acc = AccountIndex64 { network: Any, index: 23 };
 		let mut m = MultiLocation { parents: 1, interior: X1(Parachain(42)) };
-		assert_eq!(m.append_with(MultiLocation::from(X2(PalletInstance(3), acc.clone()))), Ok(()));
+		assert_eq!(m.append_with(X2(PalletInstance(3), acc.clone())), Ok(()));
 		assert_eq!(
 			m,
 			MultiLocation {
@@ -1256,12 +1267,12 @@ mod tests {
 
 		// cannot append to create overly long multilocation
 		let acc = AccountIndex64 { network: Any, index: 23 };
-		let mut m = MultiLocation {
+		let m = MultiLocation {
 			parents: 254,
 			interior: X5(Parachain(42), OnlyChild, OnlyChild, OnlyChild, OnlyChild),
 		};
-		let suffix = MultiLocation::from(X4(PalletInstance(3), acc.clone(), OnlyChild, OnlyChild));
-		assert_eq!(m.append_with(suffix.clone()), Err(suffix));
+		let suffix = X4(PalletInstance(3), acc.clone(), OnlyChild, OnlyChild);
+		assert_eq!(m.clone().append_with(suffix.clone()), Err(suffix));
 	}
 
 	#[test]
