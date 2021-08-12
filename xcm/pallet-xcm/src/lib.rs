@@ -325,8 +325,25 @@ pub mod pallet {
 			const ID: PalletId = PalletId(*b"py/xcmch");
 			AccountIdConversion::<T::AccountId>::into_account(&ID)
 		}
+
+		/// Attempt to create a new query ID and register it as a query that is yet to respond.
+		pub fn new_query(responder: MultiLocation) -> Option<u64> {
+			None
+		}
 	}
 
+	impl<T: Config> OnResponse for Pallet<T> {
+		/// Returns `true` if we are expecting a response from `origin` for query `query_id`.
+		fn expecting_response(origin: &MultiLocation, query_id: u64) -> bool {
+
+		}
+
+		/// Handler for receiving a `response` from `origin` relating to `query_id`.
+		fn on_response(origin: MultiLocation, query_id: u64, response: Response) -> Weight {
+
+		}
+	}
+	
 	/// Origin for the parachains module.
 	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 	#[pallet::origin]
