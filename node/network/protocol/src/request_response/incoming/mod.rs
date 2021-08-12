@@ -190,7 +190,7 @@ where
 pub struct OutgoingResponse<Response> {
 	/// The payload of the response.
 	///
-	/// `Err(())` if none is available e.g. due an error while handling the request.
+	/// `Err(())` if none is available e.g. due to an error while handling the request.
 	pub result: std::result::Result<Response, ()>,
 
 	/// Reputation changes accrued while handling the request. To be applied to the reputation of

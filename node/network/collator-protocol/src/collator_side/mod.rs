@@ -826,56 +826,53 @@ where
 		.map(|s| s.child("request-collation"));
 
 	match state.collating_on {
-		Some(our_para_id) =>
-			if our_para_id == req.payload.para_id {
-				let (receipt, pov) =
-					if let Some(collation) = state.collations.get_mut(&req.payload.relay_parent) {
-						collation.status.advance_to_requested();
-						(collation.receipt.clone(), collation.pov.clone())
-					} else {
-						tracing::warn!(
-							target: LOG_TARGET,
-							relay_parent = %req.payload.relay_parent,
-							"received a `RequestCollation` for a relay parent we don't have collation stored.",
-						);
-
-						return Ok(())
-					};
-
-				state.metrics.on_collation_sent_requested();
-
-				let _span = _span.as_ref().map(|s| s.child("sending"));
-
-				let waiting =
-					state.waiting_collation_fetches.entry(req.payload.relay_parent).or_default();
-
-				if !waiting.waiting_peers.insert(req.peer) {
-					tracing::debug!(
-						target: LOG_TARGET,
-						"Dropping incoming request as peer has a request in flight already."
-					);
-					ctx.send_message(NetworkBridgeMessage::ReportPeer(
-						req.peer,
-						COST_APPARENT_FLOOD,
-					))
-					.await;
-					return Ok(())
-				}
-
-				if waiting.collation_fetch_active {
-					waiting.waiting.push_back(req);
+		Some(our_para_id) if our_para_id == req.payload.para_id => {
+			let (receipt, pov) =
+				if let Some(collation) = state.collations.get_mut(&req.payload.relay_parent) {
+					collation.status.advance_to_requested();
+					(collation.receipt.clone(), collation.pov.clone())
 				} else {
-					waiting.collation_fetch_active = true;
-					send_collation(state, req, receipt, pov).await;
-				}
-			} else {
-				tracing::warn!(
+					tracing::warn!(
+						target: LOG_TARGET,
+						relay_parent = %req.payload.relay_parent,
+						"received a `RequestCollation` for a relay parent we don't have collation stored.",
+					);
+
+					return Ok(())
+				};
+
+			state.metrics.on_collation_sent_requested();
+
+			let _span = _span.as_ref().map(|s| s.child("sending"));
+
+			let waiting =
+				state.waiting_collation_fetches.entry(req.payload.relay_parent).or_default();
+
+			if !waiting.waiting_peers.insert(req.peer) {
+				tracing::debug!(
 					target: LOG_TARGET,
-					for_para_id = %req.payload.para_id,
-					our_para_id = %our_para_id,
-					"received a `CollationFetchingRequest` for unexpected para_id",
+					"Dropping incoming request as peer has a request in flight already."
 				);
-			},
+				ctx.send_message(NetworkBridgeMessage::ReportPeer(req.peer, COST_APPARENT_FLOOD))
+					.await;
+				return Ok(())
+			}
+
+			if waiting.collation_fetch_active {
+				waiting.waiting.push_back(req);
+			} else {
+				waiting.collation_fetch_active = true;
+				send_collation(state, req, receipt, pov).await;
+			}
+		},
+		Some(our_para_id) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				for_para_id = %req.payload.para_id,
+				our_para_id = %our_para_id,
+				"received a `CollationFetchingRequest` for unexpected para_id",
+			);
+		},
 		None => {
 			tracing::warn!(
 				target: LOG_TARGET,
