@@ -71,7 +71,7 @@ pub enum Fatal {
 	Runtime(#[from] runtime::Fatal),
 
 	/// Errors coming from receiving incoming requests.
-	#[error("Retrieving next incoming request failed.")]
+	#[error("Retrieving next incoming request failed")]
 	IncomingRequest(#[from] incoming::Fatal),
 }
 
@@ -79,7 +79,7 @@ pub enum Fatal {
 #[derive(Debug, Error)]
 pub enum NonFatal {
 	/// Signature was invalid on received statement.
-	#[error("CollationSeconded contained statement with invalid signature.")]
+	#[error("CollationSeconded contained statement with invalid signature")]
 	InvalidStatementSignature(UncheckedSignedFullStatement),
 
 	/// Errors coming from runtime::Runtime.
@@ -87,7 +87,7 @@ pub enum NonFatal {
 	Runtime(#[from] runtime::NonFatal),
 
 	/// Errors coming from receiving incoming requests.
-	#[error("Retrieving next incoming request failed.")]
+	#[error("Retrieving next incoming request failed")]
 	IncomingRequest(#[from] incoming::NonFatal),
 }
 
