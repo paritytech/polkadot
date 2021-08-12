@@ -86,7 +86,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 	) -> Result<Weight, (MessageId, Weight)> {
 		use parity_scale_codec::DecodeLimit;
 		use xcm::{
-			latest::{Error as XcmError, Junction, MultiLocation, Xcm},
+			latest::{Error as XcmError, Junction, Xcm},
 			VersionedXcm,
 		};
 
