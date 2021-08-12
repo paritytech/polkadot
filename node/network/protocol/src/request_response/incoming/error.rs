@@ -21,7 +21,7 @@ use thiserror::Error;
 
 use parity_scale_codec::Error as DecodingError;
 
-/// Errors that happen during receival/decoding of incoming requests.
+/// Errors that happen during reception/decoding of incoming requests.
 #[derive(Debug, Error, derive_more::From)]
 #[error(transparent)]
 pub enum Error {

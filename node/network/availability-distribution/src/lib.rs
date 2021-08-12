@@ -62,9 +62,9 @@ pub struct AvailabilityDistributionSubsystem {
 
 /// Receivers to be passed into availability distribution.
 pub struct IncomingRequestReceivers {
-	/// Receiver for incoming pov requests.
+	/// Receiver for incoming PoV requests.
 	pub pov_req_receiver: IncomingRequestReceiver<v1::PoVFetchingRequest>,
-	/// Receiver for incoming avaiabiltiy chunk requests.
+	/// Receiver for incoming availability chunk requests.
 	pub chunk_req_receiver: IncomingRequestReceiver<v1::ChunkFetchingRequest>,
 }
 
