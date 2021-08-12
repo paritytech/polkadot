@@ -268,9 +268,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					trader,
 					num_recursions + 1,
 				);
-				if let Ok(ref surplus) = result {
-					total_surplus = total_surplus.saturating_add(*surplus);
-				}
+				// TODO: indication of where it failed.
+				let result = result.map(|surplus| {
+					total_surplus = total_surplus.saturating_add(surplus);
+				});
 				Config::XcmSender::send_xcm(
 					dest,
 					Xcm::QueryResponse { query_id, response: Response::ExecutionResult(result) },

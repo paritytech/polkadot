@@ -104,8 +104,8 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 	) -> Result<(), ()> {
 		match message {
 			Xcm::QueryResponse { query_id, .. }
-				if ResponseHandler::expecting_response(origin, *query_id) =>
-				Ok(()),
+			if ResponseHandler::expecting_response(origin, *query_id)
+			=> Ok(()),
 			_ => Err(()),
 		}
 	}

@@ -29,7 +29,7 @@ use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
 mod junction;
-pub mod multiasset;
+mod multiasset;
 mod multilocation;
 mod order;
 mod traits; // the new multiasset.
@@ -39,7 +39,9 @@ pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
 };
-pub use multilocation::{Ancestor, AncestorThen, Junctions, MultiLocation, Parent, ParentThen};
+pub use multilocation::{
+	Ancestor, AncestorThen, InteriorMultiLocation, Junctions, MultiLocation, Parent, ParentThen,
+};
 pub use order::Order;
 pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
@@ -49,29 +51,23 @@ pub use super::v0::{BodyId, BodyPart, NetworkId, OriginKind};
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
-		super::v0::{
-			BodyId, BodyPart,
-			NetworkId::{self, *},
-		},
+		BodyId, BodyPart,
+		NetworkId::{self, *},
 		junction::Junction::{self, *},
-		multiasset::{
-			AssetId::{self, *},
-			AssetInstance::{self, *},
-			Fungibility::{self, *},
-			MultiAsset,
-			MultiAssetFilter::{self, *},
-			MultiAssets,
-			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
-			WildMultiAsset::{self, *},
-		},
-		multilocation::{
-			Ancestor, AncestorThen,
-			Junctions::{self, *},
-			MultiLocation, Parent, ParentThen,
-		},
+		AssetId::{self, *},
+		AssetInstance::{self, *},
+		Fungibility::{self, *},
+		MultiAsset,
+		MultiAssetFilter::{self, *},
+		MultiAssets,
+		WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
+		WildMultiAsset::{self, *},
+		Ancestor, AncestorThen,
+		Junctions::{self, *},
+		MultiLocation, InteriorMultiLocation, Parent, ParentThen,
 		opaque,
 		order::Order::{self, *},
-		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
+		Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm,
 		OriginKind, Response,
 		Xcm::{self, *},
 	};
@@ -272,7 +268,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 10)]
-	RelayedFrom { who: Junctions, message: alloc::boxed::Box<Xcm<Call>> },
+	RelayedFrom { who: InteriorMultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
 }
 
 impl<Call> Xcm<Call> {

@@ -36,7 +36,7 @@ pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm, SendError, SendRes
 pub use super::v1::{
 	Junction, AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
-	Ancestor, AncestorThen, Junctions, MultiLocation, Parent, ParentThen,
+	Ancestor, AncestorThen, Junctions, MultiLocation, InteriorMultiLocation, Parent, ParentThen,
 	BodyId, BodyPart, NetworkId, OriginKind,
 };
 
@@ -57,13 +57,11 @@ pub mod prelude {
 		WildMultiAsset::{self, *},
 		Ancestor, AncestorThen,
 		Junctions::{self, *},
-		MultiLocation, Parent, ParentThen,
+		MultiLocation, InteriorMultiLocation, Parent, ParentThen,
 		opaque,
 		order::Order::{self, *},
-		traits::{
-			ExecuteXcm, Error as XcmError, Result as XcmResult, Outcome,
-			SendXcm, SendResult, SendError,
-		},
+		ExecuteXcm, Error as XcmError, Result as XcmResult, Outcome,
+		SendXcm, SendResult, SendError,
 		OriginKind, Response,
 		Xcm::{self, *},
 	};
@@ -266,7 +264,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 10)]
-	RelayedFrom { who: Junctions, message: alloc::boxed::Box<Xcm<Call>> },
+	RelayedFrom { who: InteriorMultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
 
 	/// Attempt execution of the inner `message` and then report the outcome of that `dest`.
 	///
