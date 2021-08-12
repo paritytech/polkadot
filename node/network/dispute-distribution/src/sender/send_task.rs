@@ -14,37 +14,32 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::collections::{HashMap, HashSet};
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-
-use futures::Future;
-use futures::FutureExt;
-use futures::SinkExt;
-use futures::channel::mpsc;
-use futures::future::RemoteHandle;
+use futures::{channel::mpsc, future::RemoteHandle, Future, FutureExt, SinkExt};
 
 use polkadot_node_network_protocol::{
-	IfDisconnected,
 	request_response::{
-		OutgoingRequest, OutgoingResult, Recipient, Requests,
 		v1::{DisputeRequest, DisputeResponse},
-	}
+		OutgoingRequest, OutgoingResult, Recipient, Requests,
+	},
+	IfDisconnected,
 };
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
 };
 use polkadot_subsystem::{
-	SubsystemContext,
 	messages::{AllMessages, NetworkBridgeMessage},
+	SubsystemContext,
 };
 
 use super::error::{Fatal, Result};
 
-use crate::LOG_TARGET;
-use crate::metrics::FAILED;
-use crate::metrics::SUCCEEDED;
+use crate::{
+	metrics::{FAILED, SUCCEEDED},
+	LOG_TARGET,
+};
 
 /// Delivery status for a particular dispute.
 ///
@@ -104,27 +99,18 @@ impl TaskResult {
 	}
 }
 
-impl SendTask
-{
+impl SendTask {
 	/// Initiates sending a dispute message to peers.
 	pub async fn new<Context: SubsystemContext>(
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		active_sessions: &HashMap<SessionIndex,Hash>,
+		active_sessions: &HashMap<SessionIndex, Hash>,
 		tx: mpsc::Sender<TaskFinish>,
 		request: DisputeRequest,
 	) -> Result<Self> {
-		let mut send_task = Self {
-			request,
-			deliveries: HashMap::new(),
-			has_failed_sends: false,
-			tx,
-		};
-		send_task.refresh_sends(
-			ctx,
-			runtime,
-			active_sessions,
-		).await?;
+		let mut send_task =
+			Self { request, deliveries: HashMap::new(), has_failed_sends: false, tx };
+		send_task.refresh_sends(ctx, runtime, active_sessions).await?;
 		Ok(send_task)
 	}
 
@@ -150,12 +136,8 @@ impl SendTask
 		self.deliveries.retain(|k, _| new_authorities.contains(k));
 
 		// Start any new tasks that are needed:
-		let new_statuses = send_requests(
-			ctx,
-			self.tx.clone(),
-			add_authorities,
-			self.request.clone(),
-		).await?;
+		let new_statuses =
+			send_requests(ctx, self.tx.clone(), add_authorities, self.request.clone()).await?;
 
 		self.deliveries.extend(new_statuses.into_iter());
 		self.has_failed_sends = false;
@@ -180,7 +162,7 @@ impl SendTask
 				self.has_failed_sends = true;
 				// Remove state, so we know what to try again:
 				self.deliveries.remove(authority);
-			}
+			},
 			TaskResult::Succeeded => {
 				let status = match self.deliveries.get_mut(&authority) {
 					None => {
@@ -194,15 +176,14 @@ impl SendTask
 							"Received `FromSendingTask::Finished` for non existing task."
 						);
 						return
-					}
+					},
 					Some(status) => status,
 				};
 				// We are done here:
 				*status = DeliveryStatus::Succeeded;
-			}
+			},
 		}
 	}
-
 
 	/// Determine all validators that should receive the given dispute requests.
 	///
@@ -232,7 +213,8 @@ impl SendTask
 
 		// Current authorities:
 		for (session_index, head) in active_sessions.iter() {
-			let info = runtime.get_session_info_by_index(ctx.sender(), *head, *session_index).await?;
+			let info =
+				runtime.get_session_info_by_index(ctx.sender(), *head, *session_index).await?;
 			let session_info = &info.session_info;
 			let new_set = session_info
 				.discovery_keys
@@ -245,7 +227,6 @@ impl SendTask
 		Ok(authorities)
 	}
 }
-
 
 /// Start sending of the given message to all given authorities.
 ///
@@ -260,10 +241,8 @@ async fn send_requests<Context: SubsystemContext>(
 	let mut reqs = Vec::with_capacity(receivers.len());
 
 	for receiver in receivers {
-		let (outgoing, pending_response) = OutgoingRequest::new(
-			Recipient::Authority(receiver.clone()),
-			req.clone(),
-		);
+		let (outgoing, pending_response) =
+			OutgoingRequest::new(Recipient::Authority(receiver.clone()), req.clone());
 
 		reqs.push(Requests::DisputeSending(outgoing));
 
@@ -275,8 +254,7 @@ async fn send_requests<Context: SubsystemContext>(
 		);
 
 		let (remote, remote_handle) = fut.remote_handle();
-		ctx.spawn("dispute-sender", remote.boxed())
-			.map_err(Fatal::SpawnTask)?;
+		ctx.spawn("dispute-sender", remote.boxed()).map_err(Fatal::SpawnTask)?;
 		statuses.insert(receiver, DeliveryStatus::Pending(remote_handle));
 	}
 
@@ -306,8 +284,8 @@ async fn wait_response_task(
 				%err,
 				"Error sending dispute statements to node."
 			);
-			TaskFinish { candidate_hash, receiver, result: TaskResult::Failed}
-		}
+			TaskFinish { candidate_hash, receiver, result: TaskResult::Failed }
+		},
 		Ok(DisputeResponse::Confirmed) => {
 			tracing::trace!(
 				target: LOG_TARGET,
@@ -316,7 +294,7 @@ async fn wait_response_task(
 				"Sending dispute message succeeded"
 			);
 			TaskFinish { candidate_hash, receiver, result: TaskResult::Succeeded }
-		}
+		},
 	};
 	if let Err(err) = tx.feed(msg).await {
 		tracing::debug!(

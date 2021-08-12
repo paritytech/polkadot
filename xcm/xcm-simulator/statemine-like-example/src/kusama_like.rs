@@ -16,7 +16,7 @@
 
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{All, AllowAll},
+	traits::Everything,
 	weights::Weight,
 };
 use sp_core::H256;
@@ -24,12 +24,11 @@ use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared, ump};
-use xcm::opaque::v0::MultiAsset::{self, AllConcreteFungible};
-use xcm::v0::{Junction::*, MultiLocation::{self, *}, NetworkId, Xcm};
+use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds,
 	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit, IsChildSystemParachain, AllowUnpaidExecutionFrom
 };
@@ -66,7 +65,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type DbWeight = ();
-	type BaseCallFilter = AllowAll;
+	type BaseCallFilter = Everything;
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
@@ -96,9 +95,9 @@ impl configuration::Config for Runtime {}
 
 // aims to closely emulate the Kusama XcmConfig
 parameter_types! {
-	pub const KsmLocation: MultiLocation = MultiLocation::Null;
+	pub const KsmLocation: MultiLocation = Here.into();
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
-	pub Ancestry: MultiLocation = MultiLocation::Null;
+	pub Ancestry: MultiLocation = Here.into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -117,12 +116,13 @@ type LocalOriginConverter = (
 
 parameter_types! {
 	pub const BaseXcmWeight: Weight = 1_000_000_000;
-	pub KsmPerSecond: (MultiLocation, u128) = (KsmLocation::get(), 1);
+	pub KsmPerSecond: (AssetId, u128) = (Concrete(KsmLocation::get()), 1);
 }
 
 parameter_types! {
-	pub const KusamaForStatemint: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(1000)));
+	pub const Kusama: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(KsmLocation::get()) });
+	pub const KusamaForStatemint: (MultiAssetFilter, MultiLocation) =
+		(Kusama::get(), Parachain(1000).into());
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<KusamaForStatemint>,
@@ -130,7 +130,7 @@ pub type TrustedTeleporters = (
 
 pub type Barrier = (
 	TakeWeightCredit,
-	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	AllowTopLevelPaidExecutionFrom<Everything>,
 	// Unused/Untested
 	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 );
@@ -146,58 +146,11 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<KsmPerSecond, ()>;
+	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;
-
-pub struct OnlyWithdrawTeleportForAccounts;
-impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)> for OnlyWithdrawTeleportForAccounts {
-	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
-		use xcm::v0::{
-			Xcm::WithdrawAsset, Order::{BuyExecution, InitiateTeleport, DepositAsset},
-			MultiAsset::{All, ConcreteFungible}, Junction::AccountId32,
-		};
-		match origin {
-			// Root and council are are allowed to execute anything.
-			Null | X1(Plurality { .. }) => true,
-			X1(AccountId32 { .. }) => {
-				// An account ID trying to send a message. We ensure that it's sensible.
-				// This checks that it's of the form:
-				// WithdrawAsset {
-				//   assets: [ ConcreteFungible { id: Null } ],
-				//   effects: [ BuyExecution, InitiateTeleport {
-				//     assets: All,
-				//     dest: Parachain,
-				//     effects: [ BuyExecution, DepositAssets {
-				//       assets: All,
-				//       dest: AccountId32,
-				//     } ]
-				//   } ]
-				// }
-				matches!(msg, WithdrawAsset { ref assets, ref effects }
-					if assets.len() == 1
-					&& matches!(assets[0], ConcreteFungible { id: Null, .. })
-					&& effects.len() == 2
-					&& matches!(effects[0], BuyExecution { .. })
-					&& matches!(effects[1], InitiateTeleport { ref assets, dest: X1(Parachain(..)), ref effects }
-						if assets.len() == 1
-						&& matches!(assets[0], All)
-						&& effects.len() == 2
-						&& matches!(effects[0], BuyExecution { .. })
-						&& matches!(effects[1], DepositAsset { ref assets, dest: X1(AccountId32{..}) }
-							if assets.len() == 1
-							&& matches!(assets[0], All)
-						)
-					)
-				)
-			}
-			// Nobody else is allowed to execute anything.
-			_ => false,
-		}
-	}
-}
 
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
@@ -206,11 +159,12 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	// ...but they must match our filter, which requires them to be a simple withdraw + teleport.
-	type XcmExecuteFilter = OnlyWithdrawTeleportForAccounts;
+	type XcmExecuteFilter = ();
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
-	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
+	type XcmTeleportFilter = Everything;
+	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type LocationInverter = LocationInverter<Ancestry>;
 }
 
 parameter_types! {

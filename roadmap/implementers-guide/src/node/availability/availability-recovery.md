@@ -10,14 +10,14 @@ This version of the availability recovery subsystem is based off of direct conne
 
 Input:
 
-- NetworkBridgeUpdateV1(update)
-- AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session, backing_group, response)
+- `NetworkBridgeUpdateV1(update)`
+- `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session, backing_group, response)`
 
 Output:
 
-- NetworkBridge::SendValidationMessage
-- NetworkBridge::ReportPeer
-- AvailabilityStore::QueryChunk
+- `NetworkBridge::SendValidationMessage`
+- `NetworkBridge::ReportPeer`
+- `AvailabilityStore::QueryChunk`
 
 ## Functionality
 
@@ -51,7 +51,7 @@ struct InteractionParams {
     validator_authority_keys: Vec<AuthorityId>,
     validators: Vec<ValidatorId>,
     // The number of pieces needed.
-    threshold: usize, 
+    threshold: usize,
     candidate_hash: Hash,
     erasure_root: Hash,
 }
@@ -65,7 +65,7 @@ enum InteractionPhase {
     RequestChunks {
         // a random shuffling of the validators which indicates the order in which we connect to the validators and
         // request the chunk from them.
-        shuffling: Vec<ValidatorIndex>, 
+        shuffling: Vec<ValidatorIndex>,
         received_chunks: Map<ValidatorIndex, ErasureChunk>,
         requesting_chunks: FuturesUnordered<Receiver<ErasureChunkRequestResponse>>,
     }
@@ -90,7 +90,7 @@ On `Conclude`, shut down the subsystem.
 
 1. Check the `availability_lru` for the candidate and return the data if so.
 1. Check if there is already an interaction handle for the request. If so, add the response handle to it.
-1. Otherwise, load the session info for the given session under the state of `live_block_hash`, and initiate an interaction with *launch_interaction*. Add an interaction handle to the state and add the response channel to it.
+1. Otherwise, load the session info for the given session under the state of `live_block_hash`, and initiate an interaction with *`launch_interaction`*. Add an interaction handle to the state and add the response channel to it.
 1. If the session info is not available, return `RecoveryError::Unavailable` on the response channel.
 
 ### From-interaction logic
@@ -98,7 +98,7 @@ On `Conclude`, shut down the subsystem.
 #### `FromInteraction::Concluded`
 
 1. Load the entry from the `interactions` map. It should always exist, if not for logic errors. Send the result to each member of `awaiting`.
-1. Add the entry to the availability_lru.
+1. Add the entry to the `availability_lru`.
 
 ### Interaction logic
 
@@ -123,12 +123,12 @@ const N_PARALLEL: usize = 50;
 * Request `AvailabilityStoreMessage::QueryAvailableData`. If it exists, return that.
 * If the phase is `InteractionPhase::RequestFromBackers`
   * Loop:
-    * If the `requesting_pov` is `Some`, poll for updates on it. If it concludes, set `requesting_pov` to `None`. 
+    * If the `requesting_pov` is `Some`, poll for updates on it. If it concludes, set `requesting_pov` to `None`.
     * If the `requesting_pov` is `None`, take the next backer off the `shuffled_backers`.
         * If the backer is `Some`, issue a `NetworkBridgeMessage::Requests` with a network request for the `AvailableData` and wait for the response.
-        * If it concludes with a `None` result, return to beginning. 
-        * If it concludes with available data, attempt a re-encoding. 
-            * If it has the correct erasure-root, break and issue a `Ok(available_data)`. 
+        * If it concludes with a `None` result, return to beginning.
+        * If it concludes with available data, attempt a re-encoding.
+            * If it has the correct erasure-root, break and issue a `Ok(available_data)`.
             * If it has an incorrect erasure-root, return to beginning.
         * If the backer is `None`, set the phase to `InteractionPhase::RequestChunks` with a random shuffling of validators and empty `next_shuffling`, `received_chunks`, and `requesting_chunks` and break the loop.
 

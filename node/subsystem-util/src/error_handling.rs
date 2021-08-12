@@ -64,14 +64,14 @@ use thiserror::Error;
 /// 		Self(Fault::from_non_fatal(e))
 /// 	}
 /// }
-/// 
+///
 /// // Make an Error from a `Fatal` one.
 /// impl From<Fatal> for Error {
 /// 	fn from(f: Fatal) -> Self {
 /// 		Self(Fault::from_fatal(f))
 /// 	}
 /// }
-/// 
+///
 /// // Easy conversion from sub error types from other modules:
 /// impl From<runtime::Error> for Error {
 /// 	fn from(o: runtime::Error) -> Self {
@@ -107,9 +107,10 @@ use thiserror::Error;
 /// ```
 #[derive(Debug, Error)]
 pub enum Fault<E, F>
-	where
-		E: std::fmt::Debug + std::error::Error + 'static,
-		F: std::fmt::Debug + std::error::Error + 'static, {
+where
+	E: std::fmt::Debug + std::error::Error + 'static,
+	F: std::fmt::Debug + std::error::Error + 'static,
+{
 	/// Error is fatal and should be escalated up.
 	///
 	/// While we usually won't want to pattern match on those, a concrete descriptive enum might
@@ -126,9 +127,9 @@ pub enum Fault<E, F>
 /// `From::from` implementations. So no auto conversions by default, a simple `Result::map_err` is
 /// not too bad though.
 impl<E, F> Fault<E, F>
-	where
-		E: std::fmt::Debug + std::error::Error + 'static,
-		F: std::fmt::Debug + std::error::Error + 'static,
+where
+	E: std::fmt::Debug + std::error::Error + 'static,
+	F: std::fmt::Debug + std::error::Error + 'static,
 {
 	/// Build an `Fault` from compatible fatal error.
 	pub fn from_fatal<F1: Into<F>>(f: F1) -> Self {
@@ -188,10 +189,10 @@ impl<E, F> Fault<E, F>
 /// }
 ///
 /// ```
-pub fn unwrap_non_fatal<E,F>(result: Result<(), Fault<E,F>>) -> Result<Option<E>, F>
-	where
-		E: std::fmt::Debug + std::error::Error + 'static,
-		F: std::fmt::Debug + std::error::Error + Send + Sync + 'static
+pub fn unwrap_non_fatal<E, F>(result: Result<(), Fault<E, F>>) -> Result<Option<E>, F>
+where
+	E: std::fmt::Debug + std::error::Error + 'static,
+	F: std::fmt::Debug + std::error::Error + Send + Sync + 'static,
 {
 	match result {
 		Ok(()) => Ok(None),

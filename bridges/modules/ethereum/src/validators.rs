@@ -359,7 +359,7 @@ pub(crate) mod tests {
 
 		// when we're inside list range
 		header.number = 150;
-		assert_eq!(validators.extract_validators_change(&header, None), Ok((None, None)),);
+		assert_eq!(validators.extract_validators_change(&header, None), Ok((None, None)));
 
 		// when we're at the block that switches to contract source
 		header.number = 200;
@@ -459,7 +459,7 @@ pub(crate) mod tests {
 
 	#[test]
 	fn finalize_validators_change_does_not_finalize_when_changes_are_not_scheduled() {
-		assert_eq!(try_finalize_with_scheduled_change(None), None,);
+		assert_eq!(try_finalize_with_scheduled_change(None), None);
 	}
 
 	#[test]
@@ -468,6 +468,6 @@ pub(crate) mod tests {
 			number: 5,
 			..Default::default()
 		};
-		assert_eq!(try_finalize_with_scheduled_change(Some(id5)), None,);
+		assert_eq!(try_finalize_with_scheduled_change(Some(id5)), None);
 	}
 }

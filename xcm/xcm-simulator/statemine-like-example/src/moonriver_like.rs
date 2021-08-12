@@ -35,7 +35,7 @@
 use codec::{Decode, Encode};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{All, AllowAll},
+	traits::Everything,
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use sp_core::H256;
@@ -51,19 +51,12 @@ use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
 use polkadot_parachain::primitives::{
 	DmpMessageHandler, Id as ParaId, Sibling, XcmpMessageFormat, XcmpMessageHandler,
 };
-use xcm::{
-	v0::{
-		Error as XcmError, ExecuteXcm,
-		Junction::{Parachain, Parent},
-		MultiAsset,
-		MultiLocation::{self, X1},
-		NetworkId, Outcome, Xcm,
-	},
-	VersionedXcm,
-};
+use xcm::VersionedXcm;
+use xcm::latest::prelude::*;
+use xcm::latest::AssetId as XcmAssetId;
 use xcm_builder::{
 	AccountId32Aliases, AllowUnpaidExecutionFrom, CurrencyAdapter as XcmCurrencyAdapter,
-	EnsureXcmOrigin, FixedRateOfConcreteFungible, FixedWeightBounds, IsConcrete, LocationInverter,
+	EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds, IsConcrete, LocationInverter,
 	NativeAsset, SiblingParachainConvertsVia, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation,
 };
@@ -107,7 +100,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type DbWeight = ();
-	type BaseCallFilter = AllowAll;
+	type BaseCallFilter = Everything;
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
@@ -168,22 +161,22 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const KsmLocation: MultiLocation = MultiLocation::X1(Parent);
+	pub const KsmLocation: MultiLocation = MultiLocation::parent();
 	pub const RelayNetwork: NetworkId = NetworkId::Kusama;
 	pub Ancestry: MultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
-	pub const StatemineLocation: MultiLocation = MultiLocation::X2(Parent, Parachain(super::STATEMINE_ID));
+	pub const StatemineLocation: MultiLocation = Parachain(super::STATEMINE_ID).into_exterior(1);
 	pub CheckingAccount: AccountId = PolkadotXcm::check_account();
 }
 
 use sp_std::borrow::Borrow;
 use xcm_executor::traits::Convert;
-/// An empty `MultiLocation::Null` is mapped to the default for `AccountId` (all zeroes).
-pub struct NullIsDefault<AccountId>(PhantomData<AccountId>);
+/// An empty `Here.into()` is mapped to the default for `AccountId` (all zeroes).
+pub struct HereIsDefault<AccountId>(PhantomData<AccountId>);
 impl<
 	AccountId: Default + Eq + Clone,
-> Convert<MultiLocation, AccountId> for NullIsDefault<AccountId> {
+> Convert<MultiLocation, AccountId> for HereIsDefault<AccountId> {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		if let &MultiLocation::Null = location.borrow() {
+		if &Here.into() == location.borrow() {
 			Ok(AccountId::default())
 		} else {
 			Err(())
@@ -192,7 +185,7 @@ impl<
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if who.borrow() == &AccountId::default() {
-			Ok(MultiLocation::Null)
+			Ok(Here.into())
 		} else {
 			Err(())
 		}
@@ -200,7 +193,7 @@ impl<
 }
 
 pub type LocationToAccountId = (
-	NullIsDefault<AccountId>,
+	HereIsDefault<AccountId>,
 	SiblingParachainConvertsVia<Sibling, AccountId>,
 	AccountId32Aliases<RelayNetwork, AccountId>,
 );
@@ -213,7 +206,7 @@ pub type XcmOriginToCallOrigin = (
 
 parameter_types! {
 	pub const UnitWeightCost: Weight = 1;
-	pub KsmPerSecond: (MultiLocation, u128) = (X1(Parent), 1);
+	pub KsmPerSecond: (XcmAssetId, u128) = (Concrete(Parent.into()), 1);
 }
 
 use frame_support::traits::{Contains, fungibles};
@@ -254,15 +247,15 @@ pub type LocalAssetTransactor = (
 );
 
 pub type XcmRouter = super::ParachainXcmRouter<MsgQueue>;
-pub type Barrier = AllowUnpaidExecutionFrom<All<MultiLocation>>;
+pub type Barrier = AllowUnpaidExecutionFrom<Everything>;
 
 use xcm_executor::traits::FilterAssetLocation;
 pub struct StatemineAsset;
 impl FilterAssetLocation for StatemineAsset {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
-		let statemine = MultiLocation::X2(Parent, Parachain(super::STATEMINE_ID));
+		let statemine = Parachain(super::STATEMINE_ID).into_exterior(1);
 		origin == &statemine
-			&& matches!(asset, MultiAsset::ConcreteFungible { ref id, .. }
+			&& matches!(asset.id, Concrete(ref id)
 				if id.match_and_split(&statemine).is_some()
 			)
 	}
@@ -279,7 +272,7 @@ impl Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
-	type Trader = FixedRateOfConcreteFungible<KsmPerSecond, ()>;
+	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
 }
 
@@ -349,8 +342,8 @@ pub mod mock_msg_queue {
 			let hash = Encode::using_encoded(&xcm, T::Hashing::hash);
 			let (result, event) = match Xcm::<T::Call>::try_from(xcm) {
 				Ok(xcm) => {
-					let location = (Parent, Parachain(sender.into()));
-					match T::XcmExecutor::execute_xcm(location.into(), xcm, max_weight) {
+					let location = MultiLocation::new(1, X1(Parachain(sender.into())));
+					match T::XcmExecutor::execute_xcm(location, xcm, max_weight) {
 						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
 						Outcome::Complete(w) => (Ok(w), Event::Success(Some(hash))),
 						// As far as the caller is concerned, this was dispatched without error, so
@@ -427,11 +420,12 @@ impl pallet_xcm::Config for Runtime {
 	type SendXcmOrigin = EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	type ExecuteXcmOrigin = EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmExecuteFilter = All<(MultiLocation, Xcm<Call>)>;
+	type XcmExecuteFilter = Everything;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = ();
-	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
+	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
+	type LocationInverter = LocationInverter<Ancestry>;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;

@@ -21,10 +21,8 @@ mod handle_new_activations {
 		task::{Context as FuturesContext, Poll},
 		Future,
 	};
-	use polkadot_node_primitives::{Collation, CollationResult, BlockData, PoV, POV_BOMB_LIMIT};
-	use polkadot_node_subsystem::messages::{
-		AllMessages, RuntimeApiMessage, RuntimeApiRequest,
-	};
+	use polkadot_node_primitives::{BlockData, Collation, CollationResult, PoV, POV_BOMB_LIMIT};
+	use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
 	use polkadot_node_subsystem_test_helpers::{
 		subsystem_test_harness, TestSubsystemContextHandle,
 	};
@@ -39,9 +37,7 @@ mod handle_new_activations {
 			horizontal_messages: Default::default(),
 			new_validation_code: Default::default(),
 			head_data: Default::default(),
-			proof_of_validity: PoV {
-				block_data: BlockData(Vec::new()),
-			},
+			proof_of_validity: PoV { block_data: BlockData(Vec::new()) },
 			processed_downward_messages: Default::default(),
 			hrmp_watermark: Default::default(),
 		}
@@ -50,10 +46,13 @@ mod handle_new_activations {
 	fn test_collation_compressed() -> Collation {
 		let mut collation = test_collation();
 		let compressed = PoV {
-			block_data: BlockData(sp_maybe_compressed_blob::compress(
-				&collation.proof_of_validity.block_data.0,
-				POV_BOMB_LIMIT,
-			).unwrap())
+			block_data: BlockData(
+				sp_maybe_compressed_blob::compress(
+					&collation.proof_of_validity.block_data.0,
+					POV_BOMB_LIMIT,
+				)
+				.unwrap(),
+			),
 		};
 		collation.proof_of_validity = compressed;
 		collation
@@ -81,28 +80,19 @@ mod handle_new_activations {
 	fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
 		Arc::new(CollationGenerationConfig {
 			key: CollatorPair::generate().0,
-			collator: Box::new(|_: Hash, _vd: &PersistedValidationData| {
-				TestCollator.boxed()
-			}),
+			collator: Box::new(|_: Hash, _vd: &PersistedValidationData| TestCollator.boxed()),
 			para_id: para_id.into(),
 		})
 	}
 
 	fn scheduled_core_for<Id: Into<ParaId>>(para_id: Id) -> ScheduledCore {
-		ScheduledCore {
-			para_id: para_id.into(),
-			collator: None,
-		}
+		ScheduledCore { para_id: para_id.into(), collator: None }
 	}
 
 	#[test]
 	fn requests_availability_per_relay_parent() {
-		let activated_hashes: Vec<Hash> = vec![
-			[1; 32].into(),
-			[4; 32].into(),
-			[9; 32].into(),
-			[16; 32].into(),
-		];
+		let activated_hashes: Vec<Hash> =
+			vec![[1; 32].into(), [4; 32].into(), [9; 32].into(), [16; 32].into()];
 
 		let requested_availability_cores = Arc::new(Mutex::new(Vec::new()));
 
@@ -177,7 +167,7 @@ mod handle_new_activations {
 							)),
 						]))
 						.unwrap();
-					}
+					},
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						hash,
 						RuntimeApiRequest::PersistedValidationData(
@@ -186,21 +176,18 @@ mod handle_new_activations {
 							tx,
 						),
 					))) => {
-						overseer_requested_validation_data
-							.lock()
-							.await
-							.push(hash);
+						overseer_requested_validation_data.lock().await.push(hash);
 						tx.send(Ok(Default::default())).unwrap();
-					}
+					},
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						_hash,
 						RuntimeApiRequest::Validators(tx),
 					))) => {
 						tx.send(Ok(vec![Default::default(); 3])).unwrap();
-					}
+					},
 					Some(msg) => {
 						panic!("didn't expect any other overseer requests; got {:?}", msg)
-					}
+					},
 				}
 			}
 		};
@@ -252,7 +239,7 @@ mod handle_new_activations {
 							)),
 						]))
 						.unwrap();
-					}
+					},
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						_hash,
 						RuntimeApiRequest::PersistedValidationData(
@@ -262,13 +249,13 @@ mod handle_new_activations {
 						),
 					))) => {
 						tx.send(Ok(Some(test_validation_data()))).unwrap();
-					}
+					},
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						_hash,
 						RuntimeApiRequest::Validators(tx),
 					))) => {
 						tx.send(Ok(vec![Default::default(); 3])).unwrap();
-					}
+					},
 					Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						_hash,
 						RuntimeApiRequest::ValidationCode(
@@ -278,10 +265,10 @@ mod handle_new_activations {
 						),
 					))) => {
 						tx.send(Ok(Some(ValidationCode(vec![1, 2, 3])))).unwrap();
-					}
+					},
 					Some(msg) => {
 						panic!("didn't expect any other overseer requests; got {:?}", msg)
-					}
+					},
 				}
 			}
 		};
@@ -295,9 +282,15 @@ mod handle_new_activations {
 		let sent_messages = Arc::new(Mutex::new(Vec::new()));
 		let subsystem_sent_messages = sent_messages.clone();
 		subsystem_test_harness(overseer, |mut ctx| async move {
-			handle_new_activations(subsystem_config, activated_hashes, &mut ctx, Metrics(None), &tx)
-				.await
-				.unwrap();
+			handle_new_activations(
+				subsystem_config,
+				activated_hashes,
+				&mut ctx,
+				Metrics(None),
+				&tx,
+			)
+			.await
+			.unwrap();
 
 			std::mem::drop(tx);
 
@@ -340,7 +333,7 @@ mod handle_new_activations {
 			AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
 				CandidateReceipt { descriptor, .. },
 				_pov,
-				..
+				..,
 			)) => {
 				// signature generation is non-deterministic, so we can't just assert that the
 				// expected descriptor is correct. What we can do is validate that the produced
@@ -365,7 +358,7 @@ mod handle_new_activations {
 					expect_descriptor
 				};
 				assert_eq!(descriptor, &expect_descriptor);
-			}
+			},
 			_ => panic!("received wrong message type"),
 		}
 	}

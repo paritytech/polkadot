@@ -17,7 +17,7 @@
 //! Cross-Consensus Message format data structures.
 
 use core::result;
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 
 use super::{MultiLocation, Xcm};
 
@@ -87,6 +87,8 @@ pub enum Error {
 	TooExpensive,
 	/// The given asset is not handled.
 	AssetNotFound,
+	/// `execute_xcm` has been called too many times recursively.
+	RecursionLimitReached,
 }
 
 impl From<()> for Error {

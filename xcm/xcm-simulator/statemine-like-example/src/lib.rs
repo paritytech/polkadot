@@ -175,33 +175,27 @@ mod tests {
 	use super::*;
 
 	use frame_support::{assert_ok, weights::Weight};
-	use xcm::v0::{
-		Junction::{Parachain, Parent},
-		MultiAsset::*,
-		MultiLocation::*,
-		Order,
-	};
-	use xcm::opaque::v0::prelude::*;
+	use xcm::latest::prelude::*;
 	use xcm_simulator::TestExt;
 	use polkadot_parachain::primitives::Sibling;
 	use xcm_builder::SiblingParachainConvertsVia;
 	use xcm_executor::traits::Convert;
 
 	// Construct a `BuyExecution` order.
-	fn buy_execution<C>(debt: Weight) -> Order<C> {
-		use xcm::opaque::v0::prelude::*;
+	fn buy_execution<C>(fees: impl Into<MultiAsset>,debt: Weight) -> Order<C> {
 		Order::BuyExecution {
-			fees: All,
+			fees: fees.into(),
 			weight: 0,
 			debt,
 			halt_on_error: false,
-			xcm: vec![],
+			orders: vec![],
+			instructions: vec![],
 		}
 	}
 
 	fn statemine_acc_for(para_id: u32) -> statemine_like::AccountId {
 		SiblingParachainConvertsVia::<Sibling, statemine_like::AccountId>::convert(
-			X2(Parent, Parachain(para_id))).unwrap()
+			Parachain(para_id).into_exterior(1)).unwrap()
 	}
 
 	/// Scenario:
@@ -216,22 +210,24 @@ mod tests {
 		KaruraLike::execute_with(|| {
 			let weight = 3 * kusama_like::BaseXcmWeight::get();
 			let message = Xcm::WithdrawAsset {
-				assets: vec![ConcreteFungible { id: Null, amount }],
+				assets: (Here, amount).into(),
 				effects: vec![
-					buy_execution(weight),
+					buy_execution((Here, amount), weight),
 					Order::InitiateTeleport {
-						assets: vec![All],
+						assets: All.into(),
 						dest: Parachain(STATEMINE_ID).into(),
 						effects: vec![
-							buy_execution(weight),
-							Order::DepositAsset { assets: vec![All], dest: X2(Parent, Parachain(KARURA_ID)) },
+							buy_execution((MultiLocation::parent(), amount), weight),
+							Order::DepositAsset { assets: All.into(),
+							max_assets: 1,
+							beneficiary: Parachain(KARURA_ID).into_exterior(1) },
 						],
 					},
 				],
 			};
 			assert_ok!(KaruraPalletXcm::send_xcm(
-				Null,
-				X1(Parent),
+				Here.into(),
+				MultiLocation::parent(),
 				message.clone(),
 			));
 		});
@@ -286,27 +282,29 @@ mod tests {
 		KaruraLike::execute_with(|| {
 			let weight = 3 * statemine_like::UnitWeightCost::get();
 			let message = Xcm::WithdrawAsset {
-				assets: vec![ConcreteFungible { id: Parent.into(), amount: ksm_amount }],
+				assets: vec![(MultiLocation::parent(), ksm_amount).into()].into(),
 				effects: vec![
 					Order::BuyExecution {
-						fees: All,
+						fees: (MultiLocation::parent(), ksm_amount).into(),
 						weight,
 						debt: weight,
 						halt_on_error: false,
-						xcm: vec![Xcm::TransferReserveAsset {
-							assets: vec![ConcreteFungible { id: GeneralIndex{ id: asset_id.into() }.into(), amount }.into()],
-							dest: X2(Parent, Parachain(MOONRIVER_ID)),
+						orders: vec![],
+						instructions: vec![Xcm::TransferReserveAsset {
+							assets: vec![(GeneralIndex(asset_id.into()), amount).into()].into(),
+							dest: MultiLocation::new(1, X1(Parachain(MOONRIVER_ID))),
 							effects: vec![Order::DepositAsset {
-								assets: vec![All],
-								dest: Null,
+								assets: All.into(),
+								max_assets: 2,
+								beneficiary: Here.into(),
 							}],
 						}],
 					},
 				]
 			};
 			assert_ok!(KaruraPalletXcm::send_xcm(
-				Null,
-				X2(Parent, Parachain(STATEMINE_ID)),
+				Here.into(),
+				MultiLocation::new(1, X1(Parachain(STATEMINE_ID))),
 				message.clone(),
 			));
 		});
@@ -317,8 +315,8 @@ mod tests {
 		});
 
 		MoonriverLike::execute_with(|| {
-			let self_account: moonriver_like::AccountId = moonriver_like::NullIsDefault::convert(
-				MultiLocation::Null).unwrap();
+			let self_account: moonriver_like::AccountId = moonriver_like::HereIsDefault::convert(
+				Here.into()).unwrap();
 			assert_eq!(
 				MoonriverAssets::balance(asset_id, self_account),
 				amount

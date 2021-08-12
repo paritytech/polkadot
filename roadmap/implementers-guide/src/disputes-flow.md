@@ -82,7 +82,7 @@ Only peers that already voted shall be queried for the dispute availability data
 
 The peer to be queried for disputes data, must be picked at random.
 
-A validator must retain code, persisted validation data and PoV until a block, that contains the dispute resolution, is finalized - plus an additional 24h.
+A validator must retain code, persisted validation data and PoV until a block, that contains the dispute resolution, is finalized - plus an additional 24 hours.
 
 Dispute availability gossip must continue beyond the dispute resolution, until the post resolution timeout expired (equiv to the timeout until which additional late votes are accepted).
 
@@ -108,7 +108,7 @@ If the count of votes pro or cons regarding the disputed block, reaches the requ
 
 If a block is found invalid by a dispute resolution, it must be blacklisted to avoid resync or further build on that chain if other chains are available (to be detailed in the grandpa fork choice rule).
 
-A dispute accepts Votes after the dispute is resolved, for 1d.
+A dispute accepts Votes after the dispute is resolved, for 1 day.
 
 If a vote is received, after the dispute is resolved, the vote shall still be recorded in the state root, albeit yielding less reward.
 
