@@ -16,8 +16,7 @@
 
 //! Wrappers around creating a signer account.
 
-use crate::prelude::*;
-use crate::{rpc_helpers, AccountId, Error, Index, Pair, WsClient, LOG_TARGET};
+use crate::{prelude::*, rpc_helpers, AccountId, Error, Index, Pair, WsClient, LOG_TARGET};
 use sp_core::crypto::Pair as _;
 use std::path::Path;
 
