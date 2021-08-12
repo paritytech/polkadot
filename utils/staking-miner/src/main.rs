@@ -275,14 +275,14 @@ struct DryRunConfig {
 #[derive(Debug, Clone, StructOpt)]
 struct SharedConfig {
 	/// The `ws` node to connect to.
-	#[structopt(long, default_value = DEFAULT_URI)]
+	#[structopt(long, short, default_value = DEFAULT_URI)]
 	uri: String,
 
 	/// The file from which we read the account seed.
 	///
 	/// WARNING: don't use an account with a large stash for this. Based on how the bot is
 	/// configured, it might re-try lose funds through transaction fees/deposits.
-	#[structopt(long)]
+	#[structopt(long, short)]
 	account_seed: std::path::PathBuf,
 }
 
@@ -355,7 +355,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 		voters.into_iter().for_each(|(who, stake, targets)| {
 			if targets.len() == 0 {
 				println!("target = {:?}", (who, stake, targets));
-				return
+				return;
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -434,7 +434,7 @@ async fn main() {
 					why
 				);
 				std::thread::sleep(std::time::Duration::from_millis(2500));
-			},
+			}
 		}
 	};
 
@@ -453,7 +453,7 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Polkadot;
 			}
-		},
+		}
 		"kusama" | "kusama-dev" => {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::KusamaAccount,
@@ -465,7 +465,7 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Kusama;
 			}
-		},
+		}
 		"westend" => {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
@@ -477,11 +477,11 @@ async fn main() {
 			unsafe {
 				RUNTIME = AnyRuntime::Westend;
 			}
-		},
+		}
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return
-		},
+			return;
+		}
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
