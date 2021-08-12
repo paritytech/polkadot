@@ -7014,6 +7014,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "structopt",
+ "tracing",
 ]
 
 [[package]]

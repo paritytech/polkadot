@@ -24,6 +24,8 @@ use polkadot_node_subsystem::*;
 pub use polkadot_node_subsystem::{messages::AllMessages, overseer, FromOverseer};
 use std::{future::Future, pin::Pin};
 
+pub const MALUS: &str = "MALUS😈😈😈";
+
 /// Filter incoming and outgoing messages.
 pub trait MsgFilter: Send + Sync + Clone + 'static {
 	/// The message type the original subsystem handles incoming.

@@ -3,8 +3,13 @@ name = "malus"
 path = "src/lib.rs"
 
 [[bin]]
-name = "malus-variant-a"
-path = "src/variant-a.rs"
+name = "malus-example"
+path = "src/malus-example.rs"
+
+[[bin]]
+name = "malus-dispute-ancestor"
+path = "src/malus-dispute-ancestor.rs"
+
 
 [package]
 name = "polkadot-test-malus"
@@ -26,3 +31,4 @@ color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
 structopt = "0.3.21"
 async-trait = "0.1.50"
+tracing = "*"
