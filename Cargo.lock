@@ -12305,6 +12305,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
+ "xcm-procedural",
 ]
 
 [[package]]
@@ -12359,6 +12360,15 @@ dependencies = [
  "sp-tracing",
  "xcm",
  "xcm-executor",
+]
+
+[[package]]
+name = "xcm-procedural"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
