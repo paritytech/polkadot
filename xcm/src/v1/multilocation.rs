@@ -314,6 +314,7 @@ impl MultiLocation {
 }
 
 /// A unit struct which can be converted into a `MultiLocation` of `parents` value 1.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Parent;
 impl From<Parent> for MultiLocation {
 	fn from(_: Parent) -> Self {
@@ -322,6 +323,7 @@ impl From<Parent> for MultiLocation {
 }
 
 /// A tuple struct which can be converted into a `MultiLocation` of `parents` value 1 with the inner interior.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct ParentThen(Junctions);
 impl From<ParentThen> for MultiLocation {
 	fn from(x: ParentThen) -> Self {
@@ -330,6 +332,7 @@ impl From<ParentThen> for MultiLocation {
 }
 
 /// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Ancestor(u8);
 impl From<Ancestor> for MultiLocation {
 	fn from(x: Ancestor) -> Self {
@@ -338,6 +341,7 @@ impl From<Ancestor> for MultiLocation {
 }
 
 /// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value and the inner interior.
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct AncestorThen(u8, Junctions);
 impl From<AncestorThen> for MultiLocation {
 	fn from(x: AncestorThen) -> Self {
