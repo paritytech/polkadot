@@ -21,9 +21,8 @@
 //! messages on the overseer level.
 
 use polkadot_node_subsystem::*;
-pub use polkadot_node_subsystem::{overseer, messages::AllMessages, FromOverseer};
-use std::future::Future;
-use std::pin::Pin;
+pub use polkadot_node_subsystem::{messages::AllMessages, overseer, FromOverseer};
+use std::{future::Future, pin::Pin};
 
 /// Filter incoming and outgoing messages.
 pub trait MsgFilter: Send + Sync + Clone + 'static {
@@ -95,11 +94,7 @@ where
 			inner: inner.sender().clone(),
 			message_filter: message_filter.clone(),
 		};
-		Self {
-			inner,
-			message_filter,
-			sender,
-		}
+		Self { inner, message_filter, sender }
 	}
 }
 
@@ -108,7 +103,8 @@ impl<Context, Fil> overseer::SubsystemContext for FilteredContext<Context, Fil>
 where
 	Context: overseer::SubsystemContext + SubsystemContext,
 	Fil: MsgFilter<Message = <Context as overseer::SubsystemContext>::Message>,
-	<Context as overseer::SubsystemContext>::AllMessages: From<<Context as overseer::SubsystemContext>::Message>,
+	<Context as overseer::SubsystemContext>::AllMessages:
+		From<<Context as overseer::SubsystemContext>::Message>,
 {
 	type Message = <Context as overseer::SubsystemContext>::Message;
 	type Sender = FilteredSender<<Context as overseer::SubsystemContext>::Sender, Fil>;
@@ -120,11 +116,10 @@ where
 		loop {
 			match self.inner.try_recv().await? {
 				None => return Ok(None),
-				Some(msg) => {
+				Some(msg) =>
 					if let Some(msg) = self.message_filter.filter_in(msg) {
-						return Ok(Some(msg));
-					}
-				}
+						return Ok(Some(msg))
+					},
 			}
 		}
 	}
@@ -133,7 +128,7 @@ where
 		loop {
 			let msg = self.inner.recv().await?;
 			if let Some(msg) = self.message_filter.filter_in(msg) {
-				return Ok(msg);
+				return Ok(msg)
 			}
 		}
 	}
@@ -167,10 +162,7 @@ pub struct FilteredSubsystem<Sub, Fil> {
 
 impl<Sub, Fil> FilteredSubsystem<Sub, Fil> {
 	pub fn new(subsystem: Sub, message_filter: Fil) -> Self {
-		Self {
-			subsystem,
-			message_filter,
-		}
+		Self { subsystem, message_filter }
 	}
 }
 
@@ -183,6 +175,9 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let ctx = FilteredContext::new(ctx, self.message_filter);
-		overseer::Subsystem::<FilteredContext<Context, Fil>, SubsystemError>::start(self.subsystem, ctx)
+		overseer::Subsystem::<FilteredContext<Context, Fil>, SubsystemError>::start(
+			self.subsystem,
+			ctx,
+		)
 	}
 }

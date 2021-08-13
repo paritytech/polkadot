@@ -14,9 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem_util::metrics::prometheus::{Counter, U64, Registry, PrometheusError, CounterVec, Opts};
-use polkadot_node_subsystem_util::metrics::prometheus;
-use polkadot_node_subsystem_util::metrics;
+use polkadot_node_subsystem_util::{
+	metrics,
+	metrics::{
+		prometheus,
+		prometheus::{Counter, CounterVec, Opts, PrometheusError, Registry, U64},
+	},
+};
 
 /// Label for success counters.
 pub const SUCCEEDED: &'static str = "succeeded";
@@ -30,7 +34,6 @@ pub const NOT_FOUND: &'static str = "not-found";
 /// Availability Distribution metrics.
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
-
 
 #[derive(Clone)]
 struct MetricsInner {
@@ -137,4 +140,3 @@ impl metrics::Metrics for Metrics {
 		Ok(Metrics(Some(metrics)))
 	}
 }
-

@@ -19,8 +19,8 @@ pub mod currency {
 	use primitives::v0::Balance;
 
 	pub const UNITS: Balance = 10_000_000_000;
-	pub const DOLLARS: Balance = UNITS;       // 10_000_000_000
-	pub const CENTS: Balance = DOLLARS / 100;      // 100_000_000
+	pub const DOLLARS: Balance = UNITS; // 10_000_000_000
+	pub const CENTS: Balance = DOLLARS / 100; // 100_000_000
 	pub const MILLICENTS: Balance = CENTS / 1_000; // 100_000
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
@@ -30,7 +30,7 @@ pub mod currency {
 
 /// Time and blocks.
 pub mod time {
-	use primitives::v0::{Moment, BlockNumber};
+	use primitives::v0::{BlockNumber, Moment};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 4 * HOURS;
@@ -46,13 +46,13 @@ pub mod time {
 
 /// Fee-related.
 pub mod fee {
-	pub use sp_runtime::Perbill;
+	use frame_support::weights::{
+		WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
+	};
 	use primitives::v0::Balance;
 	use runtime_common::ExtrinsicBaseWeight;
-	use frame_support::weights::{
-		WeightToFeePolynomial, WeightToFeeCoefficient, WeightToFeeCoefficients,
-	};
 	use smallvec::smallvec;
+	pub use sp_runtime::Perbill;
 
 	/// The block saturation level. Fees will be updates based on this value.
 	pub const TARGET_BLOCK_FULLNESS: Perbill = Perbill::from_percent(25);
@@ -86,10 +86,12 @@ pub mod fee {
 
 #[cfg(test)]
 mod tests {
+	use super::{
+		currency::{CENTS, DOLLARS, MILLICENTS},
+		fee::WeightToFee,
+	};
 	use frame_support::weights::WeightToFeePolynomial;
-	use runtime_common::{MAXIMUM_BLOCK_WEIGHT, ExtrinsicBaseWeight};
-	use super::fee::WeightToFee;
-	use super::currency::{CENTS, DOLLARS, MILLICENTS};
+	use runtime_common::{ExtrinsicBaseWeight, MAXIMUM_BLOCK_WEIGHT};
 
 	#[test]
 	// This function tests that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight is correct

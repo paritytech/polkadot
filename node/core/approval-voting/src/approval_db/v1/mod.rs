@@ -17,21 +17,22 @@
 //! Version 1 of the DB schema.
 
 use kvdb::{DBTransaction, KeyValueDB};
-use polkadot_node_subsystem::{SubsystemResult, SubsystemError};
-use polkadot_node_primitives::approval::{DelayTranche, AssignmentCert};
+use parity_scale_codec::{Decode, Encode};
+use polkadot_node_primitives::approval::{AssignmentCert, DelayTranche};
+use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_primitives::v1::{
-	ValidatorIndex, GroupIndex, CandidateReceipt, SessionIndex, CoreIndex,
-	BlockNumber, Hash, CandidateHash, ValidatorSignature,
+	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
+	ValidatorIndex, ValidatorSignature,
 };
 use sp_consensus_slots::Slot;
-use parity_scale_codec::{Encode, Decode};
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use bitvec::{vec::BitVec, order::Lsb0 as BitOrderLsb0};
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
+use std::{collections::BTreeMap, sync::Arc};
 
-use crate::backend::{Backend, BackendWriteOp};
-use crate::persisted_entries;
+use crate::{
+	backend::{Backend, BackendWriteOp},
+	persisted_entries,
+};
 
 const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
 
@@ -48,10 +49,7 @@ impl DbBackend {
 	/// Create a new [`DbBackend`] with the supplied key-value store and
 	/// config.
 	pub fn new(db: Arc<dyn KeyValueDB>, config: Config) -> Self {
-		DbBackend {
-			inner: db,
-			config,
-		}
+		DbBackend { inner: db, config }
 	}
 }
 
@@ -60,22 +58,17 @@ impl Backend for DbBackend {
 		&self,
 		block_hash: &Hash,
 	) -> SubsystemResult<Option<persisted_entries::BlockEntry>> {
-		load_block_entry(&*self.inner, &self.config, block_hash)
-			.map(|e| e.map(Into::into))
+		load_block_entry(&*self.inner, &self.config, block_hash).map(|e| e.map(Into::into))
 	}
 
 	fn load_candidate_entry(
 		&self,
 		candidate_hash: &CandidateHash,
 	) -> SubsystemResult<Option<persisted_entries::CandidateEntry>> {
-		load_candidate_entry(&*self.inner, &self.config, candidate_hash)
-			.map(|e| e.map(Into::into))
+		load_candidate_entry(&*self.inner, &self.config, candidate_hash).map(|e| e.map(Into::into))
 	}
 
-	fn load_blocks_at_height(
-		&self,
-		block_height: &BlockNumber
-	) -> SubsystemResult<Vec<Hash>> {
+	fn load_blocks_at_height(&self, block_height: &BlockNumber) -> SubsystemResult<Vec<Hash>> {
 		load_blocks_at_height(&*self.inner, &self.config, block_height)
 	}
 
@@ -89,7 +82,8 @@ impl Backend for DbBackend {
 
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
 	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
-		where I: IntoIterator<Item = BackendWriteOp>
+	where
+		I: IntoIterator<Item = BackendWriteOp>,
 	{
 		let mut tx = DBTransaction::new();
 		for op in ops {
@@ -100,20 +94,13 @@ impl Backend for DbBackend {
 						&STORED_BLOCKS_KEY,
 						stored_block_range.encode(),
 					);
-				}
+				},
 				BackendWriteOp::WriteBlocksAtHeight(h, blocks) => {
-					tx.put_vec(
-						self.config.col_data,
-						&blocks_at_height_key(h),
-						blocks.encode(),
-					);
-				}
+					tx.put_vec(self.config.col_data, &blocks_at_height_key(h), blocks.encode());
+				},
 				BackendWriteOp::DeleteBlocksAtHeight(h) => {
-					tx.delete(
-						self.config.col_data,
-						&blocks_at_height_key(h),
-					);
-				}
+					tx.delete(self.config.col_data, &blocks_at_height_key(h));
+				},
 				BackendWriteOp::WriteBlockEntry(block_entry) => {
 					let block_entry: BlockEntry = block_entry.into();
 					tx.put_vec(
@@ -121,13 +108,10 @@ impl Backend for DbBackend {
 						&block_entry_key(&block_entry.block_hash),
 						block_entry.encode(),
 					);
-				}
+				},
 				BackendWriteOp::DeleteBlockEntry(hash) => {
-					tx.delete(
-						self.config.col_data,
-						&block_entry_key(&hash),
-					);
-				}
+					tx.delete(self.config.col_data, &block_entry_key(&hash));
+				},
 				BackendWriteOp::WriteCandidateEntry(candidate_entry) => {
 					let candidate_entry: CandidateEntry = candidate_entry.into();
 					tx.put_vec(
@@ -135,13 +119,10 @@ impl Backend for DbBackend {
 						&candidate_entry_key(&candidate_entry.candidate.hash()),
 						candidate_entry.encode(),
 					);
-				}
+				},
 				BackendWriteOp::DeleteCandidateEntry(candidate_hash) => {
-					tx.delete(
-						self.config.col_data,
-						&candidate_entry_key(&candidate_hash),
-					);
-				}
+					tx.delete(self.config.col_data, &candidate_entry_key(&candidate_hash));
+				},
 			}
 		}
 
@@ -257,13 +238,14 @@ impl std::error::Error for Error {}
 /// Result alias for DB errors.
 pub type Result<T> = std::result::Result<T, Error>;
 
-pub(crate) fn load_decode<D: Decode>(store: &dyn KeyValueDB, col_data: u32, key: &[u8]) -> Result<Option<D>>
-{
+pub(crate) fn load_decode<D: Decode>(
+	store: &dyn KeyValueDB,
+	col_data: u32,
+	key: &[u8],
+) -> Result<Option<D>> {
 	match store.get(col_data, key)? {
 		None => Ok(None),
-		Some(raw) => D::decode(&mut &raw[..])
-			.map(Some)
-			.map_err(Into::into),
+		Some(raw) => D::decode(&mut &raw[..]).map(Some).map_err(Into::into),
 	}
 }
 
@@ -308,7 +290,6 @@ pub fn load_all_blocks(store: &dyn KeyValueDB, config: &Config) -> SubsystemResu
 			let blocks = load_blocks_at_height(store, config, &height)?;
 			hashes.extend(blocks);
 		}
-
 	}
 
 	Ok(hashes)

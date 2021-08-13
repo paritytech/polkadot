@@ -32,19 +32,22 @@
 //!
 //!  Versioned (v1 module): The actual requests and responses as sent over the network.
 
-use std::{borrow::Cow, u64};
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration, u64};
 
 use futures::channel::mpsc;
 use polkadot_primitives::v1::{MAX_CODE_SIZE, MAX_POV_SIZE};
 use strum::EnumIter;
 
-pub use sc_network::config as network;
-pub use sc_network::config::RequestResponseConfig;
+pub use sc_network::{config as network, config::RequestResponseConfig};
 
-/// All requests that can be sent to the network bridge.
-pub mod request;
-pub use request::{IncomingRequest, OutgoingRequest, Requests, Recipient, OutgoingResult, ResponseSender};
+/// Everything related to handling of incoming requests.
+pub mod incoming;
+/// Everything related to handling of outgoing requests.
+pub mod outgoing;
+
+pub use incoming::{IncomingRequest, IncomingRequestReceiver};
+
+pub use outgoing::{OutgoingRequest, OutgoingResult, Recipient, Requests, ResponseSender};
 
 ///// Multiplexer for incoming requests.
 // pub mod multiplexer;
@@ -70,10 +73,9 @@ pub enum Protocol {
 	DisputeSending,
 }
 
-
 /// Minimum bandwidth we expect for validators - 500Mbit/s is the recommendation, so approximately
 /// 50MB per second:
-const MIN_BANDWIDTH_BYTES: u64  = 50 * 1024 * 1024;
+const MIN_BANDWIDTH_BYTES: u64 = 50 * 1024 * 1024;
 
 /// Default request timeout in seconds.
 ///
@@ -103,24 +105,32 @@ const STATEMENTS_TIMEOUT: Duration = Duration::from_secs(1);
 /// to have 3 slow nodes connected, to delay transfer for others by `STATEMENTS_TIMEOUT`.
 pub const MAX_PARALLEL_STATEMENT_REQUESTS: u32 = 3;
 
+/// Response size limit for responses of POV like data.
+///
+/// This is larger than `MAX_POV_SIZE` to account for protocol overhead and for additional data in
+/// `CollationFetching` or `AvailableDataFetching` for example. We try to err on larger limits here
+/// as a too large limit only allows an attacker to waste our bandwidth some more, a too low limit
+/// might have more severe effects.
+const POV_RESPONSE_SIZE: u64 = MAX_POV_SIZE as u64 + 10_000;
+
+/// Maximum response sizes for `StatementFetching`.
+///
+/// This is `MAX_CODE_SIZE` plus some additional space for protocol overhead.
+const STATEMENT_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 10_000;
+
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
 	///
 	/// Returns a receiver for messages received on this protocol and the requested
 	/// `ProtocolConfig`.
-	pub fn get_config(
-		self,
-	) -> (
-		mpsc::Receiver<network::IncomingRequest>,
-		RequestResponseConfig,
-	) {
+	pub fn get_config(self) -> (mpsc::Receiver<network::IncomingRequest>, RequestResponseConfig) {
 		let p_name = self.into_protocol_name();
 		let (tx, rx) = mpsc::channel(self.get_channel_size());
 		let cfg = match self {
 			Protocol::ChunkFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
-				max_response_size: MAX_POV_SIZE as u64 / 10,
+				max_response_size: POV_RESPONSE_SIZE as u64 / 10,
 				// We are connected to all validators:
 				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
@@ -128,7 +138,7 @@ impl Protocol {
 			Protocol::CollationFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
-				max_response_size: MAX_POV_SIZE as u64 + 1000,
+				max_response_size: POV_RESPONSE_SIZE,
 				// Taken from initial implementation in collator protocol:
 				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
@@ -136,7 +146,7 @@ impl Protocol {
 			Protocol::PoVFetching => RequestResponseConfig {
 				name: p_name,
 				max_request_size: 1_000,
-				max_response_size: MAX_POV_SIZE as u64,
+				max_response_size: POV_RESPONSE_SIZE,
 				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
@@ -144,7 +154,7 @@ impl Protocol {
 				name: p_name,
 				max_request_size: 1_000,
 				// Available data size is dominated by the PoV size.
-				max_response_size: MAX_POV_SIZE as u64 + 1000,
+				max_response_size: POV_RESPONSE_SIZE,
 				request_timeout: POV_REQUEST_TIMEOUT_CONNECTED,
 				inbound_queue: Some(tx),
 			},
@@ -152,8 +162,7 @@ impl Protocol {
 				name: p_name,
 				max_request_size: 1_000,
 				// Available data size is dominated code size.
-				// + 1000 to account for protocol overhead (should be way less).
-				max_response_size: MAX_CODE_SIZE as u64 + 1000,
+				max_response_size: STATEMENT_RESPONSE_SIZE,
 				// We need statement fetching to be fast and will try our best at the responding
 				// side to answer requests within that timeout, assuming a bandwidth of 500Mbit/s
 				// - which is the recommended minimum bandwidth for nodes on Kusama as of April
@@ -208,15 +217,16 @@ impl Protocol {
 				// wasting precious time.
 				let available_bandwidth = 7 * MIN_BANDWIDTH_BYTES / 10;
 				let size = u64::saturating_sub(
-					STATEMENTS_TIMEOUT.as_millis() as u64 * available_bandwidth / (1000 * MAX_CODE_SIZE as u64),
-					MAX_PARALLEL_STATEMENT_REQUESTS as u64
+					STATEMENTS_TIMEOUT.as_millis() as u64 * available_bandwidth /
+						(1000 * MAX_CODE_SIZE as u64),
+					MAX_PARALLEL_STATEMENT_REQUESTS as u64,
 				);
 				debug_assert!(
 					size > 0,
 					"We should have a channel size greater zero, otherwise we won't accept any requests."
 				);
 				size as usize
-			}
+			},
 			// Incoming requests can get bursty, we should also be able to handle them fast on
 			// average, so something in the ballpark of 100 should be fine. Nodes will retry on
 			// failure, so having a good value here is mostly about performance tuning.
@@ -240,4 +250,13 @@ impl Protocol {
 			Protocol::DisputeSending => "/polkadot/send_dispute/1",
 		}
 	}
+}
+
+/// Common properties of any `Request`.
+pub trait IsRequest {
+	/// Each request has a corresponding `Response`.
+	type Response;
+
+	/// What protocol this `Request` implements.
+	const PROTOCOL: Protocol;
 }
