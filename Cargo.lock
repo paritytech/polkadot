@@ -5817,7 +5817,7 @@ name = "polkadot-approval-distribution"
 version = "0.9.9"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.4",
+ "env_logger 0.9.0",
  "futures 0.3.16",
  "log",
  "polkadot-node-network-protocol",
@@ -5838,7 +5838,7 @@ version = "0.9.9"
 dependencies = [
  "assert_matches",
  "bitvec 0.20.1",
- "env_logger 0.8.4",
+ "env_logger 0.9.0",
  "futures 0.3.16",
  "log",
  "maplit",
@@ -5888,7 +5888,7 @@ name = "polkadot-availability-recovery"
 version = "0.9.9"
 dependencies = [
  "assert_matches",
- "env_logger 0.8.4",
+ "env_logger 0.9.0",
  "futures 0.3.16",
  "futures-timer 3.0.2",
  "log",
@@ -5971,7 +5971,7 @@ dependencies = [
  "always-assert",
  "assert_matches",
  "derive_more",
- "env_logger 0.8.4",
+ "env_logger 0.9.0",
  "futures 0.3.16",
  "futures-timer 3.0.2",
  "log",
@@ -6157,7 +6157,7 @@ version = "0.9.9"
 dependencies = [
  "assert_matches",
  "bitvec 0.20.1",
- "env_logger 0.8.4",
+ "env_logger 0.9.0",
  "futures 0.3.16",
  "futures-timer 3.0.2",
  "kvdb",
@@ -6550,7 +6550,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "derive_more",
- "env_logger 0.8.4",
+ "env_logger 0.9.0",
  "futures 0.3.16",
  "futures-timer 3.0.2",
  "itertools 0.10.0",
@@ -10312,7 +10312,7 @@ checksum = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
 name = "staking-miner"
 version = "0.9.9"
 dependencies = [
- "env_logger 0.8.4",
+ "env_logger 0.9.0",
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
