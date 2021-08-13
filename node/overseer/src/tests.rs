@@ -256,6 +256,7 @@ fn overseer_metrics_work() {
 
 fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64> {
 	let gather = registry.gather();
+	let gather = &gather[2..];
 	assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
 	assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
 	assert_eq!(gather[2].get_name(), "parachain_messages_relayed_total");

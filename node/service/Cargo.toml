@@ -172,3 +172,4 @@ try-runtime = [
 	"rococo-runtime/try-runtime",
 ]
 malus = ["full-node"]
+memory-stats = ["polkadot-overseer/memory-stats"]
