@@ -205,7 +205,7 @@ impl metrics::Metrics for Metrics {
 			#[cfg(feature = "memory-stats")]
 			memory_stats_allocated: prometheus::register(
 				prometheus::Gauge::<prometheus::U64>::new(
-					"parachain_overseer_memory_stats_allocated",
+					"memory_allocated",
 					"Total bytes allocated by the node",
 				)?,
 				registry,
@@ -214,7 +214,7 @@ impl metrics::Metrics for Metrics {
 			#[cfg(feature = "memory-stats")]
 			memory_stats_resident: prometheus::register(
 				prometheus::Gauge::<prometheus::U64>::new(
-					"parachain_overseer_memory_stats_resident",
+					"memory_resident",
 					"Bytes allocated by the node, and held in RAM",
 				)?,
 				registry,
