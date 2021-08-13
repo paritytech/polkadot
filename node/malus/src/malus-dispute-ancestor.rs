@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A malicious overseer that always disputes an ancestor block.
+//! A malicious overseer that always a block as soon as it becomes available.
 //!
 //! Attention: For usage with `simnet`/`gurke` only!
 
@@ -25,36 +25,49 @@ use polkadot_cli::{Cli, create_default_subsystems, service::{AuthorityDiscoveryA
 
 // Import extra types relevant to the particular
 // subsystem.
-use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
-use polkadot_node_subsystem::messages::{CandidateValidationMessage, DisputeCoordinatorMessage, DisputeDistributionMessage};
-use polkadot_node_subsystem_util::metrics::Metrics as _;
+use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
+use polkadot_node_core_dispute_coordinator::DisputeCoordinator;
+use polkadot_node_core_backing::{CandidateBackingSubsystem, Metrics};
+use polkadot_node_subsystem::messages::{CandidateBackingMessage, CandidateValidationMessage, DisputeCoordinatorMessage, DisputeDistributionMessage};
+use polkadot_node_subsystem_types::messages::CollatorProtocolMessage;
 use polkadot_node_subsystem_util as util;
+use util::{metered::UnboundedMeteredSender, metrics::Metrics as _};
+use polkadot_primitives::v1::{CandidateHash, SessionIndex, CandidateReceipt, };
+use std::pin::Pin;
 
 // Filter wrapping related types.
-use malus::{self::*, overseer::SubsystemSender};
+use malus::{*, overseer::SubsystemSender};
 
 use std::{collections::{HashMap, VecDeque}, sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}}};
 
 use structopt::StructOpt;
 
 /// Become Loki and throw in a dispute once in a while, for an unfinalized block.
-#[derive(Clone, Default, Debug)]
-struct Loki(Arc<Mutex<VecDeque<(SessionIndex, CandidateReceipt)>>>);
+#[derive(Clone, Debug)]
+struct TrackCollations {
+	sink: UnboundedMeteredSender<CandidateReceipt>
+}
 
-impl MsgFilter for Loki {
-	type Message = DisputeCoordinatorMessage;
+impl MsgFilter for TrackCollations {
+	type Message = CandidateBackingMessage;
 
 	fn filter_in(&self, msg: FromOverseer<Self::Message>) -> Option<FromOverseer<Self::Message>>
 	{
 		match msg {
 			FromOverseer::Communication{
-				msg: AllMessages::CollatorProtocol(
-					CollatorProtocolMessage::DistributeCollation(ref ccr, ref pov, _),
-				),
-			} @ msg => {
-				let guard = self.0.lock().unwrap();
-				guard.queue.extend(ccr.clone());
-				Some(msg)
+				// `DistributeCollation` is only received
+				// by a _collator_, but we are a validator.
+				// `CollatorProtocolMessage::DistributeCollation(ref ccr, ref pov, _)` hence
+				// cannot be used.
+
+				// Intercepting [`fn request_collation`](https://github.com/paritytech/polkadot/blob/117466aa8e471562f921a90b69a6c265cb6c656f/node/network/collator-protocol/src/validator_side/mod.rs#L736-L736)
+				// is bothersome, so we skip wait for the seconding and
+				// make that disappear.
+				msg:
+					CandidateBackingMessage::Second(_, ccr, _)
+			} => {
+				self.sink.send(ccr);
+				None
 			},
 			msg => Some(msg),
 		}
@@ -65,25 +78,10 @@ impl MsgFilter for Loki {
 	}
 }
 
-fn phony_dispute(sender: impl SubsystemSender,
-	session_index: Session,
-	candidate_hash: CandidateHash,
-	candidate: CandidateReceipt,
-) {
-	let msg = DisputeCoordinatorMessage::IssueLocalStatement(
-		session_index,
-		candidate_hash,
-		candidate,
-		false,
-	);
+/// Generates an overseer that disputes every ancestor.
+struct DisputeEverything;
 
-	sender.send(msg).await.unwrap();
-}
-
-/// Generates an overseer that disputes an ancestor.
-struct MalusDisputeAncestor;
-
-impl OverseerGen for MalusDisputeAncestor {
+impl OverseerGen for DisputeEverything {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
@@ -101,44 +99,59 @@ impl OverseerGen for MalusDisputeAncestor {
 
 		let (sink, source) = util::metered::unbounded();
 
+		let coll = TrackCollations {
+			sink,
+		};
+
+		let metrics = Metrics::new(registry);
+
+		let crypto_store_ptr = todo!("Not yet exposed by overseer gen args , TODO!");
+
 		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
+		let all_subsystems = create_default_subsystems(args)?.replace_candidate_backing (
 			// create the filtered subsystem
 			FilteredSubsystem::new(
-				CandidateValidationSubsystem::with_config(
-					candidate_validation_config,
-					Metrics::register(registry)?,
-				),
-				Skippy::default(),
+				CandidateBackingSubsystem::new(spawner, crypto_store_ptr, metrics),
+				TrackCollations,
 			),
 		);
 
 		let (overseer, handle) = Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
 			.map_err(|e| e.into())?;
-
 		{
 			let handle = handle.clone();
-			overseer.spawner().spawn("nemesis", async move {
-				while let Some((relay_parent, candidate_receipt)) = rx.next() {
-					let session_index = util::request_session_index_for_child(relay_parent).await?;
-					let candidate_hash = candidate_receipt.hash();
-					tracing::warn!(target=MALUS, "Disputing candidate /w hash {} in session {} on relay_parent {}",
-						candidate_hash,
-						session_index,
-						relay_parent,
-					);
+			let spawner = overseer.spawner();
+			spawner.spawn("nemesis", Pin::new(async move {
+				source.for_each(move |candidate_receipt| {
+					spawner.spawn("nemesis-inner", Box::pin(
+						async move {
+							let relay_parent = candidate_receipt.descriptor().relay_parent;
+							let session_index = util::request_session_index_for_child(relay_parent).await.unwrap();
+							let candidate_hash = candidate_receipt.hash();
 
-					let msg = DisputeCoordinatorMessage::IssueLocalStatement(
-						session_index,
-						candidate_hash,
-						candidate,
-						false,
-					);
+							tracing::warn!(target=MALUS, "Disputing candidate /w hash {} in session {} on relay_parent {}",
+								candidate_hash,
+								session_index,
+								relay_parent,
+							);
 
-					handle.send(msg).await.unwrap();
-				}
+							// consider adding a delay here
+							// Delay::new(Duration::from_secs(12)).await;
+
+							// 😈
+							let msg = DisputeCoordinatorMessage::IssueLocalStatement(
+								session_index,
+								candidate_hash,
+								candidate_receipt,
+								false,
+							);
+
+							handle.send(msg).await.unwrap();
+						}
+					));
+				});
 				Ok(())
-			});
+			}));
 		}
 
 		Ok((overseer, handle))
@@ -149,6 +162,6 @@ fn main() -> eyre::Result<()> {
 	color_eyre::install()?;
 	let cli = Cli::from_args();
 	assert_matches::assert_matches!(cli.subcommand, None);
-	polkadot_cli::run_node(cli, BehaveMaleficient)?;
+	polkadot_cli::run_node(cli, DisputeEverything)?;
 	Ok(())
 }
