@@ -54,6 +54,12 @@ fn generate_conversion_from_tuples() -> TokenStream {
 				}
 			}
 
+			impl From<(Ancestor, #(#junctions),*)> for MultiLocation {
+				fn from( ( Ancestor(parents), #(#idents),* ): (Ancestor, #(#junctions),* ) ) -> Self {
+					MultiLocation { parents, interior: Junctions::#variant( #(#idents),* ) }
+				}
+			}
+
 			impl From<[Junction; #array_size]> for MultiLocation {
 				fn from(j: [Junction; #array_size]) -> Self {
 					let [#(#idents),*] = j;
@@ -104,6 +110,12 @@ fn generate_conversion_from_tuples() -> TokenStream {
 
 		impl From<(u8, Junctions)> for MultiLocation {
 			fn from((parents, interior): (u8, Junctions)) -> Self {
+				MultiLocation { parents, interior }
+			}
+		}
+
+		impl From<(Ancestor, Junctions)> for MultiLocation {
+			fn from((Ancestor(parents), interior): (Ancestor, Junctions)) -> Self {
 				MultiLocation { parents, interior }
 			}
 		}

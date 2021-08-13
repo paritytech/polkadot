@@ -756,7 +756,7 @@ impl TryFrom<MultiLocation> for Junctions {
 
 #[cfg(test)]
 mod tests {
-	use super::{Junctions::*, MultiLocation};
+	use super::{Ancestor, AncestorThen, Junctions::*, MultiLocation, Parent, ParentThen};
 	use crate::opaque::v1::{Junction::*, NetworkId::Any};
 	use parity_scale_codec::{Decode, Encode};
 
@@ -863,5 +863,47 @@ mod tests {
 
 		assert_eq!(iter.next(), None);
 		assert_eq!(iter.next_back(), None);
+	}
+
+	#[test]
+	fn conversion_from_other_types_works() {
+		use crate::v0;
+		use core::convert::TryInto;
+
+		fn takes_multilocation<Arg: Into<MultiLocation>>(_arg: Arg) {}
+
+		takes_multilocation(Parent);
+		takes_multilocation(Here);
+		takes_multilocation(X1(Parachain(42)));
+		takes_multilocation((255, PalletInstance(8)));
+		takes_multilocation((Ancestor(5), Parachain(1), PalletInstance(3)));
+		takes_multilocation((Ancestor(2), Here));
+		takes_multilocation(AncestorThen(
+			3,
+			X2(Parachain(43), AccountIndex64 { network: Any, index: 155 }),
+		));
+		takes_multilocation((Parent, AccountId32 { network: Any, id: [0; 32] }));
+		takes_multilocation((Parent, Here));
+		takes_multilocation(ParentThen(X1(Parachain(75))));
+		takes_multilocation([Parachain(100), PalletInstance(3)]);
+
+		assert_eq!(v0::MultiLocation::Null.try_into(), Ok(MultiLocation::here()));
+		assert_eq!(
+			v0::MultiLocation::X1(v0::Junction::Parent).try_into(),
+			Ok(MultiLocation::parent())
+		);
+		assert_eq!(
+			v0::MultiLocation::X2(v0::Junction::Parachain(88), v0::Junction::Parent).try_into(),
+			Err::<MultiLocation, ()>(()),
+		);
+		assert_eq!(
+			v0::MultiLocation::X3(
+				v0::Junction::Parent,
+				v0::Junction::Parent,
+				v0::Junction::GeneralKey(b"foo".to_vec()),
+			)
+			.try_into(),
+			Ok(MultiLocation { parents: 2, interior: X1(GeneralKey(b"foo".to_vec())) }),
+		);
 	}
 }
