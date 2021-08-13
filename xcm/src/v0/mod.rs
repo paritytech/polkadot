@@ -1,18 +1,18 @@
 // Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Cumulus.
+// This file is part of Polkadot.
 
-// Substrate is free software: you can redistribute it and/or modify
+// Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Substrate is distributed in the hope that it will be useful,
+// Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
@@ -30,7 +30,7 @@ mod multi_asset;
 mod multi_location;
 mod order;
 mod traits;
-use super::v1::{Response as Response1, Xcm as Xcm1};
+use super::v1::{MultiLocation as MultiLocation1, Response as Response1, Xcm as Xcm1};
 pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use multi_asset::{AssetInstance, MultiAsset};
 pub use multi_location::MultiLocation::{self, *};
@@ -376,7 +376,7 @@ impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
 			Xcm1::Transact { origin_type, require_weight_at_most, call } =>
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			Xcm1::RelayedFrom { who, message } => RelayedFrom {
-				who: who.try_into()?,
+				who: MultiLocation1 { interior: who, parents: 0 }.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
 		})

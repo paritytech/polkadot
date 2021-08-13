@@ -13,19 +13,15 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
-//
 
 //! Error handling related code and Error/Result definitions.
 
-use futures::channel::oneshot;
+use sc_network::PeerId;
 use thiserror::Error;
 
-use polkadot_node_subsystem::errors::RuntimeApiError;
-use polkadot_primitives::v1::SessionIndex;
+use parity_scale_codec::Error as DecodingError;
 
-pub type Result<T> = std::result::Result<T, Error>;
-
-/// Errors for `Runtime` cache.
+/// Errors that happen during reception/decoding of incoming requests.
 #[derive(Debug, Error, derive_more::From)]
 #[error(transparent)]
 pub enum Error {
@@ -35,34 +31,25 @@ pub enum Error {
 	NonFatal(NonFatal),
 }
 
-/// Fatal runtime errors.
+/// Fatal errors when receiving incoming requests.
 #[derive(Debug, Error)]
 pub enum Fatal {
-	/// Runtime API subsystem is down, which means we're shutting down.
-	#[error("Runtime request got canceled")]
-	RuntimeRequestCanceled(oneshot::Canceled),
+	/// Incoming request stream exhausted. Should only happen on shutdown.
+	#[error("Incoming request channel got closed.")]
+	RequestChannelExhausted,
 }
 
-/// Errors for fetching of runtime information.
+/// Non-fatal errors when receiving incoming requests.
 #[derive(Debug, Error)]
 pub enum NonFatal {
-	/// Some request to the runtime failed.
-	/// For example if we prune a block we're requesting info about.
-	#[error("Runtime API error")]
-	RuntimeRequest(RuntimeApiError),
+	/// Decoding failed, we were able to change the peer's reputation accordingly.
+	#[error("Decoding request failed for peer {0}.")]
+	DecodingError(PeerId, #[source] DecodingError),
 
-	/// We tried fetching a session info which was not available.
-	#[error("There was no session with the given index")]
-	NoSuchSession(SessionIndex),
+	/// Decoding failed, but sending reputation change failed.
+	#[error("Decoding request failed for peer {0}, and changing reputation failed.")]
+	DecodingErrorNoReputationChange(PeerId, #[source] DecodingError),
 }
 
-/// Receive a response from a runtime request and convert errors.
-pub(crate) async fn recv_runtime<V>(
-	r: oneshot::Receiver<std::result::Result<V, RuntimeApiError>>,
-) -> Result<V> {
-	let result = r
-		.await
-		.map_err(Fatal::RuntimeRequestCanceled)?
-		.map_err(NonFatal::RuntimeRequest)?;
-	Ok(result)
-}
+/// General result based on above `Error`.
+pub type Result<T> = std::result::Result<T, Error>;
