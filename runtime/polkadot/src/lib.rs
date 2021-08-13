@@ -31,7 +31,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Filter, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
+	traits::{Contains, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -119,8 +119,8 @@ pub fn native_version() -> NativeVersion {
 }
 
 pub struct BaseFilter;
-impl Filter<Call> for BaseFilter {
-	fn filter(call: &Call) -> bool {
+impl Contains<Call> for BaseFilter {
+	fn contains(call: &Call) -> bool {
 		match call {
 			// These modules are all allowed to be called by transactions:
 			Call::Democracy(_) |
@@ -226,6 +226,8 @@ impl pallet_babe::Config for Runtime {
 
 	// session module is the trigger
 	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
+
+	type DisabledValidators = Session;
 
 	type KeyOwnerProofSystem = Historical;
 
@@ -348,11 +350,10 @@ parameter_types! {
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
-	pub const SignedDepositBase: Balance = deposit(1, 0);
-	// A typical solution occupies within an order of magnitude of 50kb.
-	// This formula is currently adjusted such that a typical solution will spend an amount equal
-	// to the base deposit for every 50 kb.
-	pub const SignedDepositByte: Balance = deposit(1, 0) / (50 * 1024);
+	// 40 DOTs fixed deposit..
+	pub const SignedDepositBase: Balance = deposit(2, 0);
+	// 0.01 DOT per KB of solution data.
+	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1 DOT as reward
 	pub SignedRewardBase: Balance = 1 * UNITS;
 	// fallback: emergency phase.
@@ -396,7 +397,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
-	type CompactSolution = NposCompactSolution16;
+	type Solution = NposCompactSolution16;
 	type Fallback = Fallback;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureOneOf<
@@ -441,7 +442,7 @@ type SlashCancelOrigin = EnsureOneOf<
 
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution16 as sp_npos_elections::CompactSolution>::LIMIT as u32;
+		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -992,14 +993,16 @@ impl InstanceFilter<Call> for ProxyType {
 					Call::Treasury(..) | Call::Bounties(..) |
 					Call::Tips(..) | Call::Utility(..)
 			),
-			ProxyType::Staking =>
-				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..)),
+			ProxyType::Staking => {
+				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
+			},
 			ProxyType::IdentityJudgement => matches!(
 				c,
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) | Call::Utility(..)
 			),
-			ProxyType::CancelProxy =>
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..))),
+			ProxyType::CancelProxy => {
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..)))
+			},
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -1123,7 +1126,6 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPallets,
 	(
-		RemoveCollectiveFlip,
 		// Needs to be before pallet version to storage version migration because it looks into the
 		// storage version to determine if it is already up to date.
 		CouncilStoragePrefixMigration,
@@ -1136,45 +1138,23 @@ pub type Executive = frame_executive::Executive<
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-/// Migrate from `PalletVersion` to the new `StorageVersion`
-pub struct MigratePalletVersionToStorageVersion;
-
-impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
-			AllPalletsWithSystem,
-		>(&RocksDbWeight::get())
-	}
-}
-
-pub struct RemoveCollectiveFlip;
-impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
-	fn on_runtime_upgrade() -> Weight {
-		use frame_support::storage::migration;
-		// Remove the storage value `RandomMaterial` from removed pallet `RandomnessCollectiveFlip`
-		migration::remove_storage_prefix(b"RandomnessCollectiveFlip", b"RandomMaterial", b"");
-		<Runtime as frame_system::Config>::DbWeight::get().writes(1)
-	}
-}
-
 const COUNCIL_OLD_PREFIX: &str = "Instance1Collective";
+/// Migrate from `Instance1Collective` to the new pallet prefix `Council`
 pub struct CouncilStoragePrefixMigration;
-impl frame_support::traits::OnRuntimeUpgrade for CouncilStoragePrefixMigration {
+
+impl OnRuntimeUpgrade for CouncilStoragePrefixMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		use frame_support::traits::PalletInfo;
 		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Council>()
-			.expect("council is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_collective::migrations::v4::migrate::<Runtime, Council, _>(
-			COUNCIL_OLD_PREFIX,
-			name,
-		)
+			.expect("Council is part of pallets in construct_runtime, so it has a name; qed");
+		pallet_collective::migrations::v4::migrate::<Runtime, Council, _>(COUNCIL_OLD_PREFIX, name)
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
 		use frame_support::traits::PalletInfo;
 		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Council>()
-			.expect("council is part of pallets in construct_runtime, so it has a name; qed");
+			.expect("Council is part of pallets in construct_runtime, so it has a name; qed");
 		pallet_collective::migrations::v4::pre_migration::<Runtime, Council, _>(
 			COUNCIL_OLD_PREFIX,
 			name,
@@ -1190,12 +1170,16 @@ impl frame_support::traits::OnRuntimeUpgrade for CouncilStoragePrefixMigration {
 }
 
 const TECHNICAL_COMMITTEE_OLD_PREFIX: &str = "Instance2Collective";
+/// Migrate from 'Instance2Collective' to the new pallet prefix `TechnicalCommittee`
 pub struct TechnicalCommitteeStoragePrefixMigration;
-impl frame_support::traits::OnRuntimeUpgrade for TechnicalCommitteeStoragePrefixMigration {
+
+impl OnRuntimeUpgrade for TechnicalCommitteeStoragePrefixMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		use frame_support::traits::PalletInfo;
 		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalCommittee>()
-			.expect("technical committee is part of pallets in construct_runtime, so it has a name; qed");
+			.expect(
+				"TechnicalCommittee is part of pallets in construct_runtime, so it has a name; qed",
+			);
 		pallet_collective::migrations::v4::migrate::<Runtime, TechnicalCommittee, _>(
 			TECHNICAL_COMMITTEE_OLD_PREFIX,
 			name,
@@ -1206,7 +1190,9 @@ impl frame_support::traits::OnRuntimeUpgrade for TechnicalCommitteeStoragePrefix
 	fn pre_upgrade() -> Result<(), &'static str> {
 		use frame_support::traits::PalletInfo;
 		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalCommittee>()
-			.expect("technical committee is part of pallets in construct_runtime, so it has a name; qed");
+			.expect(
+				"TechnicalCommittee is part of pallets in construct_runtime, so it has a name; qed",
+			);
 		pallet_collective::migrations::v4::pre_migration::<Runtime, TechnicalCommittee, _>(
 			TECHNICAL_COMMITTEE_OLD_PREFIX,
 			name,
@@ -1220,6 +1206,17 @@ impl frame_support::traits::OnRuntimeUpgrade for TechnicalCommitteeStoragePrefix
 			TECHNICAL_COMMITTEE_OLD_PREFIX,
 		);
 		Ok(())
+	}
+}
+
+/// Migrate from `PalletVersion` to the new `StorageVersion`
+pub struct MigratePalletVersionToStorageVersion;
+
+impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
+			AllPalletsWithSystem,
+		>(&RocksDbWeight::get())
 	}
 }
 
@@ -1630,7 +1627,7 @@ mod test_fees {
 	use pallet_transaction_payment::Multiplier;
 	use parity_scale_codec::Encode;
 	use separator::Separatable;
-	use sp_runtime::FixedPointNumber;
+	use sp_runtime::{assert_eq_error_rate, FixedPointNumber};
 
 	#[test]
 	fn payout_weight_portion() {
@@ -1754,5 +1751,28 @@ mod test_fees {
 
 		println!("can support {} nominators to yield a weight of {}", active, weight_with(active));
 		assert!(active > target_voters, "we need to reevaluate the weight of the election system");
+	}
+
+	#[test]
+	fn signed_deposit_is_sensible() {
+		// ensure this number does not change, or that it is checked after each change.
+		// a 1 MB solution should take (40 + 10) DOTs of deposit.
+		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
+		assert_eq_error_rate!(deposit, 50 * DOLLARS, DOLLARS);
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn call_size() {
+		assert!(
+			core::mem::size_of::<Call>() <= 230,
+			"size of Call is more than 230 bytes: some calls have too big arguments, use Box to \
+			reduce the size of Call.
+			If the limit is too strong, maybe consider increase the limit",
+		);
 	}
 }

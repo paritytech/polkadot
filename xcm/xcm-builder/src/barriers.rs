@@ -19,7 +19,7 @@
 use frame_support::{ensure, traits::Contains, weights::Weight};
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::v0::{Junction, MultiLocation, Order, Xcm};
+use xcm::latest::{Junction, Junctions, MultiLocation, Order, Xcm};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `shallow_weight` from `weight_credit`.
@@ -51,9 +51,9 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		ensure!(T::contains(origin), ());
 		ensure!(top_level, ());
 		match message {
-			Xcm::TeleportAsset { effects, .. } |
+			Xcm::ReceiveTeleportedAsset { effects, .. } |
 			Xcm::WithdrawAsset { effects, .. } |
-			Xcm::ReserveAssetDeposit { effects, .. }
+			Xcm::ReserveAssetDeposited { effects, .. }
 				if matches!(
 					effects.first(),
 					Some(Order::BuyExecution { debt, ..}) if *debt >= shallow_weight
@@ -84,7 +84,11 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 pub struct IsChildSystemParachain<ParaId>(PhantomData<ParaId>);
 impl<ParaId: IsSystem + From<u32>> Contains<MultiLocation> for IsChildSystemParachain<ParaId> {
 	fn contains(l: &MultiLocation) -> bool {
-		matches!(l, MultiLocation::X1(Junction::Parachain(id)) if ParaId::from(*id).is_system())
+		matches!(
+			l.interior(),
+			Junctions::X1(Junction::Parachain(id))
+				if ParaId::from(*id).is_system() && l.parent_count() == 0,
+		)
 	}
 }
 

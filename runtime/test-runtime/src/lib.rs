@@ -35,7 +35,10 @@ use polkadot_runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_support::{construct_runtime, parameter_types, traits::KeyOwnerProofSystem};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{Everything, KeyOwnerProofSystem},
+};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
@@ -79,6 +82,7 @@ pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
 pub mod constants;
+pub mod xcm_config;
 use constants::{currency::*, fee::*, time::*};
 
 // Make the WASM binary available.
@@ -122,7 +126,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for Runtime {
-	type BaseCallFilter = frame_support::traits::AllowAll;
+	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
 	type DbWeight = ();
@@ -166,6 +170,8 @@ impl pallet_babe::Config for Runtime {
 
 	// session module is the trigger
 	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
+
+	type DisabledValidators = ();
 
 	type KeyOwnerProofSystem = ();
 
@@ -486,6 +492,28 @@ impl parachains_ump::Config for Runtime {
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 }
 
+parameter_types! {
+	pub const BaseXcmWeight: frame_support::weights::Weight = 1_000;
+	pub const AnyNetwork: xcm::latest::NetworkId = xcm::latest::NetworkId::Any;
+}
+
+pub type LocalOriginToLocation = xcm_builder::SignedToAccountId32<Origin, AccountId, AnyNetwork>;
+
+impl pallet_xcm::Config for Runtime {
+	// The config types here are entirely configurable, since the only one that is sorely needed
+	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
+	type Event = Event;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type LocationInverter = xcm_config::InvertNothing;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
+	type XcmRouter = xcm_config::DoNothingRouter;
+	type XcmExecuteFilter = Everything;
+	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
+	type XcmTeleportFilter = Everything;
+	type XcmReserveTransferFilter = Everything;
+}
+
 impl parachains_hrmp::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
@@ -531,7 +559,7 @@ construct_runtime! {
 		// Parachains runtime modules
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
-		ParasInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
+		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Paras: parachains_paras::{Pallet, Call, Storage, Origin, Event},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
@@ -541,6 +569,7 @@ construct_runtime! {
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
+		Xcm: pallet_xcm::{Pallet, Call, Event<T>, Origin},
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},

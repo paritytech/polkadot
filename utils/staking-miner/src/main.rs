@@ -65,7 +65,7 @@ macro_rules! construct_runtime_prelude {
 			mod private {
 				use super::*;
 				pub(crate) fn [<create_uxt_ $runtime>](
-					raw_solution: EPM::RawSolution<EPM::CompactOf<Runtime>>,
+					raw_solution: EPM::RawSolution<EPM::SolutionOf<Runtime>>,
 					witness: u32,
 					signer: crate::signer::Signer,
 					nonce: crate::prelude::Index,
@@ -78,7 +78,7 @@ macro_rules! construct_runtime_prelude {
 
 					let crate::signer::Signer { account, pair, .. } = signer;
 
-					let local_call = EPMCall::<Runtime>::submit(raw_solution, witness);
+					let local_call = EPMCall::<Runtime>::submit(Box::new(raw_solution), witness);
 					let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
 						.expect("election provider pallet must exist in the runtime, thus \
 							inner call can be converted, qed."
@@ -334,7 +334,7 @@ fn mine_unchecked<T: EPM::Config>(
 	ext: &mut Ext,
 	iterations: usize,
 	do_feasibility: bool,
-) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
+) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error> {
 	ext.execute_with(|| {
 		let (solution, _) = <EPM::Pallet<T>>::mine_solution(iterations)?;
 		if do_feasibility {
