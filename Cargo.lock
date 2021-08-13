@@ -6847,7 +6847,7 @@ version = "0.9.9"
 dependencies = [
  "beefy-gadget",
  "beefy-gadget-rpc",
- "jsonrpc-core 15.1.0",
+ "jsonrpc-core 18.0.0",
  "pallet-mmr-rpc",
  "pallet-transaction-payment-rpc",
  "parity-scale-codec",
