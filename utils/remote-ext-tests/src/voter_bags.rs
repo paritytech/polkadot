@@ -21,6 +21,7 @@ use pallet_staking::{
 	voter_bags::{Bag, Voter, VoterList, VoterType},
 	CounterForNominators, CounterForValidators, Nominators, Validators,
 };
+use ...::SortedListProvider;
 use remote_externalities::{Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig};
 use sp_runtime::traits::Block as BlockT;
 use sp_storage::well_known_keys;
@@ -61,9 +62,7 @@ pub(crate) async fn test_voter_bags_migration<Runtime: pallet_staking::Config, B
 	ext.execute_with(|| {
 		// Get the nominator & validator count prior to migrating; these should be invariant.
 		let pre_migrate_nominator_count = <Nominators<Runtime>>::iter().count() as u32;
-		let pre_migrate_validator_count = <Validators<Runtime>>::iter().count() as u32;
 		log::info!(target: LOG_TARGET, "Nominator count: {}", pre_migrate_nominator_count);
-		log::info!(target: LOG_TARGET, "Validator count: {}", pre_migrate_validator_count);
 
 		assert_ok!(pallet_staking::migrations::v8::pre_migrate::<Runtime>());
 
@@ -72,18 +71,17 @@ pub(crate) async fn test_voter_bags_migration<Runtime: pallet_staking::Config, B
 		log::info!(target: LOG_TARGET, "Migration weight: {}", migration_weight);
 
 		// `CountFor*` storage items are created during the migration, check them.
-		assert_eq!(CounterForNominators::<Runtime>::get(), pre_migrate_nominator_count);
-		assert_eq!(CounterForValidators::<Runtime>::get(), pre_migrate_validator_count);
+		assert_eq!(<Runtime as pallet_staking::Config>::SortedListProvider::count(), pre_migrate_nominator_count);
+
 
 		// Check that the count of validators and nominators did not change during the migration.
 		let post_migrate_nominator_count = <Nominators<Runtime>>::iter().count() as u32;
-		let post_migrate_validator_count = <Validators<Runtime>>::iter().count() as u32;
 		assert_eq!(post_migrate_nominator_count, pre_migrate_nominator_count);
 		assert_eq!(post_migrate_validator_count, pre_migrate_validator_count);
 
 		// We can't access VoterCount from here, so we create it,
 		let voter_count = post_migrate_nominator_count + post_migrate_validator_count;
-		let voter_list_len = VoterList::<Runtime>::iter().count() as u32;
+		let voter_list_len = <Runtime as pallet_staking::Config>::SortedListProvider::iter().count() as u32;
 		// and confirm it is equal to the length of the `VoterList`.
 		assert_eq!(voter_count, voter_list_len);
 
@@ -103,46 +101,21 @@ pub(crate) async fn test_voter_bags_migration<Runtime: pallet_staking::Config, B
 				},
 			};
 
-			let (voters_in_bag, noms_in_bag, vals_in_bag) =
-				bag.iter().fold((0, 0, 0), |(mut total, mut noms, mut vals), node| {
-					let Voter { id, voter_type } = node.voter();
-
-					match voter_type {
-						VoterType::Nominator => {
-							assert!(Nominators::<Runtime>::contains_key(id.clone()));
-							noms += 1;
-						},
-						VoterType::Validator => {
-							assert!(Validators::<Runtime>::contains_key(id.clone()));
-							vals += 1;
-						},
-					}
-
-					total += 1;
-
-					(total, noms, vals)
-				});
+			let voters_in_bag = bag.iter().count();
 
 			// update our overall counter
 			seen_in_bags += voters_in_bag;
 
 			// percentage of all voters (nominators and voters)
 			let percent_of_voters = percent(voters_in_bag, voter_count);
-			// percentage of all nominators
-			let percent_of_noms = percent(noms_in_bag, pre_migrate_nominator_count);
-			// percentage of all validators
-			let percent_of_vals = percent(vals_in_bag, pre_migrate_validator_count);
+
 
 			log::info!(
 				target: LOG_TARGET,
-				"{} Voters: {} [%{:.3}] (Noms {} [%{:.3}] : Vals {} [%{:.3}])",
+				"{} Voters: {} [%{:.3}]",
 				pretty_thresh,
 				voters_in_bag,
 				percent_of_voters,
-				noms_in_bag,
-				percent_of_noms,
-				vals_in_bag,
-				percent_of_vals,
 			);
 		}
 
