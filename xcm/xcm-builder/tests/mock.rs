@@ -14,30 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{All, AllowAll},
-	weights::Weight,
-};
+use frame_support::{construct_runtime, parameter_types, traits::Everything, weights::Weight};
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 use sp_std::cell::RefCell;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared};
-use xcm::v0::{
-	opaque,
-	Junction::*,
-	MultiAsset,
-	MultiLocation::{self, *},
-	NetworkId, Result as XcmResult, SendXcm,
-};
+use xcm::latest::{opaque, prelude::*};
 use xcm_executor::XcmExecutor;
 
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds,
 	IsChildSystemParachain, IsConcrete, LocationInverter, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 };
@@ -87,7 +77,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type DbWeight = ();
-	type BaseCallFilter = AllowAll;
+	type BaseCallFilter = Everything;
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
@@ -117,9 +107,9 @@ impl configuration::Config for Runtime {}
 
 // aims to closely emulate the Kusama XcmConfig
 parameter_types! {
-	pub const KsmLocation: MultiLocation = MultiLocation::Null;
+	pub const KsmLocation: MultiLocation = MultiLocation::here();
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
-	pub Ancestry: MultiLocation = MultiLocation::Null;
+	pub Ancestry: MultiLocation = Here.into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -143,19 +133,19 @@ type LocalOriginConverter = (
 
 parameter_types! {
 	pub const BaseXcmWeight: Weight = 1_000_000_000;
-	pub KsmPerSecond: (MultiLocation, u128) = (KsmLocation::get(), 1);
+	pub KsmPerSecond: (AssetId, u128) = (KsmLocation::get().into(), 1);
 }
 
 pub type Barrier = (
 	TakeWeightCredit,
-	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	AllowTopLevelPaidExecutionFrom<Everything>,
 	// Unused/Untested
 	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 );
 
 parameter_types! {
-	pub const KusamaForStatemint: (MultiAsset, MultiLocation) =
-		(MultiAsset::AllConcreteFungible { id: Null }, X1(Parachain(1000)));
+	pub const KusamaForStatemint: (MultiAssetFilter, MultiLocation) =
+		(MultiAssetFilter::Wild(WildMultiAsset::AllOf { id: Concrete(MultiLocation::here()), fun: WildFungible }), X1(Parachain(1000)).into());
 }
 pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemint>,);
 
@@ -170,7 +160,7 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
-	type Trader = FixedRateOfConcreteFungible<KsmPerSecond, ()>;
+	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
 }
 
@@ -178,14 +168,15 @@ pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNe
 
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
+	type LocationInverter = LocationInverter<Ancestry>;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = TestSendXcm;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmExecuteFilter = ();
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
-	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
+	type XcmTeleportFilter = Everything;
+	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 }
 

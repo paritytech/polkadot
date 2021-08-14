@@ -22,10 +22,7 @@ use mock::{
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
-use xcm::{
-	opaque::v0::{prelude::*, Response},
-	v0::{MultiLocation::*, Order},
-};
+use xcm::latest::prelude::*;
 use xcm_executor::XcmExecutor;
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
@@ -34,8 +31,15 @@ pub const INITIAL_BALANCE: u128 = 100_000_000_000;
 
 // Construct a `BuyExecution` order.
 fn buy_execution<C>(debt: Weight) -> Order<C> {
-	use xcm::opaque::v0::prelude::*;
-	Order::BuyExecution { fees: All, weight: 0, debt, halt_on_error: false, xcm: vec![] }
+	use xcm::latest::prelude::*;
+	Order::BuyExecution {
+		fees: All.into(),
+		weight: 0,
+		debt,
+		halt_on_error: false,
+		orders: vec![],
+		instructions: vec![],
+	}
 }
 
 /// Scenario:
@@ -53,12 +57,13 @@ fn withdraw_and_deposit_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
-				assets: vec![ConcreteFungible { id: Null, amount }],
+				assets: vec![(Here, amount).into()].into(),
 				effects: vec![
 					buy_execution(weight),
 					Order::DepositAsset {
-						assets: vec![All],
-						dest: Parachain(other_para_id).into(),
+						assets: All.into(),
+						max_assets: 1,
+						beneficiary: Parachain(other_para_id).into(),
 					},
 				],
 			},
@@ -81,7 +86,7 @@ fn withdraw_and_deposit_works() {
 /// Asserts that the balances are updated correctly and the expected XCM is sent.
 #[test]
 fn query_holding_works() {
-	use xcm::opaque::v0::prelude::*;
+	use xcm::opaque::latest::prelude::*;
 	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
@@ -92,18 +97,19 @@ fn query_holding_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
-				assets: vec![ConcreteFungible { id: Null, amount }],
+				assets: vec![(Here, amount).into()].into(),
 				effects: vec![
 					buy_execution(weight),
 					Order::DepositAsset {
-						assets: vec![All],
-						dest: OnlyChild.into(), // invalid destination
+						assets: All.into(),
+						max_assets: 1,
+						beneficiary: OnlyChild.into(), // invalid destination
 					},
 					// is not triggered becasue the deposit fails
 					Order::QueryHolding {
 						query_id,
 						dest: Parachain(PARA_ID).into(),
-						assets: vec![All],
+						assets: All.into(),
 					},
 				],
 			},
@@ -124,18 +130,19 @@ fn query_holding_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
-				assets: vec![ConcreteFungible { id: Null, amount }],
+				assets: vec![(Here, amount).into()].into(),
 				effects: vec![
 					buy_execution(weight),
 					Order::DepositAsset {
-						assets: vec![All],
-						dest: Parachain(other_para_id).into(),
+						assets: All.into(),
+						max_assets: 1,
+						beneficiary: Parachain(other_para_id).into(),
 					},
 					// used to get a notification in case of success
 					Order::QueryHolding {
 						query_id,
 						dest: Parachain(PARA_ID).into(),
-						assets: vec![All],
+						assets: All.into(),
 					},
 				],
 			},
@@ -149,7 +156,7 @@ fn query_holding_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(PARA_ID).into(),
-				Xcm::QueryResponse { query_id, response: Response::Assets(vec![]) }
+				Xcm::QueryResponse { query_id, response: Response::Assets(vec![].into()) }
 			)]
 		);
 	});
@@ -165,7 +172,7 @@ fn query_holding_works() {
 /// Asserts that the balances are updated accordingly and the correct XCM is sent.
 #[test]
 fn teleport_to_statemine_works() {
-	use xcm::opaque::v0::prelude::*;
+	use xcm::opaque::latest::prelude::*;
 	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
@@ -174,7 +181,11 @@ fn teleport_to_statemine_works() {
 		let amount = 10 * ExistentialDeposit::get();
 		let teleport_effects = vec![
 			buy_execution(5), // unchecked mock value
-			Order::DepositAsset { assets: vec![All], dest: X2(Parent, Parachain(PARA_ID)) },
+			Order::DepositAsset {
+				assets: All.into(),
+				max_assets: 1,
+				beneficiary: (1, Parachain(PARA_ID)).into(),
+			},
 		];
 		let weight = 3 * BaseXcmWeight::get();
 
@@ -182,11 +193,11 @@ fn teleport_to_statemine_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
-				assets: vec![ConcreteFungible { id: Null, amount }],
+				assets: vec![(Here, amount).into()].into(),
 				effects: vec![
 					buy_execution(weight),
 					Order::InitiateTeleport {
-						assets: vec![All],
+						assets: All.into(),
 						dest: Parachain(other_para_id).into(),
 						effects: teleport_effects.clone(),
 					},
@@ -200,11 +211,11 @@ fn teleport_to_statemine_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
-				assets: vec![ConcreteFungible { id: Null, amount }],
+				assets: vec![(Here, amount).into()].into(),
 				effects: vec![
 					buy_execution(weight),
 					Order::InitiateTeleport {
-						assets: vec![All],
+						assets: All.into(),
 						dest: Parachain(statemine_id).into(),
 						effects: teleport_effects.clone(),
 					},
@@ -219,8 +230,8 @@ fn teleport_to_statemine_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(statemine_id).into(),
-				Xcm::TeleportAsset {
-					assets: vec![ConcreteFungible { id: Parent.into(), amount }],
+				Xcm::ReceiveTeleportedAsset {
+					assets: vec![(Parent, amount).into()].into(),
 					effects: teleport_effects,
 				}
 			)]
@@ -236,7 +247,7 @@ fn teleport_to_statemine_works() {
 /// Asserts that the balances are updated accordingly and the correct XCM is sent.
 #[test]
 fn reserve_based_transfer_works() {
-	use xcm::opaque::v0::prelude::*;
+	use xcm::opaque::latest::prelude::*;
 	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
@@ -244,17 +255,22 @@ fn reserve_based_transfer_works() {
 		let amount = 10 * ExistentialDeposit::get();
 		let transfer_effects = vec![
 			buy_execution(5), // unchecked mock value
-			Order::DepositAsset { assets: vec![All], dest: X2(Parent, Parachain(PARA_ID)) },
+			Order::DepositAsset {
+				assets: All.into(),
+				max_assets: 1,
+				beneficiary: (1, Parachain(PARA_ID)).into(),
+			},
 		];
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
-				assets: vec![ConcreteFungible { id: Null, amount }],
+				assets: vec![(Here, amount).into()].into(),
 				effects: vec![
 					buy_execution(weight),
 					Order::DepositReserveAsset {
-						assets: vec![All],
+						assets: All.into(),
+						max_assets: 1,
 						dest: Parachain(other_para_id).into(),
 						effects: transfer_effects.clone(),
 					},
@@ -268,8 +284,8 @@ fn reserve_based_transfer_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm::ReserveAssetDeposit {
-					assets: vec![ConcreteFungible { id: Parent.into(), amount }],
+				Xcm::ReserveAssetDeposited {
+					assets: vec![(Parent, amount).into()].into(),
 					effects: transfer_effects,
 				}
 			)]
