@@ -280,7 +280,7 @@ pub mod opaque {
 		// Everything from v1
 		pub use crate::v2::*;
 		// Then override with the opaque types in v2
-		pub use crate::v2::opaque::{Order, Xcm};
+		pub use crate::v2::opaque::{Xcm, Instruction};
 	}
 
 	pub mod latest {

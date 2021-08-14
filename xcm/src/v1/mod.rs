@@ -17,7 +17,7 @@
 //! Version 1 of the Cross-Consensus Message format data structures.
 
 use super::v0::{Response as OldResponse, Xcm as OldXcm};
-use super::v2::{Response as NewResponse, Xcm as NewXcm};
+use super::v2::{Response as NewResponse, Xcm as NewXcm, Instruction};
 use crate::DoubleEncoded;
 use alloc::vec::Vec;
 use core::{
@@ -349,8 +349,8 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			OldXcm::QueryResponse { query_id: u64, response } =>
-				QueryResponse { query_id: u64, response: response.try_into()? },
+			OldXcm::QueryResponse { query_id, response } =>
+				QueryResponse { query_id, response: response.try_into()? },
 			OldXcm::TransferAsset { assets, dest } =>
 				TransferAsset { assets: assets.try_into()?, beneficiary: dest.try_into()? },
 			OldXcm::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
@@ -380,56 +380,40 @@ impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
 	type Error = ();
 	fn try_from(old: NewXcm<Call>) -> result::Result<Xcm<Call>, ()> {
 		use Xcm::*;
-		Ok(match old {
-			NewXcm::WithdrawAsset { assets, effects } => WithdrawAsset {
+		let mut iter = old.0.into_iter();
+		let instruction = iter.next().ok_or(())?;
+		let effects = iter.map(Order::try_from).collect::<result::Result<_, _>>()?;
+		Ok(match instruction {
+			Instruction::WithdrawAsset { assets } => WithdrawAsset { assets, effects },
+			Instruction::ReserveAssetDeposited { assets } => ReserveAssetDeposited {
 				assets,
-				effects: effects
-					.into_iter()
-					.map(Order::try_from)
-					.collect::<result::Result<_, _>>()?,
+				effects,
 			},
-			NewXcm::ReserveAssetDeposited { assets, effects } => ReserveAssetDeposited {
+			Instruction::ReceiveTeleportedAsset { assets } => ReceiveTeleportedAsset {
 				assets,
-				effects: effects
-					.into_iter()
-					.map(Order::try_from)
-					.collect::<result::Result<_, _>>()?,
+				effects,
 			},
-			NewXcm::ReceiveTeleportedAsset { assets, effects } => ReceiveTeleportedAsset {
-				assets,
-				effects: effects
-					.into_iter()
-					.map(Order::try_from)
-					.collect::<result::Result<_, _>>()?,
-			},
-			NewXcm::QueryResponse { query_id: u64, response, max_weight } => {
+			Instruction::QueryResponse { query_id, response, max_weight } => {
 				// Cannot handle special response weights.
 				if max_weight > 0 {
 					return Err(())
 				}
-				QueryResponse { query_id: u64, response: response.try_into()? }
+				QueryResponse { query_id, response: response.try_into()? }
 			}
-			NewXcm::TransferAsset { assets, beneficiary } =>
+			Instruction::TransferAsset { assets, beneficiary } =>
 				TransferAsset { assets, beneficiary },
-			NewXcm::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
+			Instruction::TransferReserveAsset { assets, dest, xcm } => TransferReserveAsset {
 				assets,
 				dest,
-				effects: effects
-					.into_iter()
-					.map(Order::try_from)
-					.collect::<result::Result<_, _>>()?,
+				effects: xcm.0.into_iter().map(Order::try_from).collect::<result::Result<_, _>>()?,
 			},
-			NewXcm::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+			Instruction::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
 				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
-			NewXcm::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
-			NewXcm::HrmpChannelClosing { initiator, sender, recipient } =>
+			Instruction::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
+			Instruction::HrmpChannelClosing { initiator, sender, recipient } =>
 				HrmpChannelClosing { initiator, sender, recipient },
-			NewXcm::Transact { origin_type, require_weight_at_most, call } =>
+			Instruction::Transact { origin_type, require_weight_at_most, call } =>
 				Transact { origin_type, require_weight_at_most, call },
-			NewXcm::RelayedFrom { who, message } => RelayedFrom {
-				who,
-				message: alloc::boxed::Box::new((*message).try_into()?),
-			},
 			_ => return Err(()),
 		})
 	}

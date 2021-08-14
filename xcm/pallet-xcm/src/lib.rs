@@ -449,9 +449,9 @@ pub mod pallet {
 		}
 
 		/// Handler for receiving a `response` from `origin` relating to `query_id`.
-		fn on_response(origin: MultiLocation, query_id: QueryId, response: Response, max_weight: Weight) -> Weight {
+		fn on_response(origin: &MultiLocation, query_id: QueryId, response: Response, max_weight: Weight) -> Weight {
 			if let Some(QueryStatus::Pending { responder, maybe_notify, .. }) = Queries::<T>::get(query_id) {
-				if MultiLocation::try_from(responder).map_or(false, |r| origin == r) {
+				if MultiLocation::try_from(responder).map_or(false, |r| origin == &r) {
 					return match maybe_notify {
 						Some((pallet_index, call_index)) => {
 							// This is a bit horrible, but we happen to know that the `Call` will

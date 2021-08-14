@@ -19,14 +19,14 @@
 use frame_support::{ensure, traits::Contains, weights::Weight};
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::{Junction, Junctions, MultiLocation, Order, Xcm};
+use xcm::latest::{Instruction::*, Junction, Junctions, MultiLocation, Xcm};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `shallow_weight` from `weight_credit`.
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
 	fn should_execute<Call>(
-		_origin: &MultiLocation,
+		_origin: &Option<MultiLocation>,
 		_top_level: bool,
 		_message: &Xcm<Call>,
 		shallow_weight: Weight,
@@ -42,23 +42,28 @@ impl ShouldExecute for TakeWeightCredit {
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(
-		origin: &MultiLocation,
+		origin: &Option<MultiLocation>,
 		top_level: bool,
 		message: &Xcm<Call>,
 		shallow_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		let origin = origin.as_ref().ok_or(())?;
 		ensure!(T::contains(origin), ());
 		ensure!(top_level, ());
-		match message {
-			Xcm::ReceiveTeleportedAsset { effects, .. } |
-			Xcm::WithdrawAsset { effects, .. } |
-			Xcm::ReserveAssetDeposited { effects, .. }
-				if matches!(
-					effects.first(),
-					Some(Order::BuyExecution { debt, ..}) if *debt >= shallow_weight
-				) =>
-				Ok(()),
+		let iter = message.0.iter();
+		let i = iter.next().ok_or(())?;
+		match i {
+			ReceiveTeleportedAsset{..} | WithdrawAsset{..} | ReserveAssetDeposited{..} => (),
+			_ => return Err(()),
+		}
+		let mut i = iter.next().ok_or(())?;
+		if let ClearOrigin = i {
+			i = iter.next().ok_or(())?;
+		}
+		match i {
+			BuyExecution { weight , .. } if *weight >= shallow_weight => Ok(()),
+			OldBuyExecution { debt , .. } if *debt >= shallow_weight => Ok(()),
 			_ => Err(()),
 		}
 	}
@@ -69,12 +74,13 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	fn should_execute<Call>(
-		origin: &MultiLocation,
+		origin: &Option<MultiLocation>,
 		_top_level: bool,
 		_message: &Xcm<Call>,
 		_shallow_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
+		let origin = origin.as_ref().ok_or(())?;
 		ensure!(T::contains(origin), ());
 		Ok(())
 	}
@@ -96,14 +102,15 @@ impl<ParaId: IsSystem + From<u32>> Contains<MultiLocation> for IsChildSystemPara
 pub struct AllowKnownQueryResponses<ResponseHandler>(PhantomData<ResponseHandler>);
 impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<ResponseHandler> {
 	fn should_execute<Call>(
-		origin: &MultiLocation,
+		origin: &Option<MultiLocation>,
 		_top_level: bool,
 		message: &Xcm<Call>,
 		_shallow_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		match message {
-			Xcm::QueryResponse { query_id, .. }
+		let origin = origin.as_ref().ok_or(())?;
+		match message.0.first() {
+			Some(QueryResponse { query_id, .. })
 			if ResponseHandler::expecting_response(origin, *query_id)
 			=> Ok(()),
 			_ => Err(()),

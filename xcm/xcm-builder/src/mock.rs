@@ -222,7 +222,7 @@ impl OnResponse for TestResponseHandler {
 		})
 	}
 	fn on_response(
-		_origin: MultiLocation,
+		_origin: &MultiLocation,
 		query_id: u64,
 		response: xcm::latest::Response,
 		_max_weight: Weight,

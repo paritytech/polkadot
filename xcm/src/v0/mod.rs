@@ -356,8 +356,8 @@ impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			Xcm1::QueryResponse { query_id: u64, response } =>
-				QueryResponse { query_id: u64, response: response.try_into()? },
+			Xcm1::QueryResponse { query_id, response } =>
+				QueryResponse { query_id, response: response.try_into()? },
 			Xcm1::TransferAsset { assets, beneficiary } =>
 				TransferAsset { assets: assets.try_into()?, dest: beneficiary.try_into()? },
 			Xcm1::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {

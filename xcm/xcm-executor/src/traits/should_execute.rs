@@ -35,7 +35,7 @@ pub trait ShouldExecute {
 	///   in its execution. Typically non-zero only because of prior fee payment, but could in principle be due to other
 	///   factors.
 	fn should_execute<Call>(
-		origin: &MultiLocation,
+		origin: &Option<MultiLocation>,
 		top_level: bool,
 		message: &Xcm<Call>,
 		shallow_weight: Weight,
@@ -46,7 +46,7 @@ pub trait ShouldExecute {
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl ShouldExecute for Tuple {
 	fn should_execute<Call>(
-		origin: &MultiLocation,
+		origin: &Option<MultiLocation>,
 		top_level: bool,
 		message: &Xcm<Call>,
 		shallow_weight: Weight,

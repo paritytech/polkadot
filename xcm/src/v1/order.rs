@@ -16,9 +16,9 @@
 
 //! Version 1 of the Cross-Consensus Message format data structures.
 
+use crate::v2::Instruction;
+use crate::v0::Order as OldOrder;
 use super::{
-	super::v0::Order as OldOrder,
-	super::v2::Order as NewOrder,
 	MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
 };
 use alloc::{vec, vec::Vec};
@@ -247,66 +247,66 @@ impl<Call> TryFrom<OldOrder<Call>> for Order<Call> {
 	}
 }
 
-impl<Call> TryFrom<NewOrder<Call>> for Order<Call> {
+impl<Call> TryFrom<Instruction<Call>> for Order<Call> {
 	type Error = ();
-	fn try_from(old: NewOrder<Call>) -> result::Result<Order<Call>, ()> {
+	fn try_from(old: Instruction<Call>) -> result::Result<Order<Call>, ()> {
 		use Order::*;
 		Ok(match old {
-			NewOrder::Noop => Noop,
-			NewOrder::DepositAsset { assets, max_assets, beneficiary } => DepositAsset {
+			Instruction::DepositAsset { assets, max_assets, beneficiary } => DepositAsset {
 				assets,
 				max_assets,
 				beneficiary,
 			},
-			NewOrder::DepositReserveAsset { assets, max_assets, dest, effects } => DepositReserveAsset {
+			Instruction::DepositReserveAsset { assets, max_assets, dest, xcm } => DepositReserveAsset {
 				assets,
 				max_assets,
 				dest,
-				effects: effects
+				effects: xcm.0
 					.into_iter()
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			NewOrder::ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
-			NewOrder::InitiateReserveWithdraw { assets, reserve, effects } =>
+			Instruction::ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
+			Instruction::InitiateReserveWithdraw { assets, reserve, xcm } =>
 				InitiateReserveWithdraw {
 					assets,
 					reserve,
-					effects: effects
+					effects: xcm.0
 						.into_iter()
 						.map(Order::<()>::try_from)
 						.collect::<result::Result<_, _>>()?,
 				},
-			NewOrder::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
+			Instruction::InitiateTeleport { assets, dest, xcm } => InitiateTeleport {
 				assets,
 				dest,
-				effects: effects
+				effects: xcm.0
 					.into_iter()
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			NewOrder::QueryHolding { query_id, dest, assets, max_response_weight } => {
+			Instruction::QueryHolding { query_id, dest, assets, max_response_weight } => {
 				// Cannot handle special response weights.
 				if max_response_weight > 0 {
 					return Err(())
 				}
 				QueryHolding { query_id, dest, assets }
 			},
-			NewOrder::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } =>
-				BuyExecution {
-					fees,
-					weight,
-					debt,
-					halt_on_error,
-					orders: orders
-						.into_iter()
-						.map(Order::<Call>::try_from)
-						.collect::<result::Result<_, _>>()?,
-					instructions: instructions
-						.into_iter()
-						.map(Xcm::<Call>::try_from)
-						.collect::<result::Result<_, _>>()?,
-				},
+			Instruction::OldBuyExecution { fees, weight, debt, xcm } => {
+				let orders = xcm.0
+					.into_iter()
+					.map(Order::<Call>::try_from)
+					.collect::<result::Result<_, _>>()?;
+				let halt_on_error = true;
+				BuyExecution { fees, weight, debt, halt_on_error, orders, instructions: vec![] }
+			},
+			Instruction::BuyExecution { fees, weight: debt } => {
+				let instructions = vec![];
+				let orders = vec![];
+				let halt_on_error = true;
+				let weight = 0;
+				BuyExecution { fees, weight, debt, halt_on_error, orders, instructions }
+			},
+			_ => return Err(()),
 		})
 	}
 }
