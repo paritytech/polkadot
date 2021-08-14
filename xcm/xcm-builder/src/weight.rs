@@ -87,11 +87,6 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> FixedWeightBounds<T, C> {
 						Self::shallow(instruction)?.saturating_add(Self::deep(instruction)?),
 					);
 				}
-				for order in orders.iter_mut() {
-					extra.saturating_accrue(
-						Self::shallow_order(order)?.saturating_add(Self::deep_order(order)?),
-					);
-				}
 				extra
 			},
 			_ => 0,
