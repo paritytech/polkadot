@@ -320,11 +320,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// We must do this first in order to resolve wildcards.
 				let assets = holding.saturating_take(assets);
 				for asset in assets.assets_iter() {
-					Config::AssetTransactor::check_out(&origin, &asset);
 					ensure!(
 						Config::IsTeleporter::filter_asset_location(&asset, &dest),
 						XcmError::UntrustedTeleportLocation
 					);
+					Config::AssetTransactor::check_out(&origin, &asset);
 				}
 				let assets = Self::reanchored(assets, &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::ReceiveTeleportedAsset { assets, effects })?;
