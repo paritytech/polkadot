@@ -227,7 +227,7 @@ fn transfer_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (Here, 1000).into());
+	add_asset(1001, (Here, 1000));
 	// They want to transfer 100 of them to their sibling parachain #2
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1).into(),
@@ -247,7 +247,7 @@ fn transfer_should_work() {
 fn reserve_transfer_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (Here, 1000).into());
+	add_asset(1001, (Here, 1000));
 	// The remote account owned by gav.
 	let three: MultiLocation = X1(AccountIndex64 { index: 3, network: Any }).into();
 
@@ -334,7 +334,7 @@ fn transacting_should_refund_weight() {
 fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let one: MultiLocation = X1(AccountIndex64 { index: 1, network: Any }).into();
 	AllowPaidFrom::set(vec![one.clone()]);
-	add_asset(1, (Parent, 100).into());
+	add_asset(1, (Parent, 100));
 	WeightPrice::set((Parent.into(), 1_000_000_000_000));
 
 	let origin = one.clone();
@@ -391,28 +391,29 @@ fn prepaid_result_of_query_should_get_free_execution() {
 
 #[test]
 fn teleport_destinations_should_be_filtered() {
-	let one = X1(AccountIndex64 { index: 1, network: Any });
-	let two = X1(AccountIndex64 { index: 2, network: Any });
+	let one = X1(AccountIndex64 { index: 1, network: Any }).into();
+	let two = X1(AccountIndex64 { index: 2, network: Any }).into();
 	AllowPaidFrom::set(vec![one.clone(), two.clone()]);
-	add_asset(1, ConcreteFungible { id: X1(Parent), amount: 100 });
-	add_asset(2, ConcreteFungible { id: X1(Parent), amount: 100 });
-	WeightPrice::set((X1(Parent), 1_000_000_000_000));
+	add_asset(1, (Parent, 100));
+	add_asset(2, (Parent, 100));
+	WeightPrice::set((Parent.into(), 1_000_000_000_000));
 
 	// teleport should fail to non-teleport locations
 	{
 		let origin = two.clone();
 		let message = Xcm::<TestCall>::WithdrawAsset {
-			assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }], // enough for 100 units of weight.
+			assets: vec![(Parent, 100).into()].into(), // enough for 100 units of weight.
 			effects: vec![
 				Order::<TestCall>::BuyExecution {
-					fees: All,
+					fees: (Parent, 100).into(),
 					weight: 0,
 					debt: 30,
 					halt_on_error: true,
-					xcm: vec![],
+					orders: vec![],
+					instructions: vec![],
 				},
 				Order::<TestCall>::InitiateTeleport {
-					assets: vec![All],
+					assets: All.into(),
 					dest: two.clone(),
 					effects: vec![],
 				},
@@ -423,21 +424,22 @@ fn teleport_destinations_should_be_filtered() {
 		assert_eq!(r, Outcome::Incomplete(30, XcmError::UntrustedTeleportLocation));
 	}
 
-	add_teleporter(one.clone(), AllConcreteFungible { id: X1(Parent) });
+	add_teleporter(one.clone(), AllOf { id: Parent.into(), fun: WildFungible }.into());
 	// teleport should succed for known teleport locations
 	let origin = one.clone();
 	let message = Xcm::<TestCall>::WithdrawAsset {
-		assets: vec![ConcreteFungible { id: X1(Parent), amount: 100 }], // enough for 100 units of weight.
+		assets: vec![(Parent, 100).into()].into(), // enough for 100 units of weight.
 		effects: vec![
 			Order::<TestCall>::BuyExecution {
-				fees: All,
+				fees: (Parent, 100).into(),
 				weight: 0,
 				debt: 30,
 				halt_on_error: true,
-				xcm: vec![],
+				orders: vec![],
+				instructions: vec![],
 			},
 			Order::<TestCall>::InitiateTeleport {
-				assets: vec![All],
+				assets: All.into(),
 				dest: one.clone(),
 				effects: vec![],
 			},
@@ -447,5 +449,5 @@ fn teleport_destinations_should_be_filtered() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(30));
 	// 0 because we pay for the failed attempt as well
-	assert_eq!(assets(1), vec![ConcreteFungible { id: X1(Parent), amount: 0 }]);
+	assert_eq!(assets(1), vec![]);
 }
