@@ -16,7 +16,7 @@
 
 //! Remote tests for the kusama runtime.
 
-use kusama_runtime::{Block, Runtime, constants::currency::UNITS};
+use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
 
 #[tokio::test]
 async fn test_voter_bags_migration() {

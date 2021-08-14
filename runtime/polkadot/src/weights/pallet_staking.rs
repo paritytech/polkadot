@@ -218,22 +218,4 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(11 as Weight))
 			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
-	fn rebag() -> Weight {
-		(78_522_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(7 as Weight))
-			.saturating_add(T::DbWeight::get().writes(5 as Weight))
-	}
-	fn regenerate(v: u32, n: u32, ) -> Weight {
-		(0 as Weight)
-			// Standard Error: 218_000
-			.saturating_add((41_080_000 as Weight).saturating_mul(v as Weight))
-			// Standard Error: 218_000
-			.saturating_add((51_885_000 as Weight).saturating_mul(n as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().reads((3 as Weight).saturating_mul(v as Weight)))
-			.saturating_add(T::DbWeight::get().reads((3 as Weight).saturating_mul(n as Weight)))
-			.saturating_add(T::DbWeight::get().writes(20 as Weight))
-			.saturating_add(T::DbWeight::get().writes((2 as Weight).saturating_mul(v as Weight)))
-			.saturating_add(T::DbWeight::get().writes((2 as Weight).saturating_mul(n as Weight)))
-	}
 }

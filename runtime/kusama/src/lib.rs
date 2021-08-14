@@ -407,6 +407,17 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
 }
 
+parameter_types! {
+	pub const BagThresholds: &'static [u64] = &voter_bags::THRESHOLDS;
+}
+
+impl pallet_bags_list::Config for Runtime {
+	type Event = Event;
+	type VoteWeightProvider = Staking;
+	type WeightInfo = (); // TODO
+	type BagThresholds = BagThresholds;
+}
+
 fn era_payout(
 	total_staked: Balance,
 	non_gilt_issuance: Balance,
@@ -513,8 +524,8 @@ impl pallet_staking::Config for Runtime {
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type SortedListProvider = BagsList;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
-	type VoterBagThresholds = VoterBagThresholds;
 }
 
 parameter_types! {
@@ -1441,6 +1452,9 @@ construct_runtime! {
 		// Gilts pallet.
 		Gilt: pallet_gilt::{Pallet, Call, Storage, Event<T>, Config} = 38,
 
+		// Only works with staking, but placed here to maintain indices.
+		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 39,
+
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
@@ -1851,6 +1865,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_treasury, Treasury);
 			list_benchmark!(list, extra, pallet_utility, Utility);
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
+			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1923,6 +1938,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_treasury, Treasury);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
+			add_benchmark!(params, batches, pallet_bags_list, BagsList);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

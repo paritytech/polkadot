@@ -16,8 +16,8 @@
 
 //! Remote tests.
 
-mod voter_bags;
 #[cfg(feature = "kusama")]
 mod kusama_runtime;
 #[cfg(feature = "polkadot")]
 mod polkadot_runtime;
+mod voter_bags;

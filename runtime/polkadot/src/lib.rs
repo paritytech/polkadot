@@ -151,7 +151,8 @@ impl Contains<Call> for BaseFilter {
 			Call::Multisig(_) |
 			Call::Bounties(_) |
 			Call::Tips(_) |
-			Call::ElectionProviderMultiPhase(_) => true,
+			Call::ElectionProviderMultiPhase(_) |
+			Call::BagsList(_) => true, // TODO double check if this line should be added
 		}
 	}
 }
@@ -414,6 +415,17 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
 }
 
+parameter_types! {
+	pub const BagThresholds: &'static [u64] = &voter_bags::THRESHOLDS;
+}
+
+impl pallet_bags_list::Config for Runtime {
+	type Event = Event;
+	type VoteWeightProvider = Staking;
+	type WeightInfo = (); // TODO
+	type BagThresholds = BagThresholds;
+}
+
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
 // re-built in case input parameters have changed. The `ideal_stake` should be determined by the
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
@@ -474,8 +486,8 @@ impl pallet_staking::Config for Runtime {
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<
 			pallet_election_provider_multi_phase::OnChainConfig<Self>,
 		>;
+	type SortedListProvider = BagsList; // TODO do we want this or stub? If stub we should test that there are no issues
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
-	type VoterBagThresholds = VoterBagThresholds;
 }
 
 parameter_types! {
@@ -1103,6 +1115,9 @@ construct_runtime! {
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
 
+		// Only works with staking, but placed here to maintain indices.
+		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
+
 	}
 }
 
@@ -1478,6 +1493,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_treasury, Treasury);
 			list_benchmark!(list, extra, pallet_utility, Utility);
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
+			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1545,6 +1561,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_treasury, Treasury);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
+			add_benchmark!(params, batches, pallet_bags_list, BagsList);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

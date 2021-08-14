@@ -16,14 +16,14 @@
 
 //! Generic remote tests for the voter bags module.
 
-use remote_externalities::{Builder, Mode, OnlineConfig, SnapshotConfig, OfflineConfig};
-use sp_storage::well_known_keys;
-use pallet_staking::{
-	Nominators, Validators, CounterForValidators, CounterForNominators,
-	voter_bags::{Bag, VoterList, VoterType, Voter},
-};
 use frame_support::{assert_ok, traits::Get};
+use pallet_staking::{
+	voter_bags::{Bag, Voter, VoterList, VoterType},
+	CounterForNominators, CounterForValidators, Nominators, Validators,
+};
+use remote_externalities::{Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig};
 use sp_runtime::traits::Block as BlockT;
+use sp_storage::well_known_keys;
 
 const LOG_TARGET: &'static str = "remote-ext-tests";
 
@@ -33,10 +33,9 @@ fn init_logger() {
 
 /// Test voter bags migration. `currency_unit` is the number of planks per the
 /// the runtimes `UNITS` (i.e. number of decimal places per DOT, KSM etc)
-pub (crate) async fn test_voter_bags_migration<
-		Runtime: pallet_staking::Config,
-		Block: BlockT
-	>(currency_unit: u64) {
+pub(crate) async fn test_voter_bags_migration<Runtime: pallet_staking::Config, Block: BlockT>(
+	currency_unit: u64,
+) {
 	use std::env;
 
 	init_logger();
@@ -100,13 +99,12 @@ pub (crate) async fn test_voter_bags_migration<
 				Some(bag) => bag,
 				None => {
 					log::info!(target: LOG_TARGET, "{} NO VOTERS.", pretty_thresh);
-					continue;
+					continue
 				},
 			};
 
-			let (voters_in_bag, noms_in_bag, vals_in_bag) = bag
-				.iter()
-				.fold((0, 0, 0), |(mut total, mut noms, mut vals), node|{
+			let (voters_in_bag, noms_in_bag, vals_in_bag) =
+				bag.iter().fold((0, 0, 0), |(mut total, mut noms, mut vals), node| {
 					let Voter { id, voter_type } = node.voter();
 
 					match voter_type {
@@ -138,9 +136,13 @@ pub (crate) async fn test_voter_bags_migration<
 			log::info!(
 				target: LOG_TARGET,
 				"{} Voters: {} [%{:.3}] (Noms {} [%{:.3}] : Vals {} [%{:.3}])",
-				pretty_thresh, voters_in_bag, percent_of_voters,
-				noms_in_bag, percent_of_noms,
-				vals_in_bag, percent_of_vals,
+				pretty_thresh,
+				voters_in_bag,
+				percent_of_voters,
+				noms_in_bag,
+				percent_of_noms,
+				vals_in_bag,
+				percent_of_vals,
 			);
 		}
 
@@ -151,4 +153,3 @@ pub (crate) async fn test_voter_bags_migration<
 fn percent(portion: u32, total: u32) -> f64 {
 	(portion as f64 / total as f64) * 100f64
 }
-

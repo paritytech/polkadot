@@ -16,7 +16,7 @@
 
 //! Remote tests for the polkadot runtime.
 
-use polkadot_runtime::{Block, Runtime, constants::currency::UNITS};
+use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
 
 #[tokio::test]
 async fn test_voter_bags_migration() {

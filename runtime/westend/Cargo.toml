@@ -69,6 +69,7 @@ pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "zeke-bags-list-staking-benchmarks", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -148,6 +149,7 @@ std = [
 	"pallet-vesting/std",
 	"pallet-xcm/std",
 	"pallet-babe/std",
+  "pallet-bags-list/std",
 	"frame-executive/std",
 	"sp-runtime/std",
 	"sp-staking/std",

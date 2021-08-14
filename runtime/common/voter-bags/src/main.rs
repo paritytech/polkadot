@@ -14,21 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
 //! Make the set of voting bag thresholds to be used in `voter_bags.rs`.
 //!
 //! Generally speaking this script can be run once per runtime and never
-//! touched again. It can be reused to regenerate a wholly different 
-//! quantity of bags, or if the existential deposit changes, etc. 
+//! touched again. It can be reused to regenerate a wholly different
+//! quantity of bags, or if the existential deposit changes, etc.
 
-use pallet_staking::voter_bags::make_bags::generate_thresholds_module;
-use std::path::{Path, PathBuf};
-use structopt::{StructOpt, clap::arg_enum};
-use westend_runtime::Runtime as WestendRuntime;
+use generate_bags::generate_thresholds;
 use kusama_runtime::Runtime as KusamaRuntime;
 use polkadot_runtime::Runtime as PolkadotRuntime;
+use std::path::{Path, PathBuf};
+use structopt::{clap::arg_enum, StructOpt};
+use westend_runtime::Runtime as WestendRuntime;
 
-arg_enum!{
+arg_enum! {
 	#[derive(Debug)]
 	enum Runtime {
 		Westend,
@@ -40,9 +39,9 @@ arg_enum!{
 impl Runtime {
 	fn generate_thresholds(&self) -> Box<dyn FnOnce(usize, &Path) -> Result<(), std::io::Error>> {
 		match self {
-			Runtime::Westend => Box::new(generate_thresholds_module::<WestendRuntime>),
-			Runtime::Kusama => Box::new(generate_thresholds_module::<KusamaRuntime>),
-			Runtime::Polkadot => Box::new(generate_thresholds_module::<PolkadotRuntime>),
+			Runtime::Westend => Box::new(generate_thresholds::<WestendRuntime>),
+			Runtime::Kusama => Box::new(generate_thresholds::<KusamaRuntime>),
+			Runtime::Polkadot => Box::new(generate_thresholds::<PolkadotRuntime>),
 		}
 	}
 }
@@ -50,10 +49,7 @@ impl Runtime {
 #[derive(Debug, StructOpt)]
 struct Opt {
 	/// How many bags to generate.
-	#[structopt(
-		long,
-		default_value = "200",
-	)]
+	#[structopt(long, default_value = "200")]
 	n_bags: usize,
 
 	/// Which runtime to generate.
@@ -70,7 +66,7 @@ struct Opt {
 }
 
 fn main() -> Result<(), std::io::Error> {
-	let Opt {n_bags, output, runtime } = Opt::from_args();
+	let Opt { n_bags, output, runtime } = Opt::from_args();
 	let mut ext = sp_io::TestExternalities::new_empty();
 	ext.execute_with(|| runtime.generate_thresholds()(n_bags, &output))
 }
