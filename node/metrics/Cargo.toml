@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-metrics"
-version = "0.1.0"
+version = "0.9.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Subsystem traits and message definitions"
@@ -17,3 +17,9 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+jemalloc-ctl = { version = "0.3.3", optional = true }
+
+[features]
+default = []
+memory-stats = ["jemalloc-ctl"]

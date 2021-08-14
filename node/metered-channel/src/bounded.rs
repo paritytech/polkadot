@@ -16,13 +16,16 @@
 
 //! Metered variant of bounded mpsc channels to be able to extract metrics.
 
-use futures::{channel::mpsc, task::Poll, task::Context, sink::SinkExt, stream::Stream};
+use futures::{
+	channel::mpsc,
+	sink::SinkExt,
+	stream::Stream,
+	task::{Context, Poll},
+};
 
-use std::result;
-use std::pin::Pin;
+use std::{pin::Pin, result};
 
 use super::Meter;
-
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn channel<T>(capacity: usize) -> (MeteredSender<T>, MeteredReceiver<T>) {
@@ -61,7 +64,7 @@ impl<T> Stream for MeteredReceiver<T> {
 			Poll::Ready(x) => {
 				self.meter.note_received();
 				Poll::Ready(x)
-			}
+			},
 			other => other,
 		}
 	}
@@ -84,7 +87,7 @@ impl<T> MeteredReceiver<T> {
 			Some(x) => {
 				self.meter.note_received();
 				Ok(Some(x))
-			}
+			},
 			None => Ok(None),
 		}
 	}
@@ -95,7 +98,6 @@ impl<T> futures::stream::FusedStream for MeteredReceiver<T> {
 		self.inner.is_terminated()
 	}
 }
-
 
 /// The sender component, tracking the number of items
 /// sent across it.
