@@ -15,15 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use always_assert::always;
-use async_std::{
-	path::{Path, PathBuf},
-};
+use async_std::path::{Path, PathBuf};
+use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationCodeHash;
 use std::{
 	collections::HashMap,
 	time::{Duration, SystemTime},
 };
-use parity_scale_codec::{Encode, Decode};
 
 /// A final product of preparation process. Contains either a ready to run compiled artifact or
 /// a description what went wrong.
@@ -56,7 +54,7 @@ impl Artifact {
 /// multiple engine implementations the artifact ID should include the engine type as well.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArtifactId {
-	code_hash: ValidationCodeHash,
+	pub(crate) code_hash: ValidationCodeHash,
 }
 
 impl ArtifactId {
@@ -70,8 +68,8 @@ impl ArtifactId {
 	/// Tries to recover the artifact id from the given file name.
 	#[cfg(test)]
 	pub fn from_file_name(file_name: &str) -> Option<Self> {
-		use std::str::FromStr as _;
 		use polkadot_core_primitives::Hash;
+		use std::str::FromStr as _;
 
 		let file_name = file_name.strip_prefix(Self::PREFIX)?;
 		let code_hash = Hash::from_str(file_name).ok()?.into();
@@ -83,6 +81,25 @@ impl ArtifactId {
 	pub fn path(&self, cache_path: &Path) -> PathBuf {
 		let file_name = format!("{}{:#x}", Self::PREFIX, self.code_hash);
 		cache_path.join(file_name)
+	}
+}
+
+/// A bundle of the artifact ID and the path.
+///
+/// Rationale for having this is two-fold:
+///
+/// - While we can derive the artifact path from the artifact id, it makes sense to carry it around
+/// sometimes to avoid extra work.
+/// - At the same time, carrying only path limiting the ability for logging.
+#[derive(Debug, Clone)]
+pub struct ArtifactPathId {
+	pub(crate) id: ArtifactId,
+	pub(crate) path: PathBuf,
+}
+
+impl ArtifactPathId {
+	pub(crate) fn new(artifact_id: ArtifactId, cache_path: &Path) -> Self {
+		Self { path: artifact_id.path(cache_path), id: artifact_id }
 	}
 }
 
@@ -123,9 +140,7 @@ impl Artifacts {
 
 	#[cfg(test)]
 	pub(crate) fn empty() -> Self {
-		Self {
-			artifacts: HashMap::new(),
-		}
+		Self { artifacts: HashMap::new() }
 	}
 
 	/// Returns the state of the given artifact by its ID.
@@ -139,10 +154,7 @@ impl Artifacts {
 	/// replacing existing ones.
 	pub fn insert_preparing(&mut self, artifact_id: ArtifactId) {
 		// See the precondition.
-		always!(self
-			.artifacts
-			.insert(artifact_id, ArtifactState::Preparing)
-			.is_none());
+		always!(self.artifacts.insert(artifact_id, ArtifactState::Preparing).is_none());
 	}
 
 	/// Insert an artifact with the given ID as "prepared".
@@ -164,9 +176,7 @@ impl Artifacts {
 
 		let mut to_remove = vec![];
 		for (k, v) in self.artifacts.iter() {
-			if let ArtifactState::Prepared {
-				last_time_needed, ..
-			} = *v {
+			if let ArtifactState::Prepared { last_time_needed, .. } = *v {
 				if now
 					.duration_since(last_time_needed)
 					.map(|age| age > artifact_ttl)
@@ -187,8 +197,8 @@ impl Artifacts {
 
 #[cfg(test)]
 mod tests {
+	use super::{ArtifactId, Artifacts};
 	use async_std::path::Path;
-	use super::{Artifacts, ArtifactId};
 	use sp_core::H256;
 	use std::str::FromStr;
 
@@ -213,17 +223,24 @@ mod tests {
 	#[test]
 	fn path() {
 		let path = Path::new("/test");
-		let hash = H256::from_str("1234567890123456789012345678901234567890123456789012345678901234").unwrap().into();
+		let hash =
+			H256::from_str("1234567890123456789012345678901234567890123456789012345678901234")
+				.unwrap()
+				.into();
 
 		assert_eq!(
 			ArtifactId::new(hash).path(path).to_str(),
-			Some("/test/wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234"),
+			Some(
+				"/test/wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234"
+			),
 		);
 	}
 
 	#[test]
 	fn artifacts_removes_cache_on_startup() {
-		let fake_cache_path = async_std::task::block_on(async move { crate::worker_common::tmpfile("test-cache").await.unwrap() });
+		let fake_cache_path = async_std::task::block_on(async move {
+			crate::worker_common::tmpfile("test-cache").await.unwrap()
+		});
 		let fake_artifact_path = {
 			let mut p = fake_cache_path.clone();
 			p.push("wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234");

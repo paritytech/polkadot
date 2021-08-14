@@ -28,43 +28,42 @@
 //!
 //! We maintain a rolling window of session indices. This starts as empty
 
-use polkadot_node_subsystem::{
-	overseer,
-	messages::{
-		RuntimeApiMessage, RuntimeApiRequest, ChainApiMessage, ApprovalDistributionMessage,
-		ChainSelectionMessage,
-	},
-	SubsystemContext, SubsystemError, SubsystemResult,
-};
-use polkadot_node_subsystem_util::determine_new_blocks;
-use polkadot_node_subsystem_util::rolling_session_window::{
-	RollingSessionWindow, SessionWindowUpdate,
-};
-use polkadot_primitives::v1::{
-	Hash, SessionIndex, CandidateEvent, Header, CandidateHash,
-	CandidateReceipt, CoreIndex, GroupIndex, BlockNumber, ConsensusLog,
-};
+use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::approval::{
 	self as approval_types, BlockApprovalMeta, RelayVRFStory,
 };
-use polkadot_node_jaeger as jaeger;
+use polkadot_node_subsystem::{
+	messages::{
+		ApprovalDistributionMessage, ChainApiMessage, ChainSelectionMessage, RuntimeApiMessage,
+		RuntimeApiRequest,
+	},
+	overseer, SubsystemContext, SubsystemError, SubsystemResult,
+};
+use polkadot_node_subsystem_util::{
+	determine_new_blocks,
+	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate},
+};
+use polkadot_primitives::v1::{
+	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
+	GroupIndex, Hash, Header, SessionIndex,
+};
 use sc_keystore::LocalKeystore;
 use sp_consensus_slots::Slot;
 
-use futures::prelude::*;
-use futures::channel::oneshot;
 use bitvec::order::Lsb0 as BitOrderLsb0;
+use futures::{channel::oneshot, prelude::*};
 
-use std::collections::HashMap;
-use std::convert::TryFrom;
+use std::{collections::HashMap, convert::TryFrom};
 
 use super::approval_db::v1;
-use crate::backend::{Backend, OverlayedBackend};
-use crate::persisted_entries::CandidateEntry;
-use crate::criteria::{AssignmentCriteria, OurAssignment};
-use crate::time::{slot_number_to_tick, Tick};
+use crate::{
+	backend::{Backend, OverlayedBackend},
+	criteria::{AssignmentCriteria, OurAssignment},
+	persisted_entries::CandidateEntry,
+	time::{slot_number_to_tick, Tick},
+};
 
-use super::{LOG_TARGET, State};
+use super::{State, LOG_TARGET};
 
 struct ImportedBlockInfo {
 	included_candidates: Vec<(CandidateHash, CandidateReceipt, CoreIndex, GroupIndex)>,
@@ -99,7 +98,8 @@ async fn imported_block_info(
 		ctx.send_message(RuntimeApiMessage::Request(
 			block_hash,
 			RuntimeApiRequest::CandidateEvents(c_tx),
-		)).await;
+		))
+		.await;
 
 		let events: Vec<CandidateEvent> = match c_rx.await {
 			Ok(Ok(events)) => events,
@@ -107,11 +107,14 @@ async fn imported_block_info(
 			Err(_) => return Ok(None),
 		};
 
-		events.into_iter().filter_map(|e| match e {
-			CandidateEvent::CandidateIncluded(receipt, _, core, group)
-				=> Some((receipt.hash(), receipt, core, group)),
-			_ => None,
-		}).collect()
+		events
+			.into_iter()
+			.filter_map(|e| match e {
+				CandidateEvent::CandidateIncluded(receipt, _, core, group) =>
+					Some((receipt.hash(), receipt, core, group)),
+				_ => None,
+			})
+			.collect()
 	};
 
 	// fetch session. ignore blocks that are too old, but unless sessions are really
@@ -121,7 +124,8 @@ async fn imported_block_info(
 		ctx.send_message(RuntimeApiMessage::Request(
 			block_header.parent_hash,
 			RuntimeApiRequest::SessionIndexForChild(s_tx),
-		)).await;
+		))
+		.await;
 
 		let session_index = match s_rx.await {
 			Ok(Ok(s)) => s,
@@ -130,10 +134,14 @@ async fn imported_block_info(
 		};
 
 		if env.session_window.earliest_session().map_or(true, |e| session_index < e) {
-			tracing::debug!(target: LOG_TARGET, "Block {} is from ancient session {}. Skipping",
-				block_hash, session_index);
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Block {} is from ancient session {}. Skipping",
+				block_hash,
+				session_index
+			);
 
-			return Ok(None);
+			return Ok(None)
 		}
 
 		session_index
@@ -162,7 +170,8 @@ async fn imported_block_info(
 		ctx.send_message(RuntimeApiMessage::Request(
 			block_hash,
 			RuntimeApiRequest::CurrentBabeEpoch(s_tx),
-		)).await;
+		))
+		.await;
 
 		match s_rx.await {
 			Ok(Ok(s)) => s,
@@ -180,8 +189,8 @@ async fn imported_block_info(
 				block_hash,
 			);
 
-			return Ok(None);
-		}
+			return Ok(None)
+		},
 	};
 
 	let (assignments, slot, relay_vrf_story) = {
@@ -201,7 +210,8 @@ async fn imported_block_info(
 							&env.keystore,
 							relay_vrf.clone(),
 							&crate::criteria::Config::from(session_info),
-							included_candidates.iter()
+							included_candidates
+								.iter()
 								.map(|(c_hash, _, core, group)| (*c_hash, *core, *group))
 								.collect(),
 						);
@@ -210,7 +220,7 @@ async fn imported_block_info(
 					},
 					Err(_) => return Ok(None),
 				}
-			}
+			},
 			None => {
 				tracing::debug!(
 					target: LOG_TARGET,
@@ -218,16 +228,12 @@ async fn imported_block_info(
 					block_hash,
 				);
 
-				return Ok(None);
-			}
+				return Ok(None)
+			},
 		}
 	};
 
-	tracing::trace!(
-		target: LOG_TARGET,
-		n_assignments = assignments.len(),
-		"Produced assignments"
-	);
+	tracing::trace!(target: LOG_TARGET, n_assignments = assignments.len(), "Produced assignments");
 
 	let force_approve =
 		block_header.digest.convert_first(|l| match ConsensusLog::from_digest_item(l) {
@@ -241,7 +247,7 @@ async fn imported_block_info(
 				);
 
 				Some(num)
-			}
+			},
 			Ok(Some(_)) => None,
 			Ok(None) => None,
 			Err(err) => {
@@ -253,7 +259,7 @@ async fn imported_block_info(
 				);
 
 				None
-			}
+			},
 		});
 
 	Ok(Some(ImportedBlockInfo {
@@ -291,8 +297,7 @@ pub(crate) async fn handle_new_head(
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
-) -> SubsystemResult<Vec<BlockImportedCandidates>>
-{
+) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	// Update session info based on most recent head.
 
 	let mut span = jaeger::Span::new(head, "approval-checking-import");
@@ -309,13 +314,13 @@ pub(crate) async fn handle_new_head(
 					e,
 				);
 
-				return Ok(Vec::new());
-			}
+				return Ok(Vec::new())
+			},
 			Ok(None) => {
 				tracing::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
-				return Ok(Vec::new());
-			}
-			Ok(Some(h)) => h
+				return Ok(Vec::new())
+			},
+			Ok(Some(h)) => h,
 		}
 	};
 
@@ -329,15 +334,15 @@ pub(crate) async fn handle_new_head(
 			);
 
 			return Ok(Vec::new())
-		}
+		},
 		Ok(a @ SessionWindowUpdate::Advanced { .. }) => {
 			tracing::info!(
 				target: LOG_TARGET,
 				update = ?a,
 				"Advanced session window for approvals",
 			);
-		}
-		Ok(_) => {}
+		},
+		Ok(_) => {},
 	}
 
 	// If we've just started the node and haven't yet received any finality notifications,
@@ -351,12 +356,14 @@ pub(crate) async fn handle_new_head(
 		&header,
 		lower_bound_number,
 	)
-		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
-		.await?;
+	.map_err(|e| SubsystemError::with_origin("approval-voting", e))
+	.await?;
 
 	span.add_uint_tag("new-blocks", new_blocks.len() as u64);
 
-	if new_blocks.is_empty() { return Ok(Vec::new()) }
+	if new_blocks.is_empty() {
+		return Ok(Vec::new())
+	}
 
 	let mut approval_meta: Vec<BlockApprovalMeta> = Vec::with_capacity(new_blocks.len());
 	let mut imported_candidates = Vec::with_capacity(new_blocks.len());
@@ -376,9 +383,11 @@ pub(crate) async fn handle_new_head(
 				None => {
 					// It's possible that we've lost a race with finality.
 					let (tx, rx) = oneshot::channel();
-					ctx.send_message(
-						ChainApiMessage::FinalizedBlockHash(block_header.number.clone(), tx)
-					).await;
+					ctx.send_message(ChainApiMessage::FinalizedBlockHash(
+						block_header.number.clone(),
+						tx,
+					))
+					.await;
 
 					let lost_to_finality = match rx.await {
 						Ok(Ok(Some(h))) if h != block_hash => true,
@@ -395,7 +404,7 @@ pub(crate) async fn handle_new_head(
 						);
 					}
 
-					return Ok(Vec::new());
+					return Ok(Vec::new())
 				},
 			};
 		}
@@ -420,7 +429,9 @@ pub(crate) async fn handle_new_head(
 			force_approve,
 		} = imported_block_info;
 
-		let session_info = state.session_window.session_info(session_index)
+		let session_info = state
+			.session_window
+			.session_info(session_index)
 			.expect("imported_block_info requires session to be available; qed");
 
 		let (block_tick, no_show_duration) = {
@@ -432,7 +443,8 @@ pub(crate) async fn handle_new_head(
 			(block_tick, no_show_duration)
 		};
 		let needed_approvals = session_info.needed_approvals;
-		let validator_group_lens: Vec<usize> = session_info.validator_groups.iter().map(|v| v.len()).collect();
+		let validator_group_lens: Vec<usize> =
+			session_info.validator_groups.iter().map(|v| v.len()).collect();
 		// insta-approve candidates on low-node testnets:
 		// cf. https://github.com/paritytech/polkadot/issues/2411
 		let num_candidates = included_candidates.len();
@@ -447,10 +459,10 @@ pub(crate) async fn handle_new_head(
 			} else {
 				let mut result = bitvec::bitvec![BitOrderLsb0, u8; 0; num_candidates];
 				for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
-					let backing_group_size = validator_group_lens.get(backing_group.0 as usize)
-						.copied()
-						.unwrap_or(0);
-					let needed_approvals = usize::try_from(needed_approvals).expect("usize is at least u32; qed");
+					let backing_group_size =
+						validator_group_lens.get(backing_group.0 as usize).copied().unwrap_or(0);
+					let needed_approvals =
+						usize::try_from(needed_approvals).expect("usize is at least u32; qed");
 					if n_validators.saturating_sub(backing_group_size) < needed_approvals {
 						result.set(i, true);
 					}
@@ -481,19 +493,16 @@ pub(crate) async fn handle_new_head(
 			session: session_index,
 			slot,
 			relay_vrf_story: relay_vrf_story.0,
-			candidates: included_candidates.iter()
-				.map(|(hash, _, core, _)| (*core, *hash)).collect(),
+			candidates: included_candidates
+				.iter()
+				.map(|(hash, _, core, _)| (*core, *hash))
+				.collect(),
 			approved_bitfield,
 			children: Vec::new(),
 		};
 
 		if let Some(up_to) = force_approve {
-			tracing::debug!(
-				target: LOG_TARGET,
-				?block_hash,
-				up_to,
-				"Enacting force-approve",
-			);
+			tracing::debug!(target: LOG_TARGET, ?block_hash, up_to, "Enacting force-approve");
 
 			let approved_hashes = crate::ops::force_approve(db, block_hash, up_to)
 				.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
@@ -511,19 +520,19 @@ pub(crate) async fn handle_new_head(
 			"Writing BlockEntry",
 		);
 
-		let candidate_entries = crate::ops::add_block_entry(
-			db,
-			block_entry.into(),
-			n_validators,
-			|candidate_hash| {
-				included_candidates.iter().find(|(hash, _, _, _)| candidate_hash == hash)
-					.map(|(_, receipt, core, backing_group)| super::ops::NewCandidateInfo::new(
-						receipt.clone(),
-						*backing_group,
-						assignments.get(core).map(|a| a.clone().into()),
-					))
-			}
-		).map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+		let candidate_entries =
+			crate::ops::add_block_entry(db, block_entry.into(), n_validators, |candidate_hash| {
+				included_candidates.iter().find(|(hash, _, _, _)| candidate_hash == hash).map(
+					|(_, receipt, core, backing_group)| {
+						super::ops::NewCandidateInfo::new(
+							receipt.clone(),
+							*backing_group,
+							assignments.get(core).map(|a| a.clone().into()),
+						)
+					},
+				)
+			})
+			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
 		approval_meta.push(BlockApprovalMeta {
 			hash: block_hash,
 			number: block_header.number,
@@ -532,18 +541,16 @@ pub(crate) async fn handle_new_head(
 			slot,
 		});
 
-		imported_candidates.push(
-			BlockImportedCandidates {
-				block_hash,
-				block_number: block_header.number,
-				block_tick,
-				no_show_duration,
-				imported_candidates: candidate_entries
-					.into_iter()
-					.map(|(h, e)| (h, e.into()))
-					.collect(),
-			}
-		);
+		imported_candidates.push(BlockImportedCandidates {
+			block_hash,
+			block_number: block_header.number,
+			block_tick,
+			no_show_duration,
+			imported_candidates: candidate_entries
+				.into_iter()
+				.map(|(h, e)| (h, e.into()))
+				.collect(),
+		});
 	}
 
 	tracing::trace!(
@@ -562,33 +569,30 @@ pub(crate) async fn handle_new_head(
 pub(crate) mod tests {
 	use super::*;
 	use crate::approval_db::v1::DbBackend;
-	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
-	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex};
-	use polkadot_node_subsystem::messages::AllMessages;
-	use sp_core::testing::TaskExecutor;
-	pub(crate) use sp_runtime::{Digest, DigestItem};
-	pub(crate) use sp_consensus_babe::{
-		Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots,
-	};
-	pub(crate) use sp_consensus_babe::digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest};
-	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	use assert_matches::assert_matches;
-	use merlin::Transcript;
-	use std::{pin::Pin, sync::Arc};
 	use kvdb::KeyValueDB;
+	use merlin::Transcript;
+	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
+	use polkadot_node_subsystem::messages::AllMessages;
+	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+	use polkadot_primitives::v1::{SessionInfo, ValidatorIndex};
+	pub(crate) use sp_consensus_babe::{
+		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
+		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
+	};
+	use sp_core::testing::TaskExecutor;
+	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
+	pub(crate) use sp_runtime::{Digest, DigestItem};
+	use std::{pin::Pin, sync::Arc};
 
 	use crate::{
-		APPROVAL_SESSIONS, criteria, BlockEntry,
-		approval_db::v1::Config as DatabaseConfig,
+		approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry, APPROVAL_SESSIONS,
 	};
 
 	const DATA_COL: u32 = 0;
 	const NUM_COLUMNS: u32 = 1;
 
-	const TEST_CONFIG: DatabaseConfig = DatabaseConfig {
-		col_data: DATA_COL,
-	};
+	const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_data: DATA_COL };
 	#[derive(Default)]
 	struct MockClock;
 
@@ -598,9 +602,7 @@ pub(crate) mod tests {
 		}
 
 		fn wait(&self, _tick: Tick) -> Pin<Box<dyn Future<Output = ()> + Send + 'static>> {
-			Box::pin(async move {
-				()
-			})
+			Box::pin(async move { () })
 		}
 	}
 
@@ -633,7 +635,11 @@ pub(crate) mod tests {
 			_keystore: &LocalKeystore,
 			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 			_config: &criteria::Config,
-			_leaving_cores: Vec<(CandidateHash, polkadot_primitives::v1::CoreIndex, polkadot_primitives::v1::GroupIndex)>,
+			_leaving_cores: Vec<(
+				CandidateHash,
+				polkadot_primitives::v1::CoreIndex,
+				polkadot_primitives::v1::GroupIndex,
+			)>,
 		) -> HashMap<polkadot_primitives::v1::CoreIndex, criteria::OurAssignment> {
 			HashMap::new()
 		}
@@ -675,7 +681,6 @@ pub(crate) mod tests {
 		}
 	}
 
-
 	#[test]
 	fn imported_block_info_is_good() {
 		let pool = TaskExecutor::new();
@@ -691,12 +696,7 @@ pub(crate) mod tests {
 				let mut d = Digest::default();
 				let (vrf_output, vrf_proof) = garbage_vrf();
 				d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-					SecondaryVRFPreDigest {
-						authority_index: 0,
-						slot,
-						vrf_output,
-						vrf_proof,
-					}
+					SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
 				)));
 
 				d
@@ -719,13 +719,15 @@ pub(crate) mod tests {
 			(make_candidate(2.into()), CoreIndex(1), GroupIndex(3)),
 		];
 
-
-		let inclusion_events = candidates.iter().cloned()
+		let inclusion_events = candidates
+			.iter()
+			.cloned()
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let included_candidates = candidates.iter()
+			let included_candidates = candidates
+				.iter()
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
@@ -743,12 +745,8 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(
-					&mut ctx,
-					env,
-					hash,
-					&header,
-				).await.unwrap().unwrap();
+				let info =
+					imported_block_info(&mut ctx, env, hash, &header).await.unwrap().unwrap();
 
 				assert_eq!(info.included_candidates, included_candidates);
 				assert_eq!(info.session_index, session);
@@ -835,7 +833,9 @@ pub(crate) mod tests {
 			(make_candidate(2.into()), CoreIndex(1), GroupIndex(3)),
 		];
 
-		let inclusion_events = candidates.iter().cloned()
+		let inclusion_events = candidates
+			.iter()
+			.cloned()
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
@@ -854,12 +854,7 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(
-					&mut ctx,
-					env,
-					hash,
-					&header,
-				).await.unwrap();
+				let info = imported_block_info(&mut ctx, env, hash, &header).await.unwrap();
 
 				assert!(info.is_none());
 			})
@@ -940,7 +935,9 @@ pub(crate) mod tests {
 			(make_candidate(2.into()), CoreIndex(1), GroupIndex(3)),
 		];
 
-		let inclusion_events = candidates.iter().cloned()
+		let inclusion_events = candidates
+			.iter()
+			.cloned()
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
@@ -955,12 +952,7 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(
-					&mut ctx,
-					env,
-					hash,
-					&header,
-				).await.unwrap();
+				let info = imported_block_info(&mut ctx, env, hash, &header).await.unwrap();
 
 				assert!(info.is_none());
 			})
@@ -1008,12 +1000,7 @@ pub(crate) mod tests {
 				let mut d = Digest::default();
 				let (vrf_output, vrf_proof) = garbage_vrf();
 				d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-					SecondaryVRFPreDigest {
-						authority_index: 0,
-						slot,
-						vrf_output,
-						vrf_proof,
-					}
+					SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
 				)));
 
 				d.push(ConsensusLog::ForceApprove(3).into());
@@ -1038,13 +1025,15 @@ pub(crate) mod tests {
 			(make_candidate(2.into()), CoreIndex(1), GroupIndex(3)),
 		];
 
-
-		let inclusion_events = candidates.iter().cloned()
+		let inclusion_events = candidates
+			.iter()
+			.cloned()
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let included_candidates = candidates.iter()
+			let included_candidates = candidates
+				.iter()
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
@@ -1062,12 +1051,8 @@ pub(crate) mod tests {
 					keystore: &LocalKeystore::in_memory(),
 				};
 
-				let info = imported_block_info(
-					&mut ctx,
-					env,
-					hash,
-					&header,
-				).await.unwrap().unwrap();
+				let info =
+					imported_block_info(&mut ctx, env, hash, &header).await.unwrap().unwrap();
 
 				assert_eq!(info.included_candidates, included_candidates);
 				assert_eq!(info.session_index, session);
@@ -1159,12 +1144,7 @@ pub(crate) mod tests {
 				let mut d = Digest::default();
 				let (vrf_output, vrf_proof) = garbage_vrf();
 				d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-					SecondaryVRFPreDigest {
-						authority_index: 0,
-						slot,
-						vrf_output,
-						vrf_proof,
-					}
+					SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
 				)));
 
 				d
@@ -1186,7 +1166,9 @@ pub(crate) mod tests {
 			(make_candidate(1.into()), CoreIndex(0), GroupIndex(0)),
 			(make_candidate(2.into()), CoreIndex(1), GroupIndex(1)),
 		];
-		let inclusion_events = candidates.iter().cloned()
+		let inclusion_events = candidates
+			.iter()
+			.cloned()
 			.map(|(r, c, g)| CandidateEvent::CandidateIncluded(r, Vec::new().into(), c, g))
 			.collect::<Vec<_>>();
 
@@ -1202,7 +1184,8 @@ pub(crate) mod tests {
 				candidates: Vec::new(),
 				approved_bitfield: Default::default(),
 				children: Vec::new(),
-			}.into()
+			}
+			.into(),
 		);
 
 		let write_ops = overlay_db.into_write_ops();
@@ -1211,13 +1194,9 @@ pub(crate) mod tests {
 		let test_fut = {
 			Box::pin(async move {
 				let mut overlay_db = OverlayedBackend::new(&db);
-				let result = handle_new_head(
-					&mut ctx,
-					&mut state,
-					&mut overlay_db,
-					hash,
-					&Some(1),
-				).await.unwrap();
+				let result = handle_new_head(&mut ctx, &mut state, &mut overlay_db, hash, &Some(1))
+					.await
+					.unwrap();
 
 				let write_ops = overlay_db.into_write_ops();
 				db.write(write_ops).unwrap();
@@ -1229,14 +1208,11 @@ pub(crate) mod tests {
 				assert_eq!(candidates[1].1.approvals().len(), 6);
 				// the first candidate should be insta-approved
 				// the second should not
-				let entry: BlockEntry = v1::load_block_entry(
-					db_writer.as_ref(),
-					&TEST_CONFIG,
-					&hash,
-				)
-					.unwrap()
-					.unwrap()
-					.into();
+				let entry: BlockEntry =
+					v1::load_block_entry(db_writer.as_ref(), &TEST_CONFIG, &hash)
+						.unwrap()
+						.unwrap()
+						.into();
 				assert!(entry.is_candidate_approved(&candidates[0].0));
 				assert!(!entry.is_candidate_approved(&candidates[1].0));
 			})
