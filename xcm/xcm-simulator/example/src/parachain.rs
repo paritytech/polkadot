@@ -273,7 +273,7 @@ pub mod mock_msg_queue {
 					},
 					Ok(Ok(x)) => {
 						let outcome = T::XcmExecutor::execute_xcm(Parent.into(), x.clone(), limit);
-						<ReceivedDmp<T>>::mutate(|y| y.push((Parent.into(), x)));
+						<ReceivedDmp<T>>::append(x);
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
 					},
 				}
