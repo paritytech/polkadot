@@ -21,25 +21,43 @@ use frame_support::{
 };
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
+use sp_std::cell::RefCell;
 
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::{configuration, origin, shared};
-use xcm::opaque::v0::MultiAsset;
-use xcm::v0::{Junction::*, MultiLocation::{self, *}, NetworkId};
+use xcm::v0::{
+	opaque,
+	Junction::*,
+	MultiAsset,
+	MultiLocation::{self, *},
+	NetworkId, Result as XcmResult, SendXcm,
+};
 use xcm_executor::XcmExecutor;
 
-use crate as xcm_builder;
 use xcm_builder::{
-	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
-	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
+	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfConcreteFungible, FixedWeightBounds,
-	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, IsChildSystemParachain, AllowUnpaidExecutionFrom
+	IsChildSystemParachain, IsConcrete, LocationInverter, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 };
-use crate::mock;
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
+
+thread_local! {
+	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
+}
+pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
+	SENT_XCM.with(|q| (*q.borrow()).clone())
+}
+pub struct TestSendXcm;
+impl SendXcm for TestSendXcm {
+	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> XcmResult {
+		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
+		Ok(())
+	}
+}
 
 // copied from kusama constants
 pub const UNITS: Balance = 1_000_000_000_000;
@@ -108,8 +126,13 @@ parameter_types! {
 pub type SovereignAccountOf =
 	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<KusamaNetwork, AccountId>);
 
-pub type LocalAssetTransactor =
-	XcmCurrencyAdapter<Balances, IsConcrete<KsmLocation>, SovereignAccountOf, AccountId, CheckAccount>;
+pub type LocalAssetTransactor = XcmCurrencyAdapter<
+	Balances,
+	IsConcrete<KsmLocation>,
+	SovereignAccountOf,
+	AccountId,
+	CheckAccount,
+>;
 
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
@@ -134,14 +157,12 @@ parameter_types! {
 	pub const KusamaForStatemint: (MultiAsset, MultiLocation) =
 		(MultiAsset::AllConcreteFungible { id: Null }, X1(Parachain(1000)));
 }
-pub type TrustedTeleporters = (
-	xcm_builder::Case<KusamaForStatemint>,
-);
+pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemint>,);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = mock::TestSendXcm;
+	type XcmSender = TestSendXcm;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
@@ -158,7 +179,7 @@ pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNe
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmRouter = mock::TestSendXcm;
+	type XcmRouter = TestSendXcm;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmExecuteFilter = ();
@@ -189,11 +210,9 @@ construct_runtime!(
 pub fn kusama_like_with_balances(balances: Vec<(AccountId, Balance)>) -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
-	pallet_balances::GenesisConfig::<Runtime> {
-		balances,
-	}
-	.assimilate_storage(&mut t)
-	.unwrap();
+	pallet_balances::GenesisConfig::<Runtime> { balances }
+		.assimilate_storage(&mut t)
+		.unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));

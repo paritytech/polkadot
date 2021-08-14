@@ -14,17 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+mod mock;
+
 use frame_support::weights::Weight;
-use sp_runtime::traits::AccountIdConversion;
-use polkadot_parachain::primitives::Id as ParaId;
-use xcm::opaque::v0::prelude::*;
-use xcm::opaque::v0::{Response};
-use xcm::v0::{MultiLocation::*, Order};
-use xcm_executor::XcmExecutor;
-use crate::mock;
-use crate::integration_mock::{
-	AccountId, Balances, BaseXcmWeight, ExistentialDeposit, kusama_like_with_balances, XcmConfig
+use mock::{
+	kusama_like_with_balances, AccountId, Balances, BaseXcmWeight, ExistentialDeposit, XcmConfig,
 };
+use polkadot_parachain::primitives::Id as ParaId;
+use sp_runtime::traits::AccountIdConversion;
+use xcm::{
+	opaque::v0::{prelude::*, Response},
+	v0::{MultiLocation::*, Order},
+};
+use xcm_executor::XcmExecutor;
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
 pub const PARA_ID: u32 = 2000;
@@ -33,13 +35,7 @@ pub const INITIAL_BALANCE: u128 = 100_000_000_000;
 // Construct a `BuyExecution` order.
 fn buy_execution<C>(debt: Weight) -> Order<C> {
 	use xcm::opaque::v0::prelude::*;
-	Order::BuyExecution {
-		fees: All,
-		weight: 0,
-		debt,
-		halt_on_error: false,
-		xcm: vec![],
-	}
+	Order::BuyExecution { fees: All, weight: 0, debt, halt_on_error: false, xcm: vec![] }
 }
 
 /// Scenario:
@@ -52,7 +48,7 @@ fn withdraw_and_deposit_works() {
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
-		let amount =  10 * ExistentialDeposit::get();
+		let amount = 10 * ExistentialDeposit::get();
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
@@ -113,7 +109,13 @@ fn query_holding_works() {
 			},
 			weight,
 		);
-		assert_eq!(r, Outcome::Incomplete(weight, XcmError::FailedToTransactAsset("AccountIdConversionFailed")));
+		assert_eq!(
+			r,
+			Outcome::Incomplete(
+				weight,
+				XcmError::FailedToTransactAsset("AccountIdConversionFailed")
+			)
+		);
 		// there should be no query response sent for the failed deposit
 		assert_eq!(mock::sent_xcm(), vec![]);
 		assert_eq!(Balances::free_balance(para_acc.clone()), INITIAL_BALANCE - amount);
@@ -147,10 +149,7 @@ fn query_holding_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(PARA_ID).into(),
-				Xcm::QueryResponse {
-					query_id,
-					response: Response::Assets(vec![])
-				}
+				Xcm::QueryResponse { query_id, response: Response::Assets(vec![]) }
 			)]
 		);
 	});
@@ -172,13 +171,13 @@ fn teleport_to_statemine_works() {
 	kusama_like_with_balances(balances).execute_with(|| {
 		let statemine_id = 1000;
 		let other_para_id = 3000;
-		let amount =  10 * ExistentialDeposit::get();
+		let amount = 10 * ExistentialDeposit::get();
 		let teleport_effects = vec![
 			buy_execution(5), // unchecked mock value
 			Order::DepositAsset { assets: vec![All], dest: X2(Parent, Parachain(PARA_ID)) },
 		];
 		let weight = 3 * BaseXcmWeight::get();
-		
+
 		// teleports not allowed to community chains...
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
@@ -195,8 +194,8 @@ fn teleport_to_statemine_works() {
 			},
 			weight,
 		);
-		
-		// ... but is allowed from statemine to kusama. 
+
+		// ... but is allowed from statemine to kusama.
 		assert_eq!(r, Outcome::Incomplete(weight, XcmError::UntrustedTeleportLocation));
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
@@ -242,7 +241,7 @@ fn reserve_based_transfer_works() {
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
-		let amount =  10 * ExistentialDeposit::get();
+		let amount = 10 * ExistentialDeposit::get();
 		let transfer_effects = vec![
 			buy_execution(5), // unchecked mock value
 			Order::DepositAsset { assets: vec![All], dest: X2(Parent, Parachain(PARA_ID)) },
