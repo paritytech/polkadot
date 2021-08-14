@@ -169,8 +169,7 @@ pub mod mock_msg_queue {
 	#[pallet::storage]
 	#[pallet::getter(fn received_dmp)]
 	/// A queue of received DMP messages
-	pub(super) type ReceivedDmp<T: Config> =
-		StorageValue<_, Vec<(MultiLocation, Xcm<T::Call>)>, ValueQuery>;
+	pub(super) type ReceivedDmp<T: Config> = StorageValue<_, Vec<Xcm<T::Call>>, ValueQuery>;
 
 	impl<T: Config> Get<ParaId> for Pallet<T> {
 		fn get() -> ParaId {

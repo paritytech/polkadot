@@ -319,13 +319,10 @@ mod tests {
 		ParaA::execute_with(|| {
 			assert_eq!(
 				parachain::MsgQueue::received_dmp(),
-				vec![(
-					Parent.into(),
-					QueryResponse {
-						query_id: query_id_set,
-						response: Response::Assets(MultiAssets::new())
-					}
-				)]
+				vec![QueryResponse {
+					query_id: query_id_set,
+					response: Response::Assets(MultiAssets::new())
+				}]
 			);
 		});
 	}
