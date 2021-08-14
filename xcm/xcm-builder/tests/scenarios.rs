@@ -18,7 +18,7 @@ mod mock;
 
 use frame_support::weights::Weight;
 use mock::{
-	kusama_like_with_balances, AccountId, Balances, BaseXcmWeight, ExistentialDeposit, XcmConfig,
+	kusama_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight, ExistentialDeposit, XcmConfig,
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
@@ -28,12 +28,13 @@ use xcm_executor::XcmExecutor;
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
 pub const PARA_ID: u32 = 2000;
 pub const INITIAL_BALANCE: u128 = 100_000_000_000;
+pub const SEED_AMOUNT: Balance = 10 * ExistentialDeposit::get();
 
 // Construct a `BuyExecution` order.
 fn buy_execution<C>(debt: Weight) -> Order<C> {
 	use xcm::latest::prelude::*;
 	Order::BuyExecution {
-		fees: All.into(),
+		fees: (Here, SEED_AMOUNT).into(),
 		weight: 0,
 		debt,
 		halt_on_error: false,
@@ -52,7 +53,7 @@ fn withdraw_and_deposit_works() {
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
-		let amount = 10 * ExistentialDeposit::get();
+		let amount = SEED_AMOUNT;
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
@@ -91,7 +92,7 @@ fn query_holding_works() {
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
-		let amount = 10 * ExistentialDeposit::get();
+		let amount = SEED_AMOUNT;
 		let query_id = 1234;
 		let weight = 4 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
@@ -178,7 +179,7 @@ fn teleport_to_statemine_works() {
 	kusama_like_with_balances(balances).execute_with(|| {
 		let statemine_id = 1000;
 		let other_para_id = 3000;
-		let amount = 10 * ExistentialDeposit::get();
+		let amount = SEED_AMOUNT;
 		let teleport_effects = vec![
 			buy_execution(5), // unchecked mock value
 			Order::DepositAsset {
@@ -252,7 +253,7 @@ fn reserve_based_transfer_works() {
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
-		let amount = 10 * ExistentialDeposit::get();
+		let amount = SEED_AMOUNT;
 		let transfer_effects = vec![
 			buy_execution(5), // unchecked mock value
 			Order::DepositAsset {
