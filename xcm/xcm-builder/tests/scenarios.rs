@@ -18,7 +18,7 @@ mod mock;
 
 use frame_support::weights::Weight;
 use mock::{
-	kusama_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight, ExistentialDeposit, XcmConfig,
+	kusama_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight, XcmConfig, CENTS,
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
@@ -28,7 +28,7 @@ use xcm_executor::XcmExecutor;
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
 pub const PARA_ID: u32 = 2000;
 pub const INITIAL_BALANCE: u128 = 100_000_000_000;
-pub const REGISTER_AMOUNT: Balance = 10 * ExistentialDeposit::get();
+pub const REGISTER_AMOUNT: Balance = 10 * CENTS;
 
 // Construct a `BuyExecution` order.
 fn buy_execution<C>(debt: Weight) -> Order<C> {
