@@ -19,7 +19,7 @@
 use super::{
 	super::v0::Order as Order0, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
 };
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 use core::{
 	convert::{TryFrom, TryInto},
 	result,
