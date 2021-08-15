@@ -29,6 +29,7 @@ use futures::{channel::mpsc, FutureExt, StreamExt, TryFutureExt};
 use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
 use sp_keystore::SyncCryptoStorePtr;
 
+use polkadot_node_network_protocol::request_response::{incoming::IncomingRequestReceiver, v1};
 use polkadot_node_primitives::DISPUTE_WINDOW;
 use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 use polkadot_subsystem::{
@@ -103,6 +104,9 @@ pub struct DisputeDistributionSubsystem<AD> {
 	/// Receive messages from `SendTask`.
 	sender_rx: mpsc::Receiver<TaskFinish>,
 
+	/// Receiver for incoming requests.
+	req_receiver: Option<IncomingRequestReceiver<v1::DisputeRequest>>,
+
 	/// Authority discovery service.
 	authority_discovery: AD,
 
@@ -133,14 +137,26 @@ where
 	AD: AuthorityDiscovery + Clone,
 {
 	/// Create a new instance of the availability distribution.
-	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD, metrics: Metrics) -> Self {
+	pub fn new(
+		keystore: SyncCryptoStorePtr,
+		req_receiver: IncomingRequestReceiver<v1::DisputeRequest>,
+		authority_discovery: AD,
+		metrics: Metrics,
+	) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: Some(keystore),
 			session_cache_lru_size: DISPUTE_WINDOW as usize,
 		});
 		let (tx, sender_rx) = mpsc::channel(1);
 		let disputes_sender = DisputeSender::new(tx, metrics.clone());
-		Self { runtime, disputes_sender, sender_rx, authority_discovery, metrics }
+		Self {
+			runtime,
+			disputes_sender,
+			sender_rx,
+			req_receiver: Some(req_receiver),
+			authority_discovery,
+			metrics,
+		}
 	}
 
 	/// Start processing work as passed on from the Overseer.
@@ -151,6 +167,17 @@ where
 			+ Sync
 			+ Send,
 	{
+		let receiver = DisputesReceiver::new(
+			ctx.sender().clone(),
+			self.req_receiver
+				.take()
+				.expect("Must be provided on `new` and we take ownership here. qed."),
+			self.authority_discovery.clone(),
+			self.metrics.clone(),
+		);
+		ctx.spawn("disputes-receiver", receiver.run().boxed())
+			.map_err(Fatal::SpawnTask)?;
+
 		loop {
 			let message = MuxedMessage::receive(&mut ctx, &mut self.sender_rx).await;
 			match message {
@@ -202,18 +229,6 @@ where
 		match msg {
 			DisputeDistributionMessage::SendDispute(dispute_msg) =>
 				self.disputes_sender.start_sender(ctx, &mut self.runtime, dispute_msg).await?,
-			// This message will only arrive once:
-			DisputeDistributionMessage::DisputeSendingReceiver(receiver) => {
-				let receiver = DisputesReceiver::new(
-					ctx.sender().clone(),
-					receiver,
-					self.authority_discovery.clone(),
-					self.metrics.clone(),
-				);
-
-				ctx.spawn("disputes-receiver", receiver.run().boxed())
-					.map_err(Fatal::SpawnTask)?;
-			},
 		}
 		Ok(())
 	}

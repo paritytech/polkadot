@@ -18,6 +18,7 @@ use std::collections::HashSet;
 
 use futures::{executor, future, Future};
 
+use polkadot_node_network_protocol::request_response::IncomingRequest;
 use polkadot_primitives::v1::CoreState;
 use sp_keystore::SyncCryptoStorePtr;
 
@@ -41,17 +42,21 @@ fn test_harness<T: Future<Output = ()>>(
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let subsystem = AvailabilityDistributionSubsystem::new(keystore, Default::default());
-	{
-		let subsystem = subsystem.run(context);
+	let (pov_req_receiver, pov_req_cfg) = IncomingRequest::get_config_receiver();
+	let (chunk_req_receiver, chunk_req_cfg) = IncomingRequest::get_config_receiver();
+	let subsystem = AvailabilityDistributionSubsystem::new(
+		keystore,
+		IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver },
+		Default::default(),
+	);
+	let subsystem = subsystem.run(context);
 
-		let test_fut = test_fx(TestHarness { virtual_overseer, pool });
+	let test_fut = test_fx(TestHarness { virtual_overseer, pov_req_cfg, chunk_req_cfg, pool });
 
-		futures::pin_mut!(test_fut);
-		futures::pin_mut!(subsystem);
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(subsystem);
 
-		executor::block_on(future::join(test_fut, subsystem)).1.unwrap();
-	}
+	executor::block_on(future::join(test_fut, subsystem)).1.unwrap();
 }
 
 /// Simple basic check, whether the subsystem works as expected.

@@ -3,6 +3,7 @@ accessor/MS
 activations
 acyclic
 adversary/SM
+allocator/SM
 annualised
 anonymize/D
 Apache-2.0/M

@@ -103,6 +103,10 @@ use polkadot_node_metrics::{
 	metrics::{prometheus, Metrics as MetricsTrait},
 	Metronome,
 };
+
+#[cfg(feature = "memory-stats")]
+use polkadot_node_metrics::memory_stats::MemoryAllocationTracker;
+
 pub use polkadot_overseer_gen as gen;
 pub use polkadot_overseer_gen::{
 	overlord, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived, SpawnNamed, Subsystem,
@@ -694,9 +698,30 @@ where
 			}
 			let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
+			#[cfg(feature = "memory-stats")]
+			let memory_stats = MemoryAllocationTracker::new().expect("Jemalloc is the default allocator. qed");
+
 			let metronome_metrics = metrics.clone();
 			let metronome =
 				Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
+					#[cfg(feature = "memory-stats")]
+					match memory_stats.snapshot() {
+						Ok(memory_stats_snapshot) => {
+							tracing::trace!(
+								target: LOG_TARGET,
+								"memory_stats: {:?}",
+								&memory_stats_snapshot
+							);
+							metronome_metrics.memory_stats_snapshot(memory_stats_snapshot);
+						},
+
+						Err(e) => tracing::debug!(
+							target: LOG_TARGET,
+							"Failed to obtain memory stats: {:?}",
+							e
+						),
+					}
+
 					// We combine the amount of messages from subsystems to the overseer
 					// as well as the amount of messages from external sources to the overseer
 					// into one `to_overseer` value.
@@ -918,34 +943,5 @@ where
 
 	fn spawn_blocking_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
 		self.spawner.spawn_blocking(name, j);
-	}
-}
-
-// Additional `From` implementations, in order to deal with incoming network messages.
-// Kept out of the proc macro, for sake of simplicity reduce the need to make even
-// more types to the proc macro logic.
-
-use polkadot_node_network_protocol::request_response::{
-	request::IncomingRequest, v1 as req_res_v1,
-};
-
-impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AllMessages {
-	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
-		From::<AvailabilityDistributionMessage>::from(From::from(req))
-	}
-}
-impl From<IncomingRequest<req_res_v1::ChunkFetchingRequest>> for AllMessages {
-	fn from(req: IncomingRequest<req_res_v1::ChunkFetchingRequest>) -> Self {
-		From::<AvailabilityDistributionMessage>::from(From::from(req))
-	}
-}
-impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for AllMessages {
-	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
-		From::<CollatorProtocolMessage>::from(From::from(req))
-	}
-}
-impl From<IncomingRequest<req_res_v1::AvailableDataFetchingRequest>> for AllMessages {
-	fn from(req: IncomingRequest<req_res_v1::AvailableDataFetchingRequest>) -> Self {
-		From::<AvailabilityRecoveryMessage>::from(From::from(req))
 	}
 }
