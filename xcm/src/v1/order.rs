@@ -228,13 +228,7 @@ impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 			Order0::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				let instructions =
 					xcm.into_iter().map(Xcm::<Call>::try_from).collect::<result::Result<_, _>>()?;
-				BuyExecution {
-					fees: fees.try_into()?,
-					weight,
-					debt,
-					halt_on_error,
-					instructions,
-				}
+				BuyExecution { fees: fees.try_into()?, weight, debt, halt_on_error, instructions }
 			},
 		})
 	}
