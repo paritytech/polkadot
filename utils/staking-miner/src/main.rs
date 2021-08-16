@@ -297,8 +297,8 @@ struct Opt {
 	command: Command,
 }
 
-/// Build the `Ext` at `hash` with all the data of `ElectionProviderMultiPhase` and `Staking`
-/// stored.
+/// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
+/// pallets.
 async fn create_election_ext<T: EPM::Config, B: BlockT>(
 	uri: String,
 	at: Option<B::Hash>,
