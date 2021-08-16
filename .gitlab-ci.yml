@@ -293,14 +293,6 @@ build-rustdoc:
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
   after_script:
     - buildah logout "$IMAGE_NAME"
-    # pass artifacts to the trigger-simnet job
-    - echo "IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/build.env
-    - echo "IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/build.env
-  artifacts:
-    reports:
-      # this artifact is used in trigger-simnet job
-      # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
-      dotenv: ./artifacts/build.env
 
 publish-polkadot-image:
   stage:                           build
@@ -327,6 +319,16 @@ publish-polkadot-image:
   needs:
     - job:                         test-build-linux-stable
       artifacts:                   true
+  after_script:
+    - buildah logout "$IMAGE_NAME"
+    # pass artifacts to the simnet-tests job
+    # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
+    - echo "PARACHAINS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/parachains.env
+    - echo "PARACHAINS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/parachains.env
+  artifacts:
+    reports:
+      # this artifact is used in simnet-tests job
+      dotenv: ./artifacts/parachains.env
 
 publish-adder-collator-image:
   # service image for Simnet
@@ -347,11 +349,12 @@ publish-adder-collator-image:
       artifacts:                   true
   after_script:
     - buildah logout "$IMAGE_NAME"
-    # pass artifacts to the trigger-simnet job
-    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" > ./artifacts/collator.env
+    # pass artifacts to the simnet-tests job
+    - echo "COLLATOR_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/collator.env
+    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
   artifacts:
     reports:
-      # this artifact is used in trigger-simnet job
+      # this artifact is used in simnet-tests job
       dotenv: ./artifacts/collator.env
 
 .update_weights:                   &update-weights
@@ -479,9 +482,9 @@ deploy-polkasync-kusama:
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-trigger-simnet:
+simnet-tests:
   stage:                           deploy
-  image:                           paritytech/tools:latest
+  image:                           "${SIMNET_IMAGE_NAME}"
   <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -491,18 +494,19 @@ trigger-simnet:
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-adder-collator-image
-  # `build.env` brings here `$IMAGE_NAME` and `$IMAGE_TAG` (`$EXTRATAG` here,
-  # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
-  # `collator.env` bears adder-collator unique build tag. In non-triggered builds it
-  # can be called by `master` tag.
-  # Simnet uses an image published on PRs with this exact version for triggered runs
-  # on commits. And parity/rococo:rococo-v1 for the runs not launched by this job.
+  # `parachains.env` brings here `$PARACHAINS_IMAGE_NAME` and `$PARACHAINS_IMAGE_TAG` 
+  # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
+  # `collator.env` brings here `$COLLATOR_IMAGE_NAME` and  `$COLLATOR_IMAGE_TAG` 
+  # In non-ci jobs `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG` 
+  # can be replaced with `master` tag.
   variables:
-    TRGR_PROJECT:                  ${CI_PROJECT_NAME}
-    TRGR_REF:                      ${CI_COMMIT_REF_NAME}
-    # Simnet project ID
-    DWNSTRM_ID:                    332
+    SIMNET_IMAGE_NAME:             'docker.io/paritytech/simnet'
+    # SIMNET_REF is a gitlab variable
   script:
-    # API trigger for a Simnet job, argument value is set in the project variables
-    - ./scripts/gitlab/trigger_pipeline.sh --simnet-version=${SIMNET_REF}
+    - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
+        --github-remote-dir=https://github.com/paritytech/polkadot/tree/master/simnet_tests
+        --config=simnet_tests/configs/simple_rococo_testnet.toml
+        --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
+        --image-simnet="${SIMNET_IMAGE_NAME}:${SIMNET_REF}"
   allow_failure:                   true
