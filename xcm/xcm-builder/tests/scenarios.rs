@@ -165,7 +165,7 @@ fn query_holding_works() {
 
 /// Scenario:
 /// A parachain wants to move KSM from Kusama to Statemine.
-/// It withdraws funds and then teleports them to the destination.
+/// It withdraws funds and teleports them to the destination.
 ///
 /// This way of moving funds from a relay to a parachain will only work for trusted chains.
 /// Reserve based transfer should be used to move KSM to a community parachain.
@@ -190,7 +190,7 @@ fn teleport_to_statemine_works() {
 		];
 		let weight = 3 * BaseXcmWeight::get();
 
-		// teleports not allowed to community chains...
+		// teleports are allowed to community chains, even in the absence of trust from their side.
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
@@ -206,9 +206,19 @@ fn teleport_to_statemine_works() {
 			},
 			weight,
 		);
+		assert_eq!(r, Outcome::Complete(weight));
+		assert_eq!(
+			mock::sent_xcm(),
+			vec![(
+				Parachain(other_para_id).into(),
+				Xcm::ReceiveTeleportedAsset {
+					assets: vec![(Parent, amount).into()].into(),
+					effects: teleport_effects.clone(),
+				}
+			)]
+		);
 
-		// ... but is allowed from statemine to kusama.
-		assert_eq!(r, Outcome::Incomplete(weight, XcmError::UntrustedTeleportLocation));
+		// teleports are allowed from statemine to kusama.
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm::WithdrawAsset {
@@ -225,17 +235,26 @@ fn teleport_to_statemine_works() {
 			weight,
 		);
 		assert_eq!(r, Outcome::Complete(weight));
-		// 2 * amount because of the incomplete failed attempt above
+		// 2 * amount because of the other teleport above
 		assert_eq!(Balances::free_balance(para_acc), INITIAL_BALANCE - 2 * amount);
 		assert_eq!(
 			mock::sent_xcm(),
-			vec![(
-				Parachain(statemine_id).into(),
-				Xcm::ReceiveTeleportedAsset {
-					assets: vec![(Parent, amount).into()].into(),
-					effects: teleport_effects,
-				}
-			)]
+			vec![
+				(
+					Parachain(other_para_id).into(),
+					Xcm::ReceiveTeleportedAsset {
+						assets: vec![(Parent, amount).into()].into(),
+						effects: teleport_effects.clone(),
+					}
+				),
+				(
+					Parachain(statemine_id).into(),
+					Xcm::ReceiveTeleportedAsset {
+						assets: vec![(Parent, amount).into()].into(),
+						effects: teleport_effects,
+					}
+				)
+			]
 		);
 	});
 }
