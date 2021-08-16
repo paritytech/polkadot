@@ -27,6 +27,7 @@ polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator"}
+polkadot-node-core-candidate-validation = { path = "../core/candidate-validation"}
 polkadot-node-core-backing = { path = "../core/backing" }
 polkadot-primitives = { path = "../../primitives" }
 parity-util-mem = { version = "0.10.0", default-features = false, features = ["jemalloc-global"] }
@@ -34,4 +35,5 @@ color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
 structopt = "0.3.21"
 async-trait = "0.1.50"
-tracing = "*"
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tracing = "0.1.26"

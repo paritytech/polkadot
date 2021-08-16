@@ -7011,11 +7011,13 @@ dependencies = [
  "parity-util-mem",
  "polkadot-cli",
  "polkadot-node-core-backing",
+ "polkadot-node-core-candidate-validation",
  "polkadot-node-core-dispute-coordinator",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-types",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "sc-keystore",
  "structopt",
  "tracing",
 ]
