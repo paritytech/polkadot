@@ -19,7 +19,7 @@
 use super::{
 	super::v0::Order as Order0, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
 };
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 use core::{
 	convert::{TryFrom, TryInto},
 	result,
@@ -140,8 +140,6 @@ pub enum Order<Call> {
 	///   any surrounding operations/orders.
 	/// - `halt_on_error`: If `true`, the execution of the `orders` and `operations` will halt on the first failure. If
 	///   `false`, then execution will continue regardless.
-	/// - `orders`: Orders to be executed with the existing Holding Register; execution of these orders happens PRIOR to
-	///   execution of the `operations`. The (shallow) weight for these must be paid for with the `weight` purchased.
 	/// - `instructions`: XCM instructions to be executed outside of the context of the current Holding Register;
 	///   execution of these instructions happens AFTER the execution of the `orders`. The (shallow) weight for these
 	///   must be paid for with the `weight` purchased.
@@ -152,7 +150,6 @@ pub enum Order<Call> {
 		weight: u64,
 		debt: u64,
 		halt_on_error: bool,
-		orders: Vec<Order<Call>>,
 		instructions: Vec<Xcm<Call>>,
 	},
 }
@@ -179,10 +176,9 @@ impl<Call> Order<Call> {
 			InitiateTeleport { assets, dest, effects } =>
 				InitiateTeleport { assets, dest, effects },
 			QueryHolding { query_id, dest, assets } => QueryHolding { query_id, dest, assets },
-			BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } => {
-				let orders = orders.into_iter().map(Order::from).collect();
+			BuyExecution { fees, weight, debt, halt_on_error, instructions } => {
 				let instructions = instructions.into_iter().map(Xcm::from).collect();
-				BuyExecution { fees, weight, debt, halt_on_error, orders, instructions }
+				BuyExecution { fees, weight, debt, halt_on_error, instructions }
 			},
 		}
 	}
@@ -232,14 +228,7 @@ impl<Call> TryFrom<Order0<Call>> for Order<Call> {
 			Order0::BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				let instructions =
 					xcm.into_iter().map(Xcm::<Call>::try_from).collect::<result::Result<_, _>>()?;
-				BuyExecution {
-					fees: fees.try_into()?,
-					weight,
-					debt,
-					halt_on_error,
-					orders: vec![],
-					instructions,
-				}
+				BuyExecution { fees: fees.try_into()?, weight, debt, halt_on_error, instructions }
 			},
 		})
 	}

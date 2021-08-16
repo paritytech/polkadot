@@ -198,7 +198,6 @@ pub(crate) fn buy_execution<C>(fees: impl Into<MultiAsset>, debt: Weight) -> Ord
 		weight: 0,
 		debt,
 		halt_on_error: false,
-		orders: vec![],
 		instructions: vec![],
 	}
 }
