@@ -509,3 +509,6 @@ simnet-tests:
         --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
         --image-simnet="${SIMNET_IMAGE_NAME}:${SIMNET_REF}"
   allow_failure:                   true
+  retry: 2
+  tags:
+    - parity-simnet
