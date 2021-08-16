@@ -484,7 +484,7 @@ deploy-polkasync-kusama:
 simnet-tests:
   stage:                           deploy
   # fixme: revert to variable
-  image:                           "v8"
+  image:                           "{SIMNET_IMAGE_NAME}:v8"
   <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
