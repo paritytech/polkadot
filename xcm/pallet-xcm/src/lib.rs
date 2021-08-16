@@ -186,7 +186,6 @@ pub mod pallet {
 							weight: 0,
 							debt: dest_weight,
 							halt_on_error: false,
-							orders: vec![],
 							instructions: vec![],
 						},
 						DepositAsset { assets: Wild(All), max_assets, beneficiary },
@@ -255,7 +254,6 @@ pub mod pallet {
 						weight: 0,
 						debt: dest_weight, // covers this, `TransferReserveAsset` xcm, and `DepositAsset` order.
 						halt_on_error: false,
-						orders: vec![],
 						instructions: vec![],
 					},
 					DepositAsset { assets: Wild(All), max_assets, beneficiary },
