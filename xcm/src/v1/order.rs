@@ -16,11 +16,8 @@
 
 //! Version 1 of the Cross-Consensus Message format data structures.
 
-use crate::v2::Instruction;
-use crate::v0::Order as OldOrder;
-use super::{
-	MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
-};
+use super::{MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm};
+use crate::{v0::Order as OldOrder, v2::Instruction};
 use alloc::{vec, vec::Vec};
 use core::{
 	convert::{TryFrom, TryInto},
@@ -241,26 +238,26 @@ impl<Call> TryFrom<Instruction<Call>> for Order<Call> {
 	fn try_from(old: Instruction<Call>) -> result::Result<Order<Call>, ()> {
 		use Order::*;
 		Ok(match old {
-			Instruction::DepositAsset { assets, max_assets, beneficiary } => DepositAsset {
-				assets,
-				max_assets,
-				beneficiary,
-			},
-			Instruction::DepositReserveAsset { assets, max_assets, dest, xcm } => DepositReserveAsset {
-				assets,
-				max_assets,
-				dest,
-				effects: xcm.0
-					.into_iter()
-					.map(Order::<()>::try_from)
-					.collect::<result::Result<_, _>>()?,
-			},
+			Instruction::DepositAsset { assets, max_assets, beneficiary } =>
+				DepositAsset { assets, max_assets, beneficiary },
+			Instruction::DepositReserveAsset { assets, max_assets, dest, xcm } =>
+				DepositReserveAsset {
+					assets,
+					max_assets,
+					dest,
+					effects: xcm
+						.0
+						.into_iter()
+						.map(Order::<()>::try_from)
+						.collect::<result::Result<_, _>>()?,
+				},
 			Instruction::ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
 			Instruction::InitiateReserveWithdraw { assets, reserve, xcm } =>
 				InitiateReserveWithdraw {
 					assets,
 					reserve,
-					effects: xcm.0
+					effects: xcm
+						.0
 						.into_iter()
 						.map(Order::<()>::try_from)
 						.collect::<result::Result<_, _>>()?,
@@ -268,7 +265,8 @@ impl<Call> TryFrom<Instruction<Call>> for Order<Call> {
 			Instruction::InitiateTeleport { assets, dest, xcm } => InitiateTeleport {
 				assets,
 				dest,
-				effects: xcm.0
+				effects: xcm
+					.0
 					.into_iter()
 					.map(Order::<()>::try_from)
 					.collect::<result::Result<_, _>>()?,

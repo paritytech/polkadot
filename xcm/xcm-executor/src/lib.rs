@@ -23,8 +23,9 @@ use frame_support::{
 };
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{
-    Error as XcmError, ExecuteXcm, MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm,
+	Error as XcmError, ExecuteXcm,
 	Instruction::{self, *},
+	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm,
 };
 
 pub mod traits;
@@ -138,23 +139,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			.or_else(|| Config::Weigher::weight(&mut xcm).ok())
 			.ok_or(XcmError::WeightNotComputable)?;
 
-		Config::Barrier::should_execute(
-			&origin,
-			top_level,
-			&mut xcm,
-			max_weight,
-			weight_credit,
-		)
-		.map_err(|()| XcmError::Barrier)?;
+		Config::Barrier::should_execute(&origin, top_level, &mut xcm, max_weight, weight_credit)
+			.map_err(|()| XcmError::Barrier)?;
 
-		let mut process = |
-			instr: Instruction<Config::Call>,
-			holding: &mut Assets,
-			origin: &mut Option<MultiLocation>,
-			report_outcome: &mut Option<_>,
-			total_surplus: &mut u64,
-			total_refunded: &mut u64,
-		| match instr {
+		let mut process = |instr: Instruction<Config::Call>,
+		                   holding: &mut Assets,
+		                   origin: &mut Option<MultiLocation>,
+		                   report_outcome: &mut Option<_>,
+		                   total_surplus: &mut u64,
+		                   total_refunded: &mut u64| match instr {
 			WithdrawAsset { assets } => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let origin = origin.as_ref().ok_or(XcmError::BadOrigin)?;
@@ -255,13 +248,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::ResponseHandler::on_response(origin, query_id, response, max_weight);
 				Ok(())
 			},
-			DescendOrigin(who) => {
-				origin
-					.as_mut()
-					.ok_or(XcmError::BadOrigin)?
-					.append_with(who)
-					.map_err(|_| XcmError::MultiLocationFull)
-			},
+			DescendOrigin(who) => origin
+				.as_mut()
+				.ok_or(XcmError::BadOrigin)?
+				.append_with(who)
+				.map_err(|_| XcmError::MultiLocationFull),
 			ClearOrigin => {
 				*origin = None;
 				Ok(())
@@ -312,8 +303,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(dest, Xcm(vec![instruction])).map_err(Into::into)
 			},
 			BuyExecution { fees, weight_limit } => {
-				let weight = Option::<u64>::from(weight_limit)
-					.ok_or(XcmError::TooMuchWeightRequired)?;
+				let weight =
+					Option::<u64>::from(weight_limit).ok_or(XcmError::TooMuchWeightRequired)?;
 				// pay for `weight` using up to `fees` of the holding register.
 				let max_fee =
 					holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
@@ -330,7 +321,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					}
 				}
 				Ok(())
-			}
+			},
 			_ => return Err(XcmError::UnhandledEffect)?,
 		};
 
@@ -354,18 +345,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(()) => (),
 				Err(e) => {
 					outcome = Err((i as u32, e));
-					break;
-				}
+					break
+				},
 			}
 		}
 
 		if let Some((dest, query_id, max_weight)) = report_outcome {
 			let response = Response::ExecutionResult(outcome.clone());
 			let message = QueryResponse { query_id, response, max_weight };
-			Config::XcmSender::send_xcm(
-				dest,
-				Xcm(vec![message]),
-			)?;
+			Config::XcmSender::send_xcm(dest, Xcm(vec![message]))?;
 		}
 
 		outcome.map(|()| total_surplus).map_err(|e| e.1)

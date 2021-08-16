@@ -22,7 +22,10 @@ use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
 use sp_std::{convert::TryInto, marker::PhantomData, result::Result};
 use xcm::latest::prelude::*;
-use xcm_executor::{traits::{WeightBounds, WeightTrader}, Assets};
+use xcm_executor::{
+	traits::{WeightBounds, WeightTrader},
+	Assets,
+};
 
 pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
@@ -77,7 +80,8 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
-		let unused = payment.checked_sub((id, amount).into()).map_err(|_| XcmError::TooExpensive)?;
+		let unused =
+			payment.checked_sub((id, amount).into()).map_err(|_| XcmError::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
 		self.1 = self.1.saturating_add(amount);
 		Ok(unused)
@@ -125,7 +129,8 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 		if amount == 0 {
 			return Ok(payment)
 		}
-		let unused = payment.checked_sub((id, amount).into()).map_err(|_| XcmError::TooExpensive)?;
+		let unused =
+			payment.checked_sub((id, amount).into()).map_err(|_| XcmError::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
 		self.1 = self.1.saturating_add(amount);
 		Ok(unused)

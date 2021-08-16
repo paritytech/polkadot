@@ -195,7 +195,7 @@ impl<C> ExecuteXcm<C> for () {
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum SendError {
 	/// The message and destination combination was not recognized as being reachable.
-	/// 
+	///
 	/// This is not considered fatal: if there are alternative transport routes available, then
 	/// they may be attempted. For this reason, the destination and message are contained.
 	CannotReachDestination(MultiLocation, Xcm<()>),

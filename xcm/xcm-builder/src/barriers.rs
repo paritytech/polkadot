@@ -19,7 +19,7 @@
 use frame_support::{ensure, traits::Contains, weights::Weight};
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::{Instruction::*, Junction, Junctions, MultiLocation, Xcm, WeightLimit::*};
+use xcm::latest::{Instruction::*, Junction, Junctions, MultiLocation, WeightLimit::*, Xcm};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `max_weight` from `weight_credit`.
@@ -54,7 +54,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		let mut iter = message.0.iter_mut();
 		let i = iter.next().ok_or(())?;
 		match i {
-			ReceiveTeleportedAsset{..} | WithdrawAsset{..} | ReserveAssetDeposited{..} => (),
+			ReceiveTeleportedAsset { .. } | WithdrawAsset { .. } | ReserveAssetDeposited { .. } =>
+				(),
 			_ => return Err(()),
 		}
 		let mut i = iter.next().ok_or(())?;
@@ -62,16 +63,12 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 			i = iter.next().ok_or(())?;
 		}
 		match i {
-			BuyExecution { weight_limit: Limited(ref mut weight), .. }
-			if *weight >= max_weight
-			=> {
+			BuyExecution { weight_limit: Limited(ref mut weight), .. } if *weight >= max_weight => {
 				*weight = max_weight;
 				Ok(())
 			},
-			BuyExecution { ref mut weight_limit, .. }
-			if weight_limit == &Unlimited
-			=> {
-    			*weight_limit = Limited(max_weight);
+			BuyExecution { ref mut weight_limit, .. } if weight_limit == &Unlimited => {
+				*weight_limit = Limited(max_weight);
 				Ok(())
 			},
 			_ => Err(()),
@@ -121,8 +118,8 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 		let origin = origin.as_ref().ok_or(())?;
 		match message.0.first() {
 			Some(QueryResponse { query_id, .. })
-			if ResponseHandler::expecting_response(origin, *query_id)
-			=> Ok(()),
+				if ResponseHandler::expecting_response(origin, *query_id) =>
+				Ok(()),
 			_ => Err(()),
 		}
 	}

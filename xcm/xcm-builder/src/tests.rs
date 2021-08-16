@@ -53,9 +53,8 @@ fn weigher_should_work() {
 
 #[test]
 fn take_weight_credit_barrier_should_work() {
-	let mut message = Xcm::<()>(vec![
-		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }
-	]);
+	let mut message =
+		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 	let mut weight_credit = 10;
 	let r = TakeWeightCredit::should_execute(
 		&Some(Parent.into()),
@@ -80,9 +79,8 @@ fn take_weight_credit_barrier_should_work() {
 
 #[test]
 fn allow_unpaid_should_work() {
-	let mut message = Xcm::<()>(vec![
-		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }
-	]);
+	let mut message =
+		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
@@ -109,9 +107,8 @@ fn allow_unpaid_should_work() {
 fn allow_paid_should_work() {
 	AllowPaidFrom::set(vec![Parent.into()]);
 
-	let mut message = Xcm::<()>(vec![
-		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }
-	]);
+	let mut message =
+		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Some(Parachain(1).into()),
@@ -237,11 +234,7 @@ fn reserve_transfer_should_work() {
 			Xcm::<()>(vec![
 				ReserveAssetDeposited { assets: (Parent, 100).into() },
 				ClearOrigin,
-				DepositAsset {
-					assets: All.into(),
-					max_assets: 1,
-					beneficiary: three
-				},
+				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: three },
 			]),
 		)]
 	);
@@ -327,9 +320,11 @@ fn prepaid_result_of_query_should_get_free_execution() {
 	expect_response(query_id, origin.clone());
 
 	let the_response = Response::Assets((Parent, 100).into());
-	let message = Xcm::<TestCall>(vec![
-		QueryResponse { query_id, response: the_response.clone(), max_weight: 10 }
-	]);
+	let message = Xcm::<TestCall>(vec![QueryResponse {
+		query_id,
+		response: the_response.clone(),
+		max_weight: 10,
+	}]);
 	let weight_limit = 10;
 
 	// First time the response gets through since we're expecting it...

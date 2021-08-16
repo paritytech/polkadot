@@ -26,8 +26,14 @@ mod tests;
 use codec::{Decode, Encode};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
-use sp_std::{boxed::Box, convert::{TryFrom, TryInto}, marker::PhantomData, prelude::*, vec};
-use xcm::{VersionedMultiLocation, latest::prelude::*};
+use sp_std::{
+	boxed::Box,
+	convert::{TryFrom, TryInto},
+	marker::PhantomData,
+	prelude::*,
+	vec,
+};
+use xcm::{latest::prelude::*, VersionedMultiLocation};
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -36,11 +42,13 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo}, pallet_prelude::*};
-	use frame_system::pallet_prelude::*;
+	use frame_support::{
+		dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo},
+		pallet_prelude::*,
+	};
+	use frame_system::{pallet_prelude::*, Config as SysConfig};
 	use sp_runtime::traits::{AccountIdConversion, BlockNumberProvider};
 	use xcm_executor::traits::{InvertLocation, OnResponse, WeightBounds};
-	use frame_system::Config as SysConfig;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -86,7 +94,8 @@ pub mod pallet {
 		type Origin: From<Origin> + From<<Self as SysConfig>::Origin>;
 
 		/// The outer `Call` type.
-		type Call: Parameter + GetDispatchInfo
+		type Call: Parameter
+			+ GetDispatchInfo
 			+ Dispatchable<Origin = <Self as Config>::Origin, PostInfo = PostDispatchInfo>;
 	}
 
@@ -142,10 +151,7 @@ pub mod pallet {
 			timeout: BlockNumber,
 		},
 		/// A response has been received.
-		Ready {
-			response: Response,
-			at: BlockNumber,
-		},
+		Ready { response: Response, at: BlockNumber },
 	}
 
 	/// Value of a query, must be unique for each query.
@@ -154,12 +160,12 @@ pub mod pallet {
 	/// The latest available query index.
 	#[pallet::storage]
 	pub(super) type QueryCount<T: Config> = StorageValue<_, QueryId, ValueQuery>;
-	
+
 	/// The ongoing queries.
 	#[pallet::storage]
 	pub(super) type Queries<T: Config> =
 		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
-		
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
@@ -356,18 +362,17 @@ pub mod pallet {
 			QueryCount::<T>::mutate(|q| {
 				let r = *q;
 				*q += 1;
-				Queries::<T>::insert(r, QueryStatus::Pending {
-					responder: responder.into(),
-					maybe_notify,
-					timeout,
-				});
+				Queries::<T>::insert(
+					r,
+					QueryStatus::Pending { responder: responder.into(), maybe_notify, timeout },
+				);
 				r
 			})
 		}
 
 		/// Consume `message` and return another which is equivalent to it except that it reports
 		/// back the outcome and dispatches `notify` on this chain.
-		/// 
+		///
 		/// - `message`: The message whose outcome should be reported.
 		/// - `responder`: The origin from which a response should be expected.
 		/// - `notify`: A dispatchable function which will be called once the outcome of `message`
@@ -377,7 +382,7 @@ pub mod pallet {
 		///   `Origin::Response` and will contain the responser's location.
 		/// - `timeout`: The block numebr after which it is permissable for `notify` not to be
 		///   called even if a response is received.
-		/// 
+		///
 		/// NOTE: `notify` gets called as part of handling an incoming message, so it should be
 		/// lightweight. Its weight is estimated during this function and stored ready for
 		/// weighing `ReportOutcome` on the way back. If it turns out to be heavier once it returns
@@ -408,9 +413,10 @@ pub mod pallet {
 			notify: impl Into<<T as Config>::Call>,
 			timeout: T::BlockNumber,
 		) -> u64 {
-			let notify = notify.into()
-				.using_encoded(|mut bytes| Decode::decode(&mut bytes))
-				.expect("decode input is output of Call encode; Call guaranteed to have two enums; qed");
+			let notify =
+				notify.into().using_encoded(|mut bytes| Decode::decode(&mut bytes)).expect(
+					"decode input is output of Call encode; Call guaranteed to have two enums; qed",
+				);
 			Self::do_new_query(responder, Some(notify), timeout)
 		}
 	}
@@ -425,8 +431,15 @@ pub mod pallet {
 		}
 
 		/// Handler for receiving a `response` from `origin` relating to `query_id`.
-		fn on_response(origin: &MultiLocation, query_id: QueryId, response: Response, max_weight: Weight) -> Weight {
-			if let Some(QueryStatus::Pending { responder, maybe_notify, .. }) = Queries::<T>::get(query_id) {
+		fn on_response(
+			origin: &MultiLocation,
+			query_id: QueryId,
+			response: Response,
+			max_weight: Weight,
+		) -> Weight {
+			if let Some(QueryStatus::Pending { responder, maybe_notify, .. }) =
+				Queries::<T>::get(query_id)
+			{
 				if MultiLocation::try_from(responder).map_or(false, |r| origin == &r) {
 					return match maybe_notify {
 						Some((pallet_index, call_index)) => {
@@ -434,9 +447,13 @@ pub mod pallet {
 							// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
 							// So we just encode that and then re-encode to a real Call.
 							let bare = (pallet_index, call_index, query_id, response);
-							if let Ok(call) = bare.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes)) {
+							if let Ok(call) = bare
+								.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes))
+							{
 								let weight = call.get_dispatch_info().weight;
-								if weight > max_weight { return 0 }
+								if weight > max_weight {
+									return 0
+								}
 								let dispatch_origin = Origin::Response(origin.clone()).into();
 								match call.dispatch(dispatch_origin) {
 									Ok(post_info) => post_info.actual_weight,
@@ -455,7 +472,7 @@ pub mod pallet {
 							let at = frame_system::Pallet::<T>::current_block_number();
 							Queries::<T>::insert(query_id, QueryStatus::Ready { response, at });
 							0
-						}
+						},
 					}
 				}
 			}

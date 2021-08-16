@@ -16,7 +16,7 @@
 
 //! Version 1 of the Cross-Consensus Message format data structures.
 
-use super::v1::{Response as OldResponse, Xcm as OldXcm, Order as OldOrder};
+use super::v1::{Order as OldOrder, Response as OldResponse, Xcm as OldXcm};
 use crate::DoubleEncoded;
 use alloc::{vec, vec::Vec};
 use core::{
@@ -29,13 +29,12 @@ use parity_scale_codec::{self, Decode, Encode};
 
 mod traits;
 
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm, SendError, SendResult};
+pub use traits::{Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm};
 // These parts of XCM v1 have been unchanged in XCM v2, and are re-imported here.
 pub use super::v1::{
-	Junction, AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
-	WildFungibility, WildMultiAsset,
-	Ancestor, AncestorThen, Junctions, MultiLocation, InteriorMultiLocation, Parent, ParentThen,
-	BodyId, BodyPart, NetworkId, OriginKind,
+	Ancestor, AncestorThen, AssetId, AssetInstance, BodyId, BodyPart, Fungibility,
+	InteriorMultiLocation, Junction, Junctions, MultiAsset, MultiAssetFilter, MultiAssets,
+	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WildFungibility, WildMultiAsset,
 };
 
 #[derive(Derivative, Encode, Decode)]
@@ -48,32 +47,33 @@ pub struct Xcm<Call>(pub Vec<Instruction<Call>>);
 pub mod prelude {
 	mod contents {
 		pub use super::super::{
-			BodyId, BodyPart,
-			NetworkId::{self, *},
-			Junction::{self, *},
+			Ancestor, AncestorThen,
 			AssetId::{self, *},
 			AssetInstance::{self, *},
+			BodyId, BodyPart, Error as XcmError, ExecuteXcm,
 			Fungibility::{self, *},
+			Instruction::*,
+			InteriorMultiLocation,
+			Junction::{self, *},
+			Junctions::{self, *},
 			MultiAsset,
 			MultiAssetFilter::{self, *},
-			MultiAssets,
+			MultiAssets, MultiLocation,
+			NetworkId::{self, *},
+			OriginKind, Outcome, Parent, ParentThen, Response, Result as XcmResult, SendError,
+			SendResult, SendXcm,
+			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
-			Ancestor, AncestorThen,
-			Junctions::{self, *},
-			MultiLocation, InteriorMultiLocation, Parent, ParentThen,
-			ExecuteXcm, Error as XcmError, Result as XcmResult, Outcome,
-			SendXcm, SendResult, SendError,
-			OriginKind, Response,
-			WeightLimit::{self, *},
-			Instruction::*,
 		};
 	}
+	pub use super::{Instruction, Xcm};
 	pub use contents::*;
-	pub use super::{Xcm, Instruction};
 	pub mod opaque {
-		pub use super::contents::*;
-		pub use super::super::opaque::{Xcm, Instruction};
+		pub use super::{
+			super::opaque::{Instruction, Xcm},
+			contents::*,
+		};
 	}
 }
 
@@ -282,7 +282,7 @@ pub enum Instruction<Call> {
 	},
 
 	/// Clear the origin.
-	/// 
+	///
 	/// This may be used by the XCM author to ensure that later instructions cannot command the
 	/// authority of the origin (e.g. if they are being relayed from an untrusted source, as often
 	/// the case with `ReserveAssetDeposited`).
@@ -321,7 +321,7 @@ pub enum Instruction<Call> {
 	/// the ownership of `beneficiary` within this consensus system.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
-	/// - `max_assets`: The maximum number of unique assets/asset instances to remove from holding. 
+	/// - `max_assets`: The maximum number of unique assets/asset instances to remove from holding.
 	///   Only the first `max_assets` assets/instances of those matched by `assets` will be removed,
 	///   prioritized under standard asset ordering. Any others will remain in holding.
 	/// - `beneficiary`: The new owner for the assets.
@@ -421,14 +421,11 @@ pub enum Instruction<Call> {
 	///
 	/// - `fees`: The asset(s) to remove from the Holding Register to pay for fees.
 	/// - `weight_limit`: The maximum amount of weight to purchase; this must be at least the
-	///   expected maximum weight of the total XCM to be executed for the 
+	///   expected maximum weight of the total XCM to be executed for the
 	///   `AllowTopLevelPaidExecutionFrom` barrier to allow the XCM be executed.
-	/// 
+	///
 	/// Errors:
-	BuyExecution {
-		fees: MultiAsset,
-		weight_limit: WeightLimit,
-	},
+	BuyExecution { fees: MultiAsset, weight_limit: WeightLimit },
 
 	/// Refund any surplus weight previously bought with `BuyExecution`.
 	RefundSurplus,
@@ -450,48 +447,37 @@ impl<Call> Instruction<Call> {
 	pub fn from<C>(xcm: Instruction<C>) -> Self {
 		use Instruction::*;
 		match xcm {
-			WithdrawAsset { assets }
-			=> WithdrawAsset { assets },
-			ReserveAssetDeposited { assets }
-			=> ReserveAssetDeposited { assets },
-			ReceiveTeleportedAsset { assets }
-			=> ReceiveTeleportedAsset { assets },
-			QueryResponse { query_id, response, max_weight }
-			=> QueryResponse { query_id, response, max_weight },
-			TransferAsset { assets, beneficiary }
-			=> TransferAsset { assets, beneficiary },
-			TransferReserveAsset { assets, dest, xcm }
-			=> TransferReserveAsset { assets, dest, xcm },
-			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity }
-			=> HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
-			HrmpChannelAccepted { recipient }
-			=> HrmpChannelAccepted { recipient },
-			HrmpChannelClosing { initiator, sender, recipient }
-			=> HrmpChannelClosing { initiator, sender, recipient },
-			Transact { origin_type, require_weight_at_most, call }
-			=> Transact { origin_type, require_weight_at_most, call: call.into() },
-			ReportOutcome { query_id, dest, max_response_weight }
-			=> ReportOutcome { query_id, dest, max_response_weight },
-			DepositAsset { assets, max_assets, beneficiary }
-			=> DepositAsset { assets, max_assets, beneficiary },
-			DepositReserveAsset { assets, max_assets, dest, xcm }
-			=> DepositReserveAsset { assets, max_assets, dest, xcm },
-			ExchangeAsset { give, receive }
-			=> ExchangeAsset { give, receive },
-			InitiateReserveWithdraw { assets, reserve, xcm }
-			=> InitiateReserveWithdraw { assets, reserve, xcm },
-			InitiateTeleport { assets, dest, xcm }
-			=> InitiateTeleport { assets, dest, xcm },
-			QueryHolding { query_id, dest, assets, max_response_weight }
-			=> QueryHolding { query_id, dest, assets, max_response_weight },
-			BuyExecution { fees, weight_limit }
-			=> BuyExecution { fees, weight_limit },
-    		ClearOrigin
-			=> ClearOrigin,
-			DescendOrigin(who)
-			=> DescendOrigin(who),
-			RefundSurplus
-			=> RefundSurplus,
+			WithdrawAsset { assets } => WithdrawAsset { assets },
+			ReserveAssetDeposited { assets } => ReserveAssetDeposited { assets },
+			ReceiveTeleportedAsset { assets } => ReceiveTeleportedAsset { assets },
+			QueryResponse { query_id, response, max_weight } =>
+				QueryResponse { query_id, response, max_weight },
+			TransferAsset { assets, beneficiary } => TransferAsset { assets, beneficiary },
+			TransferReserveAsset { assets, dest, xcm } =>
+				TransferReserveAsset { assets, dest, xcm },
+			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
+			HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
+			HrmpChannelClosing { initiator, sender, recipient } =>
+				HrmpChannelClosing { initiator, sender, recipient },
+			Transact { origin_type, require_weight_at_most, call } =>
+				Transact { origin_type, require_weight_at_most, call: call.into() },
+			ReportOutcome { query_id, dest, max_response_weight } =>
+				ReportOutcome { query_id, dest, max_response_weight },
+			DepositAsset { assets, max_assets, beneficiary } =>
+				DepositAsset { assets, max_assets, beneficiary },
+			DepositReserveAsset { assets, max_assets, dest, xcm } =>
+				DepositReserveAsset { assets, max_assets, dest, xcm },
+			ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
+			InitiateReserveWithdraw { assets, reserve, xcm } =>
+				InitiateReserveWithdraw { assets, reserve, xcm },
+			InitiateTeleport { assets, dest, xcm } => InitiateTeleport { assets, dest, xcm },
+			QueryHolding { query_id, dest, assets, max_response_weight } =>
+				QueryHolding { query_id, dest, assets, max_response_weight },
+			BuyExecution { fees, weight_limit } => BuyExecution { fees, weight_limit },
+			ClearOrigin => ClearOrigin,
+			DescendOrigin(who) => DescendOrigin(who),
+			RefundSurplus => RefundSurplus,
 		}
 	}
 }
@@ -521,31 +507,28 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	fn try_from(old: OldXcm<Call>) -> result::Result<Xcm<Call>, ()> {
 		use Instruction::*;
 		Ok(Xcm(match old {
-			OldXcm::WithdrawAsset { assets, effects }
-			=> Some(Ok(WithdrawAsset { assets }))
+			OldXcm::WithdrawAsset { assets, effects } => Some(Ok(WithdrawAsset { assets }))
 				.into_iter()
 				.chain(effects.into_iter().map(Instruction::try_from))
 				.collect::<result::Result<Vec<_>, _>>()?,
-			OldXcm::ReserveAssetDeposited { assets, effects }
-			=> Some(Ok(ReserveAssetDeposited { assets }))
-				.into_iter()
-				.chain(effects.into_iter().map(Instruction::try_from))
-				.collect::<result::Result<Vec<_>, _>>()?,
-			OldXcm::ReceiveTeleportedAsset { assets, effects }
-			=> Some(Ok(ReceiveTeleportedAsset { assets }))
-				.into_iter()
-				.chain(effects.into_iter().map(Instruction::try_from))
-				.collect::<result::Result<Vec<_>, _>>()?,
-			OldXcm::QueryResponse { query_id, response }
-			=> vec![QueryResponse {
+			OldXcm::ReserveAssetDeposited { assets, effects } =>
+				Some(Ok(ReserveAssetDeposited { assets }))
+					.into_iter()
+					.chain(effects.into_iter().map(Instruction::try_from))
+					.collect::<result::Result<Vec<_>, _>>()?,
+			OldXcm::ReceiveTeleportedAsset { assets, effects } =>
+				Some(Ok(ReceiveTeleportedAsset { assets }))
+					.into_iter()
+					.chain(effects.into_iter().map(Instruction::try_from))
+					.collect::<result::Result<Vec<_>, _>>()?,
+			OldXcm::QueryResponse { query_id, response } => vec![QueryResponse {
 				query_id,
 				response: response.try_into()?,
 				max_weight: 50_000_000,
 			}],
-			OldXcm::TransferAsset { assets, beneficiary }
-			=> vec![TransferAsset { assets, beneficiary }],
-			OldXcm::TransferReserveAsset { assets, dest, effects }
-			=> vec![TransferReserveAsset {
+			OldXcm::TransferAsset { assets, beneficiary } =>
+				vec![TransferAsset { assets, beneficiary }],
+			OldXcm::TransferReserveAsset { assets, dest, effects } => vec![TransferReserveAsset {
 				assets,
 				dest,
 				xcm: Xcm(effects
@@ -572,30 +555,28 @@ impl<Call> TryFrom<OldOrder<Call>> for Instruction<Call> {
 		use Instruction::*;
 		Ok(match old {
 			OldOrder::Noop => return Err(()),
-			OldOrder::DepositAsset { assets, max_assets, beneficiary } => DepositAsset {
-				assets,
-				max_assets,
-				beneficiary,
-			},
-			OldOrder::DepositReserveAsset { assets, max_assets, dest, effects } => DepositReserveAsset {
-				assets,
-				max_assets,
-				dest,
-				xcm: Xcm(effects
-					.into_iter()
-					.map(Instruction::<()>::try_from)
-					.collect::<result::Result<_, _>>()?),
-			},
+			OldOrder::DepositAsset { assets, max_assets, beneficiary } =>
+				DepositAsset { assets, max_assets, beneficiary },
+			OldOrder::DepositReserveAsset { assets, max_assets, dest, effects } =>
+				DepositReserveAsset {
+					assets,
+					max_assets,
+					dest,
+					xcm: Xcm(effects
+						.into_iter()
+						.map(Instruction::<()>::try_from)
+						.collect::<result::Result<_, _>>()?),
+				},
 			OldOrder::ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
-			OldOrder::InitiateReserveWithdraw { assets, reserve, effects }
-			=> InitiateReserveWithdraw {
-				assets,
-				reserve,
-				xcm: Xcm(effects
-					.into_iter()
-					.map(Instruction::<()>::try_from)
-					.collect::<result::Result<_, _>>()?),
-			},
+			OldOrder::InitiateReserveWithdraw { assets, reserve, effects } =>
+				InitiateReserveWithdraw {
+					assets,
+					reserve,
+					xcm: Xcm(effects
+						.into_iter()
+						.map(Instruction::<()>::try_from)
+						.collect::<result::Result<_, _>>()?),
+				},
 			OldOrder::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
 				assets,
 				dest,
@@ -606,16 +587,13 @@ impl<Call> TryFrom<OldOrder<Call>> for Instruction<Call> {
 			},
 			OldOrder::QueryHolding { query_id, dest, assets } =>
 				QueryHolding { query_id, dest, assets, max_response_weight: 0 },
-			OldOrder::BuyExecution {
-				fees,
-				debt,
-				instructions,
-				..
-			} => {
+			OldOrder::BuyExecution { fees, debt, instructions, .. } => {
 				// We don't handle nested XCM.
-				if !instructions.is_empty() { return Err(()) }
+				if !instructions.is_empty() {
+					return Err(())
+				}
 				BuyExecution { fees, weight_limit: WeightLimit::Limited(debt) }
-			}
+			},
 		})
 	}
 }
