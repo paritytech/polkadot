@@ -1,1 +1,0 @@
-docker build -t paritypr/malus:v1 -f Dockerfile ../../..

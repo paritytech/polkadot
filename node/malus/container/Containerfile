@@ -6,19 +6,19 @@ FROM rust as builder
 
 WORKDIR /usr/src/polkadot-malus
 RUN apt-get update && \
-	DEBIAN_FRONTEND=noninteractive apt-get install -y \
-		ca-certificates \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    ca-certificates \
     clang \
-		curl \
+    curl \
     cmake \
-		libssl1.1 \
+    libssl1.1 \
     libssl-dev \
     pkg-config
 
 RUN export PATH="$PATH:$HOME/.cargo/bin" && \
     rustup toolchain install nightly && \
-   	rustup target add wasm32-unknown-unknown --toolchain nightly && \
-   	rustup default stable
+    rustup target add wasm32-unknown-unknown --toolchain nightly && \
+    rustup default stable
 
 COPY polkadot/  /usr/src/polkadot-malus/polkadot/
 COPY substrate/  /usr/src/polkadot-malus/substrate/
@@ -50,11 +50,11 @@ COPY --from=builder /usr/src/polkadot-malus/polkadot/target/release/malus-$VARIA
 # such a user does not exist.
 RUN groupadd --gid 10001 nonroot && \
     useradd  --home-dir /home/nonroot \
-             --create-home \
-             --shell /bin/bash \
-             --gid nonroot \
-             --groups nonroot \
-             --uid 10000 nonroot
+            --create-home \
+            --shell /bin/bash \
+            --gid nonroot \
+            --groups nonroot \
+            --uid 10000 nonroot
 WORKDIR /home/nonroot/polkadot-malus
 
 RUN chown -R nonroot. /home/nonroot

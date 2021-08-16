@@ -23,7 +23,7 @@ There different behavior strains, pick one that you'd like to use with a build a
 * `second-garbage`
 
 ```sh
-pwd # run this from the current script
+pwd # run this from the current dir
 podman build --build-arg=$VARIANT -t paritypr/malus:v1 -f Containerfile ../../..
 ```
 
