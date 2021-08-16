@@ -316,10 +316,9 @@ publish-polkadot-image:
         IMAGE_NAME:                docker.io/parity/rococo
         DOCKER_USER:               ${Docker_Hub_User_Parity}
         DOCKER_PASS:               ${Docker_Hub_Pass_Parity}
-        # fixme: uncomment next 34 lines
-        # needs:
-        #   - job:                         test-build-linux-stable
-        #     artifacts:                   true
+  needs:
+    - job:                         test-build-linux-stable
+      artifacts:                   true
   after_script:
     # pass artifacts to the simnet-tests job
     # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
