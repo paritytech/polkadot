@@ -503,6 +503,10 @@ simnet-tests:
     # fixme: delete next line
     - SIMNET_REF:                  'v8'
     # SIMNET_REF is a gitlab variable
+  before_script:
+    - echo "Simnet Tests Config: ${SIMNET_IMAGE_NAME} ${SIMNET_REF}"
+    - echo "Simnet Tests Config: ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "Simnet Tests Config: ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
   script:
     - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
         --github-remote-dir=https://github.com/paritytech/polkadot/tree/master/simnet_tests
