@@ -21,25 +21,26 @@ thiserror = "1.0.26"
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-
-
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-
 core-primitives = { package = "polkadot-core-primitives", path = "../../core-primitives" }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../../runtime/common" }
 polkadot-runtime = { path = "../../runtime/polkadot" }
 kusama-runtime = { path = "../../runtime/kusama" }
 westend-runtime = { path = "../../runtime/westend" }
+
+sub-tokens = { git = "https://github.com/paritytech/substrate-debug-kit", branch = "master" }
 
 [dev-dependencies]
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
