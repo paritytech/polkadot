@@ -52,7 +52,7 @@ pub enum Order<Call> {
 	/// - `beneficiary`: The new owner for the assets.
 	///
 	/// Errors:
-	/// - Errors occuring when trying to deposit the asset(s).
+	/// - Errors occurring when trying to deposit the asset(s).
 	#[codec(index = 1)]
 	DepositAsset { assets: MultiAssetFilter, max_assets: u32, beneficiary: MultiLocation },
 
@@ -73,8 +73,8 @@ pub enum Order<Call> {
 	///   sent onwards to `dest`.
 	///
 	/// Errors:
-	/// - Errors occuring when trying to deposit the asset(s).
-	/// - Errors occuring when trying to send the `ReserveAssetDeposited` XCM.
+	/// - Errors occurring when trying to deposit the asset(s).
+	/// - Errors occurring when trying to send the `ReserveAssetDeposited` XCM.
 	#[codec(index = 2)]
 	DepositReserveAsset {
 		assets: MultiAssetFilter,
@@ -107,7 +107,7 @@ pub enum Order<Call> {
 	/// - `effects`: The orders to execute on the assets once withdrawn *on the reserve location*.
 	///
 	/// Errors:
-	/// - Errors occuring when trying to send the `WithdrawAsset` XCM.
+	/// - Errors occurring when trying to send the `WithdrawAsset` XCM.
 	#[codec(index = 4)]
 	InitiateReserveWithdraw {
 		assets: MultiAssetFilter,
@@ -126,7 +126,7 @@ pub enum Order<Call> {
 	/// for all `assets`. If it does not, then the assets may be lost.
 	///
 	/// Errors:
-	/// - Errors occuring when trying to send the `ReceiveTeleportedAsset` XCM.
+	/// - Errors occurring when trying to send the `ReceiveTeleportedAsset` XCM.
 	#[codec(index = 5)]
 	InitiateTeleport { assets: MultiAssetFilter, dest: MultiLocation, effects: Vec<Order<()>> },
 
@@ -141,7 +141,7 @@ pub enum Order<Call> {
 	///   will be used when reporting assets back.
 	///
 	/// Errors:
-	/// - Errors occuring when trying to send the `QueryResponse` XCM.
+	/// - Errors occurring when trying to send the `QueryResponse` XCM.
 	#[codec(index = 6)]
 	QueryHolding {
 		#[codec(compact)]
