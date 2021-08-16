@@ -316,9 +316,10 @@ publish-polkadot-image:
         IMAGE_NAME:                docker.io/parity/rococo
         DOCKER_USER:               ${Docker_Hub_User_Parity}
         DOCKER_PASS:               ${Docker_Hub_Pass_Parity}
-  needs:
-    - job:                         test-build-linux-stable
-      artifacts:                   true
+        # fixme: uncomment next 34 lines
+        # needs:
+        #   - job:                         test-build-linux-stable
+        #     artifacts:                   true
   after_script:
     # pass artifacts to the simnet-tests job
     # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
@@ -514,7 +515,7 @@ simnet-tests:
         --config=simnet_tests/configs/simple_rococo_testnet.toml
         --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
         --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image-simnet="${SIMNET_IMAGE_NAME}:${SIMNET_REF}"
+        --image-simnet="${SIMNET_IMAGE_NAME}:v8"
   allow_failure:                   true
   retry: 2
   tags:
