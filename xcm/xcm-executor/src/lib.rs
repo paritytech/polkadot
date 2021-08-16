@@ -68,7 +68,6 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		if max_weight > weight_limit {
 			return Outcome::Error(XcmError::WeightLimitReached(max_weight))
 		}
-		dbg!(max_weight);
 		let mut trader = Config::Trader::new();
 		let mut holding = Assets::new();
 		let result = Self::do_execute_xcm(
