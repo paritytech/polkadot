@@ -1,0 +1,81 @@
+#
+# This is an example using the tera templating language to generate varying thresholds
+# of second-garbage malus nodes and regular nodes:
+#
+#       https://tera.netlify.app/playground/
+[settings]
+bootnode = false
+
+[settings.defaults]
+image = "parity/polkadot"
+command = "polkadot"
+chain-name = "polkadot"
+validator = true
+
+
+volumes = [
+    { type = "node-data", size="10Gi", mount-path = "/data" }
+]
+[settings.defaults.resources]
+limits = { memory = "2G" }
+requests = { memory = "1G" }
+
+
+[nodes]
+{%- set chainName = "polkadot" -%}
+{%- set malusVariant = "dispute-ancestor" -%}
+{%- set goodNodeCount = 5 -%}
+{%- set malusNodeCount = 1 -%}
+
+
+{%- set total = malusNodeCount + goodNodeCount -%}
+
+{%- for i in range(end=total) -%}
+
+
+{%- set is_malus = false -%}
+{%- if i >= goodNodeCount -%}
+{%- set is_malus = true -%}
+{%- endif -%}
+
+{%- set nodeType = "good" -%}
+{%- if is_malus %}
+{%- set nodeType = "malus" -%}
+{%- endif -%}
+
+{%- set nodeName = [{{ chainName }}, nodeType, malusVariant, i] | join(sep="-") | lower -%}
+
+[nodes.{{nodeName}}]
+timeout = 1500
+chain-name = "{{chainName}}"
+extra-args = [
+    "--unsafe-pruning",
+    "--pruning=256",
+    "--base-path=/data",
+    "--execution=compiled",
+    "--wasm-execution=compiled",
+]
+
+{%- if is_malus %}
+[nodes.{{nodeName}}.setup]
+image = "paritypr/malus:v1"
+command = "polkadot-{{malusVariant}}"
+{% endif -%}
+
+[nodes.{{nodeName}}.init]
+image = "lightyear/ubuntu-wget-7zip"
+command = """
+export DATE=`date +%Y%m%d`
+chmod a+rwx -R /data/
+cd /data/
+
+mkdir -p /data/chains/polkadot/
+wget --no-verbose https://polkadot-chain-backups.s3.eu-central-1.amazonaws.com/polkadot_rocksdb_pruned-$DATE.tar -O polkadot.rocksdb.tar.gz
+tar xf poolkadot.rocksdb.tar.gz -C /data/chains/polkadot/
+rm poolkadot.rocksdb.tar.gz
+echo ls polkadot
+ls -ltas /data/chains/polkadot
+
+chmod a+rwx -R /data/
+"""
+{% endfor %}
