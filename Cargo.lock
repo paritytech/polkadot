@@ -10164,6 +10164,7 @@ dependencies = [
  "kusama-runtime",
  "lazy_static",
  "log",
+ "pallet-balances",
  "pallet-election-provider-multi-phase",
  "pallet-staking",
  "pallet-transaction-payment",
@@ -10182,6 +10183,7 @@ dependencies = [
  "sp-runtime",
  "sp-version",
  "structopt",
+ "sub-tokens",
  "thiserror",
  "tokio 0.2.21",
  "westend-runtime",
@@ -10280,6 +10282,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "sub-tokens"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/substrate-debug-kit?branch=master#971b667963fdb0049dae349eaecbe22f4181e49f"
+dependencies = [
+ "separator",
 ]
 
 [[package]]
