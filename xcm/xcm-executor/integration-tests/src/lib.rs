@@ -46,7 +46,6 @@ fn execute_within_recursion_limit() {
 				weight: 0,
 				debt: 0,
 				halt_on_error: true,
-				orders: vec![],
 				// nest `msg` into itself on each iteration.
 				instructions: vec![msg],
 			}],
@@ -101,7 +100,6 @@ fn exceed_recursion_limit() {
 				weight: 0,
 				debt: 0,
 				halt_on_error: true,
-				orders: vec![],
 				// nest `msg` into itself on each iteration.
 				instructions: vec![msg],
 			}],
