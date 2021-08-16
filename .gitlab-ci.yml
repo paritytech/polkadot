@@ -500,6 +500,8 @@ simnet-tests:
   # can be replaced with `master` tag.
   variables:
     SIMNET_IMAGE_NAME:             'docker.io/paritytech/simnet'
+    # fixme: delete next line
+    - SIMNET_REF:                  'v8'
     # SIMNET_REF is a gitlab variable
   script:
     - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
