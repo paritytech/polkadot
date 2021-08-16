@@ -501,7 +501,7 @@ simnet-tests:
   variables:
     SIMNET_IMAGE_NAME:             'docker.io/paritytech/simnet'
     # fixme: delete next line
-    - SIMNET_REF:                  'v8'
+    SIMNET_REF:                  'v8'
     # SIMNET_REF is a gitlab variable
   before_script:
     - echo "Simnet Tests Config: ${SIMNET_IMAGE_NAME} ${SIMNET_REF}"
