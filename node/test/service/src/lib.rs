@@ -54,7 +54,7 @@ use substrate_test_client::{
 	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
 
-/// Declare an instance of the native executor named `Executor`. Include the wasm binary as the
+/// Declare an instance of the native executor named `PolkadotTestExecutor`. Include the wasm binary as the
 /// equivalent wasm code.
 pub struct PolkadotTestExecutor;
 

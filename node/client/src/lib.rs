@@ -38,6 +38,7 @@ pub type FullBackend = sc_service::TFullBackend<Block>;
 
 pub type FullClient<RuntimeApi, Executor> = sc_service::TFullClient<Block, RuntimeApi, Executor>;
 
+/// The native executor instance for Polkadot.
 pub struct PolkadotExecutor;
 
 impl sc_executor::NativeExecutionDispatch for PolkadotExecutor {
@@ -53,6 +54,7 @@ impl sc_executor::NativeExecutionDispatch for PolkadotExecutor {
 }
 
 #[cfg(feature = "kusama")]
+/// The native executor instance for Kusama.
 pub struct KusamaExecutor;
 
 #[cfg(feature = "kusama")]
@@ -69,6 +71,7 @@ impl sc_executor::NativeExecutionDispatch for KusamaExecutor {
 }
 
 #[cfg(feature = "westend")]
+/// The native executor instance for Westend.
 pub struct WestendExecutor;
 
 #[cfg(feature = "westend")]
@@ -85,6 +88,7 @@ impl sc_executor::NativeExecutionDispatch for WestendExecutor {
 }
 
 #[cfg(feature = "rococo")]
+/// The native executor instance for Rococo.
 pub struct RococoExecutor;
 
 #[cfg(feature = "rococo")]
