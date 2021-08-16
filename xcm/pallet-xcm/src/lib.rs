@@ -372,11 +372,11 @@ pub mod pallet {
 		/// - `message`: The message whose outcome should be reported.
 		/// - `responder`: The origin from which a response should be expected.
 		/// - `notify`: A dispatchable function which will be called once the outcome of `message`
-		///   is known. It may be a dispatable in any pallet of the local chain, but other than
+		///   is known. It may be a dispatchable in any pallet of the local chain, but other than
 		///   the usual origin, it must accept exactly two arguments: `query_id: QueryId` and
 		///   `outcome: ResponseOutcome`, and in that order. It should expect that the origin is
-		///   `Origin::Response` and will contain the responser's location.
-		/// - `timeout`: The block numebr after which it is permissable for `notify` not to be
+		///   `Origin::Response` and will contain the responder's location.
+		/// - `timeout`: The block number after which it is permissible for `notify` not to be
 		///   called even if a response is received.
 		///
 		/// NOTE: `notify` gets called as part of handling an incoming message, so it should be

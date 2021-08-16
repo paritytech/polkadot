@@ -231,6 +231,7 @@ taskmanager/MS
 TCP
 teleport/D
 teleport/RG
+teleports
 teleportation/SM
 teleporter/SM
 teleporters
@@ -251,6 +252,7 @@ unordered
 unreceived
 unreserve
 unreserving
+unroutable
 unservable/B
 untrusted
 untyped

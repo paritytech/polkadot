@@ -137,7 +137,7 @@ pub enum Instruction<Call> {
 	WithdrawAsset { assets: MultiAssets },
 
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin`
-	/// system and equivalent derivates should be placed into the Holding Register.
+	/// system and equivalent derivatives should be placed into the Holding Register.
 	///
 	/// - `assets`: The asset(s) that are minted into holding.
 	///
@@ -402,7 +402,7 @@ pub enum Instruction<Call> {
 	/// - `assets`: A filter for the assets that should be reported back. The assets reported back
 	///   will be, asset-wise, *the lesser of this value and the holding register*. No wildcards
 	///   will be used when reporting assets back.
-	/// - `max_response_weight`: The maxmimum amount of weight that the `QueryResponse` item which
+	/// - `max_response_weight`: The maximum amount of weight that the `QueryResponse` item which
 	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
 	///   response may not execute at all.
 	///
