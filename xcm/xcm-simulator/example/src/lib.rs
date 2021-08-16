@@ -113,11 +113,11 @@ mod tests {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
 				Here,
 				Parachain(1).into(),
-				Transact {
+				Xcm(vec![Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
-				},
+				}]),
 			));
 		});
 
@@ -140,11 +140,11 @@ mod tests {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,
 				Parent.into(),
-				Transact {
+				Xcm(vec![Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
-				},
+				}]),
 			));
 		});
 
@@ -167,11 +167,11 @@ mod tests {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,
 				MultiLocation::new(1, X1(Parachain(2))),
-				Transact {
+				Xcm(vec![Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
-				},
+				}]),
 			));
 		});
 
@@ -194,7 +194,6 @@ mod tests {
 				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() }).into()),
 				(Here, 123).into(),
 				0,
-				3,
 			));
 		});
 

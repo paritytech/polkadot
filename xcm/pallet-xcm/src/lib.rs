@@ -174,17 +174,17 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn send(
 			origin: OriginFor<T>,
-			dest: Box<MultiLocation>,
-			message: Box<Xcm<()>>,
+			dest: MultiLocation,
+			message: Xcm<()>,
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
 			let interior =
 				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
-			Self::send_xcm(interior, *dest.clone(), *message.clone()).map_err(|e| match e {
+			Self::send_xcm(interior, dest.clone(), message.clone()).map_err(|e| match e {
 				SendError::CannotReachDestination(..) => Error::<T>::Unreachable,
 				_ => Error::<T>::SendFailure,
 			})?;
-			Self::deposit_event(Event::Sent(origin_location, *dest, *message));
+			Self::deposit_event(Event::Sent(origin_location, dest, message));
 			Ok(())
 		}
 
@@ -321,11 +321,11 @@ pub mod pallet {
 		#[pallet::weight(max_weight.saturating_add(100_000_000u64))]
 		pub fn execute(
 			origin: OriginFor<T>,
-			message: Box<Xcm<<T as SysConfig>::Call>>,
+			message: Xcm<<T as SysConfig>::Call>,
 			max_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let value = (origin_location, *message);
+			let value = (origin_location, message);
 			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, message) = value;
 			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);

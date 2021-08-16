@@ -34,30 +34,22 @@ fn send_works() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = 2 * BaseXcmWeight::get();
 		let sender: MultiLocation =
 			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
-		let message = Xcm::ReserveAssetDeposited {
-			assets: (Parent, SEND_AMOUNT).into(),
-			effects: vec![
-				buy_execution((Parent, SEND_AMOUNT), weight),
-				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
-			],
-		};
+		let message = Xcm(vec![
+			ReserveAssetDeposited { assets: (Parent, SEND_AMOUNT).into() },
+			ClearOrigin,
+			buy_execution((Parent, SEND_AMOUNT)),
+			DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
+		]);
 		assert_ok!(XcmPallet::send(
 			Origin::signed(ALICE),
-			Box::new(RelayLocation::get()),
-			Box::new(message.clone())
+			RelayLocation::get(),
+			message.clone(),
 		));
 		assert_eq!(
 			sent_xcm(),
-			vec![(
-				Here.into(),
-				RelayedFrom {
-					who: sender.clone().try_into().unwrap(),
-					message: Box::new(message.clone()),
-				}
-			)]
+			vec![(Here.into(), Xcm(vec![DescendOrigin(sender.clone().try_into().unwrap())]))],
 		);
 		assert_eq!(
 			last_event(),
@@ -75,23 +67,20 @@ fn send_fails_when_xcm_router_blocks() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let weight = 2 * BaseXcmWeight::get();
 		let sender: MultiLocation =
 			Junction::AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
-		let message = Xcm::ReserveAssetDeposited {
-			assets: (Parent, SEND_AMOUNT).into(),
-			effects: vec![
-				buy_execution((Parent, SEND_AMOUNT), weight),
-				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
-			],
-		};
+		let message = Xcm(vec![
+			ReserveAssetDeposited { assets: (Parent, SEND_AMOUNT).into() },
+			buy_execution((Parent, SEND_AMOUNT)),
+			DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
+		]);
 		assert_noop!(
 			XcmPallet::send(
 				Origin::signed(ALICE),
-				Box::new(MultiLocation::ancestor(8)),
-				Box::new(message.clone())
+				MultiLocation::ancestor(8),
+				message,
 			),
-			crate::Error::<Test>::SendFailure
+			crate::Error::<Test>::SendFailure,
 		);
 	});
 }
@@ -113,7 +102,6 @@ fn teleport_assets_works() {
 			Box::new(AccountId32 { network: Any, id: BOB.into() }.into()),
 			(Here, SEND_AMOUNT).into(),
 			0,
-			weight,
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
 		assert_eq!(
@@ -142,7 +130,6 @@ fn reserve_transfer_assets_works() {
 			Box::new(dest.clone()),
 			(Here, SEND_AMOUNT).into(),
 			0,
-			weight
 		));
 		// Alice spent amount
 		assert_eq!(Balances::free_balance(ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -153,13 +140,11 @@ fn reserve_transfer_assets_works() {
 			sent_xcm(),
 			vec![(
 				Parachain(PARA_ID).into(),
-				Xcm::ReserveAssetDeposited {
-					assets: (Parent, SEND_AMOUNT).into(),
-					effects: vec![
-						buy_execution((Parent, SEND_AMOUNT), weight),
-						DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
-					]
-				}
+				Xcm(vec![
+					ReserveAssetDeposited { assets: (Parent, SEND_AMOUNT).into() },
+					buy_execution((Parent, SEND_AMOUNT)),
+					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+				]),
 			)]
 		);
 		assert_eq!(
@@ -184,13 +169,11 @@ fn execute_withdraw_to_deposit_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
-			Box::new(Xcm::WithdrawAsset {
-				assets: (Here, SEND_AMOUNT).into(),
-				effects: vec![
-					buy_execution((Here, SEND_AMOUNT), weight),
-					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest }
-				],
-			}),
+			Xcm(vec![
+				WithdrawAsset { assets: (Here, SEND_AMOUNT).into() },
+				buy_execution((Here, SEND_AMOUNT)),
+				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+			]),
 			weight
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);

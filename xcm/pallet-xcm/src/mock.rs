@@ -190,15 +190,9 @@ pub(crate) fn last_event() -> Event {
 	System::events().pop().expect("Event expected").event
 }
 
-pub(crate) fn buy_execution<C>(fees: impl Into<MultiAsset>, debt: Weight) -> Order<C> {
-	use xcm::opaque::latest::prelude::*;
-	Order::BuyExecution {
-		fees: fees.into(),
-		weight: 0,
-		debt,
-		halt_on_error: false,
-		instructions: vec![],
-	}
+pub(crate) fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {
+	use xcm::latest::prelude::*;
+	BuyExecution { fees: fees.into(), weight_limit: Unlimited }
 }
 
 pub(crate) fn new_test_ext_with_balances(
