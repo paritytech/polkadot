@@ -320,7 +320,6 @@ publish-polkadot-image:
     - job:                         test-build-linux-stable
       artifacts:                   true
   after_script:
-    - buildah logout "$IMAGE_NAME"
     # pass artifacts to the simnet-tests job
     # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
     - echo "PARACHAINS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/parachains.env
