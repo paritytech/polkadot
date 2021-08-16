@@ -31,26 +31,17 @@ use xcm_executor::MAX_RECURSION_LIMIT;
 const MAX_RECURSION_CHECK: u32 = MAX_RECURSION_LIMIT / 2;
 
 #[test]
-fn execute_within_recursion_limit() {
+fn basic_buy_fees_message_executes() {
 	sp_tracing::try_init_simple();
 	let mut client = TestClientBuilder::new()
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
-	let mut msg = WithdrawAsset { assets: (Parent, 100).into() };
-	for _ in 0..MAX_RECURSION_CHECK {
-		msg = WithdrawAsset {
-			assets: (Parent, 100).into(),
-			effects: vec![Order::BuyExecution {
-				fees: (Parent, 1).into(),
-				weight: 0,
-				debt: 0,
-				halt_on_error: true,
-				// nest `msg` into itself on each iteration.
-				instructions: Xcm(vec![msg]),
-			}],
-		};
-	}
+	let msg = vec![
+		WithdrawAsset { assets: (Parent, 100).into() },
+		BuyExecution { fees: (Parent, 100).into(), weight_limit: None },
+		DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Parent },
+	];
 
 	let mut block_builder = client.init_polkadot_block_builder();
 
@@ -80,60 +71,6 @@ fn execute_within_recursion_limit() {
 				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted(Outcome::Complete(
 					_
 				)),),
-			)));
-		});
-}
-
-#[test]
-fn exceed_recursion_limit() {
-	sp_tracing::try_init_simple();
-	let mut client = TestClientBuilder::new()
-		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
-		.build();
-
-	let mut msg = WithdrawAsset { assets: (Parent, 100).into(), effects: vec![] };
-	for _ in 0..(MAX_RECURSION_CHECK + 1) {
-		msg = WithdrawAsset {
-			assets: (Parent, 100).into(),
-			effects: vec![Order::BuyExecution {
-				fees: (Parent, 1).into(),
-				weight: 0,
-				debt: 0,
-				halt_on_error: true,
-				// nest `msg` into itself on each iteration.
-				instructions: vec![msg],
-			}],
-		};
-	}
-
-	let mut block_builder = client.init_polkadot_block_builder();
-
-	let execute = construct_extrinsic(
-		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
-			Box::new(msg.clone()),
-			1_000_000_000,
-		)),
-		sp_keyring::Sr25519Keyring::Alice,
-	);
-
-	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
-
-	let block = block_builder.build().expect("Finalizes the block").block;
-	let block_hash = block.hash();
-
-	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
-		.expect("imports the block");
-
-	client
-		.state_at(&BlockId::Hash(block_hash))
-		.expect("state should exist")
-		.inspect_state(|| {
-			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
-				r.event,
-				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted(
-					Outcome::Incomplete(_, XcmError::RecursionLimitReached),
-				)),
 			)));
 		});
 }

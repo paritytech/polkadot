@@ -209,7 +209,6 @@ pub mod pallet {
 			beneficiary: Box<MultiLocation>,
 			assets: MultiAssets,
 			fee_asset_item: u32,
-			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
@@ -231,7 +230,7 @@ pub mod pallet {
 					assets: Wild(All),
 					dest: *dest,
 					xcm: Xcm(vec![
-						BuyExecution { fees, weight: dest_weight },
+						BuyExecution { fees, weight_limit: Unlimited },
 						DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
 					]),
 				},
@@ -271,7 +270,6 @@ pub mod pallet {
 			beneficiary: Box<MultiLocation>,
 			assets: MultiAssets,
 			fee_asset_item: u32,
-			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
@@ -291,7 +289,7 @@ pub mod pallet {
 				assets,
 				dest: *dest,
 				xcm: Xcm(vec![
-					BuyExecution { fees, weight: dest_weight },
+					BuyExecution { fees, weight_limit: Unlimited },
 					DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
 				]),
 			}]);

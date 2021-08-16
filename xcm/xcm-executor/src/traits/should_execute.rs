@@ -36,7 +36,7 @@ pub trait ShouldExecute {
 	fn should_execute<Call>(
 		origin: &Option<MultiLocation>,
 		top_level: bool,
-		message: &Xcm<Call>,
+		message: &mut Xcm<Call>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()>;
@@ -47,7 +47,7 @@ impl ShouldExecute for Tuple {
 	fn should_execute<Call>(
 		origin: &Option<MultiLocation>,
 		top_level: bool,
-		message: &Xcm<Call>,
+		message: &mut Xcm<Call>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {

@@ -280,10 +280,11 @@ impl<Call> TryFrom<Instruction<Call>> for Order<Call> {
 				}
 				QueryHolding { query_id, dest, assets }
 			},
-			Instruction::BuyExecution { fees, weight: debt } => {
+			Instruction::BuyExecution { fees, weight_limit } => {
 				let instructions = vec![];
 				let halt_on_error = true;
 				let weight = 0;
+				let debt = Option::<u64>::from(weight_limit).ok_or(())?;
 				BuyExecution { fees, weight, debt, halt_on_error, instructions }
 			},
 			_ => return Err(()),

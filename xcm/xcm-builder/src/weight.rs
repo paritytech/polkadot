@@ -37,10 +37,10 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeigh
 
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo> FixedWeightBounds<T, C> {
 	fn instr_weight(message: &mut Instruction<C>) -> Result<Weight, ()> {
-		Ok(match message {
+		Ok(T::get().saturating_add(match message {
 			Transact { require_weight_at_most, .. } => *require_weight_at_most,
-			_ => T::get(),
-		})
+			_ => 0,
+		}))
 	}
 }
 

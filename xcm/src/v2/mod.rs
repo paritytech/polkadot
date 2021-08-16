@@ -46,28 +46,35 @@ pub struct Xcm<Call>(pub Vec<Instruction<Call>>);
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
-	pub use super::{
-		BodyId, BodyPart,
-		NetworkId::{self, *},
-		Junction::{self, *},
-		AssetId::{self, *},
-		AssetInstance::{self, *},
-		Fungibility::{self, *},
-		MultiAsset,
-		MultiAssetFilter::{self, *},
-		MultiAssets,
-		WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
-		WildMultiAsset::{self, *},
-		Ancestor, AncestorThen,
-		Junctions::{self, *},
-		MultiLocation, InteriorMultiLocation, Parent, ParentThen,
-		opaque,
-		ExecuteXcm, Error as XcmError, Result as XcmResult, Outcome,
-		SendXcm, SendResult, SendError,
-		OriginKind, Response,
-		Instruction::{self, *},
-		Xcm,
-	};
+	mod contents {
+		pub use super::super::{
+			BodyId, BodyPart,
+			NetworkId::{self, *},
+			Junction::{self, *},
+			AssetId::{self, *},
+			AssetInstance::{self, *},
+			Fungibility::{self, *},
+			MultiAsset,
+			MultiAssetFilter::{self, *},
+			MultiAssets,
+			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
+			WildMultiAsset::{self, *},
+			Ancestor, AncestorThen,
+			Junctions::{self, *},
+			MultiLocation, InteriorMultiLocation, Parent, ParentThen,
+			ExecuteXcm, Error as XcmError, Result as XcmResult, Outcome,
+			SendXcm, SendResult, SendError,
+			OriginKind, Response,
+			WeightLimit::{self, *},
+			Instruction::*,
+		};
+	}
+	pub use contents::*;
+	pub use super::{Xcm, Instruction};
+	pub mod opaque {
+		pub use super::contents::*;
+		pub use super::super::opaque::{Xcm, Instruction};
+	}
 }
 
 /// Response data to a query.
@@ -77,6 +84,33 @@ pub enum Response {
 	Assets(MultiAssets),
 	/// The outcome of an XCM instruction.
 	ExecutionResult(result::Result<(), (u32, Error)>),
+}
+
+/// An optional weight limit.
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+pub enum WeightLimit {
+	/// No weight limit imposed.
+	Unlimited,
+	/// Weight limit imposed of the inner value.
+	Limited(#[codec(compact)] u64),
+}
+
+impl From<Option<u64>> for WeightLimit {
+	fn from(x: Option<u64>) -> Self {
+		match x {
+			Some(w) => WeightLimit::Limited(w),
+			None => WeightLimit::Unlimited,
+		}
+	}
+}
+
+impl From<WeightLimit> for Option<u64> {
+	fn from(x: WeightLimit) -> Self {
+		match x {
+			WeightLimit::Limited(w) => Some(w),
+			WeightLimit::Unlimited => None,
+		}
+	}
 }
 
 /// Cross-Consensus Message: A message from one consensus system to another.
@@ -386,17 +420,18 @@ pub enum Instruction<Call> {
 	/// picoseconds of execution time, paying for this with up to `fees` from the Holding Register.
 	///
 	/// - `fees`: The asset(s) to remove from the Holding Register to pay for fees.
-	/// - `weight`: The amount of weight to purchase; generally this will need to be at least the
-	///   expected weight of any following instructions.
-	/// - `debt`: The amount of weight-debt already incurred to be paid off; this should be equal
-	///   to the unpaid weight of any previous operations/orders.
+	/// - `weight_limit`: The maximum amount of weight to purchase; this must be at least the
+	///   expected maximum weight of the total XCM to be executed for the 
+	///   `AllowTopLevelPaidExecutionFrom` barrier to allow the XCM be executed.
 	/// 
 	/// Errors:
 	BuyExecution {
 		fees: MultiAsset,
-		#[codec(compact)]
-		weight: u64,
+		weight_limit: WeightLimit,
 	},
+
+	/// Refund any surplus weight previously bought with `BuyExecution`.
+	RefundSurplus,
 }
 
 impl<Call> Xcm<Call> {
@@ -449,12 +484,14 @@ impl<Call> Instruction<Call> {
 			=> InitiateTeleport { assets, dest, xcm },
 			QueryHolding { query_id, dest, assets, max_response_weight }
 			=> QueryHolding { query_id, dest, assets, max_response_weight },
-			BuyExecution { fees, weight }
-			=> BuyExecution { fees, weight },
+			BuyExecution { fees, weight_limit }
+			=> BuyExecution { fees, weight_limit },
     		ClearOrigin
 			=> ClearOrigin,
 			DescendOrigin(who)
 			=> DescendOrigin(who),
+			RefundSurplus
+			=> RefundSurplus,
 		}
 	}
 }
@@ -577,7 +614,7 @@ impl<Call> TryFrom<OldOrder<Call>> for Instruction<Call> {
 			} => {
 				// We don't handle nested XCM.
 				if !instructions.is_empty() { return Err(()) }
-				BuyExecution { fees, weight: debt }
+				BuyExecution { fees, weight_limit: WeightLimit::Limited(debt) }
 			}
 		})
 	}

@@ -67,6 +67,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		if max_weight > weight_limit {
 			return Outcome::Error(XcmError::WeightLimitReached(max_weight))
 		}
+		dbg!(max_weight);
 		let mut trader = Config::Trader::new();
 		let mut holding = Assets::new();
 		let result = Self::do_execute_xcm(
@@ -140,7 +141,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Config::Barrier::should_execute(
 			&origin,
 			top_level,
-			&xcm,
+			&mut xcm,
 			max_weight,
 			weight_credit,
 		)
@@ -151,7 +152,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			holding: &mut Assets,
 			origin: &mut Option<MultiLocation>,
 			report_outcome: &mut Option<_>,
-			total_surplus: &mut u64
+			total_surplus: &mut u64,
+			total_refunded: &mut u64,
 		| match instr {
 			WithdrawAsset { assets } => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
@@ -309,7 +311,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let instruction = QueryResponse { query_id, response, max_weight };
 				Config::XcmSender::send_xcm(dest, Xcm(vec![instruction])).map_err(Into::into)
 			},
-			BuyExecution { fees, weight } => {
+			BuyExecution { fees, weight_limit } => {
+				let weight = Option::<u64>::from(weight_limit)
+					.ok_or(XcmError::TooMuchWeightRequired)?;
 				// pay for `weight` using up to `fees` of the holding register.
 				let max_fee =
 					holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
@@ -317,6 +321,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				holding.subsume_assets(unspent);
 				Ok(())
 			},
+			RefundSurplus => {
+				let current_surplus = total_surplus.saturating_sub(*total_refunded);
+				if current_surplus > 0 {
+					*total_refunded = total_refunded.saturating_add(current_surplus);
+					if let Some(w) = trader.refund_weight(current_surplus) {
+						holding.subsume(w);
+					}
+				}
+				Ok(())
+			}
 			_ => return Err(XcmError::UnhandledEffect)?,
 		};
 
@@ -325,10 +339,18 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		// execution engine to keep track of all instructions' weights (it only needs to care about
 		// the weight of dynamically determined instructions such as `Transact`).
 		let mut total_surplus: Weight = 0;
+		let mut total_refunded: Weight = 0;
 		let mut report_outcome = None;
 		let mut outcome = Ok(());
 		for (i, instruction) in xcm.0.into_iter().enumerate() {
-			match process(instruction, holding, &mut origin, &mut report_outcome, &mut total_surplus) {
+			match process(
+				instruction,
+				holding,
+				&mut origin,
+				&mut report_outcome,
+				&mut total_surplus,
+				&mut total_refunded,
+			) {
 				Ok(()) => (),
 				Err(e) => {
 					outcome = Err((i as u32, e));

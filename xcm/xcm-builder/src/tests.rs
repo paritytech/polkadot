@@ -43,31 +43,22 @@ fn basic_setup_works() {
 
 #[test]
 fn weigher_should_work() {
-	let mut message = opaque::Xcm::ReserveAssetDeposited {
-		assets: (Parent, 100).into(),
-		effects: vec![
-			Order::BuyExecution {
-				fees: (Parent, 1).into(),
-				weight: 0,
-				debt: 30,
-				halt_on_error: true,
-				instructions: vec![],
-			},
-			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
-		],
-	}
-	.into();
+	let mut message = Xcm(vec![
+		ReserveAssetDeposited { assets: (Parent, 100).into() },
+		BuyExecution { fees: (Parent, 1).into(), weight_limit: Limited(30) },
+		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+	]);
 	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Ok(30));
 }
 
 #[test]
 fn take_weight_credit_barrier_should_work() {
-	let mut message =
-		opaque::Xcm::TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() };
-
+	let mut message = Xcm::<()>(vec![
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }
+	]);
 	let mut weight_credit = 10;
 	let r = TakeWeightCredit::should_execute(
-		&Parent.into(),
+		&Some(Parent.into()),
 		true,
 		&mut message,
 		10,
@@ -77,7 +68,7 @@ fn take_weight_credit_barrier_should_work() {
 	assert_eq!(weight_credit, 0);
 
 	let r = TakeWeightCredit::should_execute(
-		&Parent.into(),
+		&Some(Parent.into()),
 		true,
 		&mut message,
 		10,
@@ -89,13 +80,14 @@ fn take_weight_credit_barrier_should_work() {
 
 #[test]
 fn allow_unpaid_should_work() {
-	let mut message =
-		opaque::Xcm::TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() };
+	let mut message = Xcm::<()>(vec![
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }
+	]);
 
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
-		&Parachain(1).into(),
+		&Some(Parachain(1).into()),
 		true,
 		&mut message,
 		10,
@@ -104,7 +96,7 @@ fn allow_unpaid_should_work() {
 	assert_eq!(r, Err(()));
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
-		&Parent.into(),
+		&Some(Parent.into()),
 		true,
 		&mut message,
 		10,
@@ -117,11 +109,12 @@ fn allow_unpaid_should_work() {
 fn allow_paid_should_work() {
 	AllowPaidFrom::set(vec![Parent.into()]);
 
-	let mut message =
-		opaque::Xcm::TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() };
+	let mut message = Xcm::<()>(vec![
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }
+	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Parachain(1).into(),
+		&Some(Parachain(1).into()),
 		true,
 		&mut message,
 		10,
@@ -130,22 +123,14 @@ fn allow_paid_should_work() {
 	assert_eq!(r, Err(()));
 
 	let fees = (Parent, 1).into();
-	let mut underpaying_message = opaque::Xcm::ReserveAssetDeposited {
-		assets: (Parent, 100).into(),
-		effects: vec![
-			Order::BuyExecution {
-				fees,
-				weight: 0,
-				debt: 20,
-				halt_on_error: true,
-				instructions: vec![],
-			},
-			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
-		],
-	};
+	let mut underpaying_message = Xcm::<()>(vec![
+		ReserveAssetDeposited { assets: (Parent, 100).into() },
+		BuyExecution { fees, weight_limit: Limited(20) },
+		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Parent.into(),
+		&Some(Parent.into()),
 		true,
 		&mut underpaying_message,
 		30,
@@ -154,22 +139,14 @@ fn allow_paid_should_work() {
 	assert_eq!(r, Err(()));
 
 	let fees = (Parent, 1).into();
-	let mut paying_message = opaque::Xcm::ReserveAssetDeposited {
-		assets: (Parent, 100).into(),
-		effects: vec![
-			Order::BuyExecution {
-				fees,
-				weight: 0,
-				debt: 30,
-				halt_on_error: true,
-				instructions: vec![],
-			},
-			Order::DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
-		],
-	};
+	let mut paying_message = Xcm::<()>(vec![
+		ReserveAssetDeposited { assets: (Parent, 100).into() },
+		BuyExecution { fees, weight_limit: Limited(30) },
+		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Parachain(1).into(),
+		&Some(Parachain(1).into()),
 		true,
 		&mut paying_message,
 		30,
@@ -178,7 +155,7 @@ fn allow_paid_should_work() {
 	assert_eq!(r, Err(()));
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Parent.into(),
+		&Some(Parent.into()),
 		true,
 		&mut paying_message,
 		30,
@@ -195,23 +172,11 @@ fn paying_reserve_deposit_should_work() {
 
 	let origin = Parent.into();
 	let fees = (Parent, 30).into();
-	let message = Xcm::<TestCall>::ReserveAssetDeposited {
-		assets: (Parent, 100).into(),
-		effects: vec![
-			Order::<TestCall>::BuyExecution {
-				fees,
-				weight: 0,
-				debt: 30,
-				halt_on_error: true,
-				instructions: vec![],
-			},
-			Order::<TestCall>::DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
-				beneficiary: Here.into(),
-			},
-		],
-	};
+	let message = Xcm(vec![
+		ReserveAssetDeposited { assets: (Parent, 100).into() },
+		BuyExecution { fees, weight_limit: Limited(30) },
+		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+	]);
 	let weight_limit = 50;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(30));
@@ -227,10 +192,10 @@ fn transfer_should_work() {
 	// They want to transfer 100 of them to their sibling parachain #2
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1).into(),
-		Xcm::TransferAsset {
+		Xcm(vec![TransferAsset {
 			assets: (Here, 100).into(),
 			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
-		},
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
@@ -251,15 +216,15 @@ fn reserve_transfer_should_work() {
 	// and let them know to hand it to account #3.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1).into(),
-		Xcm::TransferReserveAsset {
+		Xcm(vec![TransferReserveAsset {
 			assets: (Here, 100).into(),
 			dest: Parachain(2).into(),
-			effects: vec![Order::DepositAsset {
+			xcm: Xcm::<()>(vec![DepositAsset {
 				assets: All.into(),
 				max_assets: 1,
 				beneficiary: three.clone(),
-			}],
-		},
+			}]),
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
@@ -269,14 +234,15 @@ fn reserve_transfer_should_work() {
 		sent_xcm(),
 		vec![(
 			Parachain(2).into(),
-			Xcm::ReserveAssetDeposited {
-				assets: (Parent, 100).into(),
-				effects: vec![Order::DepositAsset {
+			Xcm::<()>(vec![
+				ReserveAssetDeposited { assets: (Parent, 100).into() },
+				ClearOrigin,
+				DepositAsset {
 					assets: All.into(),
 					max_assets: 1,
 					beneficiary: three
-				}],
-			}
+				},
+			]),
 		)]
 	);
 }
@@ -286,11 +252,11 @@ fn transacting_should_work() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let origin = Parent.into();
-	let message = Xcm::<TestCall>::Transact {
+	let message = Xcm::<TestCall>(vec![Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 50,
 		call: TestCall::Any(50, None).encode().into(),
-	};
+	}]);
 	let weight_limit = 60;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(60));
@@ -301,14 +267,14 @@ fn transacting_should_respect_max_weight_requirement() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let origin = Parent.into();
-	let message = Xcm::<TestCall>::Transact {
+	let message = Xcm::<TestCall>(vec![Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 40,
 		call: TestCall::Any(50, None).encode().into(),
-	};
+	}]);
 	let weight_limit = 60;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
-	assert_eq!(r, Outcome::Incomplete(60, XcmError::TooMuchWeightRequired));
+	assert_eq!(r, Outcome::Incomplete(50, XcmError::TooMuchWeightRequired));
 }
 
 #[test]
@@ -316,11 +282,11 @@ fn transacting_should_refund_weight() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let origin = Parent.into();
-	let message = Xcm::<TestCall>::Transact {
+	let message = Xcm::<TestCall>(vec![Transact {
 		origin_type: OriginKind::Native,
 		require_weight_at_most: 50,
 		call: TestCall::Any(50, Some(30)).encode().into(),
-	};
+	}]);
 	let weight_limit = 60;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(40));
@@ -335,32 +301,22 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 
 	let origin = one.clone();
 	let fees = (Parent, 100).into();
-	let message = Xcm::<TestCall>::WithdrawAsset {
-		assets: (Parent, 100).into(), // enough for 100 units of weight.
-		effects: vec![
-			Order::<TestCall>::BuyExecution {
-				fees,
-				weight: 70,
-				debt: 30,
-				halt_on_error: true,
-				instructions: vec![Xcm::<TestCall>::Transact {
-					origin_type: OriginKind::Native,
-					require_weight_at_most: 60,
-					// call estimated at 70 but only takes 10.
-					call: TestCall::Any(60, Some(10)).encode().into(),
-				}],
-			},
-			Order::<TestCall>::DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
-				beneficiary: one.clone(),
-			},
-		],
-	};
+	let message = Xcm::<TestCall>(vec![
+		WithdrawAsset { assets: (Parent, 100).into() }, // enough for 100 units of weight.
+		BuyExecution { fees, weight_limit: Limited(100) },
+		Transact {
+			origin_type: OriginKind::Native,
+			require_weight_at_most: 50,
+			// call estimated at 70 but only takes 10.
+			call: TestCall::Any(50, Some(10)).encode().into(),
+		},
+		RefundSurplus,
+		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: one.clone() },
+	]);
 	let weight_limit = 100;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
-	assert_eq!(r, Outcome::Complete(50));
-	assert_eq!(assets(1), vec![(Parent, 50).into()]);
+	assert_eq!(r, Outcome::Complete(60));
+	assert_eq!(assets(1), vec![(Parent, 40).into()]);
 }
 
 #[test]
@@ -371,7 +327,9 @@ fn prepaid_result_of_query_should_get_free_execution() {
 	expect_response(query_id, origin.clone());
 
 	let the_response = Response::Assets((Parent, 100).into());
-	let message = Xcm::<TestCall>::QueryResponse { query_id, response: the_response.clone(), max_weight: 10 };
+	let message = Xcm::<TestCall>(vec![
+		QueryResponse { query_id, response: the_response.clone(), max_weight: 10 }
+	]);
 	let weight_limit = 10;
 
 	// First time the response gets through since we're expecting it...
