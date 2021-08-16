@@ -60,20 +60,12 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			weight_credit,
 		);
 		let mut message = Xcm::<Config::Call>::from(message);
-		let shallow_weight = match Config::Weigher::shallow(&mut message) {
+		let max_weight = match Config::Weigher::weight(&mut message) {
 			Ok(x) => x,
 			Err(()) => return Outcome::Error(XcmError::WeightNotComputable),
 		};
-		let deep_weight = match Config::Weigher::deep(&mut message) {
-			Ok(x) => x,
-			Err(()) => return Outcome::Error(XcmError::WeightNotComputable),
-		};
-		let maximum_weight = match shallow_weight.checked_add(deep_weight) {
-			Some(x) => x,
-			None => return Outcome::Error(XcmError::Overflow),
-		};
-		if maximum_weight > weight_limit {
-			return Outcome::Error(XcmError::WeightLimitReached(maximum_weight))
+		if max_weight > weight_limit {
+			return Outcome::Error(XcmError::WeightLimitReached(max_weight))
 		}
 		let mut trader = Config::Trader::new();
 		let mut holding = Assets::new();
@@ -82,7 +74,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			true,
 			message,
 			&mut weight_credit,
-			Some(shallow_weight),
+			Some(max_weight),
 			&mut trader,
 			0,
 			&mut holding,
@@ -97,10 +89,10 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		drop(trader);
 		log::trace!(target: "xcm::execute_xcm", "result: {:?}", &result);
 		match result {
-			Ok(surplus) => Outcome::Complete(maximum_weight.saturating_sub(surplus)),
+			Ok(surplus) => Outcome::Complete(max_weight.saturating_sub(surplus)),
 			// TODO: #2841 #REALWEIGHT We can do better than returning `maximum_weight` here, and we should otherwise
 			//  we'll needlessly be disregarding block execution time.
-			Err(e) => Outcome::Incomplete(maximum_weight, e),
+			Err(e) => Outcome::Incomplete(max_weight, e),
 		}
 	}
 }
@@ -112,26 +104,26 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		assets.into_assets_iter().collect::<Vec<_>>().into()
 	}
 
-	/// Execute the XCM and return the portion of weight of `shallow_weight + deep_weight` that `message` did not use.
+	/// Execute the XCM and return the portion of weight of `max_weight` that `message` did not use.
 	///
-	/// NOTE: The amount returned must be less than `shallow_weight + deep_weight` of `message`.
+	/// NOTE: The amount returned must be less than `max_weight` of `message`.
 	fn do_execute_xcm(
 		mut origin: Option<MultiLocation>,
 		top_level: bool,
 		mut xcm: Xcm<Config::Call>,
 		weight_credit: &mut Weight,
-		maybe_shallow_weight: Option<Weight>,
+		maybe_max_weight: Option<Weight>,
 		trader: &mut Config::Trader,
 		num_recursions: u32,
 		holding: &mut Assets,
 	) -> Result<Weight, XcmError> {
 		log::trace!(
 			target: "xcm::do_execute_xcm",
-			"origin: {:?}, top_level: {:?}, weight_credit: {:?}, maybe_shallow_weight: {:?}, recursion: {:?}",
+			"origin: {:?}, top_level: {:?}, weight_credit: {:?}, maybe_max_weight: {:?}, recursion: {:?}",
 			origin,
 			top_level,
 			weight_credit,
-			maybe_shallow_weight,
+			maybe_max_weight,
 			num_recursions,
 		);
 
@@ -141,15 +133,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 		// This is the weight of everything that cannot be paid for. This basically means all computation
 		// except any XCM which is behind an Order::BuyExecution.
-		let shallow_weight = maybe_shallow_weight
-			.or_else(|| Config::Weigher::shallow(&mut xcm).ok())
+		let max_weight = maybe_max_weight
+			.or_else(|| Config::Weigher::weight(&mut xcm).ok())
 			.ok_or(XcmError::WeightNotComputable)?;
 
 		Config::Barrier::should_execute(
 			&origin,
 			top_level,
 			&xcm,
-			shallow_weight,
+			max_weight,
 			weight_credit,
 		)
 		.map_err(|()| XcmError::Barrier)?;
@@ -325,26 +317,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				holding.subsume_assets(unspent);
 				Ok(())
 			},
-			OldBuyExecution { fees, weight, debt, xcm } => {
-				// pay for `weight` using up to `fees` of the holding register.
-				let purchasing_weight =
-					Weight::from(weight.checked_add(debt).ok_or(XcmError::Overflow)?);
-				let max_fee =
-					holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
-				let unspent = trader.buy_weight(purchasing_weight, max_fee)?;
-				holding.subsume_assets(unspent);
-				match Self::do_execute_xcm(origin.clone(), top_level, xcm, weight_credit, None, trader, num_recursions + 1, holding) {
-					Err(e) => return Err(e),
-					Ok(surplus) => *total_surplus += surplus,
-				}
-				Ok(())
-			},
 			_ => return Err(XcmError::UnhandledEffect)?,
 		};
 
-		// The surplus weight, defined as the amount by which `shallow_weight` plus all nested
-		// `shallow_weight` values (ensuring no double-counting and also known as `deep_weight`) is
-		// an over-estimate of the actual weight consumed.
+		// The surplus weight, defined as the amount by which `max_weight` is
+		// an over-estimate of the actual weight consumed. We do it this way to avoid needing the
+		// execution engine to keep track of all instructions' weights (it only needs to care about
+		// the weight of dynamically determined instructions such as `Transact`).
 		let mut total_surplus: Weight = 0;
 		let mut report_outcome = None;
 		let mut outcome = Ok(());

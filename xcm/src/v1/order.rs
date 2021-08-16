@@ -21,7 +21,7 @@ use crate::v0::Order as OldOrder;
 use super::{
 	MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
 };
-use alloc::vec::Vec;
+use alloc::{vec, vec::Vec};
 use core::{
 	convert::{TryFrom, TryInto},
 	result,
@@ -280,20 +280,11 @@ impl<Call> TryFrom<Instruction<Call>> for Order<Call> {
 				}
 				QueryHolding { query_id, dest, assets }
 			},
-			Instruction::OldBuyExecution { fees, weight, debt, xcm } => {
-				let orders = xcm.0
-					.into_iter()
-					.map(Order::<Call>::try_from)
-					.collect::<result::Result<_, _>>()?;
-				let halt_on_error = true;
-				BuyExecution { fees, weight, debt, halt_on_error, orders, instructions: vec![] }
-			},
 			Instruction::BuyExecution { fees, weight: debt } => {
 				let instructions = vec![];
-				let orders = vec![];
 				let halt_on_error = true;
 				let weight = 0;
-				BuyExecution { fees, weight, debt, halt_on_error, orders, instructions }
+				BuyExecution { fees, weight, debt, halt_on_error, instructions }
 			},
 			_ => return Err(()),
 		})

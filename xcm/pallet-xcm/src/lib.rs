@@ -196,14 +196,11 @@ pub mod pallet {
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
 		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
-			let mut message = Xcm::WithdrawAsset {
-				assets: assets.clone(),
-				effects: sp_std::vec![ InitiateTeleport {
-					assets: Wild(All),
-					dest: *dest.clone(),
-					effects: sp_std::vec![],
-				} ]
-			};
+			use sp_std::vec;
+			let mut message = Xcm(vec![
+				WithdrawAsset { assets: assets.clone() },
+				InitiateTeleport { assets: Wild(All), dest: *dest.clone(), xcm: Xcm(vec![]) },
+			]);
 			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
 		})]
 		pub fn teleport_assets(
@@ -228,24 +225,17 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
 			let assets = assets.into();
-			let mut message = Xcm::WithdrawAsset {
-				assets,
-				effects: vec![InitiateTeleport {
+			let mut message = Xcm(vec![
+				WithdrawAsset { assets },
+				InitiateTeleport {
 					assets: Wild(All),
 					dest: *dest,
-					effects: vec![
-						BuyExecution {
-							fees,
-							// Zero weight for additional XCM (since there are none to execute)
-							weight: 0,
-							debt: dest_weight,
-							halt_on_error: false,
-							instructions: vec![],
-						},
+					xcm: Xcm(vec![
+						BuyExecution { fees, weight: dest_weight },
 						DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
-					],
-				}],
-			};
+					]),
+				},
+			]);
 			let weight =
 				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
 			let outcome =
@@ -269,11 +259,10 @@ pub mod pallet {
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
 		///   `ReserveAssetDeposited { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
-			let mut message = Xcm::TransferReserveAsset {
-				assets: assets.clone(),
-				dest: *dest.clone(),
-				effects: sp_std::vec![],
-			};
+			use sp_std::vec;
+			let mut message = Xcm(vec![
+				TransferReserveAsset { assets: assets.clone(), dest: *dest.clone(), xcm: Xcm(vec![]) }
+			]);
 			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
 		})]
 		pub fn reserve_transfer_assets(
@@ -298,21 +287,14 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
 			let assets = assets.into();
-			let mut message = Xcm::TransferReserveAsset {
+			let mut message = Xcm(vec![TransferReserveAsset {
 				assets,
 				dest: *dest,
-				effects: vec![
-					BuyExecution {
-						fees,
-						// Zero weight for additional instructions/orders (since there are none to execute)
-						weight: 0,
-						debt: dest_weight, // covers this, `TransferReserveAsset` xcm, and `DepositAsset` order.
-						halt_on_error: false,
-						instructions: vec![],
-					},
+				xcm: Xcm(vec![
+					BuyExecution { fees, weight: dest_weight },
 					DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
-				],
-			};
+				]),
+			}]);
 			let weight =
 				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
 			let outcome =
@@ -354,12 +336,10 @@ pub mod pallet {
 		pub fn send_xcm(
 			interior: Junctions,
 			dest: MultiLocation,
-			message: Xcm<()>,
+			mut message: Xcm<()>,
 		) -> Result<(), SendError> {
-			let message = if let Junctions::Here = interior {
-				message
-			} else {
-				Xcm::<()>::RelayedFrom { who: interior, message: Box::new(message) }
+			if interior != Junctions::Here {
+				message.0.insert(0, DescendOrigin(interior))
 			};
 			log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
 			T::XcmRouter::send_xcm(dest, message)
@@ -406,16 +386,16 @@ pub mod pallet {
 		/// then reporting the outcome will fail. Futhermore if the estimate is too high, then it
 		/// may be put in the overweight queue and need to be manually executed.
 		pub fn on_report(
-			message: Xcm<()>,
+			message: &mut Xcm<()>,
 			responder: MultiLocation,
 			notify: impl Into<<T as Config>::Call>,
 			timeout: T::BlockNumber,
-		) -> Xcm<()> {
+		) {
 			let dest = T::LocationInverter::invert_location(&responder);
 			let notify: <T as Config>::Call = notify.into();
 			let max_response_weight = notify.get_dispatch_info().weight;
 			let query_id = Self::new_notify_query(responder, notify, timeout);
-			Xcm::ReportOutcome { dest, query_id, message: Box::new(message), max_response_weight }
+			message.0.insert(0, ReportOutcome { dest, query_id, max_response_weight });
 		}
 
 		/// Attempt to create a new query ID and register it as a query that is yet to respond.
@@ -459,7 +439,7 @@ pub mod pallet {
 							if let Ok(call) = bare.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes)) {
 								let weight = call.get_dispatch_info().weight;
 								if weight > max_weight { return 0 }
-								let dispatch_origin = Origin::Response(origin).into();
+								let dispatch_origin = Origin::Response(origin.clone()).into();
 								match call.dispatch(dispatch_origin) {
 									Ok(post_info) => post_info.actual_weight,
 									Err(error_and_info) => {

@@ -57,7 +57,7 @@ fn weigher_should_work() {
 		],
 	}
 	.into();
-	assert_eq!(<TestConfig as Config>::Weigher::shallow(&mut message), Ok(30));
+	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Ok(30));
 }
 
 #[test]

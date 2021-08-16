@@ -37,7 +37,7 @@ fn execute_within_recursion_limit() {
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
-	let mut msg = WithdrawAsset { assets: (Parent, 100).into(), effects: vec![] };
+	let mut msg = WithdrawAsset { assets: (Parent, 100).into() };
 	for _ in 0..MAX_RECURSION_CHECK {
 		msg = WithdrawAsset {
 			assets: (Parent, 100).into(),
@@ -47,7 +47,7 @@ fn execute_within_recursion_limit() {
 				debt: 0,
 				halt_on_error: true,
 				// nest `msg` into itself on each iteration.
-				instructions: vec![msg],
+				instructions: Xcm(vec![msg]),
 			}],
 		};
 	}

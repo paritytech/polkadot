@@ -22,36 +22,36 @@ use sp_std::{marker::PhantomData, result::Result};
 use xcm::latest::{Instruction::*, Junction, Junctions, MultiLocation, Xcm};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
-/// Execution barrier that just takes `shallow_weight` from `weight_credit`.
+/// Execution barrier that just takes `max_weight` from `weight_credit`.
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
 	fn should_execute<Call>(
 		_origin: &Option<MultiLocation>,
 		_top_level: bool,
 		_message: &Xcm<Call>,
-		shallow_weight: Weight,
+		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		*weight_credit = weight_credit.checked_sub(shallow_weight).ok_or(())?;
+		*weight_credit = weight_credit.checked_sub(max_weight).ok_or(())?;
 		Ok(())
 	}
 }
 
-/// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking payments into
-/// account.
+/// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking
+/// payments into account.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(
 		origin: &Option<MultiLocation>,
 		top_level: bool,
 		message: &Xcm<Call>,
-		shallow_weight: Weight,
+		max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		let origin = origin.as_ref().ok_or(())?;
 		ensure!(T::contains(origin), ());
 		ensure!(top_level, ());
-		let iter = message.0.iter();
+		let mut iter = message.0.iter();
 		let i = iter.next().ok_or(())?;
 		match i {
 			ReceiveTeleportedAsset{..} | WithdrawAsset{..} | ReserveAssetDeposited{..} => (),
@@ -62,8 +62,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 			i = iter.next().ok_or(())?;
 		}
 		match i {
-			BuyExecution { weight , .. } if *weight >= shallow_weight => Ok(()),
-			OldBuyExecution { debt , .. } if *debt >= shallow_weight => Ok(()),
+			BuyExecution { weight , .. } if *weight >= max_weight => Ok(()),
 			_ => Err(()),
 		}
 	}
@@ -77,7 +76,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 		origin: &Option<MultiLocation>,
 		_top_level: bool,
 		_message: &Xcm<Call>,
-		_shallow_weight: Weight,
+		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		let origin = origin.as_ref().ok_or(())?;
@@ -105,7 +104,7 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 		origin: &Option<MultiLocation>,
 		_top_level: bool,
 		message: &Xcm<Call>,
-		_shallow_weight: Weight,
+		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		let origin = origin.as_ref().ok_or(())?;

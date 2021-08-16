@@ -66,6 +66,7 @@ pub mod prelude {
 		SendXcm, SendResult, SendError,
 		OriginKind, Response,
 		Instruction::{self, *},
+		Xcm,
 	};
 }
 
@@ -396,26 +397,6 @@ pub enum Instruction<Call> {
 		#[codec(compact)]
 		weight: u64,
 	},
-
-	/// Pay for the execution of some XCM `xcm` and `orders` with up to `weight`
-	/// picoseconds of execution time, paying for this with up to `fees` from the Holding Register.
-	///
-	/// - `fees`: The asset(s) to remove from the Holding Register to pay for fees.
-	/// - `weight`: The amount of weight to purchase; generally this will need to be at least the
-	///   expected weight of any following instructions.
-	/// - `debt`: The amount of weight-debt already incurred to be paid off; this should be equal
-	///   to the unpaid weight of any previous operations/orders.
-	/// 
-	/// Errors:
-//	#[deprecated = "Use `BuyExecution` instead"]
-	OldBuyExecution {
-		fees: MultiAsset,
-		#[codec(compact)]
-		weight: u64,
-		#[codec(compact)]
-		debt: u64,
-		xcm: Xcm<Call>,
-	},
 }
 
 impl<Call> Xcm<Call> {
@@ -470,8 +451,6 @@ impl<Call> Instruction<Call> {
 			=> QueryHolding { query_id, dest, assets, max_response_weight },
 			BuyExecution { fees, weight }
 			=> BuyExecution { fees, weight },
-			OldBuyExecution { fees, weight, debt, xcm }
-			=> OldBuyExecution { fees, weight, debt, xcm: xcm.into() },
     		ClearOrigin
 			=> ClearOrigin,
 			DescendOrigin(who)
@@ -592,29 +571,13 @@ impl<Call> TryFrom<OldOrder<Call>> for Instruction<Call> {
 				QueryHolding { query_id, dest, assets, max_response_weight: 0 },
 			OldOrder::BuyExecution {
 				fees,
-				weight,
 				debt,
-				halt_on_error,
-				orders,
 				instructions,
+				..
 			} => {
 				// We don't handle nested XCM.
 				if !instructions.is_empty() { return Err(()) }
-				// We also don't handle ignoring errors any more.
-				if !halt_on_error { return Err(()) }
-				if weight == 0 && orders.is_empty() {
-					BuyExecution { fees, weight: debt }
-				} else {
-					OldBuyExecution {
-						fees,
-						weight,
-						debt,
-						xcm: Xcm(orders
-							.into_iter()
-							.map(Instruction::<Call>::try_from)
-							.collect::<result::Result<_, _>>()?),
-					}
-				}
+				BuyExecution { fees, weight: debt }
 			}
 		})
 	}

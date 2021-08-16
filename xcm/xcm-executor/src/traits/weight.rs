@@ -21,33 +21,9 @@ use xcm::latest::{Error, MultiAsset, MultiLocation, Xcm};
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {
-	/// Return the minimum amount of weight that an attempted execution of this message would definitely
+	/// Return the maximum amount of weight that an attempted execution of this message could
 	/// consume.
-	///
-	/// This is useful to gauge how many fees should be paid up front to begin execution of the message.
-	/// It is not useful for determining whether execution should begin lest it result in surpassing weight
-	/// limits - in that case `deep` is the function to use.
-	fn shallow(message: &mut Xcm<Call>) -> Result<Weight, ()>;
-
-	/// Return the deep amount of weight, over `shallow` that complete, successful and worst-case execution of
-	/// `message` would incur.
-	///
-	/// This is perhaps overly pessimistic for determining how many fees should be paid for up-front since
-	/// fee payment (or any other way of offsetting the execution costs such as an voucher-style NFT) may
-	/// happen in stages throughout execution of the XCM.
-	///
-	/// A reminder: if it is possible that `message` may have alternative means of successful completion
-	/// (perhaps a conditional path), then the *worst case* weight must be reported.
-	///
-	/// This is guaranteed equal to the eventual sum of all `shallow` XCM messages that get executed through
-	/// any internal effects. Inner XCM messages may be executed by:
-	/// - `Order::BuyExecution`
-	fn deep(message: &mut Xcm<Call>) -> Result<Weight, ()>;
-
-	/// Return the total weight for executing `message`.
-	fn weight(message: &mut Xcm<Call>) -> Result<Weight, ()> {
-		Self::shallow(message)?.checked_add(Self::deep(message)?).ok_or(())
-	}
+	fn weight(message: &mut Xcm<Call>) -> Result<Weight, ()>;
 }
 
 /// A means of getting approximate weight consumption for a given destination message executor and a
