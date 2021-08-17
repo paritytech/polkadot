@@ -602,15 +602,14 @@ impl<Call> TryFrom<OldOrder<Call>> for Instruction<Call> {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-	use super::prelude::*;
+	use super::{prelude::*, *};
 
 	#[test]
 	fn basic_roundtrip_works() {
-		let xcm = Xcm::<()>(vec![
-			TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() },
-		]);
-		let old_xcm = OldXcm::<()>::TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() };
+		let xcm =
+			Xcm::<()>(vec![TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() }]);
+		let old_xcm =
+			OldXcm::<()>::TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() };
 		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
 		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
 		assert_eq!(new_xcm, xcm);
@@ -625,9 +624,11 @@ mod tests {
 		]);
 		let old_xcm: OldXcm<()> = OldXcm::<()>::ReceiveTeleportedAsset {
 			assets: (Here, 1).into(),
-			effects: vec![
-				OldOrder::DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },
-			],
+			effects: vec![OldOrder::DepositAsset {
+				assets: Wild(All),
+				max_assets: 1,
+				beneficiary: Here.into(),
+			}],
 		};
 		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
 		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
@@ -652,7 +653,11 @@ mod tests {
 					instructions: vec![],
 					halt_on_error: true,
 				},
-				OldOrder::DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },
+				OldOrder::DepositAsset {
+					assets: Wild(All),
+					max_assets: 1,
+					beneficiary: Here.into(),
+				},
 			],
 		};
 		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());

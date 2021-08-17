@@ -37,20 +37,17 @@ fn basic_buy_fees_message_executes() {
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
-	let msg = vec![
+	let msg = Xcm(vec![
 		WithdrawAsset { assets: (Parent, 100).into() },
-		BuyExecution { fees: (Parent, 100).into(), weight_limit: None },
-		DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Parent },
-	];
+		BuyExecution { fees: (Parent, 100).into(), weight_limit: Unlimited },
+		DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Parent.into() },
+	]);
 
 	let mut block_builder = client.init_polkadot_block_builder();
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
-			Box::new(msg.clone()),
-			1_000_000_000,
-		)),
+		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(msg, 1_000_000_000)),
 		sp_keyring::Sr25519Keyring::Alice,
 	);
 
