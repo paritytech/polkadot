@@ -14,9 +14,10 @@ parity-scale-codec = { version = "2.0.0", default-features = false, features = [
 parking_lot = { version = "0.11.1", optional = true }
 pin-project = "1.0.7"
 rand = "0.8.3"
-thiserror = "1.0.23"
+thiserror = "1.0.26"
 tracing = "0.1.26"
-lru = "0.6.5"
+derive_more = "0.99.11"
+lru = "0.6.6"
 
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
@@ -36,7 +37,7 @@ substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate
 [dev-dependencies]
 assert_matches = "1.4.0"
 async-trait = "0.1.42"
-env_logger = "0.8.4"
+env_logger = "0.9.0"
 futures = { version = "0.3.15", features = ["thread-pool"] }
 log = "0.4.13"
 parking_lot = "0.11.1"

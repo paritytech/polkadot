@@ -21,8 +21,8 @@
 //! [`ValidationHost`], that allows communication with that event-loop.
 
 use crate::{
-	artifacts::{ArtifactId, ArtifactState, Artifacts},
-	execute, prepare, Priority, Pvf, ValidationError,
+	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
+	execute, prepare, Priority, Pvf, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use async_std::path::{Path, PathBuf};
@@ -409,7 +409,7 @@ async fn handle_execute_pvf(
 				send_execute(
 					execute_queue,
 					execute::ToQueue::Enqueue {
-						artifact_path: artifact_id.path(cache_path),
+						artifact: ArtifactPathId::new(artifact_id, cache_path),
 						params,
 						result_tx,
 					},
@@ -509,7 +509,6 @@ async fn handle_prepare_done(
 
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
-	let artifact_path = artifact_id.path(&cache_path);
 	let pending_requests = awaiting_prepare.take(&artifact_id);
 	for PendingExecutionRequest { params, result_tx } in pending_requests {
 		if result_tx.is_canceled() {
@@ -520,7 +519,11 @@ async fn handle_prepare_done(
 
 		send_execute(
 			execute_queue,
-			execute::ToQueue::Enqueue { artifact_path: artifact_path.clone(), params, result_tx },
+			execute::ToQueue::Enqueue {
+				artifact: ArtifactPathId::new(artifact_id.clone(), cache_path),
+				params,
+				result_tx,
+			},
 		)
 		.await?;
 	}
@@ -552,7 +555,17 @@ async fn handle_cleanup_pulse(
 	artifact_ttl: Duration,
 ) -> Result<(), Fatal> {
 	let to_remove = artifacts.prune(artifact_ttl);
+	tracing::info!(
+		target: LOG_TARGET,
+		"PVF pruning: {} artifacts reached their end of life",
+		to_remove.len(),
+	);
 	for artifact_id in to_remove {
+		tracing::debug!(
+			target: LOG_TARGET,
+			validation_code_hash = ?artifact_id.code_hash,
+			"pruning artifact",
+		);
 		let artifact_path = artifact_id.path(cache_path);
 		sweeper_tx.send(artifact_path).await.map_err(|_| Fatal)?;
 	}
@@ -566,8 +579,14 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 		match sweeper_rx.next().await {
 			None => break,
 			Some(condemned) => {
-				let _ = async_std::fs::remove_file(condemned).await;
-			}
+				let result = async_std::fs::remove_file(&condemned).await;
+				tracing::trace!(
+					target: LOG_TARGET,
+					?result,
+					"Sweeping the artifact file {}",
+					condemned.display(),
+				);
+			},
 		}
 	}
 }

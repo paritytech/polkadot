@@ -361,7 +361,7 @@ fn candidate_validation_ok_is_ok() {
 		&descriptor,
 		validation_data.max_pov_size,
 		&pov,
-		Some(&validation_code),
+		Some(&validation_code.hash()),
 	);
 	assert!(check.is_ok());
 
@@ -411,7 +411,7 @@ fn candidate_validation_bad_return_is_invalid() {
 		&descriptor,
 		validation_data.max_pov_size,
 		&pov,
-		Some(&validation_code),
+		Some(&validation_code.hash()),
 	);
 	assert!(check.is_ok());
 
@@ -447,7 +447,7 @@ fn candidate_validation_timeout_is_internal_error() {
 		&descriptor,
 		validation_data.max_pov_size,
 		&pov,
-		Some(&validation_code),
+		Some(&validation_code.hash()),
 	);
 	assert!(check.is_ok());
 
@@ -482,7 +482,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 		&descriptor,
 		validation_data.max_pov_size,
 		&pov,
-		Some(&validation_code),
+		Some(&validation_code.hash()),
 	);
 	assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 

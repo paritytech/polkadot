@@ -148,7 +148,7 @@ where
 /// A struct that represents an idle worker.
 ///
 /// This struct is supposed to be used as a token that is passed by move into a subroutine that
-/// initiates a job. If the worker dies on the duty, then the token is not returned back.
+/// initiates a job. If the worker dies on the duty, then the token is not returned.
 #[derive(Debug)]
 pub struct IdleWorker {
 	/// The stream to which the child process is connected.
