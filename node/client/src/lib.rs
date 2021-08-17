@@ -23,7 +23,7 @@ use polkadot_primitives::v1::{
 	AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce, ParachainHost,
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
-use sc_executor::{native_executor_instance, NativeExecutor};
+use sc_executor::{NativeElseWasmExecutor};
 use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockStatus;
@@ -38,38 +38,73 @@ use std::sync::Arc;
 pub type FullBackend = sc_service::TFullBackend<Block>;
 
 pub type FullClient<RuntimeApi, ExecutorInstance> =
-	sc_service::TFullClient<Block, RuntimeApi, NativeExecutor<ExecutorInstance>>;
+	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorInstance>>;
 
-native_executor_instance!(
-	pub PolkadotExecutor,
-	polkadot_runtime::api::dispatch,
-	polkadot_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+/// The native executor instance for Polkadot.
+pub struct PolkadotExecutor;
+
+impl sc_executor::NativeExecutionDispatch for PolkadotExecutor {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		polkadot_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		polkadot_runtime::native_version()
+	}
+}
 
 #[cfg(feature = "kusama")]
-native_executor_instance!(
-	pub KusamaExecutor,
-	kusama_runtime::api::dispatch,
-	kusama_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+/// The native executor instance for Kusama.
+pub struct KusamaExecutor;
+
+#[cfg(feature = "kusama")]
+impl sc_executor::NativeExecutionDispatch for KusamaExecutor {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		kusama_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		kusama_runtime::native_version()
+	}
+}
 
 #[cfg(feature = "westend")]
-native_executor_instance!(
-	pub WestendExecutor,
-	westend_runtime::api::dispatch,
-	westend_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+/// The native executor instance for Westend.
+pub struct WestendExecutor;
+
+#[cfg(feature = "westend")]
+impl sc_executor::NativeExecutionDispatch for WestendExecutor {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		westend_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		westend_runtime::native_version()
+	}
+}
 
 #[cfg(feature = "rococo")]
-native_executor_instance!(
-	pub RococoExecutor,
-	rococo_runtime::api::dispatch,
-	rococo_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+/// The native executor instance for Rococo.
+pub struct RococoExecutor;
+
+#[cfg(feature = "rococo")]
+impl sc_executor::NativeExecutionDispatch for RococoExecutor {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		rococo_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		rococo_runtime::native_version()
+	}
+}
 
 /// A set of APIs that polkadot-like runtimes must implement.
 pub trait RuntimeApiCollection:
