@@ -32,7 +32,7 @@ use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use polkadot_node_primitives::{AvailableData, ErasureChunk, Proof};
+use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},

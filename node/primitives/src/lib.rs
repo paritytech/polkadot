@@ -324,15 +324,14 @@ impl Decode for Proof {
 		let temp: Vec<Vec<u8>> = Decode::decode(value)?;
 		let mut out = Vec::new();
 		for element in temp.into_iter() {
-			let bounded_temp: BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE> =
-				BoundedVec::from_vec(element).map_err(|_| {
-					"Inner node exceeds maximum node size.".into()
-				})
-			out.push(bounded_temp);
+			let bounded_temp: Result<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, CodecError> =
+				BoundedVec::from_vec(element)
+					.map_err(|_| "Inner node exceeds maximum node size.".into());
+			out.push(bounded_temp?);
 		}
-		BoundedVec::from_vec(out).map(Self).map_err(|_| {
-			"Merkle proof depth exceeds maximum trie depth".into()
-		})
+		BoundedVec::from_vec(out)
+			.map(Self)
+			.map_err(|_| "Merkle proof depth exceeds maximum trie depth".into())
 	}
 }
 

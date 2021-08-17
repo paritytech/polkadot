@@ -59,7 +59,6 @@ fn test_harness<T: Future<Output = ()>>(
 	executor::block_on(future::join(test_fut, subsystem)).1.unwrap();
 }
 
-
 /// Simple basic check, whether the subsystem works as expected.
 ///
 /// Exceptional cases are tested as unit tests in `fetch_task`.

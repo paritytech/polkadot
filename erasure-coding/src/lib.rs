@@ -422,7 +422,10 @@ mod tests {
 		assert_eq!(proofs.len(), 10);
 
 		for (i, proof) in proofs.into_iter().enumerate() {
-			assert_eq!(branch_hash(&root, &proof.as_vec(), i).unwrap(), BlakeTwo256::hash(&chunks[i]));
+			assert_eq!(
+				branch_hash(&root, &proof.as_vec(), i).unwrap(),
+				BlakeTwo256::hash(&chunks[i])
+			);
 		}
 	}
 }
