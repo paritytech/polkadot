@@ -58,9 +58,11 @@ use sc_keystore::LocalKeystore;
 
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
+use metrics::Metrics;
 
 mod backend;
 mod db;
+mod metrics;
 
 #[cfg(test)]
 mod tests;
@@ -131,8 +133,10 @@ where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
+
+		let metrics = Metrics::new(config.prometheus_registry());
 		let backend = DbBackend::new(self.store.clone(), self.config.column_config());
-		let future = run(self, ctx, backend, Box::new(SystemClock)).map(|_| Ok(())).boxed();
+		let future = run(self, ctx, backend, Box::new(SystemClock), metrics).map(|_| Ok(())).boxed();
 
 		SpawnedSubsystem { name: "dispute-coordinator-subsystem", future }
 	}
@@ -284,13 +288,14 @@ async fn run<B, Context>(
 	mut ctx: Context,
 	mut backend: B,
 	clock: Box<dyn Clock>,
+	metrics: Metrics,
 ) where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 	B: Backend,
 {
 	loop {
-		let res = run_until_error(&mut ctx, &subsystem, &mut backend, &*clock).await;
+		let res = run_until_error(&mut ctx, &subsystem, &mut backend, &*clock, metrics).await;
 		match res {
 			Err(e) => {
 				e.trace();
@@ -317,6 +322,7 @@ async fn run_until_error<B, Context>(
 	subsystem: &DisputeCoordinatorSubsystem,
 	backend: &mut B,
 	clock: &dyn Clock,
+	metrics: Metrics,
 ) -> Result<(), Error>
 where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
@@ -348,7 +354,7 @@ where
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
 			FromOverseer::Communication { msg } =>
-				handle_incoming(ctx, &mut overlay_db, &mut state, msg, clock.now()).await?,
+				handle_incoming(ctx, &mut overlay_db, &mut state, msg, clock.now(), &metrics).await?,
 		}
 
 		if !overlay_db.is_empty() {
@@ -518,6 +524,7 @@ async fn handle_incoming(
 	state: &mut State,
 	message: DisputeCoordinatorMessage,
 	now: Timestamp,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	match message {
 		DisputeCoordinatorMessage::ImportStatements {
@@ -578,6 +585,7 @@ async fn handle_incoming(
 				session,
 				valid,
 				now,
+				metrics,
 			)
 			.await?;
 		},
@@ -635,6 +643,7 @@ async fn handle_import_statements(
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
 	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
 		// It is not valid to participate in an ancient dispute (spam?).
@@ -694,6 +703,7 @@ async fn handle_import_statements(
 
 		match statement.statement().clone() {
 			DisputeStatement::Valid(valid_kind) => {
+				metrics.on_valid_vote();
 				insert_into_statement_vec(
 					&mut votes.valid,
 					valid_kind,
@@ -702,6 +712,7 @@ async fn handle_import_statements(
 				);
 			},
 			DisputeStatement::Invalid(invalid_kind) => {
+				metrics.on_invalid_vote();
 				insert_into_statement_vec(
 					&mut votes.invalid,
 					invalid_kind,
@@ -743,6 +754,13 @@ async fn handle_import_statements(
 	};
 
 	if status != prev_status {
+		if concluded_valid {
+			metrics.on_concluded_valid();
+		}
+		if concluded_invalid {
+			metrics.on_concluded_invalid();
+		}
+
 		// This branch is only hit when the candidate is freshly disputed -
 		// status was previously `None`, and now is not.
 		if prev_status.is_none() {
@@ -801,6 +819,7 @@ async fn issue_local_statement(
 	session: SessionIndex,
 	valid: bool,
 	now: Timestamp,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	// Load session info.
 	let info = match state.rolling_session_window.session_info(session) {
@@ -893,6 +912,7 @@ async fn issue_local_statement(
 			statements,
 			now,
 			pending_confirmation,
+			metrics,
 		)
 		.await?;
 	}
