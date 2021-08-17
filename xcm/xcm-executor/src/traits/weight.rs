@@ -83,12 +83,16 @@ impl WeightTrader for Tuple {
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
+		let mut last_error = None;
 		for_tuples!( #(
-			if let Ok(assets) = Tuple.buy_weight(weight, payment.clone()) {
-				return Ok(assets);
+			match Tuple.buy_weight(weight, payment.clone()) {
+				Ok(assets) => return Ok(assets),
+				Err(e) => { last_error = Some(e) }
 			}
 		)* );
-		Err(Error::TooExpensive)
+		let last_error = last_error.unwrap_or(Error::TooExpensive);
+		log::trace!(target: "xcm::buy_weight", "last_error: {:?}", last_error);
+		Err(last_error)
 	}
 
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
