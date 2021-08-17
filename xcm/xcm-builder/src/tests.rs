@@ -223,7 +223,7 @@ fn transfer_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (Here, 1000).into());
+	add_asset(1001, (Here, 1000));
 	// They want to transfer 100 of them to their sibling parachain #2
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1).into(),
@@ -243,7 +243,7 @@ fn transfer_should_work() {
 fn reserve_transfer_should_work() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
-	add_asset(1001, (Here, 1000).into());
+	add_asset(1001, (Here, 1000));
 	// The remote account owned by gav.
 	let three: MultiLocation = X1(AccountIndex64 { index: 3, network: Any }).into();
 
@@ -330,7 +330,7 @@ fn transacting_should_refund_weight() {
 fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let one: MultiLocation = X1(AccountIndex64 { index: 1, network: Any }).into();
 	AllowPaidFrom::set(vec![one.clone()]);
-	add_asset(1, (Parent, 100).into());
+	add_asset(1, (Parent, 100));
 	WeightPrice::set((Parent.into(), 1_000_000_000_000));
 
 	let origin = one.clone();
