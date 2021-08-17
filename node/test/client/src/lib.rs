@@ -36,7 +36,7 @@ pub use substrate_test_client::*;
 pub type Executor = client::LocalCallExecutor<
 	Block,
 	FullBackend,
-	sc_executor::NativeExecutor<PolkadotTestExecutor>,
+	sc_executor::NativeElseWasmExecutor<PolkadotTestExecutor>,
 >;
 
 /// Test client builder for Polkadot.
