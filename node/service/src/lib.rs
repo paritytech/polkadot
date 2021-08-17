@@ -91,8 +91,8 @@ pub use polkadot_client::{
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
-pub use sc_executor::NativeExecutionDispatch;
 use sc_executor::NativeElseWasmExecutor;
+pub use sc_executor::NativeExecutionDispatch;
 pub use service::{
 	config::{DatabaseSource, PrometheusConfig},
 	ChainSpec, Configuration, Error as SubstrateServiceError, PruningMode, Role, RuntimeGenesis,

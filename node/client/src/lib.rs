@@ -23,7 +23,7 @@ use polkadot_primitives::v1::{
 	AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce, ParachainHost,
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
-use sc_executor::{NativeElseWasmExecutor};
+use sc_executor::NativeElseWasmExecutor;
 use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockStatus;

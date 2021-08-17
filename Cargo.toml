@@ -15,7 +15,6 @@ readme = "README.md"
 polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
 color-eyre = { version = "0.5.11", default-features = false }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
-#hyper = "=0.14.11"
 
 [dev-dependencies]
 assert_cmd = "1.0.2"
