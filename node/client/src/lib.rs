@@ -41,9 +41,9 @@ pub type FullClient<RuntimeApi, ExecutorDispatch> =
 	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 
 /// The native executor instance for Polkadot.
-pub struct PolkadotExecutor;
+pub struct PolkadotExecutorDispatch;
 
-impl sc_executor::NativeExecutionDispatch for PolkadotExecutor {
+impl sc_executor::NativeExecutionDispatch for PolkadotExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -57,10 +57,10 @@ impl sc_executor::NativeExecutionDispatch for PolkadotExecutor {
 
 #[cfg(feature = "kusama")]
 /// The native executor instance for Kusama.
-pub struct KusamaExecutor;
+pub struct KusamaExecutorDispatch;
 
 #[cfg(feature = "kusama")]
-impl sc_executor::NativeExecutionDispatch for KusamaExecutor {
+impl sc_executor::NativeExecutionDispatch for KusamaExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -74,10 +74,10 @@ impl sc_executor::NativeExecutionDispatch for KusamaExecutor {
 
 #[cfg(feature = "westend")]
 /// The native executor instance for Westend.
-pub struct WestendExecutor;
+pub struct WestendExecutorDispatch;
 
 #[cfg(feature = "westend")]
-impl sc_executor::NativeExecutionDispatch for WestendExecutor {
+impl sc_executor::NativeExecutionDispatch for WestendExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -91,10 +91,10 @@ impl sc_executor::NativeExecutionDispatch for WestendExecutor {
 
 #[cfg(feature = "rococo")]
 /// The native executor instance for Rococo.
-pub struct RococoExecutor;
+pub struct RococoExecutorDispatch;
 
 #[cfg(feature = "rococo")]
-impl sc_executor::NativeExecutionDispatch for RococoExecutor {
+impl sc_executor::NativeExecutionDispatch for RococoExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -249,13 +249,13 @@ macro_rules! with_client {
 /// See [`ExecuteWithClient`] for more information.
 #[derive(Clone)]
 pub enum Client {
-	Polkadot(Arc<FullClient<polkadot_runtime::RuntimeApi, PolkadotExecutor>>),
+	Polkadot(Arc<FullClient<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>>),
 	#[cfg(feature = "westend")]
-	Westend(Arc<FullClient<westend_runtime::RuntimeApi, WestendExecutor>>),
+	Westend(Arc<FullClient<westend_runtime::RuntimeApi, WestendExecutorDispatch>>),
 	#[cfg(feature = "kusama")]
-	Kusama(Arc<FullClient<kusama_runtime::RuntimeApi, KusamaExecutor>>),
+	Kusama(Arc<FullClient<kusama_runtime::RuntimeApi, KusamaExecutorDispatch>>),
 	#[cfg(feature = "rococo")]
-	Rococo(Arc<FullClient<rococo_runtime::RuntimeApi, RococoExecutor>>),
+	Rococo(Arc<FullClient<rococo_runtime::RuntimeApi, RococoExecutorDispatch>>),
 }
 
 impl ClientHandle for Client {

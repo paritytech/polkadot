@@ -40,11 +40,11 @@ type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B,
 type Block = polkadot_primitives::v1::Block;
 type SelectChain = sc_consensus::LongestChain<TFullBackend<Block>, Block>;
 
-/// Declare an instance of the native executor named `Executor`. Include the wasm binary as the
+/// Declare an instance of the native executor named `ExecutorDispatch`. Include the wasm binary as the
 /// equivalent wasm code.
-pub struct Executor;
+pub struct ExecutorDispatch;
 
-impl sc_executor::NativeExecutionDispatch for Executor {
+impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
 	type ExtendHostFunctions =
 		(benchmarking::benchmarking::HostFunctions, SignatureVerificationOverride);
 
@@ -62,14 +62,14 @@ pub struct PolkadotChainInfo;
 
 impl ChainInfo for PolkadotChainInfo {
 	type Block = Block;
-	type Executor = Executor;
+	type ExecutorDispatch = ExecutorDispatch;
 	type Runtime = Runtime;
 	type RuntimeApi = RuntimeApi;
 	type SelectChain = SelectChain;
 	type BlockImport = BlockImport<
 		Self::Block,
 		TFullBackend<Self::Block>,
-		TFullClient<Self::Block, RuntimeApi, Self::Executor>,
+		TFullClient<Self::Block, RuntimeApi, Self::ExecutorDispatch>,
 		Self::SelectChain,
 	>;
 	type SignedExtras = polkadot_runtime::SignedExtra;

@@ -74,19 +74,19 @@ use telemetry::TelemetryWorker;
 use telemetry::{Telemetry, TelemetryWorkerHandle};
 
 #[cfg(feature = "rococo-native")]
-pub use polkadot_client::RococoExecutor;
+pub use polkadot_client::RococoExecutorDispatch;
 
 #[cfg(feature = "westend-native")]
-pub use polkadot_client::WestendExecutor;
+pub use polkadot_client::WestendExecutorDispatch;
 
 #[cfg(feature = "kusama-native")]
-pub use polkadot_client::KusamaExecutor;
+pub use polkadot_client::KusamaExecutorDispatch;
 
 pub use chain_spec::{KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, WestendChainSpec};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
 pub use polkadot_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
-	PolkadotExecutor, RuntimeApiCollection,
+	PolkadotExecutorDispatch, RuntimeApiCollection,
 };
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
@@ -1238,21 +1238,29 @@ pub fn new_chain_ops(
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
-			new_partial::<rococo_runtime::RuntimeApi, RococoExecutor>(config, jaeger_agent, None)?;
+			new_partial::<rococo_runtime::RuntimeApi, RococoExecutorDispatch>(
+				config,
+				jaeger_agent,
+				None,
+			)?;
 		return Ok((Arc::new(Client::Rococo(client)), backend, import_queue, task_manager))
 	}
 
 	#[cfg(feature = "kusama-native")]
 	if config.chain_spec.is_kusama() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
-			new_partial::<kusama_runtime::RuntimeApi, KusamaExecutor>(config, jaeger_agent, None)?;
+			new_partial::<kusama_runtime::RuntimeApi, KusamaExecutorDispatch>(
+				config,
+				jaeger_agent,
+				None,
+			)?;
 		return Ok((Arc::new(Client::Kusama(client)), backend, import_queue, task_manager))
 	}
 
 	#[cfg(feature = "westend-native")]
 	if config.chain_spec.is_westend() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
-			new_partial::<westend_runtime::RuntimeApi, WestendExecutor>(
+			new_partial::<westend_runtime::RuntimeApi, WestendExecutorDispatch>(
 				config,
 				jaeger_agent,
 				None,
@@ -1261,7 +1269,11 @@ pub fn new_chain_ops(
 	}
 
 	let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
-		new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config, jaeger_agent, None)?;
+		new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(
+			config,
+			jaeger_agent,
+			None,
+		)?;
 	Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager))
 }
 
@@ -1270,20 +1282,20 @@ pub fn new_chain_ops(
 pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), Error> {
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
-		return new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
+		return new_light::<rococo_runtime::RuntimeApi, RococoExecutorDispatch>(config)
 	}
 
 	#[cfg(feature = "kusama-native")]
 	if config.chain_spec.is_kusama() {
-		return new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
+		return new_light::<kusama_runtime::RuntimeApi, KusamaExecutorDispatch>(config)
 	}
 
 	#[cfg(feature = "westend-native")]
 	if config.chain_spec.is_westend() {
-		return new_light::<westend_runtime::RuntimeApi, WestendExecutor>(config)
+		return new_light::<westend_runtime::RuntimeApi, WestendExecutorDispatch>(config)
 	}
 
-	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
+	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(config)
 }
 
 #[cfg(feature = "full-node")]
@@ -1298,7 +1310,7 @@ pub fn build_full(
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
-		return new_full::<rococo_runtime::RuntimeApi, RococoExecutor, _>(
+		return new_full::<rococo_runtime::RuntimeApi, RococoExecutorDispatch, _>(
 			config,
 			is_collator,
 			grandpa_pause,
@@ -1313,7 +1325,7 @@ pub fn build_full(
 
 	#[cfg(feature = "kusama-native")]
 	if config.chain_spec.is_kusama() {
-		return new_full::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
+		return new_full::<kusama_runtime::RuntimeApi, KusamaExecutorDispatch, _>(
 			config,
 			is_collator,
 			grandpa_pause,
@@ -1328,7 +1340,7 @@ pub fn build_full(
 
 	#[cfg(feature = "westend-native")]
 	if config.chain_spec.is_westend() {
-		return new_full::<westend_runtime::RuntimeApi, WestendExecutor, _>(
+		return new_full::<westend_runtime::RuntimeApi, WestendExecutorDispatch, _>(
 			config,
 			is_collator,
 			grandpa_pause,
@@ -1341,7 +1353,7 @@ pub fn build_full(
 		.map(|full| full.with_client(Client::Westend))
 	}
 
-	new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
+	new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch, _>(
 		config,
 		is_collator,
 		grandpa_pause,
