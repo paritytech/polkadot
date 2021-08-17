@@ -483,8 +483,7 @@ deploy-polkasync-kusama:
 
 simnet-tests:
   stage:                           deploy
-  # fixme: revert to variable
-  image:                           "docker.io/paritytech/simnet:v8"
+  image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
   <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -497,13 +496,10 @@ simnet-tests:
   # `parachains.env` brings here `$PARACHAINS_IMAGE_NAME` and `$PARACHAINS_IMAGE_TAG` 
   # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
   # `collator.env` brings here `$COLLATOR_IMAGE_NAME` and  `$COLLATOR_IMAGE_TAG` 
-  # In non-ci jobs `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG` 
+  # For local tests with docker `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG` 
   # can be replaced with `master` tag.
-  variables:
-    SIMNET_IMAGE_NAME:             'docker.io/paritytech/simnet'
-    # fixme: delete next line
-    SIMNET_REF:                  'v8'
-    # SIMNET_REF is a gitlab variable
+
+  # SIMNET_REF is a gitlab variable
   before_script:
     - echo "Simnet Tests Config
         ${SIMNET_IMAGE_NAME} ${SIMNET_REF}
@@ -515,7 +511,7 @@ simnet-tests:
         --config="simnet_tests/configs/simple_rococo_testnet.toml"
         --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
         --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image-simnet="docker.io/paritytech/simnet:v8"
+        --image-simnet="docker.io/paritytech/simnet:${SIMNET_REF}"
   allow_failure:                   true
   retry: 2
   tags:
