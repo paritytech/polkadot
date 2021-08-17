@@ -58,6 +58,11 @@ pub trait UniversalWeigher {
 }
 
 /// Charge for weight in order to execute XCM.
+///
+/// A `WeightTrader` may also be put into a tuple, in which case the default behavior of
+/// `buy_weight` and `refund_weight` would be to attempt to call each tuple element's own
+/// implementation of these two functions, in the order of which they appear in the tuple,
+/// returning early when a successful result is returned.
 pub trait WeightTrader: Sized {
 	/// Create a new trader instance.
 	fn new() -> Self;
