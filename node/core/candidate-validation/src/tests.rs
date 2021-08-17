@@ -16,6 +16,7 @@
 
 use super::*;
 use assert_matches::assert_matches;
+use either::Either;
 use futures::executor;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
@@ -335,7 +336,7 @@ impl MockValidatorBackend {
 impl ValidationBackend for MockValidatorBackend {
 	async fn validate_candidate(
 		&mut self,
-		_raw_validation_code: Vec<u8>,
+		_raw_validation_code: Either<Vec<u8>, ValidationCodeHash>,
 		_params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		self.result.clone()
@@ -356,8 +357,12 @@ fn candidate_validation_ok_is_ok() {
 	descriptor.validation_code_hash = validation_code.hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check =
-		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		Some(&validation_code),
+	);
 	assert!(check.is_ok());
 
 	let validation_result = WasmValidationResult {
@@ -372,7 +377,7 @@ fn candidate_validation_ok_is_ok() {
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data.clone(),
-		validation_code,
+		Some(validation_code),
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),
@@ -402,8 +407,12 @@ fn candidate_validation_bad_return_is_invalid() {
 	descriptor.validation_code_hash = validation_code.hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check =
-		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		Some(&validation_code),
+	);
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
@@ -411,7 +420,7 @@ fn candidate_validation_bad_return_is_invalid() {
 			WasmInvalidCandidate::AmbigiousWorkerDeath,
 		))),
 		validation_data,
-		validation_code,
+		Some(validation_code),
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),
@@ -434,8 +443,12 @@ fn candidate_validation_timeout_is_internal_error() {
 	descriptor.validation_code_hash = validation_code.hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check =
-		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		Some(&validation_code),
+	);
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
@@ -443,7 +456,7 @@ fn candidate_validation_timeout_is_internal_error() {
 			WasmInvalidCandidate::HardTimeout,
 		))),
 		validation_data,
-		validation_code,
+		Some(validation_code),
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),
@@ -465,8 +478,12 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	descriptor.validation_code_hash = ValidationCode(vec![1; 16]).hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check =
-		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		Some(&validation_code),
+	);
 	assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 
 	let v = executor::block_on(validate_candidate_exhaustive(
@@ -474,7 +491,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 			WasmInvalidCandidate::HardTimeout,
 		))),
 		validation_data,
-		validation_code,
+		Some(validation_code),
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),
@@ -514,7 +531,7 @@ fn compressed_code_works() {
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
-		validation_code,
+		Some(validation_code),
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),
@@ -554,7 +571,7 @@ fn code_decompression_failure_is_invalid() {
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
-		validation_code,
+		Some(validation_code),
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),
@@ -595,7 +612,7 @@ fn pov_decompression_failure_is_invalid() {
 	let v = executor::block_on(validate_candidate_exhaustive(
 		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
-		validation_code,
+		Some(validation_code),
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),

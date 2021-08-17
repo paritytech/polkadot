@@ -26,11 +26,12 @@ use crate::{
 };
 use always_assert::never;
 use async_std::path::{Path, PathBuf};
+use either::Either;
 use futures::{
 	channel::{mpsc, oneshot},
 	Future, FutureExt, SinkExt, StreamExt,
 };
-use polkadot_parachain::primitives::ValidationResult;
+use polkadot_parachain::primitives::{ValidationCodeHash, ValidationResult};
 use std::{
 	collections::HashMap,
 	time::{Duration, SystemTime},
@@ -55,7 +56,7 @@ impl ValidationHost {
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn execute_pvf(
 		&mut self,
-		pvf: Pvf,
+		pvf: Either<Pvf, ValidationCodeHash>,
 		params: Vec<u8>,
 		priority: Priority,
 		result_tx: ResultSender,
@@ -81,8 +82,15 @@ impl ValidationHost {
 }
 
 enum ToHost {
-	ExecutePvf { pvf: Pvf, params: Vec<u8>, priority: Priority, result_tx: ResultSender },
-	HeadsUp { active_pvfs: Vec<Pvf> },
+	ExecutePvf {
+		pvf: Either<Pvf, ValidationCodeHash>,
+		params: Vec<u8>,
+		priority: Priority,
+		result_tx: ResultSender,
+	},
+	HeadsUp {
+		active_pvfs: Vec<Pvf>,
+	},
 }
 
 /// Configuration for the validation host.
@@ -368,10 +376,10 @@ async fn handle_to_host(
 				result_tx,
 			)
 			.await?;
-		},
+		}
 		ToHost::HeadsUp { active_pvfs } => {
 			handle_heads_up(artifacts, prepare_queue, active_pvfs).await?;
-		},
+		}
 	}
 
 	Ok(())
@@ -383,12 +391,15 @@ async fn handle_execute_pvf(
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
 	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
-	pvf: Pvf,
+	pvf: Either<Pvf, ValidationCodeHash>,
 	params: Vec<u8>,
 	priority: Priority,
 	result_tx: ResultSender,
 ) -> Result<(), Fatal> {
-	let artifact_id = pvf.as_artifact_id();
+	let artifact_id = match &pvf {
+		Either::Left(pvf) => pvf.as_artifact_id(),
+		Either::Right(hash) => ArtifactId::new(*hash),
+	};
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
@@ -404,7 +415,7 @@ async fn handle_execute_pvf(
 					},
 				)
 				.await?;
-			},
+			}
 			ArtifactState::Preparing => {
 				send_prepare(
 					prepare_queue,
@@ -413,18 +424,23 @@ async fn handle_execute_pvf(
 				.await?;
 
 				awaiting_prepare.add(artifact_id, params, result_tx);
-			},
+			}
 		}
 	} else {
-		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
-		//
-		artifacts.insert_preparing(artifact_id.clone());
-		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
+		if let Either::Left(pvf) = pvf {
+			// Artifact is unknown: register it and enqueue a job with the corresponding priority and
+			//
+			artifacts.insert_preparing(artifact_id.clone());
+			send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
 
-		awaiting_prepare.add(artifact_id, params, result_tx);
+			awaiting_prepare.add(artifact_id, params, result_tx);
+		} else {
+			// Expect another request with PVF provided.
+			let _ = result_tx.send(Err(ValidationError::ArtifactNotFound));
+		};
 	}
 
-	return Ok(())
+	return Ok(());
 }
 
 async fn handle_heads_up(
@@ -440,11 +456,11 @@ async fn handle_heads_up(
 			match state {
 				ArtifactState::Prepared { last_time_needed, .. } => {
 					*last_time_needed = now;
-				},
+				}
 				ArtifactState::Preparing => {
 					// Already preparing. We don't need to send a priority amend either because
 					// it can't get any lower than the background.
-				},
+				}
 			}
 		} else {
 			// The artifact is unknown: register it and put a background job into the prepare queue.
@@ -477,8 +493,8 @@ async fn handle_prepare_done(
 			// thus the artifact cannot be unknown, only preparing;
 			// qed.
 			never!("an unknown artifact was prepared: {:?}", artifact_id);
-			return Ok(())
-		},
+			return Ok(());
+		}
 		Some(ArtifactState::Prepared { .. }) => {
 			// before sending request to prepare, the artifact is inserted with `preparing` state;
 			// the requests are deduplicated for the same artifact id;
@@ -486,8 +502,8 @@ async fn handle_prepare_done(
 			// thus the artifact cannot be prepared, only preparing;
 			// qed.
 			never!("the artifact is already prepared: {:?}", artifact_id);
-			return Ok(())
-		},
+			return Ok(());
+		}
 		Some(state @ ArtifactState::Preparing) => state,
 	};
 
@@ -499,7 +515,7 @@ async fn handle_prepare_done(
 		if result_tx.is_canceled() {
 			// Preparation could've taken quite a bit of time and the requester may be not interested
 			// in execution anymore, in which case we just skip the request.
-			continue
+			continue;
 		}
 
 		send_execute(
@@ -551,7 +567,7 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 			None => break,
 			Some(condemned) => {
 				let _ = async_std::fs::remove_file(condemned).await;
-			},
+			}
 		}
 	}
 }
@@ -743,7 +759,7 @@ mod tests {
 			}
 
 			if let Poll::Ready(r) = futures::poll!(&mut *fut) {
-				break r
+				break r;
 			}
 
 			if futures::poll!(&mut *task).is_ready() {
@@ -816,9 +832,14 @@ mod tests {
 		.await;
 
 		let (result_tx, _result_rx) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(1), vec![], Priority::Critical, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Either::Left(Pvf::from_discriminator(1)),
+			vec![],
+			Priority::Critical,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		run_until(
 			&mut test.run,
@@ -838,13 +859,18 @@ mod tests {
 		let mut host = test.host_handle();
 
 		let (result_tx, result_rx_pvf_1_1) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(1), b"pvf1".to_vec(), Priority::Normal, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Either::Left(Pvf::from_discriminator(1)),
+			b"pvf1".to_vec(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		let (result_tx, result_rx_pvf_1_2) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			Either::Left(Pvf::from_discriminator(1)),
 			b"pvf1".to_vec(),
 			Priority::Critical,
 			result_tx,
@@ -853,9 +879,14 @@ mod tests {
 		.unwrap();
 
 		let (result_tx, result_rx_pvf_2) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(2), b"pvf2".to_vec(), Priority::Normal, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Either::Left(Pvf::from_discriminator(2)),
+			b"pvf2".to_vec(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,
@@ -923,9 +954,14 @@ mod tests {
 		let mut host = test.host_handle();
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(1), b"pvf1".to_vec(), Priority::Normal, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Either::Left(Pvf::from_discriminator(1)),
+			b"pvf1".to_vec(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,

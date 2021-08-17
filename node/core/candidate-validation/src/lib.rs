@@ -38,7 +38,9 @@ use polkadot_node_subsystem::{
 	SubsystemResult,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
+use polkadot_parachain::primitives::{
+	ValidationCodeHash, ValidationParams, ValidationResult as WasmValidationResult,
+};
 use polkadot_primitives::v1::{
 	CandidateCommitments, CandidateDescriptor, Hash, OccupiedCoreAssumption,
 	PersistedValidationData, ValidationCode,
@@ -46,6 +48,7 @@ use polkadot_primitives::v1::{
 
 use parity_scale_codec::Encode;
 
+use either::Either;
 use futures::{channel::oneshot, prelude::*};
 
 use std::{path::PathBuf, sync::Arc};
@@ -193,7 +196,7 @@ where
 					let res = validate_candidate_exhaustive(
 						&mut validation_host,
 						persisted_validation_data,
-						validation_code,
+						Some(validation_code),
 						descriptor,
 						pov,
 						&metrics,
@@ -319,7 +322,7 @@ where
 	Context: SubsystemContext<Message = CandidateValidationMessage>,
 	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
 {
-	let (validation_data, valid_assumption) =
+	let (validation_data, valid_assumption): (PersistedValidationData, OccupiedCoreAssumption) =
 		match find_assumed_validation_data(ctx, &descriptor, None).await? {
 			AssumptionCheckOutcome::Matches(validation_data, valid_assumption) => {
 				(validation_data, valid_assumption)
@@ -335,27 +338,38 @@ where
 			}
 		};
 
-	let validation_code =
-		match find_assumed_validation_data(ctx, &descriptor, Some(valid_assumption)).await? {
-			AssumptionCheckOutcome::Matches(validation_code, _) => validation_code,
-			AssumptionCheckOutcome::DoesNotMatch => {
-				// Code hash is not validated, should be unreachable.
-				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)));
-			}
-			AssumptionCheckOutcome::BadRequest => {
-				return Ok(Err(ValidationFailed("Assumption Check: Bad request".into())))
-			}
-		};
-
-	let validation_result = validate_candidate_exhaustive(
-		validation_host,
-		validation_data,
-		validation_code,
+	let mut validation_result = validate_candidate_exhaustive(
+		&mut validation_host.clone(),
+		validation_data.clone(),
+		None,
 		descriptor.clone(),
-		pov,
+		pov.clone(),
 		metrics,
 	)
 	.await;
+
+	if let Ok(Ok(ValidationResult::Invalid(InvalidCandidate::CodeNotFound))) = validation_result {
+		let validation_code =
+			match find_assumed_validation_data(ctx, &descriptor, Some(valid_assumption)).await? {
+				AssumptionCheckOutcome::Matches(validation_code, _) => validation_code,
+				AssumptionCheckOutcome::DoesNotMatch => {
+					// Code hash is not validated, should be unreachable.
+					return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)));
+				}
+				AssumptionCheckOutcome::BadRequest => {
+					return Ok(Err(ValidationFailed("Assumption Check: Bad request".into())))
+				}
+			};
+		validation_result = validate_candidate_exhaustive(
+			validation_host,
+			validation_data,
+			Some(validation_code),
+			descriptor.clone(),
+			pov,
+			metrics,
+		)
+		.await;
+	}
 
 	if let Ok(Ok(ValidationResult::Valid(ref outputs, _))) = validation_result {
 		let (tx, rx) = oneshot::channel();
@@ -383,7 +397,7 @@ where
 async fn validate_candidate_exhaustive(
 	mut validation_backend: impl ValidationBackend,
 	persisted_validation_data: PersistedValidationData,
-	validation_code: ValidationCode,
+	validation_code: Option<ValidationCode>,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	metrics: &Metrics,
@@ -394,22 +408,33 @@ async fn validate_candidate_exhaustive(
 		&descriptor,
 		persisted_validation_data.max_pov_size,
 		&*pov,
-		&validation_code,
+		validation_code.as_ref(),
 	) {
 		return Ok(Ok(ValidationResult::Invalid(e)));
 	}
 
-	let raw_validation_code = match sp_maybe_compressed_blob::decompress(
-		&validation_code.0,
-		VALIDATION_CODE_BOMB_LIMIT,
-	) {
-		Ok(code) => code,
-		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+	let validation_code = if let Some(validation_code) = validation_code {
+		Either::Left(
+			match sp_maybe_compressed_blob::decompress(
+				&validation_code.0,
+				VALIDATION_CODE_BOMB_LIMIT,
+			) {
+				Ok(code) => code,
+				Err(e) => {
+					tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
 
-			// If the validation code is invalid, the candidate certainly is.
-			return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)));
-		}
+					// If the validation code is invalid, the candidate certainly is.
+					return Ok(Ok(ValidationResult::Invalid(
+						InvalidCandidate::CodeDecompressionFailure,
+					)));
+				}
+			}
+			.to_vec(),
+		)
+	} else {
+		// In case validation code is not provided, ask the backend to obtain
+		// it from the cache using the hash.
+		Either::Right(ValidationCodeHash::from(descriptor.persisted_validation_data_hash))
 	};
 
 	let raw_block_data =
@@ -432,9 +457,7 @@ async fn validate_candidate_exhaustive(
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};
 
-	let result = validation_backend
-		.validate_candidate(raw_validation_code.to_vec(), params)
-		.await;
+	let result = validation_backend.validate_candidate(validation_code, params).await;
 
 	if let Err(ref e) = result {
 		tracing::debug!(
@@ -457,6 +480,9 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
 				"ambigious worker death".to_string(),
 			)))
+		}
+		Err(ValidationError::ArtifactNotFound) => {
+			Ok(ValidationResult::Invalid(InvalidCandidate::CodeNotFound))
 		}
 
 		Ok(res) => {
@@ -483,7 +509,7 @@ async fn validate_candidate_exhaustive(
 trait ValidationBackend {
 	async fn validate_candidate(
 		&mut self,
-		raw_validation_code: Vec<u8>,
+		validation_code: Either<Vec<u8>, ValidationCodeHash>,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError>;
 }
@@ -492,13 +518,13 @@ trait ValidationBackend {
 impl ValidationBackend for &'_ mut ValidationHost {
 	async fn validate_candidate(
 		&mut self,
-		raw_validation_code: Vec<u8>,
+		validation_code: Either<Vec<u8>, ValidationCodeHash>,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self
 			.execute_pvf(
-				Pvf::from_code(raw_validation_code),
+				validation_code.map_left(Pvf::from_code),
 				params.encode(),
 				polkadot_node_core_pvf::Priority::Normal,
 				tx,
@@ -525,10 +551,10 @@ fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
 	max_pov_size: u32,
 	pov: &PoV,
-	validation_code: &ValidationCode,
+	validation_code: Option<&ValidationCode>,
 ) -> Result<(), InvalidCandidate> {
 	let pov_hash = pov.hash();
-	let validation_code_hash = validation_code.hash();
+	let validation_code_hash = validation_code.map(ValidationCode::hash);
 
 	let encoded_pov_size = pov.encoded_size();
 	if encoded_pov_size > max_pov_size as usize {
@@ -539,7 +565,7 @@ fn perform_basic_checks(
 		return Err(InvalidCandidate::PoVHashMismatch);
 	}
 
-	if validation_code_hash != candidate.validation_code_hash {
+	if let Some(false) = validation_code_hash.map(|hash| hash == candidate.validation_code_hash) {
 		return Err(InvalidCandidate::CodeHashMismatch);
 	}
 
