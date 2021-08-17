@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@ use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use syn::{Result, Token};
 
-pub fn generate_v1_conversion_functions(input: proc_macro::TokenStream) -> Result<TokenStream> {
+pub fn generate_conversion_functions(input: proc_macro::TokenStream) -> Result<TokenStream> {
 	if !input.is_empty() {
 		return Err(syn::Error::new(Span::call_site(), "No arguments expected"))
 	}
