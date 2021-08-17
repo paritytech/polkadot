@@ -21,7 +21,6 @@
 
 use std::{
 	collections::{BTreeSet, HashMap, HashSet},
-	convert::TryFrom,
 	io,
 	sync::Arc,
 	time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH},
@@ -1178,7 +1177,7 @@ fn store_available_data(
 	let erasure_chunks = chunks.iter().zip(branches.map(|(proof, _)| proof)).enumerate().map(
 		|(index, (chunk, proof))| ErasureChunk {
 			chunk: chunk.clone(),
-			proof: Proof::try_from(proof).unwrap(),
+			proof,
 			index: ValidatorIndex(index as u32),
 		},
 	);

@@ -21,7 +21,6 @@ use std::convert::TryFrom;
 use assert_matches::assert_matches;
 use futures::{channel::oneshot, executor, future, Future};
 
-use parity_scale_codec::{Decode, Encode};
 use parking_lot::Mutex;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV, Proof};
 use polkadot_node_subsystem_test_helpers as test_helpers;

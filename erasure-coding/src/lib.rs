@@ -24,8 +24,10 @@
 //! f is the maximum number of faulty validators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
+use std::convert::TryFrom;
+
 use parity_scale_codec::{Decode, Encode};
-use polkadot_node_primitives::AvailableData;
+use polkadot_node_primitives::{AvailableData, Proof};
 use polkadot_primitives::v0::{self, BlakeTwo256, Hash as H256, HashT};
 use sp_core::Blake2Hasher;
 use thiserror::Error;
@@ -245,7 +247,7 @@ impl<'a, I: AsRef<[u8]>> Branches<'a, I> {
 }
 
 impl<'a, I: AsRef<[u8]>> Iterator for Branches<'a, I> {
-	type Item = (Vec<Vec<u8>>, &'a [u8]);
+	type Item = (Proof, &'a [u8]);
 
 	fn next(&mut self) -> Option<Self::Item> {
 		use trie::Recorder;
@@ -258,13 +260,12 @@ impl<'a, I: AsRef<[u8]>> Iterator for Branches<'a, I> {
 
 		match res.expect("all nodes in trie present; qed") {
 			Some(_) => {
-				let nodes = recorder.drain().into_iter().map(|r| r.data).collect();
+				let nodes: Vec<Vec<u8>> = recorder.drain().into_iter().map(|r| r.data).collect();
 				let chunk = self.chunks.get(self.current_pos).expect(
 					"there is a one-to-one mapping of chunks to valid merkle branches; qed",
 				);
-
 				self.current_pos += 1;
-				Some((nodes, chunk.as_ref()))
+				Proof::try_from(nodes).ok().map(|proof| (proof, chunk.as_ref()))
 			},
 			None => None,
 		}
@@ -421,7 +422,7 @@ mod tests {
 		assert_eq!(proofs.len(), 10);
 
 		for (i, proof) in proofs.into_iter().enumerate() {
-			assert_eq!(branch_hash(&root, &proof, i).unwrap(), BlakeTwo256::hash(&chunks[i]));
+			assert_eq!(branch_hash(&root, &proof.as_vec(), i).unwrap(), BlakeTwo256::hash(&chunks[i]));
 		}
 	}
 }

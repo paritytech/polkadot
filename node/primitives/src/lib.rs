@@ -52,8 +52,8 @@ pub use disputes::{
 	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
 };
 
-const MERKLE_NODE_MAX_SIZE: usize = 347;
-const MERKLE_PROOF_MAX_DEPTH: usize = 3;
+const MERKLE_NODE_MAX_SIZE: usize = 512;
+const MERKLE_PROOF_MAX_DEPTH: usize = 8;
 
 /// The bomb limit for decompressing code blobs.
 pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
@@ -296,7 +296,8 @@ pub struct AvailableData {
 pub struct Proof(BoundedVec<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, 1, MERKLE_PROOF_MAX_DEPTH>);
 
 impl Proof {
-	fn as_vec(&self) -> Vec<Vec<u8>> {
+	/// This function allows to convert back to the standard nested Vec format
+	pub fn as_vec(&self) -> Vec<Vec<u8>> {
 		self.0.as_vec().iter().map(|v| v.as_vec().clone()).collect()
 	}
 }
@@ -320,25 +321,17 @@ impl TryFrom<Vec<Vec<u8>>> for Proof {
 
 impl Decode for Proof {
 	fn decode<I: Input>(value: &mut I) -> Result<Self, CodecError> {
-		match value.remaining_len()? {
-			Some(l) if l % MERKLE_NODE_MAX_SIZE != 0 =>
-				return Err("At least one intermediate node in Proof is unpadded.".into()),
-			Some(l) if (l / MERKLE_NODE_MAX_SIZE) > MERKLE_PROOF_MAX_DEPTH =>
-				return Err("Supplied proof depth exceeds maximum proof depth.".into()),
-			None => return Err("Buffer is empty.".into()),
-			_ => {},
-		}
+		let temp: Vec<Vec<u8>> = Decode::decode(value)?;
 		let mut out = Vec::new();
-		while let Ok(Some(_)) = value.remaining_len() {
-			let mut temp = [0u8; MERKLE_NODE_MAX_SIZE];
-			value.read(&mut temp)?;
+		for element in temp.into_iter() {
 			let bounded_temp: BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE> =
-				BoundedVec::from_vec(temp.to_vec())
-					.expect("Buffer is specifically set to bounded vector's upper bound. QED");
+				BoundedVec::from_vec(element).map_err(|_| {
+					"Inner node exceeds maximum node size.".into()
+				})
 			out.push(bounded_temp);
 		}
 		BoundedVec::from_vec(out).map(Self).map_err(|_| {
-			"Length of proof is ensured to be less than bouned. This Error in unreachable".into()
+			"Merkle proof depth exceeds maximum trie depth".into()
 		})
 	}
 }
@@ -349,14 +342,8 @@ impl Encode for Proof {
 	}
 
 	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
-		let mut out = Vec::new();
-		for element in self.0.iter() {
-			let temp = element.as_vec();
-			let mut element_vec = [0u8; MERKLE_NODE_MAX_SIZE];
-			element_vec[..temp.len()].copy_from_slice(&temp.as_slice());
-			out.extend(element_vec);
-		}
-		f(&out.as_ref())
+		let temp = self.as_vec();
+		temp.using_encoded(f)
 	}
 }
 
