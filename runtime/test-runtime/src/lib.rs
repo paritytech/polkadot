@@ -512,6 +512,8 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
+	type Origin = Origin;
+	type Call = Call;
 }
 
 impl parachains_hrmp::Config for Runtime {
