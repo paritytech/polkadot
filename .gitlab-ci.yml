@@ -157,17 +157,6 @@ test-build-linux-stable:
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/docker/* ./artifacts
 
-check-web-wasm:
-  stage:                           test
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # WASM support is in progress. As more and more crates support WASM, we should
-    # add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - ./scripts/gitlab/check_web_wasm.sh
-    - sccache -s
-
 check-runtime-benchmarks:
   stage:                           test
   <<:                              *rules-test
@@ -493,10 +482,10 @@ simnet-tests:
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-adder-collator-image
-  # `parachains.env` brings here `$PARACHAINS_IMAGE_NAME` and `$PARACHAINS_IMAGE_TAG` 
+  # `parachains.env` brings here `$PARACHAINS_IMAGE_NAME` and `$PARACHAINS_IMAGE_TAG`
   # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
-  # `collator.env` brings here `$COLLATOR_IMAGE_NAME` and  `$COLLATOR_IMAGE_TAG` 
-  # For local tests with docker `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG` 
+  # `collator.env` brings here `$COLLATOR_IMAGE_NAME` and  `$COLLATOR_IMAGE_TAG`
+  # For local tests with docker `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG`
   # can be replaced with `master` tag.
 
   # SIMNET_REF is a gitlab variable
