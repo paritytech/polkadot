@@ -3,12 +3,12 @@ name = "malus"
 path = "src/lib.rs"
 
 [[bin]]
-name = "malus-example"
-path = "src/malus-example.rs"
+name = "malus-suggest-garbage-candidate"
+path = "src/malus-suggest-garbage-candidate.rs"
 
 [[bin]]
-name = "malus-dispute-ancestor"
-path = "src/malus-dispute-ancestor.rs"
+name = "malus-back-garbage-candidate"
+path = "src/malus-back-garbage-candidate.rs"
 
 
 [package]

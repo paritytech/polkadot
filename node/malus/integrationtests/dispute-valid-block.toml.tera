@@ -11,7 +11,7 @@ image = "parity/polkadot"
 command = "polkadot"
 chain-name = "polkadot"
 validator = true
-
+timeout = 1000
 
 volumes = [
     { type = "node-data", size="10Gi", mount-path = "/data" }
@@ -20,9 +20,8 @@ volumes = [
 limits = { memory = "2G" }
 requests = { memory = "1G" }
 
-
 [nodes]
-{%- set chainName = "polkadot" -%}
+{%- set chainName = "polkadot-local" -%}
 {%- set malusVariant = "dispute-ancestor" -%}
 {%- set goodNodeCount = 5 -%}
 {%- set malusNodeCount = 1 -%}
@@ -43,7 +42,7 @@ requests = { memory = "1G" }
 {%- set nodeType = "malus" -%}
 {%- endif -%}
 
-{%- set nodeName = [{{ chainName }}, nodeType, malusVariant, i] | join(sep="-") | lower -%}
+{%- set nodeName = [ chainName, nodeType, malusVariant, i] | join(sep="-") | lower -%}
 
 [nodes.{{nodeName}}]
 timeout = 1500
