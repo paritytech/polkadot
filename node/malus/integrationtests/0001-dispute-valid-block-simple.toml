@@ -1,0 +1,29 @@
+[settings.defaults]
+image = "parity/polkadot"
+command = "polkadot"
+chain-name = "polkadot-local"
+timeout = 1000
+
+[nodes.alice]
+validator = true
+extra-args = ["--alice"]
+image = "parity/polkadot"
+command = "polkadot"
+
+[nodes.bob]
+validator = true
+extra-args = ["--bob"]
+image = "parity/polkadot"
+command = "polkadot"
+
+[nodes.charlie]
+validator = true
+extra-args = ["--charlie"]
+image = "parity/polkadot"
+command = "polkadot"
+
+[nodes.mal]
+validator = true
+extra-args = ["--dave"]
+image = "paritypr/malus"
+command = "/usr/local/bin/malus-dispute-valid-block"
