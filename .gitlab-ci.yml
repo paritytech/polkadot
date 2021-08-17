@@ -157,17 +157,6 @@ test-build-linux-stable:
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/docker/* ./artifacts
 
-check-web-wasm:
-  stage:                           test
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # WASM support is in progress. As more and more crates support WASM, we should
-    # add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - ./scripts/gitlab/check_web_wasm.sh
-    - sccache -s
-
 check-runtime-benchmarks:
   stage:                           test
   <<:                              *rules-test
