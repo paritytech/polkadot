@@ -383,13 +383,25 @@ impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
 		use Xcm::*;
 		let mut iter = old.0.into_iter();
 		let instruction = iter.next().ok_or(())?;
-		let effects = iter.map(Order::try_from).collect::<result::Result<_, _>>()?;
 		Ok(match instruction {
-			Instruction::WithdrawAsset { assets } => WithdrawAsset { assets, effects },
-			Instruction::ReserveAssetDeposited { assets } =>
-				ReserveAssetDeposited { assets, effects },
-			Instruction::ReceiveTeleportedAsset { assets } =>
-				ReceiveTeleportedAsset { assets, effects },
+			Instruction::WithdrawAsset { assets } => {
+				let effects = iter.map(Order::try_from).collect::<result::Result<_, _>>()?;
+				WithdrawAsset { assets, effects }
+			},
+			Instruction::ReserveAssetDeposited { assets } => {
+				if !matches!(iter.next(), Some(Instruction::ClearOrigin)) {
+					return Err(())
+				}
+				let effects = iter.map(Order::try_from).collect::<result::Result<_, _>>()?;
+				ReserveAssetDeposited { assets, effects }
+			},
+			Instruction::ReceiveTeleportedAsset { assets } => {
+				if !matches!(iter.next(), Some(Instruction::ClearOrigin)) {
+					return Err(())
+				}
+				let effects = iter.map(Order::try_from).collect::<result::Result<_, _>>()?;
+				ReceiveTeleportedAsset { assets, effects }
+			},
 			Instruction::QueryResponse { query_id, response, max_weight } => {
 				// Cannot handle special response weights.
 				if max_weight > 0 {

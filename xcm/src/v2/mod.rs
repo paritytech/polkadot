@@ -514,11 +514,13 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 			OldXcm::ReserveAssetDeposited { assets, effects } =>
 				Some(Ok(ReserveAssetDeposited { assets }))
 					.into_iter()
+					.chain(Some(Ok(ClearOrigin)).into_iter())
 					.chain(effects.into_iter().map(Instruction::try_from))
 					.collect::<result::Result<Vec<_>, _>>()?,
 			OldXcm::ReceiveTeleportedAsset { assets, effects } =>
 				Some(Ok(ReceiveTeleportedAsset { assets }))
 					.into_iter()
+					.chain(Some(Ok(ClearOrigin)).into_iter())
 					.chain(effects.into_iter().map(Instruction::try_from))
 					.collect::<result::Result<Vec<_>, _>>()?,
 			OldXcm::QueryResponse { query_id, response } => vec![QueryResponse {
@@ -595,5 +597,33 @@ impl<Call> TryFrom<OldOrder<Call>> for Instruction<Call> {
 				BuyExecution { fees, weight_limit: WeightLimit::Limited(debt) }
 			},
 		})
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use super::prelude::*;
+
+	#[test]
+	fn basic_backward_roundtrip_works() {
+		let xcm = Xcm::<()>(vec![
+			TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() },
+		]);
+		let old_xcm: OldXcm<()> = xcm.clone().try_into().unwrap();
+		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
+		assert_eq!(new_xcm, xcm);
+	}
+
+	#[test]
+	fn teleport_backward_roundtrip_works() {
+		let xcm = Xcm::<()>(vec![
+			ReceiveTeleportedAsset { assets: (Here, 1).into() },
+			ClearOrigin,
+			DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },
+		]);
+		let old_xcm: OldXcm<()> = xcm.clone().try_into().unwrap();
+		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
+		assert_eq!(new_xcm, xcm);
 	}
 }
