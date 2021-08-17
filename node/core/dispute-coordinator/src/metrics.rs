@@ -25,28 +25,28 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
-    fn on_vote_valid(&self) {
-        if let Some(metrics) = self.0 {
-            metrics.vote.with_label_values(&["valid"]).inc();
-        }
-    }
+	fn on_vote_valid(&self) {
+		if let Some(metrics) = self.0 {
+			metrics.vote.with_label_values(&["valid"]).inc();
+		}
+	}
 
-    fn on_vote_invalid(&self) {
-        if let Some(metrics) = self.0 {
-            metrics.vote.with_label_values(&["invalid"]).inc();
-        }
-    }
+	fn on_vote_invalid(&self) {
+		if let Some(metrics) = self.0 {
+			metrics.vote.with_label_values(&["invalid"]).inc();
+		}
+	}
 
 	fn on_concluded_invalid(&self) {
-        if let Some(metrics) = self.0 {
-            metrics.concluded.with_label_values(&["valid"]).inc();
-        }
-    }
+		if let Some(metrics) = self.0 {
+			metrics.concluded.with_label_values(&["valid"]).inc();
+		}
+	}
 
-    fn on_concluded_invalid(&self) {
-        if let Some(metrics) = self.0 {
-            metrics.concluded.with_label_values(&["invalid"]).inc();
-        }
+	fn on_concluded_invalid(&self) {
+		if let Some(metrics) = self.0 {
+			metrics.concluded.with_label_values(&["invalid"]).inc();
+		}
 	}
 }
 
