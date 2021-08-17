@@ -606,23 +606,56 @@ mod tests {
 	use super::prelude::*;
 
 	#[test]
-	fn basic_backward_roundtrip_works() {
+	fn basic_roundtrip_works() {
 		let xcm = Xcm::<()>(vec![
 			TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() },
 		]);
-		let old_xcm: OldXcm<()> = xcm.clone().try_into().unwrap();
+		let old_xcm = OldXcm::<()>::TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() };
+		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
 		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
 		assert_eq!(new_xcm, xcm);
 	}
 
 	#[test]
-	fn teleport_backward_roundtrip_works() {
+	fn teleport_roundtrip_works() {
 		let xcm = Xcm::<()>(vec![
 			ReceiveTeleportedAsset { assets: (Here, 1).into() },
 			ClearOrigin,
 			DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },
 		]);
-		let old_xcm: OldXcm<()> = xcm.clone().try_into().unwrap();
+		let old_xcm: OldXcm<()> = OldXcm::<()>::ReceiveTeleportedAsset {
+			assets: (Here, 1).into(),
+			effects: vec![
+				OldOrder::DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },
+			],
+		};
+		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
+		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
+		assert_eq!(new_xcm, xcm);
+	}
+
+	#[test]
+	fn reserve_deposit_roundtrip_works() {
+		let xcm = Xcm::<()>(vec![
+			ReserveAssetDeposited { assets: (Here, 1).into() },
+			ClearOrigin,
+			BuyExecution { fees: (Here, 1).into(), weight_limit: Some(1).into() },
+			DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },
+		]);
+		let old_xcm: OldXcm<()> = OldXcm::<()>::ReserveAssetDeposited {
+			assets: (Here, 1).into(),
+			effects: vec![
+				OldOrder::BuyExecution {
+					fees: (Here, 1).into(),
+					debt: 1,
+					weight: 0,
+					instructions: vec![],
+					halt_on_error: true,
+				},
+				OldOrder::DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },
+			],
+		};
+		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
 		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
 		assert_eq!(new_xcm, xcm);
 	}
