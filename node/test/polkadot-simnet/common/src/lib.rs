@@ -27,6 +27,7 @@ use polkadot_runtime::{
 use polkadot_runtime_common::claims;
 use sc_consensus_babe::BabeBlockImport;
 use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
+use sc_executor::NativeElseWasmExecutor;
 use sc_service::{TFullBackend, TFullClient};
 use sp_runtime::{app_crypto::sp_core::H256, generic::Era, AccountId32};
 use std::{error::Error, future::Future, str::FromStr};
@@ -69,7 +70,7 @@ impl ChainInfo for PolkadotChainInfo {
 	type BlockImport = BlockImport<
 		Self::Block,
 		TFullBackend<Self::Block>,
-		TFullClient<Self::Block, RuntimeApi, Self::ExecutorDispatch>,
+		TFullClient<Self::Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>,
 		Self::SelectChain,
 	>;
 	type SignedExtras = polkadot_runtime::SignedExtra;
@@ -105,7 +106,7 @@ where
 		BlockImport = BlockImport<
 			Block,
 			TFullBackend<Block>,
-			TFullClient<Block, RuntimeApi, Executor>,
+			TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>,
 			SelectChain,
 		>,
 		SignedExtras = polkadot_runtime::SignedExtra,
