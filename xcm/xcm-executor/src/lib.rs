@@ -302,13 +302,17 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(dest, Xcm(vec![instruction])).map_err(Into::into)
 			},
 			BuyExecution { fees, weight_limit } => {
-				let weight =
-					Option::<u64>::from(weight_limit).ok_or(XcmError::TooMuchWeightRequired)?;
-				// pay for `weight` using up to `fees` of the holding register.
-				let max_fee =
-					holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
-				let unspent = trader.buy_weight(weight, max_fee)?;
-				holding.subsume_assets(unspent);
+				// There is no need to buy any weight is `weight_limit` is `Unlimited` since it
+				// would indicate that `AllowTopLevelPaidExecutionFrom` was unused for execution
+				// and thus there is some other reason why it has been determined that this XCM
+				// should be executed.
+				if let Some(weight) = Option::<u64>::from(weight_limit) {
+					// pay for `weight` using up to `fees` of the holding register.
+					let max_fee =
+						holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
+					let unspent = trader.buy_weight(weight, max_fee)?;
+					holding.subsume_assets(unspent);
+				}
 				Ok(())
 			},
 			RefundSurplus => {

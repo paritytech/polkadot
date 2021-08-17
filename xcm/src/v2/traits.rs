@@ -92,6 +92,8 @@ pub enum Error {
 	Transport(#[codec(skip)] &'static str),
 	/// Destination is known to be unroutable.
 	Unroutable,
+	/// The weight required was not specified when it should have been.
+	UnknownWeightRequired,
 }
 
 impl From<()> for Error {

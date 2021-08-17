@@ -25,10 +25,6 @@ use polkadot_test_service::construct_extrinsic;
 use sp_runtime::{generic::BlockId, traits::Block};
 use sp_state_machine::InspectState;
 use xcm::latest::prelude::*;
-use xcm_executor::MAX_RECURSION_LIMIT;
-
-// This is the inflection point where the test should either fail or pass.
-const MAX_RECURSION_CHECK: u32 = MAX_RECURSION_LIMIT / 2;
 
 #[test]
 fn basic_buy_fees_message_executes() {
@@ -39,7 +35,7 @@ fn basic_buy_fees_message_executes() {
 
 	let msg = Xcm(vec![
 		WithdrawAsset { assets: (Parent, 100).into() },
-		BuyExecution { fees: (Parent, 100).into(), weight_limit: Unlimited },
+		BuyExecution { fees: (Parent, 1).into(), weight_limit: Unlimited },
 		DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Parent.into() },
 	]);
 
