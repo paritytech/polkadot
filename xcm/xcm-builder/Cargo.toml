@@ -22,11 +22,10 @@ pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", 
 polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-xcm = { path = "../pallet-xcm" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
 [features]
 default = ["std"]
 runtime-benchmarks = []

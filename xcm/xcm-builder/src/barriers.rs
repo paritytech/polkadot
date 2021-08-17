@@ -45,7 +45,7 @@ impl ShouldExecute for TakeWeightCredit {
 /// account.
 ///
 /// Only allows for `TeleportAsset`, `WithdrawAsset` and `ReserveAssetDeposit` XCMs because they are the only ones
-/// that place assets in holding to pay for execution.
+/// that place assets in the Holding Register to pay for execution.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(

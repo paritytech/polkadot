@@ -79,10 +79,10 @@ fn withdraw_and_deposit_works() {
 
 /// Scenario:
 /// A parachain wants to be notified that a transfer worked correctly.
-/// It sends a `QueryHolding` after the deposit to get notified on success.
+/// It includes a `QueryHolding` order after the deposit to get notified on success.
 /// This somewhat abuses `QueryHolding` as an indication of execution success. It works because
 /// order execution halts on error (so no `QueryResponse` will be sent if the previous order failed).
-/// The inner response is not used.
+/// The inner response sent due to the query is not used.
 ///
 /// Asserts that the balances are updated correctly and the expected XCM is sent.
 #[test]
