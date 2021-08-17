@@ -376,10 +376,10 @@ async fn handle_to_host(
 				result_tx,
 			)
 			.await?;
-		}
+		},
 		ToHost::HeadsUp { active_pvfs } => {
 			handle_heads_up(artifacts, prepare_queue, active_pvfs).await?;
-		}
+		},
 	}
 
 	Ok(())
@@ -415,7 +415,7 @@ async fn handle_execute_pvf(
 					},
 				)
 				.await?;
-			}
+			},
 			ArtifactState::Preparing => {
 				send_prepare(
 					prepare_queue,
@@ -424,7 +424,7 @@ async fn handle_execute_pvf(
 				.await?;
 
 				awaiting_prepare.add(artifact_id, params, result_tx);
-			}
+			},
 		}
 	} else {
 		if let Either::Left(pvf) = pvf {
@@ -440,7 +440,7 @@ async fn handle_execute_pvf(
 		};
 	}
 
-	return Ok(());
+	return Ok(())
 }
 
 async fn handle_heads_up(
@@ -456,11 +456,11 @@ async fn handle_heads_up(
 			match state {
 				ArtifactState::Prepared { last_time_needed, .. } => {
 					*last_time_needed = now;
-				}
+				},
 				ArtifactState::Preparing => {
 					// Already preparing. We don't need to send a priority amend either because
 					// it can't get any lower than the background.
-				}
+				},
 			}
 		} else {
 			// The artifact is unknown: register it and put a background job into the prepare queue.
@@ -493,8 +493,8 @@ async fn handle_prepare_done(
 			// thus the artifact cannot be unknown, only preparing;
 			// qed.
 			never!("an unknown artifact was prepared: {:?}", artifact_id);
-			return Ok(());
-		}
+			return Ok(())
+		},
 		Some(ArtifactState::Prepared { .. }) => {
 			// before sending request to prepare, the artifact is inserted with `preparing` state;
 			// the requests are deduplicated for the same artifact id;
@@ -502,8 +502,8 @@ async fn handle_prepare_done(
 			// thus the artifact cannot be prepared, only preparing;
 			// qed.
 			never!("the artifact is already prepared: {:?}", artifact_id);
-			return Ok(());
-		}
+			return Ok(())
+		},
 		Some(state @ ArtifactState::Preparing) => state,
 	};
 
@@ -514,7 +514,7 @@ async fn handle_prepare_done(
 		if result_tx.is_canceled() {
 			// Preparation could've taken quite a bit of time and the requester may be not interested
 			// in execution anymore, in which case we just skip the request.
-			continue;
+			continue
 		}
 
 		send_execute(
@@ -778,7 +778,7 @@ mod tests {
 			}
 
 			if let Poll::Ready(r) = futures::poll!(&mut *fut) {
-				break r;
+				break r
 			}
 
 			if futures::poll!(&mut *task).is_ready() {

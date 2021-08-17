@@ -154,8 +154,8 @@ where
 
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {}
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Communication { msg } => match msg {
 				CandidateValidationMessage::ValidateFromChainState(
@@ -178,10 +178,10 @@ where
 						Ok(x) => {
 							metrics.on_validation_event(&x);
 							let _ = response_sender.send(x);
-						}
+						},
 						Err(e) => return Err(e),
 					}
-				}
+				},
 				CandidateValidationMessage::ValidateFromExhaustive(
 					persisted_validation_data,
 					validation_code,
@@ -211,10 +211,10 @@ where
 									"Requester of candidate validation dropped",
 								)
 							}
-						}
+						},
 						Err(e) => return Err(e),
 					}
-				}
+				},
 			},
 		}
 	}
@@ -285,7 +285,7 @@ where
 	// based on the different `OccupiedCoreAssumption`s.
 
 	if let Some(assumption) = checked_assumption {
-		return Ok(check_assumption_validation_data(ctx, descriptor, assumption).await?);
+		return Ok(check_assumption_validation_data(ctx, descriptor, assumption).await?)
 	}
 
 	const ASSUMPTIONS: &[OccupiedCoreAssumption] = &[
@@ -323,18 +323,16 @@ where
 {
 	let (validation_data, valid_assumption): (PersistedValidationData, OccupiedCoreAssumption) =
 		match find_assumed_validation_data(ctx, &descriptor, None).await? {
-			AssumptionCheckOutcome::Matches(validation_data, valid_assumption) => {
-				(validation_data, valid_assumption)
-			}
+			AssumptionCheckOutcome::Matches(validation_data, valid_assumption) =>
+				(validation_data, valid_assumption),
 			AssumptionCheckOutcome::DoesNotMatch => {
 				// If neither the assumption of the occupied core having the para included or the assumption
 				// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
 				// is not based on the relay parent and is thus invalid.
-				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)));
-			}
-			AssumptionCheckOutcome::BadRequest => {
-				return Ok(Err(ValidationFailed("Assumption Check: Bad request".into())))
-			}
+				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
+			},
+			AssumptionCheckOutcome::BadRequest =>
+				return Ok(Err(ValidationFailed("Assumption Check: Bad request".into()))),
 		};
 
 	let mut validation_result = validate_candidate_exhaustive(
@@ -353,11 +351,10 @@ where
 				AssumptionCheckOutcome::Matches(validation_code, _) => validation_code,
 				AssumptionCheckOutcome::DoesNotMatch => {
 					// Code hash is not validated, should be unreachable.
-					return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)));
-				}
-				AssumptionCheckOutcome::BadRequest => {
-					return Ok(Err(ValidationFailed("Assumption Check: Bad request".into())))
-				}
+					return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
+				},
+				AssumptionCheckOutcome::BadRequest =>
+					return Ok(Err(ValidationFailed("Assumption Check: Bad request".into()))),
 			};
 		validation_result = validate_candidate_exhaustive(
 			validation_host,
@@ -380,13 +377,10 @@ where
 		)
 		.await?
 		{
-			Ok(true) => {}
-			Ok(false) => {
-				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::InvalidOutputs)))
-			}
-			Err(_) => {
-				return Ok(Err(ValidationFailed("Check Validation Outputs: Bad request".into())))
-			}
+			Ok(true) => {},
+			Ok(false) => return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::InvalidOutputs))),
+			Err(_) =>
+				return Ok(Err(ValidationFailed("Check Validation Outputs: Bad request".into()))),
 		}
 	}
 
@@ -417,7 +411,7 @@ async fn validate_candidate_exhaustive(
 		&*pov,
 		validation_code_hash.as_ref(),
 	) {
-		return Ok(Ok(ValidationResult::Invalid(e)));
+		return Ok(Ok(ValidationResult::Invalid(e)))
 	}
 
 	let validation_code = if let Some(validation_code) = validation_code {
@@ -433,8 +427,8 @@ async fn validate_candidate_exhaustive(
 					// If the validation code is invalid, the candidate certainly is.
 					return Ok(Ok(ValidationResult::Invalid(
 						InvalidCandidate::CodeDecompressionFailure,
-					)));
-				}
+					)))
+				},
 			}
 			.to_vec(),
 		)
@@ -451,10 +445,8 @@ async fn validate_candidate_exhaustive(
 				tracing::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
 
 				// If the PoV is invalid, the candidate certainly is.
-				return Ok(Ok(ValidationResult::Invalid(
-					InvalidCandidate::PoVDecompressionFailure,
-				)));
-			}
+				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)))
+			},
 		};
 
 	let params = ValidationParams {
@@ -477,22 +469,18 @@ async fn validate_candidate_exhaustive(
 	let result = match result {
 		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e)),
 
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) => {
-			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout))
-		}
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) => {
-			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e)))
-		}
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbigiousWorkerDeath)) => {
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbigiousWorkerDeath)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
 				"ambigious worker death".to_string(),
-			)))
-		}
-		Err(ValidationError::ArtifactNotFound) => {
-			Ok(ValidationResult::Invalid(InvalidCandidate::CodeNotFound))
-		}
+			))),
+		Err(ValidationError::ArtifactNotFound) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::CodeNotFound)),
 
-		Ok(res) => {
+		Ok(res) =>
 			if res.head_data.hash() != descriptor.para_head {
 				Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch))
 			} else {
@@ -505,8 +493,7 @@ async fn validate_candidate_exhaustive(
 					hrmp_watermark: res.hrmp_watermark,
 				};
 				Ok(ValidationResult::Valid(outputs, persisted_validation_data))
-			}
-		}
+			},
 	};
 
 	Ok(result)
@@ -541,7 +528,7 @@ impl ValidationBackend for &'_ mut ValidationHost {
 			return Err(ValidationError::InternalError(format!(
 				"cannot send pvf to the validation host: {:?}",
 				err
-			)));
+			)))
 		}
 
 		let validation_result = rx
@@ -564,19 +551,19 @@ fn perform_basic_checks(
 
 	let encoded_pov_size = pov.encoded_size();
 	if encoded_pov_size > max_pov_size as usize {
-		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov_size as u64));
+		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov_size as u64))
 	}
 
 	if pov_hash != candidate.pov_hash {
-		return Err(InvalidCandidate::PoVHashMismatch);
+		return Err(InvalidCandidate::PoVHashMismatch)
 	}
 
 	if let Some(false) = validation_code_hash.map(|hash| *hash == candidate.validation_code_hash) {
-		return Err(InvalidCandidate::CodeHashMismatch);
+		return Err(InvalidCandidate::CodeHashMismatch)
 	}
 
 	if let Err(()) = candidate.check_collator_signature() {
-		return Err(InvalidCandidate::BadSignature);
+		return Err(InvalidCandidate::BadSignature)
 	}
 
 	Ok(())
@@ -600,13 +587,13 @@ impl Metrics {
 			match event {
 				Ok(ValidationResult::Valid(_, _)) => {
 					metrics.validation_requests.with_label_values(&["valid"]).inc();
-				}
+				},
 				Ok(ValidationResult::Invalid(_)) => {
 					metrics.validation_requests.with_label_values(&["invalid"]).inc();
-				}
+				},
 				Err(_) => {
 					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
-				}
+				},
 			}
 		}
 	}
