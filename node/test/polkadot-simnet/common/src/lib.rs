@@ -98,7 +98,7 @@ pub async fn dispatch_with_root<T>(
 where
 	T: ChainInfo<
 		Block = Block,
-		Executor = Executor,
+		ExecutorDispatch = ExecutorDispatch,
 		Runtime = Runtime,
 		RuntimeApi = RuntimeApi,
 		SelectChain = SelectChain,
