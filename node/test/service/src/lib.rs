@@ -277,7 +277,7 @@ impl PolkadotTestNode {
 		function: impl Into<polkadot_test_runtime::Call>,
 		caller: Sr25519Keyring,
 	) -> Result<RpcTransactionOutput, RpcTransactionError> {
-		let extrinsic = construct_extrinsic(&*self.client, function, caller);
+		let extrinsic = construct_extrinsic(&*self.client, function, caller, 0);
 
 		self.rpc_handlers.send_transaction(extrinsic.into()).await
 	}
@@ -333,12 +333,12 @@ pub fn construct_extrinsic(
 	client: &Client,
 	function: impl Into<polkadot_test_runtime::Call>,
 	caller: Sr25519Keyring,
+	nonce: u32,
 ) -> UncheckedExtrinsic {
 	let function = function.into();
 	let current_block_hash = client.info().best_hash;
 	let current_block = client.info().best_number.saturated_into();
 	let genesis_block = client.hash(0).unwrap().unwrap();
-	let nonce = 0;
 	let period =
 		BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
 	let tip = 0;
@@ -385,5 +385,5 @@ pub fn construct_transfer_extrinsic(
 		value,
 	));
 
-	construct_extrinsic(client, function, origin)
+	construct_extrinsic(client, function, origin, 0)
 }

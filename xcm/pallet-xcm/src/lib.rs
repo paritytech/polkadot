@@ -96,6 +96,7 @@ pub mod pallet {
 		/// The outer `Call` type.
 		type Call: Parameter
 			+ GetDispatchInfo
+			+ IsType<<Self as frame_system::Config>::Call>
 			+ Dispatchable<Origin = <Self as Config>::Origin, PostInfo = PostDispatchInfo>;
 	}
 
@@ -107,6 +108,14 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		Attempted(xcm::latest::Outcome),
 		Sent(MultiLocation, MultiLocation, Xcm<()>),
+		UnexpectedResponse(MultiLocation, QueryId),
+		OnResponse(MultiLocation, QueryId, Response, Weight),
+		Notifying(QueryId, u8, u8),
+		NotifyOverweight(QueryId, Weight, Weight),
+		NotifyDispatchError(QueryId),
+		NotifyDecodeFailed(QueryId),
+		InvalidResponder(MultiLocation, QueryId, MultiLocation),
+		InvalidResponderVersion(MultiLocation, QueryId),
 	}
 
 	#[pallet::origin]
@@ -420,8 +429,11 @@ pub mod pallet {
 	impl<T: Config> OnResponse for Pallet<T> {
 		/// Returns `true` if we are expecting a response from `origin` for query `query_id`.
 		fn expecting_response(origin: &MultiLocation, query_id: QueryId) -> bool {
+			
 			if let Some(QueryStatus::Pending { responder, .. }) = Queries::<T>::get(query_id) {
 				return MultiLocation::try_from(responder).map_or(false, |r| origin == &r)
+			} else {
+				Self::deposit_event(Event::UnexpectedResponse(origin.clone(), query_id));
 			}
 			false
 		}
@@ -433,58 +445,85 @@ pub mod pallet {
 			response: Response,
 			max_weight: Weight,
 		) -> Weight {
+			Self::deposit_event(Event::OnResponse(origin.clone(), query_id, response.clone(), max_weight));
 			if let Some(QueryStatus::Pending { responder, maybe_notify, .. }) =
 				Queries::<T>::get(query_id)
 			{
-				if MultiLocation::try_from(responder).map_or(false, |r| origin == &r) {
-					return match maybe_notify {
-						Some((pallet_index, call_index)) => {
-							// This is a bit horrible, but we happen to know that the `Call` will
-							// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
-							// So we just encode that and then re-encode to a real Call.
-							let bare = (pallet_index, call_index, query_id, response);
-							if let Ok(call) = bare
-								.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes))
-							{
-								let weight = call.get_dispatch_info().weight;
-								if weight > max_weight {
-									return 0
+				if let Ok(responder) = MultiLocation::try_from(responder) {
+					if origin == &responder {
+						return match maybe_notify {
+							Some((pallet_index, call_index)) => {
+								Self::deposit_event(Event::Notifying(query_id, pallet_index, call_index));
+								// This is a bit horrible, but we happen to know that the `Call` will
+								// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
+								// So we just encode that and then re-encode to a real Call.
+								let bare = (pallet_index, call_index, query_id, response);
+								if let Ok(call) = bare
+									.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes))
+								{
+									let weight = call.get_dispatch_info().weight;
+									if weight > max_weight {
+										Self::deposit_event(Event::NotifyOverweight(query_id, weight, max_weight));
+										return 0
+									}
+									let dispatch_origin = Origin::Response(origin.clone()).into();
+									match call.dispatch(dispatch_origin) {
+										Ok(post_info) => post_info.actual_weight,
+										Err(error_and_info) => {
+											Self::deposit_event(Event::NotifyDispatchError(query_id));
+											// Not much to do with the result as it is. It's up to the parachain to ensure that the
+											// message makes sense.
+											error_and_info.post_info.actual_weight
+										},
+									}
+									.unwrap_or(weight)
+								} else {
+									Self::deposit_event(Event::NotifyDecodeFailed(query_id));
+									0
 								}
-								let dispatch_origin = Origin::Response(origin.clone()).into();
-								match call.dispatch(dispatch_origin) {
-									Ok(post_info) => post_info.actual_weight,
-									Err(error_and_info) => {
-										// Not much to do with the result as it is. It's up to the parachain to ensure that the
-										// message makes sense.
-										error_and_info.post_info.actual_weight
-									},
-								}
-								.unwrap_or(weight)
-							} else {
+							},
+							None => {
+								let at = frame_system::Pallet::<T>::current_block_number();
+								Queries::<T>::insert(query_id, QueryStatus::Ready { response, at });
 								0
-							}
-						},
-						None => {
-							let at = frame_system::Pallet::<T>::current_block_number();
-							Queries::<T>::insert(query_id, QueryStatus::Ready { response, at });
-							0
-						},
+							},
+						}
+					} else {
+						Self::deposit_event(Event::InvalidResponder(origin.clone(), query_id, responder));
 					}
+				} else {
+					Self::deposit_event(Event::InvalidResponderVersion(origin.clone(), query_id));
 				}
+			} else {
+				Self::deposit_event(Event::UnexpectedResponse(origin.clone(), query_id));
 			}
 			0
 		}
 	}
 }
 
-/// Ensure that the origin `o` represents a sibling parachain.
-/// Returns `Ok` with the parachain ID of the sibling or an `Err` otherwise.
+/// Ensure that the origin `o` represents an XCM (`Transact`) origin.
+/// 
+/// Returns `Ok` with the location of the XCM sender or an `Err` otherwise.
 pub fn ensure_xcm<OuterOrigin>(o: OuterOrigin) -> Result<MultiLocation, BadOrigin>
 where
 	OuterOrigin: Into<Result<Origin, OuterOrigin>>,
 {
 	match o.into() {
 		Ok(Origin::Xcm(location)) => Ok(location),
+		_ => Err(BadOrigin),
+	}
+}
+
+/// Ensure that the origin `o` represents an XCM response origin.
+/// 
+/// Returns `Ok` with the location of the responder or an `Err` otherwise.
+pub fn ensure_response<OuterOrigin>(o: OuterOrigin) -> Result<MultiLocation, BadOrigin>
+where
+	OuterOrigin: Into<Result<Origin, OuterOrigin>>,
+{
+	match o.into() {
+		Ok(Origin::Response(location)) => Ok(location),
 		_ => Err(BadOrigin),
 	}
 }
@@ -525,6 +564,30 @@ where
 	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> O {
 		O::from(Origin::Xcm(Here.into()))
+	}
+}
+
+/// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter
+/// the `Origin::Response` item.
+pub struct EnsureResponse<F>(PhantomData<F>);
+impl<O: OriginTrait + From<Origin>, F: Contains<MultiLocation>> EnsureOrigin<O> for EnsureResponse<F>
+where
+	O::PalletsOrigin: From<Origin> + TryInto<Origin, Error = O::PalletsOrigin>,
+{
+	type Success = MultiLocation;
+
+	fn try_origin(outer: O) -> Result<Self::Success, O> {
+		outer.try_with_caller(|caller| {
+			caller.try_into().and_then(|o| match o {
+				Origin::Response(responder) => Ok(responder),
+				o => Err(o.into()),
+			})
+		})
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn successful_origin() -> O {
+		O::from(Origin::Response(Here.into()))
 	}
 }
 

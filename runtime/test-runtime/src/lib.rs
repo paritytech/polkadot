@@ -526,6 +526,75 @@ impl parachains_scheduler::Config for Runtime {}
 
 impl paras_sudo_wrapper::Config for Runtime {}
 
+impl pallet_test_notifier::Config for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type Call = Call;
+}
+
+#[frame_support::pallet]
+pub mod pallet_test_notifier {
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
+	use pallet_xcm::{QueryId, ensure_response};
+	use sp_runtime::DispatchResult;
+	use xcm::latest::prelude::*;
+	
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
+	#[pallet::config]
+	pub trait Config: frame_system::Config + pallet_xcm::Config {
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type Origin: From<<Self as frame_system::Config>::Origin>
+			+ Into<Result<pallet_xcm::Origin, <Self as Config>::Origin>>;
+		type Call: From<Call<Self>> + Into<<Self as pallet_xcm::Config>::Call>;
+	}
+
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+		ResponseReceived(MultiLocation, QueryId, Response),
+	}
+
+	#[pallet::error]
+	pub enum Error<T> {
+		UnexpectedId,
+		BadAccountFormat,
+	}
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
+		#[pallet::weight(1_000_000)]
+		pub fn notification_received(
+			origin: OriginFor<T>,
+			query_id: QueryId,
+			response: Response,
+		) -> DispatchResult {
+			let responder = ensure_response(<T as Config>::Origin::from(origin))?;
+			Self::deposit_event(Event::<T>::ResponseReceived(responder, query_id, response));
+			Ok(())
+		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn prepare_for_notification(
+			origin: OriginFor<T>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let id = who.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
+				.map_err(|_| Error::<T>::BadAccountFormat)?;
+			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
+				Junction::AccountId32 { network: Any, id }.into(),
+				<T as Config>::Call::from(Call::<T>::notification_received(0, Response::Assets(sp_std::vec::Vec::new().into()))).into(),
+				0u32.into(),
+			);
+			ensure!(qid == 0, Error::<T>::UnexpectedId);
+			Ok(())
+		}
+	}
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -575,6 +644,8 @@ construct_runtime! {
 		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Config<T>, Event<T>},
+
+		TestNotifier: pallet_test_notifier::{Pallet, Call, Event<T>},
 	}
 }
 

@@ -84,5 +84,5 @@ impl xcm_executor::Config for XcmConfig {
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call>;
 	type Trader = DummyWeightTrader;
-	type ResponseHandler = ();
+	type ResponseHandler = super::Xcm;
 }

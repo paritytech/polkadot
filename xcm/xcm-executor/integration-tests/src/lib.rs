@@ -21,6 +21,7 @@ use polkadot_test_client::{
 	BlockBuilderExt, ClientBlockImportExt, DefaultTestClientBuilderExt, ExecutionStrategy,
 	InitPolkadotBlockBuilder, TestClientBuilder, TestClientBuilderExt,
 };
+use polkadot_test_runtime::pallet_test_notifier;
 use polkadot_test_service::construct_extrinsic;
 use sp_runtime::{generic::BlockId, traits::Block};
 use sp_state_machine::InspectState;
@@ -45,6 +46,7 @@ fn basic_buy_fees_message_executes() {
 		&client,
 		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(msg, 1_000_000_000)),
 		sp_keyring::Sr25519Keyring::Alice,
+		0,
 	);
 
 	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
@@ -67,3 +69,61 @@ fn basic_buy_fees_message_executes() {
 			)));
 		});
 }
+
+
+#[test]
+fn query_response_elicits_handler() {
+	sp_tracing::try_init_simple();
+	let mut client = TestClientBuilder::new()
+		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
+		.build();
+
+	let response = Response::ExecutionResult(Ok(()));
+	let msg = Xcm(vec![
+		QueryResponse { query_id: 0, response, max_weight: 1_000_000 },
+	]);
+
+	let mut block_builder = client.init_polkadot_block_builder();
+
+	let execute = construct_extrinsic(
+		&client,
+		polkadot_test_runtime::Call::TestNotifier(pallet_test_notifier::Call::prepare_for_notification()),
+		sp_keyring::Sr25519Keyring::Alice,
+		0,
+	);
+
+	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
+
+	let execute = construct_extrinsic(
+		&client,
+		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(msg, 1_000_000_000)),
+		sp_keyring::Sr25519Keyring::Alice,
+		1,
+	);
+
+	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
+
+	let block = block_builder.build().expect("Finalizes the block").block;
+	let block_hash = block.hash();
+
+	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
+		.expect("imports the block");
+
+	client
+		.state_at(&BlockId::Hash(block_hash))
+		.expect("state should exist")
+		.inspect_state(|| {
+			dbg!(polkadot_test_runtime::System::events());
+			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
+				r.event,
+				polkadot_test_runtime::Event::TestNotifier(
+					pallet_test_notifier::Event::ResponseReceived(
+						MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { .. }) },
+						0,
+						Response::ExecutionResult(Ok(())),
+					),
+				)
+			)));
+		});
+}
+
