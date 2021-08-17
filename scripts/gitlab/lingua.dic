@@ -108,6 +108,7 @@ inverter/MS
 io
 IP/S
 isn
+isolatable
 isolate/BG
 iterable
 jaeger/MS
@@ -200,6 +201,7 @@ responder/SM
 retriability
 reverify
 roundtrip/MS
+routable
 rpc
 RPC/MS
 runtime/MS
