@@ -291,7 +291,7 @@ pub struct AvailableData {
 	pub validation_data: PersistedValidationData,
 }
 
-/// This is a convenience type to allow the ErasureChunk proof to Decode into a nested BoundedVec
+/// This is a convenience type to allow the Erasure chunk proof to Decode into a nested BoundedVec
 #[derive(PartialEq, Eq, Clone, Debug, Hash)]
 pub struct Proof(BoundedVec<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, 1, MERKLE_PROOF_MAX_DEPTH>);
 
