@@ -165,7 +165,7 @@ fn query_holding_works() {
 
 /// Scenario:
 /// A parachain wants to move KSM from Kusama to Statemine.
-/// It withdraws funds and teleports them to the destination.
+/// The parachain sends an XCM to withdraw funds combined with a teleport to the destination.
 ///
 /// This way of moving funds from a relay to a parachain will only work for trusted chains.
 /// Reserve based transfer should be used to move KSM to a community parachain.
