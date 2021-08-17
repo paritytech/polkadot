@@ -511,7 +511,7 @@ simnet-tests:
         ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
   script:
     - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
-        --github-remote-dir=https://github.com/paritytech/polkadot/tree/master/simnet_tests
+        --github-remote-dir="https://github.com/paritytech/polkadot/tree/master/simnet_tests"
         --config=simnet_tests/configs/simple_rococo_testnet.toml
         --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
         --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
