@@ -71,8 +71,7 @@ impl sc_executor::NativeExecutionDispatch for PolkadotTestExecutorDispatch {
 }
 
 /// The client type being used by the test service.
-pub type Client =
-	FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch>;
+pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch>;
 
 pub use polkadot_service::FullBackend;
 
@@ -83,11 +82,7 @@ pub fn new_full(
 	is_collator: IsCollator,
 	worker_program_path: Option<PathBuf>,
 ) -> Result<NewFull<Arc<Client>>, Error> {
-	polkadot_service::new_full::<
-		polkadot_test_runtime::RuntimeApi,
-		PolkadotTestExecutorDispatch,
-		_,
-	>(
+	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch, _>(
 		config,
 		is_collator,
 		None,
