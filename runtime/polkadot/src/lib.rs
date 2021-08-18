@@ -1640,10 +1640,10 @@ mod test_fees {
 		let cost = voters as Balance * (VotingBondBase::get() + 16 * VotingBondFactor::get());
 		let cost_dollars = cost / DOLLARS;
 		println!(
-			"can support {} voters in a single block for council elections; total bond {} dollars",
+			"can support {} voters in a single block for council elections; total bond {}",
 			voters, cost_dollars,
 		);
-		assert!(cost_dollars > 135_000); // DOLLAR ~ new DOT ~ 10e10
+		assert!(cost_dollars > 150_000); // DOLLAR ~ new DOT ~ 10e10
 	}
 
 	#[test]
