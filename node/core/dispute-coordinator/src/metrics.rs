@@ -59,14 +59,14 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			concluded: prometheus::register(
 				prometheus::CounterVec::new(prometheus::Opts::new(
-					"parachain_candidate_disputed_concluded",
+					"parachain_candidate_dispute_concluded",
 					"Time spent within `candidate_validation::validate_from_chain_state`",
 				), &["validity"])?,
 				registry,
 			)?,
 			votes: prometheus::register(
 				prometheus::CounterVec::new(prometheus::Opts::new(
-					"parachain_candidate_disputed_votes",
+					"parachain_candidate_dispute_votes",
 					"Time spent within `candidate_validation::validate_from_exhaustive`",
 				), &["validity"])?,
 				registry,
