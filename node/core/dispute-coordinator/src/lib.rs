@@ -118,12 +118,13 @@ pub struct DisputeCoordinatorSubsystem {
 	config: Config,
 	store: Arc<dyn KeyValueDB>,
 	keystore: Arc<LocalKeystore>,
+	metrics: Metrics,
 }
 
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
-	pub fn new(store: Arc<dyn KeyValueDB>, config: Config, keystore: Arc<LocalKeystore>) -> Self {
-		DisputeCoordinatorSubsystem { store, config, keystore }
+	pub fn new(store: Arc<dyn KeyValueDB>, config: Config, keystore: Arc<LocalKeystore>, metrics: Metrics) -> Self {
+		DisputeCoordinatorSubsystem { store, config, keystore, metrics }
 	}
 }
 
@@ -133,10 +134,9 @@ where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let metrics = Metrics::new(self.config.prometheus_registry());
 		let backend = DbBackend::new(self.store.clone(), self.config.column_config());
 		let future =
-			run(self, ctx, backend, Box::new(SystemClock), metrics).map(|_| Ok(())).boxed();
+			run(self, ctx, backend, Box::new(SystemClock)).map(|_| Ok(())).boxed();
 
 		SpawnedSubsystem { name: "dispute-coordinator-subsystem", future }
 	}
@@ -288,14 +288,13 @@ async fn run<B, Context>(
 	mut ctx: Context,
 	mut backend: B,
 	clock: Box<dyn Clock>,
-	metrics: Metrics,
 ) where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 	B: Backend,
 {
 	loop {
-		let res = run_until_error(&mut ctx, &subsystem, &mut backend, &*clock, metrics).await;
+		let res = run_until_error(&mut ctx, &subsystem, &mut backend, &*clock).await;
 		match res {
 			Err(e) => {
 				e.trace();
@@ -322,7 +321,6 @@ async fn run_until_error<B, Context>(
 	subsystem: &DisputeCoordinatorSubsystem,
 	backend: &mut B,
 	clock: &dyn Clock,
-	metrics: Metrics,
 ) -> Result<(), Error>
 where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
@@ -335,6 +333,7 @@ where
 		rolling_session_window: RollingSessionWindow::new(DISPUTE_WINDOW),
 		recovery_state: Participation::Pending,
 	};
+	let metrics = &subsystem.metrics;
 
 	loop {
 		let mut overlay_db = OverlayedBackend::new(backend);
@@ -545,6 +544,7 @@ async fn handle_incoming(
 				statements,
 				now,
 				pending_confirmation,
+				metrics,
 			)
 			.await?;
 		},
