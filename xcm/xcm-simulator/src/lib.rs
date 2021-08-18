@@ -21,7 +21,7 @@ pub use paste;
 
 pub use frame_support::{traits::Get, weights::Weight};
 pub use sp_io::TestExternalities;
-pub use sp_std::{cell::RefCell, marker::PhantomData};
+pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
 
 pub use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
 pub use polkadot_parachain::primitives::{
@@ -36,9 +36,24 @@ pub use xcm::{latest::prelude::*, VersionedXcm};
 pub use xcm_executor::XcmExecutor;
 
 pub trait TestExt {
+	/// Initialize the test environment.
 	fn new_ext() -> sp_io::TestExternalities;
+	/// Resets the state of the test environment.
 	fn reset_ext();
-	fn execute_with<R>(execute: impl FnOnce() -> R) -> R;
+	/// Execute code in the context of the test externalities, without automatic
+	/// message processing. All messages in the message buses can be processed
+	/// by calling `Self::dispatch_xcm_buses()`.
+	fn execute_without_dispatch<R>(execute: impl FnOnce() -> R) -> R;
+	/// Process all messages in the message buses
+	fn dispatch_xcm_buses();
+	/// Execute some code in the context of the test externalities, with
+	/// automatic message processing.
+	/// Messages are dispatched once the passed closure completes.
+	fn execute_with<R>(execute: impl FnOnce() -> R) -> R {
+		let result = Self::execute_without_dispatch(execute);
+		Self::dispatch_xcm_buses();
+		result
+	}
 }
 
 pub enum MessageKind {
@@ -162,11 +177,29 @@ macro_rules! __impl_ext {
 				$ext_name.with(|v| *v.borrow_mut() = $new_ext);
 			}
 
-			fn execute_with<R>(execute: impl FnOnce() -> R) -> R {
+			fn execute_without_dispatch<R>(execute: impl FnOnce() -> R) -> R {
 				$ext_name.with(|v| v.borrow_mut().execute_with(execute))
+			}
+
+			fn dispatch_xcm_buses() {
+				while exists_messages_in_any_bus() {
+					if let Err(xcm_error) = process_relay_messages() {
+						panic!("Relay chain XCM execution failure: {:?}", xcm_error);
+					}
+					if let Err(xcm_error) = process_para_messages() {
+						panic!("Parachain XCM execution failure: {:?}", xcm_error);
+					}
+				}
 			}
 		}
 	};
+}
+
+thread_local! {
+	pub static PARA_MESSAGE_BUS: RefCell<VecDeque<(ParaId, MultiLocation, Xcm<()>)>>
+		= RefCell::new(VecDeque::new());
+	pub static RELAY_MESSAGE_BUS: RefCell<VecDeque<(MultiLocation, Xcm<()>)>>
+		= RefCell::new(VecDeque::new());
 }
 
 #[macro_export]
@@ -181,11 +214,82 @@ macro_rules! decl_test_network {
 
 		impl $name {
 			pub fn reset() {
-				use $crate::TestExt;
-
+				use $crate::{TestExt, VecDeque};
+				// Reset relay chain message bus
+				$crate::RELAY_MESSAGE_BUS.with(|b| b.replace(VecDeque::new()));
+				// Reset parachain message bus
+				$crate::PARA_MESSAGE_BUS.with(|b| b.replace(VecDeque::new()));
 				<$relay_chain>::reset_ext();
 				$( <$parachain>::reset_ext(); )*
 			}
+		}
+
+		/// Check if any messages exist in either message bus
+		fn exists_messages_in_any_bus() -> bool {
+			use $crate::{RELAY_MESSAGE_BUS, PARA_MESSAGE_BUS};
+			let no_relay_messages_left = RELAY_MESSAGE_BUS.with(|b| b.borrow().is_empty());
+			let no_parachain_messages_left = PARA_MESSAGE_BUS.with(|b| b.borrow().is_empty());
+			!(no_relay_messages_left && no_parachain_messages_left)
+		}
+
+		/// Process all messages originating from parachains.
+		fn process_para_messages() -> $crate::XcmResult {
+			use $crate::{UmpSink, XcmpMessageHandlerT};
+
+			while let Some((para_id, destination, message)) = $crate::PARA_MESSAGE_BUS.with(
+				|b| b.borrow_mut().pop_front()) {
+				match destination.interior() {
+					$crate::Junctions::Here if destination.parent_count() == 1 => {
+						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
+						let r = <$relay_chain>::process_upward_message(
+							para_id, &encoded[..],
+							$crate::Weight::max_value(),
+						);
+						if let Err((id, required)) = r {
+							return Err($crate::XcmError::WeightLimitReached(required));
+						}
+					},
+					$(
+						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 1 => {
+							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Xcmp);
+							let messages = vec![(para_id, 1, &encoded[..])];
+							let _weight = <$parachain>::handle_xcmp_messages(
+								messages.into_iter(),
+								$crate::Weight::max_value(),
+							);
+						},
+					)*
+					_ => {
+						return Err($crate::XcmError::CannotReachDestination(destination, message));
+					}
+				}
+			}
+
+			Ok(())
+		}
+
+		/// Process all messages originating from the relay chain.
+		fn process_relay_messages() -> $crate::XcmResult {
+			use $crate::DmpMessageHandlerT;
+
+			while let Some((destination, message)) = $crate::RELAY_MESSAGE_BUS.with(
+				|b| b.borrow_mut().pop_front()) {
+				match destination.interior() {
+					$(
+						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 0 => {
+							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
+							// NOTE: RelayChainBlockNumber is hard-coded to 1
+							let messages = vec![(1, encoded)];
+							let _weight = <$parachain>::handle_dmp_messages(
+								messages.into_iter(), $crate::Weight::max_value(),
+							);
+						},
+					)*
+					_ => return Err($crate::XcmError::SendFailed("Only sends to children parachain.")),
+				}
+			}
+
+			Ok(())
 		}
 
 		/// XCM router for parachain.
@@ -197,21 +301,14 @@ macro_rules! decl_test_network {
 
 				match destination.interior() {
 					$crate::Junctions::Here if destination.parent_count() == 1 => {
-						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
-						let _ = <$relay_chain>::process_upward_message(
-							T::get(), &encoded[..],
-							$crate::Weight::max_value(),
-						);
+						$crate::PARA_MESSAGE_BUS.with(
+							|b| b.borrow_mut().push_back((T::get(), destination, message)));
 						Ok(())
 					},
 					$(
 						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 1 => {
-							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Xcmp);
-							let messages = vec![(T::get(), 1, &encoded[..])];
-							let _ = <$parachain>::handle_xcmp_messages(
-								messages.into_iter(),
-								$crate::Weight::max_value(),
-							);
+							$crate::PARA_MESSAGE_BUS.with(
+								|b| b.borrow_mut().push_back((T::get(), destination, message)));
 							Ok(())
 						},
 					)*
@@ -229,11 +326,8 @@ macro_rules! decl_test_network {
 				match destination.interior() {
 					$(
 						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 0 => {
-							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
-							let messages = vec![(1, encoded)];
-							let _ = <$parachain>::handle_dmp_messages(
-								messages.into_iter(), $crate::Weight::max_value(),
-							);
+							$crate::RELAY_MESSAGE_BUS.with(
+								|b| b.borrow_mut().push_back((destination, message)));
 							Ok(())
 						},
 					)*

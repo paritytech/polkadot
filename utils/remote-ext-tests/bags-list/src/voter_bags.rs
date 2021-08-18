@@ -16,30 +16,27 @@
 
 //! Generic remote tests for the voter bags module.
 
-use frame_support::{assert_ok, traits::Get};
-use pallet_staking::{
-	voter_bags::{Bag, Voter, VoterList, VoterType},
-	CounterForNominators, CounterForValidators, Nominators, Validators,
-};
-use ...::SortedListProvider;
+use frame_election_provider_support::SortedListProvider;
+use frame_support::traits::Get;
+use pallet_staking::Nominators;
 use remote_externalities::{Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig};
 use sp_runtime::traits::Block as BlockT;
 use sp_storage::well_known_keys;
 
 const LOG_TARGET: &'static str = "remote-ext-tests";
 
-fn init_logger() {
-	sp_tracing::try_init_simple();
-}
-
 /// Test voter bags migration. `currency_unit` is the number of planks per the
 /// the runtimes `UNITS` (i.e. number of decimal places per DOT, KSM etc)
-pub(crate) async fn test_voter_bags_migration<Runtime: pallet_staking::Config, Block: BlockT>(
+pub(crate) async fn test_voter_bags_migration<
+	Runtime: pallet_staking::Config + pallet_bags_list::Config,
+	Block: BlockT,
+>(
 	currency_unit: u64,
 ) {
 	use std::env;
 
-	init_logger();
+	sp_tracing::try_init_simple();
+	// TODO: should come from spec version in `system::version`
 	sp_core::crypto::set_default_ss58_version(sp_core::crypto::Ss58AddressFormat::PolkadotAccount);
 
 	let ws_url = match env::var("WS_RPC") {
@@ -64,51 +61,43 @@ pub(crate) async fn test_voter_bags_migration<Runtime: pallet_staking::Config, B
 		let pre_migrate_nominator_count = <Nominators<Runtime>>::iter().count() as u32;
 		log::info!(target: LOG_TARGET, "Nominator count: {}", pre_migrate_nominator_count);
 
-		assert_ok!(pallet_staking::migrations::v8::pre_migrate::<Runtime>());
-
 		// Run the actual migration.
-		let migration_weight = pallet_staking::migrations::v8::migrate::<Runtime>();
-		log::info!(target: LOG_TARGET, "Migration weight: {}", migration_weight);
+		let moved = <Runtime as pallet_staking::Config>::SortedListProvider::regenerate(
+			pallet_staking::Nominators::<Runtime>::iter().map(|(n, _)| n),
+			pallet_staking::Pallet::<Runtime>::weight_of_fn(),
+		);
+		log::info!(target: LOG_TARGET, "moved {} voters", moved);
 
-		// `CountFor*` storage items are created during the migration, check them.
-		assert_eq!(<Runtime as pallet_staking::Config>::SortedListProvider::count(), pre_migrate_nominator_count);
-
-
-		// Check that the count of validators and nominators did not change during the migration.
-		let post_migrate_nominator_count = <Nominators<Runtime>>::iter().count() as u32;
-		assert_eq!(post_migrate_nominator_count, pre_migrate_nominator_count);
-		assert_eq!(post_migrate_validator_count, pre_migrate_validator_count);
-
-		// We can't access VoterCount from here, so we create it,
-		let voter_count = post_migrate_nominator_count + post_migrate_validator_count;
-		let voter_list_len = <Runtime as pallet_staking::Config>::SortedListProvider::iter().count() as u32;
+		let voter_list_len =
+			<Runtime as pallet_staking::Config>::SortedListProvider::iter().count() as u32;
+		let voter_list_count = <Runtime as pallet_staking::Config>::SortedListProvider::count();
 		// and confirm it is equal to the length of the `VoterList`.
-		assert_eq!(voter_count, voter_list_len);
+		assert_eq!(pre_migrate_nominator_count, voter_list_len);
+		assert_eq!(pre_migrate_nominator_count, voter_list_count);
 
 		// Go through every bag to track the total number of voters within bags
 		// and get some info about how voters are distributed within the bags.
 		let mut seen_in_bags = 0;
-		for vote_weight_thresh in <Runtime as pallet_staking::Config>::VoterBagThresholds::get() {
+		for vote_weight_thresh in <Runtime as pallet_bags_list::Config>::BagThresholds::get() {
 			// Threshold in terms of UNITS (e.g. KSM, DOT etc)
 			let vote_weight_thresh_as_unit = *vote_weight_thresh as f64 / currency_unit as f64;
 			let pretty_thresh = format!("Threshold: {}.", vote_weight_thresh_as_unit);
 
-			let bag = match Bag::<Runtime>::get(*vote_weight_thresh) {
+			let bag = match pallet_bags_list::ListBags::<Runtime>::get(*vote_weight_thresh) {
 				Some(bag) => bag,
 				None => {
 					log::info!(target: LOG_TARGET, "{} NO VOTERS.", pretty_thresh);
-					continue
-				},
+					continue;
+				}
 			};
 
-			let voters_in_bag = bag.iter().count();
+			let voters_in_bag = bag.iter().count() as u32;
 
 			// update our overall counter
 			seen_in_bags += voters_in_bag;
 
 			// percentage of all voters (nominators and voters)
-			let percent_of_voters = percent(voters_in_bag, voter_count);
-
+			let percent_of_voters = percent(voters_in_bag, voter_list_count);
 
 			log::info!(
 				target: LOG_TARGET,
@@ -119,7 +108,7 @@ pub(crate) async fn test_voter_bags_migration<Runtime: pallet_staking::Config, B
 			);
 		}
 
-		assert_eq!(seen_in_bags, voter_list_len);
+		assert_eq!(seen_in_bags, voter_list_count);
 	});
 }
 
