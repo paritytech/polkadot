@@ -38,7 +38,6 @@ fn buy_execution<C>(debt: Weight) -> Order<C> {
 		weight: 0,
 		debt,
 		halt_on_error: false,
-		orders: vec![],
 		instructions: vec![],
 	}
 }
