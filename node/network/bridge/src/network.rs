@@ -191,7 +191,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			None => {
 				tracing::debug!(target: LOG_TARGET, "Discovering authority failed");
 				match pending_response
-					.send(Err(RequestFailure::Network(OutboundFailure::DialFailure)))
+					.send(Err(RequestFailure::NotConnected))
 				{
 					Err(_) => tracing::debug!(
 						target: LOG_TARGET,
