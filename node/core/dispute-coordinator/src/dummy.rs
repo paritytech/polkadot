@@ -16,18 +16,14 @@
 
 //! Implements the dispute coordinator subsystem (dummy implementation).
 
-use std::{
-	sync::Arc,
-};
+use std::sync::Arc;
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::DisputeCoordinatorMessage,
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
-use polkadot_primitives::v1::{
-	BlockNumber,
-};
+use polkadot_primitives::v1::BlockNumber;
 
 use futures::{channel::oneshot, prelude::*};
 use kvdb::KeyValueDB;
@@ -40,11 +36,9 @@ const LOG_TARGET: &str = "parachain::dispute-coordinator";
 type Timestamp = u64;
 
 #[derive(Eq, PartialEq)]
-enum Participation {
-}
+enum Participation {}
 
-struct State {
-}
+struct State {}
 
 /// Configuration for the dispute coordinator subsystem.
 #[derive(Debug, Clone, Copy)]
@@ -54,13 +48,12 @@ pub struct Config {
 }
 
 /// An implementation of the dispute coordinator subsystem.
-pub struct DisputeCoordinatorSubsystem {
-}
+pub struct DisputeCoordinatorSubsystem {}
 
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
 	pub fn new(_: Arc<dyn KeyValueDB>, _: Config, _: Arc<LocalKeystore>) -> Self {
-		DisputeCoordinatorSubsystem { }
+		DisputeCoordinatorSubsystem {}
 	}
 }
 
@@ -179,10 +172,8 @@ impl DisputeStatus {
 	}
 }
 
-async fn run<Context>(
-	subsystem: DisputeCoordinatorSubsystem,
-	mut ctx: Context,
-) where
+async fn run<Context>(subsystem: DisputeCoordinatorSubsystem, mut ctx: Context)
+where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 {
@@ -212,20 +203,17 @@ where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 {
-	let mut state = State {
-	};
+	let mut state = State {};
 
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
-			FromOverseer::Communication { msg } =>
-				handle_incoming(ctx, &mut state, msg).await?,
+			FromOverseer::Communication { msg } => handle_incoming(ctx, &mut state, msg).await?,
 		}
 	}
 }
-
 
 async fn handle_incoming(
 	_: &mut impl SubsystemContext,
@@ -233,9 +221,7 @@ async fn handle_incoming(
 	message: DisputeCoordinatorMessage,
 ) -> Result<(), Error> {
 	match message {
-		DisputeCoordinatorMessage::ImportStatements {
-			..
-		} => { /* just drop confirmation */ },
+		DisputeCoordinatorMessage::ImportStatements { .. } => { /* just drop confirmation */ },
 		DisputeCoordinatorMessage::RecentDisputes(tx) => {
 			let _ = tx.send(Vec::new());
 		},
@@ -245,19 +231,13 @@ async fn handle_incoming(
 		DisputeCoordinatorMessage::QueryCandidateVotes(_, tx) => {
 			let _ = tx.send(Vec::new());
 		},
-		DisputeCoordinatorMessage::IssueLocalStatement(
-			_,
-			_,
-			_,
-			_,
-		) => { },
+		DisputeCoordinatorMessage::IssueLocalStatement(_, _, _, _) => {},
 		DisputeCoordinatorMessage::DetermineUndisputedChain {
 			base_number,
 			block_descriptions,
 			tx,
 		} => {
-			let undisputed_chain =
-				block_descriptions
+			let undisputed_chain = block_descriptions
 				.last()
 				.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash));
 
@@ -269,6 +249,4 @@ async fn handle_incoming(
 }
 
 #[derive(Debug, thiserror::Error)]
-enum DisputeMessageCreationError {
-}
-
+enum DisputeMessageCreationError {}
