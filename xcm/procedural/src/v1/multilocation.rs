@@ -23,7 +23,8 @@ pub fn generate_conversion_functions(input: proc_macro::TokenStream) -> Result<T
 		return Err(syn::Error::new(Span::call_site(), "No arguments expected"))
 	}
 
-	let from_tuples = generate_conversion_from_tuples();
+	// Support up to 8 Parents in a tuple, assuming that most use cases don't go past 8 parents.
+	let from_tuples = generate_conversion_from_tuples(8);
 	let from_v0 = generate_conversion_from_v0();
 
 	Ok(quote! {
@@ -32,7 +33,7 @@ pub fn generate_conversion_functions(input: proc_macro::TokenStream) -> Result<T
 	})
 }
 
-fn generate_conversion_from_tuples() -> TokenStream {
+fn generate_conversion_from_tuples(max_parents: u8) -> TokenStream {
 	let mut from_tuples = TokenStream::new();
 
 	for num_junctions in 0..8usize {
@@ -68,8 +69,7 @@ fn generate_conversion_from_tuples() -> TokenStream {
 			}
 		};
 
-		// Support up to 8 Parents in a tuple
-		for cur_parents in 1..=8u8 {
+		for cur_parents in 1..=max_parents {
 			let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
 			let underscores =
 				(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
@@ -86,8 +86,7 @@ fn generate_conversion_from_tuples() -> TokenStream {
 		from_tuples.extend(from_tuple);
 	}
 
-	// Support up to 8 Parents in a tuple
-	for cur_parents in 1..=8u8 {
+	for cur_parents in 1..=max_parents {
 		let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
 		let underscores =
 			(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
