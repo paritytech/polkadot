@@ -123,7 +123,12 @@ pub struct DisputeCoordinatorSubsystem {
 
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
-	pub fn new(store: Arc<dyn KeyValueDB>, config: Config, keystore: Arc<LocalKeystore>, metrics: Metrics) -> Self {
+	pub fn new(
+		store: Arc<dyn KeyValueDB>,
+		config: Config,
+		keystore: Arc<LocalKeystore>,
+		metrics: Metrics,
+	) -> Self {
 		DisputeCoordinatorSubsystem { store, config, keystore, metrics }
 	}
 }
@@ -135,8 +140,7 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.store.clone(), self.config.column_config());
-		let future =
-			run(self, ctx, backend, Box::new(SystemClock)).map(|_| Ok(())).boxed();
+		let future = run(self, ctx, backend, Box::new(SystemClock)).map(|_| Ok(())).boxed();
 
 		SpawnedSubsystem { name: "dispute-coordinator-subsystem", future }
 	}

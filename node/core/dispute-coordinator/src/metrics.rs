@@ -14,9 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 #[derive(Clone)]
 struct MetricsInner {
@@ -77,17 +75,23 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			concluded: prometheus::register(
-				prometheus::CounterVec::new(prometheus::Opts::new(
-					"parachain_candidate_dispute_concluded",
-					"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
-				), &["validity"])?,
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_candidate_dispute_concluded",
+						"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
+					),
+					&["validity"],
+				)?,
 				registry,
 			)?,
 			votes: prometheus::register(
-				prometheus::CounterVec::new(prometheus::Opts::new(
-					"parachain_candidate_dispute_votes",
-					"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
-				), &["validity"])?,
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_candidate_dispute_votes",
+						"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
+					),
+					&["validity"],
+				)?,
 				registry,
 			)?,
 		};
