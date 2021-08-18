@@ -391,11 +391,11 @@ fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
 
 #[test]
 fn weight_trader_tuple_should_work() {
-	pub const PARA_1: MultiLocation = X1(Parachain(1));
-	pub const PARA_2: MultiLocation = X1(Parachain(2));
+	pub const PARA_1: MultiLocation = X1(Parachain(1)).into();
+	pub const PARA_2: MultiLocation = X1(Parachain(2)).into();
 
 	parameter_types! {
-		pub static HereWeightPrice: (AssetId, u128) = (Here.into(), WEIGHT_PER_SECOND.into());
+		pub static HereWeightPrice: (AssetId, u128) = (Here.into().into(), WEIGHT_PER_SECOND.into());
 		pub static PARA1WeightPrice: (AssetId, u128) = (PARA_1.into(), WEIGHT_PER_SECOND.into());
 	}
 
@@ -409,11 +409,11 @@ fn weight_trader_tuple_should_work() {
 	let mut traders = Traders::new();
 	// trader one buys weight
 	assert_eq!(
-		traders.buy_weight(5, fungible_multi_asset(Here, 10).into()),
-		Ok(fungible_multi_asset(Here, 5).into()),
+		traders.buy_weight(5, fungible_multi_asset(Here.into(), 10).into()),
+		Ok(fungible_multi_asset(Here.into(), 5).into()),
 	);
 	// trader one refunds
-	assert_eq!(traders.refund_weight(2), Some(fungible_multi_asset(Here, 2)));
+	assert_eq!(traders.refund_weight(2), Some(fungible_multi_asset(Here.into(), 2)));
 
 	let mut traders = Traders::new();
 	// trader one failed; trader two buys weight
