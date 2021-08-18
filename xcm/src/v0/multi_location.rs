@@ -587,7 +587,7 @@ impl MultiLocation {
 
 #[cfg(test)]
 mod tests {
-	use super::MultiLocation::*;
+	use super::MultiLocation::{self, *};
 	use crate::opaque::v0::{Junction::*, NetworkId::Any};
 
 	#[test]
@@ -689,5 +689,27 @@ mod tests {
 		let mut m = X4(Parent, Parent, Parachain(1), Parachain(2));
 		m.canonicalize();
 		assert_eq!(m, X4(Parent, Parent, Parachain(1), Parachain(2)));
+	}
+
+	#[test]
+	fn conversion_from_other_types_works() {
+		use crate::v1::{self, Junction, Junctions};
+		use core::convert::TryInto;
+
+		fn takes_multilocation<Arg: Into<MultiLocation>>(_arg: Arg) {}
+
+		takes_multilocation(Null);
+		takes_multilocation(Parent);
+		takes_multilocation([Parent, Parachain(4)]);
+
+		assert_eq!(v1::MultiLocation::here().try_into(), Ok(MultiLocation::Null));
+		assert_eq!(
+			v1::MultiLocation::new(1, Junctions::X1(Junction::Parachain(8))).try_into(),
+			Ok(X2(Parent, Parachain(8))),
+		);
+		assert_eq!(
+			v1::MultiLocation::new(24, Junctions::Here).try_into(),
+			Err::<MultiLocation, ()>(()),
+		);
 	}
 }

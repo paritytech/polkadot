@@ -107,7 +107,7 @@ fn generate_conversion_from_v1() -> TokenStream {
                 }
 
 				match v1.interior {
-					Here => Ok(res),
+					crate::v1::Junctions::Here => Ok(res),
 					#match_variants
 				}
 			}
