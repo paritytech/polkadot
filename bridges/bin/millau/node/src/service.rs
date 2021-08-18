@@ -31,7 +31,7 @@
 use millau_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{ExecutorProvider, RemoteBackend};
 use sc_consensus_aura::{ImportQueueParams, SlotProportion, StartAuraParams};
-pub use sc_executor::NativeExecutor;
+pub use sc_executor::NativeElseWasmExecutor;
 
 use sc_keystore::LocalKeystore;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
@@ -41,9 +41,9 @@ use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 use std::{sync::Arc, time::Duration};
 
 // Our native executor instance.
-pub struct Executor;
+pub struct ExecutorDispatch;
 
-impl sc_executor::NativeExecutionDispatch for Executor {
+impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -55,7 +55,7 @@ impl sc_executor::NativeExecutionDispatch for Executor {
 	}
 }
 
-type FullClient = sc_service::TFullClient<Block, RuntimeApi, Executor>;
+type FullClient = sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
