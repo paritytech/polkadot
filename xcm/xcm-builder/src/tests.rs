@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{mock::*, *};
+use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
 use xcm::latest::prelude::*;
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
@@ -382,4 +383,53 @@ fn prepaid_result_of_query_should_get_free_execution() {
 	// Second time it doesn't, since we're not.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin.clone(), message.clone(), weight_limit);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::Barrier));
+}
+
+fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
+	(AssetId::from(location), Fungibility::Fungible(amount)).into()
+}
+
+#[test]
+fn weight_trader_tuple_should_work() {
+	pub const PARA_1: MultiLocation = X1(Parachain(1));
+	pub const PARA_2: MultiLocation = X1(Parachain(2));
+
+	parameter_types! {
+		pub static HereWeightPrice: (AssetId, u128) = (Here.into(), WEIGHT_PER_SECOND.into());
+		pub static PARA1WeightPrice: (AssetId, u128) = (PARA_1.into(), WEIGHT_PER_SECOND.into());
+	}
+
+	type Traders = (
+		// trader one
+		FixedRateOfFungible<HereWeightPrice, ()>,
+		// trader two
+		FixedRateOfFungible<PARA1WeightPrice, ()>,
+	);
+
+	let mut traders = Traders::new();
+	// trader one buys weight
+	assert_eq!(
+		traders.buy_weight(5, fungible_multi_asset(Here, 10).into()),
+		Ok(fungible_multi_asset(Here, 5).into()),
+	);
+	// trader one refunds
+	assert_eq!(traders.refund_weight(2), Some(fungible_multi_asset(Here, 2)));
+
+	let mut traders = Traders::new();
+	// trader one failed; trader two buys weight
+	assert_eq!(
+		traders.buy_weight(5, fungible_multi_asset(PARA_1, 10).into()),
+		Ok(fungible_multi_asset(PARA_1, 5).into()),
+	);
+	// trader two refunds
+	assert_eq!(traders.refund_weight(2), Some(fungible_multi_asset(PARA_1, 2)));
+
+	let mut traders = Traders::new();
+	// all traders fails
+	assert_err!(
+		traders.buy_weight(5, fungible_multi_asset(PARA_2, 10).into()),
+		XcmError::TooExpensive,
+	);
+	// and no refund
+	assert_eq!(traders.refund_weight(2), None);
 }
