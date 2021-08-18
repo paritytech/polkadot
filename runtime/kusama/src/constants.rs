@@ -31,12 +31,12 @@ pub mod currency {
 /// Time and blocks.
 pub mod time {
 	use primitives::v0::{Moment, BlockNumber};
-	pub const MILLISECS_PER_BLOCK: Moment = 3000;
+	pub const MILLISECS_PER_BLOCK: Moment = 2000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * HOURS;
 
 	// These time units are defined in number of blocks.
-	pub const MINUTES: BlockNumber = 30_000 / (MILLISECS_PER_BLOCK as BlockNumber);
+	pub const MINUTES: BlockNumber = 20_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 	pub const HOURS: BlockNumber = MINUTES * 2;
 	pub const DAYS: BlockNumber = HOURS * 2;
 	pub const WEEKS: BlockNumber = DAYS * 2;
