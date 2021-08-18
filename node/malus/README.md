@@ -7,12 +7,12 @@ Create nemesis nodes with alternate, at best fault, at worst intentionally destr
 To define integration tests create file
 in the toml format as used with [gurke][gurke]
 under `./integrationtests` with either extension
-`.toml` or `.toml.tera` depending if you use
+`.toml` or `.toml.tera` depending on if you use
 tera based templating.
 
 ## Container Image Building Note
 
-In order to build the container image you need to have latest changes from
+In order to build the container image you need to have the latest changes from
 polkadot and substrate master branches.
 
 There different behavior strains, pick one that you'd like to use with a build arg:

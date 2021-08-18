@@ -84,6 +84,7 @@ GPL/M
 GPLv3/M
 Grafana/MS
 Gurke/MS
+gurke/MS
 Handler/MS
 HMP/SM
 HRMP
@@ -127,7 +128,7 @@ lookahead/MS
 lookup/MS
 LRU
 mainnet/MS
-malus
+malus/MS
 MB/M
 Mbit
 merkle/MS
@@ -234,7 +235,9 @@ teleport/RG
 teleportation/SM
 teleporter/SM
 teleporters
+template/GSM
 testnet/MS
+tera/M
 timestamp/MS
 transitionary
 trie/MS
