@@ -91,8 +91,8 @@ fn generate_conversion_from_v1() -> TokenStream {
 		match_variants.extend(quote! {
 			crate::v1::Junctions::#variant( j0 #(, #idents)* ) => res
 				.pushed_with(Junction::from(j0))
-                #( .and_then(|res| res.pushed_with(Junction::from(#idents))) )*
-                .map_err(|_| ()),
+				#( .and_then(|res| res.pushed_with(Junction::from(#idents))) )*
+				.map_err(|_| ()),
 		});
 	}
 
@@ -100,11 +100,11 @@ fn generate_conversion_from_v1() -> TokenStream {
 		impl TryFrom<crate::v1::MultiLocation> for MultiLocation {
 			type Error = ();
 			fn try_from(v1: crate::v1::MultiLocation) -> core::result::Result<Self, ()> {
-                let mut res = MultiLocation::Null;
+				let mut res = MultiLocation::Null;
 
-                for _ in 0..v1.parents {
-                    res.push(Junction::Parent)?;
-                }
+				for _ in 0..v1.parents {
+					res.push(Junction::Parent)?;
+				}
 
 				match v1.interior {
 					crate::v1::Junctions::Here => Ok(res),
