@@ -109,11 +109,11 @@ pub mod pallet {
 		Attempted(xcm::latest::Outcome),
 		Sent(MultiLocation, MultiLocation, Xcm<()>),
 		UnexpectedResponse(MultiLocation, QueryId),
-		OnResponse(MultiLocation, QueryId, Response, Weight),
-		Notifying(QueryId, u8, u8),
-		NotifyOverweight(QueryId, Weight, Weight),
-		NotifyDispatchError(QueryId),
-		NotifyDecodeFailed(QueryId),
+		ResponseReceived(MultiLocation, QueryId, Response, Weight),
+		Notified(QueryId, u8, u8),
+		NotifyOverweight(QueryId, u8, u8, Weight, Weight),
+		NotifyDispatchError(QueryId, u8, u8),
+		NotifyDecodeFailed(QueryId, u8, u8),
 		InvalidResponder(MultiLocation, QueryId, MultiLocation),
 		InvalidResponderVersion(MultiLocation, QueryId),
 	}
@@ -151,7 +151,7 @@ pub mod pallet {
 	}
 
 	/// The status of a query.
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum QueryStatus<BlockNumber> {
 		/// The query was sent but no response has yet been received.
 		Pending {
@@ -172,6 +172,7 @@ pub mod pallet {
 
 	/// The ongoing queries.
 	#[pallet::storage]
+	#[pallet::getter(fn query)]
 	pub(super) type Queries<T: Config> =
 		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
 
@@ -429,11 +430,8 @@ pub mod pallet {
 	impl<T: Config> OnResponse for Pallet<T> {
 		/// Returns `true` if we are expecting a response from `origin` for query `query_id`.
 		fn expecting_response(origin: &MultiLocation, query_id: QueryId) -> bool {
-			
 			if let Some(QueryStatus::Pending { responder, .. }) = Queries::<T>::get(query_id) {
 				return MultiLocation::try_from(responder).map_or(false, |r| origin == &r)
-			} else {
-				Self::deposit_event(Event::UnexpectedResponse(origin.clone(), query_id));
 			}
 			false
 		}
@@ -445,7 +443,8 @@ pub mod pallet {
 			response: Response,
 			max_weight: Weight,
 		) -> Weight {
-			Self::deposit_event(Event::OnResponse(origin.clone(), query_id, response.clone(), max_weight));
+			let e = Event::ResponseReceived(origin.clone(), query_id, response.clone(), max_weight);
+			Self::deposit_event(e);
 			if let Some(QueryStatus::Pending { responder, maybe_notify, .. }) =
 				Queries::<T>::get(query_id)
 			{
@@ -453,7 +452,6 @@ pub mod pallet {
 					if origin == &responder {
 						return match maybe_notify {
 							Some((pallet_index, call_index)) => {
-								Self::deposit_event(Event::Notifying(query_id, pallet_index, call_index));
 								// This is a bit horrible, but we happen to know that the `Call` will
 								// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
 								// So we just encode that and then re-encode to a real Call.
@@ -463,14 +461,26 @@ pub mod pallet {
 								{
 									let weight = call.get_dispatch_info().weight;
 									if weight > max_weight {
-										Self::deposit_event(Event::NotifyOverweight(query_id, weight, max_weight));
+										let e = Event::NotifyOverweight(
+											query_id,
+											pallet_index,
+											call_index,
+											weight,
+											max_weight,
+										);
+										Self::deposit_event(e);
 										return 0
 									}
 									let dispatch_origin = Origin::Response(origin.clone()).into();
 									match call.dispatch(dispatch_origin) {
-										Ok(post_info) => post_info.actual_weight,
+										Ok(post_info) => {
+											let e = Event::Notified(query_id, pallet_index, call_index);
+											Self::deposit_event(e);
+											post_info.actual_weight
+										},
 										Err(error_and_info) => {
-											Self::deposit_event(Event::NotifyDispatchError(query_id));
+											let e = Event::NotifyDispatchError(query_id, pallet_index, call_index);
+											Self::deposit_event(e);
 											// Not much to do with the result as it is. It's up to the parachain to ensure that the
 											// message makes sense.
 											error_and_info.post_info.actual_weight
@@ -478,7 +488,8 @@ pub mod pallet {
 									}
 									.unwrap_or(weight)
 								} else {
-									Self::deposit_event(Event::NotifyDecodeFailed(query_id));
+									let e = Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
+									Self::deposit_event(e);
 									0
 								}
 							},

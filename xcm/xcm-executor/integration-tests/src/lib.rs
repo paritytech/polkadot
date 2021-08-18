@@ -70,29 +70,53 @@ fn basic_buy_fees_message_executes() {
 		});
 }
 
-
 #[test]
-fn query_response_elicits_handler() {
+fn query_response_fires() {
+	use polkadot_test_runtime::Event::TestNotifier;
+	use pallet_test_notifier::Event::*;
+	use pallet_xcm::QueryStatus;
+
 	sp_tracing::try_init_simple();
 	let mut client = TestClientBuilder::new()
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
-	let response = Response::ExecutionResult(Ok(()));
-	let msg = Xcm(vec![
-		QueryResponse { query_id: 0, response, max_weight: 1_000_000 },
-	]);
-
 	let mut block_builder = client.init_polkadot_block_builder();
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::TestNotifier(pallet_test_notifier::Call::prepare_for_notification()),
+		polkadot_test_runtime::Call::TestNotifier(pallet_test_notifier::Call::prepare_new_query()),
 		sp_keyring::Sr25519Keyring::Alice,
 		0,
 	);
 
 	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
+
+	let block = block_builder.build().expect("Finalizes the block").block;
+	let block_hash = block.hash();
+
+	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
+		.expect("imports the block");
+
+	let mut query_id = None;
+	client
+		.state_at(&BlockId::Hash(block_hash))
+		.expect("state should exist")
+		.inspect_state(|| {
+			for r in polkadot_test_runtime::System::events().iter() {
+				match r.event {
+					TestNotifier(QueryPrepared(q)) => query_id = Some(q),
+					_ => (),
+				}
+			}
+		});
+	let query_id = query_id.unwrap();
+	
+	let mut block_builder = client.init_polkadot_block_builder();
+
+	let response = Response::ExecutionResult(Ok(()));
+	let max_weight = 1_000_000;
+	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
 
 	let execute = construct_extrinsic(
 		&client,
@@ -113,16 +137,99 @@ fn query_response_elicits_handler() {
 		.state_at(&BlockId::Hash(block_hash))
 		.expect("state should exist")
 		.inspect_state(|| {
-			dbg!(polkadot_test_runtime::System::events());
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 				r.event,
-				polkadot_test_runtime::Event::TestNotifier(
-					pallet_test_notifier::Event::ResponseReceived(
-						MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { .. }) },
-						0,
-						Response::ExecutionResult(Ok(())),
-					),
-				)
+				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::ResponseReceived(
+					MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { .. }) },
+					q,
+					Response::ExecutionResult(Ok(())),
+					1_000_000,
+				)) if q == query_id,
+			)));
+			assert_eq!(
+				polkadot_test_runtime::Xcm::query(query_id),
+				Some(QueryStatus::Ready {
+					response: Response::ExecutionResult(Ok(())),
+					at: 2u32.into()
+				}),
+			)
+		});
+}
+
+#[test]
+fn query_response_elicits_handler() {
+	use polkadot_test_runtime::Event::TestNotifier;
+	use pallet_test_notifier::Event::*;
+
+	sp_tracing::try_init_simple();
+	let mut client = TestClientBuilder::new()
+		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
+		.build();
+
+	let mut block_builder = client.init_polkadot_block_builder();
+
+	let execute = construct_extrinsic(
+		&client,
+		polkadot_test_runtime::Call::TestNotifier(pallet_test_notifier::Call::prepare_new_notify_query()),
+		sp_keyring::Sr25519Keyring::Alice,
+		0,
+	);
+
+	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
+
+	let block = block_builder.build().expect("Finalizes the block").block;
+	let block_hash = block.hash();
+
+	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
+		.expect("imports the block");
+
+	let mut query_id = None;
+	client
+		.state_at(&BlockId::Hash(block_hash))
+		.expect("state should exist")
+		.inspect_state(|| {
+			dbg!(polkadot_test_runtime::System::events());
+			for r in polkadot_test_runtime::System::events().iter() {
+				match r.event {
+					TestNotifier(NotifyQueryPrepared(q)) => query_id = Some(q),
+					_ => (),
+				}
+			}
+		});
+	let query_id = query_id.unwrap();
+	
+	let mut block_builder = client.init_polkadot_block_builder();
+
+	let response = Response::ExecutionResult(Ok(()));
+	let max_weight = 1_000_000;
+	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+
+	let execute = construct_extrinsic(
+		&client,
+		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(msg, 1_000_000_000)),
+		sp_keyring::Sr25519Keyring::Alice,
+		1,
+	);
+
+	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
+
+	let block = block_builder.build().expect("Finalizes the block").block;
+	let block_hash = block.hash();
+
+	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
+		.expect("imports the block");
+
+	client
+		.state_at(&BlockId::Hash(block_hash))
+		.expect("state should exist")
+		.inspect_state(|| {
+			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
+				r.event,
+				TestNotifier(ResponseReceived(
+					MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { .. }) },
+					q,
+					Response::ExecutionResult(Ok(())),
+				)) if q == query_id,
 			)));
 		});
 }

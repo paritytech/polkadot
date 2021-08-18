@@ -546,15 +546,17 @@ pub mod pallet_test_notifier {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_xcm::Config {
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		type Origin: From<<Self as frame_system::Config>::Origin>
+		type Event: IsType<<Self as frame_system::Config>::Event> + From<Event<Self>>;
+		type Origin: IsType<<Self as frame_system::Config>::Origin>
 			+ Into<Result<pallet_xcm::Origin, <Self as Config>::Origin>>;
-		type Call: From<Call<Self>> + Into<<Self as pallet_xcm::Config>::Call>;
+		type Call: IsType<<Self as pallet_xcm::Config>::Call> + From<Call<Self>>;
 	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		QueryPrepared(QueryId),
+		NotifyQueryPrepared(QueryId),
 		ResponseReceived(MultiLocation, QueryId, Response),
 	}
 
@@ -566,6 +568,39 @@ pub mod pallet_test_notifier {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+
+		#[pallet::weight(1_000_000)]
+		pub fn prepare_new_query(
+			origin: OriginFor<T>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let id = who.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
+				.map_err(|_| Error::<T>::BadAccountFormat)?;
+			let qid = pallet_xcm::Pallet::<T>::new_query(
+				Junction::AccountId32 { network: Any, id }.into(),
+				100u32.into(),
+			);
+			Self::deposit_event(Event::<T>::QueryPrepared(qid));
+			Ok(())
+		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn prepare_new_notify_query(
+			origin: OriginFor<T>,
+		) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let id = who.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
+				.map_err(|_| Error::<T>::BadAccountFormat)?;
+			let call = Call::<T>::notification_received(0, Default::default());
+			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
+				Junction::AccountId32 { network: Any, id }.into(),
+				<T as Config>::Call::from(call),
+				100u32.into(),
+			);
+			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
+			Ok(())
+		}
+
 		#[pallet::weight(1_000_000)]
 		pub fn notification_received(
 			origin: OriginFor<T>,
@@ -574,22 +609,6 @@ pub mod pallet_test_notifier {
 		) -> DispatchResult {
 			let responder = ensure_response(<T as Config>::Origin::from(origin))?;
 			Self::deposit_event(Event::<T>::ResponseReceived(responder, query_id, response));
-			Ok(())
-		}
-
-		#[pallet::weight(1_000_000)]
-		pub fn prepare_for_notification(
-			origin: OriginFor<T>,
-		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			let id = who.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
-				.map_err(|_| Error::<T>::BadAccountFormat)?;
-			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
-				Junction::AccountId32 { network: Any, id }.into(),
-				<T as Config>::Call::from(Call::<T>::notification_received(0, Response::Assets(sp_std::vec::Vec::new().into()))).into(),
-				0u32.into(),
-			);
-			ensure!(qid == 0, Error::<T>::UnexpectedId);
 			Ok(())
 		}
 	}

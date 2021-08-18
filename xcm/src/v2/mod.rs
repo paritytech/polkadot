@@ -80,10 +80,18 @@ pub mod prelude {
 /// Response data to a query.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
 pub enum Response {
+	/// No response. Serves as a neutral default.
+	Null,
 	/// Some assets.
 	Assets(MultiAssets),
 	/// The outcome of an XCM instruction.
 	ExecutionResult(result::Result<(), (u32, Error)>),
+}
+
+impl Default for Response {
+	fn default() -> Self {
+		Self::Null
+	}
 }
 
 /// An optional weight limit.
