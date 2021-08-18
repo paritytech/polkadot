@@ -20,7 +20,11 @@ use polkadot_node_subsystem_util::{
 
 #[derive(Clone)]
 struct MetricsInner {
+	/// Rolling counter value of currently open disputes .
+	open: prometheus::Gauge<prometheus::U64>,
+	/// Votes of all disputes.
 	votes: prometheus::CounterVec<prometheus::U64>,
+	/// Conclusion across all disputes.
 	concluded: prometheus::CounterVec<prometheus::U64>,
 }
 
@@ -29,6 +33,12 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
+	pub(crate) fn on_open(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.open.inc();
+		}
+	}
+
 	pub(crate) fn on_valid_vote(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.votes.with_label_values(&["valid"]).inc();
@@ -43,12 +53,14 @@ impl Metrics {
 
 	pub(crate) fn on_concluded_valid(&self) {
 		if let Some(metrics) = &self.0 {
+			metrics.open.dec();
 			metrics.concluded.with_label_values(&["valid"]).inc();
 		}
 	}
 
 	pub(crate) fn on_concluded_invalid(&self) {
 		if let Some(metrics) = &self.0 {
+			metrics.open.dec();
 			metrics.concluded.with_label_values(&["invalid"]).inc();
 		}
 	}
@@ -57,17 +69,24 @@ impl Metrics {
 impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
+			open: prometheus::register(
+				prometheus::Gauge::with_opts(prometheus::Opts::new(
+					"parachain_candidate_open_disputes",
+					"Count of currently unconcluded disputes.",
+				))?,
+				registry,
+			)?,
 			concluded: prometheus::register(
 				prometheus::CounterVec::new(prometheus::Opts::new(
 					"parachain_candidate_dispute_concluded",
-					"Time spent within `candidate_validation::validate_from_chain_state`",
+					"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
 				), &["validity"])?,
 				registry,
 			)?,
 			votes: prometheus::register(
 				prometheus::CounterVec::new(prometheus::Opts::new(
 					"parachain_candidate_dispute_votes",
-					"Time spent within `candidate_validation::validate_from_exhaustive`",
+					"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
 				), &["validity"])?,
 				registry,
 			)?,

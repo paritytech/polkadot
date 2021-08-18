@@ -755,13 +755,6 @@ async fn handle_import_statements(
 	};
 
 	if status != prev_status {
-		if concluded_valid {
-			metrics.on_concluded_valid();
-		}
-		if concluded_invalid {
-			metrics.on_concluded_invalid();
-		}
-
 		// This branch is only hit when the candidate is freshly disputed -
 		// status was previously `None`, and now is not.
 		if prev_status.is_none() {
@@ -795,6 +788,14 @@ async fn handle_import_statements(
 					"Recovering availability failed - invalid import."
 				);
 				return Ok(())
+			}
+			metrics.on_open();
+
+			if concluded_valid {
+				metrics.on_concluded_valid();
+			}
+			if concluded_invalid {
+				metrics.on_concluded_invalid();
 			}
 		}
 
