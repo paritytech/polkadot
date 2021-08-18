@@ -240,11 +240,6 @@ fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<(
 		let role = config.role.clone();
 
 		match role {
-			#[cfg(feature = "browser")]
-			Role::Light => service::build_light(config)
-				.map(|(task_manager, _)| task_manager)
-				.map_err(Into::into),
-			#[cfg(not(feature = "browser"))]
 			Role::Light => Err(Error::Other("Light client not enabled".into())),
 			_ => service::build_full(
 				config,
@@ -338,7 +333,7 @@ pub fn run() -> Result<()> {
 			builder.with_colors(false);
 			let _ = builder.init();
 
-			#[cfg(any(target_os = "android", feature = "browser"))]
+			#[cfg(target_os = "android")]
 			{
 				return Err(sc_cli::Error::Input(
 					"PVF preparation workers are not supported under this platform".into(),
@@ -346,7 +341,7 @@ pub fn run() -> Result<()> {
 				.into())
 			}
 
-			#[cfg(not(any(target_os = "android", feature = "browser")))]
+			#[cfg(not(target_os = "android"))]
 			{
 				polkadot_node_core_pvf::prepare_worker_entrypoint(&cmd.socket_path);
 				Ok(())
@@ -357,7 +352,7 @@ pub fn run() -> Result<()> {
 			builder.with_colors(false);
 			let _ = builder.init();
 
-			#[cfg(any(target_os = "android", feature = "browser"))]
+			#[cfg(target_os = "android")]
 			{
 				return Err(sc_cli::Error::Input(
 					"PVF execution workers are not supported under this platform".into(),
@@ -365,7 +360,7 @@ pub fn run() -> Result<()> {
 				.into())
 			}
 
-			#[cfg(not(any(target_os = "android", feature = "browser")))]
+			#[cfg(not(target_os = "android"))]
 			{
 				polkadot_node_core_pvf::execute_worker_entrypoint(&cmd.socket_path);
 				Ok(())
