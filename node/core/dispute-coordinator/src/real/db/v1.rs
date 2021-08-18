@@ -28,8 +28,8 @@ use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
 
 use crate::{
-	backend::{Backend, BackendWriteOp, OverlayedBackend},
-	DisputeStatus, DISPUTE_WINDOW,
+	real::backend::{Backend, BackendWriteOp, OverlayedBackend},
+	DisputeStatus, real::DISPUTE_WINDOW,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
