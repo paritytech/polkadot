@@ -59,7 +59,6 @@ const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 /// should be fine:
 ///
 /// https://github.com/paritytech/substrate/blob/fc49802f263529160635471c8a17888846035f5d/client/authority-discovery/src/lib.rs#L88
-///
 const LOW_CONNECTIVITY_WARN_DELAY: Duration = Duration::from_secs(600);
 
 /// The Gossip Support subsystem.
@@ -327,6 +326,12 @@ impl State {
 		// we await for the request to be processed
 		// this is fine, it should take much less time than one session
 		let failures = failures.await.unwrap_or(num);
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			?failures,
+			"Failures when connecting to authorities"
+		);
 
 		// issue another request for the same session
 		// if at least a third of the authorities were not resolved

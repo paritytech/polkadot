@@ -441,8 +441,10 @@ where
 								?rep,
 								action = "ReportPeer"
 							);
+							// Test - don't punish peers on a node, to see what happens to our
+							// network errors.
+							network_service.report_peer(peer, rep);
 						}
-						network_service.report_peer(peer, rep);
 					}
 					NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
 						tracing::trace!(
