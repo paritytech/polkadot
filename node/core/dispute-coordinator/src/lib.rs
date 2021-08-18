@@ -133,7 +133,7 @@ where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let metrics = Metrics::new(config.prometheus_registry());
+		let metrics = Metrics::new(self.config.prometheus_registry());
 		let backend = DbBackend::new(self.store.clone(), self.config.column_config());
 		let future =
 			run(self, ctx, backend, Box::new(SystemClock), metrics).map(|_| Ok(())).boxed();

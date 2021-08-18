@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
+};
+
 #[derive(Clone)]
 struct MetricsInner {
 	votes: prometheus::Histogram,
@@ -37,7 +41,7 @@ impl Metrics {
 		}
 	}
 
-	fn on_concluded_invalid(&self) {
+	fn on_concluded_valid(&self) {
 		if let Some(metrics) = self.0 {
 			metrics.concluded.with_label_values(&["valid"]).inc();
 		}
