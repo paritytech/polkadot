@@ -434,16 +434,17 @@ where
 				}
 				Ok(FromOverseer::Communication { msg }) => match msg {
 					NetworkBridgeMessage::ReportPeer(peer, rep) => {
-						if !rep.is_benefit() {
+						if rep.is_benefit() {
+							// Test - don't punish peers on a node, to see what happens to our
+							// network errors.
+							network_service.report_peer(peer, rep);
+						} else {
 							tracing::debug!(
 								target: LOG_TARGET,
 								?peer,
 								?rep,
 								action = "ReportPeer"
 							);
-							// Test - don't punish peers on a node, to see what happens to our
-							// network errors.
-							network_service.report_peer(peer, rep);
 						}
 					}
 					NetworkBridgeMessage::DisconnectPeer(peer, peer_set) => {
