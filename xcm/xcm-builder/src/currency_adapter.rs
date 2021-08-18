@@ -19,7 +19,7 @@
 use frame_support::traits::{ExistenceRequirement::AllowDeath, Get, WithdrawReasons};
 use sp_runtime::traits::{CheckedSub, SaturatedConversion};
 use sp_std::{convert::TryInto, marker::PhantomData, result};
-use xcm::v0::{Error as XcmError, MultiAsset, MultiLocation, Result};
+use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result};
 use xcm_executor::{
 	traits::{Convert, MatchesFungible, TransactAsset},
 	Assets,
@@ -53,7 +53,7 @@ impl From<Error> for XcmError {
 /// # Example
 /// ```
 /// use frame_support::parameter_types;
-/// use xcm::v0::{MultiLocation, Junction};
+/// use xcm::latest::prelude::*;
 /// use xcm_builder::{ParentIsDefault, CurrencyAdapter, IsConcrete};
 ///
 /// /// Our chain's account id.
@@ -61,8 +61,8 @@ impl From<Error> for XcmError {
 ///
 /// /// Our relay chain's location.
 /// parameter_types! {
-///     RelayChain: MultiLocation = MultiLocation::X1(Junction::Parent);
-///     CheckingAccount: AccountId = Default::default();
+///     pub RelayChain: MultiLocation = Parent.into();
+///     pub CheckingAccount: AccountId = Default::default();
 /// }
 ///
 /// /// Some items that implement `Convert<MultiLocation, AccountId>`. Can be more, but for now we just assume we accept

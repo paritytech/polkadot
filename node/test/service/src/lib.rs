@@ -35,13 +35,12 @@ use polkadot_test_runtime::{
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
-use sc_executor::native_executor_instance;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr,
 };
 use service::{
-	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
+	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
 	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskExecutor, TaskManager,
 	TransactionStorageMode,
 };
@@ -55,15 +54,24 @@ use substrate_test_client::{
 	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
 
-native_executor_instance!(
-	pub PolkadotTestExecutor,
-	polkadot_test_runtime::api::dispatch,
-	polkadot_test_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+/// Declare an instance of the native executor named `PolkadotTestExecutorDispatch`. Include the wasm binary as the
+/// equivalent wasm code.
+pub struct PolkadotTestExecutorDispatch;
+
+impl sc_executor::NativeExecutionDispatch for PolkadotTestExecutorDispatch {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		polkadot_test_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		polkadot_test_runtime::native_version()
+	}
+}
 
 /// The client type being used by the test service.
-pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>;
+pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch>;
 
 pub use polkadot_service::FullBackend;
 
@@ -74,7 +82,7 @@ pub fn new_full(
 	is_collator: IsCollator,
 	worker_program_path: Option<PathBuf>,
 ) -> Result<NewFull<Arc<Client>>, Error> {
-	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor, _>(
+	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch, _>(
 		config,
 		is_collator,
 		None,
@@ -146,7 +154,7 @@ pub fn node_config(
 		network: network_config,
 		keystore: KeystoreConfig::InMemory,
 		keystore_remote: Default::default(),
-		database: DatabaseConfig::RocksDb { path: root.join("db"), cache_size: 128 },
+		database: DatabaseSource::RocksDb { path: root.join("db"), cache_size: 128 },
 		state_cache_size: 16777216,
 		state_cache_child_ratio: None,
 		state_pruning: Default::default(),
@@ -173,7 +181,6 @@ pub fn node_config(
 		rpc_methods: Default::default(),
 		prometheus_config: None,
 		telemetry_endpoints: None,
-		telemetry_external_transport: None,
 		default_heap_pages: None,
 		offchain_worker: Default::default(),
 		force_authoring: false,

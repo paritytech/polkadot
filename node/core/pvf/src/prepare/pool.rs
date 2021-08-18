@@ -194,6 +194,7 @@ fn handle_to_pool(
 ) {
 	match to_pool {
 		ToPool::Spawn => {
+			tracing::debug!(target: LOG_TARGET, "spawning a new prepare worker");
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		},
 		ToPool::StartWork { worker, code, artifact_path, background_priority } => {
@@ -224,6 +225,7 @@ fn handle_to_pool(
 			}
 		},
 		ToPool::Kill(worker) => {
+			tracing::debug!(target: LOG_TARGET, ?worker, "killing prepare worker");
 			// It may be absent if it were previously already removed by `purge_dead`.
 			let _ = spawned.remove(worker);
 		},
@@ -241,7 +243,7 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 		match worker::spawn(&program_path, spawn_timeout).await {
 			Ok((idle, handle)) => break PoolEvent::Spawn(idle, handle),
 			Err(err) => {
-				tracing::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err,);
+				tracing::warn!(target: LOG_TARGET, "failed to spawn a prepare worker: {:?}", err);
 
 				// Assume that the failure intermittent and retry after a delay.
 				Delay::new(Duration::from_secs(3)).await;

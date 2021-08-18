@@ -74,8 +74,6 @@ pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
 pub use determine_new_blocks::determine_new_blocks;
-/// Error classification.
-pub use error_handling::{unwrap_non_fatal, Fault};
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
@@ -88,7 +86,6 @@ pub mod rolling_session_window;
 pub mod runtime;
 
 mod determine_new_blocks;
-mod error_handling;
 
 #[cfg(test)]
 mod tests;

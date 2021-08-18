@@ -44,12 +44,7 @@ use runtime_parachains::{
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
-use xcm::v0::{
-	Junction::Parachain,
-	MultiAsset::{self, AllConcreteFungible},
-	MultiLocation::{self, Null, X1},
-	NetworkId, Xcm,
-};
+use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
@@ -63,7 +58,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{All, Filter, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
+	traits::{Contains, Everything, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -141,8 +136,8 @@ pub fn native_version() -> NativeVersion {
 
 /// Allow everything.
 pub struct BaseFilter;
-impl Filter<Call> for BaseFilter {
-	fn filter(_: &Call) -> bool {
+impl Contains<Call> for BaseFilter {
+	fn contains(_: &Call) -> bool {
 		true
 	}
 }
@@ -336,11 +331,8 @@ parameter_types! {
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 128;
-	pub const SignedDepositBase: Balance = deposit(1, 0);
-	// A typical solution occupies within an order of magnitude of 50kb.
-	// This formula is currently adjusted such that a typical solution will spend an amount equal
-	// to the base deposit for every 50 kb.
-	pub const SignedDepositByte: Balance = deposit(1, 0) / (50 * 1024);
+	pub const SignedDepositBase: Balance = deposit(2, 0);
+	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1 WND as reward
 	pub SignedRewardBase: Balance = 1 * UNITS;
 	// fallback: emergency phase.
@@ -385,7 +377,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
-	type CompactSolution = NposCompactSolution16;
+	type Solution = NposCompactSolution16;
 	type Fallback = Fallback;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureRoot<AccountId>;
@@ -416,7 +408,7 @@ parameter_types! {
 
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution16 as sp_npos_elections::CompactSolution>::LIMIT as u32;
+		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -713,11 +705,13 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Slots(..) |
 				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
 			),
-			ProxyType::Staking =>
-				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..)),
+			ProxyType::Staking => {
+				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
+			},
 			ProxyType::SudoBalances => match c {
-				Call::Sudo(pallet_sudo::Call::sudo(ref x)) =>
-					matches!(x.as_ref(), &Call::Balances(..)),
+				Call::Sudo(pallet_sudo::Call::sudo(ref x)) => {
+					matches!(x.as_ref(), &Call::Balances(..))
+				},
 				Call::Utility(..) => true,
 				_ => false,
 			},
@@ -725,8 +719,9 @@ impl InstanceFilter<Call> for ProxyType {
 				c,
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) | Call::Utility(..)
 			),
-			ProxyType::CancelProxy =>
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..))),
+			ProxyType::CancelProxy => {
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..)))
+			},
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -871,8 +866,8 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const WndLocation: MultiLocation = MultiLocation::Null;
-	pub const Ancestry: MultiLocation = MultiLocation::Null;
+	pub const WndLocation: MultiLocation = Here.into();
+	pub const Ancestry: MultiLocation = Here.into();
 	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
@@ -908,12 +903,12 @@ parameter_types! {
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime>,
+	xcm_sender::ChildParachainRouter<Runtime, xcm::AlwaysRelease>,
 );
 
 parameter_types! {
-	pub const WestendForWestmint: (MultiAsset, MultiLocation) =
-		(AllConcreteFungible { id: Null }, X1(Parachain(1000)));
+	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
+		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Parachain(1000).into());
 }
 pub type TrustedTeleporters = (xcm_builder::Case<WestendForWestmint>,);
 
@@ -922,7 +917,7 @@ pub type Barrier = (
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
 	// If the message is one that immediately attemps to pay for execution, then allow it.
-	AllowTopLevelPaidExecutionFrom<All<MultiLocation>>,
+	AllowTopLevelPaidExecutionFrom<Everything>,
 	// Messages coming from system parachains need not pay for execution.
 	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 );
@@ -949,69 +944,19 @@ pub type LocalOriginToLocation = (
 	SignedToAccountId32<Origin, AccountId, WestendNetwork>,
 );
 
-pub struct OnlyWithdrawTeleportForAccounts;
-impl frame_support::traits::Contains<(MultiLocation, Xcm<Call>)>
-	for OnlyWithdrawTeleportForAccounts
-{
-	fn contains((ref origin, ref msg): &(MultiLocation, Xcm<Call>)) -> bool {
-		use xcm::v0::{
-			Junction::AccountId32,
-			MultiAsset::{All, ConcreteFungible},
-			Order::{BuyExecution, DepositAsset, InitiateTeleport},
-			Xcm::WithdrawAsset,
-		};
-		match origin {
-			// Root is allowed to execute anything.
-			Null => true,
-			X1(AccountId32 { .. }) => {
-				// An account ID trying to send a message. We ensure that it's sensible.
-				// This checks that it's of the form:
-				// WithdrawAsset {
-				//   assets: [ ConcreteFungible { id: Null } ],
-				//   effects: [ BuyExecution, InitiateTeleport {
-				//     assets: All,
-				//     dest: Parachain,
-				//     effects: [ BuyExecution, DepositAssets {
-				//       assets: All,
-				//       dest: AccountId32,
-				//     } ]
-				//   } ]
-				// }
-				matches!(msg, WithdrawAsset { ref assets, ref effects }
-					if assets.len() == 1
-					&& matches!(assets[0], ConcreteFungible { id: Null, .. })
-					&& effects.len() == 2
-					&& matches!(effects[0], BuyExecution { .. })
-					&& matches!(effects[1], InitiateTeleport { ref assets, dest: X1(Parachain(..)), ref effects }
-						if assets.len() == 1
-						&& matches!(assets[0], All)
-						&& effects.len() == 2
-						&& matches!(effects[0], BuyExecution { .. })
-						&& matches!(effects[1], DepositAsset { ref assets, dest: X1(AccountId32{..}) }
-							if assets.len() == 1
-							&& matches!(assets[0], All)
-						)
-					)
-				)
-			},
-			// Nobody else is allowed to execute anything.
-			_ => false,
-		}
-	}
-}
-
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	// ...but they must match our filter, which requires them to be a simple withdraw + teleport.
-	type XcmExecuteFilter = OnlyWithdrawTeleportForAccounts;
+	// ...but they must match our filter, which rejects everything.
+	type XcmExecuteFilter = ();
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = All<(MultiLocation, Vec<MultiAsset>)>;
-	type XcmReserveTransferFilter = All<(MultiLocation, Vec<MultiAsset>)>;
+	type XcmTeleportFilter = Everything;
+	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type LocationInverter = LocationInverter<Ancestry>;
 }
 
 construct_runtime! {
@@ -1123,7 +1068,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(RemoveCollectiveFlip, MigratePalletVersionToStorageVersion),
+	MigratePalletVersionToStorageVersion,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1136,16 +1081,6 @@ impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
 		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
 			AllPalletsWithSystem,
 		>(&RocksDbWeight::get())
-	}
-}
-
-pub struct RemoveCollectiveFlip;
-impl frame_support::traits::OnRuntimeUpgrade for RemoveCollectiveFlip {
-	fn on_runtime_upgrade() -> Weight {
-		use frame_support::storage::migration;
-		// Remove the storage value `RandomMaterial` from removed pallet `RandomnessCollectiveFlip`
-		migration::remove_storage_prefix(b"RandomnessCollectiveFlip", b"RandomMaterial", b"");
-		<Runtime as frame_system::Config>::DbWeight::get().writes(1)
 	}
 }
 
