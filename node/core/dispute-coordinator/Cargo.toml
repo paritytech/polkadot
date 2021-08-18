@@ -22,9 +22,9 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 
 [dev-dependencies]
 kvdb-memorydb = "0.10.0"
-polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers"}
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 assert_matches = "1.4.0"
-polkadot-overseer = { path = "../../overseer" }
+# polkadot-overseer = { path = "../../overseer" }
