@@ -16,7 +16,7 @@
 
 use frame_support::{
 	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
-	weights::{GetDispatchInfo, Weight, WeightToFeePolynomial},
+	weights::{constants::WEIGHT_PER_SECOND, GetDispatchInfo, Weight, WeightToFeePolynomial},
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
@@ -80,16 +80,11 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo> FixedWeightBounds<T, C> {
 	}
 	fn deep_order(order: &mut Order<C>) -> Result<Weight, ()> {
 		Ok(match order {
-			Order::BuyExecution { orders, instructions, .. } => {
+			Order::BuyExecution { instructions, .. } => {
 				let mut extra = 0;
 				for instruction in instructions.iter_mut() {
 					extra.saturating_accrue(
 						Self::shallow(instruction)?.saturating_add(Self::deep(instruction)?),
-					);
-				}
-				for order in orders.iter_mut() {
-					extra.saturating_accrue(
-						Self::shallow_order(order)?.saturating_add(Self::deep_order(order)?),
 					);
 				}
 				extra
@@ -131,7 +126,6 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let (id, units_per_second) = T::get();
-		use frame_support::weights::constants::WEIGHT_PER_SECOND;
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
 		let unused = payment.checked_sub((id, amount).into()).map_err(|_| Error::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
@@ -177,7 +171,6 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
 		let (id, units_per_second) = T::get();
-		use frame_support::weights::constants::WEIGHT_PER_SECOND;
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
 		if amount == 0 {
 			return Ok(payment)
@@ -191,7 +184,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
+		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {

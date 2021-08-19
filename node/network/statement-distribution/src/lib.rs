@@ -27,6 +27,7 @@ use parity_scale_codec::Encode;
 
 use polkadot_node_network_protocol::{
 	peer_set::{IsAuthority, PeerSet},
+	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, View,
 };
@@ -57,7 +58,7 @@ use futures::{
 };
 use indexmap::{map::Entry as IEntry, IndexMap};
 use sp_keystore::SyncCryptoStorePtr;
-use util::{runtime::RuntimeInfo, Fault};
+use util::runtime::RuntimeInfo;
 
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
@@ -106,6 +107,8 @@ const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
 pub struct StatementDistribution {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
 	keystore: SyncCryptoStorePtr,
+	/// Receiver for incoming large statement requests.
+	req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,
 	// Prometheus metrics
 	metrics: Metrics,
 }
@@ -130,8 +133,12 @@ where
 
 impl StatementDistribution {
 	/// Create a new Statement Distribution Subsystem
-	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> StatementDistribution {
-		StatementDistribution { keystore, metrics }
+	pub fn new(
+		keystore: SyncCryptoStorePtr,
+		req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
+		metrics: Metrics,
+	) -> StatementDistribution {
+		StatementDistribution { keystore, req_receiver: Some(req_receiver), metrics }
 	}
 }
 
@@ -1526,7 +1533,7 @@ async fn handle_network_update(
 
 impl StatementDistribution {
 	async fn run(
-		self,
+		mut self,
 		mut ctx: (impl SubsystemContext<Message = StatementDistributionMessage>
 		     + overseer::SubsystemContext<Message = StatementDistributionMessage>),
 	) -> std::result::Result<(), Fatal> {
@@ -1542,6 +1549,16 @@ impl StatementDistribution {
 		// Sender/Receiver for getting news from our responder task.
 		let (res_sender, mut res_receiver) = mpsc::channel(1);
 
+		ctx.spawn(
+			"large-statement-responder",
+			respond(
+				self.req_receiver.take().expect("Mandatory argument to new. qed"),
+				res_sender.clone(),
+			)
+			.boxed(),
+		)
+		.map_err(Fatal::SpawnTask)?;
+
 		loop {
 			let message =
 				MuxedMessage::receive(&mut ctx, &mut req_receiver, &mut res_receiver).await;
@@ -1556,16 +1573,14 @@ impl StatementDistribution {
 							&mut authorities,
 							&mut active_heads,
 							&req_sender,
-							&res_sender,
 							result?,
 						)
 						.await;
 					match result {
 						Ok(true) => break,
 						Ok(false) => {},
-						Err(Error(Fault::Fatal(f))) => return Err(f),
-						Err(Error(Fault::Err(error))) =>
-							tracing::debug!(target: LOG_TARGET, ?error),
+						Err(Error::Fatal(f)) => return Err(f),
+						Err(Error::NonFatal(error)) => tracing::debug!(target: LOG_TARGET, ?error),
 					}
 				},
 				MuxedMessage::Requester(result) => {
@@ -1749,7 +1764,6 @@ impl StatementDistribution {
 		authorities: &mut HashMap<AuthorityDiscoveryId, PeerId>,
 		active_heads: &mut HashMap<Hash, ActiveHeadData>,
 		req_sender: &mpsc::Sender<RequesterMessage>,
-		res_sender: &mpsc::Sender<ResponderMessage>,
 		message: FromOverseer<StatementDistributionMessage>,
 	) -> Result<bool> {
 		let metrics = &self.metrics;
@@ -1867,13 +1881,6 @@ impl StatementDistribution {
 						metrics,
 					)
 					.await;
-				},
-				StatementDistributionMessage::StatementFetchingReceiver(receiver) => {
-					ctx.spawn(
-						"large-statement-responder",
-						respond(receiver, res_sender.clone()).boxed(),
-					)
-					.map_err(Fatal::SpawnTask)?;
 				},
 			},
 		}

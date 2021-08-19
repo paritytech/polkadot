@@ -17,10 +17,8 @@
 use crate::mock::*;
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
-use xcm::{
-	opaque::v1::prelude::*,
-	v1::{Junction, Xcm},
-};
+use std::convert::TryInto;
+use xcm::v1::prelude::*;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -40,7 +38,7 @@ fn send_works() {
 		let sender: MultiLocation =
 			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
 		let message = Xcm::ReserveAssetDeposited {
-			assets: (X1(Parent), SEND_AMOUNT).into(),
+			assets: (Parent, SEND_AMOUNT).into(),
 			effects: vec![
 				buy_execution((Parent, SEND_AMOUNT), weight),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
@@ -54,8 +52,11 @@ fn send_works() {
 		assert_eq!(
 			sent_xcm(),
 			vec![(
-				MultiLocation::Here,
-				RelayedFrom { who: sender.clone(), message: Box::new(message.clone()) }
+				Here.into(),
+				RelayedFrom {
+					who: sender.clone().try_into().unwrap(),
+					message: Box::new(message.clone()),
+				}
 			)]
 		);
 		assert_eq!(
@@ -87,16 +88,7 @@ fn send_fails_when_xcm_router_blocks() {
 		assert_noop!(
 			XcmPallet::send(
 				Origin::signed(ALICE),
-				Box::new(X8(
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent
-				)),
+				Box::new(MultiLocation::ancestor(8)),
 				Box::new(message.clone())
 			),
 			crate::Error::<Test>::SendFailure
@@ -118,7 +110,7 @@ fn teleport_assets_works() {
 		assert_ok!(XcmPallet::teleport_assets(
 			Origin::signed(ALICE),
 			Box::new(RelayLocation::get()),
-			Box::new(X1(AccountId32 { network: Any, id: BOB.into() })),
+			Box::new(AccountId32 { network: Any, id: BOB.into() }.into()),
 			(Here, SEND_AMOUNT).into(),
 			0,
 			weight,
@@ -162,7 +154,7 @@ fn reserve_transfer_assets_works() {
 			vec![(
 				Parachain(PARA_ID).into(),
 				Xcm::ReserveAssetDeposited {
-					assets: (X1(Parent), SEND_AMOUNT).into(),
+					assets: (Parent, SEND_AMOUNT).into(),
 					effects: vec![
 						buy_execution((Parent, SEND_AMOUNT), weight),
 						DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },

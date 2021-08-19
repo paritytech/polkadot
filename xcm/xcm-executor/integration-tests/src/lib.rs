@@ -24,7 +24,7 @@ use polkadot_test_client::{
 use polkadot_test_service::construct_extrinsic;
 use sp_runtime::{generic::BlockId, traits::Block};
 use sp_state_machine::InspectState;
-use xcm::latest::{Error as XcmError, Junction::*, MultiLocation::*, Order, Outcome, Xcm::*};
+use xcm::latest::prelude::*;
 use xcm_executor::MAX_RECURSION_LIMIT;
 
 // This is the inflection point where the test should either fail or pass.
@@ -37,16 +37,15 @@ fn execute_within_recursion_limit() {
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
-	let mut msg = WithdrawAsset { assets: (X1(Parent), 100).into(), effects: vec![] };
+	let mut msg = WithdrawAsset { assets: (Parent, 100).into(), effects: vec![] };
 	for _ in 0..MAX_RECURSION_CHECK {
 		msg = WithdrawAsset {
-			assets: (X1(Parent), 100).into(),
+			assets: (Parent, 100).into(),
 			effects: vec![Order::BuyExecution {
-				fees: (X1(Parent), 1).into(),
+				fees: (Parent, 1).into(),
 				weight: 0,
 				debt: 0,
 				halt_on_error: true,
-				orders: vec![],
 				// nest `msg` into itself on each iteration.
 				instructions: vec![msg],
 			}],
@@ -92,16 +91,15 @@ fn exceed_recursion_limit() {
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
-	let mut msg = WithdrawAsset { assets: (X1(Parent), 100).into(), effects: vec![] };
+	let mut msg = WithdrawAsset { assets: (Parent, 100).into(), effects: vec![] };
 	for _ in 0..(MAX_RECURSION_CHECK + 1) {
 		msg = WithdrawAsset {
-			assets: (X1(Parent), 100).into(),
+			assets: (Parent, 100).into(),
 			effects: vec![Order::BuyExecution {
-				fees: (X1(Parent), 1).into(),
+				fees: (Parent, 1).into(),
 				weight: 0,
 				debt: 0,
 				halt_on_error: true,
-				orders: vec![],
 				// nest `msg` into itself on each iteration.
 				instructions: vec![msg],
 			}],

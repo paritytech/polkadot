@@ -17,35 +17,31 @@
 
 //! Error handling related code and Error/Result definitions.
 
-use polkadot_node_network_protocol::request_response::request::RequestError;
+use polkadot_node_network_protocol::request_response::outgoing::RequestError;
 use thiserror::Error;
 
 use futures::channel::oneshot;
 
-use polkadot_node_subsystem_util::{runtime, unwrap_non_fatal, Fault};
+use polkadot_node_subsystem_util::runtime;
 use polkadot_subsystem::SubsystemError;
 
 use crate::LOG_TARGET;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, derive_more::From)]
 #[error(transparent)]
-pub struct Error(pub Fault<NonFatal, Fatal>);
-
-impl From<NonFatal> for Error {
-	fn from(e: NonFatal) -> Self {
-		Self(Fault::from_non_fatal(e))
-	}
-}
-
-impl From<Fatal> for Error {
-	fn from(f: Fatal) -> Self {
-		Self(Fault::from_fatal(f))
-	}
+pub enum Error {
+	/// All fatal errors.
+	Fatal(Fatal),
+	/// All nonfatal/potentially recoverable errors.
+	NonFatal(NonFatal),
 }
 
 impl From<runtime::Error> for Error {
 	fn from(o: runtime::Error) -> Self {
-		Self(Fault::from_other(o))
+		match o {
+			runtime::Error::Fatal(f) => Self::Fatal(Fatal::Runtime(f)),
+			runtime::Error::NonFatal(f) => Self::NonFatal(NonFatal::Runtime(f)),
+		}
 	}
 }
 
@@ -107,15 +103,23 @@ pub enum NonFatal {
 	Runtime(#[from] runtime::NonFatal),
 }
 
+/// General result type for fatal/nonfatal errors.
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Results which are never fatal.
+pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
 
 /// Utility for eating top level errors and log them.
 ///
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them
 pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), Fatal> {
-	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
-		tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+	match result {
+		Err(Error::Fatal(f)) => Err(f),
+		Err(Error::NonFatal(error)) => {
+			tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+			Ok(())
+		},
+		Ok(()) => Ok(()),
 	}
-	Ok(())
 }

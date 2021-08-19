@@ -195,8 +195,8 @@ macro_rules! decl_test_network {
 			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
 				use $crate::{UmpSink, XcmpMessageHandlerT};
 
-				match destination {
-					$crate::X1($crate::Parent) => {
+				match destination.interior() {
+					$crate::Junctions::Here if destination.parent_count() == 1 => {
 						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
 						let _ = <$relay_chain>::process_upward_message(
 							T::get(), &encoded[..],
@@ -205,7 +205,7 @@ macro_rules! decl_test_network {
 						Ok(())
 					},
 					$(
-						$crate::X2($crate::Parent, $crate::Parachain(id)) if id == $para_id => {
+						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 1 => {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Xcmp);
 							let messages = vec![(T::get(), 1, &encoded[..])];
 							let _ = <$parachain>::handle_xcmp_messages(
@@ -226,9 +226,9 @@ macro_rules! decl_test_network {
 			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
 				use $crate::DmpMessageHandlerT;
 
-				match destination {
+				match destination.interior() {
 					$(
-						$crate::X1($crate::Parachain(id)) if id == $para_id => {
+						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 0 => {
 							let encoded = $crate::encode_xcm(message, $crate::MessageKind::Dmp);
 							let messages = vec![(1, encoded)];
 							let _ = <$parachain>::handle_dmp_messages(
