@@ -93,7 +93,7 @@ pub use sp_tracing;
 
 pub use error::{InvalidCandidate, ValidationError};
 pub use priority::Priority;
-pub use pvf::Pvf;
+pub use pvf::{Pvf, PvfPreimage};
 
 pub use host::{start, Config, ValidationHost};
 

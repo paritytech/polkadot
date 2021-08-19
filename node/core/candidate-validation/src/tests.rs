@@ -279,6 +279,9 @@ impl ValidationBackend for MockValidatorBackend {
 
 #[test]
 fn candidate_validation_ok_is_ok() {
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut _ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
 	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
@@ -309,6 +312,7 @@ fn candidate_validation_ok_is_ok() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
+		&mut ctx,
 		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data.clone(),
 		Some(validation_code),
@@ -331,6 +335,9 @@ fn candidate_validation_ok_is_ok() {
 
 #[test]
 fn candidate_validation_bad_return_is_invalid() {
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut _ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
 	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
@@ -350,6 +357,7 @@ fn candidate_validation_bad_return_is_invalid() {
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
+		&mut ctx,
 		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
 			WasmInvalidCandidate::AmbigiousWorkerDeath,
 		))),
@@ -367,6 +375,9 @@ fn candidate_validation_bad_return_is_invalid() {
 
 #[test]
 fn candidate_validation_timeout_is_internal_error() {
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut _ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
 	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
@@ -386,6 +397,7 @@ fn candidate_validation_timeout_is_internal_error() {
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
+		&mut ctx,
 		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
 			WasmInvalidCandidate::HardTimeout,
 		))),
@@ -402,6 +414,9 @@ fn candidate_validation_timeout_is_internal_error() {
 
 #[test]
 fn candidate_validation_code_mismatch_is_invalid() {
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut _ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
 	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
@@ -421,6 +436,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 
 	let v = executor::block_on(validate_candidate_exhaustive(
+		&mut ctx,
 		MockValidatorBackend::with_hardcoded_result(Err(ValidationError::InvalidCandidate(
 			WasmInvalidCandidate::HardTimeout,
 		))),
@@ -438,6 +454,9 @@ fn candidate_validation_code_mismatch_is_invalid() {
 
 #[test]
 fn compressed_code_works() {
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut _ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
 	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let head_data = HeadData(vec![1, 1, 1]);
@@ -463,6 +482,7 @@ fn compressed_code_works() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
+		&mut ctx,
 		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		Some(validation_code),
@@ -477,6 +497,9 @@ fn compressed_code_works() {
 
 #[test]
 fn code_decompression_failure_is_invalid() {
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut _ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
 	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let head_data = HeadData(vec![1, 1, 1]);
@@ -503,6 +526,7 @@ fn code_decompression_failure_is_invalid() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
+		&mut ctx,
 		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		Some(validation_code),
@@ -517,6 +541,9 @@ fn code_decompression_failure_is_invalid() {
 
 #[test]
 fn pov_decompression_failure_is_invalid() {
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut _ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
 	let validation_data =
 		PersistedValidationData { max_pov_size: POV_BOMB_LIMIT as u32, ..Default::default() };
 	let head_data = HeadData(vec![1, 1, 1]);
@@ -544,6 +571,7 @@ fn pov_decompression_failure_is_invalid() {
 	};
 
 	let v = executor::block_on(validate_candidate_exhaustive(
+		&mut ctx,
 		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		Some(validation_code),

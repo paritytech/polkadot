@@ -152,6 +152,7 @@ where
 					let _timer = metrics.time_validate_from_exhaustive();
 
 					let res = validate_candidate_exhaustive(
+						&mut ctx,
 						&mut validation_host,
 						persisted_validation_data,
 						Some(validation_code),
@@ -314,40 +315,16 @@ where
 			return Ok(Err(ValidationFailed("Assumption Check: Bad request".into()))),
 	};
 
-	let mut validation_result = validate_candidate_exhaustive(
-		&mut validation_host.clone(),
-		validation_data.clone(),
+	let validation_result = validate_candidate_exhaustive(
+		ctx,
+		validation_host,
+		validation_data,
 		None,
 		descriptor.clone(),
-		pov.clone(),
+		pov,
 		metrics,
 	)
 	.await;
-
-	// In case preimage for the supplied code hash was not found by the
-	// validation host, request the code from Runtime API and try again.
-	if let Ok(Err(ref err)) = validation_result {
-		if err.0.as_str() == "Code not found" {
-			let validation_code = match request_validation_code_by_hash(ctx, &descriptor).await? {
-				Ok(Some(validation_code)) => validation_code,
-				Ok(None) =>
-					return Ok(Err(ValidationFailed(
-						"Runtime API didn't return validation code".into(),
-					))),
-				Err(err) => return Ok(Err(ValidationFailed(err.to_string()))),
-			};
-
-			validation_result = validate_candidate_exhaustive(
-				validation_host,
-				validation_data,
-				Some(validation_code),
-				descriptor.clone(),
-				pov,
-				metrics,
-			)
-			.await;
-		}
-	}
 
 	if let Ok(Ok(ValidationResult::Valid(ref outputs, _))) = validation_result {
 		let (tx, rx) = oneshot::channel();
@@ -366,27 +343,22 @@ where
 		}
 	}
 
-	if let Ok(Err(ref err)) = validation_result {
-		if err.0.as_str() == "Code not found" {
-			tracing::error!(
-				target: LOG_TARGET,
-				para_id = ?descriptor.para_id,
-				"Failed to validate candidate: validation code not found in cache"
-			);
-		}
-	}
-
 	validation_result
 }
 
-async fn validate_candidate_exhaustive(
+async fn validate_candidate_exhaustive<Context>(
+	ctx: &mut Context,
 	mut validation_backend: impl ValidationBackend,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: Option<ValidationCode>,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	metrics: &Metrics,
-) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
+) -> SubsystemResult<Result<ValidationResult, ValidationFailed>>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
 	let validation_code_hash = validation_code.as_ref().map(ValidationCode::hash);
@@ -445,7 +417,7 @@ async fn validate_candidate_exhaustive(
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};
 
-	let result = validation_backend.validate_candidate(validation_code, params).await;
+	let mut result = validation_backend.validate_candidate(validation_code, params.clone()).await;
 
 	if let Err(ref e) = result {
 		tracing::debug!(
@@ -453,6 +425,43 @@ async fn validate_candidate_exhaustive(
 			error = ?e,
 			"Failed to validate candidate",
 		);
+
+		// In case preimage for the supplied code hash was not found by the
+		// validation host, request the code from Runtime API and try again.
+		if let &ValidationError::ArtifactNotFound = e {
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Validation host failed to find artifact by provided hash",
+			);
+
+			let validation_code = match request_validation_code_by_hash(ctx, &descriptor).await? {
+				Ok(Some(validation_code)) => validation_code,
+				Ok(None) =>
+					return Ok(Err(ValidationFailed(
+						"Runtime API didn't return validation code by hash".into(),
+					))),
+				Err(err) => return Ok(Err(ValidationFailed(err.to_string()))),
+			};
+
+			let validation_code = Pvf::from_code(
+				match sp_maybe_compressed_blob::decompress(
+					&validation_code.0,
+					VALIDATION_CODE_BOMB_LIMIT,
+				) {
+					Ok(code) => code,
+					Err(e) => {
+						tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+
+						// If the validation code is invalid, the candidate certainly is.
+						return Ok(Ok(ValidationResult::Invalid(
+							InvalidCandidate::CodeDecompressionFailure,
+						)))
+					},
+				}
+				.to_vec(),
+			);
+			result = validation_backend.validate_candidate(validation_code, params).await;
+		}
 	}
 
 	let result = match result {
@@ -466,9 +475,17 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
 				"ambigious worker death".to_string(),
 			))),
-		Err(ValidationError::ArtifactNotFound) =>
-			Err(ValidationFailed("Code not found".to_string())),
-
+		Err(ValidationError::ArtifactNotFound) => {
+			// The code was supplied on the second attempt, this
+			// error should be unreachable.
+			tracing::error!(
+				target: LOG_TARGET,
+				"Unexpected error received from the validation host"
+			);
+			Err(ValidationFailed(
+				"Validation host failed to find artifact even though it was supplied".to_string(),
+			))
+		},
 		Ok(res) =>
 			if res.head_data.hash() != descriptor.para_head {
 				Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch))
