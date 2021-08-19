@@ -163,8 +163,6 @@ impl OverseerGen for BackGarbageCandidate {
 		let registry = args.registry.clone();
 		let candidate_validation_config = args.candidate_validation_config.clone();
 
-
-
 		// modify the subsystem(s) as needed:
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem

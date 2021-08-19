@@ -2,9 +2,9 @@
 name = "malus"
 path = "src/lib.rs"
 
-# [[bin]]
-# name = "malus-suggest-garbage-candidate"
-# path = "src/malus-suggest-garbage-candidate.rs"
+[[bin]]
+name = "malus-suggest-garbage-candidate"
+path = "src/malus-suggest-garbage-candidate.rs"
 
 # [[bin]]
 # name = "malus-back-garbage-candidate"

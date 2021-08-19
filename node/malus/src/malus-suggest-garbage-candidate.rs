@@ -23,6 +23,7 @@
 #![allow(missing_docs)]
 
 use color_eyre::eyre;
+use malus::overseer::SubsystemSender;
 use polkadot_cli::{
 	create_default_subsystems,
 	service::{
@@ -32,30 +33,22 @@ use polkadot_cli::{
 	Cli,
 };
 
-use crate::overseer::Handle;
-
 // Import extra types relevant to the particular
 // subsystem.
-use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
-use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
-use polkadot_node_primitives::{BlockData, PoV, Statement, ValidationResult};
-use polkadot_node_subsystem::messages::{
-	CandidateBackingMessage, CandidateValidationMessage, StatementDistributionMessage,
-};
+use polkadot_node_core_backing::{CandidateBackingSubsystem, Metrics};
+use polkadot_node_primitives::{PoV, Statement};
+use polkadot_node_subsystem::messages::{CandidateBackingMessage, StatementDistributionMessage};
 use polkadot_node_subsystem_util as util;
 // Filter wrapping related types.
 use malus::*;
-use polkadot_primitives::{
-	v0::CandidateReceipt,
-	v1::{CandidateCommitments, CommittedCandidateReceipt, Hash, Signed},
+use polkadot_primitives::v1::{
+	CandidateCommitments, CandidateReceipt, CommittedCandidateReceipt, CompactStatement, Hash,
+	Signed,
 };
 use sp_keystore::SyncCryptoStorePtr;
-use util::{metered::UnboundedMeteredSender, metrics::Metrics as _};
+use util::{metered, metrics::Metrics as _};
 
-use std::sync::{
-	atomic::{AtomicUsize, Ordering},
-	Arc,
-};
+use std::sync::Arc;
 
 use structopt::StructOpt;
 
@@ -70,7 +63,7 @@ where
 	Sender: Send,
 {
 	keystore: SyncCryptoStorePtr,
-	queue: metered::Sender<(Hash, CandidateReceipt, PoV)>,
+	queue: metered::UnboundedMeteredSender<(Sender, Hash, CandidateReceipt)>,
 }
 
 impl<Sender> MsgFilter<Sender> for ReplacePoVBytes<Sender>
@@ -88,11 +81,14 @@ where
 			FromOverseer::Communication {
 				msg: CandidateBackingMessage::Second(hash, candidate_receipt, pov),
 			} => {
-				self.queue.send((sender, hash, candidate_receipt, pov));
-				None
-				// Some(CandidateBackingMessage::Second(hash, candidate_receipt, PoV {
-				// 	block_data: BlockData(MALICIOUS_POV.to_vec())
-				// }))
+				self.queue.unbounded_send((sender.clone(), hash, candidate_receipt)).unwrap();
+
+				// TODO not sure if this is necessary or not
+				Some(CandidateBackingMessage::Second(
+					hash,
+					candidate_receipt,
+					PoV { block_data: BlockData(MALICIOUS_POV.to_vec()) },
+				))
 			},
 			other => Some(other),
 		}
@@ -120,22 +116,19 @@ impl OverseerGen for SuggestGarbageCandidate {
 		let leaves = args.leaves.clone();
 		let runtime_client = args.runtime_client.clone();
 		let registry = args.registry.clone();
-		let candidate_validation_config = args.candidate_validation_config.clone();
 
-		let (sink, source) = util::metered::unbounded();
+		let (sink, source) = metered::unbounded();
 
-		let metrics = Metrics::new(registry);
+		let keystore = args.keystore.clone() as SyncCryptoStorePtr;
 
-		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
-
-		let filter =
-			ReplacePoVBytes { keystore, overseer: OverseerHandle::new_disconnected(), queue: sink };
+		let filter = ReplacePoVBytes { keystore: keystore.clone(), queue: sink };
 		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
+		let all_subsystems = create_default_subsystems(args)?.replace_candidate_backing(
 			// create the filtered subsystem
 			FilteredSubsystem::new(
-				CandidateValidationSubsystem::with_config(
-					candidate_validation_config,
+				CandidateBackingSubsystem::new(
+					spawner.clone(),
+					keystore.clone(),
 					Metrics::register(registry)?,
 				),
 				filter.clone(),
@@ -143,22 +136,47 @@ impl OverseerGen for SuggestGarbageCandidate {
 		);
 
 		let (overseer, handle) =
-			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)?;
+			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner.clone())?;
 
-		launch_processing_task(overseer.spawner(), source, async move {
-			tracing::info!(target = MALUS, "Replacing seconded candidate pov with something else");
+		launch_processing_task(
+			spawner,
+			source,
+			move |(mut subsystem_sender, hash, candidate_receipt): (_, Hash, CandidateReceipt)| {
+				let keystore = keystore.clone();
+				async move {
+					tracing::info!(
+						target = MALUS,
+						"Replacing seconded candidate pov with something else"
+					);
 
-			let committed_candidate_receipt = CommittedCandidateReceipt {
-				descriptor: candidate_receipt.descriptor(),
-				commitments: CandidateCommitments::default(),
-			};
-			let statement = Statement::Seconded(committed_candidate_receipt);
-			let compact_statement =
-				CompactStatement::Seconded(candidate_receipt.descriptor().hash());
-			let signed: Signed<Statement, CompactStatement> = todo!();
-			subsystem_sender
-				.send_message(StatementDistributionMessage::Share(hash, signed_statement))
-		});
+					let committed_candidate_receipt = CommittedCandidateReceipt {
+						descriptor: candidate_receipt.descriptor.clone(),
+						commitments: CandidateCommitments::default(),
+					};
+
+					let statement = Statement::Seconded(committed_candidate_receipt);
+
+					if let Ok(validator) =
+						util::Validator::new(hash, keystore.clone(), &mut subsystem_sender).await
+					{
+						let signed_statement: Signed<Statement, CompactStatement> = validator
+							.sign(keystore, statement)
+							.await
+							.expect("Signing works. qed")
+							.expect("Something must come out of this. qed");
+
+						subsystem_sender
+							.send_message(StatementDistributionMessage::Share(
+								hash,
+								signed_statement,
+							))
+							.await;
+					} else {
+						tracing::info!("We are not a validator. Not siging anything.");
+					}
+				}
+			},
+		);
 
 		Ok((overseer, handle))
 	}

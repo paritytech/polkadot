@@ -41,7 +41,7 @@ use polkadot_node_subsystem::messages::{CandidateBackingMessage, DisputeCoordina
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v1::CandidateReceipt;
 use sp_keystore::SyncCryptoStorePtr;
-use util::{metered::UnboundedMeteredSender, metrics::Metrics as _};
+use util::{metered, metrics::Metrics as _};
 
 // Filter wrapping related types.
 use malus::overseer::SubsystemSender;
@@ -59,7 +59,7 @@ struct TrackCollations<Sender>
 where
 	Sender: Send,
 {
-	sink: UnboundedMeteredSender<(Sender, CandidateReceipt)>,
+	sink: metered::UnboundedMeteredSender<(Sender, CandidateReceipt)>,
 }
 
 impl<Sender> MsgFilter<Sender> for TrackCollations<Sender>
@@ -116,7 +116,7 @@ impl OverseerGen for DisputeEverything {
 		let runtime_client = args.runtime_client.clone();
 		let registry = args.registry.clone();
 
-		let (sink, source) = util::metered::unbounded();
+		let (sink, source) = metered::unbounded();
 
 		let coll = TrackCollations { sink };
 
