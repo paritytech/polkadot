@@ -23,7 +23,7 @@ use crate::{
 };
 use kvdb::KeyValueDB;
 use polkadot_primitives::v1::Id as ParaId;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::{HashMap, HashSet}, sync::Arc};
 
 const DATA_COL: u32 = 0;
 const NUM_COLUMNS: u32 = 1;
@@ -561,4 +561,57 @@ fn load_all_blocks_works() {
 		load_all_blocks(store.as_ref(), &TEST_CONFIG).unwrap(),
 		vec![block_hash_a, block_hash_b, block_hash_c],
 	)
+}
+
+#[test]
+fn load_all_candidates_works() {
+	let (mut db, store) = make_db();
+
+	let block_hash = Hash::repeat_byte(1);
+
+	let make_candidate = |para_id: u32| {
+		let mut candidate = CandidateReceipt::<Hash>::default();
+		candidate.descriptor.para_id = para_id.into();
+
+		CandidateEntry {
+			candidate,
+			session: 5,
+			block_assignments: vec![(
+				block_hash,
+				ApprovalEntry {
+					tranches: Vec::new(),
+					backing_group: GroupIndex(1),
+					our_assignment: None,
+					our_approval_sig: None,
+					assignments: Default::default(),
+					approved: false,
+				},
+			)]
+			.into_iter()
+			.collect(),
+			approvals: Default::default(),
+		}
+	};
+
+	let candidates = vec![
+		make_candidate(1),
+		make_candidate(2),
+		make_candidate(3),
+	];
+	let candidate_hashes: HashSet<_> = candidates.iter().map(|c| c.candidate.hash()).collect();
+
+	let mut overlay_db = OverlayedBackend::new(&db);
+	for candidate in candidates {
+		overlay_db.write_candidate_entry(candidate.into());
+	}
+	let write_ops = overlay_db.into_write_ops();
+	db.write(write_ops).unwrap();
+
+	let all_candidate_hashes: HashSet<_> = load_all_candidates(store.as_ref(), &TEST_CONFIG)
+		.unwrap()
+		.iter()
+		.map(|c| c.candidate.hash())
+		.collect();
+
+	assert_eq!(candidate_hashes, all_candidate_hashes);
 }

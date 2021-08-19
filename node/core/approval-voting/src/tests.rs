@@ -278,6 +278,10 @@ impl Backend for TestStoreInner {
 		Ok(hashes)
 	}
 
+	fn load_all_candidates(&self) -> SubsystemResult<Vec<CandidateEntry>> {
+		Ok(self.candidate_entries.values().cloned().collect())
+	}
+
 	fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
 		Ok(self.stored_block_range.clone())
 	}
@@ -344,6 +348,11 @@ impl Backend for TestStore {
 	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
 		let store = self.store.lock();
 		store.load_all_blocks()
+	}
+
+	fn load_all_candidates(&self) -> SubsystemResult<Vec<CandidateEntry>> {
+		let store = self.store.lock();
+		store.load_all_candidates()
 	}
 
 	fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
