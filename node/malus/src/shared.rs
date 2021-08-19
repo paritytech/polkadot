@@ -1,7 +1,5 @@
 use futures::prelude::*;
 use polkadot_node_primitives::SpawnNamed;
-pub(crate) use polkadot_node_subsystem::overseer::{gen::futures::SinkExt, SubsystemSender};
-use std::pin::Pin;
 
 pub const MALUS: &str = "MALUS😈😈😈";
 

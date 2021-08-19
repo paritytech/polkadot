@@ -44,7 +44,7 @@ use sp_keystore::SyncCryptoStorePtr;
 use util::{metered::UnboundedMeteredSender, metrics::Metrics as _};
 
 // Filter wrapping related types.
-use malus::{overseer::SubsystemSender, *};
+use malus::overseer::SubsystemSender;
 use shared::*;
 
 use std::sync::Arc;
