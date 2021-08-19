@@ -40,11 +40,14 @@ use strum::EnumIter;
 
 pub use sc_network::{config as network, config::RequestResponseConfig};
 
-/// All requests that can be sent to the network bridge.
-pub mod request;
-pub use request::{
-	IncomingRequest, OutgoingRequest, OutgoingResult, Recipient, Requests, ResponseSender,
-};
+/// Everything related to handling of incoming requests.
+pub mod incoming;
+/// Everything related to handling of outgoing requests.
+pub mod outgoing;
+
+pub use incoming::{IncomingRequest, IncomingRequestReceiver};
+
+pub use outgoing::{OutgoingRequest, OutgoingResult, Recipient, Requests, ResponseSender};
 
 ///// Multiplexer for incoming requests.
 // pub mod multiplexer;
@@ -247,4 +250,13 @@ impl Protocol {
 			Protocol::DisputeSending => "/polkadot/send_dispute/1",
 		}
 	}
+}
+
+/// Common properties of any `Request`.
+pub trait IsRequest {
+	/// Each request has a corresponding `Response`.
+	type Response;
+
+	/// What protocol this `Request` implements.
+	const PROTOCOL: Protocol;
 }

@@ -240,11 +240,6 @@ fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<(
 		let role = config.role.clone();
 
 		match role {
-			#[cfg(feature = "browser")]
-			Role::Light => service::build_light(config)
-				.map(|(task_manager, _)| task_manager)
-				.map_err(Into::into),
-			#[cfg(not(feature = "browser"))]
 			Role::Light => Err(Error::Other("Light client not enabled".into())),
 			_ => service::build_full(
 				config,
@@ -338,7 +333,7 @@ pub fn run() -> Result<()> {
 			builder.with_colors(false);
 			let _ = builder.init();
 
-			#[cfg(any(target_os = "android", feature = "browser"))]
+			#[cfg(target_os = "android")]
 			{
 				return Err(sc_cli::Error::Input(
 					"PVF preparation workers are not supported under this platform".into(),
@@ -346,7 +341,7 @@ pub fn run() -> Result<()> {
 				.into())
 			}
 
-			#[cfg(not(any(target_os = "android", feature = "browser")))]
+			#[cfg(not(target_os = "android"))]
 			{
 				polkadot_node_core_pvf::prepare_worker_entrypoint(&cmd.socket_path);
 				Ok(())
@@ -357,7 +352,7 @@ pub fn run() -> Result<()> {
 			builder.with_colors(false);
 			let _ = builder.init();
 
-			#[cfg(any(target_os = "android", feature = "browser"))]
+			#[cfg(target_os = "android")]
 			{
 				return Err(sc_cli::Error::Input(
 					"PVF execution workers are not supported under this platform".into(),
@@ -365,7 +360,7 @@ pub fn run() -> Result<()> {
 				.into())
 			}
 
-			#[cfg(not(any(target_os = "android", feature = "browser")))]
+			#[cfg(not(target_os = "android"))]
 			{
 				polkadot_node_core_pvf::execute_worker_entrypoint(&cmd.socket_path);
 				Ok(())
@@ -381,23 +376,29 @@ pub fn run() -> Result<()> {
 			#[cfg(feature = "kusama-native")]
 			if chain_spec.is_kusama() {
 				return Ok(runner.sync_run(|config| {
-					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
-						.map_err(|e| Error::SubstrateCli(e))
+					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(
+						config,
+					)
+					.map_err(|e| Error::SubstrateCli(e))
 				})?)
 			}
 
 			#[cfg(feature = "westend-native")]
 			if chain_spec.is_westend() {
 				return Ok(runner.sync_run(|config| {
-					cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(config)
-						.map_err(|e| Error::SubstrateCli(e))
+					cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(
+						config,
+					)
+					.map_err(|e| Error::SubstrateCli(e))
 				})?)
 			}
 
 			// else we assume it is polkadot.
 			Ok(runner.sync_run(|config| {
-				cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
-					.map_err(|e| Error::SubstrateCli(e))
+				cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
+					config,
+				)
+				.map_err(|e| Error::SubstrateCli(e))
 			})?)
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),

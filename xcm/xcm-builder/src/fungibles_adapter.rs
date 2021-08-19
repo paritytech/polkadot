@@ -55,7 +55,7 @@ impl<Prefix: Get<MultiLocation>, AssetId: Clone, ConvertAssetId: Convert<u128, A
 	fn reverse_ref(what: impl Borrow<AssetId>) -> result::Result<MultiLocation, ()> {
 		let mut location = Prefix::get();
 		let id = ConvertAssetId::reverse_ref(what)?;
-		location.push_interior(Junction::GeneralIndex(id))?;
+		location.push_interior(Junction::GeneralIndex(id)).map_err(|_| ())?;
 		Ok(location)
 	}
 }

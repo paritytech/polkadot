@@ -86,6 +86,9 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			let hash = now.hash();
 			log::debug!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
 
+			// if the runtime version has changed, terminate
+			crate::check_versions::<Runtime>(client, false).await?;
+
 			// we prefer doing this check before fetching anything into a remote-ext.
 			if ensure_signed_phase::<Runtime, Block>(client, hash).await.is_err() {
 				log::debug!(target: LOG_TARGET, "phase closed, not interested in this block at all.");
@@ -99,7 +102,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			// this will not be a solution.
 
 			// grab an externalities without staking, just the election snapshot.
-			let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), Some(hash), false).await?;
+			let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), Some(hash), vec![]).await?;
 
 			if ensure_no_previous_solution::<Runtime, Block>(&mut ext, &signer.account).await.is_err() {
 				log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");

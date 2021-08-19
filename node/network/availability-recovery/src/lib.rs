@@ -26,6 +26,7 @@ use std::{
 use futures::{
 	channel::oneshot,
 	future::{BoxFuture, FutureExt, RemoteHandle},
+	pin_mut,
 	prelude::*,
 	stream::FuturesUnordered,
 	task::{Context, Poll},
@@ -36,9 +37,10 @@ use rand::seq::SliceRandom;
 use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1, recovery_threshold};
 use polkadot_node_network_protocol::{
 	request_response::{
-		self as req_res, request::RequestError, OutgoingRequest, Recipient, Requests,
+		self as req_res, incoming, outgoing::RequestError, v1 as request_v1,
+		IncomingRequestReceiver, OutgoingRequest, Recipient, Requests,
 	},
-	IfDisconnected,
+	IfDisconnected, UnifiedReputationChange as Rep,
 };
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util::request_session_info;
@@ -68,9 +70,13 @@ const N_PARALLEL: usize = 50;
 // Size of the LRU cache where we keep recovered data.
 const LRU_SIZE: usize = 16;
 
+const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
+
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem {
 	fast_path: bool,
+	/// Receiver for available data requests.
+	req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 }
 
 struct RequestFromBackersPhase {
@@ -294,12 +300,14 @@ impl RequestChunksPhase {
 						if erasure_chunk_hash != anticipated_hash {
 							tracing::debug!(
 								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
 								?validator_index,
 								"Merkle proof mismatch",
 							);
 						} else {
 							tracing::trace!(
 								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
 								?validator_index,
 								"Received valid chunk.",
 							);
@@ -308,6 +316,7 @@ impl RequestChunksPhase {
 					} else {
 						tracing::debug!(
 							target: LOG_TARGET,
+							candidate_hash = ?params.candidate_hash,
 							?validator_index,
 							"Invalid Merkle proof",
 						);
@@ -317,6 +326,7 @@ impl RequestChunksPhase {
 				Err((validator_index, e)) => {
 					tracing::debug!(
 						target: LOG_TARGET,
+						candidate_hash= ?params.candidate_hash,
 						err = ?e,
 						?validator_index,
 						"Failure requesting chunk",
@@ -750,13 +760,17 @@ where
 
 impl AvailabilityRecoverySubsystem {
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which starts with a fast path to request data from backers.
-	pub fn with_fast_path() -> Self {
-		Self { fast_path: true }
+	pub fn with_fast_path(
+		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+	) -> Self {
+		Self { fast_path: true, req_receiver }
 	}
 
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which requests only chunks
-	pub fn with_chunks_only() -> Self {
-		Self { fast_path: false }
+	pub fn with_chunks_only(
+		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+	) -> Self {
+		Self { fast_path: false, req_receiver }
 	}
 
 	async fn run<Context>(self, mut ctx: Context) -> SubsystemResult<()>
@@ -765,8 +779,11 @@ impl AvailabilityRecoverySubsystem {
 		Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	{
 		let mut state = State::default();
+		let Self { fast_path, mut req_receiver } = self;
 
 		loop {
+			let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
+			pin_mut!(recv_req);
 			futures::select! {
 				v = ctx.recv().fuse() => {
 					match v? {
@@ -789,7 +806,7 @@ impl AvailabilityRecoverySubsystem {
 										&mut ctx,
 										receipt,
 										session_index,
-										maybe_backing_group.filter(|_| self.fast_path),
+										maybe_backing_group.filter(|_| fast_path),
 										response_sender,
 									).await {
 										tracing::warn!(
@@ -799,23 +816,36 @@ impl AvailabilityRecoverySubsystem {
 										);
 									}
 								}
-								AvailabilityRecoveryMessage::AvailableDataFetchingRequest(req) => {
-									match query_full_data(&mut ctx, req.payload.candidate_hash).await {
-										Ok(res) => {
-											let _ = req.send_response(res.into());
-										}
-										Err(e) => {
-											tracing::debug!(
-												target: LOG_TARGET,
-												err = ?e,
-												"Failed to query available data.",
-											);
+							}
+						}
+					}
+				}
+				in_req = recv_req => {
+					match in_req {
+						Ok(req) => {
+							match query_full_data(&mut ctx, req.payload.candidate_hash).await {
+								Ok(res) => {
+									let _ = req.send_response(res.into());
+								}
+								Err(e) => {
+									tracing::debug!(
+										target: LOG_TARGET,
+										err = ?e,
+										"Failed to query available data.",
+									);
 
-											let _ = req.send_response(None.into());
-										}
-									}
+									let _ = req.send_response(None.into());
 								}
 							}
+						}
+						Err(incoming::Error::Fatal(f)) => return Err(SubsystemError::with_origin("availability-recovery", f)),
+						Err(incoming::Error::NonFatal(err)) => {
+							tracing::debug!(
+								target: LOG_TARGET,
+								?err,
+								"Decoding incoming request failed"
+							);
+							continue
 						}
 					}
 				}

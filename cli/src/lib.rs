@@ -18,8 +18,6 @@
 
 #![warn(missing_docs)]
 
-#[cfg(feature = "browser")]
-mod browser;
 #[cfg(feature = "cli")]
 mod cli;
 #[cfg(feature = "cli")]

@@ -23,6 +23,10 @@ use xcm::latest::{Junction, Junctions, MultiLocation, Order, Xcm};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `shallow_weight` from `weight_credit`.
+///
+/// Useful to allow XCM execution by local chain users via extrinsics.
+/// E.g. `pallet_xcm::reserve_asset_transfer` to transfer a reserve asset
+/// out of the local chain to another one.
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
 	fn should_execute<Call>(
@@ -39,6 +43,9 @@ impl ShouldExecute for TakeWeightCredit {
 
 /// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking payments into
 /// account.
+///
+/// Only allows for `TeleportAsset`, `WithdrawAsset` and `ReserveAssetDeposit` XCMs because they are the only ones
+/// that place assets in the Holding Register to pay for execution.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(

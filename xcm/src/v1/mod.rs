@@ -1,18 +1,18 @@
 // Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Cumulus.
+// This file is part of Polkadot.
 
-// Substrate is free software: you can redistribute it and/or modify
+// Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Substrate is distributed in the hope that it will be useful,
+// Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Version 1 of the Cross-Consensus Message format data structures.
 
@@ -267,14 +267,11 @@ pub enum Xcm<Call> {
 	/// A message to indicate that the embedded XCM is actually arriving on behalf of some consensus
 	/// location within the origin.
 	///
-	/// Safety: `who` must be an interior location of the context. This basically means that no `Parent`
-	/// junctions are allowed in it. This should be verified at the time of XCM execution.
-	///
 	/// Kind: *Instruction*
 	///
 	/// Errors:
 	#[codec(index = 10)]
-	RelayedFrom { who: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
+	RelayedFrom { who: Junctions, message: alloc::boxed::Box<Xcm<Call>> },
 }
 
 impl<Call> Xcm<Call> {
@@ -375,7 +372,7 @@ impl<Call> TryFrom<Xcm0<Call>> for Xcm<Call> {
 			Xcm0::Transact { origin_type, require_weight_at_most, call } =>
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			Xcm0::RelayedFrom { who, message } => RelayedFrom {
-				who: who.try_into()?,
+				who: MultiLocation::try_from(who)?.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
 		})
