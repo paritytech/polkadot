@@ -64,7 +64,6 @@ benchmarks! {
 			weight: 0, // TODO think about sensible numbers
 			debt: 0, // TODO think about sensible numbers
 			halt_on_error: false,
-			orders: Default::default(), // no orders
 			instructions: Default::default(), // no instructions
 		};
 	} : {
@@ -155,7 +154,7 @@ benchmarks! {
 		};
 
 		let xcm = Xcm::RelayedFrom {
-			who: Here.into(),
+			who: Here,
 			message: sp_std::boxed::Box::new(noop_xcm),
 		};
 	}: {

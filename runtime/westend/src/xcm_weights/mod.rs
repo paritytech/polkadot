@@ -157,7 +157,7 @@ impl XcmWeightInfo<()> for WestendXcmWeight {
 	fn xcm_hrmp_channel_closing(_initiator: &u32, _sender: &u32, _recipient: &u32) -> Weight {
 		XcmGeneric::<Runtime>::xcm_hrmp_channel_closing()
 	}
-	fn xcm_relayed_from(_who: &MultiLocation, _message: &Box<Xcm<()>>) -> Weight {
+	fn xcm_relayed_from(_who: &Junctions, _message: &Box<Xcm<()>>) -> Weight {
 		XcmGeneric::<Runtime>::xcm_relayed_from()
 	}
 }

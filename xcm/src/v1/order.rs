@@ -17,7 +17,8 @@
 //! Version 1 of the Cross-Consensus Message format data structures.
 
 use super::{
-	super::v0::Order as Order0, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Xcm,
+	super::v0::Order as Order0, GetWeight, MultiAsset, MultiAssetFilter, MultiAssets,
+	MultiLocation, Weight, Xcm, XcmWeightInfo,
 };
 use alloc::vec::Vec;
 use core::{
@@ -249,8 +250,8 @@ impl<W: XcmWeightInfo<()>> GetWeight<W> for Order<()> {
 				W::order_initiate_teleport(assets, dest, effects),
 			Order::QueryHolding { query_id, dest, assets } =>
 				W::order_query_holding(query_id, dest, assets),
-			Order::BuyExecution { fees, weight, debt, halt_on_error, orders, instructions } =>
-				W::order_buy_execution(fees, weight, debt, halt_on_error, orders, instructions),
+			Order::BuyExecution { fees, weight, debt, halt_on_error, instructions } =>
+				W::order_buy_execution(fees, weight, debt, halt_on_error, instructions),
 		}
 	}
 }

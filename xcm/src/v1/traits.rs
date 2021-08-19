@@ -21,8 +21,8 @@ use core::result;
 use parity_scale_codec::{Decode, Encode};
 
 use super::{
-	DoubleEncoded, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Order, OriginKind,
-	Response, Xcm,
+	DoubleEncoded, Junctions, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation, Order,
+	OriginKind, Response, Xcm,
 };
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
@@ -314,7 +314,6 @@ pub trait XcmWeightInfo<Call> {
 		weight: &u64,
 		debt: &u64,
 		halt_on_error: &bool,
-		orders: &Vec<Order<Call>>,
 		instructions: &Vec<Xcm<Call>>,
 	) -> Weight;
 	fn xcm_withdraw_asset(assets: &MultiAssets, effects: &Vec<Order<Call>>) -> Weight;
@@ -340,5 +339,5 @@ pub trait XcmWeightInfo<Call> {
 	) -> Weight;
 	fn xcm_hrmp_channel_accepted(recipient: &u32) -> Weight;
 	fn xcm_hrmp_channel_closing(initiator: &u32, sender: &u32, recipient: &u32) -> Weight;
-	fn xcm_relayed_from(who: &MultiLocation, message: &alloc::boxed::Box<Xcm<Call>>) -> Weight;
+	fn xcm_relayed_from(who: &Junctions, message: &alloc::boxed::Box<Xcm<Call>>) -> Weight;
 }
