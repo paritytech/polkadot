@@ -24,7 +24,7 @@ use futures::{
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
-	request::{OutgoingRequest, Recipient, RequestError, Requests},
+	outgoing::{OutgoingRequest, Recipient, RequestError, Requests},
 	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_node_primitives::ErasureChunk;

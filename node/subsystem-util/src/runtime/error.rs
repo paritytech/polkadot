@@ -23,23 +23,16 @@ use thiserror::Error;
 use polkadot_node_subsystem::errors::RuntimeApiError;
 use polkadot_primitives::v1::SessionIndex;
 
-use crate::Fault;
-
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Errors for `Runtime` cache.
-pub type Error = Fault<NonFatal, Fatal>;
-
-impl From<NonFatal> for Error {
-	fn from(e: NonFatal) -> Self {
-		Self::from_non_fatal(e)
-	}
-}
-
-impl From<Fatal> for Error {
-	fn from(f: Fatal) -> Self {
-		Self::from_fatal(f)
-	}
+#[derive(Debug, Error, derive_more::From)]
+#[error(transparent)]
+pub enum Error {
+	/// All fatal errors.
+	Fatal(Fatal),
+	/// All nonfatal/potentially recoverable errors.
+	NonFatal(NonFatal),
 }
 
 /// Fatal runtime errors.
