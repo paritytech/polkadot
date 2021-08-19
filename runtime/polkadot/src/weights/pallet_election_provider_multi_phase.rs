@@ -51,8 +51,7 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	// Storage: Staking ForceEra (r:1 w:0)
 	// Storage: ElectionProviderMultiPhase CurrentPhase (r:1 w:0)
 	fn on_initialize_nothing() -> Weight {
-		(23_878_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(8 as Weight))
+		(23_878_000 as Weight).saturating_add(T::DbWeight::get().reads(8 as Weight))
 	}
 	// Storage: ElectionProviderMultiPhase Round (r:1 w:0)
 	// Storage: ElectionProviderMultiPhase CurrentPhase (r:0 w:1)
@@ -85,8 +84,7 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	// Storage: ElectionProviderMultiPhase DesiredTargets (r:0 w:1)
 	// Storage: ElectionProviderMultiPhase Snapshot (r:0 w:1)
 	fn create_snapshot_internal() -> Weight {
-		(8_835_233_000 as Weight)
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		(8_835_233_000 as Weight).saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	// Storage: ElectionProviderMultiPhase SignedSubmissionIndices (r:1 w:1)
 	// Storage: ElectionProviderMultiPhase SignedSubmissionNextIndex (r:1 w:1)
@@ -97,7 +95,7 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	// Storage: ElectionProviderMultiPhase DesiredTargets (r:0 w:1)
 	// Storage: ElectionProviderMultiPhase Snapshot (r:0 w:1)
 	// Storage: ElectionProviderMultiPhase CurrentPhase (r:0 w:1)
-	fn elect_queued(a: u32, d: u32, ) -> Weight {
+	fn elect_queued(a: u32, d: u32) -> Weight {
 		(82_395_000 as Weight)
 			// Standard Error: 1_000
 			.saturating_add((1_769_000 as Weight).saturating_mul(a as Weight))
@@ -112,7 +110,7 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	// Storage: TransactionPayment NextFeeMultiplier (r:1 w:0)
 	// Storage: ElectionProviderMultiPhase SignedSubmissionNextIndex (r:1 w:1)
 	// Storage: ElectionProviderMultiPhase SignedSubmissionsMap (r:0 w:1)
-	fn submit(c: u32, ) -> Weight {
+	fn submit(c: u32) -> Weight {
 		(77_368_000 as Weight)
 			// Standard Error: 9_000
 			.saturating_add((369_000 as Weight).saturating_mul(c as Weight))
@@ -126,7 +124,7 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	// Storage: ElectionProviderMultiPhase SnapshotMetadata (r:1 w:0)
 	// Storage: ElectionProviderMultiPhase MinimumUntrustedScore (r:1 w:0)
 	// Storage: ElectionProviderMultiPhase Snapshot (r:1 w:0)
-	fn submit_unsigned(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
+	fn submit_unsigned(v: u32, t: u32, a: u32, d: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 4_000
 			.saturating_add((3_553_000 as Weight).saturating_mul(v as Weight))
@@ -143,7 +141,7 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	// Storage: ElectionProviderMultiPhase DesiredTargets (r:1 w:0)
 	// Storage: ElectionProviderMultiPhase MinimumUntrustedScore (r:1 w:0)
 	// Storage: ElectionProviderMultiPhase Snapshot (r:1 w:0)
-	fn feasibility_check(v: u32, _t: u32, a: u32, d: u32, ) -> Weight {
+	fn feasibility_check(v: u32, _t: u32, a: u32, d: u32) -> Weight {
 		(0 as Weight)
 			// Standard Error: 3_000
 			.saturating_add((3_478_000 as Weight).saturating_mul(v as Weight))
