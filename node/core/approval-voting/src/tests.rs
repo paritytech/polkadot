@@ -17,9 +17,10 @@
 use super::*;
 use polkadot_node_primitives::{
 	approval::{
-		AssignmentCert, AssignmentCertKind, DelayTranche, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
+		AssignmentCert, AssignmentCertKind, DelayTranche, VRFOutput, VRFProof,
+		RELAY_VRF_MODULO_CONTEXT,
 	},
-	PoV, AvailableData, BlockData, ValidationResult,
+	AvailableData, BlockData, PoV, ValidationResult,
 };
 use polkadot_node_subsystem::{
 	messages::{AllMessages, ApprovalVotingMessage, AssignmentCheckResult},
@@ -29,8 +30,8 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::v1::{
-	CandidateEvent, CoreIndex, GroupIndex, Header, Id as ParaId, ValidatorSignature, HeadData,
-	PersistedValidationData, ValidationCode, CandidateCommitments,
+	CandidateCommitments, CandidateEvent, CoreIndex, GroupIndex, HeadData, Header, Id as ParaId,
+	PersistedValidationData, ValidationCode, ValidatorSignature,
 };
 use std::time::Duration;
 
@@ -397,7 +398,7 @@ type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalVotingMe
 type BoxAssignmentCriteria = Box<dyn AssignmentCriteria + Send + Sync + 'static>;
 type BoxAssignmentCriteriaGen = Box<dyn Fn() -> BoxAssignmentCriteria>;
 
-struct HarnessConfigBuilder{
+struct HarnessConfigBuilder {
 	clock: Option<MockClock>,
 	backend: Option<TestStore>,
 	gen_assignment_criteria: Option<BoxAssignmentCriteriaGen>,
@@ -405,11 +406,7 @@ struct HarnessConfigBuilder{
 
 impl Default for HarnessConfigBuilder {
 	fn default() -> Self {
-		Self {
-			clock: None,
-			backend: None,
-			gen_assignment_criteria: None,
-		}
+		Self { clock: None, backend: None, gen_assignment_criteria: None }
 	}
 }
 
@@ -423,10 +420,10 @@ impl HarnessConfigBuilder {
 	}
 
 	pub fn build(&mut self) -> HarnessConfig {
-		let gen_assignment_criteria: BoxAssignmentCriteriaGen = self
-			.gen_assignment_criteria
-			.take()
-			.unwrap_or_else(|| Box::new(|| Box::new(MockAssignmentCriteria::check_only(|_| Ok(0)))));
+		let gen_assignment_criteria: BoxAssignmentCriteriaGen =
+			self.gen_assignment_criteria.take().unwrap_or_else(|| {
+				Box::new(|| Box::new(MockAssignmentCriteria::check_only(|_| Ok(0))))
+			});
 
 		HarnessConfig {
 			clock: self.clock.take().unwrap_or_else(|| MockClock::new(0)),
@@ -466,12 +463,7 @@ impl TestHarness {
 		self,
 		test: impl FnOnce(TestHarness, VirtualOverseer) -> T,
 	) -> TestHarness {
-		let TestHarness {
-			clock,
-			backend,
-			gen_assignment_criteria,
-			..
-		} = self;
+		let TestHarness { clock, backend, gen_assignment_criteria, .. } = self;
 
 		let (sync_oracle, sync_oracle_handle) = make_sync_oracle(false);
 		let assignment_criteria = gen_assignment_criteria();
@@ -480,15 +472,18 @@ impl TestHarness {
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
 
 		let keystore = LocalKeystore::in_memory();
-		keystore.sr25519_generate_new(
-			polkadot_primitives::v1::PARACHAIN_KEY_TYPE_ID,
-			Some(&Sr25519Keyring::Alice.to_seed()),
-		).unwrap();
-		keystore.sr25519_generate_new(
-			polkadot_primitives::v1::ASSIGNMENT_KEY_TYPE_ID,
-			Some(&Sr25519Keyring::Alice.to_seed()),
-		).unwrap();
-
+		keystore
+			.sr25519_generate_new(
+				polkadot_primitives::v1::PARACHAIN_KEY_TYPE_ID,
+				Some(&Sr25519Keyring::Alice.to_seed()),
+			)
+			.unwrap();
+		keystore
+			.sr25519_generate_new(
+				polkadot_primitives::v1::ASSIGNMENT_KEY_TYPE_ID,
+				Some(&Sr25519Keyring::Alice.to_seed()),
+			)
+			.unwrap();
 
 		let subsystem = run(
 			context,
@@ -536,11 +531,7 @@ fn test_harness<T: Future<Output = (TestHarness, VirtualOverseer)>>(
 	config: HarnessConfig,
 	test: impl FnOnce(TestHarness, VirtualOverseer) -> T,
 ) -> TestHarness {
-	let HarnessConfig {
-		clock,
-		backend,
-		gen_assignment_criteria,
-	} = config;
+	let HarnessConfig { clock, backend, gen_assignment_criteria } = config;
 
 	let test_harness = TestHarness {
 		clock: Box::new(clock),
@@ -1035,7 +1026,9 @@ fn subsystem_rejects_bad_assignment_err_criteria() {
 	let gen_assignment_criteria: BoxAssignmentCriteriaGen = Box::new(|| {
 		Box::new(MockAssignmentCriteria::check_only(|_| Err(criteria::InvalidAssignment)))
 	});
-	let config = HarnessConfigBuilder::default().gen_assignment_criteria(gen_assignment_criteria).build();
+	let config = HarnessConfigBuilder::default()
+		.gen_assignment_criteria(gen_assignment_criteria)
+		.build();
 	test_harness(config, |test_harness, mut virtual_overseer| async move {
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
@@ -1255,7 +1248,9 @@ fn subsystem_rejects_assignment_in_future() {
 	let gen_assignment_criteria: BoxAssignmentCriteriaGen = Box::new(|| {
 		Box::new(MockAssignmentCriteria::check_only(|_| Ok(TICK_TOO_FAR_IN_FUTURE as _)))
 	});
-	let config = HarnessConfigBuilder::default().gen_assignment_criteria(gen_assignment_criteria).build();
+	let config = HarnessConfigBuilder::default()
+		.gen_assignment_criteria(gen_assignment_criteria)
+		.build();
 	test_harness(config, |test_harness, mut virtual_overseer| async move {
 		let block_hash = Hash::repeat_byte(0x01);
 		let candidate_index = 0;
@@ -2117,12 +2112,15 @@ fn subsystem_approved_ancestor_missing_approval() {
 #[test]
 fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 	let gen_assignment_criteria: BoxAssignmentCriteriaGen = Box::new(|| {
-		Box::new(MockAssignmentCriteria(|| {
+		Box::new(MockAssignmentCriteria(
+			|| {
 				let mut assignments = HashMap::new();
 				let _ = assignments.insert(
 					CoreIndex(0),
 					approval_db::v1::OurAssignment {
-						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
+						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
+							sample: 0,
+						}),
 						tranche: 0,
 						validator_index: ValidatorIndex(0),
 						triggered: false,
@@ -2130,10 +2128,13 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 					.into(),
 				);
 				assignments
-			}, |_| Ok(0),
+			},
+			|_| Ok(0),
 		))
 	});
-	let config = HarnessConfigBuilder::default().gen_assignment_criteria(gen_assignment_criteria).build();
+	let config = HarnessConfigBuilder::default()
+		.gen_assignment_criteria(gen_assignment_criteria)
+		.build();
 	let store = config.backend();
 
 	test_harness(config, |test_harness, mut virtual_overseer| async move {
@@ -2246,12 +2247,15 @@ where
 
 	let gen_assignment_criteria: BoxAssignmentCriteriaGen = Box::new(move || {
 		let assign_validator_tranche = assign_validator_tranche.clone();
-		Box::new(MockAssignmentCriteria(move || {
+		Box::new(MockAssignmentCriteria(
+			move || {
 				let mut assignments = HashMap::new();
 				let _ = assignments.insert(
 					CoreIndex(0),
 					approval_db::v1::OurAssignment {
-						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
+						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
+							sample: 0,
+						}),
 						tranche: our_assigned_tranche.clone(),
 						validator_index: ValidatorIndex(0),
 						triggered: false,
@@ -2263,7 +2267,9 @@ where
 			assign_validator_tranche,
 		))
 	});
-	let config = HarnessConfigBuilder::default().gen_assignment_criteria(gen_assignment_criteria).build();
+	let config = HarnessConfigBuilder::default()
+		.gen_assignment_criteria(gen_assignment_criteria)
+		.build();
 	let store = config.backend();
 
 	test_harness(config, |test_harness, mut virtual_overseer| async move {
@@ -2590,12 +2596,15 @@ fn resume_approvals_on_restart() {
 	let candidates = vec![(candidate_receipt.clone(), CoreIndex(0), GroupIndex(2))];
 
 	let gen_assignment_criteria: BoxAssignmentCriteriaGen = Box::new(|| {
-		Box::new(MockAssignmentCriteria(|| {
+		Box::new(MockAssignmentCriteria(
+			|| {
 				let mut assignments = HashMap::new();
 				let _ = assignments.insert(
 					CoreIndex(0),
 					approval_db::v1::OurAssignment {
-						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
+						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
+							sample: 0,
+						}),
 						tranche: 0,
 						validator_index: ValidatorIndex(0),
 						triggered: false,
@@ -2608,7 +2617,9 @@ fn resume_approvals_on_restart() {
 		))
 	});
 
-	let harness_config = HarnessConfigBuilder::default().gen_assignment_criteria(gen_assignment_criteria).build();
+	let harness_config = HarnessConfigBuilder::default()
+		.gen_assignment_criteria(gen_assignment_criteria)
+		.build();
 	test_harness(harness_config, |test_harness, mut virtual_overseer| async {
 		let candidate_index = 0;
 

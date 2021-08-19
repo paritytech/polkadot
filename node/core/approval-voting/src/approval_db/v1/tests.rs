@@ -23,7 +23,10 @@ use crate::{
 };
 use kvdb::KeyValueDB;
 use polkadot_primitives::v1::Id as ParaId;
-use std::{collections::{HashMap, HashSet}, sync::Arc};
+use std::{
+	collections::{HashMap, HashSet},
+	sync::Arc,
+};
 
 const DATA_COL: u32 = 0;
 const NUM_COLUMNS: u32 = 1;
@@ -593,11 +596,7 @@ fn load_all_candidates_works() {
 		}
 	};
 
-	let candidates = vec![
-		make_candidate(1),
-		make_candidate(2),
-		make_candidate(3),
-	];
+	let candidates = vec![make_candidate(1), make_candidate(2), make_candidate(3)];
 	let candidate_hashes: HashSet<_> = candidates.iter().map(|c| c.candidate.hash()).collect();
 
 	let mut overlay_db = OverlayedBackend::new(&db);

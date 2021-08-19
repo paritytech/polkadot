@@ -114,7 +114,9 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 	pub fn load_all_candidates(&self) -> SubsystemResult<Vec<CandidateEntry>> {
 		// Load all candidates from disk.
-		let mut candidates: HashMap<_, _> = self.inner.load_all_candidates()?
+		let mut candidates: HashMap<_, _> = self
+			.inner
+			.load_all_candidates()?
 			.into_iter()
 			.map(|c| (c.candidate.hash(), c))
 			.collect();
@@ -124,10 +126,10 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			match c_entry {
 				Some(c_entry) => {
 					let _ = candidates.insert(*c_hash, c_entry.clone());
-				}
+				},
 				None => {
 					let _ = candidates.remove(c_hash);
-				}
+				},
 			}
 		}
 

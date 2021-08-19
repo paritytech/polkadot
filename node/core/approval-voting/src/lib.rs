@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::v1::{
-	AssignmentPair, ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
+	ApprovalVote, AssignmentPair, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
 	DisputeStatement, GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind,
 	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
@@ -797,36 +797,35 @@ async fn handle_startup(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	state: &mut State,
 ) -> SubsystemResult<Vec<Action>> {
-
 	let all_candidates = overlay_db.load_all_candidates().map_err(|e| {
 		tracing::error!(target: LOG_TARGET, "Failed initial load of active candidates: {:?}", e);
 		e
 	})?;
 
-	let candidates_by_session: HashMap<_, _> = all_candidates
-		.into_iter()
-		.fold(HashMap::new(), |mut candidates_by_session, candidate| {
-			candidates_by_session.entry(candidate.session).or_insert_with(Vec::new).push(candidate);
-			candidates_by_session
-		});
-
+	let candidates_by_session: HashMap<_, _> =
+		all_candidates
+			.into_iter()
+			.fold(HashMap::new(), |mut candidates_by_session, candidate| {
+				candidates_by_session
+					.entry(candidate.session)
+					.or_insert_with(Vec::new)
+					.push(candidate);
+				candidates_by_session
+			});
 
 	let mut actions = Vec::new();
 	for (session, candidates) in candidates_by_session {
 		let info = match state.session_info(session) {
 			Some(info) => info,
 			None => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"Missing session info for {:?}",
-					session
-				);
+				tracing::warn!(target: LOG_TARGET, "Missing session info for {:?}", session);
 				continue
-			}
+			},
 		};
 
 		// Compute the local validator indexes, if any, for this session.
-		let local_validators: Vec<_> = info.validators
+		let local_validators: Vec<_> = info
+			.validators
 			.iter()
 			.enumerate()
 			.filter(|(_, validator)| {
@@ -840,7 +839,8 @@ async fn handle_startup(
 			.collect();
 
 		// Compute the local assignment indexes, if any, for this session.
-		let local_assigners: Vec<_> = info.assignment_keys
+		let local_assigners: Vec<_> = info
+			.assignment_keys
 			.iter()
 			.enumerate()
 			.filter(|(_, assigner)| {
@@ -872,14 +872,17 @@ async fn handle_startup(
 			})
 			.flat_map(|candidate| {
 				let candidate_receipt = candidate.candidate.clone();
-				candidate.block_assignments
+				candidate
+					.block_assignments
 					.into_iter()
 					// Retain any candidates that have our assignment indexes in the assignments
 					// bitfield.
 					.filter(|(_, approval_entry)| {
 						local_assigners.iter().any(|index| approval_entry.is_assigned(*index))
 					})
-					.map(|(block_hash, approval_entry)| (candidate_receipt.clone(), block_hash, approval_entry))
+					.map(|(block_hash, approval_entry)| {
+						(candidate_receipt.clone(), block_hash, approval_entry)
+					})
 					.collect::<Vec<_>>()
 			})
 			.collect();
@@ -894,29 +897,19 @@ async fn handle_startup(
 				None => continue,
 			};
 
-			let indirect_cert = IndirectAssignmentCert {
-				block_hash,
-				validator,
-				cert,
-			};
+			let indirect_cert = IndirectAssignmentCert { block_hash, validator, cert };
 
 			let block_entry = match overlay_db.load_block_entry(&block_hash)? {
 				Some(block_entry) => block_entry,
 				None => {
-					tracing::warn!(
-						target: LOG_TARGET,
-						"Missing block entry for: {:?}",
-						block_hash,
-					);
+					tracing::warn!(target: LOG_TARGET, "Missing block entry for: {:?}", block_hash,);
 					continue
 				},
 			};
 
 			let candidate_hash = candidate_receipt.hash();
-			let candidate_index = block_entry
-				.candidates()
-				.iter()
-				.position(|(_, h)| &candidate_hash == h);
+			let candidate_index =
+				block_entry.candidates().iter().position(|(_, h)| &candidate_hash == h);
 
 			if let Some(candidate_index) = candidate_index {
 				actions.push(Action::LaunchApproval {

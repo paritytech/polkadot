@@ -586,8 +586,8 @@ pub(crate) mod tests {
 	use std::{pin::Pin, sync::Arc};
 
 	use crate::{
-		RecoveryState,
-		approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry, APPROVAL_SESSIONS,
+		approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry, RecoveryState,
+		APPROVAL_SESSIONS,
 	};
 
 	const DATA_COL: u32 = 0;

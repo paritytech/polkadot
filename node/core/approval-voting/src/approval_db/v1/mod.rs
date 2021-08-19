@@ -80,7 +80,10 @@ impl Backend for DbBackend {
 	}
 
 	fn load_all_candidates(&self) -> SubsystemResult<Vec<persisted_entries::CandidateEntry>> {
-		Ok(load_all_candidates(&*self.inner, &self.config)?.into_iter().map(Into::into).collect())
+		Ok(load_all_candidates(&*self.inner, &self.config)?
+			.into_iter()
+			.map(Into::into)
+			.collect())
 	}
 
 	fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
