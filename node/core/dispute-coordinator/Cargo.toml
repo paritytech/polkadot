@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-dispute-coordinator"
-version = "0.9.9"
+version = "0.9.9-1"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -28,3 +28,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
 assert_matches = "1.4.0"
 polkadot-overseer = { path = "../../overseer" }
+
+[features]
+# If not enabled, the dispute coordinator will do nothing.
+disputes = []
