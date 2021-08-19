@@ -12746,6 +12746,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
+ "xcm-procedural",
 ]
 
 [[package]]
@@ -12802,6 +12803,15 @@ dependencies = [
  "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "xcm",
  "xcm-executor",
+]
+
+[[package]]
+name = "xcm-procedural"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
