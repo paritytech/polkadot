@@ -58,7 +58,9 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, Everything, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
+	traits::{
+		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
+	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
