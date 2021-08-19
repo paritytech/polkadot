@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use async_std::sync::Mutex;
-use either::Either;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
 	start, Config, InvalidCandidate, Pvf, ValidationError, ValidationHost,
@@ -64,7 +63,7 @@ impl TestHost {
 			.lock()
 			.await
 			.execute_pvf(
-				Either::Left(Pvf::from_code(code.into())),
+				Pvf::from_code(code.into()),
 				params.encode(),
 				polkadot_node_core_pvf::Priority::Normal,
 				result_tx,

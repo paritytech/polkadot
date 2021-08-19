@@ -6119,7 +6119,6 @@ version = "0.9.9"
 dependencies = [
  "assert_matches",
  "async-trait",
- "either",
  "futures 0.3.16",
  "parity-scale-codec",
  "polkadot-node-core-pvf",
@@ -6257,7 +6256,6 @@ dependencies = [
  "assert_matches",
  "async-process",
  "async-std",
- "either",
  "futures 0.3.16",
  "futures-timer 3.0.2",
  "hex-literal",

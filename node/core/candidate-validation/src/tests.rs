@@ -16,7 +16,6 @@
 
 use super::*;
 use assert_matches::assert_matches;
-use either::Either;
 use futures::executor;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
@@ -271,7 +270,7 @@ impl MockValidatorBackend {
 impl ValidationBackend for MockValidatorBackend {
 	async fn validate_candidate(
 		&mut self,
-		_raw_validation_code: Either<Vec<u8>, ValidationCodeHash>,
+		_raw_validation_code: Pvf,
 		_params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		self.result.clone()

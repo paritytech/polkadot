@@ -23,15 +23,32 @@ use std::{fmt, sync::Arc};
 ///
 /// Should be cheap to clone.
 #[derive(Clone)]
-pub struct Pvf {
+pub struct PvfPreimage {
 	pub(crate) code: Arc<Vec<u8>>,
 	pub(crate) code_hash: ValidationCodeHash,
 }
 
-impl fmt::Debug for Pvf {
+impl fmt::Debug for PvfPreimage {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "Pvf {{ code, code_hash: {:?} }}", self.code_hash)
 	}
+}
+
+impl PvfPreimage {
+	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
+		ArtifactId::new(self.code_hash)
+	}
+}
+
+/// An enum that either contains full preimage of validation function along
+/// with its hash (see [`PvfPreimage`]) or the hash only.
+#[derive(Clone, Debug)]
+pub enum Pvf {
+	/// Hash-preimage of the validation function, contains both the code
+	/// and the hash itself.
+	Preimage(PvfPreimage),
+	/// Hash of the validation function without its validation code.
+	Hash(ValidationCodeHash),
 }
 
 impl Pvf {
@@ -39,18 +56,21 @@ impl Pvf {
 	pub fn from_code(code: Vec<u8>) -> Self {
 		let code = Arc::new(code);
 		let code_hash = blake2_256(&code).into();
-		Self { code, code_hash }
+		Self::Preimage(PvfPreimage { code, code_hash })
 	}
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	#[cfg(test)]
 	pub(crate) fn from_discriminator(num: u32) -> Self {
-		let descriminator_buf = num.to_le_bytes().to_vec();
-		Pvf::from_code(descriminator_buf)
+		let discriminator_buf = num.to_le_bytes().to_vec();
+		Pvf::from_code(discriminator_buf)
 	}
 
 	/// Returns the artifact ID that corresponds to this PVF.
 	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
-		ArtifactId::new(self.code_hash)
+		match self {
+			Pvf::Preimage(ref inner) => inner.as_artifact_id(),
+			Pvf::Hash(code_hash) => ArtifactId::new(*code_hash),
+		}
 	}
 }
