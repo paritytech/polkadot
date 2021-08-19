@@ -48,9 +48,9 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::v1::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+	AssignmentPair, ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
+	DisputeStatement, GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -572,6 +572,7 @@ struct State {
 	slot_duration_millis: u64,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
+	recovery_state: RecoveryState,
 }
 
 impl State {
@@ -675,6 +676,7 @@ where
 		slot_duration_millis: subsystem.slot_duration_millis,
 		clock,
 		assignment_criteria,
+		recovery_state: RecoveryState::Pending,
 	};
 
 	let mut wakeups = Wakeups::default();
@@ -772,6 +774,166 @@ where
 	}
 
 	Ok(())
+}
+
+#[derive(Eq, PartialEq)]
+enum RecoveryState {
+	Pending,
+	Complete,
+}
+
+impl RecoveryState {
+	fn complete(&mut self) -> bool {
+		let complete = *self == RecoveryState::Complete;
+		*self = RecoveryState::Complete;
+		complete
+	}
+}
+
+// Determines the set of assigned but unapproved candidates that require resumption of the
+// approval process by the local node. For each such, this method generates a LaunchApproval
+// action so that the approvals can continue to make progress after a restar.
+async fn handle_startup(
+	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+	state: &mut State,
+) -> SubsystemResult<Vec<Action>> {
+
+	let all_candidates = overlay_db.load_all_candidates().map_err(|e| {
+		tracing::error!(target: LOG_TARGET, "Failed initial load of active candidates: {:?}", e);
+		e
+	})?;
+
+	let candidates_by_session: HashMap<_, _> = all_candidates
+		.into_iter()
+		.fold(HashMap::new(), |mut candidates_by_session, candidate| {
+			candidates_by_session.entry(candidate.session).or_insert_with(Vec::new).push(candidate);
+			candidates_by_session
+		});
+
+
+	let mut actions = Vec::new();
+	for (session, candidates) in candidates_by_session {
+		let info = match state.session_info(session) {
+			Some(info) => info,
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					"Missing session info for {:?}",
+					session
+				);
+				continue
+			}
+		};
+
+		// Compute the local validator indexes, if any, for this session.
+		let local_validators: Vec<_> = info.validators
+			.iter()
+			.enumerate()
+			.filter(|(_, validator)| {
+				state
+					.keystore
+					.key_pair::<ValidatorPair>(validator)
+					.ok()
+					.map_or(false, |v| v.is_some())
+			})
+			.map(|(index, _)| ValidatorIndex(index as _))
+			.collect();
+
+		// Compute the local assignment indexes, if any, for this session.
+		let local_assigners: Vec<_> = info.assignment_keys
+			.iter()
+			.enumerate()
+			.filter(|(_, assigner)| {
+				state
+					.keystore
+					.key_pair::<AssignmentPair>(assigner)
+					.ok()
+					.map_or(false, |v| v.is_some())
+			})
+			.map(|(index, _)| ValidatorIndex(index as _))
+			.collect();
+
+		let is_session_validator = !local_validators.is_empty();
+		let is_session_assigner = !local_assigners.is_empty();
+
+		// Determine whether or not the local node controls session validation and assignment. If
+		// not, skip all candidates in this session.
+		let controls_validation_and_assignment = is_session_validator && is_session_assigner;
+		if !controls_validation_and_assignment {
+			continue
+		}
+
+		// Determine the candidates in this session that need to have their approvals resumed.
+		let assigned_but_unapproved_candidates: Vec<_> = candidates
+			.into_iter()
+			// Ignore any candidates that have our validator indexes in the approvals bitfield.
+			.filter(|candidate| {
+				!local_validators.iter().all(|index| candidate.has_approved(*index))
+			})
+			.flat_map(|candidate| {
+				let candidate_receipt = candidate.candidate.clone();
+				candidate.block_assignments
+					.into_iter()
+					// Retain any candidates that have our assignment indexes in the assignments
+					// bitfield.
+					.filter(|(_, approval_entry)| {
+						local_assigners.iter().any(|index| approval_entry.is_assigned(*index))
+					})
+					.map(|(block_hash, approval_entry)| (candidate_receipt.clone(), block_hash, approval_entry))
+					.collect::<Vec<_>>()
+			})
+			.collect();
+
+		// Construct the LaunchApproval action for each candidate.
+		for candidate in assigned_but_unapproved_candidates.into_iter() {
+			let (candidate_receipt, block_hash, approval_entry) = candidate;
+
+			// Skip any candidates for which we don't have our assignment triggered.
+			let (cert, assignment_tranche, validator) = match approval_entry.our_assignment() {
+				Some(our) => (our.cert().clone(), our.tranche(), our.validator_index()),
+				None => continue,
+			};
+
+			let indirect_cert = IndirectAssignmentCert {
+				block_hash,
+				validator,
+				cert,
+			};
+
+			let block_entry = match overlay_db.load_block_entry(&block_hash)? {
+				Some(block_entry) => block_entry,
+				None => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						"Missing block entry for: {:?}",
+						block_hash,
+					);
+					continue
+				},
+			};
+
+			let candidate_hash = candidate_receipt.hash();
+			let candidate_index = block_entry
+				.candidates()
+				.iter()
+				.position(|(_, h)| &candidate_hash == h);
+
+			if let Some(candidate_index) = candidate_index {
+				actions.push(Action::LaunchApproval {
+					candidate_hash,
+					session,
+					relay_block_hash: block_hash,
+					candidate: candidate_receipt,
+					candidate_index: candidate_index as _,
+					indirect_cert,
+					assignment_tranche,
+					backing_group: approval_entry.backing_group(),
+				});
+			}
+		}
+	}
+
+	Ok(actions)
 }
 
 // Handle actions is a function that accepts a set of instructions
@@ -1102,6 +1264,11 @@ async fn handle_from_overseer(
 						}
 					},
 				}
+			}
+
+			if !state.recovery_state.complete() {
+				let startup_launch_approvals = handle_startup(db, state).await?;
+				actions.extend(startup_launch_approvals);
 			}
 
 			actions
