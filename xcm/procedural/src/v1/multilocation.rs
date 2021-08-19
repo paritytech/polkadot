@@ -86,7 +86,7 @@ fn generate_conversion_from_tuples(max_parents: u8) -> TokenStream {
 	})
 	.collect::<TokenStream>();
 
-	let from_parent_junctions_tuple = (1..=max_parents).map(|cur_parents| {
+	let from_parent_junctions_tuples = (1..=max_parents).map(|cur_parents| {
 		let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
 		let underscores =
 			(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
@@ -99,7 +99,7 @@ fn generate_conversion_from_tuples(max_parents: u8) -> TokenStream {
 			}
 		}
 	});
-	from_tuples.extend(from_parent_junctions_tuple);
+	from_tuples.extend(from_parent_junctions_tuples);
 
 	quote! {
 		impl From<Junctions> for MultiLocation {
