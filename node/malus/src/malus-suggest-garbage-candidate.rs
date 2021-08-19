@@ -36,7 +36,7 @@ use polkadot_cli::{
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_backing::{CandidateBackingSubsystem, Metrics};
-use polkadot_node_primitives::{PoV, Statement};
+use polkadot_node_primitives::{BlockData, PoV, Statement};
 use polkadot_node_subsystem::messages::{CandidateBackingMessage, StatementDistributionMessage};
 use polkadot_node_subsystem_util as util;
 // Filter wrapping related types.
@@ -79,16 +79,20 @@ where
 	) -> Option<FromOverseer<Self::Message>> {
 		match msg {
 			FromOverseer::Communication {
-				msg: CandidateBackingMessage::Second(hash, candidate_receipt, pov),
+				msg: CandidateBackingMessage::Second(hash, candidate_receipt, _pov),
 			} => {
-				self.queue.unbounded_send((sender.clone(), hash, candidate_receipt)).unwrap();
+				self.queue
+					.unbounded_send((sender.clone(), hash, candidate_receipt.clone()))
+					.unwrap();
 
 				// TODO not sure if this is necessary or not
-				Some(CandidateBackingMessage::Second(
-					hash,
-					candidate_receipt,
-					PoV { block_data: BlockData(MALICIOUS_POV.to_vec()) },
-				))
+				Some(FromOverseer::Communication {
+					msg: CandidateBackingMessage::Second(
+						hash,
+						candidate_receipt,
+						PoV { block_data: BlockData(MALICIOUS_POV.to_vec()) },
+					),
+				})
 			},
 			other => Some(other),
 		}
