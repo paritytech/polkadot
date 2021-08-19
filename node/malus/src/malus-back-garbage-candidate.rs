@@ -32,9 +32,10 @@ use sp_keystore::SyncCryptoStorePtr;
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
+use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 use polkadot_node_subsystem::messages::{CandidateValidationMessage, ValidationFailed};
-use polkadot_node_subsystem_util::metrics::Metrics as _;
-
+use polkadot_node_subsystem_util as util;
+use util::{metered::UnboundedMeteredSender, metrics::Metrics as _};
 // Filter wrapping related types.
 use malus::*;
 use polkadot_node_primitives::{BlockData, PoV, ValidationResult};
@@ -73,7 +74,7 @@ impl BribedPassage {
 	) {
 		let mut candidate_commitmentments = CandidateCommitments {
 			head_data: persisted_validation_data.parent_head.clone(),
-			new_validation_code: Some(validation_code),
+			new_validation_code: validation_code,
 			..Default::default()
 		};
 
@@ -162,6 +163,8 @@ impl OverseerGen for BackGarbageCandidate {
 		let registry = args.registry.clone();
 		let candidate_validation_config = args.candidate_validation_config.clone();
 
+
+
 		// modify the subsystem(s) as needed:
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem
@@ -175,8 +178,7 @@ impl OverseerGen for BackGarbageCandidate {
 		);
 
 		let (overseer, handle) =
-			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
-				.map_err(|e| e.into())?;
+			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)?;
 
 		Ok((overseer, handle))
 	}

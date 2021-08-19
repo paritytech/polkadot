@@ -2,13 +2,17 @@
 name = "malus"
 path = "src/lib.rs"
 
-[[bin]]
-name = "malus-suggest-garbage-candidate"
-path = "src/malus-suggest-garbage-candidate.rs"
+# [[bin]]
+# name = "malus-suggest-garbage-candidate"
+# path = "src/malus-suggest-garbage-candidate.rs"
+
+# [[bin]]
+# name = "malus-back-garbage-candidate"
+# path = "src/malus-back-garbage-candidate.rs"
 
 [[bin]]
-name = "malus-back-garbage-candidate"
-path = "src/malus-back-garbage-candidate.rs"
+name = "malus-dispute-ancestor"
+path = "src/malus-dispute-ancestor.rs"
 
 
 [package]
@@ -36,6 +40,6 @@ color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
 structopt = "0.3.21"
 async-trait = "0.1.50"
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tracing = "0.1.26"
 futures = "0.3.16"

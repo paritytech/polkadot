@@ -41,6 +41,7 @@ use polkadot_node_primitives::{BlockData, PoV, Statement, ValidationResult};
 use polkadot_node_subsystem::messages::{
 	CandidateBackingMessage, CandidateValidationMessage, StatementDistributionMessage,
 };
+use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 use polkadot_node_subsystem_util as util;
 // Filter wrapping related types.
 use malus::*;
@@ -63,10 +64,10 @@ use shared::*;
 mod shared;
 /// Replaces the seconded PoV data
 /// of outgoing messages by some garbage data.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 struct ReplacePoVBytes {
 	keystore: SyncCryptoStorePtr,
-	overseer: Handle,
+	overseer: OverseerHandle,
 	queue: metered::Sender<(Hash, CandidateReceipt, PoV)>,
 }
 
@@ -111,9 +112,19 @@ impl OverseerGen for SuggestGarbageCandidate {
 		let runtime_client = args.runtime_client.clone();
 		let registry = args.registry.clone();
 		let candidate_validation_config = args.candidate_validation_config.clone();
-		let keystore = args.keystore.clone();
 
-		let filter = ReplacePoVBytes { keystore, overseer: OverseerHandle::new_disconnected() };
+		let (sink, source) = util::metered::unbounded();
+
+		let metrics = Metrics::new(registry);
+
+		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
+
+
+		let filter = ReplacePoVBytes {
+			keystore,
+			overseer: OverseerHandle::new_disconnected(),
+			queue: sink,
+		};
 		// modify the subsystem(s) as needed:
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem
@@ -131,7 +142,7 @@ impl OverseerGen for SuggestGarbageCandidate {
 
 		filter.0.connect_to_overseer(handle.clone());
 
-		launch_processing_task(overseer.spawner(), handle.clone(), async move {
+		launch_processing_task(overseer.spawner(), async move {
 			tracing::info!(target = MALUS, "Replacing seconded candidate pov with something else");
 
 			let committed_candidate_receipt = CommittedCandidateReceipt {
@@ -141,8 +152,8 @@ impl OverseerGen for SuggestGarbageCandidate {
 			let statement = Statement::Seconded(committed_candidate_receipt);
 			let compact_statement =
 				CompactStatement::Seconded(candidate_receipt.descriptor().hash());
-			let signed: Signed = todo!();
-			Some(StatementDistributionMessage::Share(hash, signed_statement))
+			let signed: Signed<Statement, CompactStatement> = todo!();
+			subsystem_sender.send_message(StatementDistributionMessage::Share(hash, signed_statement))
 		});
 
 		Ok((overseer, handle))
