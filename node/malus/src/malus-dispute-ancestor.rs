@@ -62,8 +62,6 @@ where
 	sink: UnboundedMeteredSender<(Sender, CandidateReceipt)>,
 }
 
-// unsafe impl<Sender> Sync for TrackCollations<Sender> {}
-
 impl<Sender> MsgFilter<Sender> for TrackCollations<Sender>
 where
 	Sender: overseer::SubsystemSender<CandidateBackingMessage> + Clone + Send + 'static,

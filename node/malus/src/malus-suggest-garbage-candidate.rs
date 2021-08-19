@@ -37,11 +37,11 @@ use crate::overseer::Handle;
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
+use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 use polkadot_node_primitives::{BlockData, PoV, Statement, ValidationResult};
 use polkadot_node_subsystem::messages::{
 	CandidateBackingMessage, CandidateValidationMessage, StatementDistributionMessage,
 };
-use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 use polkadot_node_subsystem_util as util;
 // Filter wrapping related types.
 use malus::*;
@@ -64,22 +64,31 @@ use shared::*;
 mod shared;
 /// Replaces the seconded PoV data
 /// of outgoing messages by some garbage data.
-#[derive(Clone, Debug)]
-struct ReplacePoVBytes {
+#[derive(Clone)]
+struct ReplacePoVBytes<Sender>
+where
+	Sender: Send,
+{
 	keystore: SyncCryptoStorePtr,
-	overseer: OverseerHandle,
 	queue: metered::Sender<(Hash, CandidateReceipt, PoV)>,
 }
 
-impl MsgFilter for ReplacePoVBytes {
+impl<Sender> MsgFilter<Sender> for ReplacePoVBytes<Sender>
+where
+	Sender: overseer::SubsystemSender<CandidateBackingMessage> + Clone + Send + 'static,
+{
 	type Message = CandidateBackingMessage;
 
-	fn filter_in(&self, msg: FromOverseer<Self::Message>) -> Option<FromOverseer<Self::Message>> {
+	fn filter_in(
+		&self,
+		sender: &mut Sender,
+		msg: FromOverseer<Self::Message>,
+	) -> Option<FromOverseer<Self::Message>> {
 		match msg {
 			FromOverseer::Communication {
 				msg: CandidateBackingMessage::Second(hash, candidate_receipt, pov),
 			} => {
-				self.queue.send((hash, candidate_receipt, pov));
+				self.queue.send((sender, hash, candidate_receipt, pov));
 				None
 				// Some(CandidateBackingMessage::Second(hash, candidate_receipt, PoV {
 				// 	block_data: BlockData(MALICIOUS_POV.to_vec())
@@ -119,12 +128,8 @@ impl OverseerGen for SuggestGarbageCandidate {
 
 		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
 
-
-		let filter = ReplacePoVBytes {
-			keystore,
-			overseer: OverseerHandle::new_disconnected(),
-			queue: sink,
-		};
+		let filter =
+			ReplacePoVBytes { keystore, overseer: OverseerHandle::new_disconnected(), queue: sink };
 		// modify the subsystem(s) as needed:
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem
@@ -140,9 +145,7 @@ impl OverseerGen for SuggestGarbageCandidate {
 		let (overseer, handle) =
 			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)?;
 
-		filter.0.connect_to_overseer(handle.clone());
-
-		launch_processing_task(overseer.spawner(), async move {
+		launch_processing_task(overseer.spawner(), source, async move {
 			tracing::info!(target = MALUS, "Replacing seconded candidate pov with something else");
 
 			let committed_candidate_receipt = CommittedCandidateReceipt {
@@ -153,7 +156,8 @@ impl OverseerGen for SuggestGarbageCandidate {
 			let compact_statement =
 				CompactStatement::Seconded(candidate_receipt.descriptor().hash());
 			let signed: Signed<Statement, CompactStatement> = todo!();
-			subsystem_sender.send_message(StatementDistributionMessage::Share(hash, signed_statement))
+			subsystem_sender
+				.send_message(StatementDistributionMessage::Share(hash, signed_statement))
 		});
 
 		Ok((overseer, handle))
