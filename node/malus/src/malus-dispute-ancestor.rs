@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A malicious overseer that always a block as soon as it becomes available.
+//! A malicious overseer that always disputes a block as
+//! soon as it becomes available.
 //!
 //! Attention: For usage with `simnet`/`gurke` only!
 
@@ -24,12 +25,40 @@ use color_eyre::eyre;
 use polkadot_cli::{
 	create_default_subsystems,
 	service::{
-		polkadot_runtime::Session, AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error,
-		HeaderBackend, Overseer, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
-		ProvideRuntimeApi, SpawnNamed,
+		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
+		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
 	},
 	Cli,
 };
+
+// Import extra types relevant to the particular
+// subsystem.
+use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
+use polkadot_node_subsystem::messages::CandidateValidationMessage;
+use polkadot_node_subsystem_util::metrics::Metrics as _;
+
+// Filter wrapping related types.
+use malus::*;
+use polkadot_node_primitives::{
+	ValidationResult,
+	ValidationFailed,
+	PoV,
+	BlockData,
+};
+use polkadot_primitives::v1::{
+	PersistedValidationData,
+	ValidationCode,
+	ValidationCodeHash,
+	CandidateCommitments,
+	CandidateDescriptor,
+};
+
+use futures::channel::{mpsc, oneshot};
+use std::sync::{
+	atomic::{AtomicUsize, Ordering},
+	Arc,
+};
+use std::pin::Pin;
 
 // Import extra types relevant to the particular
 // subsystem.
@@ -133,48 +162,37 @@ impl OverseerGen for DisputeEverything {
 		let (overseer, handle) =
 			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
 				.map_err(|e| e.into())?;
-		{
-			let handle = handle.clone();
-			let spawner = overseer.spawner();
-			spawner.spawn(
-				"nemesis",
-				Pin::new(async move {
-					source.for_each(move |candidate_receipt| {
-						spawner.spawn(
-							"nemesis-inner",
-							Box::pin(async move {
-								let relay_parent = candidate_receipt.descriptor().relay_parent;
-								let session_index =
-									util::request_session_index_for_child(relay_parent)
-										.await
-										.unwrap();
-								let candidate_hash = candidate_receipt.hash();
 
-								tracing::warn!(target=MALUS, "Disputing candidate /w hash {} in session {} on relay_parent {}",
-								candidate_hash,
-								session_index,
-								relay_parent,
-							);
 
-								// consider adding a delay here
-								// Delay::new(Duration::from_secs(12)).await;
+		launch_processing_task(overseer.spawner(), handle.clone(), source,
+			async move {
+				let relay_parent = candidate_receipt.descriptor().relay_parent;
+				let session_index =
+					util::request_session_index_for_child(relay_parent)
+						.await
+						.unwrap();
+				let candidate_hash = candidate_receipt.hash();
 
-								// 😈
-								let msg = DisputeCoordinatorMessage::IssueLocalStatement(
-									session_index,
-									candidate_hash,
-									candidate_receipt,
-									false,
-								);
+				tracing::warn!(target=MALUS, "Disputing candidate /w hash {} in session {} on relay_parent {}",
+					candidate_hash,
+					session_index,
+					relay_parent,
+				);
 
-								handle.send(msg).await.unwrap();
-							}),
-						);
-					});
-					Ok(())
-				}),
-			);
-		}
+				// consider adding a delay here
+				// Delay::new(Duration::from_secs(12)).await;
+
+				// 😈
+				let msg = DisputeCoordinatorMessage::IssueLocalStatement(
+					session_index,
+					candidate_hash,
+					candidate_receipt,
+					false,
+				);
+
+				handle.send(msg).await.unwrap();
+			}),
+
 
 		Ok((overseer, handle))
 	}

@@ -27,46 +27,126 @@ use polkadot_cli::{
 	},
 	Cli,
 };
+use sp_keystore::SyncCryptoStorePtr;
 
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
-use polkadot_node_subsystem::messages::CandidateValidationMessage;
+use polkadot_node_subsystem::messages::{CandidateValidationMessage, ValidationFailed};
 use polkadot_node_subsystem_util::metrics::Metrics as _;
 
 // Filter wrapping related types.
 use malus::*;
+use polkadot_node_primitives::{BlockData, PoV, ValidationResult};
 
-use std::sync::{
-	atomic::{AtomicUsize, Ordering},
-	Arc,
+use polkadot_primitives::v1::{
+	CandidateCommitments, CandidateDescriptor, PersistedValidationData, ValidationCode,
+	ValidationCodeHash,
+};
+
+use futures::channel::{mpsc, oneshot};
+use std::{
+	pin::Pin,
+	sync::{
+		atomic::{AtomicUsize, Ordering},
+		Arc,
+	},
 };
 
 use structopt::StructOpt;
 
-/// Silly example, just drop every second outgoing message.
-#[derive(Clone, Default, Debug)]
-struct Skippy(Arc<AtomicUsize>);
+use shared::*;
 
-impl MsgFilter for Skippy {
+mod shared;
+
+#[derive(Clone, Default, Debug)]
+struct BribedPassage;
+
+impl BribedPassage {
+	fn let_pass(
+		&self,
+		persisted_validation_data: PersistedValidationData,
+		validation_code: Option<ValidationCode>,
+		candidate_descriptor: CandidateDescriptor,
+		pov: Arc<PoV>,
+		response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+	) {
+		let mut candidate_commitmentments = CandidateCommitments {
+			head_data: persisted_validation_data.parent_head.clone(),
+			new_validation_code: Some(validation_code),
+			..Default::default()
+		};
+
+		response_sender.send(Ok(ValidationResult::Valid(
+			candidate_commitmentments,
+			persisted_validation_data,
+		)));
+	}
+}
+
+impl MsgFilter for BribedPassage {
 	type Message = CandidateValidationMessage;
 
 	fn filter_in(&self, msg: FromOverseer<Self::Message>) -> Option<FromOverseer<Self::Message>> {
-		if self.0.fetch_add(1, Ordering::Relaxed) % 2 == 0 {
-			Some(msg)
-		} else {
-			None
+		match msg {
+			FromOverseer::Communication {
+				msg:
+					CandidateValidationMessage::ValidateFromExhaustive(
+						persisted_validation_data,
+						validation_code,
+						candidate_descriptor,
+						pov,
+						response_sender,
+					),
+			} if pov.block_data.0.as_slice() == MALICIOUS_POV => {
+				self.let_pass(
+					persisted_validation_data,
+					validation_code,
+					candidate_descriptor,
+					pov,
+					response_sender,
+				);
+				None
+			},
+			FromOverseer::Communication {
+				msg:
+					CandidateValidationMessage::ValidateFromChainState(
+						candidate_descriptor,
+						pov,
+						response_sender,
+					),
+			} if pov.block_data.0.as_slice() == MALICIOUS_POV => {
+				let relay_parent_number = todo!();
+				let relay_parent_storage_root = todo!();
+				let max_pov_size = todo!();
+				let persisted_validation_data = PersistedValidationData {
+					parent_head: todo!(),
+					relay_parent_number,
+					relay_parent_storage_root,
+					max_pov_size,
+				};
+				self.let_pass(
+					persisted_validation_data,
+					None,
+					candidate_descriptor,
+					pov,
+					response_sender,
+				);
+				None
+			},
+			msg => Some(msg),
 		}
 	}
+
 	fn filter_out(&self, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
 
 /// Generates an overseer that exposes bad behavior.
-struct BehaveMaleficient;
+struct BackGarbageCandidate;
 
-impl OverseerGen for BehaveMaleficient {
+impl OverseerGen for BackGarbageCandidate {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
@@ -81,6 +161,7 @@ impl OverseerGen for BehaveMaleficient {
 		let runtime_client = args.runtime_client.clone();
 		let registry = args.registry.clone();
 		let candidate_validation_config = args.candidate_validation_config.clone();
+
 		// modify the subsystem(s) as needed:
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem
@@ -89,12 +170,15 @@ impl OverseerGen for BehaveMaleficient {
 					candidate_validation_config,
 					Metrics::register(registry)?,
 				),
-				Skippy::default(),
+				BribedPassage::default(),
 			),
 		);
 
-		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
-			.map_err(|e| e.into())
+		let (overseer, handle) =
+			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
+				.map_err(|e| e.into())?;
+
+		Ok((overseer, handle))
 	}
 }
 
@@ -102,6 +186,6 @@ fn main() -> eyre::Result<()> {
 	color_eyre::install()?;
 	let cli = Cli::from_args();
 	assert_matches::assert_matches!(cli.subcommand, None);
-	polkadot_cli::run_node(cli, BehaveMaleficient)?;
+	polkadot_cli::run_node(cli, BackGarbageCandidate)?;
 	Ok(())
 }

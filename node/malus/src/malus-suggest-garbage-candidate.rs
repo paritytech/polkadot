@@ -32,14 +32,24 @@ use polkadot_cli::{
 	Cli,
 };
 
+use crate::overseer::Handle;
+
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
-use polkadot_node_subsystem::messages::CandidateValidationMessage;
-use polkadot_node_subsystem_util::metrics::Metrics as _;
-
+use polkadot_node_primitives::{BlockData, PoV, Statement, ValidationResult};
+use polkadot_node_subsystem::messages::{
+	CandidateBackingMessage, CandidateValidationMessage, StatementDistributionMessage,
+};
+use polkadot_node_subsystem_util as util;
 // Filter wrapping related types.
 use malus::*;
+use polkadot_primitives::{
+	v0::CandidateReceipt,
+	v1::{CandidateCommitments, CommittedCandidateReceipt, Hash, Signed},
+};
+use sp_keystore::SyncCryptoStorePtr;
+use util::{metered::UnboundedMeteredSender, metrics::Metrics as _};
 
 use std::sync::{
 	atomic::{AtomicUsize, Ordering},
@@ -48,29 +58,45 @@ use std::sync::{
 
 use structopt::StructOpt;
 
-/// Silly example, just drop every second outgoing message.
-#[derive(Clone, Default, Debug)]
-struct Skippy(Arc<AtomicUsize>);
+use shared::*;
 
-impl MsgFilter for Skippy {
-	type Message = CandidateValidationMessage;
+mod shared;
+/// Replaces the seconded PoV data
+/// of outgoing messages by some garbage data.
+#[derive(Clone, Default, Debug)]
+struct ReplacePoVBytes {
+	keystore: SyncCryptoStorePtr,
+	overseer: Handle,
+	queue: metered::Sender<(Hash, CandidateReceipt, PoV)>,
+}
+
+impl MsgFilter for ReplacePoVBytes {
+	type Message = CandidateBackingMessage;
 
 	fn filter_in(&self, msg: FromOverseer<Self::Message>) -> Option<FromOverseer<Self::Message>> {
-		if self.0.fetch_add(1, Ordering::Relaxed) % 2 == 0 {
-			Some(msg)
-		} else {
-			None
+		match msg {
+			FromOverseer::Communication {
+				msg: CandidateBackingMessage::Second(hash, candidate_receipt, pov),
+			} => {
+				self.queue.send((hash, candidate_receipt, pov));
+				None
+				// Some(CandidateBackingMessage::Second(hash, candidate_receipt, PoV {
+				// 	block_data: BlockData(MALICIOUS_POV.to_vec())
+				// }))
+			},
+			other => Some(other),
 		}
 	}
+
 	fn filter_out(&self, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
 
 /// Generates an overseer that exposes bad behavior.
-struct BehaveMaleficient;
+struct SuggestGarbageCandidate;
 
-impl OverseerGen for BehaveMaleficient {
+impl OverseerGen for SuggestGarbageCandidate {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
@@ -85,6 +111,9 @@ impl OverseerGen for BehaveMaleficient {
 		let runtime_client = args.runtime_client.clone();
 		let registry = args.registry.clone();
 		let candidate_validation_config = args.candidate_validation_config.clone();
+		let keystore = args.keystore.clone();
+
+		let filter = ReplacePoVBytes { keystore, overseer: OverseerHandle::new_disconnected() };
 		// modify the subsystem(s) as needed:
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem
@@ -93,12 +122,30 @@ impl OverseerGen for BehaveMaleficient {
 					candidate_validation_config,
 					Metrics::register(registry)?,
 				),
-				Skippy::default(),
+				filter.clone(),
 			),
 		);
 
-		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
-			.map_err(|e| e.into())
+		let (overseer, handle) =
+			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)?;
+
+		filter.0.connect_to_overseer(handle.clone());
+
+		launch_processing_task(overseer.spawner(), handle.clone(), async move {
+			tracing::info!(target = MALUS, "Replacing seconded candidate pov with something else");
+
+			let committed_candidate_receipt = CommittedCandidateReceipt {
+				descriptor: candidate_receipt.descriptor(),
+				commitments: CandidateCommitments::default(),
+			};
+			let statement = Statement::Seconded(committed_candidate_receipt);
+			let compact_statement =
+				CompactStatement::Seconded(candidate_receipt.descriptor().hash());
+			let signed: Signed = todo!();
+			Some(StatementDistributionMessage::Share(hash, signed_statement))
+		});
+
+		Ok((overseer, handle))
 	}
 }
 
@@ -106,6 +153,6 @@ fn main() -> eyre::Result<()> {
 	color_eyre::install()?;
 	let cli = Cli::from_args();
 	assert_matches::assert_matches!(cli.subcommand, None);
-	polkadot_cli::run_node(cli, BehaveMaleficient)?;
+	polkadot_cli::run_node(cli, SuggestGarbageCandidate)?;
 	Ok(())
 }

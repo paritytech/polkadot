@@ -14,4 +14,13 @@ Feature: Disputes
     Then charlie is up
     And charlie reports block height is greater than 30
     And charlie reports peers count is at least 2
-    And david reports peers count is at least 2
+    Then david is up
+    And alice reports parachain_candidate_open_disputes is 1
+    And bob reports parachain_candidate_open_disputes is 1
+    And charlie reports parachain_candidate_open_disputes is 1
+    Then alice parachain_candidate_dispute_votes is at least 1
+    And bob parachain_candidate_dispute_votes is is at least 2
+    And charlie parachain_candidate_dispute_votes is at least 3
+    Then alice parachain_candidate_dispute_concluded is "valid"
+    And bob parachain_candidate_dispute_concluded is "valid"
+    And charlie parachain_candidate_dispute_concluded is "valid"
