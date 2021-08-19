@@ -119,8 +119,8 @@ thread_local! {
 pub fn assets(who: u64) -> Vec<MultiAsset> {
 	ASSETS.with(|a| a.borrow().get(&who).map_or(vec![], |a| a.clone().into()))
 }
-pub fn add_asset(who: u64, what: MultiAsset) {
-	ASSETS.with(|a| a.borrow_mut().entry(who).or_insert(Assets::new()).subsume(what));
+pub fn add_asset<AssetArg: Into<MultiAsset>>(who: u64, what: AssetArg) {
+	ASSETS.with(|a| a.borrow_mut().entry(who).or_insert(Assets::new()).subsume(what.into()));
 }
 
 pub struct TestAssetTransactor;

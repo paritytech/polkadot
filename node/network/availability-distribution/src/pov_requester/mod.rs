@@ -19,7 +19,7 @@
 use futures::{channel::oneshot, future::BoxFuture, FutureExt};
 
 use polkadot_node_network_protocol::request_response::{
-	request::{RequestError, Requests},
+	outgoing::{RequestError, Requests},
 	v1::{PoVFetchingRequest, PoVFetchingResponse},
 	OutgoingRequest, Recipient,
 };
