@@ -34,15 +34,13 @@ pub fn generate_conversion_functions(input: proc_macro::TokenStream) -> Result<T
 }
 
 fn generate_conversion_from_tuples(max_parents: u8) -> TokenStream {
-	let mut from_tuples = TokenStream::new();
-
-	for num_junctions in 0..8usize {
+	let mut from_tuples = (0..8usize).map(|num_junctions| {
 		let junctions = (0..=num_junctions).map(|_| format_ident!("Junction")).collect::<Vec<_>>();
 		let idents = (0..=num_junctions).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
 		let variant = &format_ident!("X{}", num_junctions + 1);
 		let array_size = num_junctions + 1;
 
-		let from_tuple = quote! {
+		let mut from_tuple = quote! {
 			impl From<( #(#junctions,)* )> for MultiLocation {
 				fn from( ( #(#idents,)* ): ( #(#junctions,)* ) ) -> Self {
 					MultiLocation { parents: 0, interior: Junctions::#variant( #(#idents),* ) }
@@ -69,36 +67,39 @@ fn generate_conversion_from_tuples(max_parents: u8) -> TokenStream {
 			}
 		};
 
-		for cur_parents in 1..=max_parents {
+		let from_parent_tuples = (1..=max_parents).map(|cur_parents| {
 			let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
 			let underscores =
 				(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
 
-			from_tuples.extend(quote! {
+			quote! {
 				impl From<( #(#parents,)* #(#junctions),* )> for MultiLocation {
 					fn from( (#(#underscores,)* #(#idents),*): ( #(#parents,)* #(#junctions),* ) ) -> Self {
 						MultiLocation { parents: #cur_parents, interior: Junctions::#variant( #(#idents),* ) }
 					}
 				}
-			});
-		}
+			}
+		});
 
-		from_tuples.extend(from_tuple);
-	}
+		from_tuple.extend(from_parent_tuples);
+		from_tuple
+	})
+	.collect::<TokenStream>();
 
-	for cur_parents in 1..=max_parents {
+	let from_parent_junctions_tuple = (1..=max_parents).map(|cur_parents| {
 		let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
 		let underscores =
 			(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
 
-		from_tuples.extend(quote! {
+		quote! {
 			impl From<( #(#parents,)* Junctions )> for MultiLocation {
 				fn from( (#(#underscores,)* junctions): ( #(#parents,)* Junctions ) ) -> Self {
 					MultiLocation { parents: #cur_parents, interior: junctions }
 				}
 			}
-		});
-	}
+		}
+	});
+	from_tuples.extend(from_parent_junctions_tuple);
 
 	quote! {
 		impl From<Junctions> for MultiLocation {

@@ -32,15 +32,13 @@ pub fn generate_conversion_functions(input: proc_macro::TokenStream) -> syn::Res
 }
 
 fn generate_conversion_from_tuples() -> TokenStream {
-	let mut from_tuples = TokenStream::new();
-
-	for num_junctions in 0..8usize {
+	let from_tuples = (0..8usize).map(|num_junctions| {
 		let junctions = (0..=num_junctions).map(|_| format_ident!("Junction")).collect::<Vec<_>>();
 		let idents = (0..=num_junctions).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
 		let variant = &format_ident!("X{}", num_junctions + 1);
 		let array_size = num_junctions + 1;
 
-		let from_tuple = quote! {
+		quote! {
 			impl From<( #(#junctions,)* )> for MultiLocation {
 				fn from( ( #(#idents,)* ): ( #(#junctions,)* ) ) -> Self {
 					MultiLocation::#variant( #(#idents),* )
@@ -53,10 +51,9 @@ fn generate_conversion_from_tuples() -> TokenStream {
 					MultiLocation::#variant( #(#idents),* )
 				}
 			}
-		};
-
-		from_tuples.extend(from_tuple);
-	}
+		}
+	})
+	.collect::<TokenStream>();
 
 	quote! {
 		impl From<()> for MultiLocation {
