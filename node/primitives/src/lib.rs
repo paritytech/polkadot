@@ -52,7 +52,9 @@ pub use disputes::{
 	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
 };
 
+// For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node.
 const MERKLE_NODE_MAX_SIZE: usize = 512;
+// 16-ary Merkle Prefix Trie for 32-bit ValidatorIndex has depth at most 8.
 const MERKLE_PROOF_MAX_DEPTH: usize = 8;
 
 /// The bomb limit for decompressing code blobs.
@@ -302,20 +304,33 @@ impl Proof {
 	}
 }
 
+#[derive(thiserror::Error, Debug)]
+///
+pub enum MerkleProofError {
+	#[error("Merkle max proof depth exceeded {0} > {} .", MERKLE_PROOF_MAX_DEPTH)]
+	/// This error signifies that the Proof length exceeds the trie's max depth
+	MerkleProofDepthExceeded(usize),
+
+	#[error("Merkle node max size exceeded {0} > {} .", MERKLE_NODE_MAX_SIZE)]
+	/// This error signifies that a Proof node exceeds the 16-ary max node size
+	MerkleProofNodeSizeExceeded(usize),
+}
+
 impl TryFrom<Vec<Vec<u8>>> for Proof {
-	type Error = &'static str;
+	type Error = MerkleProofError;
 
 	fn try_from(input: Vec<Vec<u8>>) -> Result<Self, Self::Error> {
 		if input.len() > MERKLE_PROOF_MAX_DEPTH {
-			return Err("Merkle max proof depth exceeded.")
+			return Err(Self::Error::MerkleProofDepthExceeded(input.len()))
 		}
 		let mut out = Vec::new();
 		for element in input.into_iter() {
-			let data: BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE> =
-				BoundedVec::from_vec(element).map_err(|_| "Merkle node max size exceeded.")?;
+			let length = element.len();
+			let data: BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE> = BoundedVec::from_vec(element)
+				.map_err(|_| Self::Error::MerkleProofNodeSizeExceeded(length))?;
 			out.push(data);
 		}
-		Ok(Proof(BoundedVec::from_vec(out).expect("Buffer size is deterined above. QED")))
+		Ok(Proof(BoundedVec::from_vec(out).expect("Buffer size is deterined above. qed")))
 	}
 }
 
