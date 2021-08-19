@@ -81,19 +81,19 @@ fn generate_conversion_from_tuples() -> TokenStream {
 }
 
 fn generate_conversion_from_v1() -> TokenStream {
-	let mut match_variants = TokenStream::new();
+	let match_variants = (0..8u8)
+		.map(|cur_num| {
+			let variant = format_ident!("X{}", cur_num + 1);
+			let idents = (1..=cur_num).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
 
-	for cur_num in 0..8u8 {
-		let variant = format_ident!("X{}", cur_num + 1);
-		let idents = (1..=cur_num).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
-
-		match_variants.extend(quote! {
-			crate::v1::Junctions::#variant( j0 #(, #idents)* ) => res
-				.pushed_with(Junction::from(j0))
-				#( .and_then(|res| res.pushed_with(Junction::from(#idents))) )*
-				.map_err(|_| ()),
-		});
-	}
+			quote! {
+				crate::v1::Junctions::#variant( j0 #(, #idents)* ) => res
+					.pushed_with(Junction::from(j0))
+					#( .and_then(|res| res.pushed_with(Junction::from(#idents))) )*
+					.map_err(|_| ()),
+			}
+		})
+		.collect::<TokenStream>();
 
 	quote! {
 		impl TryFrom<crate::v1::MultiLocation> for MultiLocation {

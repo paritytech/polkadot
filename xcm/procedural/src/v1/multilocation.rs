@@ -151,41 +151,43 @@ fn generate_conversion_from_tuples(max_parents: u8) -> TokenStream {
 }
 
 fn generate_conversion_from_v0() -> TokenStream {
-	let mut match_variants = TokenStream::new();
+	let match_variants = (0..8u8)
+		.map(|cur_num| {
+			let num_ancestors = cur_num + 1;
+			let variant = format_ident!("X{}", num_ancestors);
+			let idents = (0..=cur_num).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
 
-	for cur_num in 0..8u8 {
-		let mut intermediate_match_arms = TokenStream::new();
-		let num_ancestors = cur_num + 1;
-		let variant = format_ident!("X{}", num_ancestors);
-		let idents = (0..=cur_num).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
+			let intermediate_match_arms = (1..num_ancestors)
+				.rev()
+				.map(|parent_count| {
+					let parent_idents =
+						(0..parent_count).map(|j| format_ident!("j{}", j)).collect::<Vec<_>>();
+					let junction_idents = (parent_count..num_ancestors)
+						.map(|j| format_ident!("j{}", j))
+						.collect::<Vec<_>>();
+					let junction_variant = format_ident!("X{}", num_ancestors - parent_count);
 
-		for parent_count in (1..num_ancestors).rev() {
-			let parent_idents =
-				(0..parent_count).map(|j| format_ident!("j{}", j)).collect::<Vec<_>>();
-			let junction_idents = (parent_count..num_ancestors)
-				.map(|j| format_ident!("j{}", j))
-				.collect::<Vec<_>>();
-			let junction_variant = format_ident!("X{}", num_ancestors - parent_count);
+					quote! {
+						crate::v0::MultiLocation::#variant( #(#idents),* )
+							if #( #parent_idents.is_parent() )&&* =>
+							Ok(MultiLocation {
+								parents: #parent_count,
+								interior: #junction_variant( #( #junction_idents.try_into()? ),* ),
+							}),
+					}
+				})
+				.collect::<TokenStream>();
 
-			intermediate_match_arms.extend(quote! {
+			quote! {
 				crate::v0::MultiLocation::#variant( #(#idents),* )
-					if #( #parent_idents.is_parent() )&&* =>
-					Ok(MultiLocation {
-						parents: #parent_count,
-						interior: #junction_variant( #( #junction_idents.try_into()? ),* ),
-					}),
-			});
-		}
-
-		match_variants.extend(quote! {
-			crate::v0::MultiLocation::#variant( #(#idents),* )
-				if #( #idents.is_parent() )&&* =>
-				Ok(MultiLocation::ancestor(#num_ancestors)),
-			#intermediate_match_arms
-			crate::v0::MultiLocation::#variant( #(#idents),* ) =>
-				Ok( #variant( #( #idents.try_into()? ),* ).into() ),
-		});
-	}
+					if #( #idents.is_parent() )&&* =>
+					Ok(MultiLocation::ancestor(#num_ancestors)),
+				#intermediate_match_arms
+				crate::v0::MultiLocation::#variant( #(#idents),* ) =>
+					Ok( #variant( #( #idents.try_into()? ),* ).into() ),
+			}
+		})
+		.collect::<TokenStream>();
 
 	quote! {
 		impl TryFrom<crate::v0::MultiLocation> for MultiLocation {
