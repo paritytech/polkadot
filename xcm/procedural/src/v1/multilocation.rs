@@ -34,57 +34,59 @@ pub fn generate_conversion_functions(input: proc_macro::TokenStream) -> Result<T
 }
 
 fn generate_conversion_from_tuples(max_parents: u8) -> TokenStream {
-	let mut from_tuples = (0..8usize).map(|num_junctions| {
-		let junctions = (0..=num_junctions).map(|_| format_ident!("Junction")).collect::<Vec<_>>();
-		let idents = (0..=num_junctions).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
-		let variant = &format_ident!("X{}", num_junctions + 1);
-		let array_size = num_junctions + 1;
+	let mut from_tuples = (0..8usize)
+		.map(|num_junctions| {
+			let junctions =
+				(0..=num_junctions).map(|_| format_ident!("Junction")).collect::<Vec<_>>();
+			let idents = (0..=num_junctions).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
+			let variant = &format_ident!("X{}", num_junctions + 1);
+			let array_size = num_junctions + 1;
 
-		let mut from_tuple = quote! {
-			impl From<( #(#junctions,)* )> for MultiLocation {
-				fn from( ( #(#idents,)* ): ( #(#junctions,)* ) ) -> Self {
-					MultiLocation { parents: 0, interior: Junctions::#variant( #(#idents),* ) }
-				}
-			}
-
-			impl From<(u8, #(#junctions),*)> for MultiLocation {
-				fn from( ( parents, #(#idents),* ): (u8, #(#junctions),* ) ) -> Self {
-					MultiLocation { parents, interior: Junctions::#variant( #(#idents),* ) }
-				}
-			}
-
-			impl From<(Ancestor, #(#junctions),*)> for MultiLocation {
-				fn from( ( Ancestor(parents), #(#idents),* ): (Ancestor, #(#junctions),* ) ) -> Self {
-					MultiLocation { parents, interior: Junctions::#variant( #(#idents),* ) }
-				}
-			}
-
-			impl From<[Junction; #array_size]> for MultiLocation {
-				fn from(j: [Junction; #array_size]) -> Self {
-					let [#(#idents),*] = j;
-					MultiLocation { parents: 0, interior: Junctions::#variant( #(#idents),* ) }
-				}
-			}
-		};
-
-		let from_parent_tuples = (1..=max_parents).map(|cur_parents| {
-			let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
-			let underscores =
-				(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
-
-			quote! {
-				impl From<( #(#parents,)* #(#junctions),* )> for MultiLocation {
-					fn from( (#(#underscores,)* #(#idents),*): ( #(#parents,)* #(#junctions),* ) ) -> Self {
-						MultiLocation { parents: #cur_parents, interior: Junctions::#variant( #(#idents),* ) }
+			let mut from_tuple = quote! {
+				impl From<( #(#junctions,)* )> for MultiLocation {
+					fn from( ( #(#idents,)* ): ( #(#junctions,)* ) ) -> Self {
+						MultiLocation { parents: 0, interior: Junctions::#variant( #(#idents),* ) }
 					}
 				}
-			}
-		});
 
-		from_tuple.extend(from_parent_tuples);
-		from_tuple
-	})
-	.collect::<TokenStream>();
+				impl From<(u8, #(#junctions),*)> for MultiLocation {
+					fn from( ( parents, #(#idents),* ): (u8, #(#junctions),* ) ) -> Self {
+						MultiLocation { parents, interior: Junctions::#variant( #(#idents),* ) }
+					}
+				}
+
+				impl From<(Ancestor, #(#junctions),*)> for MultiLocation {
+					fn from( ( Ancestor(parents), #(#idents),* ): (Ancestor, #(#junctions),* ) ) -> Self {
+						MultiLocation { parents, interior: Junctions::#variant( #(#idents),* ) }
+					}
+				}
+
+				impl From<[Junction; #array_size]> for MultiLocation {
+					fn from(j: [Junction; #array_size]) -> Self {
+						let [#(#idents),*] = j;
+						MultiLocation { parents: 0, interior: Junctions::#variant( #(#idents),* ) }
+					}
+				}
+			};
+
+			let from_parent_tuples = (1..=max_parents).map(|cur_parents| {
+				let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();
+				let underscores =
+					(0..cur_parents).map(|_| Token![_](Span::call_site())).collect::<Vec<_>>();
+
+				quote! {
+					impl From<( #(#parents,)* #(#junctions),* )> for MultiLocation {
+						fn from( (#(#underscores,)* #(#idents),*): ( #(#parents,)* #(#junctions),* ) ) -> Self {
+							MultiLocation { parents: #cur_parents, interior: Junctions::#variant( #(#idents),* ) }
+						}
+					}
+				}
+			});
+
+			from_tuple.extend(from_parent_tuples);
+			from_tuple
+		})
+		.collect::<TokenStream>();
 
 	let from_parent_junctions_tuples = (1..=max_parents).map(|cur_parents| {
 		let parents = (0..cur_parents).map(|_| format_ident!("Parent")).collect::<Vec<_>>();

@@ -32,28 +32,30 @@ pub fn generate_conversion_functions(input: proc_macro::TokenStream) -> syn::Res
 }
 
 fn generate_conversion_from_tuples() -> TokenStream {
-	let from_tuples = (0..8usize).map(|num_junctions| {
-		let junctions = (0..=num_junctions).map(|_| format_ident!("Junction")).collect::<Vec<_>>();
-		let idents = (0..=num_junctions).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
-		let variant = &format_ident!("X{}", num_junctions + 1);
-		let array_size = num_junctions + 1;
+	let from_tuples = (0..8usize)
+		.map(|num_junctions| {
+			let junctions =
+				(0..=num_junctions).map(|_| format_ident!("Junction")).collect::<Vec<_>>();
+			let idents = (0..=num_junctions).map(|i| format_ident!("j{}", i)).collect::<Vec<_>>();
+			let variant = &format_ident!("X{}", num_junctions + 1);
+			let array_size = num_junctions + 1;
 
-		quote! {
-			impl From<( #(#junctions,)* )> for MultiLocation {
-				fn from( ( #(#idents,)* ): ( #(#junctions,)* ) ) -> Self {
-					MultiLocation::#variant( #(#idents),* )
+			quote! {
+				impl From<( #(#junctions,)* )> for MultiLocation {
+					fn from( ( #(#idents,)* ): ( #(#junctions,)* ) ) -> Self {
+						MultiLocation::#variant( #(#idents),* )
+					}
+				}
+
+				impl From<[Junction; #array_size]> for MultiLocation {
+					fn from(j: [Junction; #array_size]) -> Self {
+						let [#(#idents),*] = j;
+						MultiLocation::#variant( #(#idents),* )
+					}
 				}
 			}
-
-			impl From<[Junction; #array_size]> for MultiLocation {
-				fn from(j: [Junction; #array_size]) -> Self {
-					let [#(#idents),*] = j;
-					MultiLocation::#variant( #(#idents),* )
-				}
-			}
-		}
-	})
-	.collect::<TokenStream>();
+		})
+		.collect::<TokenStream>();
 
 	quote! {
 		impl From<()> for MultiLocation {
