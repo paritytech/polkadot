@@ -98,45 +98,6 @@ where
 	}
 }
 
-trait FromRuntimeApi: Sized {
-	fn request(
-		descriptor: &CandidateDescriptor,
-		assumption: OccupiedCoreAssumption,
-	) -> (RuntimeApiRequest, oneshot::Receiver<Result<Option<Self>, RuntimeApiError>>);
-
-	fn validate_hash(&self, descriptor: &CandidateDescriptor) -> bool;
-}
-
-impl FromRuntimeApi for ValidationCode {
-	fn validate_hash(&self, _descriptor: &CandidateDescriptor) -> bool {
-		// Computing the code hash might be expensive, instead, rely
-		// on the [`PersistedValidationData`] hash.
-		true
-	}
-
-	fn request(
-		descriptor: &CandidateDescriptor,
-		assumption: OccupiedCoreAssumption,
-	) -> (RuntimeApiRequest, oneshot::Receiver<Result<Option<Self>, RuntimeApiError>>) {
-		let (tx, rx) = oneshot::channel();
-		(RuntimeApiRequest::ValidationCode(descriptor.para_id, assumption, tx), rx)
-	}
-}
-
-impl FromRuntimeApi for PersistedValidationData {
-	fn validate_hash(&self, descriptor: &CandidateDescriptor) -> bool {
-		self.hash() == descriptor.persisted_validation_data_hash
-	}
-
-	fn request(
-		descriptor: &CandidateDescriptor,
-		assumption: OccupiedCoreAssumption,
-	) -> (RuntimeApiRequest, oneshot::Receiver<Result<Option<Self>, RuntimeApiError>>) {
-		let (tx, rx) = oneshot::channel();
-		(RuntimeApiRequest::PersistedValidationData(descriptor.para_id, assumption, tx), rx)
-	}
-}
-
 async fn run<Context>(
 	mut ctx: Context,
 	metrics: Metrics,
@@ -236,25 +197,48 @@ where
 }
 
 #[derive(Debug)]
-enum AssumptionCheckOutcome<T> {
-	Matches(T, OccupiedCoreAssumption),
+enum AssumptionCheckOutcome {
+	Matches(PersistedValidationData),
 	DoesNotMatch,
 	BadRequest,
 }
 
-async fn check_assumption_validation_data<Context, T>(
+async fn request_validation_code_by_hash<Context>(
 	ctx: &mut Context,
 	descriptor: &CandidateDescriptor,
-	assumption: OccupiedCoreAssumption,
-) -> SubsystemResult<AssumptionCheckOutcome<T>>
+) -> SubsystemResult<Result<Option<ValidationCode>, RuntimeApiError>>
 where
 	Context: SubsystemContext<Message = CandidateValidationMessage>,
 	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
-	T: FromRuntimeApi,
 {
-	let data: T = {
-		let (request, rx) = <T as FromRuntimeApi>::request(descriptor, assumption);
-		let data = runtime_api_request(ctx, descriptor.relay_parent, request, rx).await?;
+	let (tx, rx) = oneshot::channel();
+	runtime_api_request(
+		ctx,
+		descriptor.relay_parent,
+		RuntimeApiRequest::ValidationCodeByHash(descriptor.validation_code_hash, tx),
+		rx,
+	)
+	.await
+}
+
+async fn check_assumption_validation_data<Context>(
+	ctx: &mut Context,
+	descriptor: &CandidateDescriptor,
+	assumption: OccupiedCoreAssumption,
+) -> SubsystemResult<AssumptionCheckOutcome>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
+	let validation_data = {
+		let (tx, rx) = oneshot::channel();
+		let data = runtime_api_request(
+			ctx,
+			descriptor.relay_parent,
+			RuntimeApiRequest::PersistedValidationData(descriptor.para_id, assumption, tx),
+			rx,
+		)
+		.await?;
 
 		match data {
 			Ok(None) | Err(_) => return Ok(AssumptionCheckOutcome::BadRequest),
@@ -262,31 +246,29 @@ where
 		}
 	};
 
-	SubsystemResult::Ok(if data.validate_hash(descriptor) {
-		AssumptionCheckOutcome::Matches(data, assumption)
-	} else {
-		AssumptionCheckOutcome::DoesNotMatch
-	})
+	let persisted_validation_data_hash = validation_data.hash();
+
+	SubsystemResult::Ok(
+		if descriptor.persisted_validation_data_hash == persisted_validation_data_hash {
+			AssumptionCheckOutcome::Matches(validation_data)
+		} else {
+			AssumptionCheckOutcome::DoesNotMatch
+		},
+	)
 }
 
-async fn find_assumed_validation_data<Context, T>(
+async fn find_assumed_validation_data<Context>(
 	ctx: &mut Context,
 	descriptor: &CandidateDescriptor,
-	checked_assumption: Option<OccupiedCoreAssumption>,
-) -> SubsystemResult<AssumptionCheckOutcome<T>>
+) -> SubsystemResult<AssumptionCheckOutcome>
 where
 	Context: SubsystemContext<Message = CandidateValidationMessage>,
 	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
-	T: FromRuntimeApi,
 {
 	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
 	// one of up to two possible values that we can derive from the state of the
 	// relay-parent. We can fetch these values by getting the persisted validation data
 	// based on the different `OccupiedCoreAssumption`s.
-
-	if let Some(assumption) = checked_assumption {
-		return Ok(check_assumption_validation_data(ctx, descriptor, assumption).await?)
-	}
 
 	const ASSUMPTIONS: &[OccupiedCoreAssumption] = &[
 		OccupiedCoreAssumption::Included,
@@ -301,7 +283,7 @@ where
 		let outcome = check_assumption_validation_data(ctx, descriptor, *assumption).await?;
 
 		match outcome {
-			AssumptionCheckOutcome::Matches(_, _) => return Ok(outcome),
+			AssumptionCheckOutcome::Matches(_) => return Ok(outcome),
 			AssumptionCheckOutcome::BadRequest => return Ok(outcome),
 			AssumptionCheckOutcome::DoesNotMatch => continue,
 		}
@@ -321,19 +303,17 @@ where
 	Context: SubsystemContext<Message = CandidateValidationMessage>,
 	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
 {
-	let (validation_data, valid_assumption): (PersistedValidationData, OccupiedCoreAssumption) =
-		match find_assumed_validation_data(ctx, &descriptor, None).await? {
-			AssumptionCheckOutcome::Matches(validation_data, valid_assumption) =>
-				(validation_data, valid_assumption),
-			AssumptionCheckOutcome::DoesNotMatch => {
-				// If neither the assumption of the occupied core having the para included or the assumption
-				// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
-				// is not based on the relay parent and is thus invalid.
-				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
-			},
-			AssumptionCheckOutcome::BadRequest =>
-				return Ok(Err(ValidationFailed("Assumption Check: Bad request".into()))),
-		};
+	let validation_data = match find_assumed_validation_data(ctx, &descriptor).await? {
+		AssumptionCheckOutcome::Matches(validation_data) => validation_data,
+		AssumptionCheckOutcome::DoesNotMatch => {
+			// If neither the assumption of the occupied core having the para included or the assumption
+			// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
+			// is not based on the relay parent and is thus invalid.
+			return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
+		},
+		AssumptionCheckOutcome::BadRequest =>
+			return Ok(Err(ValidationFailed("Assumption Check: Bad request".into()))),
+	};
 
 	let mut validation_result = validate_candidate_exhaustive(
 		&mut validation_host.clone(),
@@ -346,16 +326,13 @@ where
 	.await;
 
 	if let Ok(Ok(ValidationResult::Invalid(InvalidCandidate::CodeNotFound))) = validation_result {
-		let validation_code =
-			match find_assumed_validation_data(ctx, &descriptor, Some(valid_assumption)).await? {
-				AssumptionCheckOutcome::Matches(validation_code, _) => validation_code,
-				AssumptionCheckOutcome::DoesNotMatch => {
-					// Code hash is not validated, should be unreachable.
-					return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
-				},
-				AssumptionCheckOutcome::BadRequest =>
-					return Ok(Err(ValidationFailed("Assumption Check: Bad request".into()))),
-			};
+		let validation_code = match request_validation_code_by_hash(ctx, &descriptor).await? {
+			Ok(Some(validation_code)) => validation_code,
+			Ok(None) =>
+				return Ok(Err(ValidationFailed("Runtime API didn't return validation code".into()))),
+			Err(err) => return Ok(Err(ValidationFailed(err.to_string()))),
+		};
+
 		validation_result = validate_candidate_exhaustive(
 			validation_host,
 			validation_data,

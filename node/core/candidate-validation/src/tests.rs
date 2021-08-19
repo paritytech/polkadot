@@ -54,12 +54,9 @@ fn correctly_checks_included_assumption_for_data() {
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data::<_, PersistedValidationData>(
-		&mut ctx,
-		&candidate,
-		OccupiedCoreAssumption::Included,
-	)
-	.remote_handle();
+	let (check_fut, check_result) =
+		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
+			.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -79,59 +76,12 @@ fn correctly_checks_included_assumption_for_data() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(d, a) => {
+		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(d) => {
 			assert_eq!(d, validation_data);
-			assert_eq!(a, OccupiedCoreAssumption::Included);
 		});
 	};
 
 	let test_fut = future::join(test_fut, check_fut);
-	executor::block_on(test_fut);
-}
-
-#[test]
-fn correctly_checks_included_assumption_for_code() {
-	let validation_code: ValidationCode = vec![1, 2, 3].into();
-
-	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
-
-	let mut candidate = CandidateDescriptor::default();
-	candidate.relay_parent = relay_parent;
-	candidate.para_id = para_id;
-
-	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
-
-	let (check_code_fut, check_code_result) =
-		check_assumption_validation_data::<_, ValidationCode>(
-			&mut ctx,
-			&candidate,
-			OccupiedCoreAssumption::Included,
-		)
-		.remote_handle();
-
-	let test_fut = async move {
-		assert_matches!(
-			ctx_handle.recv().await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				rp,
-				RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::Included, tx)
-			)) => {
-				assert_eq!(rp, relay_parent);
-				assert_eq!(p, para_id);
-
-				let _ = tx.send(Ok(Some(validation_code.clone())));
-			}
-		);
-
-		assert_matches!(check_code_result.await.unwrap(), AssumptionCheckOutcome::Matches(c, a) => {
-			assert_eq!(c, validation_code);
-			assert_eq!(a, OccupiedCoreAssumption::Included);
-		});
-	};
-
-	let test_fut = future::join(test_fut, check_code_fut);
 	executor::block_on(test_fut);
 }
 
@@ -151,12 +101,9 @@ fn correctly_checks_timed_out_assumption() {
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data::<_, PersistedValidationData>(
-		&mut ctx,
-		&candidate,
-		OccupiedCoreAssumption::TimedOut,
-	)
-	.remote_handle();
+	let (check_fut, check_result) =
+		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::TimedOut)
+			.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -176,9 +123,8 @@ fn correctly_checks_timed_out_assumption() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(d, a) => {
+		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(d) => {
 			assert_eq!(d, validation_data);
-			assert_eq!(a, OccupiedCoreAssumption::TimedOut);
 		});
 	};
 
@@ -201,12 +147,9 @@ fn check_is_bad_request_if_no_validation_data() {
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data::<_, PersistedValidationData>(
-		&mut ctx,
-		&candidate,
-		OccupiedCoreAssumption::Included,
-	)
-	.remote_handle();
+	let (check_fut, check_result) =
+		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
+			.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -248,28 +191,23 @@ fn check_is_bad_request_if_no_validation_code() {
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data::<_, ValidationCode>(
-		&mut ctx,
-		&candidate,
-		OccupiedCoreAssumption::TimedOut,
-	)
-	.remote_handle();
+	let (check_fut, check_result) =
+		request_validation_code_by_hash(&mut ctx, &candidate).remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
 			ctx_handle.recv().await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				rp,
-				RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::TimedOut, tx)
+				RuntimeApiRequest::ValidationCodeByHash(_, tx)
 			)) => {
 				assert_eq!(rp, relay_parent);
-				assert_eq!(p, para_id);
 
 				let _ = tx.send(Ok(None));
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::BadRequest);
+		assert_matches!(check_result.await.unwrap(), Ok(None));
 	};
 
 	let test_fut = future::join(test_fut, check_fut);
@@ -290,12 +228,9 @@ fn check_does_not_match() {
 	let pool = TaskExecutor::new();
 	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data::<_, PersistedValidationData>(
-		&mut ctx,
-		&candidate,
-		OccupiedCoreAssumption::Included,
-	)
-	.remote_handle();
+	let (check_fut, check_result) =
+		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
+			.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
