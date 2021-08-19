@@ -15,10 +15,10 @@ async-process = "1.1.0"
 assert_matches = "1.4.0"
 futures = "0.3.15"
 futures-timer = "3.0.2"
-libc = "0.2.98"
+libc = "0.2.99"
 slotmap = "1.0"
 tracing = "0.1.26"
-pin-project = "1.0.7"
+pin-project = "1.0.8"
 rand = "0.8.3"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 polkadot-parachain = { path = "../../../parachain" }
