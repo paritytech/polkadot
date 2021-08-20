@@ -23,6 +23,6 @@ tokio = { version = "0.2", features = ["macros", "rt-threaded"] }
 log = { version = "0.4.14" }
 
 [features]
-default = ["polkadot"]
+default = ["kusama"]
 polkadot = ["polkadot-runtime"]
 kusama = ["kusama-runtime"]

@@ -19,13 +19,12 @@
 use frame_election_provider_support::SortedListProvider;
 use frame_support::traits::Get;
 use pallet_staking::Nominators;
-use remote_externalities::{Builder, Mode, OnlineConfig, SnapshotConfig};
+use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_runtime::traits::Block as BlockT;
+use sp_std::convert::TryInto;
 use sp_storage::well_known_keys;
-use sp_core::hashing::twox_128;
-use sp_std::{convert::TryInto};
 
-const LOG_TARGET: &'static str = "remote-ext-tests";
+const LOG_TARGET: &'static str = "remote-ext-tests::bags-list";
 
 /// Test voter bags migration. `currency_unit` is the number of planks per the
 /// the runtimes `UNITS` (i.e. number of decimal places per DOT, KSM etc)
@@ -78,7 +77,6 @@ pub(crate) async fn test_voter_bags_migration<
 		assert_eq!(pre_migrate_nominator_count, voter_list_len);
 		assert_eq!(pre_migrate_nominator_count, voter_list_count);
 
-
 		// go through every bag to track the total number of voters within bags
 		// and get some info about how voters are distributed within the bags.
 		let mut seen_in_bags = 0;
@@ -91,8 +89,8 @@ pub(crate) async fn test_voter_bags_migration<
 				Some(bag) => bag,
 				None => {
 					log::info!(target: LOG_TARGET, "{} NO VOTERS.", pretty_thresh);
-					continue;
-				}
+					continue
+				},
 			};
 
 			let voters_in_bag = bag.iter().count() as u32;
@@ -102,7 +100,6 @@ pub(crate) async fn test_voter_bags_migration<
 
 			// percentage of all voters (nominators and voters)
 			let percent_of_voters = percent(voters_in_bag, voter_list_count);
-
 
 			log::info!(
 				target: LOG_TARGET,
