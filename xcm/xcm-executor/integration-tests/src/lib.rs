@@ -72,9 +72,9 @@ fn basic_buy_fees_message_executes() {
 
 #[test]
 fn query_response_fires() {
-	use polkadot_test_runtime::Event::TestNotifier;
 	use pallet_test_notifier::Event::*;
 	use pallet_xcm::QueryStatus;
+	use polkadot_test_runtime::Event::TestNotifier;
 
 	sp_tracing::try_init_simple();
 	let mut client = TestClientBuilder::new()
@@ -111,7 +111,7 @@ fn query_response_fires() {
 			}
 		});
 	let query_id = query_id.unwrap();
-	
+
 	let mut block_builder = client.init_polkadot_block_builder();
 
 	let response = Response::ExecutionResult(Ok(()));
@@ -158,8 +158,8 @@ fn query_response_fires() {
 
 #[test]
 fn query_response_elicits_handler() {
-	use polkadot_test_runtime::Event::TestNotifier;
 	use pallet_test_notifier::Event::*;
+	use polkadot_test_runtime::Event::TestNotifier;
 
 	sp_tracing::try_init_simple();
 	let mut client = TestClientBuilder::new()
@@ -170,7 +170,9 @@ fn query_response_elicits_handler() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::TestNotifier(pallet_test_notifier::Call::prepare_new_notify_query()),
+		polkadot_test_runtime::Call::TestNotifier(
+			pallet_test_notifier::Call::prepare_new_notify_query(),
+		),
 		sp_keyring::Sr25519Keyring::Alice,
 		0,
 	);
@@ -197,7 +199,7 @@ fn query_response_elicits_handler() {
 			}
 		});
 	let query_id = query_id.unwrap();
-	
+
 	let mut block_builder = client.init_polkadot_block_builder();
 
 	let response = Response::ExecutionResult(Ok(()));
@@ -233,4 +235,3 @@ fn query_response_elicits_handler() {
 			)));
 		});
 }
-

@@ -536,10 +536,10 @@ impl pallet_test_notifier::Config for Runtime {
 pub mod pallet_test_notifier {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use pallet_xcm::{QueryId, ensure_response};
+	use pallet_xcm::{ensure_response, QueryId};
 	use sp_runtime::DispatchResult;
 	use xcm::latest::prelude::*;
-	
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -568,13 +568,11 @@ pub mod pallet_test_notifier {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-
 		#[pallet::weight(1_000_000)]
-		pub fn prepare_new_query(
-			origin: OriginFor<T>,
-		) -> DispatchResult {
+		pub fn prepare_new_query(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let id = who.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
+			let id = who
+				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
 			let qid = pallet_xcm::Pallet::<T>::new_query(
 				Junction::AccountId32 { network: Any, id }.into(),
@@ -585,11 +583,10 @@ pub mod pallet_test_notifier {
 		}
 
 		#[pallet::weight(1_000_000)]
-		pub fn prepare_new_notify_query(
-			origin: OriginFor<T>,
-		) -> DispatchResult {
+		pub fn prepare_new_notify_query(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let id = who.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
+			let id = who
+				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
 			let call = Call::<T>::notification_received(0, Default::default());
 			let qid = pallet_xcm::Pallet::<T>::new_notify_query(

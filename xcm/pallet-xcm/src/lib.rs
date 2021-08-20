@@ -456,9 +456,9 @@ pub mod pallet {
 								// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
 								// So we just encode that and then re-encode to a real Call.
 								let bare = (pallet_index, call_index, query_id, response);
-								if let Ok(call) = bare
-									.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes))
-								{
+								if let Ok(call) = bare.using_encoded(|mut bytes| {
+									<T as Config>::Call::decode(&mut bytes)
+								}) {
 									let weight = call.get_dispatch_info().weight;
 									if weight > max_weight {
 										let e = Event::NotifyOverweight(
@@ -474,12 +474,17 @@ pub mod pallet {
 									let dispatch_origin = Origin::Response(origin.clone()).into();
 									match call.dispatch(dispatch_origin) {
 										Ok(post_info) => {
-											let e = Event::Notified(query_id, pallet_index, call_index);
+											let e =
+												Event::Notified(query_id, pallet_index, call_index);
 											Self::deposit_event(e);
 											post_info.actual_weight
 										},
 										Err(error_and_info) => {
-											let e = Event::NotifyDispatchError(query_id, pallet_index, call_index);
+											let e = Event::NotifyDispatchError(
+												query_id,
+												pallet_index,
+												call_index,
+											);
 											Self::deposit_event(e);
 											// Not much to do with the result as it is. It's up to the parachain to ensure that the
 											// message makes sense.
@@ -488,7 +493,11 @@ pub mod pallet {
 									}
 									.unwrap_or(weight)
 								} else {
-									let e = Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
+									let e = Event::NotifyDecodeFailed(
+										query_id,
+										pallet_index,
+										call_index,
+									);
 									Self::deposit_event(e);
 									0
 								}
@@ -500,7 +509,11 @@ pub mod pallet {
 							},
 						}
 					} else {
-						Self::deposit_event(Event::InvalidResponder(origin.clone(), query_id, responder));
+						Self::deposit_event(Event::InvalidResponder(
+							origin.clone(),
+							query_id,
+							responder,
+						));
 					}
 				} else {
 					Self::deposit_event(Event::InvalidResponderVersion(origin.clone(), query_id));
@@ -514,7 +527,7 @@ pub mod pallet {
 }
 
 /// Ensure that the origin `o` represents an XCM (`Transact`) origin.
-/// 
+///
 /// Returns `Ok` with the location of the XCM sender or an `Err` otherwise.
 pub fn ensure_xcm<OuterOrigin>(o: OuterOrigin) -> Result<MultiLocation, BadOrigin>
 where
@@ -527,7 +540,7 @@ where
 }
 
 /// Ensure that the origin `o` represents an XCM response origin.
-/// 
+///
 /// Returns `Ok` with the location of the responder or an `Err` otherwise.
 pub fn ensure_response<OuterOrigin>(o: OuterOrigin) -> Result<MultiLocation, BadOrigin>
 where
@@ -581,7 +594,8 @@ where
 /// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter
 /// the `Origin::Response` item.
 pub struct EnsureResponse<F>(PhantomData<F>);
-impl<O: OriginTrait + From<Origin>, F: Contains<MultiLocation>> EnsureOrigin<O> for EnsureResponse<F>
+impl<O: OriginTrait + From<Origin>, F: Contains<MultiLocation>> EnsureOrigin<O>
+	for EnsureResponse<F>
 where
 	O::PalletsOrigin: From<Origin> + TryInto<Origin, Error = O::PalletsOrigin>,
 {
