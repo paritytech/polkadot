@@ -58,9 +58,11 @@ use sc_keystore::LocalKeystore;
 
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
+use metrics::Metrics;
 
 mod backend;
 mod db;
+mod metrics;
 
 #[cfg(test)]
 mod tests;
@@ -116,12 +118,18 @@ pub struct DisputeCoordinatorSubsystem {
 	config: Config,
 	store: Arc<dyn KeyValueDB>,
 	keystore: Arc<LocalKeystore>,
+	metrics: Metrics,
 }
 
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
-	pub fn new(store: Arc<dyn KeyValueDB>, config: Config, keystore: Arc<LocalKeystore>) -> Self {
-		DisputeCoordinatorSubsystem { store, config, keystore }
+	pub fn new(
+		store: Arc<dyn KeyValueDB>,
+		config: Config,
+		keystore: Arc<LocalKeystore>,
+		metrics: Metrics,
+	) -> Self {
+		DisputeCoordinatorSubsystem { store, config, keystore, metrics }
 	}
 }
 
@@ -329,6 +337,7 @@ where
 		rolling_session_window: RollingSessionWindow::new(DISPUTE_WINDOW),
 		recovery_state: Participation::Pending,
 	};
+	let metrics = &subsystem.metrics;
 
 	loop {
 		let mut overlay_db = OverlayedBackend::new(backend);
@@ -348,7 +357,8 @@ where
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
 			FromOverseer::Communication { msg } =>
-				handle_incoming(ctx, &mut overlay_db, &mut state, msg, clock.now()).await?,
+				handle_incoming(ctx, &mut overlay_db, &mut state, msg, clock.now(), &metrics)
+					.await?,
 		}
 
 		if !overlay_db.is_empty() {
@@ -518,6 +528,7 @@ async fn handle_incoming(
 	state: &mut State,
 	message: DisputeCoordinatorMessage,
 	now: Timestamp,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	match message {
 		DisputeCoordinatorMessage::ImportStatements {
@@ -537,6 +548,7 @@ async fn handle_incoming(
 				statements,
 				now,
 				pending_confirmation,
+				metrics,
 			)
 			.await?;
 		},
@@ -578,6 +590,7 @@ async fn handle_incoming(
 				session,
 				valid,
 				now,
+				metrics,
 			)
 			.await?;
 		},
@@ -635,6 +648,7 @@ async fn handle_import_statements(
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
 	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
 		// It is not valid to participate in an ancient dispute (spam?).
@@ -694,6 +708,7 @@ async fn handle_import_statements(
 
 		match statement.statement().clone() {
 			DisputeStatement::Valid(valid_kind) => {
+				metrics.on_valid_vote();
 				insert_into_statement_vec(
 					&mut votes.valid,
 					valid_kind,
@@ -702,6 +717,7 @@ async fn handle_import_statements(
 				);
 			},
 			DisputeStatement::Invalid(invalid_kind) => {
+				metrics.on_invalid_vote();
 				insert_into_statement_vec(
 					&mut votes.invalid,
 					invalid_kind,
@@ -777,6 +793,14 @@ async fn handle_import_statements(
 				);
 				return Ok(())
 			}
+			metrics.on_open();
+
+			if concluded_valid {
+				metrics.on_concluded_valid();
+			}
+			if concluded_invalid {
+				metrics.on_concluded_invalid();
+			}
 		}
 
 		// Only write when updated and vote is available.
@@ -801,6 +825,7 @@ async fn issue_local_statement(
 	session: SessionIndex,
 	valid: bool,
 	now: Timestamp,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	// Load session info.
 	let info = match state.rolling_session_window.session_info(session) {
@@ -893,6 +918,7 @@ async fn issue_local_statement(
 			statements,
 			now,
 			pending_confirmation,
+			metrics,
 		)
 		.await?;
 	}

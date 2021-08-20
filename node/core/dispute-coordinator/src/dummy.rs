@@ -29,8 +29,20 @@ use futures::{channel::oneshot, prelude::*};
 use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use sc_keystore::LocalKeystore;
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
+
+
+/// Candidate validation metrics placeholder.
+#[derive(Default, Clone)]
+pub struct Metrics;
+
+impl metrics::Metrics for Metrics {
+	fn try_register(_: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		Ok(Metrics)
+	}
+}
 
 /// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
 type Timestamp = u64;
@@ -52,8 +64,8 @@ pub struct DisputeCoordinatorSubsystem {}
 
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
-	pub fn new(_: Arc<dyn KeyValueDB>, _: Config, _: Arc<LocalKeystore>) -> Self {
-		DisputeCoordinatorSubsystem {}
+	pub fn new(_: Arc<dyn KeyValueDB>, _: Config, _: Arc<LocalKeystore>, _: Metrics) -> Self {
+		Self {}
 	}
 }
 
