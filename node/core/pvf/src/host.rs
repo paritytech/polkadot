@@ -22,7 +22,9 @@
 
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
-	execute, prepare, Priority, Pvf, ValidationError, LOG_TARGET,
+	execute,
+	metrics::Metrics,
+	prepare, Priority, Pvf, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use async_std::path::{Path, PathBuf};
@@ -134,18 +136,20 @@ impl Config {
 /// The future should not return normally but if it does then that indicates an unrecoverable error.
 /// In that case all pending requests will be canceled, dropping the result senders and new ones
 /// will be rejected.
-pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
+pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<Output = ()>) {
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
 	let validation_host = ValidationHost { to_host_tx };
 
 	let (to_prepare_pool, from_prepare_pool, run_prepare_pool) = prepare::start_pool(
+		metrics.clone(),
 		config.prepare_worker_program_path.clone(),
 		config.cache_path.clone(),
 		config.prepare_worker_spawn_timeout,
 	);
 
 	let (to_prepare_queue_tx, from_prepare_queue_rx, run_prepare_queue) = prepare::start_queue(
+		metrics.clone(),
 		config.prepare_workers_soft_max_num,
 		config.prepare_workers_hard_max_num,
 		config.cache_path.clone(),
@@ -154,6 +158,7 @@ pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	);
 
 	let (to_execute_queue_tx, run_execute_queue) = execute::start(
+		metrics.clone(),
 		config.execute_worker_program_path.to_owned(),
 		config.execute_workers_max_num,
 		config.execute_worker_spawn_timeout,

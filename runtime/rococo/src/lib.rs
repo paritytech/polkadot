@@ -24,7 +24,9 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, Everything, IsInVec, KeyOwnerProofSystem, OnRuntimeUpgrade, Randomness},
+	traits::{
+		Contains, Everything, IsInVec, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade, Randomness,
+	},
 	weights::Weight,
 	PalletId,
 };
@@ -690,7 +692,7 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	// ...but they must match our filter, which right now rejects everything.
-	type XcmExecuteFilter = ();
+	type XcmExecuteFilter = Nothing;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;

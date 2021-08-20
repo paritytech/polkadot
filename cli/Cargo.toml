@@ -17,8 +17,6 @@ crate-type = ["cdylib", "rlib"]
 log = "0.4.13"
 thiserror = "1.0.26"
 structopt = { version = "0.3.21", optional = true }
-wasm-bindgen = { version = "0.2.70", optional = true }
-wasm-bindgen-futures = { version = "0.4.25", optional = true }
 futures = "0.3.15"
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
@@ -29,7 +27,6 @@ frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", bran
 try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
@@ -57,12 +54,6 @@ cli = [
 # is resolved.
 	"service/memory-stats",
 ]
-browser = [
-	"wasm-bindgen",
-	"wasm-bindgen-futures",
-	"browser-utils",
-	"service/light-node",
-]
 runtime-benchmarks = [ "service/runtime-benchmarks" ]
 trie-memory-tracker = [ "sp-trie/memory-tracker" ]
 full-node = [ "service/full-node" ]
@@ -76,3 +67,4 @@ westend-native = [ "service/westend-native" ]
 rococo-native = [ "service/rococo-native" ]
 
 malus = [ "full-node", "service/malus" ]
+disputes = [ "service/disputes" ]
