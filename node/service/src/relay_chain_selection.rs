@@ -185,7 +185,7 @@ where
 			return longest_chain_best
 		}
 		self.selection
-			.finality_target(target_hash, longest_chain_best, maybe_max_number)
+			.finality_target_with_fallback(target_hash, longest_chain_best, maybe_max_number)
 			.await
 	}
 }
@@ -309,6 +309,20 @@ where
 		self.block_header(best_leaf)
 	}
 
+	async fn finality_target(
+		&self,
+		_target_hash: Hash,
+		_maybe_max_number: Option<BlockNumber>,
+	) -> Result<Option<Hash>, ConsensusError> {
+		unreachable!("Must call finality_target_with_fallback instead. qed");
+	}
+}
+
+impl<B, OH> SelectRelayChain<B, OH>
+where
+	B: HeaderProviderProvider<PolkadotBlock>,
+	OH: OverseerHandleT,
+{
 	/// Get the best descendant of `target_hash` that we should attempt to
 	/// finalize next, if any. It is valid to return the `target_hash` if
 	/// no better block exists.
@@ -318,7 +332,7 @@ where
 	///
 	/// It will also constrain the chain to only chains which are fully
 	/// approved, and chains which contain no disputes.
-	async fn finality_target(
+	pub async fn finality_target_with_fallback(
 		&self,
 		target_hash: Hash,
 		best_leaf: Hash,
