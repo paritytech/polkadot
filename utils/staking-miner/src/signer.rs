@@ -18,7 +18,7 @@
 
 use crate::{prelude::*, rpc_helpers, AccountId, Error, Index, Pair, WsClient, LOG_TARGET};
 use sp_core::crypto::Pair as _;
-use std::path::Path;
+// use std::path::Path;
 
 pub(crate) const SIGNER_ACCOUNT_WILL_EXIST: &'static str =
 	"signer account is checked to exist upon startup; it can only die if it transfers funds out \
@@ -52,21 +52,38 @@ pub(crate) async fn get_account_info<T: frame_system::Config>(
 }
 
 /// Read the signer account's URI from the given `path`.
-pub(crate) async fn read_signer_uri<
-	P: AsRef<Path>,
+// pub(crate) async fn read_signer_uri<
+// 	P: AsRef<Path>,
+// 	T: frame_system::Config<
+// 		AccountId = AccountId,
+// 		Index = Index,
+// 		AccountData = pallet_balances::AccountData<Balance>,
+// 	>,
+// >(
+// 	path: P,
+// 	client: &WsClient,
+// ) -> Result<Signer, Error> {
+// 	let uri = std::fs::read_to_string(path)?;
+
+// 	// trim any trailing garbage.
+// 	let uri = uri.trim_end();
+
+// 	signer_uri_from_string::<T>(uri, client).await
+// }
+
+/// Read the signer account's URI
+pub(crate) async fn signer_uri_from_string<
 	T: frame_system::Config<
 		AccountId = AccountId,
 		Index = Index,
 		AccountData = pallet_balances::AccountData<Balance>,
 	>,
 >(
-	path: P,
+	seed: &str,
 	client: &WsClient,
 ) -> Result<Signer, Error> {
-	let uri = std::fs::read_to_string(path)?;
-
 	// trim any trailing garbage.
-	let uri = uri.trim_end();
+	let uri = seed.trim_end();
 
 	let pair = Pair::from_string(&uri, None)?;
 	let account = T::AccountId::from(pair.public());

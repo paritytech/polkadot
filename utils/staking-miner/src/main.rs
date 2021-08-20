@@ -276,15 +276,15 @@ struct DryRunConfig {
 #[derive(Debug, Clone, StructOpt)]
 struct SharedConfig {
 	/// The `ws` node to connect to.
-	#[structopt(long, short, default_value = DEFAULT_URI)]
+	#[structopt(long, short, default_value = DEFAULT_URI, env = "URI")]
 	uri: String,
 
-	/// The file from which we read the account seed.
+	/// The seed of a funded account in hex.
 	///
-	/// WARNING: don't use an account with a large stash for this. Based on how the bot is
-	/// configured, it might re-try lose funds through transaction fees/deposits.
-	#[structopt(long, short)]
-	account_seed: std::path::PathBuf,
+	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
+	/// configured, it might re-try and lose funds through transaction fees/deposits.
+	#[structopt(long, short, env = "SEED")]
+	seed: String,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -491,7 +491,7 @@ async fn main() {
 	};
 
 	let signer_account = any_runtime! {
-		signer::read_signer_uri::<_, Runtime>(&shared.account_seed, &client)
+		signer::signer_uri_from_string::<Runtime>(&shared.seed, &client)
 			.await
 			.expect("Provided account is invalid, terminating.")
 	};
