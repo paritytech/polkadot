@@ -223,6 +223,7 @@ impl OverseerGen for BackGarbageCandidate {
 				CandidateValidationSubsystem::with_config(
 					candidate_validation_config,
 					Metrics::register(registry)?,
+					polkadot_node_core_pvf::Metrics::register(registry)?,
 				),
 				BribedPassage::<Spawner> {
 					inner: Arc::new(Mutex::new(BribedPassageInner {

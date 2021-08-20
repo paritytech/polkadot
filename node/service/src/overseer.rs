@@ -189,7 +189,8 @@ where
 		),
 		candidate_validation: CandidateValidationSubsystem::with_config(
 			candidate_validation_config,
-			Metrics::register(registry)?,
+			Metrics::register(registry)?, // candidate-validation metrics
+			Metrics::register(registry)?, // validation host metrics
 		),
 		chain_api: ChainApiSubsystem::new(runtime_client.clone(), Metrics::register(registry)?),
 		collation_generation: CollationGenerationSubsystem::new(Metrics::register(registry)?),
