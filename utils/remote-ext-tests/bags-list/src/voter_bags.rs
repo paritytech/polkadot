@@ -47,13 +47,11 @@ pub(crate) async fn test_voter_bags_migration<
 	let mut ext = Builder::<Block>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: ws_url.to_string().into(),
-			modules: vec!["Staking".to_string(), "System".to_string()],
+			modules: vec!["Staking".to_string()],
 			at: None,
 			state_snapshot: None,
 		}))
 		.inject_hashed_key(well_known_keys::CODE)
-		// TODO: this query fails
-		// .inject_hashed_key(&[twox_128(b"System"), twox_128(b"SS58Prefix")].concat())
 		.build()
 		.await
 		.unwrap();
