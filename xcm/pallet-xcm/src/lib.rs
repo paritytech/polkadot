@@ -1,18 +1,18 @@
 // Copyright 2020-2021 Parity Technologies (UK) Ltd.
-// This file is part of Cumulus.
+// This file is part of Polkadot.
 
-// Cumulus is free software: you can redistribute it and/or modify
+// Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Cumulus is distributed in the hope that it will be useful,
+// Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Pallet to handle XCM messages.
 
@@ -106,6 +106,8 @@ pub mod pallet {
 		CannotReanchor,
 		/// Too many assets have been attempted for transfer.
 		TooManyAssets,
+		/// Origin is invalid for sending.
+		InvalidOrigin,
 	}
 
 	#[pallet::hooks]
@@ -120,12 +122,12 @@ pub mod pallet {
 			message: Box<Xcm<()>>,
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			Self::send_xcm(origin_location.clone(), *dest.clone(), *message.clone()).map_err(
-				|e| match e {
-					XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
-					_ => Error::<T>::SendFailure,
-				},
-			)?;
+			let interior =
+				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
+			Self::send_xcm(interior, *dest.clone(), *message.clone()).map_err(|e| match e {
+				XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
+				_ => Error::<T>::SendFailure,
+			})?;
 			Self::deposit_event(Event::Sent(origin_location, *dest, *message));
 			Ok(())
 		}
@@ -188,7 +190,6 @@ pub mod pallet {
 							weight: 0,
 							debt: dest_weight,
 							halt_on_error: false,
-							orders: vec![],
 							instructions: vec![],
 						},
 						DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
@@ -257,7 +258,6 @@ pub mod pallet {
 						weight: 0,
 						debt: dest_weight, // covers this, `TransferReserveAsset` xcm, and `DepositAsset` order.
 						halt_on_error: false,
-						orders: vec![],
 						instructions: vec![],
 					},
 					DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
@@ -302,11 +302,11 @@ pub mod pallet {
 		/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
 		/// location. A null `dest` is not handled.
 		pub fn send_xcm(
-			interior: MultiLocation,
+			interior: Junctions,
 			dest: MultiLocation,
 			message: Xcm<()>,
 		) -> Result<(), XcmError> {
-			let message = if interior.is_here() {
+			let message = if let Junctions::Here = interior {
 				message
 			} else {
 				Xcm::<()>::RelayedFrom { who: interior, message: Box::new(message) }

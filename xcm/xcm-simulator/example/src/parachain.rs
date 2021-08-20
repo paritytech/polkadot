@@ -19,7 +19,7 @@
 use codec::{Decode, Encode};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::Everything,
+	traits::{Everything, Nothing},
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use sp_core::H256;
@@ -169,8 +169,7 @@ pub mod mock_msg_queue {
 	#[pallet::storage]
 	#[pallet::getter(fn received_dmp)]
 	/// A queue of received DMP messages
-	pub(super) type ReceivedDmp<T: Config> =
-		StorageValue<_, Vec<(MultiLocation, Xcm<T::Call>)>, ValueQuery>;
+	pub(super) type ReceivedDmp<T: Config> = StorageValue<_, Vec<Xcm<T::Call>>, ValueQuery>;
 
 	impl<T: Config> Get<ParaId> for Pallet<T> {
 		fn get() -> ParaId {
@@ -273,7 +272,7 @@ pub mod mock_msg_queue {
 					},
 					Ok(Ok(x)) => {
 						let outcome = T::XcmExecutor::execute_xcm(Parent.into(), x.clone(), limit);
-						<ReceivedDmp<T>>::mutate(|y| y.push((Parent.into(), x)));
+						<ReceivedDmp<T>>::append(x);
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
 					},
 				}
@@ -297,7 +296,7 @@ impl pallet_xcm::Config for Runtime {
 	type ExecuteXcmOrigin = EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = ();
+	type XcmTeleportFilter = Nothing;
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
 	type LocationInverter = LocationInverter<Ancestry>;

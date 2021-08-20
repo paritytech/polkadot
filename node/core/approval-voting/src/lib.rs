@@ -502,6 +502,8 @@ impl ApprovalState {
 }
 
 struct CurrentlyCheckingSet {
+	/// Invariant: The contained `Vec` needs to stay sorted as we are using `binary_search_by_key`
+	/// on it.
 	candidate_hash_map: HashMap<CandidateHash, Vec<Hash>>,
 	currently_checking: FuturesUnordered<BoxFuture<'static, ApprovalState>>,
 }

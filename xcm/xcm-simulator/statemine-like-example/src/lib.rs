@@ -188,7 +188,6 @@ mod tests {
 			weight: 0,
 			debt,
 			halt_on_error: false,
-			orders: vec![],
 			instructions: vec![],
 		}
 	}
@@ -226,7 +225,7 @@ mod tests {
 				],
 			};
 			assert_ok!(KaruraPalletXcm::send_xcm(
-				Here.into(),
+				Here,
 				MultiLocation::parent(),
 				message.clone(),
 			));
@@ -289,7 +288,6 @@ mod tests {
 						weight,
 						debt: weight,
 						halt_on_error: false,
-						orders: vec![],
 						instructions: vec![Xcm::TransferReserveAsset {
 							assets: vec![(GeneralIndex(asset_id.into()), amount).into()].into(),
 							dest: MultiLocation::new(1, X1(Parachain(MOONRIVER_ID))),
@@ -303,7 +301,7 @@ mod tests {
 				]
 			};
 			assert_ok!(KaruraPalletXcm::send_xcm(
-				Here.into(),
+				Here,
 				MultiLocation::new(1, X1(Parachain(STATEMINE_ID))),
 				message.clone(),
 			));

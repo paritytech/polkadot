@@ -117,7 +117,6 @@ mod tests {
 			weight: 0,
 			debt,
 			halt_on_error: false,
-			orders: vec![],
 			instructions: vec![],
 		}
 	}
@@ -131,7 +130,7 @@ mod tests {
 		);
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
-				Here.into(),
+				Here,
 				Parachain(1).into(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -158,7 +157,7 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				Here.into(),
+				Here,
 				Parent.into(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -185,7 +184,7 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				Here.into(),
+				Here,
 				MultiLocation::new(1, X1(Parachain(2))),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
@@ -281,7 +280,7 @@ mod tests {
 				],
 			};
 			// Send withdraw and deposit
-			assert_ok!(ParachainPalletXcm::send_xcm(Here.into(), Parent.into(), message.clone()));
+			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent.into(), message.clone()));
 		});
 
 		Relay::execute_with(|| {
@@ -325,7 +324,7 @@ mod tests {
 				],
 			};
 			// Send withdraw and deposit with query holding
-			assert_ok!(ParachainPalletXcm::send_xcm(Here.into(), Parent.into(), message.clone(),));
+			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent.into(), message.clone(),));
 		});
 
 		// Check that transfer was executed
@@ -343,13 +342,10 @@ mod tests {
 		ParaA::execute_with(|| {
 			assert_eq!(
 				parachain::MsgQueue::received_dmp(),
-				vec![(
-					Parent.into(),
-					QueryResponse {
-						query_id: query_id_set,
-						response: Response::Assets(MultiAssets::new())
-					}
-				)]
+				vec![QueryResponse {
+					query_id: query_id_set,
+					response: Response::Assets(MultiAssets::new())
+				}]
 			);
 		});
 	}

@@ -147,6 +147,18 @@ pub type LocalAssetTransactor =
 pub type XcmRouter = super::ParachainXcmRouter<MsgQueue>;
 pub type Barrier = AllowUnpaidExecutionFrom<Everything>;
 
+use xcm_executor::traits::FilterAssetLocation;
+pub struct StatemineAsset;
+impl FilterAssetLocation for StatemineAsset {
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+		let statemine = Parachain(super::STATEMINE_ID).into_exterior(1);
+		origin == &statemine
+			&& matches!(asset.id, Concrete(ref id)
+				if id.match_and_split(&statemine).is_some()
+			)
+	}
+}
+
 pub struct XcmConfig;
 impl Config for XcmConfig {
 	type Call = Call;
@@ -308,7 +320,7 @@ impl pallet_xcm::Config for Runtime {
 	type ExecuteXcmOrigin = EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = ();
+	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
 	type LocationInverter = LocationInverter<Ancestry>;
