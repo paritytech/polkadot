@@ -28,11 +28,10 @@ use polkadot_primitives::v1::BlockNumber;
 use futures::{channel::oneshot, prelude::*};
 use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
-use sc_keystore::LocalKeystore;
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use sc_keystore::LocalKeystore;
 
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
-
 
 /// Candidate validation metrics placeholder.
 #[derive(Default, Clone)]
