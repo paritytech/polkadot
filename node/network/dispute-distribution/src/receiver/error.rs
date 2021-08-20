@@ -109,7 +109,7 @@ pub fn log_error(result: Result<()>) -> std::result::Result<(), Fatal> {
 		Err(Error::NonFatal(error @ NonFatal::ImportCanceled(_))) => {
 			tracing::debug!(target: LOG_TARGET, error = ?error);
 			Ok(())
-		}
+		},
 		Err(Error::NonFatal(error)) => {
 			tracing::warn!(target: LOG_TARGET, error = ?error);
 			Ok(())
