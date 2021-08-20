@@ -18,10 +18,7 @@
 
 #![warn(missing_docs)]
 
-use std::{
-	collections::{HashMap, VecDeque},
-	pin::Pin,
-};
+use std::{collections::{HashMap, VecDeque}, pin::Pin, time::Duration};
 
 use futures::{
 	channel::oneshot,
@@ -31,17 +28,12 @@ use futures::{
 	stream::FuturesUnordered,
 	task::{Context, Poll},
 };
+use futures_timer::Delay;
 use lru::LruCache;
 use rand::seq::SliceRandom;
 
 use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1, recovery_threshold};
-use polkadot_node_network_protocol::{
-	request_response::{
-		self as req_res, incoming, outgoing::RequestError, v1 as request_v1,
-		IncomingRequestReceiver, OutgoingRequest, Recipient, Requests,
-	},
-	IfDisconnected, UnifiedReputationChange as Rep,
-};
+use polkadot_node_network_protocol::{IfDisconnected, UnifiedReputationChange as Rep, request_response::{self as req_res, CHUNK_REQUEST_TIMEOUT, IncomingRequestReceiver, OutgoingRequest, Recipient, Requests, incoming, outgoing::RequestError, v1 as request_v1}};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util::request_session_info;
 use polkadot_primitives::v1::{
@@ -72,6 +64,17 @@ const LRU_SIZE: usize = 16;
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
 
+/// Time after which we consider a request to have failed 
+///
+/// and we should try more peers. Note in theory the rquest times out at the network level,
+/// measurements have shown, that in practice requests might actually take longer to fail in
+/// certain occasions. (The very least, authority discovery is not part of the timeout.)
+///
+/// For the time beeing this value is the same as the timeout on the networking layer, but as this
+/// timeout is more soft than the networking one, it might make sense to pick different values as
+/// well.
+const TIMEOUT_START_NEW_REQUESTS: Duration = CHUNK_REQUEST_TIMEOUT;
+
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem {
 	fast_path: bool,
@@ -86,6 +89,22 @@ struct RequestFromBackersPhase {
 }
 
 struct RequestChunksPhase {
+	/// How many request have been unsuccessful so far.
+	error_count: usize,
+	/// Total number of requests that have been started so far.
+	///
+	/// (including finished requests)
+	total_issued_requests: usize,
+	/// Triggers when we consider all still pending requests failed.
+	///
+	/// We don't actually cancel the requests in this case, so they might still return data, but we
+	/// will start additional requests in the hope that they will resolve faster.
+	next_timeout: Option<Delay>,
+	/// Number of the next launched request
+	///
+	/// Requests are numbered, so we can implement the soft timeout functionality. (Requests with
+	/// numbers smaller than `first_live_request` are considered 
+	next_req_number: usize,
 	// a random shuffling of the validators which indicates the order in which we connect to the validators and
 	// request the chunk from them.
 	shuffling: VecDeque<ValidatorIndex>,
@@ -214,7 +233,10 @@ impl RequestChunksPhase {
 		shuffling.shuffle(&mut rand::thread_rng());
 
 		RequestChunksPhase {
+			error_count: 0,
+			total_issued_requests: 0,
 			shuffling: shuffling.into(),
+			next_timeout: None,
 			received_chunks: HashMap::new(),
 			requesting_chunks: FuturesUnordered::new(),
 		}
@@ -238,8 +260,24 @@ impl RequestChunksPhase {
 		params: &InteractionParams,
 		sender: &mut impl SubsystemSender,
 	) {
-		let max_requests = std::cmp::min(N_PARALLEL, params.threshold);
-		while self.requesting_chunks.len() < max_requests {
+		// Upper bound for parallel requests.
+		// We want to limit this, so requests can be processed within the timeout and we limit the
+		// following feedback loop:
+		// 1. Requests fail due to timeout
+		// 2. We request more chunks to make up for it
+		// 3. Bandwidth is spread out even more, so we get even more timeouts
+		// 4. We request more chunks to make up for it ...
+		let max_requests_boundary = std::cmp::min(N_PARALLEL, params.threshold);
+		// How many chunks are still needed?
+		let remaining_chunks = params.threshold.saturating_sub(self.received_chunks.len());
+		// What is the current error rate, so we can make up for it?
+		let error_rate = self.error_count.checked_div(self.total_issued_requests).unwrap_or(0);
+		// Actual number of requests we want to have in flight in parallel:
+		let num_requests = std::cmp::min(max_requests_boundary,  remaining_chunks * (1 + error_rate));
+
+		let mut requests = Vec::with_capacity(num_requests - self.requesting_chunks.len());
+
+		while self.requesting_chunks.len() < num_requests {
 			if let Some(validator_index) = self.shuffling.pop_back() {
 				let validator = params.validator_authority_keys[validator_index.0 as usize].clone();
 				tracing::trace!(
@@ -258,16 +296,7 @@ impl RequestChunksPhase {
 
 				let (req, res) =
 					OutgoingRequest::new(Recipient::Authority(validator), raw_request.clone());
-
-				sender
-					.send_message(
-						NetworkBridgeMessage::SendRequests(
-							vec![Requests::ChunkFetching(req)],
-							IfDisconnected::TryConnect,
-						)
-						.into(),
-					)
-					.await;
+				requests.push(Requests::ChunkFetching(req));
 
 				self.requesting_chunks.push(Box::pin(async move {
 					match res.await {
@@ -281,6 +310,16 @@ impl RequestChunksPhase {
 				break
 			}
 		}
+
+		sender
+			.send_message(
+				NetworkBridgeMessage::SendRequests(
+					requests,
+					IfDisconnected::TryConnect,
+				)
+				.into(),
+			)
+			.await;
 	}
 
 	async fn wait_for_chunks(&mut self, params: &InteractionParams) {
