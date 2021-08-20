@@ -332,7 +332,7 @@ where
 	///
 	/// It will also constrain the chain to only chains which are fully
 	/// approved, and chains which contain no disputes.
-	pub async fn finality_target_with_fallback(
+	async fn finality_target_with_fallback(
 		&self,
 		target_hash: Hash,
 		best_leaf: Option<Hash>,
