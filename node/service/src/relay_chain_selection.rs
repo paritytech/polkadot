@@ -455,7 +455,7 @@ where
 		};
 
 		// 4. Apply the maximum safeguard to the finality lag.
-		if lag < MAX_FINALITY_LAG {
+		if lag > MAX_FINALITY_LAG {
 			// We need to constrain our vote as a safety net to
 			// ensure the network continues to finalize.
 			let safe_target = initial_leaf_number - MAX_FINALITY_LAG;
