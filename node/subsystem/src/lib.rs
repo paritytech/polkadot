@@ -21,15 +21,14 @@
 #![deny(missing_docs)]
 #![deny(unused_crate_dependencies)]
 
-pub use polkadot_node_jaeger as jaeger;
 pub use jaeger::*;
+pub use polkadot_node_jaeger as jaeger;
 
-pub use polkadot_overseer::{OverseerSignal, ActiveLeavesUpdate, self as overseer};
+pub use polkadot_overseer::{self as overseer, ActiveLeavesUpdate, OverseerSignal};
 
 pub use polkadot_node_subsystem_types::{
 	errors::{self, *},
-	ActivatedLeaf,
-	LeafStatus,
+	ActivatedLeaf, LeafStatus,
 };
 
 /// Re-export of all messages type, including the wrapper type.
@@ -46,29 +45,28 @@ pub type SubsystemResult<T> = Result<T, SubsystemError>;
 // Simplify usage without having to do large scale modifications of all
 // subsystems at once.
 
-
 /// Specialized message type originating from the overseer.
 pub type FromOverseer<M> = polkadot_overseer::gen::FromOverseer<M, OverseerSignal>;
 
 /// Specialized subsystem instance type of subsystems consuming a particular message type.
-pub type SubsystemInstance<Message> = polkadot_overseer::gen::SubsystemInstance<Message, OverseerSignal>;
+pub type SubsystemInstance<Message> =
+	polkadot_overseer::gen::SubsystemInstance<Message, OverseerSignal>;
 
 /// Sender trait for the `AllMessages` wrapper.
-pub trait SubsystemSender: polkadot_overseer::gen::SubsystemSender<messages::AllMessages> {
-}
+pub trait SubsystemSender: polkadot_overseer::gen::SubsystemSender<messages::AllMessages> {}
 
-impl<T> SubsystemSender for T where T: polkadot_overseer::gen::SubsystemSender<messages::AllMessages> {
-}
+impl<T> SubsystemSender for T where T: polkadot_overseer::gen::SubsystemSender<messages::AllMessages>
+{}
 
 /// Spawned subsystem.
 pub type SpawnedSubsystem = polkadot_overseer::gen::SpawnedSubsystem<SubsystemError>;
 
-
 /// Convenience trait specialization.
-pub trait SubsystemContext: polkadot_overseer::gen::SubsystemContext<
-	Signal=OverseerSignal,
-	AllMessages=messages::AllMessages,
-	Error=SubsystemError,
+pub trait SubsystemContext:
+	polkadot_overseer::gen::SubsystemContext<
+	Signal = OverseerSignal,
+	AllMessages = messages::AllMessages,
+	Error = SubsystemError,
 >
 {
 	/// The message type the subsystem consumes.
@@ -80,9 +78,9 @@ pub trait SubsystemContext: polkadot_overseer::gen::SubsystemContext<
 impl<T> SubsystemContext for T
 where
 	T: polkadot_overseer::gen::SubsystemContext<
-		Signal=OverseerSignal,
-		AllMessages=messages::AllMessages,
-		Error=SubsystemError,
+		Signal = OverseerSignal,
+		AllMessages = messages::AllMessages,
+		Error = SubsystemError,
 	>,
 {
 	type Message = <Self as polkadot_overseer::gen::SubsystemContext>::Message;

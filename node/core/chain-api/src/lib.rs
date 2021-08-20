@@ -40,9 +40,7 @@ use sp_blockchain::HeaderBackend;
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Block, BlockId};
 use polkadot_subsystem::{
-	overseer,
-	messages::ChainApiMessage,
-	FromOverseer, OverseerSignal, SpawnedSubsystem,
+	messages::ChainApiMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	SubsystemContext, SubsystemError, SubsystemResult,
 };
 
@@ -60,10 +58,7 @@ pub struct ChainApiSubsystem<Client> {
 impl<Client> ChainApiSubsystem<Client> {
 	/// Create a new Chain API subsystem with the given client.
 	pub fn new(client: Arc<Client>, metrics: Metrics) -> Self {
-		ChainApiSubsystem {
-			client,
-			metrics,
-		}
+		ChainApiSubsystem { client, metrics }
 	}
 }
 
@@ -77,10 +72,7 @@ where
 		let future = run::<Client, Context>(ctx, self)
 			.map_err(|e| SubsystemError::with_origin("chain-api", e))
 			.boxed();
-		SpawnedSubsystem {
-			future,
-			name: "chain-api-subsystem",
-		}
+		SpawnedSubsystem { future, name: "chain-api-subsystem" }
 	}
 }
 
@@ -107,7 +99,8 @@ where
 				},
 				ChainApiMessage::BlockHeader(hash, response_channel) => {
 					let _timer = subsystem.metrics.time_block_header();
-					let result = subsystem.client
+					let result = subsystem
+						.client
 						.header(BlockId::Hash(hash))
 						.map_err(|e| e.to_string().into());
 					subsystem.metrics.on_request(result.is_ok());
@@ -119,7 +112,7 @@ where
 						.map_err(|e| e.to_string().into());
 					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
-				}
+				},
 				ChainApiMessage::FinalizedBlockHash(number, response_channel) => {
 					let _timer = subsystem.metrics.time_finalized_block_hash();
 					// Note: we don't verify it's finalized
@@ -158,7 +151,7 @@ where
 									hash = header.parent_hash;
 									Some(Ok(hash))
 								}
-							}
+							},
 						}
 					});
 
@@ -166,7 +159,7 @@ where
 					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
 				},
-			}
+			},
 		}
 	}
 }
@@ -218,7 +211,9 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `finalized_block_number` which observes on drop.
-	fn time_finalized_block_number(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	fn time_finalized_block_number(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.finalized_block_number.start_timer())
 	}
 
@@ -242,57 +237,45 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			block_number: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_chain_api_block_number",
-						"Time spent within `chain_api::block_number`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_chain_api_block_number",
+					"Time spent within `chain_api::block_number`",
+				))?,
 				registry,
 			)?,
 			block_header: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_chain_api_block_headers",
-						"Time spent within `chain_api::block_headers`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_chain_api_block_headers",
+					"Time spent within `chain_api::block_headers`",
+				))?,
 				registry,
 			)?,
 			block_weight: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_chain_api_block_weight",
-						"Time spent within `chain_api::block_weight`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_chain_api_block_weight",
+					"Time spent within `chain_api::block_weight`",
+				))?,
 				registry,
 			)?,
 			finalized_block_hash: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_chain_api_finalized_block_hash",
-						"Time spent within `chain_api::finalized_block_hash`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_chain_api_finalized_block_hash",
+					"Time spent within `chain_api::finalized_block_hash`",
+				))?,
 				registry,
 			)?,
 			finalized_block_number: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_chain_api_finalized_block_number",
-						"Time spent within `chain_api::finalized_block_number`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_chain_api_finalized_block_number",
+					"Time spent within `chain_api::finalized_block_number`",
+				))?,
 				registry,
 			)?,
 			ancestors: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_chain_api_ancestors",
-						"Time spent within `chain_api::ancestors`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_chain_api_ancestors",
+					"Time spent within `chain_api::ancestors`",
+				))?,
 				registry,
 			)?,
 		};

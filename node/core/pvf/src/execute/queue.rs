@@ -16,35 +16,33 @@
 
 //! A queue that handles requests for PVF execution.
 
-use crate::{
-	worker_common::{IdleWorker, WorkerHandle},
-	host::ResultSender,
-	LOG_TARGET, InvalidCandidate, ValidationError,
-};
 use super::worker::Outcome;
-use std::{collections::VecDeque, fmt, time::Duration};
+use crate::{
+	artifacts::{ArtifactId, ArtifactPathId},
+	host::ResultSender,
+	metrics::Metrics,
+	worker_common::{IdleWorker, WorkerHandle},
+	InvalidCandidate, ValidationError, LOG_TARGET,
+};
+use async_std::path::PathBuf;
 use futures::{
-	Future, FutureExt,
 	channel::mpsc,
 	future::BoxFuture,
 	stream::{FuturesUnordered, StreamExt as _},
+	Future, FutureExt,
 };
-use async_std::path::PathBuf;
 use slotmap::HopSlotMap;
+use std::{collections::VecDeque, fmt, time::Duration};
 
 slotmap::new_key_type! { struct Worker; }
 
 #[derive(Debug)]
 pub enum ToQueue {
-	Enqueue {
-		artifact_path: PathBuf,
-		params: Vec<u8>,
-		result_tx: ResultSender,
-	},
+	Enqueue { artifact: ArtifactPathId, params: Vec<u8>, result_tx: ResultSender },
 }
 
 struct ExecuteJob {
-	artifact_path: PathBuf,
+	artifact: ArtifactPathId,
 	params: Vec<u8>,
 	result_tx: ResultSender,
 }
@@ -86,22 +84,20 @@ impl Workers {
 	///
 	/// Returns `None` if either worker is not recognized or idle token is absent.
 	fn claim_idle(&mut self, worker: Worker) -> Option<IdleWorker> {
-		self
-			.running
-			.get_mut(worker)?
-			.idle
-			.take()
+		self.running.get_mut(worker)?.idle.take()
 	}
 }
 
 enum QueueEvent {
-	Spawn((IdleWorker, WorkerHandle)),
-	StartWork(Worker, Outcome, ResultSender),
+	Spawn(IdleWorker, WorkerHandle),
+	StartWork(Worker, Outcome, ArtifactId, ResultSender),
 }
 
 type Mux = FuturesUnordered<BoxFuture<'static, QueueEvent>>;
 
 struct Queue {
+	metrics: Metrics,
+
 	/// The receiver that receives messages to the pool.
 	to_queue_rx: mpsc::Receiver<ToQueue>,
 
@@ -116,12 +112,14 @@ struct Queue {
 
 impl Queue {
 	fn new(
+		metrics: Metrics,
 		program_path: PathBuf,
 		worker_capacity: usize,
 		spawn_timeout: Duration,
 		to_queue_rx: mpsc::Receiver<ToQueue>,
 	) -> Self {
 		Self {
+			metrics,
 			program_path,
 			spawn_timeout,
 			to_queue_rx,
@@ -148,12 +146,12 @@ impl Queue {
 				ev = self.mux.select_next_some() => handle_mux(&mut self, ev).await,
 			}
 
-			purge_dead(&mut self.workers).await;
+			purge_dead(&self.metrics, &mut self.workers).await;
 		}
 	}
 }
 
-async fn purge_dead(workers: &mut Workers) {
+async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 	let mut to_remove = vec![];
 	for (worker, data) in workers.running.iter_mut() {
 		if futures::poll!(&mut data.handle).is_ready() {
@@ -162,22 +160,21 @@ async fn purge_dead(workers: &mut Workers) {
 		}
 	}
 	for w in to_remove {
-		let _ = workers.running.remove(w);
+		if workers.running.remove(w).is_some() {
+			metrics.execute_worker().on_retired();
+		}
 	}
 }
 
 fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
-	let ToQueue::Enqueue {
-		artifact_path,
-		params,
-		result_tx,
-	} = to_queue;
-
-	let job = ExecuteJob {
-		artifact_path,
-		params,
-		result_tx,
-	};
+	let ToQueue::Enqueue { artifact, params, result_tx } = to_queue;
+	tracing::debug!(
+		target: LOG_TARGET,
+		validation_code_hash = ?artifact.id.code_hash,
+		"enqueueing an artifact for execution",
+	);
+	queue.metrics.execute_enqueued();
+	let job = ExecuteJob { artifact, params, result_tx };
 
 	if let Some(available) = queue.workers.find_available() {
 		assign(queue, available, job);
@@ -191,61 +188,63 @@ fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
 
 async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
 	match event {
-		QueueEvent::Spawn((idle, handle)) => {
-			queue.workers.spawn_inflight -= 1;
+		QueueEvent::Spawn(idle, handle) => {
+			handle_worker_spawned(queue, idle, handle);
+		},
+		QueueEvent::StartWork(worker, outcome, artifact_id, result_tx) => {
+			handle_job_finish(queue, worker, outcome, artifact_id, result_tx);
+		},
+	}
+}
 
-			let worker = queue.workers.running.insert(WorkerData {
-				idle: Some(idle),
-				handle,
-			});
+fn handle_worker_spawned(queue: &mut Queue, idle: IdleWorker, handle: WorkerHandle) {
+	queue.metrics.execute_worker().on_spawned();
+	queue.workers.spawn_inflight -= 1;
+	let worker = queue.workers.running.insert(WorkerData { idle: Some(idle), handle });
 
-			if let Some(job) = queue.queue.pop_front() {
-				assign(queue, worker, job);
-			}
-		}
-		QueueEvent::StartWork(worker, outcome, result_tx) => {
-			handle_job_finish(queue, worker, outcome, result_tx);
-		}
+	tracing::debug!(target: LOG_TARGET, ?worker, "execute worker spawned");
+
+	if let Some(job) = queue.queue.pop_front() {
+		assign(queue, worker, job);
 	}
 }
 
 /// If there are pending jobs in the queue, schedules the next of them onto the just freed up
 /// worker. Otherwise, puts back into the available workers list.
-fn handle_job_finish(queue: &mut Queue, worker: Worker, outcome: Outcome, result_tx: ResultSender) {
+fn handle_job_finish(
+	queue: &mut Queue,
+	worker: Worker,
+	outcome: Outcome,
+	artifact_id: ArtifactId,
+	result_tx: ResultSender,
+) {
 	let (idle_worker, result) = match outcome {
-		Outcome::Ok {
-			result_descriptor,
-			duration_ms,
-			idle_worker,
-		} => {
+		Outcome::Ok { result_descriptor, duration_ms, idle_worker } => {
 			// TODO: propagate the soft timeout
 			drop(duration_ms);
 
 			(Some(idle_worker), Ok(result_descriptor))
-		}
+		},
 		Outcome::InvalidCandidate { err, idle_worker } => (
 			Some(idle_worker),
-			Err(ValidationError::InvalidCandidate(
-				InvalidCandidate::WorkerReportedError(err),
-			)),
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(err))),
 		),
-		Outcome::InternalError { err, idle_worker } => (
-			Some(idle_worker),
-			Err(ValidationError::InternalError(err)),
-		),
-		Outcome::HardTimeout => (
-			None,
-			Err(ValidationError::InvalidCandidate(
-				InvalidCandidate::HardTimeout,
-			)),
-		),
-		Outcome::IoErr => (
-			None,
-			Err(ValidationError::InvalidCandidate(
-				InvalidCandidate::AmbigiousWorkerDeath,
-			)),
-		),
+		Outcome::InternalError { err, idle_worker } =>
+			(Some(idle_worker), Err(ValidationError::InternalError(err))),
+		Outcome::HardTimeout =>
+			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout))),
+		Outcome::IoErr =>
+			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath))),
 	};
+
+	queue.metrics.execute_finished();
+	tracing::debug!(
+		target: LOG_TARGET,
+		validation_code_hash = ?artifact_id.code_hash,
+		worker_rip = idle_worker.is_none(),
+		?result,
+		"job finished.",
+	);
 
 	// First we send the result. It may fail due the other end of the channel being dropped, that's
 	// legitimate and we don't treat that as an error.
@@ -268,7 +267,9 @@ fn handle_job_finish(queue: &mut Queue, worker: Worker, outcome: Outcome, result
 		}
 	} else {
 		// Note it's possible that the worker was purged already by `purge_dead`
-		queue.workers.running.remove(worker);
+		if queue.workers.running.remove(worker).is_some() {
+			queue.metrics.execute_worker().on_retired();
+		}
 
 		if !queue.queue.is_empty() {
 			// The worker has died and we still have work we have to do. Request an extra worker.
@@ -280,6 +281,9 @@ fn handle_job_finish(queue: &mut Queue, worker: Worker, outcome: Outcome, result
 }
 
 fn spawn_extra_worker(queue: &mut Queue) {
+	queue.metrics.execute_worker().on_begin_spawn();
+	tracing::debug!(target: LOG_TARGET, "spawning an extra worker");
+
 	queue
 		.mux
 		.push(spawn_worker_task(queue.program_path.clone(), queue.spawn_timeout).boxed());
@@ -291,17 +295,13 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Qu
 
 	loop {
 		match super::worker::spawn(&program_path, spawn_timeout).await {
-			Ok((idle, handle)) => break QueueEvent::Spawn((idle, handle)),
+			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle),
 			Err(err) => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"failed to spawn an execute worker: {:?}",
-					err,
-				);
+				tracing::warn!(target: LOG_TARGET, "failed to spawn an execute worker: {:?}", err);
 
 				// Assume that the failure intermittent and retry after a delay.
 				Delay::new(Duration::from_secs(3)).await;
-			}
+			},
 		}
 	}
 }
@@ -310,35 +310,36 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Qu
 ///
 /// The worker must be running and idle.
 fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
-	let idle = queue
-		.workers
-		.claim_idle(worker)
-		.expect(
-			"this caller must supply a worker which is idle and running;
+	tracing::debug!(
+		target: LOG_TARGET,
+		validation_code_hash = ?job.artifact.id,
+		?worker,
+		"assigning the execute worker",
+	);
+
+	let idle = queue.workers.claim_idle(worker).expect(
+		"this caller must supply a worker which is idle and running;
 			thus claim_idle cannot return None;
-			qed."
-		);
+			qed.",
+	);
+	let execution_timer = queue.metrics.time_execution();
 	queue.mux.push(
 		async move {
-			let outcome = super::worker::start_work(idle, job.artifact_path, job.params).await;
-			QueueEvent::StartWork(worker, outcome, job.result_tx)
+			let _timer = execution_timer;
+			let outcome = super::worker::start_work(idle, job.artifact.clone(), job.params).await;
+			QueueEvent::StartWork(worker, outcome, job.artifact.id, job.result_tx)
 		}
 		.boxed(),
 	);
 }
 
 pub fn start(
+	metrics: Metrics,
 	program_path: PathBuf,
 	worker_capacity: usize,
 	spawn_timeout: Duration,
 ) -> (mpsc::Sender<ToQueue>, impl Future<Output = ()>) {
 	let (to_queue_tx, to_queue_rx) = mpsc::channel(20);
-	let run = Queue::new(
-		program_path,
-		worker_capacity,
-		spawn_timeout,
-		to_queue_rx,
-	)
-	.run();
+	let run = Queue::new(metrics, program_path, worker_capacity, spawn_timeout, to_queue_rx).run();
 	(to_queue_tx, run)
 }

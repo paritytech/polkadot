@@ -52,7 +52,8 @@ pub(crate) fn impl_overseer_struct(info: &OverseerInfo) -> proc_macro2::TokenStr
 	let message_channel_capacity = info.message_channel_capacity;
 	let signal_channel_capacity = info.signal_channel_capacity;
 
-	let log_target = syn::LitStr::new(overseer_name.to_string().to_lowercase().as_str(), overseer_name.span());
+	let log_target =
+		syn::LitStr::new(overseer_name.to_string().to_lowercase().as_str(), overseer_name.span());
 
 	let ts = quote! {
 		const STOP_DELAY: ::std::time::Duration = ::std::time::Duration::from_secs(1);

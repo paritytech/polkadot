@@ -16,18 +16,19 @@
 
 use super::*;
 
-use polkadot_primitives::v1::{
-	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
-	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
-	CommittedCandidateReceipt, CandidateEvent, InboundDownwardMessage,
-	InboundHrmpMessage, SessionInfo, AuthorityDiscoveryId, ValidationCodeHash,
-};
-use polkadot_node_subsystem_test_helpers as test_helpers;
-use sp_core::testing::TaskExecutor;
-use std::{collections::{HashMap, BTreeMap}, sync::{Arc, Mutex}};
 use futures::channel::oneshot;
-use polkadot_node_primitives::{
-	BabeEpoch, BabeEpochConfiguration, BabeAllowedSlots,
+use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
+use polkadot_node_subsystem_test_helpers as test_helpers;
+use polkadot_primitives::v1::{
+	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, GroupRotationInfo,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
+	PersistedValidationData, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex,
+};
+use sp_core::testing::TaskExecutor;
+use std::{
+	collections::{BTreeMap, HashMap},
+	sync::{Arc, Mutex},
 };
 
 #[derive(Default, Clone)]
@@ -201,9 +202,11 @@ fn requests_authorities() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(relay_parent, Request::Authorities(tx))
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::Authorities(tx)),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.authorities);
 
@@ -225,9 +228,11 @@ fn requests_validators() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(relay_parent, Request::Validators(tx))
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::Validators(tx)),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validators);
 
@@ -249,9 +254,11 @@ fn requests_validator_groups() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(relay_parent, Request::ValidatorGroups(tx))
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::ValidatorGroups(tx)),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap().0, runtime_api.validator_groups);
 
@@ -273,9 +280,11 @@ fn requests_availability_cores() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx))
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx)),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.availability_cores);
 
@@ -302,22 +311,26 @@ fn requests_persisted_validation_data() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(
-				relay_parent,
-				Request::PersistedValidationData(para_a, OccupiedCoreAssumption::Included, tx)
-			),
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::PersistedValidationData(para_a, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
 
 		let (tx, rx) = oneshot::channel();
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(
-				relay_parent,
-				Request::PersistedValidationData(para_b, OccupiedCoreAssumption::Included, tx)
-			),
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::PersistedValidationData(para_b, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), None);
 
@@ -347,36 +360,26 @@ fn requests_check_validation_outputs() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(
-				relay_parent,
-				Request::CheckValidationOutputs(
-					para_a,
-					commitments.clone(),
-					tx,
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::CheckValidationOutputs(para_a, commitments.clone(), tx),
 				),
-			)
-		}).await;
-		assert_eq!(
-			rx.await.unwrap().unwrap(),
-			runtime_api.validation_outputs_results[&para_a],
-		);
+			})
+			.await;
+		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validation_outputs_results[&para_a]);
 
 		let (tx, rx) = oneshot::channel();
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(
-				relay_parent,
-				Request::CheckValidationOutputs(
-					para_b,
-					commitments,
-					tx,
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::CheckValidationOutputs(para_b, commitments, tx),
 				),
-			)
-		}).await;
-		assert_eq!(
-			rx.await.unwrap().unwrap(),
-			runtime_api.validation_outputs_results[&para_b],
-		);
+			})
+			.await;
+		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validation_outputs_results[&para_b]);
 
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
@@ -396,9 +399,11 @@ fn requests_session_index_for_child() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(relay_parent, Request::SessionIndexForChild(tx))
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::SessionIndexForChild(tx)),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.session_index_for_child);
 
@@ -424,9 +429,14 @@ fn requests_session_info() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(relay_parent, Request::SessionInfo(session_index, tx))
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::SessionInfo(session_index, tx),
+				),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
 
@@ -454,22 +464,26 @@ fn requests_validation_code() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(
-				relay_parent,
-				Request::ValidationCode(para_a, OccupiedCoreAssumption::Included, tx)
-			),
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCode(para_a, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
 
 		let (tx, rx) = oneshot::channel();
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(
-				relay_parent,
-				Request::ValidationCode(para_b, OccupiedCoreAssumption::Included, tx)
-			),
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCode(para_b, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), None);
 
@@ -496,23 +510,27 @@ fn requests_candidate_pending_availability() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(
-				relay_parent,
-				Request::CandidatePendingAvailability(para_a, tx),
-			)
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::CandidatePendingAvailability(para_a, tx),
+				),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
 
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(
-				relay_parent,
-				Request::CandidatePendingAvailability(para_b, tx),
-			)
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::CandidatePendingAvailability(para_b, tx),
+				),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), None);
 
@@ -534,9 +552,11 @@ fn requests_candidate_events() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(relay_parent, Request::CandidateEvents(tx))
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::CandidateEvents(tx)),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.candidate_events);
 
@@ -561,10 +581,7 @@ fn requests_dmq_contents() {
 		runtime_api.dmq_contents.insert(para_a, vec![]);
 		runtime_api.dmq_contents.insert(
 			para_b,
-			vec![InboundDownwardMessage {
-				sent_at: 228,
-				msg: b"Novus Ordo Seclorum".to_vec(),
-			}],
+			vec![InboundDownwardMessage { sent_at: 228, msg: b"Novus Ordo Seclorum".to_vec() }],
 		);
 
 		runtime_api
@@ -589,15 +606,10 @@ fn requests_dmq_contents() {
 			.await;
 		assert_eq!(
 			rx.await.unwrap().unwrap(),
-			vec![InboundDownwardMessage {
-				sent_at: 228,
-				msg: b"Novus Ordo Seclorum".to_vec(),
-			}]
+			vec![InboundDownwardMessage { sent_at: 228, msg: b"Novus Ordo Seclorum".to_vec() }]
 		);
 
-		ctx_handle
-			.send(FromOverseer::Signal(OverseerSignal::Conclude))
-			.await;
+		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
 	futures::executor::block_on(future::join(subsystem_task, test_task));
 }
@@ -614,13 +626,7 @@ fn requests_inbound_hrmp_channels_contents() {
 
 	let para_b_inbound_channels = [
 		(para_a, vec![]),
-		(
-			para_c,
-			vec![InboundHrmpMessage {
-				sent_at: 1,
-				data: "𝙀=𝙈𝘾²".as_bytes().to_owned(),
-			}],
-		),
+		(para_c, vec![InboundHrmpMessage { sent_at: 1, data: "𝙀=𝙈𝘾²".as_bytes().to_owned() }]),
 	]
 	.iter()
 	.cloned()
@@ -630,9 +636,7 @@ fn requests_inbound_hrmp_channels_contents() {
 		let mut runtime_api = MockRuntimeApi::default();
 
 		runtime_api.hrmp_channels.insert(para_a, BTreeMap::new());
-		runtime_api
-			.hrmp_channels
-			.insert(para_b, para_b_inbound_channels.clone());
+		runtime_api.hrmp_channels.insert(para_b, para_b_inbound_channels.clone());
 
 		runtime_api
 	});
@@ -660,11 +664,9 @@ fn requests_inbound_hrmp_channels_contents() {
 				),
 			})
 			.await;
-		assert_eq!(rx.await.unwrap().unwrap(), para_b_inbound_channels,);
+		assert_eq!(rx.await.unwrap().unwrap(), para_b_inbound_channels);
 
-		ctx_handle
-			.send(FromOverseer::Signal(OverseerSignal::Conclude))
-			.await;
+		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
 	futures::executor::block_on(future::join(subsystem_task, test_task));
 }
@@ -680,10 +682,7 @@ fn requests_validation_code_by_hash() {
 
 		for n in 0..5 {
 			let code = ValidationCode::from(vec![n; 32]);
-			runtime_api.validation_code_by_hash.insert(
-				code.hash(),
-				code.clone(),
-			);
+			runtime_api.validation_code_by_hash.insert(code.hash(), code.clone());
 			validation_code.push(code);
 		}
 
@@ -697,12 +696,14 @@ fn requests_validation_code_by_hash() {
 	let test_task = async move {
 		for code in validation_code {
 			let (tx, rx) = oneshot::channel();
-			ctx_handle.send(FromOverseer::Communication {
-				msg: RuntimeApiMessage::Request(
-					relay_parent,
-					Request::ValidationCodeByHash(code.hash(), tx),
-				)
-			}).await;
+			ctx_handle
+				.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(
+						relay_parent,
+						Request::ValidationCodeByHash(code.hash(), tx),
+					),
+				})
+				.await;
 
 			assert_eq!(rx.await.unwrap().unwrap(), Some(code));
 		}
@@ -732,9 +733,11 @@ fn multiple_requests_in_parallel_are_working() {
 		for _ in 0..MAX_PARALLEL_REQUESTS * 10 {
 			let (tx, rx) = oneshot::channel();
 
-			ctx_handle.send(FromOverseer::Communication {
-				msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx))
-			}).await;
+			ctx_handle
+				.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx)),
+				})
+				.await;
 
 			receivers.push(rx);
 		}
@@ -763,10 +766,7 @@ fn request_babe_epoch() {
 		duration: 10,
 		authorities: Vec::new(),
 		randomness: [1u8; 32],
-		config: BabeEpochConfiguration {
-			c: (1, 4),
-			allowed_slots: BabeAllowedSlots::PrimarySlots,
-		},
+		config: BabeEpochConfiguration { c: (1, 4), allowed_slots: BabeAllowedSlots::PrimarySlots },
 	};
 	runtime_api.babe_epoch = Some(epoch.clone());
 	let runtime_api = Arc::new(runtime_api);
@@ -778,9 +778,11 @@ fn request_babe_epoch() {
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
-		ctx_handle.send(FromOverseer::Communication {
-			msg: RuntimeApiMessage::Request(relay_parent, Request::CurrentBabeEpoch(tx))
-		}).await;
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::CurrentBabeEpoch(tx)),
+			})
+			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), epoch);
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;

@@ -84,12 +84,13 @@
 //! ```
 
 use parity_scale_codec::Encode;
-use polkadot_primitives::v1::{BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, ValidatorIndex};
 use polkadot_node_primitives::PoV;
+use polkadot_primitives::v1::{
+	BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, ValidatorIndex,
+};
 use sc_network::PeerId;
 
-use std::fmt;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use super::INSTANCE;
 
@@ -240,7 +241,10 @@ impl Span {
 	/// Creates a new span builder based on anything that can be lazily evaluated
 	/// to and identifier.
 	pub fn new<I: LazyIdent>(identifier: I, span_name: &'static str) -> Span {
-		let mut span = INSTANCE.read_recursive().span(|| <I as LazyIdent>::eval(&identifier), span_name).into();
+		let mut span = INSTANCE
+			.read_recursive()
+			.span(|| <I as LazyIdent>::eval(&identifier), span_name)
+			.into();
 		<I as LazyIdent>::extra_tags(&identifier, &mut span);
 		span
 	}
@@ -349,8 +353,9 @@ impl Span {
 	#[inline(always)]
 	pub fn add_follows_from(&mut self, other: &Self) {
 		match (self, other) {
-			(Self::Enabled(ref mut inner), Self::Enabled(ref other_inner)) => inner.add_follows_from(&other_inner),
-			_ => {}
+			(Self::Enabled(ref mut inner), Self::Enabled(ref other_inner)) =>
+				inner.add_follows_from(&other_inner),
+			_ => {},
 		}
 	}
 
@@ -372,29 +377,30 @@ impl Span {
 	pub fn add_string_tag<V: ToString>(&mut self, tag: &'static str, val: V) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, val.to_string().as_str()),
-			Self::Disabled => {}
+			Self::Disabled => {},
 		}
 	}
 
 	/// Add a string tag, without consuming the span.
 	pub fn add_string_fmt_debug_tag<V: fmt::Debug>(&mut self, tag: &'static str, val: V) {
 		match self {
-			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, format!("{:?}", val).as_str()),
-			Self::Disabled => {}
+			Self::Enabled(ref mut inner) =>
+				inner.add_string_tag(tag, format!("{:?}", val).as_str()),
+			Self::Disabled => {},
 		}
 	}
 
 	pub fn add_int_tag(&mut self, tag: &'static str, value: i64) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
-			Self::Disabled => {}
+			Self::Disabled => {},
 		}
 	}
 
 	pub fn add_uint_tag(&mut self, tag: &'static str, value: u64) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value as i64),
-			Self::Disabled => {}
+			Self::Disabled => {},
 		}
 	}
 

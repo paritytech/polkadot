@@ -23,17 +23,25 @@ use bp_messages::{
 	target_chain::{ProvedMessages, SourceHeaderChain},
 	InboundLaneData, LaneId, Message, MessageNonce,
 };
-use bp_rococo::{EXTRA_STORAGE_PROOF_SIZE, MAXIMAL_ENCODED_ACCOUNT_ID_SIZE, max_extrinsic_size, max_extrinsic_weight};
-use bp_runtime::{ROCOCO_CHAIN_ID, WOCOCO_CHAIN_ID, ChainId};
-use bridge_runtime_common::messages::{
-	BridgedChainWithMessages, ChainWithMessages, MessageBridge, MessageTransaction, ThisChainWithMessages,
-	source as messages_source, target as messages_target,
+use bp_rococo::{
+	max_extrinsic_size, max_extrinsic_weight, EXTRA_STORAGE_PROOF_SIZE,
+	MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
 };
-use frame_support::{traits::Get, weights::{Weight, WeightToFeePolynomial}, RuntimeDebug};
+use bp_runtime::{ChainId, ROCOCO_CHAIN_ID, WOCOCO_CHAIN_ID};
+use bridge_runtime_common::messages::{
+	source as messages_source, target as messages_target, BridgedChainWithMessages,
+	ChainWithMessages, MessageBridge, MessageTransaction, ThisChainWithMessages,
+};
+use frame_support::{
+	traits::Get,
+	weights::{Weight, WeightToFeePolynomial},
+	RuntimeDebug,
+};
 use sp_std::{convert::TryFrom, marker::PhantomData, ops::RangeInclusive};
 
 /// Maximal number of pending outbound messages.
-const MAXIMAL_PENDING_MESSAGES_AT_OUTBOUND_LANE: MessageNonce = bp_rococo::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE;
+const MAXIMAL_PENDING_MESSAGES_AT_OUTBOUND_LANE: MessageNonce =
+	bp_rococo::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE;
 /// Maximal weight of single message delivery confirmation transaction on Rococo/Wococo chain.
 ///
 /// This value is a result of `pallet_bridge_messages::Pallet::receive_messages_delivery_proof` weight formula
@@ -64,16 +72,20 @@ const PAY_INBOUND_DISPATCH_FEE_WEIGHT: Weight = 600_000_000;
 const TX_EXTRA_BYTES: u32 = 130;
 
 /// Rococo chain as it is seen at Rococo.
-pub type RococoAtRococo = RococoLikeChain<AtRococoWithWococoMessageBridge, crate::RococoGrandpaInstance>;
+pub type RococoAtRococo =
+	RococoLikeChain<AtRococoWithWococoMessageBridge, crate::RococoGrandpaInstance>;
 
 /// Rococo chain as it is seen at Wococo.
-pub type RococoAtWococo = RococoLikeChain<AtWococoWithRococoMessageBridge, crate::RococoGrandpaInstance>;
+pub type RococoAtWococo =
+	RococoLikeChain<AtWococoWithRococoMessageBridge, crate::RococoGrandpaInstance>;
 
 /// Wococo chain as it is seen at Wococo.
-pub type WococoAtWococo = RococoLikeChain<AtWococoWithRococoMessageBridge, crate::WococoGrandpaInstance>;
+pub type WococoAtWococo =
+	RococoLikeChain<AtWococoWithRococoMessageBridge, crate::WococoGrandpaInstance>;
 
 /// Wococo chain as it is seen at Rococo.
-pub type WococoAtRococo = RococoLikeChain<AtRococoWithWococoMessageBridge, crate::WococoGrandpaInstance>;
+pub type WococoAtRococo =
+	RococoLikeChain<AtRococoWithWococoMessageBridge, crate::WococoGrandpaInstance>;
 
 /// Rococo/Wococo chain from message lane point of view.
 #[derive(RuntimeDebug, Clone, Copy)]
@@ -121,7 +133,9 @@ impl<B, GI> ThisChainWithMessages for RococoLikeChain<B, GI> {
 	fn transaction_payment(transaction: MessageTransaction<Weight>) -> crate::Balance {
 		// current fee multiplier is used here
 		bridge_runtime_common::messages::transaction_payment(
-			crate::BlockWeights::get().get(frame_support::weights::DispatchClass::Normal).base_extrinsic,
+			crate::BlockWeights::get()
+				.get(frame_support::weights::DispatchClass::Normal)
+				.base_extrinsic,
 			crate::TransactionByteFee::get(),
 			pallet_transaction_payment::Pallet::<crate::Runtime>::next_fee_multiplier(),
 			|weight| crate::constants::fee::WeightToFee::calc(&weight),
@@ -137,7 +151,8 @@ impl<B, GI> BridgedChainWithMessages for RococoLikeChain<B, GI> {
 
 	fn message_weight_limits(_message_payload: &[u8]) -> RangeInclusive<Weight> {
 		// we don't want to relay too large messages + keep reserve for future upgrades
-		let upper_limit = messages_target::maximal_incoming_message_dispatch_weight(max_extrinsic_weight());
+		let upper_limit =
+			messages_target::maximal_incoming_message_dispatch_weight(max_extrinsic_weight());
 
 		// we're charging for payload bytes in `With(Wococo | Rococo)MessageBridge::transaction_payment` function
 		//
@@ -175,7 +190,9 @@ impl<B, GI> BridgedChainWithMessages for RococoLikeChain<B, GI> {
 	fn transaction_payment(transaction: MessageTransaction<Weight>) -> crate::Balance {
 		// current fee multiplier is used here
 		bridge_runtime_common::messages::transaction_payment(
-			crate::BlockWeights::get().get(frame_support::weights::DispatchClass::Normal).base_extrinsic,
+			crate::BlockWeights::get()
+				.get(frame_support::weights::DispatchClass::Normal)
+				.base_extrinsic,
 			crate::TransactionByteFee::get(),
 			pallet_transaction_payment::Pallet::<crate::Runtime>::next_fee_multiplier(),
 			|weight| crate::constants::fee::WeightToFee::calc(&weight),
@@ -233,7 +250,7 @@ pub struct GetDeliveryConfirmationTransactionFee;
 impl Get<crate::Balance> for GetDeliveryConfirmationTransactionFee {
 	fn get() -> crate::Balance {
 		<RococoAtRococo as ThisChainWithMessages>::transaction_payment(
-			RococoAtRococo::estimate_delivery_confirmation_transaction()
+			RococoAtRococo::estimate_delivery_confirmation_transaction(),
 		)
 	}
 }
@@ -255,24 +272,28 @@ mod at_rococo {
 		type BridgedChain = WococoAtRococo;
 		type BridgedMessagesInstance = crate::AtWococoWithRococoMessagesInstance;
 
-		fn bridged_balance_to_this_balance(bridged_balance: bp_wococo::Balance) -> bp_rococo::Balance {
+		fn bridged_balance_to_this_balance(
+			bridged_balance: bp_wococo::Balance,
+		) -> bp_rococo::Balance {
 			bridged_balance
 		}
 	}
 
 	/// Message payload for Rococo -> Wococo messages as it is seen at the Rococo.
-	pub type ToWococoMessagePayload = messages_source::FromThisChainMessagePayload<AtRococoWithWococoMessageBridge>;
+	pub type ToWococoMessagePayload =
+		messages_source::FromThisChainMessagePayload<AtRococoWithWococoMessageBridge>;
 
 	/// Message verifier for Rococo -> Wococo messages at Rococo.
-	pub type ToWococoMessageVerifier = messages_source::FromThisChainMessageVerifier<AtRococoWithWococoMessageBridge>;
+	pub type ToWococoMessageVerifier =
+		messages_source::FromThisChainMessageVerifier<AtRococoWithWococoMessageBridge>;
 
 	/// Message payload for Wococo -> Rococo messages as it is seen at Rococo.
-	pub type FromWococoMessagePayload = messages_target::FromBridgedChainMessagePayload<
-		AtRococoWithWococoMessageBridge
-	>;
+	pub type FromWococoMessagePayload =
+		messages_target::FromBridgedChainMessagePayload<AtRococoWithWococoMessageBridge>;
 
 	/// Encoded Rococo Call as it comes from Wococo.
-	pub type FromWococoEncodedCall = messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
+	pub type FromWococoEncodedCall =
+		messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
 
 	/// Call-dispatch based message dispatch for Wococo -> Rococo messages.
 	pub type FromWococoMessageDispatch = messages_target::FromBridgedChainMessageDispatch<
@@ -300,24 +321,28 @@ mod at_wococo {
 		type BridgedChain = RococoAtWococo;
 		type BridgedMessagesInstance = crate::AtRococoWithWococoMessagesInstance;
 
-		fn bridged_balance_to_this_balance(bridged_balance: bp_rococo::Balance) -> bp_wococo::Balance {
+		fn bridged_balance_to_this_balance(
+			bridged_balance: bp_rococo::Balance,
+		) -> bp_wococo::Balance {
 			bridged_balance
 		}
 	}
 
 	/// Message payload for Wococo -> Rococo messages as it is seen at the Wococo.
-	pub type ToRococoMessagePayload = messages_source::FromThisChainMessagePayload<AtWococoWithRococoMessageBridge>;
+	pub type ToRococoMessagePayload =
+		messages_source::FromThisChainMessagePayload<AtWococoWithRococoMessageBridge>;
 
 	/// Message verifier for Wococo -> Rococo messages at Wococo.
-	pub type ToRococoMessageVerifier = messages_source::FromThisChainMessageVerifier<AtWococoWithRococoMessageBridge>;
+	pub type ToRococoMessageVerifier =
+		messages_source::FromThisChainMessageVerifier<AtWococoWithRococoMessageBridge>;
 
 	/// Message payload for Rococo -> Wococo messages as it is seen at Wococo.
-	pub type FromRococoMessagePayload = messages_target::FromBridgedChainMessagePayload<
-		AtWococoWithRococoMessageBridge,
-	>;
+	pub type FromRococoMessagePayload =
+		messages_target::FromBridgedChainMessagePayload<AtWococoWithRococoMessageBridge>;
 
 	/// Encoded Wococo Call as it comes from Rococo.
-	pub type FromRococoEncodedCall = messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
+	pub type FromRococoEncodedCall =
+		messages_target::FromBridgedChainEncodedMessageCall<crate::Call>;
 
 	/// Call-dispatch based message dispatch for Rococo -> Wococo messages.
 	pub type FromRococoMessageDispatch = messages_target::FromBridgedChainMessageDispatch<
@@ -330,9 +355,9 @@ mod at_wococo {
 
 #[cfg(test)]
 mod tests {
+	use super::*;
 	use bridge_runtime_common::messages;
 	use parity_scale_codec::Encode;
-	use super::*;
 
 	#[test]
 	fn ensure_rococo_messages_weights_are_correct() {
@@ -361,15 +386,18 @@ mod tests {
 			bp_rococo::max_extrinsic_size(),
 			bp_rococo::max_extrinsic_weight(),
 			max_incoming_message_proof_size,
-			messages::target::maximal_incoming_message_dispatch_weight(bp_rococo::max_extrinsic_weight()),
+			messages::target::maximal_incoming_message_dispatch_weight(
+				bp_rococo::max_extrinsic_weight(),
+			),
 		);
 
-		let max_incoming_inbound_lane_data_proof_size = bp_messages::InboundLaneData::<()>::encoded_size_hint(
-			bp_rococo::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
-			bp_rococo::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE as _,
-			bp_rococo::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE as _,
-		)
-		.unwrap_or(u32::MAX);
+		let max_incoming_inbound_lane_data_proof_size =
+			bp_messages::InboundLaneData::<()>::encoded_size_hint(
+				bp_rococo::MAXIMAL_ENCODED_ACCOUNT_ID_SIZE,
+				bp_rococo::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE as _,
+				bp_rococo::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE as _,
+			)
+			.unwrap_or(u32::MAX);
 		pallet_bridge_messages::ensure_able_to_receive_confirmation::<Weights>(
 			bp_rococo::max_extrinsic_size(),
 			bp_rococo::max_extrinsic_weight(),
@@ -392,14 +420,19 @@ mod tests {
 			frame_system::CheckSpecVersion::new(),
 			frame_system::CheckTxVersion::new(),
 			frame_system::CheckGenesis::new(),
-			frame_system::CheckMortality::from(sp_runtime::generic::Era::mortal(u64::MAX, u64::MAX)),
+			frame_system::CheckMortality::from(sp_runtime::generic::Era::mortal(
+				u64::MAX,
+				u64::MAX,
+			)),
 			frame_system::CheckNonce::from(primitives::v1::Nonce::MAX),
 			frame_system::CheckWeight::new(),
-			pallet_transaction_payment::ChargeTransactionPayment::from(primitives::v1::Balance::MAX),
+			pallet_transaction_payment::ChargeTransactionPayment::from(
+				primitives::v1::Balance::MAX,
+			),
 		);
-		let extra_bytes_in_transaction = crate::Address::default().encoded_size()
-			+ crate::Signature::default().encoded_size()
-			+ signed_extra.encoded_size();
+		let extra_bytes_in_transaction = crate::Address::default().encoded_size() +
+			crate::Signature::default().encoded_size() +
+			signed_extra.encoded_size();
 		assert!(
 			TX_EXTRA_BYTES as usize >= extra_bytes_in_transaction,
 			"Hardcoded number of extra bytes in Rococo transaction {} is lower than actual value: {}",
