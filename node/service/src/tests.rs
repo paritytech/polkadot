@@ -35,7 +35,6 @@ use std::{
 use assert_matches::assert_matches;
 use std::{sync::Arc, time::Duration};
 
-use consensus_common::SelectChain;
 use futures::{channel::oneshot, prelude::*};
 use polkadot_primitives::v1::{Block, BlockNumber, Hash, Header};
 use polkadot_subsystem::messages::{
