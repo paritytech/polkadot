@@ -54,11 +54,11 @@ use substrate_test_client::{
 	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
 
-/// Declare an instance of the native executor named `PolkadotTestExecutor`. Include the wasm binary as the
+/// Declare an instance of the native executor named `PolkadotTestExecutorDispatch`. Include the wasm binary as the
 /// equivalent wasm code.
-pub struct PolkadotTestExecutor;
+pub struct PolkadotTestExecutorDispatch;
 
-impl sc_executor::NativeExecutionDispatch for PolkadotTestExecutor {
+impl sc_executor::NativeExecutionDispatch for PolkadotTestExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
 	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
@@ -71,7 +71,7 @@ impl sc_executor::NativeExecutionDispatch for PolkadotTestExecutor {
 }
 
 /// The client type being used by the test service.
-pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>;
+pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch>;
 
 pub use polkadot_service::FullBackend;
 
@@ -82,7 +82,7 @@ pub fn new_full(
 	is_collator: IsCollator,
 	worker_program_path: Option<PathBuf>,
 ) -> Result<NewFull<Arc<Client>>, Error> {
-	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor, _>(
+	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutorDispatch, _>(
 		config,
 		is_collator,
 		None,

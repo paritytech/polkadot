@@ -1415,7 +1415,7 @@ mod benchmarking {
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 			let call = Call::<T>::claim(account.clone(), signature.clone());
 		}: {
-			super::Pallet::<T>::validate_unsigned(source, &call)?;
+			super::Pallet::<T>::validate_unsigned(source, &call).map_err(|e| -> &'static str { e.into() })?;
 			super::Pallet::<T>::claim(RawOrigin::None.into(), account, signature)?;
 		}
 		verify {
@@ -1461,7 +1461,7 @@ mod benchmarking {
 			let call = Call::<T>::claim_attest(account.clone(), signature.clone(), StatementKind::Regular.to_text().to_vec());
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
-			super::Pallet::<T>::validate_unsigned(source, &call)?;
+			super::Pallet::<T>::validate_unsigned(source, &call).map_err(|e| -> &'static str { e.into() })?;
 			super::Pallet::<T>::claim_attest(RawOrigin::None.into(), account, signature, statement.to_text().to_vec())?;
 		}
 		verify {

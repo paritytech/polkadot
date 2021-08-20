@@ -19,9 +19,11 @@
 use frame_election_provider_support::SortedListProvider;
 use frame_support::traits::Get;
 use pallet_staking::Nominators;
-use remote_externalities::{Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig};
+use remote_externalities::{Builder, Mode, OnlineConfig, SnapshotConfig};
 use sp_runtime::traits::Block as BlockT;
 use sp_storage::well_known_keys;
+use sp_core::hashing::twox_128;
+use sp_std::{convert::TryInto};
 
 const LOG_TARGET: &'static str = "remote-ext-tests";
 
@@ -36,8 +38,6 @@ pub(crate) async fn test_voter_bags_migration<
 	use std::env;
 
 	sp_tracing::try_init_simple();
-	// TODO: should come from spec version in `system::version`
-	sp_core::crypto::set_default_ss58_version(sp_core::crypto::Ss58AddressFormat::PolkadotAccount);
 
 	let ws_url = match env::var("WS_RPC") {
 		Ok(ws_url) => ws_url,
@@ -47,26 +47,31 @@ pub(crate) async fn test_voter_bags_migration<
 	let mut ext = Builder::<Block>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: ws_url.to_string().into(),
-			modules: vec!["Staking".to_string()],
+			modules: vec!["Staking".to_string(), "System".to_string()],
 			at: None,
-			state_snapshot: Some(SnapshotConfig::new("voters-bag")),
+			state_snapshot: None,
 		}))
 		.inject_hashed_key(well_known_keys::CODE)
+		// TODO: this query fails
+		// .inject_hashed_key(&[twox_128(b"System"), twox_128(b"SS58Prefix")].concat())
 		.build()
 		.await
 		.unwrap();
 
 	ext.execute_with(|| {
-		// Get the nominator & validator count prior to migrating; these should be invariant.
+		// set the ss58 prefix so addresses printed below are human friendly.
+		sp_core::crypto::set_default_ss58_version(Runtime::SS58Prefix::get().try_into().unwrap());
+
+		// get the nominator & validator count prior to migrating; these should be invariant.
 		let pre_migrate_nominator_count = <Nominators<Runtime>>::iter().count() as u32;
 		log::info!(target: LOG_TARGET, "Nominator count: {}", pre_migrate_nominator_count);
 
-		// Run the actual migration.
+		// run the actual migration,
 		let moved = <Runtime as pallet_staking::Config>::SortedListProvider::regenerate(
 			pallet_staking::Nominators::<Runtime>::iter().map(|(n, _)| n),
 			pallet_staking::Pallet::<Runtime>::weight_of_fn(),
 		);
-		log::info!(target: LOG_TARGET, "moved {} voters", moved);
+		log::info!(target: LOG_TARGET, "Moved {} nominators", moved);
 
 		let voter_list_len =
 			<Runtime as pallet_staking::Config>::SortedListProvider::iter().count() as u32;
@@ -75,11 +80,12 @@ pub(crate) async fn test_voter_bags_migration<
 		assert_eq!(pre_migrate_nominator_count, voter_list_len);
 		assert_eq!(pre_migrate_nominator_count, voter_list_count);
 
-		// Go through every bag to track the total number of voters within bags
+
+		// go through every bag to track the total number of voters within bags
 		// and get some info about how voters are distributed within the bags.
 		let mut seen_in_bags = 0;
 		for vote_weight_thresh in <Runtime as pallet_bags_list::Config>::BagThresholds::get() {
-			// Threshold in terms of UNITS (e.g. KSM, DOT etc)
+			// threshold in terms of UNITS (e.g. KSM, DOT etc)
 			let vote_weight_thresh_as_unit = *vote_weight_thresh as f64 / currency_unit as f64;
 			let pretty_thresh = format!("Threshold: {}.", vote_weight_thresh_as_unit);
 
@@ -99,9 +105,10 @@ pub(crate) async fn test_voter_bags_migration<
 			// percentage of all voters (nominators and voters)
 			let percent_of_voters = percent(voters_in_bag, voter_list_count);
 
+
 			log::info!(
 				target: LOG_TARGET,
-				"{} Voters: {} [%{:.3}]",
+				"{} Nominators: {} [%{:.3}]",
 				pretty_thresh,
 				voters_in_bag,
 				percent_of_voters,

@@ -29,7 +29,6 @@ members = [
 	"primitives",
 	"runtime/common",
 	"runtime/common/slot_range_helper",
-	"runtime/common/voter-bags",
 	"runtime/parachains",
 	"runtime/polkadot",
 	"runtime/kusama",
@@ -44,6 +43,7 @@ members = [
 	"xcm/xcm-simulator",
 	"xcm/xcm-simulator/example",
 	"xcm/pallet-xcm",
+	"xcm/procedural",
 	"node/client",
 	"node/collation-generation",
 	"node/core/approval-voting",
@@ -93,6 +93,7 @@ members = [
 	"parachain/test-parachains/adder/collator",
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
+  "utils/voter-bags",
 ]
 
 # We want to be able to build the bridge relayer without pulling it (and all of its
@@ -114,6 +115,7 @@ panic = "unwind"
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
+disputes = [ "polkadot-cli/disputes" ]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
