@@ -101,7 +101,11 @@ pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
 /// consume top-level errors by simply logging them
 pub fn log_error(result: Result<()>) -> std::result::Result<(), Fatal> {
 	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
-		tracing::warn!(target: LOG_TARGET, error = ?error);
+		if let error @ NonFatal::ImportCanceled(_) = error {
+			tracing::debug!(target: LOG_TARGET, error = ?error);
+		} else {
+			tracing::warn!(target: LOG_TARGET, error = ?error);
+		}
 	}
 	Ok(())
 }
