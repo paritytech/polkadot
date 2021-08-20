@@ -178,10 +178,15 @@ where
 		target_hash: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Option<Hash>, ConsensusError> {
+		let longest_chain_best =
+			self.fallback.finality_target(target_hash, maybe_max_number).await?;
+
 		if self.selection.overseer.is_disconnected() {
-			return self.fallback.finality_target(target_hash, maybe_max_number).await
+			return longest_chain_best
 		}
-		self.selection.finality_target(target_hash, maybe_max_number).await
+		self.selection
+			.finality_target(target_hash, longest_chain_best, maybe_max_number)
+			.await
 	}
 }
 
@@ -316,11 +321,12 @@ where
 	async fn finality_target(
 		&self,
 		target_hash: Hash,
+		best_leaf: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Option<Hash>, ConsensusError> {
 		let mut overseer = self.overseer.clone();
 
-		let subchain_head = {
+		let subchain_head = if cfg!(feature = "better-finality") {
 			let (tx, rx) = oneshot::channel();
 			overseer
 				.send_msg(
@@ -339,6 +345,8 @@ where
 				None => return Ok(Some(target_hash)),
 				Some(best) => best,
 			}
+		} else {
+			best_leaf
 		};
 
 		let target_number = self.block_number(target_hash)?;
