@@ -326,7 +326,7 @@ where
 	) -> Result<Option<Hash>, ConsensusError> {
 		let mut overseer = self.overseer.clone();
 
-		let subchain_head = if cfg!(feature = "better-finality") {
+		let subchain_head = if cfg!(feature = "disputes") {
 			let (tx, rx) = oneshot::channel();
 			overseer
 				.send_msg(
@@ -427,30 +427,35 @@ where
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
 
-		// 3. Constrain according to disputes:
-		let (tx, rx) = oneshot::channel();
-		overseer
-			.send_msg(
-				DisputeCoordinatorMessage::DetermineUndisputedChain {
-					base_number: target_number,
-					block_descriptions: subchain_block_descriptions,
-					tx,
-				},
-				std::any::type_name::<Self>(),
-			)
-			.await;
-		let (subchain_number, subchain_head) = rx
-			.await
-			.map_err(Error::OverseerDisconnected)
-			.map_err(|e| ConsensusError::Other(Box::new(e)))?
-			.unwrap_or_else(|| (subchain_number, subchain_head));
+		let lag = if cfg!(feature = "disputes") {
+			// 3. Constrain according to disputes:
+			let (tx, rx) = oneshot::channel();
+			overseer
+				.send_msg(
+					DisputeCoordinatorMessage::DetermineUndisputedChain {
+						base_number: target_number,
+						block_descriptions: subchain_block_descriptions,
+						tx,
+					},
+					std::any::type_name::<Self>(),
+				)
+				.await;
+			let (subchain_number, subchain_head) = rx
+				.await
+				.map_err(Error::OverseerDisconnected)
+				.map_err(|e| ConsensusError::Other(Box::new(e)))?
+				.unwrap_or_else(|| (subchain_number, subchain_head));
 
-		// The the total lag accounting for disputes.
-		let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
-		self.metrics.note_disputes_finality_lag(lag_disputes);
+			// The the total lag accounting for disputes.
+			let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
+			self.metrics.note_disputes_finality_lag(lag_disputes);
+			lag_disputes
+		} else {
+			lag
+		};
 
 		// 4. Apply the maximum safeguard to the finality lag.
-		if lag > MAX_FINALITY_LAG {
+		if lag < MAX_FINALITY_LAG {
 			// We need to constrain our vote as a safety net to
 			// ensure the network continues to finalize.
 			let safe_target = initial_leaf_number - MAX_FINALITY_LAG;
