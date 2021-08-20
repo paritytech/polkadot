@@ -88,7 +88,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let target_hash = case_vars.target_block.clone();
 	let selection_process = async move {
 		let best = select_relay_chain
-			.finality_target_with_fallback(target_hash, target_hash, None)
+			.finality_target_with_fallback(target_hash, Some(target_hash), None)
 			.await
 			.unwrap();
 		finality_target_tx.send(best).unwrap();
@@ -729,21 +729,25 @@ fn chain_sel_0() {
 	run_specialized_test_w_harness(chain_0);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_1() {
 	run_specialized_test_w_harness(chain_1);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_2() {
 	run_specialized_test_w_harness(chain_2);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_3() {
 	run_specialized_test_w_harness(chain_3);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_4_target_hash_value_not_contained() {
 	run_specialized_test_w_harness(chain_4);
