@@ -167,11 +167,13 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		let peer_id = match peer {
 			Recipient::Peer(peer_id) => Some(peer_id),
 			Recipient::Authority(authority) => {
+				tracing::trace!(target: LOG_TARGET, ?authority, "Discovering authority");
+
 				let mut found_peer_id = None;
 				// Note: `get_addresses_by_authority_id` searched in a cache, and it thus expected
 				// to be very quick.
 				for addr in authority_discovery
-					.get_addresses_by_authority_id(authority)
+					.get_addresses_by_authority_id(authority.clone())
 					.await
 					.into_iter()
 					.flat_map(|list| list.into_iter())
@@ -183,6 +185,14 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 					NetworkService::add_known_address(&*self, peer_id.clone(), addr);
 					found_peer_id = Some(peer_id);
 				}
+
+				tracing::trace!(
+					target: LOG_TARGET,
+					?authority,
+					peer_id = ?found_peer_id,
+					"Discovered peer id for authority"
+				);
+
 				found_peer_id
 			},
 		};

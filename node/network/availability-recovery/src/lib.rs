@@ -256,8 +256,16 @@ impl RequestChunksPhase {
 					index: validator_index,
 				};
 
-				let (req, res) =
-					OutgoingRequest::new(Recipient::Authority(validator), raw_request.clone());
+				let (req, res) = OutgoingRequest::new(
+					Recipient::Authority(validator.clone()),
+					raw_request.clone(),
+				);
+
+				tracing::trace!(
+					target: LOG_TARGET,
+					authority = ?validator,
+					"Sending request"
+				);
 
 				sender
 					.send_message(
