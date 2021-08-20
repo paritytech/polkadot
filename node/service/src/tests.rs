@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
@@ -724,6 +725,7 @@ fn chain_6() -> CaseVars {
 	}
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_0() {
 	run_specialized_test_w_harness(chain_0);
@@ -753,11 +755,13 @@ fn chain_sel_4_target_hash_value_not_contained() {
 	run_specialized_test_w_harness(chain_4);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_5_best_is_target_hash() {
 	run_specialized_test_w_harness(chain_5);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_6_approval_lag() {
 	run_specialized_test_w_harness(chain_6);
