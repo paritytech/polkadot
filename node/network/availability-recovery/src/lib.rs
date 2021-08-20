@@ -261,7 +261,19 @@ impl RequestChunksPhase {
 		sender: &mut impl SubsystemSender,
 	) {
 		let max_requests = std::cmp::min(N_PARALLEL, params.threshold);
+        tracing::debug!(
+            target: LOG_TARGET,
+            candidate_hash = ?params.candidate_hash,
+            "WE HAVE {:?} ongoing requests",
+            self.requesting_chunks.len(),
+        );
 		while self.requesting_chunks.len() < max_requests {
+            tracing::debug!(
+                target: LOG_TARGET,
+                candidate_hash = ?params.candidate_hash,
+                "INNER WE HAVE {:?} ongoing requests",
+                self.requesting_chunks.len(),
+            );
 			if let Some(validator_index) = self.shuffling.pop_back() {
                 let now = std::time::Instant::now();
 				let validator = params.validator_authority_keys[validator_index.0 as usize].clone();
@@ -321,7 +333,13 @@ impl RequestChunksPhase {
 					}
 				}));
 			} else {
-				break
+				tracing::debug!(
+					target: LOG_TARGET,
+					candidate_hash = ?params.candidate_hash,
+					"BREAKING BECAUSE WE HAVE {:?} ongoing requests",
+                    self.requesting_chunks.len(),
+				);
+				break;
 			}
 		}
 	}
@@ -418,17 +436,29 @@ impl RequestChunksPhase {
 
 			match rx.await {
 				Ok(chunks) => {
+                    tracing::debug!(
+                        target: LOG_TARGET,
+                        candidate_hash = ?params.candidate_hash,
+					    erasure_root = ?params.erasure_root,
+                        "Availability store respode"
+                    );
 					// This should either be length 1 or 0. If we had the whole data,
 					// we wouldn't have reached this stage.
 					let chunk_indices: Vec<_> = chunks.iter().map(|c| c.index).collect();
 					self.shuffling.retain(|i| !chunk_indices.contains(i));
 
 					for chunk in chunks {
+                        tracing::debug!(
+                            target: LOG_TARGET,
+                            candidate_hash = ?params.candidate_hash,
+					        erasure_root = ?params.erasure_root,
+                            "Got chunks from the availability store"
+                        );
 						self.received_chunks.insert(chunk.index, chunk);
 					}
 				},
 				Err(oneshot::Canceled) => {
-					tracing::warn!(
+					tracing::debug!(
 						target: LOG_TARGET,
 						candidate_hash = ?params.candidate_hash,
 						"Failed to reach the availability store"
