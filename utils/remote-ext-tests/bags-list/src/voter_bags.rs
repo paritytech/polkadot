@@ -34,11 +34,9 @@ pub(crate) async fn test_voter_bags_migration<
 >(
 	currency_unit: u64,
 ) {
-	use std::env;
-
 	sp_tracing::try_init_simple();
 
-	let ws_url = match env::var("WS_RPC") {
+	let ws_url = match std::env::var("WS_RPC") {
 		Ok(ws_url) => ws_url,
 		Err(_) => panic!("Must set env var `WS_RPC=<ws-url>`"),
 	};
@@ -78,7 +76,7 @@ pub(crate) async fn test_voter_bags_migration<
 		assert_eq!(pre_migrate_nominator_count, voter_list_count);
 
 		// go through every bag to track the total number of voters within bags
-		// and get some info about how voters are distributed within the bags.
+		// and log some info about how voters are distributed within the bags.
 		let mut seen_in_bags = 0;
 		for vote_weight_thresh in <Runtime as pallet_bags_list::Config>::BagThresholds::get() {
 			// threshold in terms of UNITS (e.g. KSM, DOT etc)
@@ -98,7 +96,7 @@ pub(crate) async fn test_voter_bags_migration<
 			// update our overall counter
 			seen_in_bags += voters_in_bag;
 
-			// percentage of all voters (nominators and voters)
+			// percentage of all nominators
 			let percent_of_voters = percent(voters_in_bag, voter_list_count);
 
 			log::info!(

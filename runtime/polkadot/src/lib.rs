@@ -1117,7 +1117,6 @@ construct_runtime! {
 
 		// Only works with staking, but placed here to maintain indices.
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
-
 	}
 }
 

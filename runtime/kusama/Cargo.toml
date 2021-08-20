@@ -173,7 +173,7 @@ std = [
 	"xcm-executor/std",
 	"xcm-builder/std",
 	"frame-election-provider-support/std",
-  "pallet-bags-list/std",
+	"pallet-bags-list/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",

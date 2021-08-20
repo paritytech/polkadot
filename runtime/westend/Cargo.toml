@@ -149,7 +149,7 @@ std = [
 	"pallet-vesting/std",
 	"pallet-xcm/std",
 	"pallet-babe/std",
-  "pallet-bags-list/std",
+	"pallet-bags-list/std",
 	"frame-executive/std",
 	"sp-runtime/std",
 	"sp-staking/std",
