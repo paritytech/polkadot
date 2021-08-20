@@ -105,7 +105,7 @@ mod tests {
 	use super::*;
 
 	use codec::Encode;
-	use frame_support::{assert_ok, weights::Weight};
+	use frame_support::assert_ok;
 	use xcm::latest::prelude::*;
 	use xcm_simulator::TestExt;
 
@@ -236,7 +236,6 @@ mod tests {
 		MockNet::reset();
 
 		let send_amount = 10;
-		let weight_for_execution = 3 * relay_chain::BaseXcmWeight::get();
 
 		ParaA::execute_with(|| {
 			let message = Xcm(vec![
@@ -309,11 +308,11 @@ mod tests {
 		ParaA::execute_with(|| {
 			assert_eq!(
 				parachain::MsgQueue::received_dmp(),
-				vec![QueryResponse {
+				vec![Xcm(vec![QueryResponse {
 					query_id: query_id_set,
 					response: Response::Assets(MultiAssets::new()),
 					max_weight: 1_000_000_000,
-				}]
+				}])],
 			);
 		});
 	}

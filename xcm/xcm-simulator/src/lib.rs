@@ -233,7 +233,7 @@ macro_rules! decl_test_network {
 		}
 
 		/// Process all messages originating from parachains.
-		fn process_para_messages() -> $crate::SendResult {
+		fn process_para_messages() -> $crate::XcmResult {
 			use $crate::{UmpSink, XcmpMessageHandlerT};
 
 			while let Some((para_id, destination, message)) = $crate::PARA_MESSAGE_BUS.with(
@@ -260,7 +260,7 @@ macro_rules! decl_test_network {
 						},
 					)*
 					_ => {
-						return Err($crate::XcmError::CannotReachDestination(destination, message));
+						return Err($crate::XcmError::Unroutable);
 					}
 				}
 			}
@@ -285,7 +285,7 @@ macro_rules! decl_test_network {
 							);
 						},
 					)*
-					_ => return Err($crate::XcmError::SendFailed("Only sends to children parachain.")),
+					_ => return Err($crate::XcmError::Transport("Only sends to children parachain.")),
 				}
 			}
 
@@ -296,7 +296,7 @@ macro_rules! decl_test_network {
 		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
 
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
-			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
+			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::SendResult {
 				use $crate::{UmpSink, XcmpMessageHandlerT};
 
 				match destination.interior() {

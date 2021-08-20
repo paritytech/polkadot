@@ -16,7 +16,6 @@
 
 mod mock;
 
-use frame_support::weights::Weight;
 use mock::{
 	kusama_like_with_balances, AccountId, Balance, Balances, BaseXcmWeight, XcmConfig, CENTS,
 };
@@ -31,14 +30,10 @@ pub const INITIAL_BALANCE: u128 = 100_000_000_000;
 pub const REGISTER_AMOUNT: Balance = 10 * CENTS;
 
 // Construct a `BuyExecution` order.
-fn buy_execution<C>(debt: Weight) -> Order<C> {
-	use xcm::latest::prelude::*;
-	Order::BuyExecution {
+fn buy_execution<C>() -> Instruction<C> {
+	BuyExecution {
 		fees: (Here, REGISTER_AMOUNT).into(),
-		weight: 0,
-		debt,
-		halt_on_error: false,
-		instructions: vec![],
+		weight_limit: Unlimited,
 	}
 }
 
@@ -56,17 +51,15 @@ fn withdraw_and_deposit_works() {
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
-			Xcm::WithdrawAsset {
-				assets: vec![(Here, amount).into()].into(),
-				effects: vec![
-					buy_execution(weight),
-					Order::DepositAsset {
-						assets: All.into(),
-						max_assets: 1,
-						beneficiary: Parachain(other_para_id).into(),
-					},
-				],
-			},
+			Xcm(vec![
+				WithdrawAsset { assets: (Here, amount).into() },
+				buy_execution(),
+				DepositAsset {
+					assets: All.into(),
+					max_assets: 1,
+					beneficiary: Parachain(other_para_id).into(),
+				},
+			]),
 			weight,
 		);
 		assert_eq!(r, Outcome::Complete(weight));
@@ -96,23 +89,22 @@ fn query_holding_works() {
 		let weight = 4 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
-			Xcm::WithdrawAsset {
-				assets: vec![(Here, amount).into()].into(),
-				effects: vec![
-					buy_execution(weight),
-					Order::DepositAsset {
-						assets: All.into(),
-						max_assets: 1,
-						beneficiary: OnlyChild.into(), // invalid destination
-					},
-					// is not triggered becasue the deposit fails
-					Order::QueryHolding {
-						query_id,
-						dest: Parachain(PARA_ID).into(),
-						assets: All.into(),
-					},
-				],
-			},
+			Xcm(vec![
+				WithdrawAsset { assets: (Here, amount).into() },
+				buy_execution(),
+				DepositAsset {
+					assets: All.into(),
+					max_assets: 1,
+					beneficiary: OnlyChild.into(), // invalid destination
+				},
+				// is not triggered becasue the deposit fails
+				QueryHolding {
+					query_id,
+					dest: Parachain(PARA_ID).into(),
+					assets: All.into(),
+					max_response_weight: 1_000_000_000,
+				},
+			]),
 			weight,
 		);
 		assert_eq!(
@@ -129,23 +121,22 @@ fn query_holding_works() {
 		// now do a successful transfer
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
-			Xcm::WithdrawAsset {
-				assets: vec![(Here, amount).into()].into(),
-				effects: vec![
-					buy_execution(weight),
-					Order::DepositAsset {
-						assets: All.into(),
-						max_assets: 1,
-						beneficiary: Parachain(other_para_id).into(),
-					},
-					// used to get a notification in case of success
-					Order::QueryHolding {
-						query_id,
-						dest: Parachain(PARA_ID).into(),
-						assets: All.into(),
-					},
-				],
-			},
+			Xcm(vec![
+				WithdrawAsset { assets: (Here, amount).into() },
+				buy_execution(),
+				DepositAsset {
+					assets: All.into(),
+					max_assets: 1,
+					beneficiary: Parachain(other_para_id).into(),
+				},
+				// used to get a notification in case of success
+				QueryHolding {
+					query_id,
+					dest: Parachain(PARA_ID).into(),
+					assets: All.into(),
+					max_response_weight: 1_000_000_000,
+				},
+			]),
 			weight,
 		);
 		assert_eq!(r, Outcome::Complete(weight));
@@ -156,7 +147,11 @@ fn query_holding_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(PARA_ID).into(),
-				Xcm::QueryResponse { query_id, response: Response::Assets(vec![].into()) }
+				Xcm(vec![QueryResponse {
+					query_id,
+					response: Response::Assets(vec![].into()),
+					max_weight: 1_000_000_000,
+				}]),
 			)]
 		);
 	});
@@ -180,8 +175,8 @@ fn teleport_to_statemine_works() {
 		let other_para_id = 3000;
 		let amount = REGISTER_AMOUNT;
 		let teleport_effects = vec![
-			buy_execution(5), // unchecked mock value
-			Order::DepositAsset {
+			buy_execution(), // unchecked mock value
+			DepositAsset {
 				assets: All.into(),
 				max_assets: 1,
 				beneficiary: (1, Parachain(PARA_ID)).into(),
@@ -192,17 +187,15 @@ fn teleport_to_statemine_works() {
 		// teleports are allowed to community chains, even in the absence of trust from their side.
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
-			Xcm::WithdrawAsset {
-				assets: vec![(Here, amount).into()].into(),
-				effects: vec![
-					buy_execution(weight),
-					Order::InitiateTeleport {
-						assets: All.into(),
-						dest: Parachain(other_para_id).into(),
-						effects: teleport_effects.clone(),
-					},
-				],
-			},
+			Xcm(vec![
+				WithdrawAsset { assets: (Here, amount).into() },
+				buy_execution(),
+				InitiateTeleport {
+					assets: All.into(),
+					dest: Parachain(other_para_id).into(),
+					xcm: Xcm(teleport_effects.clone()),
+				},
+			]),
 			weight,
 		);
 		assert_eq!(r, Outcome::Complete(weight));
@@ -210,27 +203,27 @@ fn teleport_to_statemine_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm::ReceiveTeleportedAsset {
-					assets: vec![(Parent, amount).into()].into(),
-					effects: teleport_effects.clone(),
-				}
+				Xcm(
+					Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
+					.into_iter()
+					.chain(teleport_effects.clone().into_iter())
+					.collect()
+				)
 			)]
 		);
 
 		// teleports are allowed from statemine to kusama.
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
-			Xcm::WithdrawAsset {
-				assets: vec![(Here, amount).into()].into(),
-				effects: vec![
-					buy_execution(weight),
-					Order::InitiateTeleport {
-						assets: All.into(),
-						dest: Parachain(statemine_id).into(),
-						effects: teleport_effects.clone(),
-					},
-				],
-			},
+			Xcm(vec![
+				WithdrawAsset { assets: (Here, amount).into() },
+				buy_execution(),
+				InitiateTeleport {
+					assets: All.into(),
+					dest: Parachain(statemine_id).into(),
+					xcm: Xcm(teleport_effects.clone()),
+				},
+			]),
 			weight,
 		);
 		assert_eq!(r, Outcome::Complete(weight));
@@ -241,17 +234,21 @@ fn teleport_to_statemine_works() {
 			vec![
 				(
 					Parachain(other_para_id).into(),
-					Xcm::ReceiveTeleportedAsset {
-						assets: vec![(Parent, amount).into()].into(),
-						effects: teleport_effects.clone(),
-					}
+					Xcm(
+						Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
+						.into_iter()
+						.chain(teleport_effects.clone().into_iter())
+						.collect()
+					)
 				),
 				(
 					Parachain(statemine_id).into(),
-					Xcm::ReceiveTeleportedAsset {
-						assets: vec![(Parent, amount).into()].into(),
-						effects: teleport_effects,
-					}
+					Xcm(
+						Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
+						.into_iter()
+						.chain(teleport_effects.clone().into_iter())
+						.collect()
+					)
 				)
 			]
 		);
@@ -273,8 +270,8 @@ fn reserve_based_transfer_works() {
 		let other_para_id = 3000;
 		let amount = REGISTER_AMOUNT;
 		let transfer_effects = vec![
-			buy_execution(5), // unchecked mock value
-			Order::DepositAsset {
+			buy_execution(), // unchecked mock value
+			DepositAsset {
 				assets: All.into(),
 				max_assets: 1,
 				beneficiary: (1, Parachain(PARA_ID)).into(),
@@ -283,18 +280,16 @@ fn reserve_based_transfer_works() {
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
-			Xcm::WithdrawAsset {
-				assets: vec![(Here, amount).into()].into(),
-				effects: vec![
-					buy_execution(weight),
-					Order::DepositReserveAsset {
-						assets: All.into(),
-						max_assets: 1,
-						dest: Parachain(other_para_id).into(),
-						effects: transfer_effects.clone(),
-					},
-				],
-			},
+			Xcm(vec![
+				WithdrawAsset { assets: (Here, amount).into() },
+				buy_execution(),
+				DepositReserveAsset {
+					assets: All.into(),
+					max_assets: 1,
+					dest: Parachain(other_para_id).into(),
+					xcm: Xcm(transfer_effects.clone()),
+				},
+			]),
 			weight,
 		);
 		assert_eq!(r, Outcome::Complete(weight));
@@ -303,10 +298,12 @@ fn reserve_based_transfer_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm::ReserveAssetDeposited {
-					assets: vec![(Parent, amount).into()].into(),
-					effects: transfer_effects,
-				}
+				Xcm(
+					Some(ReserveAssetDeposited { assets: (Parent, amount).into() })
+					.into_iter()
+					.chain(transfer_effects.into_iter())
+					.collect()
+				)
 			)]
 		);
 	});
