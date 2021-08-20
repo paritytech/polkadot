@@ -19,7 +19,7 @@
 use crate::{prelude::*, rpc_helpers, AccountId, Error, Index, Pair, WsClient, LOG_TARGET};
 use sp_core::crypto::Pair as _;
 
-pub(crate) const SIGNER_ACCOUNT_WILL_EXIST: &'static str =
+pub(crate) const SIGNER_ACCOUNT_WILL_EXIST: &str =
 	"signer account is checked to exist upon startup; it can only die if it transfers funds out \
 	 of it, or get slashed. If it does not exist at this point, it is likely due to a bug, or the \
 	 signer got slashed. Terminating.";
@@ -66,9 +66,9 @@ pub(crate) async fn signer_uri_from_string<
 	// trim any trailing garbage.
 	let uri = seed.trim_end();
 
-	let pair = Pair::from_string(&uri, None)?;
+	let pair = Pair::from_string(uri, None)?;
 	let account = T::AccountId::from(pair.public());
-	let _info = get_account_info::<T>(&client, &account, None)
+	let _info = get_account_info::<T>(client, &account, None)
 		.await?
 		.ok_or(Error::AccountDoesNotExists)?;
 	log::info!(

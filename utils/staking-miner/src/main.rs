@@ -354,7 +354,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 		let desired_targets = EPM::DesiredTargets::<T>::get().unwrap();
 		let mut candidates_and_backing = BTreeMap::<T::AccountId, u128>::new();
 		voters.into_iter().for_each(|(who, stake, targets)| {
-			if targets.len() == 0 {
+			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
 				return
 			}

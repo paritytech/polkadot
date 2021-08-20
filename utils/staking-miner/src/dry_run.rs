@@ -61,7 +61,7 @@ async fn print_info<T: EPM::Config>(
 
 		let snapshot_size =
 			<EPM::Pallet<T>>::snapshot_metadata().expect("snapshot must exist by now; qed.");
-		let deposit = EPM::Pallet::<T>::deposit_for(&raw_solution, snapshot_size);
+		let deposit = EPM::Pallet::<T>::deposit_for(raw_solution, snapshot_size);
 		log::info!(
 			target: LOG_TARGET,
 			"solution score {:?} / deposit {:?} / length {:?}",
@@ -80,7 +80,7 @@ async fn print_info<T: EPM::Config>(
 	log::info!(
 		target: LOG_TARGET,
 		"payment_queryInfo: (fee = {}) {:?}",
-		info.as_ref().map(|d| Token::from(d.partial_fee)).unwrap_or(Token::from(0)),
+		info.as_ref().map(|d| Token::from(d.partial_fee)).unwrap_or_else(|_| Token::from(0)),
 		info,
 	);
 }
