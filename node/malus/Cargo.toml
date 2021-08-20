@@ -6,9 +6,9 @@ path = "src/lib.rs"
 name = "malus-suggest-garbage-candidate"
 path = "src/malus-suggest-garbage-candidate.rs"
 
-# [[bin]]
-# name = "malus-back-garbage-candidate"
-# path = "src/malus-back-garbage-candidate.rs"
+[[bin]]
+name = "malus-back-garbage-candidate"
+path = "src/malus-back-garbage-candidate.rs"
 
 [[bin]]
 name = "malus-dispute-ancestor"
