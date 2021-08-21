@@ -18,7 +18,6 @@ sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-# sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -26,10 +25,6 @@ sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-# sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-# sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-# sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-# sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../../primitives" }
 polkadot-cli = { path = "../../../../cli", features = ["cli"] }

@@ -30,11 +30,7 @@ bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 hex-literal = "0.3.3"
 parity-util-mem = { version = "0.10.0", default-features = false, optional = true }
-# thiserror = "1.0.26"
 
-# [dev-dependencies]
-# sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "master" }
-# pretty_assertions = "0.7.2"
 
 [features]
 default = ["std"]

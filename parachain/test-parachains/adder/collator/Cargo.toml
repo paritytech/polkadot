@@ -33,7 +33,6 @@ polkadot-node-subsystem = { path = "../../../../node/subsystem" }
 
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-# sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # This one is tricky. Even though it is not used directly by the collator, we still need it for the
