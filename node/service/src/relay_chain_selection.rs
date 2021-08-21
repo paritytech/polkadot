@@ -412,24 +412,23 @@ where
 			}
 		};
 
-		// Prevent sending flawed data to the dispute-coordinator.
-		if Some(subchain_block_descriptions.len() as _) !=
-			subchain_number.checked_sub(target_number)
-		{
-			tracing::error!(
-				LOG_TARGET,
-				present_block_descriptions = subchain_block_descriptions.len(),
-				target_number,
-				subchain_number,
-				"Mismatch of anticipated block descriptions and block number difference.",
-			);
-			return Ok(Some(target_hash))
-		}
-
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
 
 		let lag = if cfg!(feature = "disputes") {
+			// Prevent sending flawed data to the dispute-coordinator.
+			if Some(subchain_block_descriptions.len() as _) !=
+				subchain_number.checked_sub(target_number)
+			{
+				tracing::error!(
+					LOG_TARGET,
+					present_block_descriptions = subchain_block_descriptions.len(),
+					target_number,
+					subchain_number,
+					"Mismatch of anticipated block descriptions and block number difference.",
+				);
+				return Ok(Some(target_hash))
+			}
 			// 3. Constrain according to disputes:
 			let (tx, rx) = oneshot::channel();
 			overseer
