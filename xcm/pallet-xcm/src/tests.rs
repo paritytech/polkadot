@@ -28,7 +28,7 @@ const INITIAL_BALANCE: u128 = 100;
 const SEND_AMOUNT: u128 = 10;
 
 #[test]
-fn on_report_works() {
+fn report_outcome_notify_works() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
@@ -38,7 +38,7 @@ fn on_report_works() {
 	let call = pallet_test_notifier::Call::notification_received(0, Default::default());
 	let notify = Call::TestNotifier(call);
 	new_test_ext_with_balances(balances).execute_with(|| {
-		XcmPallet::on_report(&mut message, Parachain(PARA_ID).into(), notify, 100);
+		XcmPallet::report_outcome_notify(&mut message, Parachain(PARA_ID).into(), notify, 100);
 		assert_eq!(message, Xcm(vec![
 			ReportOutcome { query_id: 0, dest: Parent.into(), max_response_weight: 1_000_000 },
 			TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
@@ -108,11 +108,9 @@ fn report_outcome_works() {
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::ResponseReceived(
-				Parachain(PARA_ID).into(),
+			Event::XcmPallet(crate::Event::ResponseReady(
 				0,
 				Response::ExecutionResult(Ok(())),
-				0,
 			))
 		);
 
@@ -140,7 +138,15 @@ fn send_works() {
 		assert_ok!(XcmPallet::send(Origin::signed(ALICE), RelayLocation::get(), message.clone(),));
 		assert_eq!(
 			sent_xcm(),
-			vec![(Here.into(), Xcm(vec![DescendOrigin(sender.clone().try_into().unwrap())]))],
+			vec![(
+				Here.into(),
+				Xcm(
+					Some(DescendOrigin(sender.clone().try_into().unwrap()))
+					.into_iter()
+					.chain(message.0.clone().into_iter())
+					.collect()
+				)
+			)],
 		);
 		assert_eq!(
 			last_event(),
@@ -229,6 +235,7 @@ fn reserve_transfer_assets_works() {
 				Parachain(PARA_ID).into(),
 				Xcm(vec![
 					ReserveAssetDeposited { assets: (Parent, SEND_AMOUNT).into() },
+					ClearOrigin,
 					buy_execution((Parent, SEND_AMOUNT)),
 					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 				]),
