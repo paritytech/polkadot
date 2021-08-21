@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 // Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
@@ -556,6 +555,7 @@ fn chain_0() -> CaseVars {
 ///               \
 ///                `- 0xB2 --- 0xB3(!available)
 /// ```
+#[cfg(feature = "disputes")]
 fn chain_1() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
@@ -584,6 +584,7 @@ fn chain_1() -> CaseVars {
 ///               \
 ///                `- 0xB2 --- 0xB3
 /// ```
+#[cfg(feature = "disputes")]
 fn chain_2() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
@@ -612,6 +613,7 @@ fn chain_2() -> CaseVars {
 ///               \
 ///                `- 0xB2 --- 0xB3
 /// ```
+#[cfg(feature = "disputes")]
 fn chain_3() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
@@ -642,6 +644,7 @@ fn chain_3() -> CaseVars {
 ///
 ///      ? --- NEX(does_not_exist)
 /// ```
+#[cfg(feature = "disputes")]
 fn chain_4() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
@@ -755,13 +758,11 @@ fn chain_sel_4_target_hash_value_not_contained() {
 	run_specialized_test_w_harness(chain_4);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_5_best_is_target_hash() {
 	run_specialized_test_w_harness(chain_5);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_6_approval_lag() {
 	run_specialized_test_w_harness(chain_6);
