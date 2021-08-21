@@ -108,14 +108,57 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		Attempted(xcm::latest::Outcome),
 		Sent(MultiLocation, MultiLocation, Xcm<()>),
+		/// Query response received which does not match a registered query. This may be because a
+		/// matching query was never registered, it may be because it is a duplicate response, or
+		/// because the query timed out.
+		/// 
+		/// \[ origin_location, query_id \]
 		UnexpectedResponse(MultiLocation, QueryId),
-		ResponseReceived(MultiLocation, QueryId, Response, Weight),
+		/// Query response has been received and is ready for taking with `take_response`. There is
+		/// no registered notification call.
+		/// 
+		/// \[ query_id, response \]
+		ResponseReady(QueryId, Response),
+		/// Query response has been received and query is removed. The registered notification has
+		/// been dispatched and executed successfully.
+		/// 
+		/// \[ query_id, pallet_index, call_index \]
 		Notified(QueryId, u8, u8),
+		/// Query response has been received and query is removed. The registered notification could
+		/// not be dispatched because the dispatch weight is greater than the maximum weight
+		/// originally budgeted by this runtime for the query result.
+		/// 
+		/// \[ query_id, pallet_index, call_index, actual_weight, max_budgeted_weight \]
 		NotifyOverweight(QueryId, u8, u8, Weight, Weight),
+		/// Query response has been received and query is removed. There was a general error with
+		/// dispatching the notification call.
+		/// 
+		/// \[ query_id, pallet_index, call_index \]
 		NotifyDispatchError(QueryId, u8, u8),
+		/// Query response has been received and query is removed. The dispatch was unable to be
+		/// decoded into a `Call`; this might be due to dispatch function having a signature which
+		/// is not `(origin, QueryId, Response)`.
+		/// 
+		/// \[ query_id, pallet_index, call_index \]
 		NotifyDecodeFailed(QueryId, u8, u8),
+		/// Expected query response has been received but the origin location of the repsonse does
+		/// not match that expected. The query remains registered for a later, valid, response to
+		/// be received and acted upon.
+		/// 
+		/// \[ origin_location, query_id, expected_location \]
 		InvalidResponder(MultiLocation, QueryId, MultiLocation),
+		/// Expected query response has been received but the expected origin location placed in
+		/// storate by this runtime previously cannot be decoded. The query remains registered.
+		/// 
+		/// This is unexpected (since a location placed in storage in a previously executing
+		/// runtime should be readable prior to query timeout) and dangerous since the possibly
+		/// valid response will be dropped. Manual governance intervention is probably going to be
+		/// needed.
+		/// 
+		/// \[ origin_location, query_id \]
 		InvalidResponderVersion(MultiLocation, QueryId),
+		/// Received query response has been read and removed.
+		ResponseTaken(QueryId),
 	}
 
 	#[pallet::origin]
@@ -377,6 +420,27 @@ pub mod pallet {
 		}
 
 		/// Consume `message` and return another which is equivalent to it except that it reports
+		/// back the outcome.
+		///
+		/// - `message`: The message whose outcome should be reported.
+		/// - `responder`: The origin from which a response should be expected.
+		/// - `timeout`: The block number after which it is permissible for `notify` not to be
+		///   called even if a response is received.
+		/// 
+		/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
+		/// value.
+		pub fn report_outcome(
+			message: &mut Xcm<()>,
+			responder: MultiLocation,
+			timeout: T::BlockNumber,
+		) -> QueryId {
+			let dest = T::LocationInverter::invert_location(&responder);
+			let query_id = Self::new_query(responder, timeout);
+			message.0.insert(0, ReportOutcome { dest, query_id, max_response_weight: 0 });
+			query_id
+		}
+
+		/// Consume `message` and return another which is equivalent to it except that it reports
 		/// back the outcome and dispatches `notify` on this chain.
 		///
 		/// - `message`: The message whose outcome should be reported.
@@ -384,7 +448,7 @@ pub mod pallet {
 		/// - `notify`: A dispatchable function which will be called once the outcome of `message`
 		///   is known. It may be a dispatchable in any pallet of the local chain, but other than
 		///   the usual origin, it must accept exactly two arguments: `query_id: QueryId` and
-		///   `outcome: ResponseOutcome`, and in that order. It should expect that the origin is
+		///   `outcome: Response`, and in that order. It should expect that the origin is
 		///   `Origin::Response` and will contain the responder's location.
 		/// - `timeout`: The block number after which it is permissible for `notify` not to be
 		///   called even if a response is received.
@@ -394,7 +458,7 @@ pub mod pallet {
 		/// weighing `ReportOutcome` on the way back. If it turns out to be heavier once it returns
 		/// then reporting the outcome will fail. Futhermore if the estimate is too high, then it
 		/// may be put in the overweight queue and need to be manually executed.
-		pub fn on_report(
+		pub fn report_outcome_notify(
 			message: &mut Xcm<()>,
 			responder: MultiLocation,
 			notify: impl Into<<T as Config>::Call>,
@@ -425,6 +489,19 @@ pub mod pallet {
 				);
 			Self::do_new_query(responder, Some(notify), timeout)
 		}
+
+		/// Attempt to remove and return the response of query with ID `query_id`.
+		/// 
+		/// Returns `None` if the response is not (yet) available.
+		pub fn take_response(query_id: QueryId) -> Option<(Response, T::BlockNumber)> {
+			if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
+				Queries::<T>::remove(query_id);
+				Self::deposit_event(Event::ResponseTaken(query_id));
+				Some((response, at))
+			} else {
+				None
+			}
+		}
 	}
 
 	impl<T: Config> OnResponse for Pallet<T> {
@@ -443,8 +520,6 @@ pub mod pallet {
 			response: Response,
 			max_weight: Weight,
 		) -> Weight {
-			let e = Event::ResponseReceived(origin.clone(), query_id, response.clone(), max_weight);
-			Self::deposit_event(e);
 			if let Some(QueryStatus::Pending { responder, maybe_notify, .. }) =
 				Queries::<T>::get(query_id)
 			{
@@ -459,6 +534,7 @@ pub mod pallet {
 								if let Ok(call) = bare.using_encoded(|mut bytes| {
 									<T as Config>::Call::decode(&mut bytes)
 								}) {
+									Queries::<T>::remove(query_id);
 									let weight = call.get_dispatch_info().weight;
 									if weight > max_weight {
 										let e = Event::NotifyOverweight(
@@ -503,6 +579,8 @@ pub mod pallet {
 								}
 							},
 							None => {
+								let e = Event::ResponseReady(query_id, response.clone());
+								Self::deposit_event(e);
 								let at = frame_system::Pallet::<T>::current_block_number();
 								Queries::<T>::insert(query_id, QueryStatus::Ready { response, at });
 								0

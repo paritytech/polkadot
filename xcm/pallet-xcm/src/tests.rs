@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies (UK) Lt dest: (), max_response_weight: () d.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::mock::*;
+use crate::{QueryStatus, mock::*};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use std::convert::TryInto;
+use xcm_executor::XcmExecutor;
 use xcm::latest::prelude::*;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
@@ -25,6 +26,100 @@ const BOB: AccountId = AccountId::new([1u8; 32]);
 const PARA_ID: u32 = 2000;
 const INITIAL_BALANCE: u128 = 100;
 const SEND_AMOUNT: u128 = 10;
+
+#[test]
+fn on_report_works() {
+	let balances =
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
+	let mut message = Xcm(vec![
+		TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
+	]);
+	let call = pallet_test_notifier::Call::notification_received(0, Default::default());
+	let notify = Call::TestNotifier(call);
+	new_test_ext_with_balances(balances).execute_with(|| {
+		XcmPallet::on_report(&mut message, Parachain(PARA_ID).into(), notify, 100);
+		assert_eq!(message, Xcm(vec![
+			ReportOutcome { query_id: 0, dest: Parent.into(), max_response_weight: 1_000_000 },
+			TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
+		]));
+		let status = QueryStatus::Pending {
+			responder: MultiLocation::from(Parachain(PARA_ID)).into(),
+			maybe_notify: Some((4, 2)),
+			timeout: 100,
+		};
+		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
+
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			Parachain(PARA_ID).into(),
+			Xcm(vec![QueryResponse {
+				query_id: 0,
+				response: Response::ExecutionResult(Ok(())),
+				max_weight: 1_000_000,
+			}]),
+			1_000_000_000,
+		);
+		assert_eq!(r, Outcome::Complete(1_000));
+		assert_eq!(
+			last_events(2),
+			vec![
+				Event::TestNotifier(pallet_test_notifier::Event::ResponseReceived(
+					Parachain(PARA_ID).into(),
+					0,
+					Response::ExecutionResult(Ok(())),
+				)),
+				Event::XcmPallet(crate::Event::Notified(0, 4, 2)),
+			]
+		);
+		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![]);
+	});
+}
+
+#[test]
+fn report_outcome_works() {
+	let balances =
+		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
+	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
+	let mut message = Xcm(vec![
+		TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
+	]);
+	new_test_ext_with_balances(balances).execute_with(|| {
+		XcmPallet::report_outcome(&mut message, Parachain(PARA_ID).into(), 100);
+		assert_eq!(message, Xcm(vec![
+			ReportOutcome { query_id: 0, dest: Parent.into(), max_response_weight: 0 },
+			TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
+		]));
+		let status = QueryStatus::Pending {
+			responder: MultiLocation::from(Parachain(PARA_ID)).into(),
+			maybe_notify: None,
+			timeout: 100,
+		};
+		assert_eq!(crate::Queries::<Test>::iter().collect::<Vec<_>>(), vec![(0, status)]);
+
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(
+			Parachain(PARA_ID).into(),
+			Xcm(vec![QueryResponse {
+				query_id: 0,
+				response: Response::ExecutionResult(Ok(())),
+				max_weight: 0,
+			}]),
+			1_000_000_000,
+		);
+		assert_eq!(r, Outcome::Complete(1_000));
+		assert_eq!(
+			last_event(),
+			Event::XcmPallet(crate::Event::ResponseReceived(
+				Parachain(PARA_ID).into(),
+				0,
+				Response::ExecutionResult(Ok(())),
+				0,
+			))
+		);
+
+		let response = Some((Response::ExecutionResult(Ok(())), 1));
+		assert_eq!(XcmPallet::take_response(0), response);
+	});
+}
 
 /// Test sending an `XCM` message (`XCM::ReserveAssetDeposit`)
 ///

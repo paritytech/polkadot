@@ -26,7 +26,7 @@ use xcm_builder::{
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit,
+	TakeWeightCredit, AllowKnownQueryResponses,
 };
 use xcm_executor::XcmExecutor;
 
@@ -36,6 +36,85 @@ pub type AccountId = AccountId32;
 pub type Balance = u128;
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+
+#[frame_support::pallet]
+pub mod pallet_test_notifier {
+	use frame_support::pallet_prelude::*;
+	use frame_system::pallet_prelude::*;
+	use crate::{ensure_response, QueryId};
+	use sp_runtime::DispatchResult;
+	use xcm::latest::prelude::*;
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
+
+	#[pallet::config]
+	pub trait Config: frame_system::Config + crate::Config {
+		type Event: IsType<<Self as frame_system::Config>::Event> + From<Event<Self>>;
+		type Origin: IsType<<Self as frame_system::Config>::Origin>
+			+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
+		type Call: IsType<<Self as crate::Config>::Call> + From<Call<Self>>;
+	}
+
+	#[pallet::event]
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
+		QueryPrepared(QueryId),
+		NotifyQueryPrepared(QueryId),
+		ResponseReceived(MultiLocation, QueryId, Response),
+	}
+
+	#[pallet::error]
+	pub enum Error<T> {
+		UnexpectedId,
+		BadAccountFormat,
+	}
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
+		#[pallet::weight(1_000_000)]
+		pub fn prepare_new_query(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let id = who
+				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
+				.map_err(|_| Error::<T>::BadAccountFormat)?;
+			let qid = crate::Pallet::<T>::new_query(
+				Junction::AccountId32 { network: Any, id }.into(),
+				100u32.into(),
+			);
+			Self::deposit_event(Event::<T>::QueryPrepared(qid));
+			Ok(())
+		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn prepare_new_notify_query(origin: OriginFor<T>) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let id = who
+				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
+				.map_err(|_| Error::<T>::BadAccountFormat)?;
+			let call = Call::<T>::notification_received(0, Default::default());
+			let qid = crate::Pallet::<T>::new_notify_query(
+				Junction::AccountId32 { network: Any, id }.into(),
+				<T as Config>::Call::from(call),
+				100u32.into(),
+			);
+			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
+			Ok(())
+		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn notification_received(
+			origin: OriginFor<T>,
+			query_id: QueryId,
+			response: Response,
+		) -> DispatchResult {
+			let responder = ensure_response(<T as Config>::Origin::from(origin))?;
+			Self::deposit_event(Event::<T>::ResponseReceived(responder, query_id, response));
+			Ok(())
+		}
+	}
+}
 
 construct_runtime!(
 	pub enum Test where
@@ -47,6 +126,7 @@ construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin},
+		TestNotifier: pallet_test_notifier::{Pallet, Call, Event<T>},
 	}
 );
 
@@ -151,7 +231,11 @@ parameter_types! {
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 }
 
-pub type Barrier = (TakeWeightCredit, AllowTopLevelPaidExecutionFrom<Everything>);
+pub type Barrier = (
+	TakeWeightCredit,
+	AllowTopLevelPaidExecutionFrom<Everything>,
+	AllowKnownQueryResponses<XcmPallet>,
+);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -165,7 +249,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 	type Trader = FixedRateOfFungible<CurrencyPerSecond, ()>;
-	type ResponseHandler = ();
+	type ResponseHandler = XcmPallet;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;
@@ -187,8 +271,18 @@ impl pallet_xcm::Config for Test {
 
 impl origin::Config for Test {}
 
+impl pallet_test_notifier::Config for Test {
+	type Event = Event;
+	type Origin = Origin;
+	type Call = Call;
+}
+
 pub(crate) fn last_event() -> Event {
 	System::events().pop().expect("Event expected").event
+}
+
+pub(crate) fn last_events(n: usize) -> Vec<Event> {
+	System::events().into_iter().map(|e| e.event).rev().take(n).rev().collect()
 }
 
 pub(crate) fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {
