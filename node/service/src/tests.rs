@@ -298,7 +298,6 @@ impl ChainBuilder {
 
 	/// Add a relay chain block that contains a disputed parachain block.
 	/// For simplicity this is not modeled explicitly.
-	#[cfg(feature = "disputes")]
 	pub fn fast_forward_disputed(
 		&mut self,
 		branch_tag: u8,
@@ -547,7 +546,6 @@ fn chain_0() -> CaseVars {
 ///               \
 ///                `- 0xB2 --- 0xB3(!available)
 /// ```
-#[cfg(feature = "disputes")]
 fn chain_1() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
@@ -576,7 +574,6 @@ fn chain_1() -> CaseVars {
 ///               \
 ///                `- 0xB2 --- 0xB3
 /// ```
-#[cfg(feature = "disputes")]
 fn chain_2() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
@@ -605,7 +602,6 @@ fn chain_2() -> CaseVars {
 ///               \
 ///                `- 0xB2 --- 0xB3
 /// ```
-#[cfg(feature = "disputes")]
 fn chain_3() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
@@ -636,7 +632,6 @@ fn chain_3() -> CaseVars {
 ///
 ///      ? --- NEX(does_not_exist)
 /// ```
-#[cfg(feature = "disputes")]
 fn chain_4() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
 	let mut builder = ChainBuilder::new();
@@ -725,25 +720,21 @@ fn chain_sel_0() {
 	run_specialized_test_w_harness(chain_0);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_1() {
 	run_specialized_test_w_harness(chain_1);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_2() {
 	run_specialized_test_w_harness(chain_2);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_3() {
 	run_specialized_test_w_harness(chain_3);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_4_target_hash_value_not_contained() {
 	run_specialized_test_w_harness(chain_4);
