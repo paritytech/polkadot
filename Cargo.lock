@@ -4675,6 +4675,7 @@ dependencies = [
  "frame-system",
  "log",
  "parity-scale-codec",
+ "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
