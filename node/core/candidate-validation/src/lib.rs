@@ -396,7 +396,7 @@ where
 	} else {
 		// In case validation code is not provided, ask the backend to obtain
 		// it from the cache using the hash.
-		Pvf::Hash(ValidationCodeHash::from(descriptor.persisted_validation_data_hash))
+		Pvf::Hash(ValidationCodeHash::from(descriptor.validation_code_hash))
 	};
 
 	let raw_block_data =
