@@ -200,7 +200,11 @@ fn teleport_to_statemine_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm(Some(ReceiveTeleportedAsset((Parent, amount).into()))
+				Xcm(
+					vec![
+						ReceiveTeleportedAsset((Parent, amount).into())),
+						ClearOrigin,
+					]
 					.into_iter()
 					.chain(teleport_effects.clone().into_iter())
 					.collect())
@@ -289,7 +293,11 @@ fn reserve_based_transfer_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm(Some(ReserveAssetDeposited((Parent, amount).into()))
+				Xcm(
+					vec![
+						ReserveAssetDeposited((Parent, amount).into())),
+						ClearOrigin,
+					]
 					.into_iter()
 					.chain(transfer_effects.into_iter())
 					.collect())
