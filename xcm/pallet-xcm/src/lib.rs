@@ -111,50 +111,50 @@ pub mod pallet {
 		/// Query response received which does not match a registered query. This may be because a
 		/// matching query was never registered, it may be because it is a duplicate response, or
 		/// because the query timed out.
-		/// 
+		///
 		/// \[ origin_location, query_id \]
 		UnexpectedResponse(MultiLocation, QueryId),
 		/// Query response has been received and is ready for taking with `take_response`. There is
 		/// no registered notification call.
-		/// 
+		///
 		/// \[ query_id, response \]
 		ResponseReady(QueryId, Response),
 		/// Query response has been received and query is removed. The registered notification has
 		/// been dispatched and executed successfully.
-		/// 
+		///
 		/// \[ query_id, pallet_index, call_index \]
 		Notified(QueryId, u8, u8),
 		/// Query response has been received and query is removed. The registered notification could
 		/// not be dispatched because the dispatch weight is greater than the maximum weight
 		/// originally budgeted by this runtime for the query result.
-		/// 
+		///
 		/// \[ query_id, pallet_index, call_index, actual_weight, max_budgeted_weight \]
 		NotifyOverweight(QueryId, u8, u8, Weight, Weight),
 		/// Query response has been received and query is removed. There was a general error with
 		/// dispatching the notification call.
-		/// 
+		///
 		/// \[ query_id, pallet_index, call_index \]
 		NotifyDispatchError(QueryId, u8, u8),
 		/// Query response has been received and query is removed. The dispatch was unable to be
 		/// decoded into a `Call`; this might be due to dispatch function having a signature which
 		/// is not `(origin, QueryId, Response)`.
-		/// 
+		///
 		/// \[ query_id, pallet_index, call_index \]
 		NotifyDecodeFailed(QueryId, u8, u8),
 		/// Expected query response has been received but the origin location of the repsonse does
 		/// not match that expected. The query remains registered for a later, valid, response to
 		/// be received and acted upon.
-		/// 
+		///
 		/// \[ origin_location, query_id, expected_location \]
 		InvalidResponder(MultiLocation, QueryId, MultiLocation),
 		/// Expected query response has been received but the expected origin location placed in
 		/// storate by this runtime previously cannot be decoded. The query remains registered.
-		/// 
+		///
 		/// This is unexpected (since a location placed in storage in a previously executing
 		/// runtime should be readable prior to query timeout) and dangerous since the possibly
 		/// valid response will be dropped. Manual governance intervention is probably going to be
 		/// needed.
-		/// 
+		///
 		/// \[ origin_location, query_id \]
 		InvalidResponderVersion(MultiLocation, QueryId),
 		/// Received query response has been read and removed.
@@ -225,8 +225,13 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(100_000_000)]
-		pub fn send(origin: OriginFor<T>, dest: MultiLocation, message: Xcm<()>) -> DispatchResult {
+		pub fn send(
+			origin: OriginFor<T>,
+			dest: MultiLocation,
+			message: Box<Xcm<()>>,
+		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
+			let message = *message;
 			let interior =
 				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
 			Self::send_xcm(interior, dest.clone(), message.clone()).map_err(|e| match e {
@@ -370,11 +375,11 @@ pub mod pallet {
 		#[pallet::weight(max_weight.saturating_add(100_000_000u64))]
 		pub fn execute(
 			origin: OriginFor<T>,
-			message: Xcm<<T as SysConfig>::Call>,
+			message: Box<Xcm<<T as SysConfig>::Call>>,
 			max_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let value = (origin_location, message);
+			let value = (origin_location, *message);
 			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, message) = value;
 			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);
@@ -426,7 +431,7 @@ pub mod pallet {
 		/// - `responder`: The origin from which a response should be expected.
 		/// - `timeout`: The block number after which it is permissible for `notify` not to be
 		///   called even if a response is received.
-		/// 
+		///
 		/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
 		/// value.
 		pub fn report_outcome(
@@ -491,7 +496,7 @@ pub mod pallet {
 		}
 
 		/// Attempt to remove and return the response of query with ID `query_id`.
-		/// 
+		///
 		/// Returns `None` if the response is not (yet) available.
 		pub fn take_response(query_id: QueryId) -> Option<(Response, T::BlockNumber)> {
 			if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {

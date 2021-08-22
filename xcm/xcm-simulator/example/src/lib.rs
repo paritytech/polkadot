@@ -111,10 +111,7 @@ mod tests {
 
 	// Helper function for forming buy execution message
 	fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {
-		BuyExecution {
-			fees: fees.into(),
-			weight_limit: Unlimited,
-		}
+		BuyExecution { fees: fees.into(), weight_limit: Unlimited }
 	}
 
 	#[test]

@@ -34,11 +34,11 @@ fn basic_buy_fees_message_executes() {
 		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
 		.build();
 
-	let msg = Xcm(vec![
+	let msg = Box::new(Xcm(vec![
 		WithdrawAsset { assets: (Parent, 100).into() },
 		BuyExecution { fees: (Parent, 1).into(), weight_limit: Unlimited },
 		DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Parent.into() },
-	]);
+	]));
 
 	let mut block_builder = client.init_polkadot_block_builder();
 
@@ -116,7 +116,7 @@ fn query_response_fires() {
 
 	let response = Response::ExecutionResult(Ok(()));
 	let max_weight = 1_000_000;
-	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+	let msg = Box::new(Xcm(vec![QueryResponse { query_id, response, max_weight }]));
 
 	let execute = construct_extrinsic(
 		&client,
@@ -202,7 +202,7 @@ fn query_response_elicits_handler() {
 
 	let response = Response::ExecutionResult(Ok(()));
 	let max_weight = 1_000_000;
-	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+	let msg = Box::new(Xcm(vec![QueryResponse { query_id, response, max_weight }]));
 
 	let execute = construct_extrinsic(
 		&client,

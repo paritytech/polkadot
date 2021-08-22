@@ -31,10 +31,7 @@ pub const REGISTER_AMOUNT: Balance = 10 * CENTS;
 
 // Construct a `BuyExecution` order.
 fn buy_execution<C>() -> Instruction<C> {
-	BuyExecution {
-		fees: (Here, REGISTER_AMOUNT).into(),
-		weight_limit: Unlimited,
-	}
+	BuyExecution { fees: (Here, REGISTER_AMOUNT).into(), weight_limit: Unlimited }
 }
 
 /// Scenario:
@@ -203,12 +200,10 @@ fn teleport_to_statemine_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm(
-					Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
+				Xcm(Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
 					.into_iter()
 					.chain(teleport_effects.clone().into_iter())
-					.collect()
-				)
+					.collect())
 			)]
 		);
 
@@ -234,21 +229,17 @@ fn teleport_to_statemine_works() {
 			vec![
 				(
 					Parachain(other_para_id).into(),
-					Xcm(
-						Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
+					Xcm(Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
 						.into_iter()
 						.chain(teleport_effects.clone().into_iter())
-						.collect()
-					)
+						.collect())
 				),
 				(
 					Parachain(statemine_id).into(),
-					Xcm(
-						Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
+					Xcm(Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
 						.into_iter()
 						.chain(teleport_effects.clone().into_iter())
-						.collect()
-					)
+						.collect())
 				)
 			]
 		);
@@ -298,12 +289,10 @@ fn reserve_based_transfer_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm(
-					Some(ReserveAssetDeposited { assets: (Parent, amount).into() })
+				Xcm(Some(ReserveAssetDeposited { assets: (Parent, amount).into() })
 					.into_iter()
 					.chain(transfer_effects.into_iter())
-					.collect()
-				)
+					.collect())
 			)]
 		);
 	});

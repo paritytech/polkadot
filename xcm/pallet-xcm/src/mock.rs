@@ -22,11 +22,11 @@ use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, Case, ChildParachainAsNative,
-	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	AccountId32Aliases, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, Case,
+	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit, AllowKnownQueryResponses,
+	TakeWeightCredit,
 };
 use xcm_executor::XcmExecutor;
 
@@ -39,9 +39,9 @@ type Block = frame_system::mocking::MockBlock<Test>;
 
 #[frame_support::pallet]
 pub mod pallet_test_notifier {
+	use crate::{ensure_response, QueryId};
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use crate::{ensure_response, QueryId};
 	use sp_runtime::DispatchResult;
 	use xcm::latest::prelude::*;
 

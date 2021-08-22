@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{QueryStatus, mock::*};
+use crate::{mock::*, QueryStatus};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use std::convert::TryInto;
-use xcm_executor::XcmExecutor;
 use xcm::latest::prelude::*;
+use xcm_executor::XcmExecutor;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -32,17 +32,21 @@ fn report_outcome_notify_works() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
-	let mut message = Xcm(vec![
-		TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
-	]);
+	let mut message = Xcm(vec![TransferAsset {
+		assets: (Here, SEND_AMOUNT).into(),
+		beneficiary: sender.clone(),
+	}]);
 	let call = pallet_test_notifier::Call::notification_received(0, Default::default());
 	let notify = Call::TestNotifier(call);
 	new_test_ext_with_balances(balances).execute_with(|| {
 		XcmPallet::report_outcome_notify(&mut message, Parachain(PARA_ID).into(), notify, 100);
-		assert_eq!(message, Xcm(vec![
-			ReportOutcome { query_id: 0, dest: Parent.into(), max_response_weight: 1_000_000 },
-			TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
-		]));
+		assert_eq!(
+			message,
+			Xcm(vec![
+				ReportOutcome { query_id: 0, dest: Parent.into(), max_response_weight: 1_000_000 },
+				TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
+			])
+		);
 		let status = QueryStatus::Pending {
 			responder: MultiLocation::from(Parachain(PARA_ID)).into(),
 			maybe_notify: Some((4, 2)),
@@ -80,15 +84,19 @@ fn report_outcome_works() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
-	let mut message = Xcm(vec![
-		TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
-	]);
+	let mut message = Xcm(vec![TransferAsset {
+		assets: (Here, SEND_AMOUNT).into(),
+		beneficiary: sender.clone(),
+	}]);
 	new_test_ext_with_balances(balances).execute_with(|| {
 		XcmPallet::report_outcome(&mut message, Parachain(PARA_ID).into(), 100);
-		assert_eq!(message, Xcm(vec![
-			ReportOutcome { query_id: 0, dest: Parent.into(), max_response_weight: 0 },
-			TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
-		]));
+		assert_eq!(
+			message,
+			Xcm(vec![
+				ReportOutcome { query_id: 0, dest: Parent.into(), max_response_weight: 0 },
+				TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
+			])
+		);
 		let status = QueryStatus::Pending {
 			responder: MultiLocation::from(Parachain(PARA_ID)).into(),
 			maybe_notify: None,
@@ -108,10 +116,7 @@ fn report_outcome_works() {
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::ResponseReady(
-				0,
-				Response::ExecutionResult(Ok(())),
-			))
+			Event::XcmPallet(crate::Event::ResponseReady(0, Response::ExecutionResult(Ok(())),))
 		);
 
 		let response = Some((Response::ExecutionResult(Ok(())), 1));
@@ -140,12 +145,10 @@ fn send_works() {
 			sent_xcm(),
 			vec![(
 				Here.into(),
-				Xcm(
-					Some(DescendOrigin(sender.clone().try_into().unwrap()))
+				Xcm(Some(DescendOrigin(sender.clone().try_into().unwrap()))
 					.into_iter()
 					.chain(message.0.clone().into_iter())
-					.collect()
-				)
+					.collect())
 			)],
 		);
 		assert_eq!(
@@ -263,11 +266,11 @@ fn execute_withdraw_to_deposit_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
-			Xcm(vec![
+			Box::new(Xcm(vec![
 				WithdrawAsset { assets: (Here, SEND_AMOUNT).into() },
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
-			]),
+			])),
 			weight
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
