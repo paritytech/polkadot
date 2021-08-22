@@ -428,7 +428,7 @@ async fn handle_execute_pvf(
 		} else {
 			// Expect another request with PVF provided.
 			let _ = result_tx.send(Err(ValidationError::ArtifactNotFound));
-		};
+		}
 	}
 
 	return Ok(())

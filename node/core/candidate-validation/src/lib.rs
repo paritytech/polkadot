@@ -385,7 +385,7 @@ where
 		) {
 			Ok(code) => code,
 			Err(e) => {
-				tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+				tracing::debug!(target: LOG_TARGET, err=?e, "Code decompression failed");
 
 				// If the validation code is invalid, the candidate certainly is.
 				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)))
@@ -443,23 +443,21 @@ where
 				Err(err) => return Ok(Err(ValidationFailed(err.to_string()))),
 			};
 
-			let validation_code = Pvf::from_code(
-				match sp_maybe_compressed_blob::decompress(
-					&validation_code.0,
-					VALIDATION_CODE_BOMB_LIMIT,
-				) {
-					Ok(code) => code,
-					Err(e) => {
-						tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+			let raw_code = match sp_maybe_compressed_blob::decompress(
+				&validation_code.0,
+				VALIDATION_CODE_BOMB_LIMIT,
+			) {
+				Ok(code) => code,
+				Err(e) => {
+					tracing::debug!(target: LOG_TARGET, err=?e, "Code decompression failed");
 
-						// If the validation code is invalid, the candidate certainly is.
-						return Ok(Ok(ValidationResult::Invalid(
-							InvalidCandidate::CodeDecompressionFailure,
-						)))
-					},
-				}
-				.to_vec(),
-			);
+					// If the validation code is invalid, the candidate certainly is.
+					return Ok(Ok(ValidationResult::Invalid(
+						InvalidCandidate::CodeDecompressionFailure,
+					)))
+				},
+			};
+			let validation_code = Pvf::from_code(raw_code.to_vec());
 			result = validation_backend.validate_candidate(validation_code, params).await;
 		}
 	}
@@ -478,13 +476,10 @@ where
 		Err(ValidationError::ArtifactNotFound) => {
 			// The code was supplied on the second attempt, this
 			// error should be unreachable.
-			tracing::error!(
-				target: LOG_TARGET,
-				"Unexpected error received from the validation host"
-			);
-			Err(ValidationFailed(
-				"Validation host failed to find artifact even though it was supplied".to_string(),
-			))
+			let error_message =
+				"Validation host failed to find artifact even though it was supplied";
+			tracing::error!(target: LOG_TARGET, error_message,);
+			Err(ValidationFailed(error_message.to_string()))
 		},
 		Ok(res) =>
 			if res.head_data.hash() != descriptor.para_head {
