@@ -105,48 +105,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		assets.into_assets_iter().collect::<Vec<_>>().into()
 	}
 
-	/// Execute the XCM and return the portion of weight of `max_weight` that `message` did not use.
-	///
-	/// NOTE: The amount returned must be less than `max_weight` of `message`.
-	fn do_execute_xcm(
-		mut origin: Option<MultiLocation>,
-		top_level: bool,
-		mut xcm: Xcm<Config::Call>,
-		weight_credit: &mut Weight,
-		maybe_max_weight: Option<Weight>,
-		trader: &mut Config::Trader,
-		num_recursions: u32,
+	fn process_instruction(
+		instr: Instruction<Config::Call>,
 		holding: &mut Assets,
-	) -> Result<Weight, XcmError> {
-		log::trace!(
-			target: "xcm::do_execute_xcm",
-			"origin: {:?}, top_level: {:?}, weight_credit: {:?}, maybe_max_weight: {:?}, recursion: {:?}",
-			origin,
-			top_level,
-			weight_credit,
-			maybe_max_weight,
-			num_recursions,
-		);
-
-		if num_recursions > MAX_RECURSION_LIMIT {
-			return Err(XcmError::RecursionLimitReached)
-		}
-
-		// This is the weight of everything that cannot be paid for. This basically means all computation
-		// except any XCM which is behind an Order::BuyExecution.
-		let max_weight = maybe_max_weight
-			.or_else(|| Config::Weigher::weight(&mut xcm).ok())
-			.ok_or(XcmError::WeightNotComputable)?;
-
-		Config::Barrier::should_execute(&origin, top_level, &mut xcm, max_weight, weight_credit)
-			.map_err(|()| XcmError::Barrier)?;
-
-		let mut process = |instr: Instruction<Config::Call>,
-		                   holding: &mut Assets,
-		                   origin: &mut Option<MultiLocation>,
-		                   report_outcome: &mut Option<_>,
-		                   total_surplus: &mut u64,
-		                   total_refunded: &mut u64| match instr {
+		origin: &mut Option<MultiLocation>,
+		report_outcome: &mut Option<_>,
+		total_surplus: &mut u64,
+		total_refunded: &mut u64,
+	) {
+		match instr {
 			WithdrawAsset(assets) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let origin = origin.as_ref().ok_or(XcmError::BadOrigin)?;
@@ -325,8 +292,52 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Ok(())
 			},
-			_ => return Err(XcmError::UnhandledEffect)?,
+			SetErrorHandler(_) => {
+				todo!()
+			}
+			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
+			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
+			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
+			HrmpChannelClosing { .. } => Err(XcmError::Unimplemented),
 		};
+	}
+
+	/// Execute the XCM and return the portion of weight of `max_weight` that `message` did not use.
+	///
+	/// NOTE: The amount returned must be less than `max_weight` of `message`.
+	fn do_execute_xcm(
+		mut origin: Option<MultiLocation>,
+		top_level: bool,
+		mut xcm: Xcm<Config::Call>,
+		weight_credit: &mut Weight,
+		maybe_max_weight: Option<Weight>,
+		trader: &mut Config::Trader,
+		num_recursions: u32,
+		holding: &mut Assets,
+	) -> Result<Weight, XcmError> {
+		log::trace!(
+			target: "xcm::do_execute_xcm",
+			"origin: {:?}, top_level: {:?}, weight_credit: {:?}, maybe_max_weight: {:?}, recursion: {:?}",
+			origin,
+			top_level,
+			weight_credit,
+			maybe_max_weight,
+			num_recursions,
+		);
+
+		if num_recursions > MAX_RECURSION_LIMIT {
+			return Err(XcmError::RecursionLimitReached)
+		}
+
+		// This is the weight of everything that cannot be paid for. This basically means all computation
+		// except any XCM which is behind an Order::BuyExecution.
+		let max_weight = maybe_max_weight
+			.or_else(|| Config::Weigher::weight(&mut xcm).ok())
+			.ok_or(XcmError::WeightNotComputable)?;
+
+		Config::Barrier::should_execute(&origin, top_level, &mut xcm, max_weight, weight_credit)
+			.map_err(|()| XcmError::Barrier)?;
+
 
 		// The surplus weight, defined as the amount by which `max_weight` is
 		// an over-estimate of the actual weight consumed. We do it this way to avoid needing the

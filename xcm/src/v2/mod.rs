@@ -439,6 +439,13 @@ pub enum Instruction<Call> {
 
 	/// Refund any surplus weight previously bought with `BuyExecution`.
 	RefundSurplus,
+
+	/// Set code that should be called in the case of an error happening.
+	/// 
+	/// The apparent weight of this instruction is inclusive of the inner `Xcm`; the executing
+	/// weight however includes only the difference between the previous handler and the inner
+	/// handler, which can reasonably be negative.
+	SetErrorHandler(Xcm<Call>),
 }
 
 impl<Call> Xcm<Call> {
@@ -488,6 +495,7 @@ impl<Call> Instruction<Call> {
 			ClearOrigin => ClearOrigin,
 			DescendOrigin(who) => DescendOrigin(who),
 			RefundSurplus => RefundSurplus,
+			SetErrorHandler(xcm) => SetErrorHandler(xcm.into()),
 		}
 	}
 }
