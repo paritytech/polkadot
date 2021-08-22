@@ -141,7 +141,7 @@ pub mod pallet {
 		///
 		/// \[ id, pallet index, call index \]
 		NotifyDecodeFailed(QueryId, u8, u8),
-		/// Expected query response has been received but the origin location of the repsonse does
+		/// Expected query response has been received but the origin location of the response does
 		/// not match that expected. The query remains registered for a later, valid, response to
 		/// be received and acted upon.
 		///

@@ -202,12 +202,13 @@ fn teleport_to_statemine_works() {
 				Parachain(other_para_id).into(),
 				Xcm(
 					vec![
-						ReceiveTeleportedAsset((Parent, amount).into())),
+						ReceiveTeleportedAsset((Parent, amount).into()),
 						ClearOrigin,
 					]
 					.into_iter()
 					.chain(teleport_effects.clone().into_iter())
-					.collect())
+					.collect()
+				)
 			)]
 		);
 
@@ -295,12 +296,13 @@ fn reserve_based_transfer_works() {
 				Parachain(other_para_id).into(),
 				Xcm(
 					vec![
-						ReserveAssetDeposited((Parent, amount).into())),
+						ReserveAssetDeposited((Parent, amount).into()),
 						ClearOrigin,
 					]
 					.into_iter()
 					.chain(transfer_effects.into_iter())
-					.collect())
+					.collect()
+				)
 			)]
 		);
 	});
