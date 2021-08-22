@@ -27,32 +27,26 @@ use polkadot_cli::{
 	},
 	Cli,
 };
-use sp_keystore::SyncCryptoStorePtr;
 
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
-use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
-use polkadot_node_subsystem::messages::{CandidateValidationMessage, ValidationFailed};
+use polkadot_node_subsystem::messages::{
+	AvailabilityRecoveryMessage, CandidateValidationMessage, ValidationFailed,
+};
 use polkadot_node_subsystem_util as util;
-use util::{metered::UnboundedMeteredSender, metrics::Metrics as _};
+use util::metrics::Metrics as _;
 // Filter wrapping related types.
 use malus::*;
-use polkadot_node_primitives::{BlockData, PoV, ValidationResult};
+use polkadot_node_primitives::{PoV, ValidationResult};
 
 use polkadot_primitives::v1::{
-	CandidateCommitments, CandidateDescriptor, PersistedValidationData, ValidationCode,
-	ValidationCodeHash,
+	CandidateCommitments, CandidateDescriptor, CandidateReceipt, PersistedValidationData,
+	ValidationCode,
 };
 
-use futures::channel::{mpsc, oneshot};
-use std::{
-	pin::Pin,
-	sync::{
-		atomic::{AtomicUsize, Ordering},
-		Arc,
-	},
-};
+use futures::channel::oneshot;
+use std::sync::{Arc, Mutex};
 
 use structopt::StructOpt;
 
@@ -60,36 +54,63 @@ use shared::*;
 
 mod shared;
 
-#[derive(Clone, Default, Debug)]
-struct BribedPassage;
+use std::collections::HashMap;
 
-impl BribedPassage {
+#[derive(Clone, Debug)]
+struct BribedPassageInner<Spawner> {
+	spawner: Spawner,
+	cache: HashMap<CandidateDescriptor, CandidateReceipt>,
+}
+
+#[derive(Clone, Debug)]
+struct BribedPassage<Spawner> {
+	inner: Arc<Mutex<BribedPassageInner<Spawner>>>,
+}
+
+impl<Spawner> BribedPassage<Spawner>
+where
+	Spawner: SpawnNamed,
+{
 	fn let_pass(
-		&self,
 		persisted_validation_data: PersistedValidationData,
 		validation_code: Option<ValidationCode>,
-		candidate_descriptor: CandidateDescriptor,
-		pov: Arc<PoV>,
+		_candidate_descriptor: CandidateDescriptor,
+		_pov: Arc<PoV>,
 		response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	) {
-		let mut candidate_commitmentments = CandidateCommitments {
+		let candidate_commitmentments = CandidateCommitments {
 			head_data: persisted_validation_data.parent_head.clone(),
 			new_validation_code: validation_code,
 			..Default::default()
 		};
 
-		response_sender.send(Ok(ValidationResult::Valid(
-			candidate_commitmentments,
-			persisted_validation_data,
-		)));
+		response_sender
+			.send(Ok(ValidationResult::Valid(candidate_commitmentments, persisted_validation_data)))
+			.unwrap();
 	}
 }
 
-impl MsgFilter for BribedPassage {
+impl<Sender, Spawner> MsgFilter<Sender> for BribedPassage<Spawner>
+where
+	Sender: overseer::SubsystemSender<CandidateValidationMessage>
+		+ overseer::SubsystemSender<AllMessages>
+		+ Clone
+		+ Send
+		+ 'static,
+	Spawner: SpawnNamed + Send + Clone + 'static,
+{
 	type Message = CandidateValidationMessage;
 
-	fn filter_in(&self, msg: FromOverseer<Self::Message>) -> Option<FromOverseer<Self::Message>> {
+	fn filter_in(
+		&self,
+		sender: &mut Sender,
+		msg: FromOverseer<Self::Message>,
+	) -> Option<FromOverseer<Self::Message>> {
 		match msg {
+			// FromOverseer::Communication {
+			// 	msg:
+			// 	DisputeCoordinatorMessage::
+			// }
 			FromOverseer::Communication {
 				msg:
 					CandidateValidationMessage::ValidateFromExhaustive(
@@ -100,9 +121,9 @@ impl MsgFilter for BribedPassage {
 						response_sender,
 					),
 			} if pov.block_data.0.as_slice() == MALICIOUS_POV => {
-				self.let_pass(
+				Self::let_pass(
 					persisted_validation_data,
-					validation_code,
+					Some(validation_code),
 					candidate_descriptor,
 					pov,
 					response_sender,
@@ -117,22 +138,54 @@ impl MsgFilter for BribedPassage {
 						response_sender,
 					),
 			} if pov.block_data.0.as_slice() == MALICIOUS_POV => {
-				let relay_parent_number = todo!();
-				let relay_parent_storage_root = todo!();
-				let max_pov_size = todo!();
-				let persisted_validation_data = PersistedValidationData {
-					parent_head: todo!(),
-					relay_parent_number,
-					relay_parent_storage_root,
-					max_pov_size,
-				};
-				self.let_pass(
-					persisted_validation_data,
-					None,
-					candidate_descriptor,
-					pov,
-					response_sender,
-				);
+				if let Some(candidate_receipt) =
+					self.inner.lock().unwrap().cache.get(&candidate_descriptor).cloned()
+				{
+					let mut subsystem_sender = sender.clone();
+					let spawner = self.inner.lock().unwrap().spawner.clone();
+					spawner.spawn(
+						"malus-back-garbage-adhoc",
+						Box::pin(async move {
+							let relay_parent = candidate_descriptor.relay_parent;
+							let session_index = util::request_session_index_for_child(
+								relay_parent,
+								&mut subsystem_sender,
+							)
+							.await;
+							let session_index = session_index.await.unwrap().unwrap();
+
+							let (a_tx, a_rx) = oneshot::channel();
+
+							subsystem_sender
+								.send_message(AllMessages::from(
+									AvailabilityRecoveryMessage::RecoverAvailableData(
+										candidate_receipt,
+										session_index,
+										None,
+										a_tx,
+									),
+								))
+								.await;
+
+							if let Ok(Ok(availability_data)) = a_rx.await {
+								Self::let_pass(
+									availability_data.validation_data,
+									None,
+									candidate_descriptor,
+									pov,
+									response_sender,
+								);
+							} else {
+								tracing::info!(
+									target = MALUS,
+									"Could not get availability data, can't back"
+								);
+							}
+						}),
+					);
+				} else {
+					tracing::info!(target = MALUS, "No CandidateReceipt available to work with");
+				}
 				None
 			},
 			msg => Some(msg),
@@ -170,8 +223,14 @@ impl OverseerGen for BackGarbageCandidate {
 				CandidateValidationSubsystem::with_config(
 					candidate_validation_config,
 					Metrics::register(registry)?,
+					polkadot_node_core_pvf::Metrics::register(registry)?,
 				),
-				BribedPassage::default(),
+				BribedPassage::<Spawner> {
+					inner: Arc::new(Mutex::new(BribedPassageInner {
+						spawner: spawner.clone(),
+						cache: Default::default(),
+					})),
+				},
 			),
 		);
 

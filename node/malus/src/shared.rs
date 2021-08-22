@@ -7,6 +7,7 @@ pub const MALUS: &str = "MALUS😈😈😈";
 pub(crate) const MALICIOUS_POV: &[u8] = "😈😈pov_looks_valid_to_me😈😈".as_bytes();
 
 /// Launch a service task for each item in the provided queue.
+#[allow(unused)]
 pub(crate) fn launch_processing_task<X, F, U, Q, S>(spawner: S, queue: Q, action: F)
 where
 	F: Fn(X) -> U + Send + 'static,

@@ -35,7 +35,7 @@ where
 	/// Filter messages that are to be received by
 	/// the subsystem.
 	///
-	/// For non trivial cases, the `sender` can be used to send
+	/// For non-trivial cases, the `sender` can be used to send
 	/// multiple messages after doing some additional processing.
 	fn filter_in(
 		&self,
