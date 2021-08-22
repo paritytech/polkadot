@@ -302,12 +302,14 @@ impl RequestChunksPhase {
 						if erasure_chunk_hash != anticipated_hash {
 							tracing::debug!(
 								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
 								?validator_index,
 								"Merkle proof mismatch",
 							);
 						} else {
 							tracing::trace!(
 								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
 								?validator_index,
 								"Received valid chunk.",
 							);
@@ -316,6 +318,7 @@ impl RequestChunksPhase {
 					} else {
 						tracing::debug!(
 							target: LOG_TARGET,
+							candidate_hash = ?params.candidate_hash,
 							?validator_index,
 							"Invalid Merkle proof",
 						);
@@ -325,6 +328,7 @@ impl RequestChunksPhase {
 				Err((validator_index, e)) => {
 					tracing::debug!(
 						target: LOG_TARGET,
+						candidate_hash= ?params.candidate_hash,
 						err = ?e,
 						?validator_index,
 						"Failure requesting chunk",

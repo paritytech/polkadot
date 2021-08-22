@@ -19,7 +19,7 @@
 use codec::{Decode, Encode};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::Everything,
+	traits::{Everything, Nothing},
 	weights::{constants::WEIGHT_PER_SECOND, Weight},
 };
 use sp_core::H256;
@@ -296,7 +296,7 @@ impl pallet_xcm::Config for Runtime {
 	type ExecuteXcmOrigin = EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = ();
+	type XcmTeleportFilter = Nothing;
 	type XcmReserveTransferFilter = Everything;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
 	type LocationInverter = LocationInverter<Ancestry>;

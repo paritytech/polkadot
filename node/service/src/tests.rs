@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 // Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
@@ -35,7 +36,6 @@ use std::{
 use assert_matches::assert_matches;
 use std::{sync::Arc, time::Duration};
 
-use consensus_common::SelectChain;
 use futures::{channel::oneshot, prelude::*};
 use polkadot_primitives::v1::{Block, BlockNumber, Hash, Header};
 use polkadot_subsystem::messages::{
@@ -88,7 +88,10 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let target_hash = case_vars.target_block.clone();
 	let selection_process = async move {
-		let best = select_relay_chain.finality_target(target_hash, None).await.unwrap();
+		let best = select_relay_chain
+			.finality_target_with_fallback(target_hash, Some(target_hash), None)
+			.await
+			.unwrap();
 		finality_target_tx.send(best).unwrap();
 		()
 	};
@@ -722,36 +725,43 @@ fn chain_6() -> CaseVars {
 	}
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_0() {
 	run_specialized_test_w_harness(chain_0);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_1() {
 	run_specialized_test_w_harness(chain_1);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_2() {
 	run_specialized_test_w_harness(chain_2);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_3() {
 	run_specialized_test_w_harness(chain_3);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_4_target_hash_value_not_contained() {
 	run_specialized_test_w_harness(chain_4);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_5_best_is_target_hash() {
 	run_specialized_test_w_harness(chain_5);
 }
 
+#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_6_approval_lag() {
 	run_specialized_test_w_harness(chain_6);

@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,27 +14,4 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot CLI library.
-
-#![warn(missing_docs)]
-
-#[cfg(feature = "cli")]
-mod cli;
-#[cfg(feature = "cli")]
-mod command;
-
-pub use service::{
-	self, Block, CoreApi, IdentifyVariant, ProvideRuntimeApi, RuntimeApiCollection, TFullClient,
-};
-
-#[cfg(feature = "malus")]
-pub use service::create_default_subsystems;
-
-#[cfg(feature = "cli")]
-pub use cli::*;
-
-#[cfg(feature = "cli")]
-pub use command::*;
-
-#[cfg(feature = "cli")]
-pub use sc_cli::{Error, Result};
+pub mod multilocation;
