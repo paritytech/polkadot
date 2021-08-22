@@ -310,7 +310,7 @@ parameter_types! {
 	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
-	pub const MaxAuthorities: u32 = 100;
+	pub const MaxAuthorities: u32 = 100_000;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {

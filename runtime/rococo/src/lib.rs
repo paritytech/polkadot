@@ -422,7 +422,7 @@ where
 
 parameter_types! {
 	pub const MaxRetries: u32 = 3;
-	pub const MaxAuthorities: u32 = 100;
+	pub const MaxAuthorities: u32 = 100_000;
 }
 
 impl pallet_offences::Config for Runtime {

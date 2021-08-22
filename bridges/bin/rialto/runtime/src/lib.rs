@@ -161,7 +161,6 @@ parameter_types! {
 		write: 200_000_000, // ~0.2 ms = 200 µs
 	};
 	pub const SS58Prefix: u8 = 48;
-	pub const MaxAuthorities: u32 = 100;
 }
 
 impl frame_system::Config for Runtime {
@@ -218,7 +217,6 @@ impl pallet_randomness_collective_flip::Config for Runtime {}
 
 impl pallet_aura::Config for Runtime {
 	type AuthorityId = AuraId;
-	type MaxAuthorities = MaxAuthorities;
 }
 
 type RialtoPoA = pallet_bridge_eth_poa::Instance1;
@@ -703,7 +701,7 @@ impl_runtime_apis! {
 		}
 
 		fn authorities() -> Vec<AuraId> {
-			Aura::authorities().to_vec()
+			Aura::authorities()
 		}
 	}
 
