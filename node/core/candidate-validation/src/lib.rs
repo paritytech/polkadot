@@ -70,6 +70,7 @@ pub struct Config {
 /// The candidate validation subsystem.
 pub struct CandidateValidationSubsystem {
 	metrics: Metrics,
+	pvf_metrics: polkadot_node_core_pvf::Metrics,
 	config: Config,
 }
 
@@ -78,8 +79,12 @@ impl CandidateValidationSubsystem {
 	/// strategy.
 	///
 	/// Check out [`IsolationStrategy`] to get more details.
-	pub fn with_config(config: Config, metrics: Metrics) -> Self {
-		CandidateValidationSubsystem { config, metrics }
+	pub fn with_config(
+		config: Config,
+		metrics: Metrics,
+		pvf_metrics: polkadot_node_core_pvf::Metrics,
+	) -> Self {
+		CandidateValidationSubsystem { config, metrics, pvf_metrics }
 	}
 }
 
@@ -89,10 +94,15 @@ where
 	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future =
-			run(ctx, self.metrics, self.config.artifacts_cache_path, self.config.program_path)
-				.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-				.boxed();
+		let future = run(
+			ctx,
+			self.metrics,
+			self.pvf_metrics,
+			self.config.artifacts_cache_path,
+			self.config.program_path,
+		)
+		.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
+		.boxed();
 		SpawnedSubsystem { name: "candidate-validation-subsystem", future }
 	}
 }
@@ -100,6 +110,7 @@ where
 async fn run<Context>(
 	mut ctx: Context,
 	metrics: Metrics,
+	pvf_metrics: polkadot_node_core_pvf::Metrics,
 	cache_path: PathBuf,
 	program_path: PathBuf,
 ) -> SubsystemResult<()>
@@ -109,6 +120,7 @@ where
 {
 	let (mut validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),
+		pvf_metrics,
 	);
 	ctx.spawn_blocking("pvf-validation-host", task.boxed())?;
 
