@@ -236,7 +236,7 @@ mod tests {
 
 		ParaA::execute_with(|| {
 			let message = Xcm(vec![
-				WithdrawAsset { assets: (Here, send_amount).into() },
+				WithdrawAsset((Here, send_amount).into()),
 				buy_execution((Here, send_amount)),
 				DepositAsset {
 					assets: All.into(),
@@ -272,7 +272,7 @@ mod tests {
 		// Send a message which fully succeeds on the relay chain
 		ParaA::execute_with(|| {
 			let message = Xcm(vec![
-				WithdrawAsset { assets: (Here, send_amount).into() },
+				WithdrawAsset((Here, send_amount).into()),
 				buy_execution((Here, send_amount)),
 				DepositAsset {
 					assets: All.into(),

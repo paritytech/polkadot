@@ -384,18 +384,18 @@ impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
 		let mut iter = old.0.into_iter();
 		let instruction = iter.next().ok_or(())?;
 		Ok(match instruction {
-			Instruction::WithdrawAsset { assets } => {
+			Instruction::WithdrawAsset(assets) => {
 				let effects = iter.map(Order::try_from).collect::<result::Result<_, _>>()?;
 				WithdrawAsset { assets, effects }
 			},
-			Instruction::ReserveAssetDeposited { assets } => {
+			Instruction::ReserveAssetDeposited(assets) => {
 				if !matches!(iter.next(), Some(Instruction::ClearOrigin)) {
 					return Err(())
 				}
 				let effects = iter.map(Order::try_from).collect::<result::Result<_, _>>()?;
 				ReserveAssetDeposited { assets, effects }
 			},
-			Instruction::ReceiveTeleportedAsset { assets } => {
+			Instruction::ReceiveTeleportedAsset(assets) => {
 				if !matches!(iter.next(), Some(Instruction::ClearOrigin)) {
 					return Err(())
 				}

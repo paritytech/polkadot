@@ -49,7 +49,7 @@ fn withdraw_and_deposit_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset { assets: (Here, amount).into() },
+				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
 					assets: All.into(),
@@ -87,7 +87,7 @@ fn query_holding_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset { assets: (Here, amount).into() },
+				WithdrawAsset(Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
 					assets: All.into(),
@@ -119,7 +119,7 @@ fn query_holding_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset { assets: (Here, amount).into() },
+				WithdrawAsset(Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
 					assets: All.into(),
@@ -185,7 +185,7 @@ fn teleport_to_statemine_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset { assets: (Here, amount).into() },
+				WithdrawAsset(Here, amount).into()),
 				buy_execution(),
 				InitiateTeleport {
 					assets: All.into(),
@@ -200,7 +200,7 @@ fn teleport_to_statemine_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm(Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
+				Xcm(Some(ReceiveTeleportedAsset((Parent, amount).into()))
 					.into_iter()
 					.chain(teleport_effects.clone().into_iter())
 					.collect())
@@ -211,7 +211,7 @@ fn teleport_to_statemine_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset { assets: (Here, amount).into() },
+				WithdrawAsset(Here, amount).into()),
 				buy_execution(),
 				InitiateTeleport {
 					assets: All.into(),
@@ -229,14 +229,14 @@ fn teleport_to_statemine_works() {
 			vec![
 				(
 					Parachain(other_para_id).into(),
-					Xcm(Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
+					Xcm(Some(ReceiveTeleportedAsset((Parent, amount).into()))
 						.into_iter()
 						.chain(teleport_effects.clone().into_iter())
 						.collect())
 				),
 				(
 					Parachain(statemine_id).into(),
-					Xcm(Some(ReceiveTeleportedAsset { assets: (Parent, amount).into() })
+					Xcm(Some(ReceiveTeleportedAsset((Parent, amount).into()))
 						.into_iter()
 						.chain(teleport_effects.clone().into_iter())
 						.collect())
@@ -272,7 +272,7 @@ fn reserve_based_transfer_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset { assets: (Here, amount).into() },
+				WithdrawAsset(Here, amount).into()),
 				buy_execution(),
 				DepositReserveAsset {
 					assets: All.into(),
@@ -289,7 +289,7 @@ fn reserve_based_transfer_works() {
 			mock::sent_xcm(),
 			vec![(
 				Parachain(other_para_id).into(),
-				Xcm(Some(ReserveAssetDeposited { assets: (Parent, amount).into() })
+				Xcm(Some(ReserveAssetDeposited((Parent, amount).into()))
 					.into_iter()
 					.chain(transfer_effects.into_iter())
 					.collect())

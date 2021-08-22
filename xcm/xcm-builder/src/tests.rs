@@ -45,7 +45,7 @@ fn basic_setup_works() {
 #[test]
 fn weigher_should_work() {
 	let mut message = Xcm(vec![
-		ReserveAssetDeposited { assets: (Parent, 100).into() },
+		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees: (Parent, 1).into(), weight_limit: Limited(30) },
 		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
 	]);
@@ -122,7 +122,7 @@ fn allow_paid_should_work() {
 
 	let fees = (Parent, 1).into();
 	let mut underpaying_message = Xcm::<()>(vec![
-		ReserveAssetDeposited { assets: (Parent, 100).into() },
+		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees, weight_limit: Limited(20) },
 		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
 	]);
@@ -138,7 +138,7 @@ fn allow_paid_should_work() {
 
 	let fees = (Parent, 1).into();
 	let mut paying_message = Xcm::<()>(vec![
-		ReserveAssetDeposited { assets: (Parent, 100).into() },
+		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees, weight_limit: Limited(30) },
 		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
 	]);
@@ -171,7 +171,7 @@ fn paying_reserve_deposit_should_work() {
 	let origin = Parent.into();
 	let fees = (Parent, 30).into();
 	let message = Xcm(vec![
-		ReserveAssetDeposited { assets: (Parent, 100).into() },
+		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees, weight_limit: Limited(30) },
 		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
 	]);
@@ -233,7 +233,7 @@ fn reserve_transfer_should_work() {
 		vec![(
 			Parachain(2).into(),
 			Xcm::<()>(vec![
-				ReserveAssetDeposited { assets: (Parent, 100).into() },
+				ReserveAssetDeposited((Parent, 100).into()),
 				ClearOrigin,
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: three },
 			]),
@@ -296,7 +296,7 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let origin = one.clone();
 	let fees = (Parent, 100).into();
 	let message = Xcm::<TestCall>(vec![
-		WithdrawAsset { assets: (Parent, 100).into() }, // enough for 100 units of weight.
+		WithdrawAsset((Parent, 100).into()), // enough for 100 units of weight.
 		BuyExecution { fees, weight_limit: Limited(100) },
 		Transact {
 			origin_type: OriginKind::Native,

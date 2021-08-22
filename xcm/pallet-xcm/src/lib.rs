@@ -259,7 +259,7 @@ pub mod pallet {
 		#[pallet::weight({
 			use sp_std::vec;
 			let mut message = Xcm(vec![
-				WithdrawAsset { assets: assets.clone() },
+				WithdrawAsset(assets.clone()),
 				InitiateTeleport { assets: Wild(All), dest: *dest.clone(), xcm: Xcm(vec![]) },
 			]);
 			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
@@ -286,7 +286,7 @@ pub mod pallet {
 			let max_assets = assets.len() as u32;
 			let assets = assets.into();
 			let mut message = Xcm(vec![
-				WithdrawAsset { assets },
+				WithdrawAsset(assets),
 				InitiateTeleport {
 					assets: Wild(All),
 					dest: *dest,
@@ -316,8 +316,8 @@ pub mod pallet {
 		///   an `AccountId32` value.
 		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
 		///   `dest` side.
-		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
-		///   `ReserveAssetDeposited { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
+		///   fees.
 		#[pallet::weight({
 			use sp_std::vec;
 			let mut message = Xcm(vec![

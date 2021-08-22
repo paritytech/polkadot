@@ -142,7 +142,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	WithdrawAsset { assets: MultiAssets },
+	WithdrawAsset(MultiAssets),
 
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin`
 	/// system and equivalent derivatives should be placed into the Holding Register.
@@ -155,7 +155,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
-	ReserveAssetDeposited { assets: MultiAssets },
+	ReserveAssetDeposited(MultiAssets),
 
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should
 	/// be created and placed into the Holding Register.
@@ -168,7 +168,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Trusted Indication*.
 	///
 	/// Errors:
-	ReceiveTeleportedAsset { assets: MultiAssets },
+	ReceiveTeleportedAsset(MultiAssets),
 
 	/// Indication of the contents of the holding register corresponding to the `QueryHolding`
 	/// order of `query_id`.
@@ -266,6 +266,8 @@ pub enum Instruction<Call> {
 	///
 	/// Errors:
 	HrmpChannelAccepted {
+		// NOTE: We keep this as a structured item to a) keep it consistent with the other Hrmp
+		// items; and b) because the field's meaning is not obvious/mentioned from the item name.
 		#[codec(compact)]
 		recipient: u32,
 	},
@@ -455,9 +457,9 @@ impl<Call> Instruction<Call> {
 	pub fn from<C>(xcm: Instruction<C>) -> Self {
 		use Instruction::*;
 		match xcm {
-			WithdrawAsset { assets } => WithdrawAsset { assets },
-			ReserveAssetDeposited { assets } => ReserveAssetDeposited { assets },
-			ReceiveTeleportedAsset { assets } => ReceiveTeleportedAsset { assets },
+			WithdrawAsset(assets) => WithdrawAsset(assets),
+			ReserveAssetDeposited(assets) => ReserveAssetDeposited(assets),
+			ReceiveTeleportedAsset(assets) => ReceiveTeleportedAsset(assets),
 			QueryResponse { query_id, response, max_weight } =>
 				QueryResponse { query_id, response, max_weight },
 			TransferAsset { assets, beneficiary } => TransferAsset { assets, beneficiary },
@@ -515,18 +517,18 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	fn try_from(old: OldXcm<Call>) -> result::Result<Xcm<Call>, ()> {
 		use Instruction::*;
 		Ok(Xcm(match old {
-			OldXcm::WithdrawAsset { assets, effects } => Some(Ok(WithdrawAsset { assets }))
+			OldXcm::WithdrawAsset { assets, effects } => Some(Ok(WithdrawAsset(assets)))
 				.into_iter()
 				.chain(effects.into_iter().map(Instruction::try_from))
 				.collect::<result::Result<Vec<_>, _>>()?,
 			OldXcm::ReserveAssetDeposited { assets, effects } =>
-				Some(Ok(ReserveAssetDeposited { assets }))
+				Some(Ok(ReserveAssetDeposited(assets)))
 					.into_iter()
 					.chain(Some(Ok(ClearOrigin)).into_iter())
 					.chain(effects.into_iter().map(Instruction::try_from))
 					.collect::<result::Result<Vec<_>, _>>()?,
 			OldXcm::ReceiveTeleportedAsset { assets, effects } =>
-				Some(Ok(ReceiveTeleportedAsset { assets }))
+				Some(Ok(ReceiveTeleportedAsset(assets)))
 					.into_iter()
 					.chain(Some(Ok(ClearOrigin)).into_iter())
 					.chain(effects.into_iter().map(Instruction::try_from))
@@ -626,7 +628,7 @@ mod tests {
 	#[test]
 	fn teleport_roundtrip_works() {
 		let xcm = Xcm::<()>(vec![
-			ReceiveTeleportedAsset { assets: (Here, 1).into() },
+			ReceiveTeleportedAsset((Here, 1).into()),
 			ClearOrigin,
 			DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },
 		]);
@@ -646,7 +648,7 @@ mod tests {
 	#[test]
 	fn reserve_deposit_roundtrip_works() {
 		let xcm = Xcm::<()>(vec![
-			ReserveAssetDeposited { assets: (Here, 1).into() },
+			ReserveAssetDeposited((Here, 1).into()),
 			ClearOrigin,
 			BuyExecution { fees: (Here, 1).into(), weight_limit: Some(1).into() },
 			DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },

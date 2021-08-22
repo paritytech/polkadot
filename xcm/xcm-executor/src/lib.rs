@@ -147,7 +147,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		                   report_outcome: &mut Option<_>,
 		                   total_surplus: &mut u64,
 		                   total_refunded: &mut u64| match instr {
-			WithdrawAsset { assets } => {
+			WithdrawAsset(assets) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let origin = origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				for asset in assets.drain().into_iter() {
@@ -156,7 +156,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Ok(())
 			},
-			ReserveAssetDeposited { assets } => {
+			ReserveAssetDeposited(assets) => {
 				// check whether we trust origin to be our reserve location for this asset.
 				let origin = origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				for asset in assets.drain().into_iter() {
@@ -185,11 +185,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Config::AssetTransactor::beam_asset(asset, origin, &dest)?;
 				}
 				assets.reanchor(&inv_dest)?;
-				let mut message = vec![ReserveAssetDeposited { assets }, ClearOrigin];
+				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
-			ReceiveTeleportedAsset { assets } => {
+			ReceiveTeleportedAsset(assets) => {
 				let origin = origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				// check whether we trust origin to teleport this asset to us via config trait.
 				for asset in assets.inner() {
@@ -273,13 +273,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
 				let assets = Self::reanchored(deposited, &dest);
-				let mut message = vec![ReserveAssetDeposited { assets }, ClearOrigin];
+				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
 				let assets = Self::reanchored(holding.saturating_take(assets), &reserve);
-				let mut message = vec![WithdrawAsset { assets }, ClearOrigin];
+				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(reserve, Xcm(message)).map_err(Into::into)
 			},
@@ -290,7 +290,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Config::AssetTransactor::check_out(&dest, &asset);
 				}
 				let assets = Self::reanchored(assets, &dest);
-				let mut message = vec![ReceiveTeleportedAsset { assets }, ClearOrigin];
+				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
