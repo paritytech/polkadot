@@ -347,8 +347,18 @@ impl RequestChunksPhase {
 	async fn wait_for_chunks(&mut self, params: &InteractionParams) {
 		// Wait for all current requests to conclude or time-out, or until we reach enough chunks.
 		while let Some(request_result) = self.requesting_chunks.next().await {
+            tracing::debug!(
+                target: LOG_TARGET,
+                candidate_hash = ?params.candidate_hash,
+                "Looping for request_result",
+            );
 			match request_result {
 				Ok(Some(chunk)) => {
+                    tracing::debug!(
+                        target: LOG_TARGET,
+                        candidate_hash = ?params.candidate_hash,
+                        "Got valid chunk",
+                    );
 					// Check merkle proofs of any received chunks.
 
 					let validator_index = chunk.index;
