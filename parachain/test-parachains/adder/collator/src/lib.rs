@@ -16,19 +16,23 @@
 
 //! Collator for the adder test parachain.
 
+use futures::channel::oneshot;
 use futures_timer::Delay;
-use polkadot_node_primitives::{Collation, CollatorFn, CollationResult, Statement, SignedFullStatement};
+use parity_scale_codec::{Decode, Encode};
+use polkadot_node_primitives::{
+	Collation, CollationResult, CollationSecondedSignal, CollatorFn, PoV, Statement,
+};
 use polkadot_primitives::v1::{CollatorId, CollatorPair};
-use polkadot_node_primitives::PoV;
-use parity_scale_codec::{Encode, Decode};
-use sp_core::{Pair, traits::SpawnNamed};
+use sp_core::{traits::SpawnNamed, Pair};
 use std::{
 	collections::HashMap,
-	sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}},
+	sync::{
+		atomic::{AtomicU32, Ordering},
+		Arc, Mutex,
+	},
 	time::Duration,
 };
 use test_parachain_adder::{execute, hash_state, BlockData, HeadData};
-use futures::channel::oneshot;
 
 /// The amount we add when producing a new block.
 ///
@@ -37,11 +41,8 @@ const ADD: u64 = 2;
 
 /// Calculates the head and state for the block with the given `number`.
 fn calculate_head_and_state_for_number(number: u64) -> (HeadData, u64) {
-	let mut head = HeadData {
-		number: 0,
-		parent_hash: Default::default(),
-		post_state: hash_state(0),
-	};
+	let mut head =
+		HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(0) };
 
 	let mut state = 0u64;
 
@@ -89,11 +90,11 @@ impl State {
 			add: ADD,
 		};
 
-		let new_head = execute(parent_head.hash(), parent_head, &block).expect("Produces valid block");
+		let new_head =
+			execute(parent_head.hash(), parent_head, &block).expect("Produces valid block");
 
 		let new_head_arc = Arc::new(new_head.clone());
-		self.head_to_state
-			.insert(new_head_arc.clone(), block.state.wrapping_add(ADD));
+		self.head_to_state.insert(new_head_arc.clone(), block.state.wrapping_add(ADD));
 		self.number_to_head.insert(new_head.number, new_head_arc);
 
 		(block, new_head)
@@ -146,7 +147,10 @@ impl Collator {
 	/// Create the collation function.
 	///
 	/// This collation function can be plugged into the overseer to generate collations for the adder parachain.
-	pub fn create_collation_function(&self, spawner: impl SpawnNamed + Clone + 'static) -> CollatorFn {
+	pub fn create_collation_function(
+		&self,
+		spawner: impl SpawnNamed + Clone + 'static,
+	) -> CollatorFn {
 		use futures::FutureExt as _;
 
 		let state = self.state.clone();
@@ -178,23 +182,31 @@ impl Collator {
 
 			let compressed_pov = polkadot_node_primitives::maybe_compress_pov(pov);
 
-			let (result_sender, recv) = oneshot::channel::<SignedFullStatement>();
+			let (result_sender, recv) = oneshot::channel::<CollationSecondedSignal>();
 			let seconded_collations = seconded_collations.clone();
-			spawner.spawn("adder-collator-seconded", async move {
-				if let Ok(res) = recv.await {
-					if !matches!(
-						res.payload(),
-						Statement::Seconded(s) if s.descriptor.pov_hash == compressed_pov.hash(),
-					) {
-						log::error!("Seconded statement should match our collation: {:?}", res.payload());
-						std::process::exit(-1);
+			spawner.spawn(
+				"adder-collator-seconded",
+				async move {
+					if let Ok(res) = recv.await {
+						if !matches!(
+							res.statement.payload(),
+							Statement::Seconded(s) if s.descriptor.pov_hash == compressed_pov.hash(),
+						) {
+							log::error!(
+								"Seconded statement should match our collation: {:?}",
+								res.statement.payload()
+							);
+							std::process::exit(-1);
+						}
+
+						seconded_collations.fetch_add(1, Ordering::Relaxed);
 					}
-
-					seconded_collations.fetch_add(1, Ordering::Relaxed);
 				}
-			}.boxed());
+				.boxed(),
+			);
 
-			async move { Some(CollationResult { collation, result_sender: Some(result_sender) }) }.boxed()
+			async move { Some(CollationResult { collation, result_sender: Some(result_sender) }) }
+				.boxed()
 		})
 	}
 
@@ -207,7 +219,7 @@ impl Collator {
 			let current_block = self.state.lock().unwrap().best_block;
 
 			if start_block + blocks <= current_block {
-				return;
+				return
 			}
 		}
 	}
@@ -222,7 +234,7 @@ impl Collator {
 			Delay::new(Duration::from_secs(1)).await;
 
 			if seconded <= seconded_collations.load(Ordering::Relaxed) {
-				return;
+				return
 			}
 		}
 	}
@@ -233,7 +245,7 @@ mod tests {
 	use super::*;
 
 	use futures::executor::block_on;
-	use polkadot_parachain::{primitives::{ValidationParams, ValidationResult}};
+	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
 	use polkadot_primitives::v1::PersistedValidationData;
 
 	#[test]
@@ -243,14 +255,8 @@ mod tests {
 		let collation_function = collator.create_collation_function(spawner);
 
 		for i in 0..5 {
-			let parent_head = collator
-				.state
-				.lock()
-				.unwrap()
-				.number_to_head
-				.get(&i)
-				.unwrap()
-				.clone();
+			let parent_head =
+				collator.state.lock().unwrap().number_to_head.get(&i).unwrap().clone();
 
 			let validation_data = PersistedValidationData {
 				parent_head: parent_head.encode().into(),
@@ -263,11 +269,7 @@ mod tests {
 		}
 	}
 
-	fn validate_collation(
-		collator: &Collator,
-		parent_head: HeadData,
-		collation: Collation,
-	) {
+	fn validate_collation(collator: &Collator, parent_head: HeadData, collation: Collation) {
 		use polkadot_node_core_pvf::testing::validate_candidate;
 
 		let ret_buf = validate_candidate(
@@ -277,7 +279,8 @@ mod tests {
 				block_data: collation.proof_of_validity.block_data,
 				relay_parent_number: 1,
 				relay_parent_storage_root: Default::default(),
-			}.encode(),
+			}
+			.encode(),
 		)
 		.unwrap();
 		let ret = ValidationResult::decode(&mut &ret_buf[..]).unwrap();
@@ -307,7 +310,16 @@ mod tests {
 		}
 
 		let collator = Collator::new();
-		let mut second_head = collator.state.lock().unwrap().number_to_head.get(&0).cloned().unwrap().as_ref().clone();
+		let mut second_head = collator
+			.state
+			.lock()
+			.unwrap()
+			.number_to_head
+			.get(&0)
+			.cloned()
+			.unwrap()
+			.as_ref()
+			.clone();
 
 		for _ in 1..20 {
 			second_head = collator.state.lock().unwrap().advance(second_head.clone()).1;

@@ -1,6 +1,6 @@
 # Disputes
 
-Fast forward to [more detailed disputes requirments](./disputes-flow.md).
+Fast forward to [more detailed disputes requirements](./disputes-flow.md).
 
 ## Motivation and Background
 

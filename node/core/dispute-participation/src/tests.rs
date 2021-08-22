@@ -24,8 +24,10 @@ use super::*;
 use parity_scale_codec::Encode;
 use polkadot_node_primitives::{AvailableData, BlockData, InvalidCandidate, PoV};
 use polkadot_node_subsystem::{
+	jaeger,
+	messages::{AllMessages, ValidationFailed},
 	overseer::Subsystem,
-	jaeger, messages::{AllMessages, ValidationFailed}, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
+	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_primitives::v1::{BlakeTwo256, CandidateCommitments, HashT, Header, ValidationCode};
@@ -45,9 +47,7 @@ where
 	let (subsystem_result, _) =
 		futures::executor::block_on(future::join(spawned_subsystem.future, async move {
 			let mut ctx_handle = test_future.await;
-			ctx_handle
-				.send(FromOverseer::Signal(OverseerSignal::Conclude))
-				.await;
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 
 			// no further request is received by the overseer which means that
 			// no further attempt to participate was made
@@ -69,14 +69,14 @@ async fn activate_leaf(virtual_overseer: &mut VirtualOverseer, block_number: Blo
 	let block_hash = block_header.hash();
 
 	virtual_overseer
-		.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-			ActiveLeavesUpdate::start_work(ActivatedLeaf {
+		.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+			ActivatedLeaf {
 				hash: block_hash,
 				span: Arc::new(jaeger::Span::Disabled),
 				number: block_number,
 				status: LeafStatus::Fresh,
-			}),
-		)))
+			},
+		))))
 		.await;
 }
 
@@ -102,20 +102,19 @@ async fn participate(virtual_overseer: &mut VirtualOverseer) -> oneshot::Receive
 				n_validators,
 				report_availability,
 			},
-	})
-	.await;
+		})
+		.await;
 	receive_availability
 }
 
-async fn recover_available_data(virtual_overseer: &mut VirtualOverseer, receive_availability: oneshot::Receiver<bool>) {
-	let pov_block = PoV {
-		block_data: BlockData(Vec::new()),
-	};
+async fn recover_available_data(
+	virtual_overseer: &mut VirtualOverseer,
+	receive_availability: oneshot::Receiver<bool>,
+) {
+	let pov_block = PoV { block_data: BlockData(Vec::new()) };
 
-	let available_data = AvailableData {
-		pov: Arc::new(pov_block),
-		validation_data: Default::default(),
-	};
+	let available_data =
+		AvailableData { pov: Arc::new(pov_block), validation_data: Default::default() };
 
 	assert_matches!(
 		virtual_overseer.recv().await,
@@ -217,7 +216,10 @@ fn cannot_participate_if_cannot_recover_available_data() {
 				"overseer did not receive recover available data message",
 			);
 
-			assert_eq!(receive_availability.await.expect("Availability should get reported"), false);
+			assert_eq!(
+				receive_availability.await.expect("Availability should get reported"),
+				false
+			);
 
 			virtual_overseer
 		})

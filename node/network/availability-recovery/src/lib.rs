@@ -18,40 +18,44 @@
 
 #![warn(missing_docs)]
 
-use std::collections::{HashMap, VecDeque};
-use std::pin::Pin;
+use std::{
+	collections::{HashMap, VecDeque},
+	pin::Pin,
+};
 
-use futures::{channel::oneshot, prelude::*, stream::FuturesUnordered};
-use futures::future::{BoxFuture, RemoteHandle, FutureExt};
-use futures::task::{Context, Poll};
+use futures::{
+	channel::oneshot,
+	future::{BoxFuture, FutureExt, RemoteHandle},
+	pin_mut,
+	prelude::*,
+	stream::FuturesUnordered,
+	task::{Context, Poll},
+};
 use lru::LruCache;
 use rand::seq::SliceRandom;
 
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateReceipt, CandidateHash,
-	Hash, ValidatorId, ValidatorIndex,
-	SessionInfo, SessionIndex, BlakeTwo256, HashT, GroupIndex, BlockNumber,
+use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1, recovery_threshold};
+use polkadot_node_network_protocol::{
+	request_response::{
+		self as req_res, incoming, outgoing::RequestError, v1 as request_v1,
+		IncomingRequestReceiver, OutgoingRequest, Recipient, Requests,
+	},
+	IfDisconnected, UnifiedReputationChange as Rep,
 };
-use polkadot_node_primitives::{ErasureChunk, AvailableData};
+use polkadot_node_primitives::{AvailableData, ErasureChunk};
+use polkadot_node_subsystem_util::request_session_info;
+use polkadot_primitives::v1::{
+	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
+	Hash, HashT, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+};
 use polkadot_subsystem::{
-	overseer::{self, Subsystem},
-	SubsystemContext, SubsystemResult, SubsystemError, SpawnedSubsystem, FromOverseer,
-	OverseerSignal, ActiveLeavesUpdate, SubsystemSender,
 	errors::RecoveryError,
 	jaeger,
-	messages::{
-		AvailabilityStoreMessage, AvailabilityRecoveryMessage, NetworkBridgeMessage,
-	},
+	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, NetworkBridgeMessage},
+	overseer::{self, Subsystem},
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	SubsystemError, SubsystemResult, SubsystemSender,
 };
-use polkadot_node_network_protocol::{
-	IfDisconnected,
-	request_response::{
-		self as req_res, OutgoingRequest, Recipient, Requests,
-		request::RequestError,
-	},
-};
-use polkadot_node_subsystem_util::request_session_info;
-use polkadot_erasure_coding::{branches, branch_hash, recovery_threshold, obtain_chunks_v1};
 
 mod error;
 
@@ -66,9 +70,13 @@ const N_PARALLEL: usize = 50;
 // Size of the LRU cache where we keep recovered data.
 const LRU_SIZE: usize = 16;
 
+const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
+
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem {
 	fast_path: bool,
+	/// Receiver for available data requests.
+	req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 }
 
 struct RequestFromBackersPhase {
@@ -82,9 +90,8 @@ struct RequestChunksPhase {
 	// request the chunk from them.
 	shuffling: VecDeque<ValidatorIndex>,
 	received_chunks: HashMap<ValidatorIndex, ErasureChunk>,
-	requesting_chunks: FuturesUnordered<BoxFuture<
-		'static,
-		Result<Option<ErasureChunk>, (ValidatorIndex, RequestError)>>,
+	requesting_chunks: FuturesUnordered<
+		BoxFuture<'static, Result<Option<ErasureChunk>, (ValidatorIndex, RequestError)>>,
 	>,
 }
 
@@ -125,9 +132,7 @@ impl RequestFromBackersPhase {
 	fn new(mut backers: Vec<ValidatorIndex>) -> Self {
 		backers.shuffle(&mut rand::thread_rng());
 
-		RequestFromBackersPhase {
-			shuffled_backers: backers,
-		}
+		RequestFromBackersPhase { shuffled_backers: backers }
 	}
 
 	// Run this phase to completion.
@@ -144,29 +149,41 @@ impl RequestFromBackersPhase {
 		);
 		loop {
 			// Pop the next backer, and proceed to next phase if we're out.
-			let validator_index = self.shuffled_backers.pop().ok_or_else(|| RecoveryError::Unavailable)?;
+			let validator_index =
+				self.shuffled_backers.pop().ok_or_else(|| RecoveryError::Unavailable)?;
 
 			// Request data.
 			let (req, res) = OutgoingRequest::new(
-				Recipient::Authority(params.validator_authority_keys[validator_index.0 as usize].clone()),
+				Recipient::Authority(
+					params.validator_authority_keys[validator_index.0 as usize].clone(),
+				),
 				req_res::v1::AvailableDataFetchingRequest { candidate_hash: params.candidate_hash },
 			);
 
-			sender.send_message(NetworkBridgeMessage::SendRequests(
-				vec![Requests::AvailableDataFetching(req)],
-				IfDisconnected::TryConnect,
-			).into()).await;
+			sender
+				.send_message(
+					NetworkBridgeMessage::SendRequests(
+						vec![Requests::AvailableDataFetching(req)],
+						IfDisconnected::TryConnect,
+					)
+					.into(),
+				)
+				.await;
 
 			match res.await {
 				Ok(req_res::v1::AvailableDataFetchingResponse::AvailableData(data)) => {
-					if reconstructed_data_matches_root(params.validators.len(), &params.erasure_root, &data) {
+					if reconstructed_data_matches_root(
+						params.validators.len(),
+						&params.erasure_root,
+						&data,
+					) {
 						tracing::trace!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
 							"Received full data",
 						);
 
-						return Ok(data);
+						return Ok(data)
 					} else {
 						tracing::debug!(
 							target: LOG_TARGET,
@@ -177,8 +194,8 @@ impl RequestFromBackersPhase {
 
 						// it doesn't help to report the peer with req/res.
 					}
-				}
-				Ok(req_res::v1::AvailableDataFetchingResponse::NoSuchData) => {}
+				},
+				Ok(req_res::v1::AvailableDataFetchingResponse::NoSuchData) => {},
 				Err(e) => tracing::debug!(
 					target: LOG_TARGET,
 					candidate_hash = ?params.candidate_hash,
@@ -239,34 +256,34 @@ impl RequestChunksPhase {
 					index: validator_index,
 				};
 
-				let (req, res) = OutgoingRequest::new(
-					Recipient::Authority(validator),
-					raw_request.clone(),
-				);
+				let (req, res) =
+					OutgoingRequest::new(Recipient::Authority(validator), raw_request.clone());
 
-				sender.send_message(NetworkBridgeMessage::SendRequests(
-					vec![Requests::ChunkFetching(req)],
-					IfDisconnected::TryConnect,
-				).into()).await;
+				sender
+					.send_message(
+						NetworkBridgeMessage::SendRequests(
+							vec![Requests::ChunkFetching(req)],
+							IfDisconnected::TryConnect,
+						)
+						.into(),
+					)
+					.await;
 
 				self.requesting_chunks.push(Box::pin(async move {
 					match res.await {
-						Ok(req_res::v1::ChunkFetchingResponse::Chunk(chunk))
-							=> Ok(Some(chunk.recombine_into_chunk(&raw_request))),
+						Ok(req_res::v1::ChunkFetchingResponse::Chunk(chunk)) =>
+							Ok(Some(chunk.recombine_into_chunk(&raw_request))),
 						Ok(req_res::v1::ChunkFetchingResponse::NoSuchChunk) => Ok(None),
 						Err(e) => Err((validator_index, e)),
 					}
 				}));
 			} else {
-				break;
+				break
 			}
 		}
 	}
 
-	async fn wait_for_chunks(
-		&mut self,
-		params: &InteractionParams,
-	) {
+	async fn wait_for_chunks(&mut self, params: &InteractionParams) {
 		// Wait for all current requests to conclude or time-out, or until we reach enough chunks.
 		while let Some(request_result) = self.requesting_chunks.next().await {
 			match request_result {
@@ -275,22 +292,22 @@ impl RequestChunksPhase {
 
 					let validator_index = chunk.index;
 
-					if let Ok(anticipated_hash) = branch_hash(
-						&params.erasure_root,
-						&chunk.proof,
-						chunk.index.0 as usize,
-					) {
+					if let Ok(anticipated_hash) =
+						branch_hash(&params.erasure_root, &chunk.proof, chunk.index.0 as usize)
+					{
 						let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 
 						if erasure_chunk_hash != anticipated_hash {
 							tracing::debug!(
 								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
 								?validator_index,
 								"Merkle proof mismatch",
 							);
 						} else {
 							tracing::trace!(
 								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
 								?validator_index,
 								"Received valid chunk.",
 							);
@@ -299,32 +316,36 @@ impl RequestChunksPhase {
 					} else {
 						tracing::debug!(
 							target: LOG_TARGET,
+							candidate_hash = ?params.candidate_hash,
 							?validator_index,
 							"Invalid Merkle proof",
 						);
 					}
-				}
-				Ok(None) => {}
+				},
+				Ok(None) => {},
 				Err((validator_index, e)) => {
 					tracing::debug!(
 						target: LOG_TARGET,
+						candidate_hash= ?params.candidate_hash,
 						err = ?e,
 						?validator_index,
 						"Failure requesting chunk",
 					);
 
 					match e {
-						RequestError::InvalidResponse(_) => {}
+						RequestError::InvalidResponse(_) => {},
 						RequestError::NetworkError(_) | RequestError::Canceled(_) => {
 							self.shuffling.push_front(validator_index);
-						}
+						},
 					}
-				}
+				},
 			}
 
 			// Stop waiting for requests when we either can already recover the data
 			// or have gotten firm 'No' responses from enough validators.
-			if self.can_conclude(params) { break }
+			if self.can_conclude(params) {
+				break
+			}
 		}
 	}
 
@@ -336,9 +357,11 @@ impl RequestChunksPhase {
 		// First query the store for any chunks we've got.
 		{
 			let (tx, rx) = oneshot::channel();
-			sender.send_message(
-				AvailabilityStoreMessage::QueryAllChunks(params.candidate_hash, tx).into()
-			).await;
+			sender
+				.send_message(
+					AvailabilityStoreMessage::QueryAllChunks(params.candidate_hash, tx).into(),
+				)
+				.await;
 
 			match rx.await {
 				Ok(chunks) => {
@@ -350,14 +373,14 @@ impl RequestChunksPhase {
 					for chunk in chunks {
 						self.received_chunks.insert(chunk.index, chunk);
 					}
-				}
+				},
 				Err(oneshot::Canceled) => {
 					tracing::warn!(
 						target: LOG_TARGET,
 						candidate_hash = ?params.candidate_hash,
 						"Failed to reach the availability store"
 					);
-				}
+				},
 			}
 		}
 
@@ -373,7 +396,7 @@ impl RequestChunksPhase {
 					"Data recovery is not possible",
 				);
 
-				return Err(RecoveryError::Unavailable);
+				return Err(RecoveryError::Unavailable)
 			}
 
 			self.launch_parallel_requests(params, sender).await;
@@ -388,7 +411,11 @@ impl RequestChunksPhase {
 					self.received_chunks.values().map(|c| (&c.chunk[..], c.index.0 as usize)),
 				) {
 					Ok(data) => {
-						if reconstructed_data_matches_root(params.validators.len(), &params.erasure_root, &data) {
+						if reconstructed_data_matches_root(
+							params.validators.len(),
+							&params.erasure_root,
+							&data,
+						) {
 							tracing::trace!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
@@ -407,7 +434,7 @@ impl RequestChunksPhase {
 
 							Err(RecoveryError::Invalid)
 						}
-					}
+					},
 					Err(err) => {
 						tracing::trace!(
 							target: LOG_TARGET,
@@ -419,7 +446,7 @@ impl RequestChunksPhase {
 
 						Err(RecoveryError::Invalid)
 					},
-				};
+				}
 			}
 		}
 	}
@@ -447,8 +474,8 @@ fn reconstructed_data_matches_root(
 				err = ?e,
 				"Failed to obtain chunks",
 			);
-			return false;
-		}
+			return false
+		},
 	};
 
 	let branches = branches(&chunks);
@@ -461,20 +488,23 @@ impl<S: SubsystemSender> Interaction<S> {
 		// First just see if we have the data available locally.
 		{
 			let (tx, rx) = oneshot::channel();
-			self.sender.send_message(
-				AvailabilityStoreMessage::QueryAvailableData(self.params.candidate_hash, tx).into()
-			).await;
+			self.sender
+				.send_message(
+					AvailabilityStoreMessage::QueryAvailableData(self.params.candidate_hash, tx)
+						.into(),
+				)
+				.await;
 
 			match rx.await {
 				Ok(Some(data)) => return Ok(data),
-				Ok(None) => {}
+				Ok(None) => {},
 				Err(oneshot::Canceled) => {
 					tracing::warn!(
 						target: LOG_TARGET,
 						candidate_hash = ?self.params.candidate_hash,
 						"Failed to reach the availability store",
 					)
-				}
+				},
 			}
 		}
 
@@ -486,16 +516,14 @@ impl<S: SubsystemSender> Interaction<S> {
 					match from_backers.run(&self.params, &mut self.sender).await {
 						Ok(data) => break Ok(data),
 						Err(RecoveryError::Invalid) => break Err(RecoveryError::Invalid),
-						Err(RecoveryError::Unavailable) => {
-							self.phase = InteractionPhase::RequestChunks(
-								RequestChunksPhase::new(self.params.validators.len() as _)
-							)
-						}
+						Err(RecoveryError::Unavailable) =>
+							self.phase = InteractionPhase::RequestChunks(RequestChunksPhase::new(
+								self.params.validators.len() as _,
+							)),
 					}
-				}
-				InteractionPhase::RequestChunks(ref mut from_all) => {
-					break from_all.run(&self.params, &mut self.sender).await;
-				}
+				},
+				InteractionPhase::RequestChunks(ref mut from_all) =>
+					break from_all.run(&self.params, &mut self.sender).await,
 			}
 		}
 	}
@@ -514,7 +542,7 @@ impl Future for InteractionHandle {
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
 		let mut indices_to_remove = Vec::new();
 		for (i, awaiting) in self.awaiting.iter_mut().enumerate().rev() {
-			if let Poll::Ready(()) =  awaiting.poll_canceled(cx) {
+			if let Poll::Ready(()) = awaiting.poll_canceled(cx) {
 				indices_to_remove.push(i);
 			}
 		}
@@ -537,7 +565,7 @@ impl Future for InteractionHandle {
 				"All receivers for available data dropped.",
 			);
 
-			return Poll::Ready(None);
+			return Poll::Ready(None)
 		}
 
 		let remote = &mut self.remote;
@@ -580,21 +608,16 @@ where
 	Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = self.run(ctx)
+		let future = self
+			.run(ctx)
 			.map_err(|e| SubsystemError::with_origin("availability-recovery", e))
 			.boxed();
-		SpawnedSubsystem {
-			name: "availability-recovery-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "availability-recovery-subsystem", future }
 	}
 }
 
 /// Handles a signal from the overseer.
-async fn handle_signal(
-	state: &mut State,
-	signal: OverseerSignal,
-) -> SubsystemResult<bool> {
+async fn handle_signal(state: &mut State, signal: OverseerSignal) -> SubsystemResult<bool> {
 	match signal {
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }) => {
@@ -606,8 +629,8 @@ async fn handle_signal(
 			}
 
 			Ok(false)
-		}
-		OverseerSignal::BlockFinalized(_, _) => Ok(false)
+		},
+		OverseerSignal::BlockFinalized(_, _) => Ok(false),
 	}
 }
 
@@ -636,18 +659,14 @@ where
 
 	let phase = backing_group
 		.and_then(|g| session_info.validator_groups.get(g.0 as usize))
-		.map(|group| InteractionPhase::RequestFromBackers(
-			RequestFromBackersPhase::new(group.clone())
-		))
-		.unwrap_or_else(|| InteractionPhase::RequestChunks(
-			RequestChunksPhase::new(params.validators.len() as _)
-		));
+		.map(|group| {
+			InteractionPhase::RequestFromBackers(RequestFromBackersPhase::new(group.clone()))
+		})
+		.unwrap_or_else(|| {
+			InteractionPhase::RequestChunks(RequestChunksPhase::new(params.validators.len() as _))
+		});
 
-	let interaction = Interaction {
-		sender: ctx.sender().clone(),
-		params,
-		phase,
-	};
+	let interaction = Interaction { sender: ctx.sender().clone(), params, phase };
 
 	let (remote, remote_handle) = interaction.run().remote_handle();
 
@@ -694,43 +713,32 @@ where
 				"Error responding with an availability recovery result",
 			);
 		}
-		return Ok(());
+		return Ok(())
 	}
 
 	if let Some(i) = state.interactions.iter_mut().find(|i| i.candidate_hash == candidate_hash) {
 		i.awaiting.push(response_sender);
-		return Ok(());
+		return Ok(())
 	}
 
 	let _span = span.child("not-cached");
-	let session_info = request_session_info(
-		state.live_block.1,
-		session_index,
-		ctx.sender(),
-	).await.await.map_err(error::Error::CanceledSessionInfo)??;
+	let session_info = request_session_info(state.live_block.1, session_index, ctx.sender())
+		.await
+		.await
+		.map_err(error::Error::CanceledSessionInfo)??;
 
 	let _span = span.child("session-info-ctx-received");
 	match session_info {
-		Some(session_info) => {
-			launch_interaction(
-				state,
-				ctx,
-				session_info,
-				receipt,
-				backing_group,
-				response_sender,
-			).await
-		}
+		Some(session_info) =>
+			launch_interaction(state, ctx, session_info, receipt, backing_group, response_sender)
+				.await,
 		None => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"SessionInfo is `None` at {:?}", state.live_block,
-			);
+			tracing::warn!(target: LOG_TARGET, "SessionInfo is `None` at {:?}", state.live_block);
 			response_sender
 				.send(Err(RecoveryError::Unavailable))
 				.map_err(|_| error::Error::CanceledResponseSender)?;
 			Ok(())
-		}
+		},
 	}
 }
 
@@ -744,35 +752,38 @@ where
 	Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
 {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(
-		AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx),
-	).await;
+	ctx.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx))
+		.await;
 
 	Ok(rx.await.map_err(error::Error::CanceledQueryFullData)?)
 }
 
 impl AvailabilityRecoverySubsystem {
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which starts with a fast path to request data from backers.
-	pub fn with_fast_path() -> Self {
-		Self { fast_path: true }
+	pub fn with_fast_path(
+		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+	) -> Self {
+		Self { fast_path: true, req_receiver }
 	}
 
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which requests only chunks
-	pub fn with_chunks_only() -> Self {
-		Self { fast_path: false }
+	pub fn with_chunks_only(
+		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+	) -> Self {
+		Self { fast_path: false, req_receiver }
 	}
 
-	async fn run<Context>(
-		self,
-		mut ctx: Context,
-	) -> SubsystemResult<()>
+	async fn run<Context>(self, mut ctx: Context) -> SubsystemResult<()>
 	where
 		Context: SubsystemContext<Message = AvailabilityRecoveryMessage>,
 		Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	{
 		let mut state = State::default();
+		let Self { fast_path, mut req_receiver } = self;
 
 		loop {
+			let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
+			pin_mut!(recv_req);
 			futures::select! {
 				v = ctx.recv().fuse() => {
 					match v? {
@@ -795,7 +806,7 @@ impl AvailabilityRecoverySubsystem {
 										&mut ctx,
 										receipt,
 										session_index,
-										maybe_backing_group.filter(|_| self.fast_path),
+										maybe_backing_group.filter(|_| fast_path),
 										response_sender,
 									).await {
 										tracing::warn!(
@@ -805,23 +816,36 @@ impl AvailabilityRecoverySubsystem {
 										);
 									}
 								}
-								AvailabilityRecoveryMessage::AvailableDataFetchingRequest(req) => {
-									match query_full_data(&mut ctx, req.payload.candidate_hash).await {
-										Ok(res) => {
-											let _ = req.send_response(res.into());
-										}
-										Err(e) => {
-											tracing::debug!(
-												target: LOG_TARGET,
-												err = ?e,
-												"Failed to query available data.",
-											);
+							}
+						}
+					}
+				}
+				in_req = recv_req => {
+					match in_req {
+						Ok(req) => {
+							match query_full_data(&mut ctx, req.payload.candidate_hash).await {
+								Ok(res) => {
+									let _ = req.send_response(res.into());
+								}
+								Err(e) => {
+									tracing::debug!(
+										target: LOG_TARGET,
+										err = ?e,
+										"Failed to query available data.",
+									);
 
-											let _ = req.send_response(None.into());
-										}
-									}
+									let _ = req.send_response(None.into());
 								}
 							}
+						}
+						Err(incoming::Error::Fatal(f)) => return Err(SubsystemError::with_origin("availability-recovery", f)),
+						Err(incoming::Error::NonFatal(err)) => {
+							tracing::debug!(
+								target: LOG_TARGET,
+								?err,
+								"Decoding incoming request failed"
+							);
+							continue
 						}
 					}
 				}

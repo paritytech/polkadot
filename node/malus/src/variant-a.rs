@@ -27,8 +27,7 @@ use polkadot_cli::{
 	create_default_subsystems,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerGen, OverseerGenArgs, Handle, ParachainHost, ProvideRuntimeApi,
-		SpawnNamed,
+		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
 	},
 	Cli,
 };
@@ -42,8 +41,10 @@ use polkadot_node_subsystem_util::metrics::Metrics as _;
 // Filter wrapping related types.
 use malus::*;
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{
+	atomic::{AtomicUsize, Ordering},
+	Arc,
+};
 
 use structopt::StructOpt;
 
@@ -73,7 +74,7 @@ impl OverseerGen for BehaveMaleficient {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
-	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, Handle), Error>
+	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
@@ -91,6 +92,7 @@ impl OverseerGen for BehaveMaleficient {
 				CandidateValidationSubsystem::with_config(
 					candidate_validation_config,
 					Metrics::register(registry)?,
+					polkadot_node_core_pvf::Metrics::register(registry)?,
 				),
 				Skippy::default(),
 			),

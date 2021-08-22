@@ -14,7 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{process::{Child, ExitStatus}, thread, time::Duration};
+use std::{
+	process::{Child, ExitStatus},
+	thread,
+	time::Duration,
+};
 
 /// Wait for the given `child` the given ammount of `secs`.
 ///

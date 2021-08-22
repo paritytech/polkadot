@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcm::v0::{MultiAsset, Error as XcmError};
 use sp_std::result;
+use xcm::latest::{Error as XcmError, MultiAsset};
 
 /// Errors associated with [`MatchesFungibles`] operation.
 pub enum Error {
@@ -33,9 +33,10 @@ impl From<Error> for XcmError {
 	fn from(e: Error) -> Self {
 		use XcmError::FailedToTransactAsset;
 		match e {
-			Error::AssetNotFound => FailedToTransactAsset("AssetNotFound"),
+			Error::AssetNotFound => XcmError::AssetNotFound,
 			Error::AccountIdConversionFailed => FailedToTransactAsset("AccountIdConversionFailed"),
-			Error::AmountToBalanceConversionFailed => FailedToTransactAsset("AmountToBalanceConversionFailed"),
+			Error::AmountToBalanceConversionFailed =>
+				FailedToTransactAsset("AmountToBalanceConversionFailed"),
 			Error::AssetIdConversionFailed => FailedToTransactAsset("AssetIdConversionFailed"),
 		}
 	}
@@ -46,10 +47,7 @@ pub trait MatchesFungibles<AssetId, Balance> {
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
-impl<
-	AssetId: Clone,
-	Balance: Clone,
-> MatchesFungibles<AssetId, Balance> for Tuple {
+impl<AssetId: Clone, Balance: Clone> MatchesFungibles<AssetId, Balance> for Tuple {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), Error> {
 		for_tuples!( #(
 			match Tuple::matches_fungibles(a) { o @ Ok(_) => return o, _ => () }
