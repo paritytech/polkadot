@@ -140,7 +140,9 @@ fn send_works() {
 			buy_execution((Parent, SEND_AMOUNT)),
 			DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 		]);
-		assert_ok!(XcmPallet::send(Origin::signed(ALICE), RelayLocation::get(), message.clone(),));
+		let boxed_msg = Box::new(message.clone());
+		let dest = Box::new(RelayLocation::get());
+		assert_ok!(XcmPallet::send(Origin::signed(ALICE), dest, boxed_msg,));
 		assert_eq!(
 			sent_xcm(),
 			vec![(
@@ -174,8 +176,9 @@ fn send_fails_when_xcm_router_blocks() {
 			buy_execution((Parent, SEND_AMOUNT)),
 			DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 		]);
+		let dest = Box::new(MultiLocation::ancestor(8));
 		assert_noop!(
-			XcmPallet::send(Origin::signed(ALICE), MultiLocation::ancestor(8), message,),
+			XcmPallet::send(Origin::signed(ALICE), dest, Box::new(message),),
 			crate::Error::<Test>::SendFailure,
 		);
 	});
