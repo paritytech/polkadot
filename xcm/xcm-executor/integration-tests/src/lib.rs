@@ -139,11 +139,9 @@ fn query_response_fires() {
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 				r.event,
-				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::ResponseReceived(
-					MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { .. }) },
+				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::ResponseReady(
 					q,
 					Response::ExecutionResult(Ok(())),
-					1_000_000,
 				)) if q == query_id,
 			)));
 			assert_eq!(
