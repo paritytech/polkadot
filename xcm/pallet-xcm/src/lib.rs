@@ -112,40 +112,40 @@ pub mod pallet {
 		/// matching query was never registered, it may be because it is a duplicate response, or
 		/// because the query timed out.
 		///
-		/// \[ origin_location, query_id \]
+		/// \[ origin location, id \]
 		UnexpectedResponse(MultiLocation, QueryId),
 		/// Query response has been received and is ready for taking with `take_response`. There is
 		/// no registered notification call.
 		///
-		/// \[ query_id, response \]
+		/// \[ id, response \]
 		ResponseReady(QueryId, Response),
 		/// Query response has been received and query is removed. The registered notification has
 		/// been dispatched and executed successfully.
 		///
-		/// \[ query_id, pallet_index, call_index \]
+		/// \[ id, pallet index, call index \]
 		Notified(QueryId, u8, u8),
 		/// Query response has been received and query is removed. The registered notification could
 		/// not be dispatched because the dispatch weight is greater than the maximum weight
 		/// originally budgeted by this runtime for the query result.
 		///
-		/// \[ query_id, pallet_index, call_index, actual_weight, max_budgeted_weight \]
+		/// \[ id, pallet index, call index, actual weight, max budgeted weight \]
 		NotifyOverweight(QueryId, u8, u8, Weight, Weight),
 		/// Query response has been received and query is removed. There was a general error with
 		/// dispatching the notification call.
 		///
-		/// \[ query_id, pallet_index, call_index \]
+		/// \[ id, pallet index, call index \]
 		NotifyDispatchError(QueryId, u8, u8),
 		/// Query response has been received and query is removed. The dispatch was unable to be
 		/// decoded into a `Call`; this might be due to dispatch function having a signature which
 		/// is not `(origin, QueryId, Response)`.
 		///
-		/// \[ query_id, pallet_index, call_index \]
+		/// \[ id, pallet index, call index \]
 		NotifyDecodeFailed(QueryId, u8, u8),
 		/// Expected query response has been received but the origin location of the repsonse does
 		/// not match that expected. The query remains registered for a later, valid, response to
 		/// be received and acted upon.
 		///
-		/// \[ origin_location, query_id, expected_location \]
+		/// \[ origin location, id, expected location \]
 		InvalidResponder(MultiLocation, QueryId, MultiLocation),
 		/// Expected query response has been received but the expected origin location placed in
 		/// storate by this runtime previously cannot be decoded. The query remains registered.
@@ -155,9 +155,9 @@ pub mod pallet {
 		/// valid response will be dropped. Manual governance intervention is probably going to be
 		/// needed.
 		///
-		/// \[ origin_location, query_id \]
+		/// \[ origin location, id \]
 		InvalidResponderVersion(MultiLocation, QueryId),
-		/// Received query response has been read and removed.
+		/// Received query response has been read and removed. \[ id \]
 		ResponseTaken(QueryId),
 	}
 
