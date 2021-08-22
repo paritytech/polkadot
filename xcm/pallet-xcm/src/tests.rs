@@ -269,7 +269,7 @@ fn execute_withdraw_to_deposit_works() {
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
 			Box::new(Xcm(vec![
-				WithdrawAsset { assets: (Here, SEND_AMOUNT).into() },
+				WithdrawAsset((Here, SEND_AMOUNT).into()),
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 			])),

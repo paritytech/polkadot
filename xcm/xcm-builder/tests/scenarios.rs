@@ -87,7 +87,7 @@ fn query_holding_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset(Here, amount).into()),
+				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
 					assets: All.into(),
@@ -119,7 +119,7 @@ fn query_holding_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset(Here, amount).into()),
+				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
 					assets: All.into(),
@@ -185,7 +185,7 @@ fn teleport_to_statemine_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset(Here, amount).into()),
+				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				InitiateTeleport {
 					assets: All.into(),
@@ -216,7 +216,7 @@ fn teleport_to_statemine_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset(Here, amount).into()),
+				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				InitiateTeleport {
 					assets: All.into(),
@@ -277,7 +277,7 @@ fn reserve_based_transfer_works() {
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
-				WithdrawAsset(Here, amount).into()),
+				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositReserveAsset {
 					assets: All.into(),
