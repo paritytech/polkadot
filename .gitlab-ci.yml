@@ -41,9 +41,15 @@ default:
       - ./artifacts/
 
 .kubernetes-env:                   &kubernetes-env
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - unknown_failure
+      - api_failure
+  interruptible:                   true
   tags:
     - kubernetes-parity-build
-  interruptible:                   true
 
 .docker-env:                       &docker-env
   retry:
@@ -101,6 +107,14 @@ check-line-width:
     - ./scripts/gitlab/check_line_width.sh
   allow_failure:                   true
 
+cargo-fmt:
+  stage:                           test
+  <<:                              *kubernetes-env
+  <<:                              *rules-pr-only
+  script:
+    - cargo +nightly fmt --all -- --check
+  allow_failure:                   true
+
 test-deterministic-wasm:
   stage:                           test
   <<:                              *rules-test
@@ -130,7 +144,7 @@ test-build-linux-stable:
     # we're using the bin built here, instead of having a parallel `build-linux-release`
     - time cargo build --release --verbose --bin polkadot
     - sccache -s
-    # pack-artifacts
+    # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
     - mv ./target/release/polkadot ./artifacts/.
@@ -142,17 +156,6 @@ test-build-linux-stable:
     - echo -n ${VERSION} > ./artifacts/VERSION
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/docker/* ./artifacts
-
-check-web-wasm:
-  stage:                           test
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *compiler-info
-  script:
-    # WASM support is in progress. As more and more crates support WASM, we should
-    # add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - ./scripts/gitlab/check_web_wasm.sh
-    - sccache -s
 
 check-runtime-benchmarks:
   stage:                           test
@@ -172,7 +175,7 @@ spellcheck:
     - cargo spellcheck --version
     # compare with the commit parent to the PR, given it's from a default branch
     - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
-    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1 
+    - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
         -r $(git diff --name-only ${CI_COMMIT_SHA} $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH}))
   allow_failure:                   true
 
@@ -224,6 +227,28 @@ generate-impl-guide:
   script:
     - mdbook build roadmap/implementers-guide
 
+build-rustdoc:
+  stage:                           build
+  <<:                              *docker-env
+  <<:                              *rules-test
+  variables:
+    SKIP_WASM_BUILD:               1
+  artifacts:
+    name:                          "${CI_JOB_NAME}_${CI_COMMIT_REF_NAME}-doc"
+    when:                          on_success
+    expire_in:                     7 days
+    paths:
+    - ./crate-docs/
+  script:
+    # FIXME: it fails with `RUSTDOCFLAGS="-Dwarnings"` and `--all-features`
+    - time cargo doc --no-deps --workspace --verbose
+    - rm -f ./target/doc/.lock
+    - mv ./target/doc ./crate-docs
+    # FIXME: remove me after CI image gets nonroot
+    - chown -R nonroot:nonroot ./crate-docs
+    - echo "<meta http-equiv=refresh content=0;url=polkadot_service/index.html>" > ./crate-docs/index.html
+    - sccache -s
+
 .build-push-image:                 &build-push-image
   <<:                              *kubernetes-env
   image:                           quay.io/buildah/stable
@@ -257,14 +282,6 @@ generate-impl-guide:
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
   after_script:
     - buildah logout "$IMAGE_NAME"
-    # pass artifacts to the trigger-simnet job
-    - echo "IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/build.env
-    - echo "IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/build.env
-  artifacts:
-    reports:
-      # this artifact is used in trigger-simnet job
-      # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
-      dotenv: ./artifacts/build.env
 
 publish-polkadot-image:
   stage:                           build
@@ -291,6 +308,15 @@ publish-polkadot-image:
   needs:
     - job:                         test-build-linux-stable
       artifacts:                   true
+  after_script:
+    # pass artifacts to the simnet-tests job
+    # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
+    - echo "PARACHAINS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/parachains.env
+    - echo "PARACHAINS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/parachains.env
+  artifacts:
+    reports:
+      # this artifact is used in simnet-tests job
+      dotenv: ./artifacts/parachains.env
 
 publish-adder-collator-image:
   # service image for Simnet
@@ -311,12 +337,40 @@ publish-adder-collator-image:
       artifacts:                   true
   after_script:
     - buildah logout "$IMAGE_NAME"
-    # pass artifacts to the trigger-simnet job
-    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" > ./artifacts/collator.env
+    # pass artifacts to the simnet-tests job
+    - echo "COLLATOR_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/collator.env
+    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
   artifacts:
     reports:
-      # this artifact is used in trigger-simnet job
+      # this artifact is used in simnet-tests job
       dotenv: ./artifacts/collator.env
+
+.update_weights:                   &update-weights
+  stage:                           build
+  when:                            manual
+  tags:
+    - weights
+  variables:
+    RUNTIME:                       polkadot
+  artifacts:
+    paths:
+      - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  script: |
+    ./scripts/run_benches_for_runtime.sh $RUNTIME
+    git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+
+update_polkadot_weights:
+  <<:                              *update-weights
+
+update_kusama_weights:
+  <<:                              *update-weights
+  variables:
+    RUNTIME:                       kusama
+
+update_westend_weights:
+  <<:                              *update-weights
+  variables:
+    RUNTIME:                       westend
 
 #### stage:                        publish
 
@@ -358,6 +412,48 @@ publish-s3-release:                &publish-s3
     - aws s3 ls s3://${AWS_BUCKET}/${PREFIX}/${EXTRATAG}/
         --recursive --human-readable --summarize
 
+publish-rustdoc:
+  stage:                           publish
+  <<:                              *kubernetes-env
+  image:                           paritytech/tools:latest
+  variables:
+    GIT_DEPTH:                     100
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME == "master"
+  # `needs:` can be removed after CI image gets nonroot. In this case `needs:` stops other
+  # artifacts from being dowloaded by this job.
+  needs:
+    - job:                         build-rustdoc
+      artifacts:                   true
+  script:
+    - rm -rf /tmp/*
+    # Set git config
+    - rm -rf .git/config
+    - git config user.email "devops-team@parity.io"
+    - git config user.name "${GITHUB_USER}"
+    - git config remote.origin.url "https://${GITHUB_TOKEN}@github.com/paritytech/polkadot.git"
+    - git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+    - git fetch origin gh-pages
+    # Save README and docs
+    - cp -r ./crate-docs/ /tmp/doc/
+    - cp README.md /tmp/doc/
+    - git checkout gh-pages
+    # Remove everything and restore generated docs and README
+    - rm -rf ./*
+    - mv /tmp/doc/* .
+    # Upload files
+    - git add --all --force
+    # `git commit` has an exit code of > 0 if there is nothing to commit.
+    # This causes GitLab to exit immediately and marks this job failed.
+    # We don't want to mark the entire job failed if there's nothing to
+    # publish though, hence the `|| true`.
+    - git commit -m "Updated docs for ${CI_COMMIT_REF_NAME}" ||
+        echo "___Nothing to commit___"
+    - git push origin gh-pages --force
+  after_script:
+    - rm -rf .git/ ./*
+
 #### stage:                        deploy
 
 deploy-polkasync-kusama:
@@ -374,9 +470,9 @@ deploy-polkasync-kusama:
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-trigger-simnet:
+simnet-tests:
   stage:                           deploy
-  image:                           paritytech/tools:latest
+  image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
   <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -386,18 +482,26 @@ trigger-simnet:
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-adder-collator-image
-  # `build.env` brings here `$IMAGE_NAME` and `$IMAGE_TAG` (`$EXTRATAG` here,
-  # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
-  # `collator.env` bears adder-collator unique build tag. In non-triggered builds it
-  # can be called by `master` tag.
-  # Simnet uses an image published on PRs with this exact version for triggered runs
-  # on commits. And parity/rococo:rococo-v1 for the runs not launched by this job.
-  variables:
-    TRGR_PROJECT:                  ${CI_PROJECT_NAME}
-    TRGR_REF:                      ${CI_COMMIT_REF_NAME}
-    # Simnet project ID
-    DWNSTRM_ID:                    332
+  # `parachains.env` brings here `$PARACHAINS_IMAGE_NAME` and `$PARACHAINS_IMAGE_TAG`
+  # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
+  # `collator.env` brings here `$COLLATOR_IMAGE_NAME` and  `$COLLATOR_IMAGE_TAG`
+  # For local tests with docker `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG`
+  # can be replaced with `master` tag.
+
+  # SIMNET_REF is a gitlab variable
+  before_script:
+    - echo "Simnet Tests Config
+        ${SIMNET_IMAGE_NAME} ${SIMNET_REF}
+        ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
+        ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
   script:
-    # API trigger for a Simnet job, argument value is set in the project variables
-    - ./scripts/gitlab/trigger_pipeline.sh --simnet-version=${SIMNET_REF}
+    - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
+        --github-remote-dir="https://github.com/paritytech/polkadot/tree/master/simnet_tests"
+        --config="simnet_tests/configs/simple_rococo_testnet.toml"
+        --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
+        --image-simnet="docker.io/paritytech/simnet:${SIMNET_REF}"
   allow_failure:                   true
+  retry: 2
+  tags:
+    - parity-simnet

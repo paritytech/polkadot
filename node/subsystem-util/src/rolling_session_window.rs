@@ -19,15 +19,14 @@
 //! This is useful for consensus components which need to stay up-to-date about recent sessions but don't
 //! care about the state of particular blocks.
 
-use polkadot_primitives::v1::{Hash, Header, SessionInfo, SessionIndex};
+use polkadot_primitives::v1::{Hash, Header, SessionIndex, SessionInfo};
 
-use polkadot_node_subsystem::{
-	overseer,
-	messages::{RuntimeApiMessage, RuntimeApiRequest},
-	errors::RuntimeApiError,
-	SubsystemContext,
-};
 use futures::channel::oneshot;
+use polkadot_node_subsystem::{
+	errors::RuntimeApiError,
+	messages::{RuntimeApiMessage, RuntimeApiRequest},
+	overseer, SubsystemContext,
+};
 
 /// Sessions unavailable in state to cache.
 #[derive(Debug)]
@@ -96,11 +95,7 @@ pub struct RollingSessionWindow {
 impl RollingSessionWindow {
 	/// Initialize a new session info cache with the given window size.
 	pub fn new(window_size: SessionIndex) -> Self {
-		RollingSessionWindow {
-			earliest_session: None,
-			session_info: Vec::new(),
-			window_size,
-		}
+		RollingSessionWindow { earliest_session: None, session_info: Vec::new(), window_size }
 	}
 
 	/// Initialize a new session info cache with the given window size and
@@ -110,11 +105,7 @@ impl RollingSessionWindow {
 		earliest_session: SessionIndex,
 		session_info: Vec<SessionInfo>,
 	) -> Self {
-		RollingSessionWindow {
-			earliest_session: Some(earliest_session),
-			session_info,
-			window_size,
-		}
+		RollingSessionWindow { earliest_session: Some(earliest_session), session_info, window_size }
 	}
 
 	/// Access the session info for the given session index, if stored within the window.
@@ -126,7 +117,6 @@ impl RollingSessionWindow {
 				self.session_info.get((index - earliest) as usize)
 			}
 		})
-
 	}
 
 	/// Access the index of the earliest session, if the window is not empty.
@@ -153,7 +143,9 @@ impl RollingSessionWindow {
 		block_hash: Hash,
 		block_header: &Header,
 	) -> Result<SessionWindowUpdate, SessionsUnavailable> {
-		if self.window_size == 0 { return Ok(SessionWindowUpdate::Unchanged) }
+		if self.window_size == 0 {
+			return Ok(SessionWindowUpdate::Unchanged)
+		}
 
 		let session_index = {
 			let (s_tx, s_rx) = oneshot::channel();
@@ -164,18 +156,21 @@ impl RollingSessionWindow {
 			ctx.send_message(RuntimeApiMessage::Request(
 				if block_header.number == 0 { block_hash } else { block_header.parent_hash },
 				RuntimeApiRequest::SessionIndexForChild(s_tx),
-			)).await;
+			))
+			.await;
 
 			match s_rx.await {
 				Ok(Ok(s)) => s,
-				Ok(Err(e)) => return Err(SessionsUnavailable {
-					kind: SessionsUnavailableKind::RuntimeApi(e),
-					info: None,
-				}),
-				Err(e) => return Err(SessionsUnavailable {
-					kind: SessionsUnavailableKind::RuntimeApiUnavailable(e),
-					info: None,
-				}),
+				Ok(Err(e)) =>
+					return Err(SessionsUnavailable {
+						kind: SessionsUnavailableKind::RuntimeApi(e),
+						info: None,
+					}),
+				Err(e) =>
+					return Err(SessionsUnavailable {
+						kind: SessionsUnavailableKind::RuntimeApiUnavailable(e),
+						info: None,
+					}),
 			}
 		};
 
@@ -186,16 +181,14 @@ impl RollingSessionWindow {
 				let window_start = session_index.saturating_sub(self.window_size - 1);
 
 				match load_all_sessions(ctx, block_hash, window_start, session_index).await {
-					Err(kind) => {
-						Err(SessionsUnavailable {
-							kind,
-							info: Some(SessionsUnavailableInfo {
-								window_start,
-								window_end: session_index,
-								block_hash,
-							}),
-						})
-					},
+					Err(kind) => Err(SessionsUnavailable {
+						kind,
+						info: Some(SessionsUnavailableInfo {
+							window_start,
+							window_end: session_index,
+							block_hash,
+						}),
+					}),
 					Ok(s) => {
 						let update = SessionWindowUpdate::Initialized {
 							window_start,
@@ -206,14 +199,17 @@ impl RollingSessionWindow {
 						self.session_info = s;
 
 						Ok(update)
-					}
+					},
 				}
-			}
+			},
 			Some(old_window_start) => {
-				let latest = self.latest_session().expect("latest always exists if earliest does; qed");
+				let latest =
+					self.latest_session().expect("latest always exists if earliest does; qed");
 
 				// Either cached or ancient.
-				if session_index <= latest { return Ok(SessionWindowUpdate::Unchanged) }
+				if session_index <= latest {
+					return Ok(SessionWindowUpdate::Unchanged)
+				}
 
 				let old_window_end = latest;
 
@@ -222,23 +218,17 @@ impl RollingSessionWindow {
 				// keep some of the old window, if applicable.
 				let overlap_start = window_start.saturating_sub(old_window_start);
 
-				let fresh_start = if latest < window_start {
-					window_start
-				} else {
-					latest + 1
-				};
+				let fresh_start = if latest < window_start { window_start } else { latest + 1 };
 
 				match load_all_sessions(ctx, block_hash, fresh_start, session_index).await {
-					Err(kind) => {
-						Err(SessionsUnavailable {
-							kind,
-							info: Some(SessionsUnavailableInfo {
-								window_start: fresh_start,
-								window_end: session_index,
-								block_hash,
-							}),
-						})
-					},
+					Err(kind) => Err(SessionsUnavailable {
+						kind,
+						info: Some(SessionsUnavailableInfo {
+							window_start: fresh_start,
+							window_end: session_index,
+							block_hash,
+						}),
+					}),
 					Ok(s) => {
 						let update = SessionWindowUpdate::Advanced {
 							prev_window_start: old_window_start,
@@ -247,7 +237,8 @@ impl RollingSessionWindow {
 							new_window_end: session_index,
 						};
 
-						let outdated = std::cmp::min(overlap_start as usize, self.session_info.len());
+						let outdated =
+							std::cmp::min(overlap_start as usize, self.session_info.len());
 						self.session_info.drain(..outdated);
 						self.session_info.extend(s);
 						// we need to account for this case:
@@ -257,9 +248,9 @@ impl RollingSessionWindow {
 						self.earliest_session = Some(new_earliest);
 
 						Ok(update)
-					}
+					},
 				}
-			}
+			},
 		}
 	}
 }
@@ -272,17 +263,16 @@ async fn load_all_sessions(
 ) -> Result<Vec<SessionInfo>, SessionsUnavailableKind> {
 	let mut v = Vec::new();
 	for i in start..=end_inclusive {
-		let (tx, rx)= oneshot::channel();
+		let (tx, rx) = oneshot::channel();
 		ctx.send_message(RuntimeApiMessage::Request(
 			block_hash,
 			RuntimeApiRequest::SessionInfo(i, tx),
-		)).await;
+		))
+		.await;
 
 		let session_info = match rx.await {
 			Ok(Ok(Some(s))) => s,
-			Ok(Ok(None)) => {
-				return Err(SessionsUnavailableKind::Missing);
-			}
+			Ok(Ok(None)) => return Err(SessionsUnavailableKind::Missing),
 			Ok(Err(e)) => return Err(SessionsUnavailableKind::RuntimeApi(e)),
 			Err(canceled) => return Err(SessionsUnavailableKind::RuntimeApiUnavailable(canceled)),
 		};
@@ -296,10 +286,10 @@ async fn load_all_sessions(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage};
-	use sp_core::testing::TaskExecutor;
 	use assert_matches::assert_matches;
+	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage};
+	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+	use sp_core::testing::TaskExecutor;
 
 	const TEST_WINDOW_SIZE: SessionIndex = 6;
 
@@ -333,18 +323,15 @@ mod tests {
 		};
 
 		let pool = TaskExecutor::new();
-		let (mut ctx, mut handle) = make_subsystem_context::<AvailabilityRecoveryMessage, _>(pool.clone());
+		let (mut ctx, mut handle) =
+			make_subsystem_context::<AvailabilityRecoveryMessage, _>(pool.clone());
 
 		let hash = header.hash();
 
 		let test_fut = {
 			let header = header.clone();
 			Box::pin(async move {
-				window.cache_session_info_for_head(
-					&mut ctx,
-					hash,
-					&header,
-				).await.unwrap();
+				window.cache_session_info_for_head(&mut ctx, hash, &header).await.unwrap();
 
 				assert_eq!(window.earliest_session, Some(expected_start_session));
 				assert_eq!(
@@ -386,12 +373,7 @@ mod tests {
 
 	#[test]
 	fn cache_session_info_first_early() {
-		cache_session_info_test(
-			0,
-			1,
-			RollingSessionWindow::new(TEST_WINDOW_SIZE),
-			0,
-		);
+		cache_session_info_test(0, 1, RollingSessionWindow::new(TEST_WINDOW_SIZE), 0);
 	}
 
 	#[test]
@@ -402,12 +384,7 @@ mod tests {
 			window_size: TEST_WINDOW_SIZE,
 		};
 
-		cache_session_info_test(
-			1,
-			2,
-			window,
-			2,
-		);
+		cache_session_info_test(1, 2, window, 2);
 	}
 
 	#[test]
@@ -424,7 +401,11 @@ mod tests {
 	fn cache_session_info_jump() {
 		let window = RollingSessionWindow {
 			earliest_session: Some(50),
-			session_info: vec![dummy_session_info(50), dummy_session_info(51), dummy_session_info(52)],
+			session_info: vec![
+				dummy_session_info(50),
+				dummy_session_info(51),
+				dummy_session_info(52),
+			],
 			window_size: TEST_WINDOW_SIZE,
 		};
 
@@ -480,10 +461,7 @@ mod tests {
 		};
 
 		cache_session_info_test(
-			0,
-			2,
-			window,
-			2, // should only make one request.
+			0, 2, window, 2, // should only make one request.
 		);
 	}
 
@@ -496,12 +474,7 @@ mod tests {
 			window_size: TEST_WINDOW_SIZE,
 		};
 
-		cache_session_info_test(
-			0,
-			3,
-			window,
-			2,
-		);
+		cache_session_info_test(0, 3, window, 2);
 	}
 
 	#[test]
@@ -526,11 +499,7 @@ mod tests {
 		let test_fut = {
 			let header = header.clone();
 			Box::pin(async move {
-				let res = window.cache_session_info_for_head(
-					&mut ctx,
-					hash,
-					&header,
-				).await;
+				let res = window.cache_session_info_for_head(&mut ctx, hash, &header).await;
 
 				assert!(res.is_err());
 			})
@@ -592,17 +561,10 @@ mod tests {
 		let test_fut = {
 			let header = header.clone();
 			Box::pin(async move {
-				window.cache_session_info_for_head(
-					&mut ctx,
-					hash,
-					&header,
-				).await.unwrap();
+				window.cache_session_info_for_head(&mut ctx, hash, &header).await.unwrap();
 
 				assert_eq!(window.earliest_session, Some(session));
-				assert_eq!(
-					window.session_info,
-					vec![dummy_session_info(session)],
-				);
+				assert_eq!(window.session_info, vec![dummy_session_info(session)]);
 			})
 		};
 

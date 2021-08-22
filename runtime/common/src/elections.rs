@@ -16,12 +16,12 @@
 
 //! Code for elections.
 
+use super::{BlockExecutionWeight, BlockLength, BlockWeights};
 use frame_support::{
 	parameter_types,
 	weights::{DispatchClass, Weight},
 };
 use sp_runtime::Perbill;
-use super::{BlockExecutionWeight, BlockLength, BlockWeights};
 
 parameter_types! {
 	/// A limit for off-chain phragmen unsigned solution submission.

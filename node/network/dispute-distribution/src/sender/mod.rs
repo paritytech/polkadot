@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
-use std::collections::{HashMap, HashSet, hash_map::Entry};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use futures::channel::{mpsc, oneshot};
 
@@ -24,10 +23,9 @@ use polkadot_node_primitives::{CandidateVotes, DisputeMessage, SignedDisputeStat
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v1::{CandidateHash, DisputeStatement, Hash, SessionIndex};
 use polkadot_subsystem::{
+	messages::{AllMessages, DisputeCoordinatorMessage},
 	ActiveLeavesUpdate, SubsystemContext,
-	messages::{AllMessages, DisputeCoordinatorMessage}
 };
-
 
 /// For each ongoing dispute we have a `SendTask` which takes care of it.
 ///
@@ -39,10 +37,10 @@ pub use send_task::TaskFinish;
 
 /// Error and [`Result`] type for sender
 mod error;
-pub use error::{Result, Error, Fatal, NonFatal};
+pub use error::{Error, Fatal, NonFatal, Result};
 
-use crate::{LOG_TARGET, Metrics};
 use self::error::NonFatalResult;
+use crate::{Metrics, LOG_TARGET};
 
 /// The `DisputeSender` keeps track of all ongoing disputes we need to send statements out.
 ///
@@ -68,8 +66,7 @@ pub struct DisputeSender {
 	metrics: Metrics,
 }
 
-impl DisputeSender
-{
+impl DisputeSender {
 	/// Create a new `DisputeSender` which can be used to start dispute sendings.
 	pub fn new(tx: mpsc::Sender<TaskFinish>, metrics: Metrics) -> Self {
 		Self {
@@ -98,18 +95,13 @@ impl DisputeSender
 					"Dispute sending already active."
 				);
 				return Ok(())
-			}
+			},
 			Entry::Vacant(vacant) => {
-				let send_task = SendTask::new(
-					ctx,
-					runtime,
-					&self.active_sessions,
-					self.tx.clone(),
-					req,
-				)
-				.await?;
+				let send_task =
+					SendTask::new(ctx, runtime, &self.active_sessions, self.tx.clone(), req)
+						.await?;
 				vacant.insert(send_task);
-			}
+			},
 		}
 		Ok(())
 	}
@@ -143,9 +135,8 @@ impl DisputeSender
 		let active_disputes: HashSet<_> = active_disputes.into_iter().map(|(_, c)| c).collect();
 
 		// Cleanup obsolete senders:
-		self.disputes.retain(
-			|candidate_hash, _| active_disputes.contains(candidate_hash)
-		);
+		self.disputes
+			.retain(|candidate_hash, _| active_disputes.contains(candidate_hash));
 
 		for dispute in self.disputes.values_mut() {
 			if have_new_sessions || dispute.has_failed_sends() {
@@ -162,7 +153,6 @@ impl DisputeSender
 
 	/// Receive message from a sending task.
 	pub async fn on_task_message(&mut self, msg: TaskFinish) {
-
 		let TaskFinish { candidate_hash, receiver, result } = msg;
 
 		self.metrics.on_sent_request(result.as_metrics_label());
@@ -176,7 +166,7 @@ impl DisputeSender
 					"Received `FromSendingTask::Finished` for non existing dispute."
 				);
 				return
-			}
+			},
 			Some(task) => task,
 		};
 		task.on_finished_send(&receiver, result);
@@ -194,7 +184,9 @@ impl DisputeSender
 		let (session_index, candidate_hash) = dispute;
 		// We need some relay chain head for context for receiving session info information:
 		let ref_head = self.active_sessions.values().next().ok_or(NonFatal::NoActiveHeads)?;
-		let info = runtime.get_session_info_by_index(ctx.sender(), *ref_head, session_index).await?;
+		let info = runtime
+			.get_session_info_by_index(ctx.sender(), *ref_head, session_index)
+			.await?;
 		let our_index = match info.validator_info.our_index {
 			None => {
 				tracing::trace!(
@@ -202,7 +194,7 @@ impl DisputeSender
 					"Not a validator in that session - not starting dispute sending."
 				);
 				return Ok(())
-			}
+			},
 			Some(index) => index,
 		};
 
@@ -215,39 +207,25 @@ impl DisputeSender
 					"No votes for active dispute?! - possible, due to race."
 				);
 				return Ok(())
-			}
+			},
 			Some(votes) => votes,
 		};
 
-		let our_valid_vote = votes
-			.valid
-			.iter()
-			.find(|(_, i, _)| *i == our_index);
+		let our_valid_vote = votes.valid.iter().find(|(_, i, _)| *i == our_index);
 
-		let our_invalid_vote = votes
-			.invalid
-			.iter()
-			.find(|(_, i, _)| *i == our_index);
+		let our_invalid_vote = votes.invalid.iter().find(|(_, i, _)| *i == our_index);
 
-		let (valid_vote, invalid_vote) =
-			if let Some(our_valid_vote) = our_valid_vote {
-				// Get some invalid vote as well:
-				let invalid_vote = votes
-					.invalid
-					.get(0)
-					.ok_or(NonFatal::MissingVotesFromCoordinator)?;
-				(our_valid_vote, invalid_vote)
-			} else if let Some(our_invalid_vote) = our_invalid_vote {
-				// Get some valid vote as well:
-				let valid_vote = votes
-					.valid
-					.get(0)
-					.ok_or(NonFatal::MissingVotesFromCoordinator)?;
-				(valid_vote, our_invalid_vote)
-			} else {
-				return Err(From::from(NonFatal::MissingVotesFromCoordinator))
-			}
-		;
+		let (valid_vote, invalid_vote) = if let Some(our_valid_vote) = our_valid_vote {
+			// Get some invalid vote as well:
+			let invalid_vote = votes.invalid.get(0).ok_or(NonFatal::MissingVotesFromCoordinator)?;
+			(our_valid_vote, invalid_vote)
+		} else if let Some(our_invalid_vote) = our_invalid_vote {
+			// Get some valid vote as well:
+			let valid_vote = votes.valid.get(0).ok_or(NonFatal::MissingVotesFromCoordinator)?;
+			(valid_vote, our_invalid_vote)
+		} else {
+			return Err(From::from(NonFatal::MissingVotesFromCoordinator))
+		};
 		let (kind, valid_index, signature) = valid_vote;
 		let valid_public = info
 			.session_info
@@ -290,7 +268,7 @@ impl DisputeSender
 			invalid_signed,
 			*invalid_index,
 			votes.candidate_receipt,
-			&info.session_info
+			&info.session_info,
 		)
 		.map_err(NonFatal::InvalidDisputeFromCoordinator)?;
 
@@ -333,12 +311,13 @@ async fn get_active_session_indeces<Context: SubsystemContext>(
 }
 
 /// Retrieve Set of active disputes from the dispute coordinator.
-async fn get_active_disputes<Context: SubsystemContext>(ctx: &mut Context)
-	-> NonFatalResult<Vec<(SessionIndex, CandidateHash)>> {
+async fn get_active_disputes<Context: SubsystemContext>(
+	ctx: &mut Context,
+) -> NonFatalResult<Vec<(SessionIndex, CandidateHash)>> {
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::DisputeCoordinator(
-			DisputeCoordinatorMessage::ActiveDisputes(tx)
-	))
+	ctx.send_message(AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ActiveDisputes(
+		tx,
+	)))
 	.await;
 	rx.await.map_err(|_| NonFatal::AskActiveDisputesCanceled)
 }
@@ -351,10 +330,7 @@ async fn get_candidate_votes<Context: SubsystemContext>(
 ) -> NonFatalResult<Option<CandidateVotes>> {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::DisputeCoordinator(
-		DisputeCoordinatorMessage::QueryCandidateVotes(
-			vec![(session_index, candidate_hash)],
-			tx
-		)
+		DisputeCoordinatorMessage::QueryCandidateVotes(vec![(session_index, candidate_hash)], tx),
 	))
 	.await;
 	rx.await

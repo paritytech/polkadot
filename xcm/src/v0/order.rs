@@ -1,29 +1,33 @@
 // Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Cumulus.
+// This file is part of Polkadot.
 
-// Substrate is free software: you can redistribute it and/or modify
+// Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Substrate is distributed in the hope that it will be useful,
+// Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
+use super::{super::v1::Order as Order1, MultiAsset, MultiLocation, Xcm};
 use alloc::vec::Vec;
+use core::{
+	convert::{TryFrom, TryInto},
+	result,
+};
 use derivative::Derivative;
-use parity_scale_codec::{self, Encode, Decode};
-use super::{MultiAsset, MultiLocation, Xcm};
+use parity_scale_codec::{self, Decode, Encode};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
 #[derive(Derivative, Encode, Decode)]
-#[derivative(Clone(bound=""), Eq(bound=""), PartialEq(bound=""), Debug(bound=""))]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum Order<Call> {
@@ -77,7 +81,11 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 4)]
-	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order<()>> },
+	InitiateReserveWithdraw {
+		assets: Vec<MultiAsset>,
+		reserve: MultiLocation,
+		effects: Vec<Order<()>>,
+	},
 
 	/// Remove the asset(s) (`assets`) from holding and send a `TeleportAsset` XCM message to a destination location.
 	///
@@ -99,14 +107,25 @@ pub enum Order<Call> {
 	///
 	/// Errors:
 	#[codec(index = 6)]
-	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
+	QueryHolding {
+		#[codec(compact)]
+		query_id: u64,
+		dest: MultiLocation,
+		assets: Vec<MultiAsset>,
+	},
 
 	/// Pay for the execution of some XCM with up to `weight` picoseconds of execution time, paying for this with
 	/// up to `fees` from the holding account.
 	///
 	/// Errors:
 	#[codec(index = 7)]
-	BuyExecution { fees: MultiAsset, weight: u64, debt: u64, halt_on_error: bool, xcm: Vec<Xcm<Call>> },
+	BuyExecution {
+		fees: MultiAsset,
+		weight: u64,
+		debt: u64,
+		halt_on_error: bool,
+		xcm: Vec<Xcm<Call>>,
+	},
 }
 
 pub mod opaque {
@@ -114,27 +133,74 @@ pub mod opaque {
 }
 
 impl<Call> Order<Call> {
-	pub fn into<C>(self) -> Order<C> { Order::from(self) }
+	pub fn into<C>(self) -> Order<C> {
+		Order::from(self)
+	}
 	pub fn from<C>(order: Order<C>) -> Self {
 		use Order::*;
 		match order {
 			Null => Null,
-			DepositAsset { assets, dest }
-				=> DepositAsset { assets, dest },
-			DepositReserveAsset { assets, dest, effects }
-				=> DepositReserveAsset { assets, dest, effects },
-			ExchangeAsset { give, receive }
-				=> ExchangeAsset { give, receive },
-			InitiateReserveWithdraw { assets, reserve, effects }
-				=> InitiateReserveWithdraw { assets, reserve, effects },
-			InitiateTeleport { assets, dest, effects }
-				=> InitiateTeleport { assets, dest, effects },
-			QueryHolding { query_id, dest, assets }
-				=> QueryHolding { query_id, dest, assets },
+			DepositAsset { assets, dest } => DepositAsset { assets, dest },
+			DepositReserveAsset { assets, dest, effects } =>
+				DepositReserveAsset { assets, dest, effects },
+			ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
+			InitiateReserveWithdraw { assets, reserve, effects } =>
+				InitiateReserveWithdraw { assets, reserve, effects },
+			InitiateTeleport { assets, dest, effects } =>
+				InitiateTeleport { assets, dest, effects },
+			QueryHolding { query_id, dest, assets } => QueryHolding { query_id, dest, assets },
 			BuyExecution { fees, weight, debt, halt_on_error, xcm } => {
 				let xcm = xcm.into_iter().map(Xcm::from).collect();
 				BuyExecution { fees, weight, debt, halt_on_error, xcm }
 			},
 		}
+	}
+}
+
+impl<Call> TryFrom<Order1<Call>> for Order<Call> {
+	type Error = ();
+	fn try_from(old: Order1<Call>) -> result::Result<Order<Call>, ()> {
+		use Order::*;
+		Ok(match old {
+			Order1::Noop => Null,
+			Order1::DepositAsset { assets, beneficiary, .. } =>
+				DepositAsset { assets: assets.try_into()?, dest: beneficiary.try_into()? },
+			Order1::DepositReserveAsset { assets, dest, effects, .. } => DepositReserveAsset {
+				assets: assets.try_into()?,
+				dest: dest.try_into()?,
+				effects: effects
+					.into_iter()
+					.map(Order::<()>::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Order1::ExchangeAsset { give, receive } =>
+				ExchangeAsset { give: give.try_into()?, receive: receive.try_into()? },
+			Order1::InitiateReserveWithdraw { assets, reserve, effects } =>
+				InitiateReserveWithdraw {
+					assets: assets.try_into()?,
+					reserve: reserve.try_into()?,
+					effects: effects
+						.into_iter()
+						.map(Order::<()>::try_from)
+						.collect::<result::Result<_, _>>()?,
+				},
+			Order1::InitiateTeleport { assets, dest, effects } => InitiateTeleport {
+				assets: assets.try_into()?,
+				dest: dest.try_into()?,
+				effects: effects
+					.into_iter()
+					.map(Order::<()>::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Order1::QueryHolding { query_id, dest, assets } =>
+				QueryHolding { query_id, dest: dest.try_into()?, assets: assets.try_into()? },
+			Order1::BuyExecution { fees, weight, debt, halt_on_error, instructions } => {
+				let xcm = instructions
+					.into_iter()
+					.map(Xcm::<Call>::try_from)
+					.collect::<result::Result<_, _>>()?;
+				BuyExecution { fees: fees.try_into()?, weight, debt, halt_on_error, xcm }
+			},
+		})
 	}
 }

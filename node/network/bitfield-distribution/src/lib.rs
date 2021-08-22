@@ -24,19 +24,19 @@
 
 use futures::{channel::oneshot, FutureExt};
 
-use polkadot_subsystem::messages::*;
-use polkadot_subsystem::{
-	PerLeafSpan, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemResult, SubsystemError,
-	jaeger,
-	overseer,
+use polkadot_node_network_protocol::{
+	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
 };
 use polkadot_node_subsystem_util::{
+	self as util,
 	metrics::{self, prometheus},
-	self as util, MIN_GOSSIP_PEERS,
+	MIN_GOSSIP_PEERS,
 };
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
-use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, View, UnifiedReputationChange as Rep, OurView};
+use polkadot_subsystem::{
+	jaeger, messages::*, overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan,
+	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,
+};
 use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
@@ -46,8 +46,10 @@ const COST_SIGNATURE_INVALID: Rep = Rep::CostMajor("Bitfield signature invalid")
 const COST_VALIDATOR_INDEX_INVALID: Rep = Rep::CostMajor("Bitfield validator index invalid");
 const COST_MISSING_PEER_SESSION_KEY: Rep = Rep::CostMinor("Missing peer session key");
 const COST_NOT_IN_VIEW: Rep = Rep::CostMinor("Not interested in that parent hash");
-const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::CostMinorRepeated("Peer sent the same message multiple times");
-const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::BenefitMinorFirst("Valid message with new information");
+const COST_PEER_DUPLICATE_MESSAGE: Rep =
+	Rep::CostMinorRepeated("Peer sent the same message multiple times");
+const BENEFIT_VALID_MESSAGE_FIRST: Rep =
+	Rep::BenefitMinorFirst("Valid message with new information");
 const BENEFIT_VALID_MESSAGE: Rep = Rep::BenefitMinor("Valid message");
 
 /// Checked signed availability bitfield that is distributed
@@ -62,14 +64,10 @@ struct BitfieldGossipMessage {
 
 impl BitfieldGossipMessage {
 	fn into_validation_protocol(self) -> protocol_v1::ValidationProtocol {
-		protocol_v1::ValidationProtocol::BitfieldDistribution(
-			self.into_network_message()
-		)
+		protocol_v1::ValidationProtocol::BitfieldDistribution(self.into_network_message())
 	}
 
-	fn into_network_message(self)
-		-> protocol_v1::BitfieldDistributionMessage
-	{
+	fn into_network_message(self) -> protocol_v1::BitfieldDistributionMessage {
 		protocol_v1::BitfieldDistributionMessage::Bitfield(
 			self.relay_parent,
 			self.signed_availability.into(),
@@ -124,7 +122,11 @@ struct PerRelayParentData {
 
 impl PerRelayParentData {
 	/// Create a new instance.
-	fn new(signing_context: SigningContext, validator_set: Vec<ValidatorId>, span: PerLeafSpan) -> Self {
+	fn new(
+		signing_context: SigningContext,
+		validator_set: Vec<ValidatorId>,
+		span: PerLeafSpan,
+	) -> Self {
 		Self {
 			signing_context,
 			validator_set,
@@ -141,8 +143,14 @@ impl PerRelayParentData {
 		peer: &PeerId,
 		validator: &ValidatorId,
 	) -> bool {
-		self.message_sent_to_peer.get(peer).map(|v| !v.contains(validator)).unwrap_or(true)
-			&& self.message_received_from_peer.get(peer).map(|v| !v.contains(validator)).unwrap_or(true)
+		self.message_sent_to_peer
+			.get(peer)
+			.map(|v| !v.contains(validator))
+			.unwrap_or(true) &&
+			self.message_received_from_peer
+				.get(peer)
+				.map(|v| !v.contains(validator))
+				.unwrap_or(true)
 	}
 }
 
@@ -172,34 +180,34 @@ impl BitfieldDistribution {
 				Ok(message) => message,
 				Err(e) => {
 					tracing::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
-					return;
+					return
 				},
 			};
 			match message {
 				FromOverseer::Communication {
 					msg: BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
 				} => {
-					tracing::trace!(
-						target: LOG_TARGET,
-						?hash,
-						"Processing DistributeBitfield"
-					);
+					tracing::trace!(target: LOG_TARGET, ?hash, "Processing DistributeBitfield");
 					handle_bitfield_distribution(
 						&mut ctx,
 						&mut state,
 						&self.metrics,
 						hash,
 						signed_availability,
-					).await;
-				}
+					)
+					.await;
+				},
 				FromOverseer::Communication {
 					msg: BitfieldDistributionMessage::NetworkBridgeUpdateV1(event),
 				} => {
 					tracing::trace!(target: LOG_TARGET, "Processing NetworkMessage");
 					// a network message was received
 					handle_network_msg(&mut ctx, &mut state, &self.metrics, event).await;
-				}
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
+				},
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated,
+					..
+				})) => {
 					let _timer = self.metrics.time_active_leaves_update();
 
 					for activated in activated {
@@ -221,41 +229,34 @@ impl BitfieldDistribution {
 									relay_parent,
 									PerRelayParentData::new(signing_context, validator_set, span),
 								);
-							}
+							},
 							Err(e) => {
 								tracing::warn!(target: LOG_TARGET, err = ?e, "query_basics has failed");
-							}
+							},
 							_ => {},
 						}
 					}
-				}
+				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
 					tracing::trace!(target: LOG_TARGET, hash = %hash, number = %number, "block finalized");
-				}
+				},
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					tracing::trace!(target: LOG_TARGET, "Conclude");
-					return;
-				}
+					return
+				},
 			}
 		}
 	}
 }
 
 /// Modify the reputation of a peer based on its behavior.
-async fn modify_reputation<Context>(
-	ctx: &mut Context,
-	peer: PeerId,
-	rep: Rep,
-)
+async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep)
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	tracing::trace!(target: LOG_TARGET, ?rep, peer_id = %peer, "reputation change");
 
-	ctx.send_message(
-		NetworkBridgeMessage::ReportPeer(peer, rep),
-	)
-	.await
+	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await
 }
 
 /// Distribute a given valid and signature checked bitfield message.
@@ -267,8 +268,7 @@ async fn handle_bitfield_distribution<Context>(
 	metrics: &Metrics,
 	relay_parent: Hash,
 	signed_availability: SignedAvailabilityBitfield,
-)
-where
+) where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let _timer = metrics.time_handle_bitfield_distribution();
@@ -284,26 +284,27 @@ where
 			"Not supposed to work on relay parent related data",
 		);
 
-		return;
+		return
 	};
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
 		tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "validator set is empty");
-		return;
+		return
 	}
 
 	let validator_index = signed_availability.validator_index().0 as usize;
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
-		tracing::trace!(target: LOG_TARGET, "Could not find a validator for index {}", validator_index);
-		return;
+		tracing::trace!(
+			target: LOG_TARGET,
+			"Could not find a validator for index {}",
+			validator_index
+		);
+		return
 	};
 
-	let msg = BitfieldGossipMessage {
-		relay_parent,
-		signed_availability,
-	};
+	let msg = BitfieldGossipMessage { relay_parent, signed_availability };
 
 	let gossip_peers = &state.gossip_peers;
 	let peer_views = &mut state.peer_views;
@@ -322,23 +323,17 @@ async fn relay_message<Context>(
 	peer_views: &mut HashMap<PeerId, View>,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
-)
-where
+) where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let span = job_data.span.child("relay-msg");
 
 	let _span = span.child("provisionable");
 	// notify the overseer about a new and valid signed bitfield
-	ctx.send_message(
-		ProvisionerMessage::ProvisionableData(
-			message.relay_parent,
-			ProvisionableData::Bitfield(
-				message.relay_parent,
-				message.signed_availability.clone(),
-			),
-		),
-	)
+	ctx.send_message(ProvisionerMessage::ProvisionableData(
+		message.relay_parent,
+		ProvisionableData::Bitfield(message.relay_parent, message.signed_availability.clone()),
+	))
 	.await;
 
 	drop(_span);
@@ -350,7 +345,8 @@ where
 		.filter_map(|(peer, view)| {
 			// check interest in the peer in this message's relay parent
 			if view.contains(&message.relay_parent) {
-				let message_needed = job_data.message_from_validator_needed_by_peer(&peer, &validator);
+				let message_needed =
+					job_data.message_from_validator_needed_by_peer(&peer, &validator);
 				if message_needed {
 					Some(peer.clone())
 				} else {
@@ -366,14 +362,14 @@ where
 		interested_peers,
 		MIN_GOSSIP_PEERS,
 	);
-	interested_peers.iter()
-		.for_each(|peer|{
-			// track the message as sent for this peer
-			job_data.message_sent_to_peer
-				.entry(peer.clone())
-				.or_default()
-				.insert(validator.clone());
-		});
+	interested_peers.iter().for_each(|peer| {
+		// track the message as sent for this peer
+		job_data
+			.message_sent_to_peer
+			.entry(peer.clone())
+			.or_default()
+			.insert(validator.clone());
+	});
 
 	drop(_span);
 
@@ -385,12 +381,10 @@ where
 		);
 	} else {
 		let _span = span.child("gossip");
-		ctx.send_message(
-			NetworkBridgeMessage::SendValidationMessage(
-				interested_peers,
-				message.into_validation_protocol(),
-			),
-		)
+		ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+			interested_peers,
+			message.into_validation_protocol(),
+		))
 		.await;
 	}
 }
@@ -402,8 +396,7 @@ async fn process_incoming_peer_message<Context>(
 	metrics: &Metrics,
 	origin: PeerId,
 	message: protocol_v1::BitfieldDistributionMessage,
-)
-where
+) where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) = message;
@@ -416,7 +409,7 @@ where
 	// we don't care about this, not part of our view.
 	if !state.view.contains(&relay_parent) {
 		modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
-		return;
+		return
 	}
 
 	// Ignore anything the overseer did not tell this subsystem to work on.
@@ -425,16 +418,17 @@ where
 		job_data
 	} else {
 		modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
-		return;
+		return
 	};
 
 	let validator_index = bitfield.unchecked_validator_index();
 
-	let mut _span = job_data.span
-			.child("msg-received")
-			.with_peer_id(&origin)
-			.with_claimed_validator_index(validator_index)
-			.with_stage(jaeger::Stage::BitfieldDistribution);
+	let mut _span = job_data
+		.span
+		.child("msg-received")
+		.with_peer_id(&origin)
+		.with_claimed_validator_index(validator_index)
+		.with_stage(jaeger::Stage::BitfieldDistribution);
 
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
@@ -445,7 +439,7 @@ where
 			"Validator set is empty",
 		);
 		modify_reputation(ctx, origin, COST_MISSING_PEER_SESSION_KEY).await;
-		return;
+		return
 	}
 
 	// Use the (untrusted) validator index provided by the signed payload
@@ -455,28 +449,20 @@ where
 		validator.clone()
 	} else {
 		modify_reputation(ctx, origin, COST_VALIDATOR_INDEX_INVALID).await;
-		return;
+		return
 	};
 
 	// Check if the peer already sent us a message for the validator denoted in the message earlier.
 	// Must be done after validator index verification, in order to avoid storing an unbounded
 	// number of set entries.
-	let received_set = job_data
-		.message_received_from_peer
-		.entry(origin.clone())
-		.or_default();
+	let received_set = job_data.message_received_from_peer.entry(origin.clone()).or_default();
 
 	if !received_set.contains(&validator) {
 		received_set.insert(validator.clone());
 	} else {
-		tracing::trace!(
-			target: LOG_TARGET,
-			?validator_index,
-			?origin,
-			"Duplicate message",
-		);
+		tracing::trace!(target: LOG_TARGET, ?validator_index, ?origin, "Duplicate message");
 		modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
-		return;
+		return
 	};
 
 	let one_per_validator = &mut (job_data.one_per_validator);
@@ -491,25 +477,23 @@ where
 		if old_message.signed_availability.as_unchecked() == &bitfield {
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await;
 		}
-		return;
+		return
 	}
 	let signed_availability = match bitfield.try_into_checked(&signing_context, &validator) {
 		Err(_) => {
 			modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await;
-			return;
+			return
 		},
 		Ok(bitfield) => bitfield,
 	};
 
-	let message = BitfieldGossipMessage {
-		relay_parent,
-		signed_availability,
-	};
+	let message = BitfieldGossipMessage { relay_parent, signed_availability };
 
 	metrics.on_bitfield_received();
 	one_per_validator.insert(validator.clone(), message.clone());
 
-	relay_message(ctx, job_data, &state.gossip_peers, &mut state.peer_views, validator, message).await;
+	relay_message(ctx, job_data, &state.gossip_peers, &mut state.peer_views, validator, message)
+		.await;
 
 	modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await
 }
@@ -521,32 +505,22 @@ async fn handle_network_msg<Context>(
 	state: &mut ProtocolState,
 	metrics: &Metrics,
 	bridge_message: NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>,
-)
-where
+) where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let _timer = metrics.time_handle_network_msg();
 
 	match bridge_message {
 		NetworkBridgeEvent::PeerConnected(peerid, role, _) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				?peerid,
-				?role,
-				"Peer connected",
-			);
+			tracing::trace!(target: LOG_TARGET, ?peerid, ?role, "Peer connected");
 			// insert if none already present
 			state.peer_views.entry(peerid).or_default();
-		}
+		},
 		NetworkBridgeEvent::PeerDisconnected(peerid) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				?peerid,
-				"Peer disconnected",
-			);
+			tracing::trace!(target: LOG_TARGET, ?peerid, "Peer disconnected");
 			// get rid of superfluous data
 			state.peer_views.remove(&peerid);
-		}
+		},
 		NetworkBridgeEvent::NewGossipTopology(peers) => {
 			let newly_added: Vec<PeerId> = peers.difference(&state.gossip_peers).cloned().collect();
 			state.gossip_peers = peers;
@@ -555,24 +529,15 @@ where
 					handle_peer_view_change(ctx, state, peer, view).await;
 				}
 			}
-		}
+		},
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				?peerid,
-				?view,
-				"Peer view change",
-			);
+			tracing::trace!(target: LOG_TARGET, ?peerid, ?view, "Peer view change");
 			handle_peer_view_change(ctx, state, peerid, view).await;
-		}
+		},
 		NetworkBridgeEvent::OurViewChange(view) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				?view,
-				"Our view change",
-			);
+			tracing::trace!(target: LOG_TARGET, ?view, "Our view change");
 			handle_our_view_change(state, view);
-		}
+		},
 		NetworkBridgeEvent::PeerMessage(remote, message) =>
 			process_incoming_peer_message(ctx, state, metrics, remote, message).await,
 	}
@@ -598,7 +563,6 @@ fn handle_our_view_change(state: &mut ProtocolState, view: OurView) {
 	}
 }
 
-
 // Send the difference between two views which were not sent
 // to that particular peer.
 async fn handle_peer_view_change<Context>(
@@ -606,25 +570,27 @@ async fn handle_peer_view_change<Context>(
 	state: &mut ProtocolState,
 	origin: PeerId,
 	view: View,
-)
-where
+) where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	let added = state.peer_views.entry(origin.clone()).or_default().replace_difference(view).cloned().collect::<Vec<_>>();
+	let added = state
+		.peer_views
+		.entry(origin.clone())
+		.or_default()
+		.replace_difference(view)
+		.cloned()
+		.collect::<Vec<_>>();
 
 	let is_gossip_peer = state.gossip_peers.contains(&origin);
-	let lucky = is_gossip_peer || util::gen_ratio(
-		util::MIN_GOSSIP_PEERS.saturating_sub(state.gossip_peers.len()),
-		util::MIN_GOSSIP_PEERS,
-	);
+	let lucky = is_gossip_peer ||
+		util::gen_ratio(
+			util::MIN_GOSSIP_PEERS.saturating_sub(state.gossip_peers.len()),
+			util::MIN_GOSSIP_PEERS,
+		);
 
 	if !lucky {
-		tracing::trace!(
-			target: LOG_TARGET,
-			?origin,
-			"Peer view change is ignored",
-		);
-		return;
+		tracing::trace!(target: LOG_TARGET, ?origin, "Peer view change is ignored");
+		return
 	}
 
 	// Send all messages we've seen before and the peer is now interested
@@ -637,14 +603,10 @@ where
 				// to the peer `origin`...
 				let one_per_validator = job_data.one_per_validator.clone();
 				let origin = origin.clone();
-				Some(
-					one_per_validator
-						.into_iter()
-						.filter(move |(validator, _message)| {
-							// ..except for the ones the peer already has.
-							job_data.message_from_validator_needed_by_peer(&origin, validator)
-						}),
-				)
+				Some(one_per_validator.into_iter().filter(move |(validator, _message)| {
+					// ..except for the ones the peer already has.
+					job_data.message_from_validator_needed_by_peer(&origin, validator)
+				}))
 			} else {
 				// A relay parent is in the peers view, which is not in ours, ignore those.
 				None
@@ -665,14 +627,13 @@ async fn send_tracked_gossip_message<Context>(
 	dest: PeerId,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
-)
-where
+) where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let job_data = if let Some(job_data) = state.per_relay_parent.get_mut(&message.relay_parent) {
 		job_data
 	} else {
-		return;
+		return
 	};
 
 	let _span = job_data.span.child("gossip");
@@ -684,17 +645,17 @@ where
 		"Sending gossip message"
 	);
 
-	job_data.message_sent_to_peer
+	job_data
+		.message_sent_to_peer
 		.entry(dest.clone())
 		.or_default()
 		.insert(validator.clone());
 
-	ctx.send_message(
-		NetworkBridgeMessage::SendValidationMessage(
-			vec![dest],
-			message.into_validation_protocol(),
-		),
-	).await;
+	ctx.send_message(NetworkBridgeMessage::SendValidationMessage(
+		vec![dest],
+		message.into_validation_protocol(),
+	))
+	.await;
 }
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for BitfieldDistribution
@@ -703,14 +664,9 @@ where
 	Context: overseer::SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = self.run(ctx)
-			.map(|_| Ok(()))
-			.boxed();
+		let future = self.run(ctx).map(|_| Ok(())).boxed();
 
-		SpawnedSubsystem {
-			name: "bitfield-distribution-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "bitfield-distribution-subsystem", future }
 	}
 }
 
@@ -729,23 +685,23 @@ where
 	ctx.send_message(RuntimeApiMessage::Request(
 		relay_parent.clone(),
 		RuntimeApiRequest::Validators(validators_tx),
-	)).await;
+	))
+	.await;
 
 	// query signing context
 	ctx.send_message(RuntimeApiMessage::Request(
 		relay_parent.clone(),
 		RuntimeApiRequest::SessionIndexForChild(session_tx),
-	)).await;
+	))
+	.await;
 
 	match (validators_rx.await?, session_rx.await?) {
-		(Ok(v), Ok(s)) => Ok(Some((
-			v,
-			SigningContext { parent_hash: relay_parent, session_index: s },
-		))),
+		(Ok(v), Ok(s)) =>
+			Ok(Some((v, SigningContext { parent_hash: relay_parent, session_index: s }))),
 		(Err(e), _) | (_, Err(e)) => {
 			tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to fetch basics from runtime API");
 			Ok(None)
-		}
+		},
 	}
 }
 
@@ -781,8 +737,12 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `handle_bitfield_distribution` which observes on drop.
-	fn time_handle_bitfield_distribution(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.handle_bitfield_distribution.start_timer())
+	fn time_handle_bitfield_distribution(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.handle_bitfield_distribution.start_timer())
 	}
 
 	/// Provide a timer for `handle_network_msg` which observes on drop.
@@ -797,42 +757,36 @@ impl metrics::Metrics for Metrics {
 			gossipped_own_availability_bitfields: prometheus::register(
 				prometheus::Counter::new(
 					"parachain_gossipped_own_availabilty_bitfields_total",
-					"Number of own availability bitfields sent to other peers."
+					"Number of own availability bitfields sent to other peers.",
 				)?,
 				registry,
 			)?,
 			received_availability_bitfields: prometheus::register(
 				prometheus::Counter::new(
 					"parachain_received_availabilty_bitfields_total",
-					"Number of valid availability bitfields received from other peers."
+					"Number of valid availability bitfields received from other peers.",
 				)?,
 				registry,
 			)?,
 			active_leaves_update: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_bitfield_distribution_active_leaves_update",
-						"Time spent within `bitfield_distribution::active_leaves_update`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_bitfield_distribution_active_leaves_update",
+					"Time spent within `bitfield_distribution::active_leaves_update`",
+				))?,
 				registry,
 			)?,
 			handle_bitfield_distribution: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_bitfield_distribution_handle_bitfield_distribution",
-						"Time spent within `bitfield_distribution::handle_bitfield_distribution`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_bitfield_distribution_handle_bitfield_distribution",
+					"Time spent within `bitfield_distribution::handle_bitfield_distribution`",
+				))?,
 				registry,
 			)?,
 			handle_network_msg: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_bitfield_distribution_handle_network_msg",
-						"Time spent within `bitfield_distribution::handle_network_msg`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_bitfield_distribution_handle_network_msg",
+					"Time spent within `bitfield_distribution::handle_network_msg`",
+				))?,
 				registry,
 			)?,
 		};

@@ -2,7 +2,7 @@
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 name = "pallet-xcm"
-version = "0.1.0"
+version = "0.9.9"
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
@@ -16,6 +16,14 @@ frame-system = { git = "https://github.com/paritytech/substrate", default-featur
 
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
+
+[dev-dependencies]
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-runtime-parachains = { path = "../../runtime/parachains" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+xcm-builder = { path = "../xcm-builder" }
+polkadot-parachain = { path = "../../parachain" }
 
 [features]
 default = ["std"]
