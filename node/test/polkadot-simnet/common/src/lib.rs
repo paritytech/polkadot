@@ -27,6 +27,7 @@ use polkadot_runtime::{
 use polkadot_runtime_common::claims;
 use sc_consensus_babe::BabeBlockImport;
 use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
+use sc_executor::NativeElseWasmExecutor;
 use sc_service::{TFullBackend, TFullClient};
 use sp_runtime::{app_crypto::sp_core::H256, generic::Era, AccountId32};
 use std::{error::Error, future::Future, str::FromStr};
@@ -40,26 +41,36 @@ type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B,
 type Block = polkadot_primitives::v1::Block;
 type SelectChain = sc_consensus::LongestChain<TFullBackend<Block>, Block>;
 
-sc_executor::native_executor_instance!(
-	pub Executor,
-	polkadot_runtime::api::dispatch,
-	polkadot_runtime::native_version,
-	(benchmarking::benchmarking::HostFunctions, SignatureVerificationOverride),
-);
+/// Declare an instance of the native executor named `ExecutorDispatch`. Include the wasm binary as the
+/// equivalent wasm code.
+pub struct ExecutorDispatch;
+
+impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
+	type ExtendHostFunctions =
+		(benchmarking::benchmarking::HostFunctions, SignatureVerificationOverride);
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		polkadot_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		polkadot_runtime::native_version()
+	}
+}
 
 /// `ChainInfo` implementation.
 pub struct PolkadotChainInfo;
 
 impl ChainInfo for PolkadotChainInfo {
 	type Block = Block;
-	type Executor = Executor;
+	type ExecutorDispatch = ExecutorDispatch;
 	type Runtime = Runtime;
 	type RuntimeApi = RuntimeApi;
 	type SelectChain = SelectChain;
 	type BlockImport = BlockImport<
 		Self::Block,
 		TFullBackend<Self::Block>,
-		TFullClient<Self::Block, RuntimeApi, Self::Executor>,
+		TFullClient<Self::Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>,
 		Self::SelectChain,
 	>;
 	type SignedExtras = polkadot_runtime::SignedExtra;
@@ -88,14 +99,14 @@ pub async fn dispatch_with_root<T>(
 where
 	T: ChainInfo<
 		Block = Block,
-		Executor = Executor,
+		ExecutorDispatch = ExecutorDispatch,
 		Runtime = Runtime,
 		RuntimeApi = RuntimeApi,
 		SelectChain = SelectChain,
 		BlockImport = BlockImport<
 			Block,
 			TFullBackend<Block>,
-			TFullClient<Block, RuntimeApi, Executor>,
+			TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>,
 			SelectChain,
 		>,
 		SignedExtras = polkadot_runtime::SignedExtra,
@@ -129,7 +140,7 @@ where
 		// note the call (pre-image?) of the call.
 		node.submit_extrinsic(
 			DemocracyCall::note_preimage { encoded_proposal: call.into().encode() },
-			whales[0].clone(),
+			Some(whales[0].clone()),
 		)
 		.await?;
 		node.seal_blocks(1).await;
@@ -162,7 +173,8 @@ where
 			length_bound: length,
 		};
 
-		node.submit_extrinsic(proposal.clone(), council_collective[0].clone()).await?;
+		node.submit_extrinsic(proposal.clone(), Some(council_collective[0].clone()))
+			.await?;
 		node.seal_blocks(1).await;
 
 		// fetch proposal index from event emitted by the runtime
@@ -182,7 +194,7 @@ where
 		// vote
 		for member in &council_collective[1..] {
 			let call = CouncilCollectiveCall::vote { proposal: hash.clone(), index, approve: true };
-			node.submit_extrinsic(call, member.clone()).await?;
+			node.submit_extrinsic(call, Some(member.clone())).await?;
 		}
 		node.seal_blocks(1).await;
 
@@ -193,7 +205,7 @@ where
 			proposal_weight_bound: weight,
 			length_bound: length,
 		};
-		node.submit_extrinsic(call, council_collective[0].clone()).await?;
+		node.submit_extrinsic(call, Some(council_collective[0].clone())).await?;
 		node.seal_blocks(1).await;
 
 		// assert that proposal has been passed on chain
@@ -235,7 +247,7 @@ where
 			length_bound: length,
 		};
 
-		node.submit_extrinsic(proposal, technical_collective[0].clone()).await?;
+		node.submit_extrinsic(proposal, Some(technical_collective[0].clone())).await?;
 		node.seal_blocks(1).await;
 
 		let events = node.events();
@@ -259,7 +271,7 @@ where
 		for member in &technical_collective[1..] {
 			let call =
 				TechnicalCollectiveCall::vote { proposal: hash.clone(), index, approve: true };
-			node.submit_extrinsic(call, member.clone()).await?;
+			node.submit_extrinsic(call, Some(member.clone())).await?;
 		}
 		node.seal_blocks(1).await;
 
@@ -270,7 +282,7 @@ where
 			proposal_weight_bound: weight,
 			length_bound: length,
 		};
-		node.submit_extrinsic(call, technical_collective[0].clone()).await?;
+		node.submit_extrinsic(call, Some(technical_collective[0].clone())).await?;
 		node.seal_blocks(1).await;
 
 		// assert that fast-track proposal has been passed on chain
@@ -322,7 +334,7 @@ where
 		},
 	};
 	for whale in whales {
-		node.submit_extrinsic(call.clone(), whale).await?;
+		node.submit_extrinsic(call.clone(), Some(whale)).await?;
 	}
 
 	// wait for fast track period.
@@ -412,7 +424,7 @@ mod tests {
 			let alice = MultiSigner::from(Alice.public()).into_account();
 			node.submit_extrinsic(
 				system::Call::remark { remark: (b"hello world").to_vec() },
-				alice,
+				Some(alice),
 			)
 			.await
 			.unwrap();

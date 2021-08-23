@@ -23,10 +23,7 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use super::{
-	Junction,
-	MultiLocation::{self, X1},
-};
+use super::MultiLocation;
 use alloc::{vec, vec::Vec};
 use core::{
 	cmp::Ordering,
@@ -105,15 +102,9 @@ pub enum AssetId {
 	Abstract(Vec<u8>),
 }
 
-impl From<MultiLocation> for AssetId {
-	fn from(x: MultiLocation) -> Self {
-		Self::Concrete(x)
-	}
-}
-
-impl From<Junction> for AssetId {
-	fn from(x: Junction) -> Self {
-		Self::Concrete(X1(x))
+impl<T: Into<MultiLocation>> From<T> for AssetId {
+	fn from(x: T) -> Self {
+		Self::Concrete(x.into())
 	}
 }
 
@@ -147,7 +138,7 @@ impl AssetId {
 /// Classification of whether an asset is fungible or not, along with a mandatory amount or instance.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
 pub enum Fungibility {
-	Fungible(u128),
+	Fungible(#[codec(compact)] u128),
 	NonFungible(AssetInstance),
 }
 
@@ -243,9 +234,9 @@ impl TryFrom<super::super::v0::MultiAsset> for MultiAsset {
 		use AssetId::*;
 		use Fungibility::*;
 		let (id, fun) = match old {
-			V0::ConcreteFungible { id, amount } => (Concrete(id.into()), Fungible(amount)),
+			V0::ConcreteFungible { id, amount } => (Concrete(id.try_into()?), Fungible(amount)),
 			V0::ConcreteNonFungible { class, instance } =>
-				(Concrete(class.into()), NonFungible(instance)),
+				(Concrete(class.try_into()?), NonFungible(instance)),
 			V0::AbstractFungible { id, amount } => (Abstract(id), Fungible(amount)),
 			V0::AbstractNonFungible { class, instance } => (Abstract(class), NonFungible(instance)),
 			_ => return Err(()),
@@ -457,8 +448,8 @@ impl TryFrom<super::super::v0::MultiAsset> for WildMultiAsset {
 		use WildFungibility::*;
 		let (id, fun) = match old {
 			V0::All => return Ok(WildMultiAsset::All),
-			V0::AllConcreteFungible { id } => (Concrete(id.into()), Fungible),
-			V0::AllConcreteNonFungible { class } => (Concrete(class.into()), NonFungible),
+			V0::AllConcreteFungible { id } => (Concrete(id.try_into()?), Fungible),
+			V0::AllConcreteNonFungible { class } => (Concrete(class.try_into()?), NonFungible),
 			V0::AllAbstractFungible { id } => (Abstract(id), Fungible),
 			V0::AllAbstractNonFungible { class } => (Abstract(class), NonFungible),
 			_ => return Err(()),

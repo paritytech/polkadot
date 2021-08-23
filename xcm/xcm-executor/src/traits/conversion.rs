@@ -139,15 +139,15 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// which is passed to the next convert item.
 ///
 /// ```rust
-/// # use xcm::latest::{MultiLocation, Junction, OriginKind};
+/// # use xcm::latest::{MultiLocation, Junctions, Junction, OriginKind};
 /// # use xcm_executor::traits::ConvertOrigin;
 /// // A convertor that will bump the para id and pass it to the next one.
 /// struct BumpParaId;
 /// impl ConvertOrigin<u32> for BumpParaId {
 /// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
-/// 		match origin {
-/// 			MultiLocation::X1(Junction::Parachain(id)) => {
-/// 				Err(MultiLocation::X1(Junction::Parachain(id + 1)))
+/// 		match origin.interior() {
+/// 			Junctions::X1(Junction::Parachain(id)) if origin.parent_count() == 0 => {
+/// 				Err(Junctions::X1(Junction::Parachain(id + 1)).into())
 /// 			}
 /// 			_ => unreachable!()
 /// 		}
@@ -157,8 +157,8 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// struct AcceptPara7;
 /// impl ConvertOrigin<u32> for AcceptPara7 {
 /// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
-/// 		match origin {
-/// 			MultiLocation::X1(Junction::Parachain(id)) if id == 7 => {
+/// 		match origin.interior() {
+/// 			Junctions::X1(Junction::Parachain(id)) if id == &7 && origin.parent_count() == 0 => {
 /// 				Ok(7)
 /// 			}
 /// 			_ => Err(origin)
@@ -166,7 +166,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// 	}
 /// }
 /// # fn main() {
-/// let origin = MultiLocation::X1(Junction::Parachain(6));
+/// let origin: MultiLocation = Junctions::X1(Junction::Parachain(6)).into();
 /// assert!(
 /// 	<(BumpParaId, AcceptPara7) as ConvertOrigin<u32>>::convert_origin(origin, OriginKind::Native)
 /// 		.is_ok()

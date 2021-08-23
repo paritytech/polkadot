@@ -340,8 +340,12 @@ fn candidate_validation_ok_is_ok() {
 	descriptor.validation_code_hash = validation_code.hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check =
-		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
 	assert!(check.is_ok());
 
 	let validation_result = WasmValidationResult {
@@ -386,8 +390,12 @@ fn candidate_validation_bad_return_is_invalid() {
 	descriptor.validation_code_hash = validation_code.hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check =
-		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
@@ -418,8 +426,12 @@ fn candidate_validation_timeout_is_internal_error() {
 	descriptor.validation_code_hash = validation_code.hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check =
-		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
 	assert!(check.is_ok());
 
 	let v = executor::block_on(validate_candidate_exhaustive(
@@ -449,8 +461,12 @@ fn candidate_validation_code_mismatch_is_invalid() {
 	descriptor.validation_code_hash = ValidationCode(vec![1; 16]).hash();
 	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-	let check =
-		perform_basic_checks(&descriptor, validation_data.max_pov_size, &pov, &validation_code);
+	let check = perform_basic_checks(
+		&descriptor,
+		validation_data.max_pov_size,
+		&pov,
+		&validation_code.hash(),
+	);
 	assert_matches!(check, Err(InvalidCandidate::CodeHashMismatch));
 
 	let v = executor::block_on(validate_candidate_exhaustive(

@@ -103,6 +103,7 @@ pub async fn start_work(
 		// We may potentially overwrite the artifact in rare cases where the worker didn't make
 		// it to report back the result.
 
+		#[derive(Debug)]
 		enum Selected {
 			Done,
 			IoErr,
@@ -170,7 +171,15 @@ pub async fn start_work(
 			Selected::IoErr | Selected::Deadline => {
 				let bytes = Artifact::DidntMakeIt.serialize();
 				// best effort: there is nothing we can do here if the write fails.
-				let _ = async_std::fs::write(&artifact_path, &bytes).await;
+				if let Err(err) = async_std::fs::write(&artifact_path, &bytes).await {
+					tracing::warn!(
+						target: LOG_TARGET,
+						worker_pid = %pid,
+						"preparation didn't make it, because of `{:?}`: {:?}",
+						selected,
+						err,
+					);
+				}
 				Outcome::DidntMakeIt
 			},
 		}

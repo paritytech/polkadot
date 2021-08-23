@@ -28,7 +28,12 @@ use futures::{
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_node_network_protocol::{request_response::v1::DisputeRequest, PeerId};
+use sc_network::config::RequestResponseConfig;
+
+use polkadot_node_network_protocol::{
+	request_response::{v1::DisputeRequest, IncomingRequest},
+	PeerId,
+};
 use sp_keyring::Sr25519Keyring;
 
 use polkadot_node_network_protocol::{
@@ -62,8 +67,8 @@ pub mod mock;
 
 #[test]
 fn send_dispute_sends_dispute() {
-	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>| async move {
-		let (_, _) = handle_subsystem_startup(&mut handle, None).await;
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>, _req_cfg| async move {
+		let _ = handle_subsystem_startup(&mut handle, None).await;
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
@@ -110,8 +115,10 @@ fn send_dispute_sends_dispute() {
 
 #[test]
 fn received_request_triggers_import() {
-	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>| async move {
-		let (_, mut req_tx) = handle_subsystem_startup(&mut handle, None).await;
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>,
+	            mut req_cfg: RequestResponseConfig| async move {
+		let req_tx = req_cfg.inbound_queue.as_mut().unwrap();
+		let _ = handle_subsystem_startup(&mut handle, None).await;
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
@@ -119,8 +126,7 @@ fn received_request_triggers_import() {
 
 		// Non validator request should get dropped:
 		let rx_response =
-			send_network_dispute_request(&mut req_tx, PeerId::random(), message.clone().into())
-				.await;
+			send_network_dispute_request(req_tx, PeerId::random(), message.clone().into()).await;
 
 		assert_matches!(
 			rx_response.await,
@@ -141,7 +147,7 @@ fn received_request_triggers_import() {
 		// subsequent requests should get dropped.
 		nested_network_dispute_request(
 			&mut handle,
-			&mut req_tx,
+			req_tx,
 			MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
 			message.clone().into(),
 			ImportStatementsResult::InvalidImport,
@@ -208,7 +214,7 @@ fn received_request_triggers_import() {
 		// Subsequent sends from Alice should fail (peer is banned):
 		{
 			let rx_response = send_network_dispute_request(
-				&mut req_tx,
+				req_tx,
 				MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Alice),
 				message.clone().into(),
 			)
@@ -229,7 +235,7 @@ fn received_request_triggers_import() {
 		// But should work fine for Bob:
 		nested_network_dispute_request(
 			&mut handle,
-			&mut req_tx,
+			req_tx,
 			MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob),
 			message.clone().into(),
 			ImportStatementsResult::ValidImport,
@@ -246,11 +252,11 @@ fn received_request_triggers_import() {
 
 #[test]
 fn disputes_are_recovered_at_startup() {
-	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>| async move {
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>, _| async move {
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
 
-		let (_, _) = handle_subsystem_startup(&mut handle, Some(candidate.hash())).await;
+		let _ = handle_subsystem_startup(&mut handle, Some(candidate.hash())).await;
 
 		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
 		// Requests needed session info:
@@ -302,8 +308,8 @@ fn disputes_are_recovered_at_startup() {
 
 #[test]
 fn send_dispute_gets_cleaned_up() {
-	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>| async move {
-		let (old_head, _) = handle_subsystem_startup(&mut handle, None).await;
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>, _| async move {
+		let old_head = handle_subsystem_startup(&mut handle, None).await;
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
@@ -367,8 +373,8 @@ fn send_dispute_gets_cleaned_up() {
 
 #[test]
 fn dispute_retries_and_works_across_session_boundaries() {
-	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>| async move {
-		let (old_head, _) = handle_subsystem_startup(&mut handle, None).await;
+	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>, _| async move {
+		let old_head = handle_subsystem_startup(&mut handle, None).await;
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
@@ -689,14 +695,7 @@ async fn check_sent_requests(
 async fn handle_subsystem_startup(
 	handle: &mut TestSubsystemContextHandle<DisputeDistributionMessage>,
 	ongoing_dispute: Option<CandidateHash>,
-) -> (Hash, mpsc::Sender<sc_network::config::IncomingRequest>) {
-	let (request_tx, request_rx) = mpsc::channel(5);
-	handle
-		.send(FromOverseer::Communication {
-			msg: DisputeDistributionMessage::DisputeSendingReceiver(request_rx),
-		})
-		.await;
-
+) -> Hash {
 	let relay_parent = Hash::random();
 	activate_leaf(
 		handle,
@@ -707,7 +706,7 @@ async fn handle_subsystem_startup(
 		ongoing_dispute.into_iter().map(|c| (MOCK_SESSION_INDEX, c)).collect(),
 	)
 	.await;
-	(relay_parent, request_tx)
+	relay_parent
 }
 
 /// Launch subsystem and provided test function
@@ -715,14 +714,19 @@ async fn handle_subsystem_startup(
 /// which simulates the overseer.
 fn test_harness<TestFn, Fut>(test: TestFn)
 where
-	TestFn: FnOnce(TestSubsystemContextHandle<DisputeDistributionMessage>) -> Fut,
+	TestFn: FnOnce(
+		TestSubsystemContextHandle<DisputeDistributionMessage>,
+		RequestResponseConfig,
+	) -> Fut,
 	Fut: Future<Output = ()>,
 {
 	sp_tracing::try_init_simple();
 	let keystore = make_ferdie_keystore();
 
+	let (req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
 	let subsystem = DisputeDistributionSubsystem::new(
 		keystore,
+		req_receiver,
 		MOCK_AUTHORITY_DISCOVERY.clone(),
 		Metrics::new_dummy(),
 	);
@@ -739,5 +743,5 @@ where
 			},
 		}
 	};
-	subsystem_test_harness(test, subsystem);
+	subsystem_test_harness(|handle| test(handle, req_cfg), subsystem);
 }

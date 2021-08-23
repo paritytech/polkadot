@@ -39,9 +39,11 @@ members = [
 	"xcm",
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
+	"xcm/xcm-executor/integration-tests",
 	"xcm/xcm-simulator",
 	"xcm/xcm-simulator/example",
 	"xcm/pallet-xcm",
+	"xcm/procedural",
 	"node/client",
 	"node/collation-generation",
 	"node/core/approval-voting",
@@ -111,6 +113,7 @@ panic = "unwind"
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
+disputes = [ "polkadot-cli/disputes" ]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
@@ -141,3 +144,7 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.rpm.files]
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
+
+
+[package.metadata.spellcheck]
+config = "./scripts/gitlab/spellcheck.toml"

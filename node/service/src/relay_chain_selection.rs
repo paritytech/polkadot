@@ -178,10 +178,15 @@ where
 		target_hash: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Option<Hash>, ConsensusError> {
+		let longest_chain_best =
+			self.fallback.finality_target(target_hash, maybe_max_number).await?;
+
 		if self.selection.overseer.is_disconnected() {
-			return self.fallback.finality_target(target_hash, maybe_max_number).await
+			return Ok(longest_chain_best)
 		}
-		self.selection.finality_target(target_hash, maybe_max_number).await
+		self.selection
+			.finality_target_with_fallback(target_hash, longest_chain_best, maybe_max_number)
+			.await
 	}
 }
 
@@ -268,8 +273,7 @@ impl OverseerHandleT for Handle {
 	}
 }
 
-#[async_trait::async_trait]
-impl<B, OH> SelectChain<PolkadotBlock> for SelectRelayChain<B, OH>
+impl<B, OH> SelectRelayChain<B, OH>
 where
 	B: HeaderProviderProvider<PolkadotBlock>,
 	OH: OverseerHandleT,
@@ -313,14 +317,15 @@ where
 	///
 	/// It will also constrain the chain to only chains which are fully
 	/// approved, and chains which contain no disputes.
-	async fn finality_target(
+	pub(crate) async fn finality_target_with_fallback(
 		&self,
 		target_hash: Hash,
+		best_leaf: Option<Hash>,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Option<Hash>, ConsensusError> {
 		let mut overseer = self.overseer.clone();
 
-		let subchain_head = {
+		let subchain_head = if cfg!(feature = "disputes") {
 			let (tx, rx) = oneshot::channel();
 			overseer
 				.send_msg(
@@ -338,6 +343,11 @@ where
 				// No viable leaves containing the block.
 				None => return Ok(Some(target_hash)),
 				Some(best) => best,
+			}
+		} else {
+			match best_leaf {
+				None => return Ok(Some(target_hash)),
+				Some(best_leaf) => best_leaf,
 			}
 		};
 
@@ -402,44 +412,48 @@ where
 			}
 		};
 
-		// Prevent sending flawed data to the dispute-coordinator.
-		if Some(subchain_block_descriptions.len() as _) !=
-			subchain_number.checked_sub(target_number)
-		{
-			tracing::error!(
-				LOG_TARGET,
-				present_block_descriptions = subchain_block_descriptions.len(),
-				target_number,
-				subchain_number,
-				"Mismatch of anticipated block descriptions and block number difference.",
-			);
-			return Ok(Some(target_hash))
-		}
-
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
 
-		// 3. Constrain according to disputes:
-		let (tx, rx) = oneshot::channel();
-		overseer
-			.send_msg(
-				DisputeCoordinatorMessage::DetermineUndisputedChain {
-					base_number: target_number,
-					block_descriptions: subchain_block_descriptions,
-					tx,
-				},
-				std::any::type_name::<Self>(),
-			)
-			.await;
-		let (subchain_number, subchain_head) = rx
-			.await
-			.map_err(Error::OverseerDisconnected)
-			.map_err(|e| ConsensusError::Other(Box::new(e)))?
-			.unwrap_or_else(|| (subchain_number, subchain_head));
+		let lag = if cfg!(feature = "disputes") {
+			// Prevent sending flawed data to the dispute-coordinator.
+			if Some(subchain_block_descriptions.len() as _) !=
+				subchain_number.checked_sub(target_number)
+			{
+				tracing::error!(
+					LOG_TARGET,
+					present_block_descriptions = subchain_block_descriptions.len(),
+					target_number,
+					subchain_number,
+					"Mismatch of anticipated block descriptions and block number difference.",
+				);
+				return Ok(Some(target_hash))
+			}
+			// 3. Constrain according to disputes:
+			let (tx, rx) = oneshot::channel();
+			overseer
+				.send_msg(
+					DisputeCoordinatorMessage::DetermineUndisputedChain {
+						base_number: target_number,
+						block_descriptions: subchain_block_descriptions,
+						tx,
+					},
+					std::any::type_name::<Self>(),
+				)
+				.await;
+			let (subchain_number, _subchain_head) = rx
+				.await
+				.map_err(Error::OverseerDisconnected)
+				.map_err(|e| ConsensusError::Other(Box::new(e)))?
+				.unwrap_or_else(|| (subchain_number, subchain_head));
 
-		// The the total lag accounting for disputes.
-		let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
-		self.metrics.note_disputes_finality_lag(lag_disputes);
+			// The the total lag accounting for disputes.
+			let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
+			self.metrics.note_disputes_finality_lag(lag_disputes);
+			lag_disputes
+		} else {
+			lag
+		};
 
 		// 4. Apply the maximum safeguard to the finality lag.
 		if lag > MAX_FINALITY_LAG {

@@ -732,7 +732,7 @@ mod tests {
 		pub const BlockHashCount: u32 = 250;
 	}
 	impl frame_system::Config for Test {
-		type BaseCallFilter = frame_support::traits::AllowAll;
+		type BaseCallFilter = frame_support::traits::Everything;
 		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
@@ -1444,7 +1444,7 @@ mod benchmarking {
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 			let call = Call::<T>::claim { dest: account.clone(), ethereum_signature: signature.clone() };
 		}: {
-			super::Pallet::<T>::validate_unsigned(source, &call)?;
+			super::Pallet::<T>::validate_unsigned(source, &call).map_err(|e| -> &'static str { e.into() })?;
 			super::Pallet::<T>::claim(RawOrigin::None.into(), account, signature)?;
 		}
 		verify {
@@ -1490,7 +1490,7 @@ mod benchmarking {
 			let call = Call::<T>::claim_attest { dest: account.clone(), ethereum_signature: signature.clone(), statement: StatementKind::Regular.to_text().to_vec() };
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
-			super::Pallet::<T>::validate_unsigned(source, &call)?;
+			super::Pallet::<T>::validate_unsigned(source, &call).map_err(|e| -> &'static str { e.into() })?;
 			super::Pallet::<T>::claim_attest(RawOrigin::None.into(), account, signature, statement.to_text().to_vec())?;
 		}
 		verify {

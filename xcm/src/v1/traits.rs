@@ -1,18 +1,18 @@
 // Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Cumulus.
+// This file is part of Polkadot.
 
-// Substrate is free software: you can redistribute it and/or modify
+// Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Substrate is distributed in the hope that it will be useful,
+// Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Cross-Consensus Message format data structures.
 
@@ -90,6 +90,8 @@ pub enum Error {
 	AssetNotFound,
 	/// The given message cannot be translated into a format that the destination can be expected to interpret.
 	DestinationUnsupported,
+	/// `execute_xcm` has been called too many times recursively.
+	RecursionLimitReached,
 }
 
 impl From<()> for Error {
@@ -187,7 +189,7 @@ impl<C> ExecuteXcm<C> for () {
 ///
 /// # Example
 /// ```rust
-/// # use xcm::v1::{MultiLocation, Xcm, Junction, Error, OriginKind, SendXcm, Result};
+/// # use xcm::v1::{MultiLocation, Xcm, Junction, Junctions, Error, OriginKind, SendXcm, Result, Parent};
 /// # use parity_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.
@@ -202,7 +204,9 @@ impl<C> ExecuteXcm<C> for () {
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         if let MultiLocation::X2(j1, j2) = destination {
+///         if matches!(destination.interior(), Junctions::X2(j1, j2))
+///             && destination.parent_count() == 0
+///         {
 ///             Ok(())
 ///         } else {
 ///             Err(Error::Undefined)
@@ -214,9 +218,12 @@ impl<C> ExecuteXcm<C> for () {
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         match destination {
-///             MultiLocation::X1(j) if j == Junction::Parent => Ok(()),
-///             _ => Err(Error::CannotReachDestination(destination, message)),
+///         if matches!(destination.interior(), Junctions::Here)
+///             && destination.parent_count() == 1
+///         {
+///             Ok(())
+///         } else {
+///             Err(Error::CannotReachDestination(destination, message))
 ///         }
 ///     }
 /// }
@@ -225,7 +232,7 @@ impl<C> ExecuteXcm<C> for () {
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
-/// let destination = MultiLocation::X1(Junction::Parent);
+/// let destination: MultiLocation = Parent.into();
 ///
 /// assert!(
 ///     // Sender2 will block this.
