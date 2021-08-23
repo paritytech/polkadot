@@ -25,7 +25,7 @@ use polkadot_test_runtime::pallet_test_notifier;
 use polkadot_test_service::construct_extrinsic;
 use sp_runtime::{generic::BlockId, traits::Block};
 use sp_state_machine::InspectState;
-use xcm::latest::prelude::*;
+use xcm::{latest::prelude::*, VersionedResponse};
 
 #[test]
 fn basic_buy_fees_message_executes() {
@@ -147,7 +147,7 @@ fn query_response_fires() {
 			assert_eq!(
 				polkadot_test_runtime::Xcm::query(query_id),
 				Some(QueryStatus::Ready {
-					response: Response::ExecutionResult(Ok(())),
+					response: VersionedResponse::V2(Response::ExecutionResult(Ok(()))),
 					at: 2u32.into()
 				}),
 			)

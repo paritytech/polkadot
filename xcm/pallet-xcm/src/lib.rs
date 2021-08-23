@@ -33,7 +33,7 @@ use sp_std::{
 	prelude::*,
 	vec,
 };
-use xcm::{latest::prelude::*, VersionedMultiLocation};
+use xcm::{latest::prelude::*, VersionedMultiLocation, VersionedResponse};
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -106,7 +106,13 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		/// Execution of an XCM message was attempted.
+		/// 
+		/// \[ outcome \]
 		Attempted(xcm::latest::Outcome),
+		/// A XCM message was sent.
+		/// 
+		/// \[ origin, destination, message \]
 		Sent(MultiLocation, MultiLocation, Xcm<()>),
 		/// Query response received which does not match a registered query. This may be because a
 		/// matching query was never registered, it may be because it is a duplicate response, or
@@ -157,7 +163,9 @@ pub mod pallet {
 		///
 		/// \[ origin location, id \]
 		InvalidResponderVersion(MultiLocation, QueryId),
-		/// Received query response has been read and removed. \[ id \]
+		/// Received query response has been read and removed.
+		/// 
+		/// \[ id \]
 		ResponseTaken(QueryId),
 	}
 
@@ -177,7 +185,11 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// The desired destination was unreachable, generally because there is a no way of routing
+		/// to it.
 		Unreachable,
+		/// There was some other issue (i.e. not to do with routing) in sending the message. Perhaps
+		/// a lack of space for buffering the message.
 		SendFailure,
 		/// The message execution fails the filter.
 		Filtered,
@@ -203,7 +215,7 @@ pub mod pallet {
 			timeout: BlockNumber,
 		},
 		/// A response has been received.
-		Ready { response: Response, at: BlockNumber },
+		Ready { response: VersionedResponse, at: BlockNumber },
 	}
 
 	/// Value of a query, must be unique for each query.
@@ -501,6 +513,7 @@ pub mod pallet {
 		/// Returns `None` if the response is not (yet) available.
 		pub fn take_response(query_id: QueryId) -> Option<(Response, T::BlockNumber)> {
 			if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
+				let response = response.try_into().ok()?;
 				Queries::<T>::remove(query_id);
 				Self::deposit_event(Event::ResponseTaken(query_id));
 				Some((response, at))
@@ -588,6 +601,7 @@ pub mod pallet {
 								let e = Event::ResponseReady(query_id, response.clone());
 								Self::deposit_event(e);
 								let at = frame_system::Pallet::<T>::current_block_number();
+								let response = response.into();
 								Queries::<T>::insert(query_id, QueryStatus::Ready { response, at });
 								0
 							},

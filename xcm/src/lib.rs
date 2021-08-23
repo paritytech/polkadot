@@ -97,6 +97,72 @@ impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
 	}
 }
 
+
+/// A single `Response` value, together with its version code.
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum VersionedResponse {
+	V0(v0::Response),
+	V1(v1::Response),
+	V2(v2::Response),
+}
+
+impl From<v0::Response> for VersionedResponse {
+	fn from(x: v0::Response) -> Self {
+		VersionedResponse::V0(x)
+	}
+}
+
+impl From<v1::Response> for VersionedResponse {
+	fn from(x: v1::Response) -> Self {
+		VersionedResponse::V1(x)
+	}
+}
+
+impl From<v2::Response> for VersionedResponse {
+	fn from(x: v2::Response) -> Self {
+		VersionedResponse::V2(x)
+	}
+}
+
+impl TryFrom<VersionedResponse> for v0::Response {
+	type Error = ();
+	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
+		use VersionedResponse::*;
+		match x {
+			V0(x) => Ok(x),
+			V1(x) => x.try_into(),
+			V2(x) => VersionedResponse::V1(x.try_into()?).try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedResponse> for v1::Response {
+	type Error = ();
+	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
+		use VersionedResponse::*;
+		match x {
+			V0(x) => x.try_into(),
+			V1(x) => Ok(x),
+			V2(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedResponse> for v2::Response {
+	type Error = ();
+	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
+		use VersionedResponse::*;
+		match x {
+			V0(x) => VersionedResponse::V1(x.try_into()?).try_into(),
+			V1(x) => x.try_into(),
+			V2(x) => Ok(x),
+		}
+	}
+}
+
 /// A single `MultiAsset` value, together with its version code.
 #[derive(Derivative, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
