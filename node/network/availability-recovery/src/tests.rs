@@ -257,37 +257,39 @@ impl TestState {
 		who_has: impl Fn(usize) -> Has,
 	) {
 		// arbitrary order.
-		for _ in 0..n {
+		let mut i = 0;
+		while i < n {
 			// Receive a request for a chunk.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::SendRequests(
-						mut requests,
+						requests,
 						IfDisconnected::TryConnect,
 					)
 				) => {
-					assert_eq!(requests.len(), 1);
+					for req in requests {
+						i += 1;
+						assert_matches!(
+							req,
+							Requests::ChunkFetching(req) => {
+								assert_eq!(req.payload.candidate_hash, candidate_hash);
 
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::ChunkFetching(req) => {
-							assert_eq!(req.payload.candidate_hash, candidate_hash);
+								let validator_index = req.payload.index.0 as usize;
+								let available_data = match who_has(validator_index) {
+									Has::No => Ok(None),
+									Has::Yes => Ok(Some(self.chunks[validator_index].clone().into())),
+									Has::NetworkError(e) => Err(e),
+								};
 
-							let validator_index = req.payload.index.0 as usize;
-							let available_data = match who_has(validator_index) {
-								Has::No => Ok(None),
-								Has::Yes => Ok(Some(self.chunks[validator_index].clone().into())),
-								Has::NetworkError(e) => Err(e),
-							};
-
-							let _ = req.pending_response.send(
-								available_data.map(|r|
-									req_res::v1::ChunkFetchingResponse::from(r).encode()
-								)
-							);
-						}
-					)
+								let _ = req.pending_response.send(
+									available_data.map(|r|
+										req_res::v1::ChunkFetchingResponse::from(r).encode()
+									)
+								);
+							}
+						)
+					}
 				}
 			);
 		}

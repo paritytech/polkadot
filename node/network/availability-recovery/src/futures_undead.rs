@@ -86,11 +86,6 @@ impl<Output> FuturesUndead<Output> {
 		self.inner.len() - self.undead
 	}
 
-	/// Total number of futures, including undead.
-	pub fn total_len(&self) -> usize {
-		self.inner.len()
-	}
-
 	/// Wait for next future to return with timeout.
 	///
 	/// When timeout passes, return `None` and make all currently contained futures undead.
