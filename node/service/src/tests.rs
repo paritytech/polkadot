@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 // Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
@@ -137,15 +136,6 @@ fn garbage_vrf() -> (VRFOutput, VRFProof) {
 	let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
 	(VRFOutput(o.to_output()), VRFProof(p))
 }
-
-// nice to have
-const A1: Hash = Hash::repeat_byte(0xA1);
-const A2: Hash = Hash::repeat_byte(0xA2);
-const A3: Hash = Hash::repeat_byte(0xA3);
-const A5: Hash = Hash::repeat_byte(0xA5);
-
-const B2: Hash = Hash::repeat_byte(0xB2);
-const B3: Hash = Hash::repeat_byte(0xB3);
 
 /// Representation of a local representation
 /// to extract information for finalization target
@@ -543,11 +533,11 @@ fn chain_0() -> CaseVars {
 
 	CaseVars {
 		chain: builder.init(),
-		target_block: A1,
-		best_chain_containing_block: Some(A5),
-		highest_approved_ancestor_block: Some(A3),
-		undisputed_chain: Some(A2),
-		expected_finality_target_result: Some(A2),
+		target_block: a1,
+		best_chain_containing_block: Some(a5),
+		highest_approved_ancestor_block: Some(a3),
+		undisputed_chain: Some(a2),
+		expected_finality_target_result: Some(a2),
 	}
 }
 
@@ -571,11 +561,11 @@ fn chain_1() -> CaseVars {
 
 	CaseVars {
 		chain: builder.init(),
-		target_block: A1,
-		best_chain_containing_block: Some(B3),
-		highest_approved_ancestor_block: Some(B2),
-		undisputed_chain: Some(B2),
-		expected_finality_target_result: Some(B2),
+		target_block: a1,
+		best_chain_containing_block: Some(b3),
+		highest_approved_ancestor_block: Some(b2),
+		undisputed_chain: Some(b2),
+		expected_finality_target_result: Some(b2),
 	}
 }
 
@@ -599,11 +589,11 @@ fn chain_2() -> CaseVars {
 
 	CaseVars {
 		chain: builder.init(),
-		target_block: A3,
-		best_chain_containing_block: Some(A3),
-		highest_approved_ancestor_block: Some(A3),
-		undisputed_chain: Some(A1),
-		expected_finality_target_result: Some(A1),
+		target_block: a3,
+		best_chain_containing_block: Some(a3),
+		highest_approved_ancestor_block: Some(a3),
+		undisputed_chain: Some(a1),
+		expected_finality_target_result: Some(a1),
 	}
 }
 
@@ -627,11 +617,11 @@ fn chain_3() -> CaseVars {
 
 	CaseVars {
 		chain: builder.init(),
-		target_block: A2,
-		best_chain_containing_block: Some(A3),
-		highest_approved_ancestor_block: Some(A3),
-		undisputed_chain: Some(A2),
-		expected_finality_target_result: Some(A2),
+		target_block: a2,
+		best_chain_containing_block: Some(a3),
+		highest_approved_ancestor_block: Some(a3),
+		undisputed_chain: Some(a2),
+		expected_finality_target_result: Some(a2),
 	}
 }
 
@@ -680,11 +670,11 @@ fn chain_5() -> CaseVars {
 
 	CaseVars {
 		chain: builder.init(),
-		target_block: A2,
-		best_chain_containing_block: Some(A2),
-		highest_approved_ancestor_block: Some(A2),
-		undisputed_chain: Some(A2),
-		expected_finality_target_result: Some(A2),
+		target_block: a2,
+		best_chain_containing_block: Some(a2),
+		highest_approved_ancestor_block: Some(a2),
+		undisputed_chain: Some(a2),
+		expected_finality_target_result: Some(a2),
 	}
 }
 
@@ -725,43 +715,36 @@ fn chain_6() -> CaseVars {
 	}
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_0() {
 	run_specialized_test_w_harness(chain_0);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_1() {
 	run_specialized_test_w_harness(chain_1);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_2() {
 	run_specialized_test_w_harness(chain_2);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_3() {
 	run_specialized_test_w_harness(chain_3);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_4_target_hash_value_not_contained() {
 	run_specialized_test_w_harness(chain_4);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_5_best_is_target_hash() {
 	run_specialized_test_w_harness(chain_5);
 }
 
-#[cfg(feature = "disputes")]
 #[test]
 fn chain_sel_6_approval_lag() {
 	run_specialized_test_w_harness(chain_6);
