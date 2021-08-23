@@ -23,11 +23,11 @@
 #![no_std]
 extern crate alloc;
 
+use alloc::vec::Vec;
 use core::{
 	convert::{TryFrom, TryInto},
 	result::Result,
 };
-use alloc::vec::Vec;
 use derivative::Derivative;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
@@ -142,7 +142,7 @@ impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
 }
 
 /// A single `MultiAssets` value, together with its version code.
-/// 
+///
 /// NOTE: For XCM v0, this was `Vec<MultiAsset>`.
 #[derive(Derivative, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]

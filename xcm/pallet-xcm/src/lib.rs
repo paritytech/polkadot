@@ -26,8 +26,14 @@ mod tests;
 use codec::{Decode, Encode};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
-use sp_std::{boxed::Box, convert::{TryInto, TryFrom}, marker::PhantomData, prelude::*, vec};
-use xcm::{latest::prelude::*, VersionedXcm, VersionedMultiAssets, VersionedMultiLocation};
+use sp_std::{
+	boxed::Box,
+	convert::{TryFrom, TryInto},
+	marker::PhantomData,
+	prelude::*,
+	vec,
+};
+use xcm::{latest::prelude::*, VersionedMultiAssets, VersionedMultiLocation, VersionedXcm};
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -178,7 +184,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
-			let beneficiary = MultiLocation::try_from(*beneficiary).map_err(|()| Error::<T>::BadVersion)?;
+			let beneficiary =
+				MultiLocation::try_from(*beneficiary).map_err(|()| Error::<T>::BadVersion)?;
 			let assets = MultiAssets::try_from(*assets).map_err(|()| Error::<T>::BadVersion)?;
 
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
@@ -256,7 +263,7 @@ pub mod pallet {
 			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
 			let beneficiary = (*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
 			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
-			
+
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
