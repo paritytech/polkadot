@@ -25,9 +25,13 @@
 //! same time taking advantage of some maybe "late" response from the undead.
 //!
 
-use std::{pin::Pin, task::{Context, Poll}, time::Duration};
+use std::{
+	pin::Pin,
+	task::{Context, Poll},
+	time::Duration,
+};
 
-use futures::{Future, Stream, future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use futures::{future::BoxFuture, stream::FuturesUnordered, Future, Stream, StreamExt};
 use polkadot_node_subsystem_util::TimeoutExt;
 
 /// FuturesUndead - `FuturesUnordered` with semi cancelled (undead) futures.
@@ -65,10 +69,7 @@ impl<Output> FuturesUndead<Output> {
 	}
 
 	pub fn push(&mut self, f: BoxFuture<'static, Output>) {
-		self.inner.push(Undead {
-			inner: f,
-			our_sequence: self.next_sequence,
-		});
+		self.inner.push(Undead { inner: f, our_sequence: self.next_sequence });
 		self.next_sequence.inc();
 	}
 
@@ -99,8 +100,8 @@ impl<Output> FuturesUndead<Output> {
 			None => {
 				self.soft_cancel();
 				None
-			}
-			Some(inner) => inner
+			},
+			Some(inner) => inner,
 		}
 	}
 }
@@ -113,13 +114,12 @@ impl<Output> Stream for FuturesUndead<Output> {
 			Poll::Pending => Poll::Pending,
 			Poll::Ready(None) => Poll::Ready(None),
 			Poll::Ready(Some((sequence, v))) => {
-
 				// Cleanup in case we became completely empty:
 				if self.inner.len() == 0 {
 					*self = Self::new();
 					return Poll::Ready(Some(v))
 				}
-					
+
 				let first_live = match self.first_live {
 					None => return Poll::Ready(Some(v)),
 					Some(first_live) => first_live,
@@ -129,7 +129,7 @@ impl<Output> Stream for FuturesUndead<Output> {
 					self.undead = self.undead.saturating_sub(1);
 				}
 				Poll::Ready(Some(v))
-			}
+			},
 		}
 	}
 }
@@ -145,7 +145,7 @@ impl<T> Future for Undead<T> {
 	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
 		match self.inner.as_mut().poll(cx) {
 			Poll::Pending => Poll::Pending,
-			Poll::Ready(v) => Poll::Ready((self.our_sequence, v))
+			Poll::Ready(v) => Poll::Ready((self.our_sequence, v)),
 		}
 	}
 }
@@ -173,7 +173,13 @@ mod tests {
 			assert_eq!(undead.len(), 2);
 			undead.soft_cancel();
 			assert_eq!(undead.len(), 0);
-			undead.push(async { pending!(); 0_i32 }.boxed());
+			undead.push(
+				async {
+					pending!();
+					0_i32
+				}
+				.boxed(),
+			);
 			undead.next().await;
 			assert_eq!(undead.len(), 1);
 			undead.push(async { 9_i32 }.boxed());
@@ -186,8 +192,20 @@ mod tests {
 	fn len_stays_correct_when_live_future_ends() {
 		executor::block_on(async {
 			let mut undead = FuturesUndead::new();
-			undead.push(async { pending!(); 1_i32 }.boxed());
-			undead.push(async { pending!(); 2_i32 }.boxed());
+			undead.push(
+				async {
+					pending!();
+					1_i32
+				}
+				.boxed(),
+			);
+			undead.push(
+				async {
+					pending!();
+					2_i32
+				}
+				.boxed(),
+			);
 			assert_eq!(undead.len(), 2);
 			undead.soft_cancel();
 			assert_eq!(undead.len(), 0);

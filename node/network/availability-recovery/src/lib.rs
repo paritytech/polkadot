@@ -18,7 +18,11 @@
 
 #![warn(missing_docs)]
 
-use std::{collections::{HashMap, VecDeque}, pin::Pin, time::Duration};
+use std::{
+	collections::{HashMap, VecDeque},
+	pin::Pin,
+	time::Duration,
+};
 
 use futures::{
 	channel::oneshot,
@@ -32,7 +36,13 @@ use lru::LruCache;
 use rand::seq::SliceRandom;
 
 use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1, recovery_threshold};
-use polkadot_node_network_protocol::{IfDisconnected, UnifiedReputationChange as Rep, request_response::{self as req_res, CHUNK_REQUEST_TIMEOUT, IncomingRequestReceiver, OutgoingRequest, Recipient, Requests, incoming, outgoing::RequestError, v1 as request_v1}};
+use polkadot_node_network_protocol::{
+	request_response::{
+		self as req_res, incoming, outgoing::RequestError, v1 as request_v1,
+		IncomingRequestReceiver, OutgoingRequest, Recipient, Requests, CHUNK_REQUEST_TIMEOUT,
+	},
+	IfDisconnected, UnifiedReputationChange as Rep,
+};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util::request_session_info;
 use polkadot_primitives::v1::{
@@ -66,7 +76,7 @@ const LRU_SIZE: usize = 16;
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
 
-/// Time after which we consider a request to have failed 
+/// Time after which we consider a request to have failed
 ///
 /// and we should try more peers. Note in theory the rquest times out at the network level,
 /// measurements have shown, that in practice requests might actually take longer to fail in
@@ -261,9 +271,13 @@ impl RequestChunksPhase {
 		// How many chunks are still needed?
 		let remaining_chunks = params.threshold.saturating_sub(self.received_chunks.len());
 		// What is the current error rate, so we can make up for it?
-		let inv_error_rate = self.total_received_responses.checked_div(self.error_count).unwrap_or(0);
+		let inv_error_rate =
+			self.total_received_responses.checked_div(self.error_count).unwrap_or(0);
 		// Actual number of requests we want to have in flight in parallel:
-		let num_requests = std::cmp::min(max_requests_boundary,  remaining_chunks + remaining_chunks.checked_div(inv_error_rate).unwrap_or(0));
+		let num_requests = std::cmp::min(
+			max_requests_boundary,
+			remaining_chunks + remaining_chunks.checked_div(inv_error_rate).unwrap_or(0),
+		);
 
 		let mut requests = Vec::with_capacity(num_requests - self.requesting_chunks.len());
 
@@ -303,11 +317,7 @@ impl RequestChunksPhase {
 
 		sender
 			.send_message(
-				NetworkBridgeMessage::SendRequests(
-					requests,
-					IfDisconnected::TryConnect,
-				)
-				.into(),
+				NetworkBridgeMessage::SendRequests(requests, IfDisconnected::TryConnect).into(),
 			)
 			.await;
 	}
@@ -316,10 +326,12 @@ impl RequestChunksPhase {
 		// Wait for all current requests to conclude or time-out, or until we reach enough chunks.
 		// We also declare requests undead, once `TIMEOUT_START_NEW_REQUESTS` is reached and will
 		// return in that case for `launch_parallel_requests` to fill up slots again.
-		while let Some(request_result) = self.requesting_chunks.next_with_timeout(TIMEOUT_START_NEW_REQUESTS).await {
+		while let Some(request_result) =
+			self.requesting_chunks.next_with_timeout(TIMEOUT_START_NEW_REQUESTS).await
+		{
 			match request_result {
 				Ok(Some(chunk)) => {
-					self.total_received_responses +=1;
+					self.total_received_responses += 1;
 					// Check merkle proofs of any received chunks.
 
 					let validator_index = chunk.index;
@@ -358,7 +370,7 @@ impl RequestChunksPhase {
 				},
 				Ok(None) => {},
 				Err((validator_index, e)) => {
-					self.total_received_responses +=1;
+					self.total_received_responses += 1;
 					self.error_count += 1;
 					tracing::debug!(
 						target: LOG_TARGET,
