@@ -246,8 +246,6 @@ pub mod pallet {
 			message: Box<VersionedXcm<()>>,
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			let message = *message;
-			let dest = *dest;
 			let interior =
 				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
 			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
@@ -284,6 +282,7 @@ pub mod pallet {
 						WithdrawAsset(assets),
 						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
 					]);
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
 				},
 				_ => Weight::max_value(),
 			}

@@ -122,9 +122,9 @@ impl From<v1::Response> for VersionedResponse {
 	}
 }
 
-impl From<v2::Response> for VersionedResponse {
-	fn from(x: v2::Response) -> Self {
-		VersionedResponse::V2(x)
+impl<T: Into<v2::Response>> From<T> for VersionedResponse {
+	fn from(x: T) -> Self {
+		VersionedResponse::V2(x.into())
 	}
 }
 
@@ -180,9 +180,9 @@ impl From<v0::MultiAsset> for VersionedMultiAsset {
 	}
 }
 
-impl From<v1::MultiAsset> for VersionedMultiAsset {
-	fn from(x: v1::MultiAsset) -> Self {
-		VersionedMultiAsset::V1(x)
+impl<T: Into<v1::MultiAsset>> From<T> for VersionedMultiAsset {
+	fn from(x: T) -> Self {
+		VersionedMultiAsset::V1(x.into())
 	}
 }
 
@@ -224,9 +224,9 @@ impl From<Vec<v0::MultiAsset>> for VersionedMultiAssets {
 	}
 }
 
-impl From<v1::MultiAssets> for VersionedMultiAssets {
-	fn from(x: v1::MultiAssets) -> Self {
-		VersionedMultiAssets::V1(x)
+impl<T: Into<v1::MultiAssets>> From<T> for VersionedMultiAssets {
+	fn from(x: T) -> Self {
+		VersionedMultiAssets::V1(x.into())
 	}
 }
 
