@@ -32,9 +32,6 @@ pub(crate) struct Signer {
 
 	/// The full crypto key-pair.
 	pub(crate) pair: Pair,
-
-	/// The raw URI read from file.
-	pub(crate) uri: String,
 }
 
 pub(crate) async fn get_account_info<T: frame_system::Config>(
@@ -63,10 +60,9 @@ pub(crate) async fn signer_uri_from_string<
 	seed: &str,
 	client: &WsClient,
 ) -> Result<Signer, Error> {
-	// trim any trailing garbage.
-	let uri = seed.trim_end();
+	let seed = seed.trim();
 
-	let pair = Pair::from_string(uri, None)?;
+	let pair = Pair::from_string(seed, None)?;
 	let account = T::AccountId::from(pair.public());
 	let _info = get_account_info::<T>(client, &account, None)
 		.await?
@@ -78,5 +74,5 @@ pub(crate) async fn signer_uri_from_string<
 		Token::from(_info.data.free),
 		_info
 	);
-	Ok(Signer { account, pair, uri: uri.to_string() })
+	Ok(Signer { account, pair })
 }
