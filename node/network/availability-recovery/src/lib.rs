@@ -22,13 +22,12 @@ use std::{collections::{HashMap, VecDeque}, pin::Pin, time::Duration};
 
 use futures::{
 	channel::oneshot,
-	future::{BoxFuture, FutureExt, RemoteHandle},
+	future::{FutureExt, RemoteHandle},
 	pin_mut,
 	prelude::*,
 	stream::FuturesUnordered,
 	task::{Context, Poll},
 };
-use futures_timer::Delay;
 use lru::LruCache;
 use rand::seq::SliceRandom;
 
@@ -50,6 +49,9 @@ use polkadot_subsystem::{
 };
 
 mod error;
+mod futures_undead;
+
+use futures_undead::FuturesUndead;
 
 #[cfg(test)]
 mod tests;
@@ -91,27 +93,16 @@ struct RequestFromBackersPhase {
 struct RequestChunksPhase {
 	/// How many request have been unsuccessful so far.
 	error_count: usize,
-	/// Total number of requests that have been started so far.
+	/// Total number of responses that have been received.
 	///
-	/// (including finished requests)
-	total_issued_requests: usize,
-	/// Triggers when we consider all still pending requests failed.
-	///
-	/// We don't actually cancel the requests in this case, so they might still return data, but we
-	/// will start additional requests in the hope that they will resolve faster.
-	next_timeout: Option<Delay>,
-	/// Number of the next launched request
-	///
-	/// Requests are numbered, so we can implement the soft timeout functionality. (Requests with
-	/// numbers smaller than `first_live_request` are considered 
-	next_req_number: usize,
-	// a random shuffling of the validators which indicates the order in which we connect to the validators and
-	// request the chunk from them.
+	/// including failed ones.
+	total_received_responses: usize,
+	/// a random shuffling of the validators which indicates the order in which we connect to the validators and
+	/// request the chunk from them.
 	shuffling: VecDeque<ValidatorIndex>,
 	received_chunks: HashMap<ValidatorIndex, ErasureChunk>,
-	requesting_chunks: FuturesUnordered<
-		BoxFuture<'static, Result<Option<ErasureChunk>, (ValidatorIndex, RequestError)>>,
-	>,
+	/// Pending chunk requests with soft timeout.
+	requesting_chunks: FuturesUndead<Result<Option<ErasureChunk>, (ValidatorIndex, RequestError)>>,
 }
 
 struct InteractionParams {
@@ -234,11 +225,10 @@ impl RequestChunksPhase {
 
 		RequestChunksPhase {
 			error_count: 0,
-			total_issued_requests: 0,
+			total_received_responses: 0,
 			shuffling: shuffling.into(),
-			next_timeout: None,
 			received_chunks: HashMap::new(),
-			requesting_chunks: FuturesUnordered::new(),
+			requesting_chunks: FuturesUndead::new(),
 		}
 	}
 
@@ -271,9 +261,9 @@ impl RequestChunksPhase {
 		// How many chunks are still needed?
 		let remaining_chunks = params.threshold.saturating_sub(self.received_chunks.len());
 		// What is the current error rate, so we can make up for it?
-		let error_rate = self.error_count.checked_div(self.total_issued_requests).unwrap_or(0);
+		let inv_error_rate = self.total_received_responses.checked_div(self.error_count).unwrap_or(0);
 		// Actual number of requests we want to have in flight in parallel:
-		let num_requests = std::cmp::min(max_requests_boundary,  remaining_chunks * (1 + error_rate));
+		let num_requests = std::cmp::min(max_requests_boundary,  remaining_chunks + remaining_chunks.checked_div(inv_error_rate).unwrap_or(0));
 
 		let mut requests = Vec::with_capacity(num_requests - self.requesting_chunks.len());
 
@@ -324,9 +314,12 @@ impl RequestChunksPhase {
 
 	async fn wait_for_chunks(&mut self, params: &InteractionParams) {
 		// Wait for all current requests to conclude or time-out, or until we reach enough chunks.
-		while let Some(request_result) = self.requesting_chunks.next().await {
+		// We also declare requests undead, once `TIMEOUT_START_NEW_REQUESTS` is reached and will
+		// return in that case for `launch_parallel_requests` to fill up slots again.
+		while let Some(request_result) = self.requesting_chunks.next_with_timeout(TIMEOUT_START_NEW_REQUESTS).await {
 			match request_result {
 				Ok(Some(chunk)) => {
+					self.total_received_responses +=1;
 					// Check merkle proofs of any received chunks.
 
 					let validator_index = chunk.index;
@@ -343,6 +336,7 @@ impl RequestChunksPhase {
 								?validator_index,
 								"Merkle proof mismatch",
 							);
+							self.error_count += 1;
 						} else {
 							tracing::trace!(
 								target: LOG_TARGET,
@@ -353,6 +347,7 @@ impl RequestChunksPhase {
 							self.received_chunks.insert(validator_index, chunk);
 						}
 					} else {
+						self.error_count += 1;
 						tracing::debug!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
@@ -363,6 +358,8 @@ impl RequestChunksPhase {
 				},
 				Ok(None) => {},
 				Err((validator_index, e)) => {
+					self.total_received_responses +=1;
+					self.error_count += 1;
 					tracing::debug!(
 						target: LOG_TARGET,
 						candidate_hash= ?params.candidate_hash,
