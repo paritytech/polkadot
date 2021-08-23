@@ -229,27 +229,17 @@ fn teleport_to_statemine_works() {
 			vec![
 				(
 					Parachain(other_para_id).into(),
-					Xcm(
-						vec![
-							ReceiveTeleportedAsset((Parent, amount).into()),
-							ClearOrigin,
-						]
+					Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
 						.into_iter()
 						.chain(teleport_effects.clone().into_iter())
-						.collect()
-					),
+						.collect()),
 				),
 				(
 					Parachain(statemine_id).into(),
-					Xcm(
-						vec![
-							ReceiveTeleportedAsset((Parent, amount).into()),
-							ClearOrigin,
-						]
+					Xcm(vec![ReceiveTeleportedAsset((Parent, amount).into()), ClearOrigin,]
 						.into_iter()
 						.chain(teleport_effects.clone().into_iter())
-						.collect()
-					),
+						.collect()),
 				)
 			]
 		);
