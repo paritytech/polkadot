@@ -18,7 +18,7 @@ use crate::{mock::*, QueryStatus};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use std::convert::TryInto;
-use xcm::latest::prelude::*;
+use xcm::{latest::prelude::*, VersionedXcm};
 use xcm_executor::XcmExecutor;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
@@ -140,8 +140,9 @@ fn send_works() {
 			buy_execution((Parent, SEND_AMOUNT)),
 			DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 		]);
-		let dest = Box::new(RelayLocation::get());
-		assert_ok!(XcmPallet::send(Origin::signed(ALICE), dest, Box::new(message.clone())));
+		let versioned_dest = Box::new(RelayLocation::get().into());
+		let versioned_message = Box::new(VersionedXcm::from(message.clone()));
+		assert_ok!(XcmPallet::send(Origin::signed(ALICE), versioned_dest, versioned_message));
 		assert_eq!(
 			sent_xcm(),
 			vec![(
@@ -175,10 +176,13 @@ fn send_fails_when_xcm_router_blocks() {
 			buy_execution((Parent, SEND_AMOUNT)),
 			DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 		]);
-		let dest = Box::new(MultiLocation::ancestor(8));
 		assert_noop!(
-			XcmPallet::send(Origin::signed(ALICE), dest, Box::new(message),),
-			crate::Error::<Test>::SendFailure,
+			XcmPallet::send(
+				Origin::signed(ALICE),
+				Box::new(MultiLocation::ancestor(8).into()),
+				Box::new(VersionedXcm::from(message.clone())),
+			),
+			crate::Error::<Test>::SendFailure
 		);
 	});
 }
@@ -196,9 +200,9 @@ fn teleport_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::teleport_assets(
 			Origin::signed(ALICE),
-			Box::new(RelayLocation::get()),
-			Box::new(AccountId32 { network: Any, id: BOB.into() }.into()),
-			(Here, SEND_AMOUNT).into(),
+			Box::new(RelayLocation::get().into()),
+			Box::new(AccountId32 { network: Any, id: BOB.into() }.into().into()),
+			Box::new((Here, SEND_AMOUNT).into()),
 			0,
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -224,9 +228,9 @@ fn reserve_transfer_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			Origin::signed(ALICE),
-			Box::new(Parachain(PARA_ID).into()),
-			Box::new(dest.clone()),
-			(Here, SEND_AMOUNT).into(),
+			Box::new(Parachain(PARA_ID).into().into()),
+			Box::new(dest.clone().into()),
+			Box::new((Here, SEND_AMOUNT).into()),
 			0,
 		));
 		// Alice spent amount
@@ -268,11 +272,11 @@ fn execute_withdraw_to_deposit_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
-			Box::new(Xcm(vec![
-				WithdrawAsset { assets: (Here, SEND_AMOUNT).into() },
+			Box::new(VersionedXcm::from(Xcm(vec![
+				WithdrawAsset((Here, SEND_AMOUNT).into()),
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
-			])),
+			]))),
 			weight
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);

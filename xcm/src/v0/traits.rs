@@ -186,7 +186,7 @@ impl<C> ExecuteXcm<C> for () {
 ///
 /// # Example
 /// ```rust
-/// # use xcm::v0::{MultiLocation, Xcm, Junction, Junctions, Error, OriginKind, SendXcm, Result, Parent};
+/// # use xcm::v0::{MultiLocation, Xcm, Junction, Error, OriginKind, SendXcm, Result};
 /// # use parity_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.
@@ -201,9 +201,7 @@ impl<C> ExecuteXcm<C> for () {
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         if matches!(destination.interior(), Junctions::X2(j1, j2))
-///             && destination.parent_count() == 0
-///         {
+///         if let MultiLocation::X2(j1, j2) = destination {
 ///             Ok(())
 ///         } else {
 ///             Err(Error::Undefined)
@@ -215,12 +213,9 @@ impl<C> ExecuteXcm<C> for () {
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> Result {
-///         if matches!(destination.interior(), Junctions::Here)
-///             && destination.parent_count() == 1
-///         {
-///             Ok(())
-///         } else {
-///             Err(Error::CannotReachDestination(destination, message))
+///         match destination {
+///             MultiLocation::X1(j) if j == Junction::Parent => Ok(()),
+///             _ => Err(Error::CannotReachDestination(destination, message)),
 ///         }
 ///     }
 /// }
@@ -229,7 +224,7 @@ impl<C> ExecuteXcm<C> for () {
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
-/// let destination: MultiLocation = Parent.into();
+/// let destination = MultiLocation::X1(Junction::Parent);
 ///
 /// assert!(
 ///     // Sender2 will block this.

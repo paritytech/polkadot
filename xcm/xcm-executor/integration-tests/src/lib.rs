@@ -25,7 +25,7 @@ use polkadot_test_runtime::pallet_test_notifier;
 use polkadot_test_service::construct_extrinsic;
 use sp_runtime::{generic::BlockId, traits::Block};
 use sp_state_machine::InspectState;
-use xcm::latest::prelude::*;
+use xcm::{latest::prelude::*, VersionedXcm, VersionedResponse};
 
 #[test]
 fn basic_buy_fees_message_executes() {
@@ -44,7 +44,10 @@ fn basic_buy_fees_message_executes() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(msg, 1_000_000_000)),
+		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
+			Box::new(VersionedXcm::from(msg.clone())),
+			1_000_000_000,
+		)),
 		sp_keyring::Sr25519Keyring::Alice,
 		0,
 	);
@@ -147,7 +150,7 @@ fn query_response_fires() {
 			assert_eq!(
 				polkadot_test_runtime::Xcm::query(query_id),
 				Some(QueryStatus::Ready {
-					response: Response::ExecutionResult(Ok(())),
+					response: VersionedResponse::V2(Response::ExecutionResult(Ok(()))),
 					at: 2u32.into()
 				}),
 			)
@@ -206,7 +209,10 @@ fn query_response_elicits_handler() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(msg, 1_000_000_000)),
+		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
+			Box::new(VersionedXcm::from(msg.clone())),
+			1_000_000_000,
+		)),
 		sp_keyring::Sr25519Keyring::Alice,
 		1,
 	);

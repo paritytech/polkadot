@@ -33,7 +33,8 @@ use sp_std::{
 	prelude::*,
 	vec,
 };
-use xcm::{latest::prelude::*, VersionedMultiLocation};
+use xcm::latest::prelude::*;
+use xcm::{VersionedMultiAssets, VersionedMultiLocation, VersionedXcm, VersionedResponse};
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -106,46 +107,52 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		/// Execution of an XCM message was attempted.
+		/// 
+		/// \[ outcome \]
 		Attempted(xcm::latest::Outcome),
+		/// A XCM message was sent.
+		/// 
+		/// \[ origin, destination, message \]
 		Sent(MultiLocation, MultiLocation, Xcm<()>),
 		/// Query response received which does not match a registered query. This may be because a
 		/// matching query was never registered, it may be because it is a duplicate response, or
 		/// because the query timed out.
 		///
-		/// \[ origin_location, query_id \]
+		/// \[ origin location, id \]
 		UnexpectedResponse(MultiLocation, QueryId),
 		/// Query response has been received and is ready for taking with `take_response`. There is
 		/// no registered notification call.
 		///
-		/// \[ query_id, response \]
+		/// \[ id, response \]
 		ResponseReady(QueryId, Response),
 		/// Query response has been received and query is removed. The registered notification has
 		/// been dispatched and executed successfully.
 		///
-		/// \[ query_id, pallet_index, call_index \]
+		/// \[ id, pallet index, call index \]
 		Notified(QueryId, u8, u8),
 		/// Query response has been received and query is removed. The registered notification could
 		/// not be dispatched because the dispatch weight is greater than the maximum weight
 		/// originally budgeted by this runtime for the query result.
 		///
-		/// \[ query_id, pallet_index, call_index, actual_weight, max_budgeted_weight \]
+		/// \[ id, pallet index, call index, actual weight, max budgeted weight \]
 		NotifyOverweight(QueryId, u8, u8, Weight, Weight),
 		/// Query response has been received and query is removed. There was a general error with
 		/// dispatching the notification call.
 		///
-		/// \[ query_id, pallet_index, call_index \]
+		/// \[ id, pallet index, call index \]
 		NotifyDispatchError(QueryId, u8, u8),
 		/// Query response has been received and query is removed. The dispatch was unable to be
 		/// decoded into a `Call`; this might be due to dispatch function having a signature which
 		/// is not `(origin, QueryId, Response)`.
 		///
-		/// \[ query_id, pallet_index, call_index \]
+		/// \[ id, pallet index, call index \]
 		NotifyDecodeFailed(QueryId, u8, u8),
-		/// Expected query response has been received but the origin location of the repsonse does
+		/// Expected query response has been received but the origin location of the response does
 		/// not match that expected. The query remains registered for a later, valid, response to
 		/// be received and acted upon.
 		///
-		/// \[ origin_location, query_id, expected_location \]
+		/// \[ origin location, id, expected location \]
 		InvalidResponder(MultiLocation, QueryId, MultiLocation),
 		/// Expected query response has been received but the expected origin location placed in
 		/// storate by this runtime previously cannot be decoded. The query remains registered.
@@ -155,9 +162,11 @@ pub mod pallet {
 		/// valid response will be dropped. Manual governance intervention is probably going to be
 		/// needed.
 		///
-		/// \[ origin_location, query_id \]
+		/// \[ origin location, id \]
 		InvalidResponderVersion(MultiLocation, QueryId),
 		/// Received query response has been read and removed.
+		/// 
+		/// \[ id \]
 		ResponseTaken(QueryId),
 	}
 
@@ -177,7 +186,11 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
+		/// The desired destination was unreachable, generally because there is a no way of routing
+		/// to it.
 		Unreachable,
+		/// There was some other issue (i.e. not to do with routing) in sending the message. Perhaps
+		/// a lack of space for buffering the message.
 		SendFailure,
 		/// The message execution fails the filter.
 		Filtered,
@@ -191,6 +204,8 @@ pub mod pallet {
 		TooManyAssets,
 		/// Origin is invalid for sending.
 		InvalidOrigin,
+		/// The version of the `Versioned` value used is not able to be interpreted.
+		BadVersion,
 	}
 
 	/// The status of a query.
@@ -203,7 +218,7 @@ pub mod pallet {
 			timeout: BlockNumber,
 		},
 		/// A response has been received.
-		Ready { response: Response, at: BlockNumber },
+		Ready { response: VersionedResponse, at: BlockNumber },
 	}
 
 	/// Value of a query, must be unique for each query.
@@ -227,14 +242,15 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn send(
 			origin: OriginFor<T>,
-			dest: Box<MultiLocation>,
-			message: Box<Xcm<()>>,
+			dest: Box<VersionedMultiLocation>,
+			message: Box<VersionedXcm<()>>,
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			let message = *message;
-			let dest = *dest;
 			let interior =
 				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
+			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
+			let message: Xcm<()> = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
+
 			Self::send_xcm(interior, dest.clone(), message.clone()).map_err(|e| match e {
 				SendError::CannotReachDestination(..) => Error::<T>::Unreachable,
 				_ => Error::<T>::SendFailure,
@@ -257,21 +273,33 @@ pub mod pallet {
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
 		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
-			use sp_std::vec;
-			let mut message = Xcm(vec![
-				WithdrawAsset(assets.clone()),
-				InitiateTeleport { assets: Wild(All), dest: *dest.clone(), xcm: Xcm(vec![]) },
-			]);
-			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			match (maybe_assets, maybe_dest) {
+				(Ok(assets), Ok(dest)) => {
+					use sp_std::vec;
+					let mut message = Xcm(vec![
+						WithdrawAsset(assets),
+						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
+					]);
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+				},
+				_ => Weight::max_value(),
+			}
 		})]
 		pub fn teleport_assets(
 			origin: OriginFor<T>,
-			dest: Box<MultiLocation>,
-			beneficiary: Box<MultiLocation>,
-			assets: MultiAssets,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
 			fee_asset_item: u32,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
+			let beneficiary =
+				MultiLocation::try_from(*beneficiary).map_err(|()| Error::<T>::BadVersion)?;
+			let assets = MultiAssets::try_from(*assets).map_err(|()| Error::<T>::BadVersion)?;
+
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
@@ -289,10 +317,10 @@ pub mod pallet {
 				WithdrawAsset(assets),
 				InitiateTeleport {
 					assets: Wild(All),
-					dest: *dest,
+					dest,
 					xcm: Xcm(vec![
 						BuyExecution { fees, weight_limit: Unlimited },
-						DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
+						DepositAsset { assets: Wild(All), max_assets, beneficiary },
 					]),
 				},
 			]);
@@ -319,20 +347,29 @@ pub mod pallet {
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		#[pallet::weight({
-			use sp_std::vec;
-			let mut message = Xcm(vec![
-				TransferReserveAsset { assets: assets.clone(), dest: *dest.clone(), xcm: Xcm(vec![]) }
-			]);
-			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
+				(Ok(assets), Ok(dest)) => {
+					use sp_std::vec;
+					let mut message = Xcm(vec![
+						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
+					]);
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+				},
+				_ => Weight::max_value(),
+			}
 		})]
 		pub fn reserve_transfer_assets(
 			origin: OriginFor<T>,
-			dest: Box<MultiLocation>,
-			beneficiary: Box<MultiLocation>,
-			assets: MultiAssets,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
 			fee_asset_item: u32,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let beneficiary = (*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
+
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
@@ -348,10 +385,10 @@ pub mod pallet {
 			let assets = assets.into();
 			let mut message = Xcm(vec![TransferReserveAsset {
 				assets,
-				dest: *dest,
+				dest,
 				xcm: Xcm(vec![
 					BuyExecution { fees, weight_limit: Unlimited },
-					DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
+					DepositAsset { assets: Wild(All), max_assets, beneficiary },
 				]),
 			}]);
 			let weight =
@@ -376,11 +413,12 @@ pub mod pallet {
 		#[pallet::weight(max_weight.saturating_add(100_000_000u64))]
 		pub fn execute(
 			origin: OriginFor<T>,
-			message: Box<Xcm<<T as SysConfig>::Call>>,
+			message: Box<VersionedXcm<<T as SysConfig>::Call>>,
 			max_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let value = (origin_location, *message);
+			let message = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let value = (origin_location, message);
 			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, message) = value;
 			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);
@@ -501,6 +539,7 @@ pub mod pallet {
 		/// Returns `None` if the response is not (yet) available.
 		pub fn take_response(query_id: QueryId) -> Option<(Response, T::BlockNumber)> {
 			if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
+				let response = response.try_into().ok()?;
 				Queries::<T>::remove(query_id);
 				Self::deposit_event(Event::ResponseTaken(query_id));
 				Some((response, at))
@@ -588,6 +627,7 @@ pub mod pallet {
 								let e = Event::ResponseReady(query_id, response.clone());
 								Self::deposit_event(e);
 								let at = frame_system::Pallet::<T>::current_block_number();
+								let response = response.into();
 								Queries::<T>::insert(query_id, QueryStatus::Ready { response, at });
 								0
 							},

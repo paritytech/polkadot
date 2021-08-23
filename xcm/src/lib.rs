@@ -23,6 +23,7 @@
 #![no_std]
 extern crate alloc;
 
+use alloc::vec::Vec;
 use core::{
 	convert::{TryFrom, TryInto},
 	result::Result,
@@ -69,9 +70,9 @@ impl From<v0::MultiLocation> for VersionedMultiLocation {
 	}
 }
 
-impl From<v1::MultiLocation> for VersionedMultiLocation {
-	fn from(x: v1::MultiLocation) -> Self {
-		VersionedMultiLocation::V1(x)
+impl<T: Into<v1::MultiLocation>> From<T> for VersionedMultiLocation {
+	fn from(x: T) -> Self {
+		VersionedMultiLocation::V1(x.into())
 	}
 }
 
@@ -97,6 +98,72 @@ impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
 	}
 }
 
+
+/// A single `Response` value, together with its version code.
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum VersionedResponse {
+	V0(v0::Response),
+	V1(v1::Response),
+	V2(v2::Response),
+}
+
+impl From<v0::Response> for VersionedResponse {
+	fn from(x: v0::Response) -> Self {
+		VersionedResponse::V0(x)
+	}
+}
+
+impl From<v1::Response> for VersionedResponse {
+	fn from(x: v1::Response) -> Self {
+		VersionedResponse::V1(x)
+	}
+}
+
+impl<T: Into<v2::Response>> From<T> for VersionedResponse {
+	fn from(x: T) -> Self {
+		VersionedResponse::V2(x.into())
+	}
+}
+
+impl TryFrom<VersionedResponse> for v0::Response {
+	type Error = ();
+	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
+		use VersionedResponse::*;
+		match x {
+			V0(x) => Ok(x),
+			V1(x) => x.try_into(),
+			V2(x) => VersionedResponse::V1(x.try_into()?).try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedResponse> for v1::Response {
+	type Error = ();
+	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
+		use VersionedResponse::*;
+		match x {
+			V0(x) => x.try_into(),
+			V1(x) => Ok(x),
+			V2(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedResponse> for v2::Response {
+	type Error = ();
+	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
+		use VersionedResponse::*;
+		match x {
+			V0(x) => VersionedResponse::V1(x.try_into()?).try_into(),
+			V1(x) => x.try_into(),
+			V2(x) => Ok(x),
+		}
+	}
+}
+
 /// A single `MultiAsset` value, together with its version code.
 #[derive(Derivative, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
@@ -113,9 +180,9 @@ impl From<v0::MultiAsset> for VersionedMultiAsset {
 	}
 }
 
-impl From<v1::MultiAsset> for VersionedMultiAsset {
-	fn from(x: v1::MultiAsset) -> Self {
-		VersionedMultiAsset::V1(x)
+impl<T: Into<v1::MultiAsset>> From<T> for VersionedMultiAsset {
+	fn from(x: T) -> Self {
+		VersionedMultiAsset::V1(x.into())
 	}
 }
 
@@ -134,6 +201,50 @@ impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
 	type Error = ();
 	fn try_from(x: VersionedMultiAsset) -> Result<Self, ()> {
 		use VersionedMultiAsset::*;
+		match x {
+			V0(x) => x.try_into(),
+			V1(x) => Ok(x),
+		}
+	}
+}
+
+/// A single `MultiAssets` value, together with its version code.
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum VersionedMultiAssets {
+	V0(Vec<v0::MultiAsset>),
+	V1(v1::MultiAssets),
+}
+
+impl From<Vec<v0::MultiAsset>> for VersionedMultiAssets {
+	fn from(x: Vec<v0::MultiAsset>) -> Self {
+		VersionedMultiAssets::V0(x)
+	}
+}
+
+impl<T: Into<v1::MultiAssets>> From<T> for VersionedMultiAssets {
+	fn from(x: T) -> Self {
+		VersionedMultiAssets::V1(x.into())
+	}
+}
+
+impl TryFrom<VersionedMultiAssets> for Vec<v0::MultiAsset> {
+	type Error = ();
+	fn try_from(x: VersionedMultiAssets) -> Result<Self, ()> {
+		use VersionedMultiAssets::*;
+		match x {
+			V0(x) => Ok(x),
+			V1(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedMultiAssets> for v1::MultiAssets {
+	type Error = ();
+	fn try_from(x: VersionedMultiAssets) -> Result<Self, ()> {
+		use VersionedMultiAssets::*;
 		match x {
 			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
