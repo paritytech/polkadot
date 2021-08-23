@@ -17,7 +17,7 @@
 //! Cross-Consensus Message format data structures.
 
 use super::Junction;
-use core::{convert::TryFrom, mem, result};
+use core::{mem, result};
 use parity_scale_codec::{self, Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.
