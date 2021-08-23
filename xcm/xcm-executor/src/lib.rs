@@ -110,9 +110,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		holding: &mut Assets,
 		origin: &mut Option<MultiLocation>,
 		report_outcome: &mut Option<_>,
+		weight_credit: &mut u64,
 		total_surplus: &mut u64,
 		total_refunded: &mut u64,
-		on_error: &mut Xcm<Config::Call>,
+		on_error: &mut (Xcm<Config::Call>, u64),
 	) {
 		match instr {
 			WithdrawAsset(assets) => {
@@ -198,16 +199,20 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				.unwrap_or(weight);
 				let surplus = weight.saturating_sub(actual_weight);
-				// Credit any surplus weight that we bought. This should be safe since it's work we
-				// didn't realise that we didn't have to do.
-				// It works because we assume that the `Config::Weigher` will always count the `call`'s
-				// `get_dispatch_info` weight into its `shallow` estimate.
+				// We assume that the `Config::Weigher` will counts the `require_weight_at_most`
+				// for the estimate of how much weight this instruction will take. Now that we know
+				// that it's less, we credit it.
+				//
+				// It happens in two parts:
+				// The `weight_credit` is introduced manually and is reduced by the
+				// `TakeWeightCredit` barrier, which determines the amount to reduce it by through
+				// the basic weight.
 				*weight_credit = weight_credit.saturating_add(surplus);
-				// Do the same for the total surplus, which is reported to the caller and eventually makes its way
-				// back up the stack to be subtracted from the deep-weight.
+				// We also make the adjustment for the total surplus, which is used eventually
+				// reported back to the caller and this ensures that they account for the total
+				// weight consumed correctly (potentially allowing them to do more operations in a
+				// block than they otherwise would).
 				*total_surplus = total_surplus.saturating_add(surplus);
-				// Return the overestimated amount so we can adjust our expectations on how much this entire
-				// execution has taken.
 				Ok(())
 			},
 			QueryResponse { query_id, response, max_weight } => {
@@ -294,6 +299,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			SetErrorHandler(mut handler) => {
+				let old_weight = on_error.1;
+				*total_surplus = total_surplus.saturating_add(old_weight);
+				*weight_credit = weight_credit.saturating_add(old_weight);
 				let weight = Config::Weigher::weight(&mut handler)?;
 				*on_error = (handler, weight);
 			}
@@ -311,7 +319,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		mut origin: Option<MultiLocation>,
 		top_level: bool,
 		mut xcm: Xcm<Config::Call>,
-		weight_credit: &mut Weight,
+		mut weight_credit: Weight,
 		maybe_max_weight: Option<Weight>,
 		trader: &mut Config::Trader,
 		num_recursions: u32,
@@ -337,7 +345,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			.or_else(|| Config::Weigher::weight(&mut xcm).ok())
 			.ok_or(XcmError::WeightNotComputable)?;
 
-		Config::Barrier::should_execute(&origin, top_level, &mut xcm, max_weight, weight_credit)
+		Config::Barrier::should_execute(&origin, top_level, &mut xcm, max_weight, &mut weight_credit)
 			.map_err(|()| XcmError::Barrier)?;
 
 		// The surplus weight, defined as the amount by which `max_weight` is
@@ -348,13 +356,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let mut total_refunded: Weight = 0;
 		let mut report_outcome = None;
 		let mut outcome = Ok(());
-		let mut on_error = Xcm::<Config::Call>(vec![]);
+		let mut on_error = (Xcm::<Config::Call>(vec![]), 0);
 		for (i, instr) in xcm.0.into_iter().enumerate() {
 			match Self::process_instruction(
 				instr,
 				holding,
 				&mut origin,
 				&mut report_outcome,
+				&mut weight_credit,
 				&mut total_surplus,
 				&mut total_refunded,
 				&mut on_error,
@@ -367,14 +376,29 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			}
 		}
 
-		if let Some((dest, query_id, max_weight)) = report_outcome {
+		if let Some((dest, query_id, max_weight)) = report_outcome.take() {
 			let response = Response::ExecutionResult(outcome.clone());
 			let message = QueryResponse { query_id, response, max_weight };
 			Config::XcmSender::send_xcm(dest, Xcm(vec![message]))?;
 		}
 		
 		if let Err((i, ref e)) = outcome {
-			
+			let mut dummy_on_error = (Xcm::<Config::Call>(vec![]), 0);
+			for instr in (on_error.0).0.into_iter() {
+				match Self::process_instruction(
+					instr,
+					holding,
+					&mut origin,
+					&mut report_outcome,
+					&mut weight_credit,
+					&mut total_surplus,
+					&mut total_refunded,
+					&mut dummy_on_error,
+				) {
+					Ok(()) => (),
+					Err(e) => break,
+				}
+			}
 		}
 
 		outcome.map(|()| total_surplus).map_err(|e| e.1)
