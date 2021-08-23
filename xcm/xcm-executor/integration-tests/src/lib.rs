@@ -24,7 +24,7 @@ use polkadot_test_client::{
 use polkadot_test_service::construct_extrinsic;
 use sp_runtime::{generic::BlockId, traits::Block};
 use sp_state_machine::InspectState;
-use xcm::latest::prelude::*;
+use xcm::{latest::prelude::*, VersionedXcm};
 use xcm_executor::MAX_RECURSION_LIMIT;
 
 // This is the inflection point where the test should either fail or pass.
@@ -57,7 +57,7 @@ fn execute_within_recursion_limit() {
 	let execute = construct_extrinsic(
 		&client,
 		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
-			Box::new(msg.clone()),
+			Box::new(VersionedXcm::from(msg.clone())),
 			1_000_000_000,
 		)),
 		sp_keyring::Sr25519Keyring::Alice,
@@ -111,7 +111,7 @@ fn exceed_recursion_limit() {
 	let execute = construct_extrinsic(
 		&client,
 		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
-			Box::new(msg.clone()),
+			Box::new(VersionedXcm::from(msg.clone())),
 			1_000_000_000,
 		)),
 		sp_keyring::Sr25519Keyring::Alice,
