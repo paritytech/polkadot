@@ -895,7 +895,7 @@ mod tests {
 		);
 		assert_eq!(
 			v0::MultiLocation::X2(v0::Junction::Parachain(88), v0::Junction::Parent).try_into(),
-			Err::<MultiLocation, ()>(()),
+			Ok(MultiLocation::here()),
 		);
 		assert_eq!(
 			v0::MultiLocation::X3(
