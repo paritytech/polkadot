@@ -192,8 +192,10 @@ fn generate_conversion_from_v0() -> TokenStream {
 	quote! {
 		impl core::convert::TryFrom<crate::v0::MultiLocation> for MultiLocation {
 			type Error = ();
-			fn try_from(v0: crate::v0::MultiLocation) -> core::result::Result<Self, ()> {
+			fn try_from(mut v0: crate::v0::MultiLocation) -> core::result::Result<Self, ()> {
 				use Junctions::*;
+
+				v0.canonicalize();
 				match v0 {
 					crate::v0::MultiLocation::Null => Ok(Here.into()),
 					#match_variants
