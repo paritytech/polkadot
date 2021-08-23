@@ -227,7 +227,7 @@ pub type SendResult = result::Result<(), SendError>;
 ///
 /// # Example
 /// ```rust
-/// # use xcm::v0::{MultiLocation, Xcm, Junction, SendError, OriginKind, SendXcm, SendResult};
+/// # use xcm::v2::prelude::*;
 /// # use parity_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.
@@ -242,20 +242,20 @@ pub type SendResult = result::Result<(), SendError>;
 /// struct Sender2;
 /// impl SendXcm for Sender2 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> SendResult {
-///         if let MultiLocation::X2(j1, j2) = destination {
+///         if let MultiLocation { parents: 0, interior: X2(j1, j2) } = destination {
 ///             Ok(())
 ///         } else {
-///             Err(SendError::Transport)
+///             Err(SendError::Unroutable)
 ///         }
 ///     }
 /// }
 ///
-/// /// A sender that accepts a message from an X1 parent junction, passing through otherwise.
+/// /// A sender that accepts a message from a parent, passing through otherwise.
 /// struct Sender3;
 /// impl SendXcm for Sender3 {
 ///     fn send_xcm(destination: MultiLocation, message: Xcm<()>) -> SendResult {
 ///         match destination {
-///             MultiLocation::X1(j) if j == Junction::Parent => Ok(()),
+///             MultiLocation { parents: 1, interior: Here } => Ok(()),
 ///             _ => Err(SendError::CannotReachDestination(destination, message)),
 ///         }
 ///     }
@@ -264,8 +264,12 @@ pub type SendResult = result::Result<(), SendError>;
 /// // A call to send via XCM. We don't really care about this.
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
-/// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
-/// let destination = MultiLocation::X1(Junction::Parent);
+/// let message = Xcm(vec![Instruction::Transact {
+///     origin_type: OriginKind::Superuser,
+///     require_weight_at_most: 0,
+///     call: call.into(),
+/// }]);
+/// let destination = MultiLocation::parent();
 ///
 /// assert!(
 ///     // Sender2 will block this.
