@@ -43,7 +43,7 @@ use scale_info::TypeInfo;
 /// beginning of this `MultiLocation`. A corollary of such a property is that no parent junctions
 /// can be added in the middle or at the end of a `MultiLocation`, thus ensuring well-formedness
 /// of each and every `MultiLocation` that can be constructed.
-#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo)]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
 	pub parents: u8,
