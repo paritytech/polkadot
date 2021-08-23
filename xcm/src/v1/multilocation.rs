@@ -17,10 +17,7 @@
 //! Cross-Consensus Message format data structures.
 
 use super::Junction;
-use core::{
-	convert::{TryFrom, TryInto},
-	mem, result,
-};
+use core::{convert::TryFrom, mem, result};
 use parity_scale_codec::{Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.
@@ -898,7 +895,7 @@ mod tests {
 		);
 		assert_eq!(
 			v0::MultiLocation::X2(v0::Junction::Parachain(88), v0::Junction::Parent).try_into(),
-			Err::<MultiLocation, ()>(()),
+			Ok(MultiLocation::here()),
 		);
 		assert_eq!(
 			v0::MultiLocation::X3(
