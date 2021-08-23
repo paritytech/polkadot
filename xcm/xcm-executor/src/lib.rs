@@ -112,6 +112,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		report_outcome: &mut Option<_>,
 		total_surplus: &mut u64,
 		total_refunded: &mut u64,
+		on_error: &mut Xcm<Config::Call>,
 	) {
 		match instr {
 			WithdrawAsset(assets) => {
@@ -292,8 +293,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Ok(())
 			},
-			SetErrorHandler(_) => {
-				todo!()
+			SetErrorHandler(mut handler) => {
+				let weight = Config::Weigher::weight(&mut handler)?;
+				*on_error = (handler, weight);
 			}
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
@@ -338,7 +340,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Config::Barrier::should_execute(&origin, top_level, &mut xcm, max_weight, weight_credit)
 			.map_err(|()| XcmError::Barrier)?;
 
-
 		// The surplus weight, defined as the amount by which `max_weight` is
 		// an over-estimate of the actual weight consumed. We do it this way to avoid needing the
 		// execution engine to keep track of all instructions' weights (it only needs to care about
@@ -347,14 +348,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let mut total_refunded: Weight = 0;
 		let mut report_outcome = None;
 		let mut outcome = Ok(());
-		for (i, instruction) in xcm.0.into_iter().enumerate() {
-			match process(
-				instruction,
+		let mut on_error = Xcm::<Config::Call>(vec![]);
+		for (i, instr) in xcm.0.into_iter().enumerate() {
+			match Self::process_instruction(
+				instr,
 				holding,
 				&mut origin,
 				&mut report_outcome,
 				&mut total_surplus,
 				&mut total_refunded,
+				&mut on_error,
 			) {
 				Ok(()) => (),
 				Err(e) => {
@@ -368,6 +371,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			let response = Response::ExecutionResult(outcome.clone());
 			let message = QueryResponse { query_id, response, max_weight };
 			Config::XcmSender::send_xcm(dest, Xcm(vec![message]))?;
+		}
+		
+		if let Err((i, ref e)) = outcome {
+			
 		}
 
 		outcome.map(|()| total_surplus).map_err(|e| e.1)
