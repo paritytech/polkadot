@@ -270,11 +270,76 @@ impl MockValidatorBackend {
 impl ValidationBackend for MockValidatorBackend {
 	async fn validate_candidate(
 		&mut self,
-		_raw_validation_code: Pvf,
+		raw_validation_code: Pvf,
 		_params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
-		self.result.clone()
+		match raw_validation_code {
+			Pvf::Preimage(_) => self.result.clone(),
+			Pvf::Hash(_) => Err(ValidationError::ArtifactNotFound),
+		}
 	}
+}
+
+#[test]
+fn check_runtime_validation_code_request() {
+	let metrics = Default::default();
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+	let pov = PoV { block_data: BlockData(vec![1; 32]) };
+	let validation_code = ValidationCode(vec![2; 16]);
+	let validation_code_hash = validation_code.hash();
+
+	let head_data = HeadData(vec![1, 1, 1]);
+	let mut descriptor = CandidateDescriptor::default();
+	descriptor.pov_hash = pov.hash();
+	descriptor.para_head = head_data.hash();
+	descriptor.validation_code_hash = validation_code_hash;
+	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+	let validation_result = WasmValidationResult {
+		head_data,
+		new_validation_code: Some(vec![2, 2, 2].into()),
+		upward_messages: Vec::new(),
+		horizontal_messages: Vec::new(),
+		processed_downward_messages: 0,
+		hrmp_watermark: 0,
+	};
+
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
+	let (check_fut, check_result) = validate_candidate_exhaustive(
+		&mut ctx,
+		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		validation_data.clone(),
+		None,
+		descriptor,
+		Arc::new(pov),
+		&metrics,
+	)
+	.remote_handle();
+
+	let test_fut = async move {
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_,
+				RuntimeApiRequest::ValidationCodeByHash(
+					validation_code_hash,
+					tx
+				),
+			)) => {
+				assert_eq!(validation_code_hash, validation_code.hash());
+
+				let _ = tx.send(Ok(Some(validation_code)));
+			}
+		);
+
+		assert_matches!(check_result.await.unwrap(), Ok(ValidationResult::Valid(_, _)));
+	};
+
+	let test_fut = future::join(test_fut, check_fut);
+	executor::block_on(test_fut);
 }
 
 #[test]
