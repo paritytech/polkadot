@@ -2169,14 +2169,15 @@ async fn launch_approval(
 		"Availability message sent.",
 	);
 
-	ctx.send_message(
-		RuntimeApiMessage::Request(
+	let runtime_message: RuntimeApiMessage = RuntimeApiMessage::Request(
 			block_hash,
 			RuntimeApiRequest::ValidationCodeByHash(
 				candidate.descriptor.validation_code_hash,
 				code_tx,
 			),
-		).into()
+		).into();
+	ctx.send_message(
+        runtime_message
 	).await;
 
 	tracing::debug!(
