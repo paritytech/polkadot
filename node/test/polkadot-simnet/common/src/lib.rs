@@ -374,7 +374,7 @@ where
 	use sc_cli::{CliConfiguration, SubstrateCli};
 	use structopt::StructOpt;
 
-	let mut tokio_runtime = build_runtime()?;
+	let tokio_runtime = build_runtime()?;
 	let task_executor = task_executor(tokio_runtime.handle().clone());
 	// parse cli args
 	let cmd = <polkadot_cli::Cli as StructOpt>::from_args();
@@ -406,7 +406,7 @@ mod tests {
 
 	#[test]
 	fn test_runner() {
-		let mut runtime = build_runtime().unwrap();
+		let runtime = build_runtime().unwrap();
 		let task_executor = task_executor(runtime.handle().clone());
 		let (rpc, task_manager, client, pool, command_sink, backend) =
 			client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::ChainSpec(
