@@ -55,7 +55,7 @@ impl Decode for Unsupported {
 }
 
 /// A single `MultiLocation` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -99,7 +99,7 @@ impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
 }
 
 /// A single `MultiAsset` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -145,7 +145,7 @@ impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
 /// A single `MultiAssets` value, together with its version code.
 ///
 /// NOTE: For XCM v0, this was `Vec<MultiAsset>`.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
