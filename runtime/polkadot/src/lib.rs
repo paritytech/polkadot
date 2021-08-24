@@ -1126,10 +1126,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(
-		BountiesPrefixMigration,
-		MigratePalletVersionToStorageVersion,
-	)
+	(BountiesPrefixMigration, MigratePalletVersionToStorageVersion),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1144,10 +1141,7 @@ impl OnRuntimeUpgrade for BountiesPrefixMigration {
 		use frame_support::traits::PalletInfo;
 		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
 			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::migrate::<Runtime, Bounties, _>(
-			BOUNTIES_OLD_PREFIX,
-			name,
-		)
+		pallet_bounties::migrations::v4::migrate::<Runtime, Bounties, _>(BOUNTIES_OLD_PREFIX, name)
 	}
 
 	#[cfg(feature = "try-runtime")]
@@ -1164,9 +1158,7 @@ impl OnRuntimeUpgrade for BountiesPrefixMigration {
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_bounties::migrations::v4::post_migration::<Bounties>(
-			BOUNTIES_OLD_PREFIX,
-		);
+		pallet_bounties::migrations::v4::post_migration::<Bounties>(BOUNTIES_OLD_PREFIX);
 		Ok(())
 	}
 }

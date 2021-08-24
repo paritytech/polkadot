@@ -1506,10 +1506,7 @@ impl OnRuntimeUpgrade for BountiesPrefixMigration {
 		use frame_support::traits::PalletInfo;
 		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
 			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::migrate::<Runtime, Bounties, _>(
-			BOUNTIES_OLD_PREFIX,
-			name,
-		)
+		pallet_bounties::migrations::v4::migrate::<Runtime, Bounties, _>(BOUNTIES_OLD_PREFIX, name)
 	}
 
 	#[cfg(feature = "try-runtime")]
