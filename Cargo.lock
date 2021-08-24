@@ -706,6 +706,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bounded-vec"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afdd1dffefe5fc66262a524b91087c43b16e478b2e3dc49eb11b0e2fd6b6ec90"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "bp-header-chain"
 version = "0.1.0"
 dependencies = [
@@ -6319,6 +6328,7 @@ dependencies = [
 name = "polkadot-node-primitives"
 version = "0.9.9"
 dependencies = [
+ "bounded-vec",
  "futures 0.3.16",
  "parity-scale-codec",
  "polkadot-parachain",
