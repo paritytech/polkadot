@@ -192,7 +192,6 @@ fn query_response_elicits_handler() {
 		.state_at(&BlockId::Hash(block_hash))
 		.expect("state should exist")
 		.inspect_state(|| {
-			dbg!(polkadot_test_runtime::System::events());
 			for r in polkadot_test_runtime::System::events().iter() {
 				match r.event {
 					TestNotifier(NotifyQueryPrepared(q)) => query_id = Some(q),

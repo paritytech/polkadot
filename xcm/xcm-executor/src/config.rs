@@ -38,10 +38,10 @@ pub trait Config {
 	/// How to get a call origin from a `OriginKind` value.
 	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
 
-	/// Combinations of (Location, Asset) pairs which we unilateral trust as reserves.
+	/// Combinations of (Location, Asset) pairs which we trust as reserves.
 	type IsReserve: FilterAssetLocation;
 
-	/// Combinations of (Location, Asset) pairs which we bilateral trust as teleporters.
+	/// Combinations of (Location, Asset) pairs which we trust as teleporters.
 	type IsTeleporter: FilterAssetLocation;
 
 	/// Means of inverting a location.
