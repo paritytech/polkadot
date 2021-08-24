@@ -22,7 +22,7 @@ extra-args = ["--charlie"]
 image = "parity/polkadot"
 command = "polkadot"
 
-[nodes.mal]
+[nodes.david]
 validator = true
 extra-args = ["--dave"]
 image = "paritypr/malus:v1"
