@@ -52,7 +52,7 @@ sp-application-crypto = { git = "https://github.com/paritytech/substrate", branc
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
-serde_json = "1.0.61"
+serde_json = "1.0.66"
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
