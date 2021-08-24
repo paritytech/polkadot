@@ -25,7 +25,7 @@ use polkadot_test_runtime::pallet_test_notifier;
 use polkadot_test_service::construct_extrinsic;
 use sp_runtime::{generic::BlockId, traits::Block};
 use sp_state_machine::InspectState;
-use xcm::{latest::prelude::*, VersionedXcm, VersionedResponse};
+use xcm::{latest::prelude::*, VersionedResponse, VersionedXcm};
 
 #[test]
 fn basic_buy_fees_message_executes() {

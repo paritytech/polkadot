@@ -33,8 +33,10 @@ use sp_std::{
 	prelude::*,
 	vec,
 };
-use xcm::latest::prelude::*;
-use xcm::{VersionedMultiAssets, VersionedMultiLocation, VersionedXcm, VersionedResponse};
+use xcm::{
+	latest::prelude::*, VersionedMultiAssets, VersionedMultiLocation, VersionedResponse,
+	VersionedXcm,
+};
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -108,11 +110,11 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Execution of an XCM message was attempted.
-		/// 
+		///
 		/// \[ outcome \]
 		Attempted(xcm::latest::Outcome),
 		/// A XCM message was sent.
-		/// 
+		///
 		/// \[ origin, destination, message \]
 		Sent(MultiLocation, MultiLocation, Xcm<()>),
 		/// Query response received which does not match a registered query. This may be because a
@@ -165,7 +167,7 @@ pub mod pallet {
 		/// \[ origin location, id \]
 		InvalidResponderVersion(MultiLocation, QueryId),
 		/// Received query response has been read and removed.
-		/// 
+		///
 		/// \[ id \]
 		ResponseTaken(QueryId),
 	}
