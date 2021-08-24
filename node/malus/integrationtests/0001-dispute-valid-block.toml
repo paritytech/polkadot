@@ -25,5 +25,5 @@ command = "polkadot"
 [nodes.mal]
 validator = true
 extra-args = ["--dave"]
-image = "paritypr/malus"
+image = "paritypr/malus:v1"
 command = "/usr/local/bin/malus-dispute-valid-block"
