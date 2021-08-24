@@ -298,10 +298,10 @@ where
 
 /// Verify a merkle branch, yielding the chunk hash meant to be present at that
 /// index.
-pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Result<H256, Error> {
+pub fn branch_hash(root: &H256, branch_nodes: &Proof, index: usize) -> Result<H256, Error> {
 	let mut trie_storage: MemoryDB<Blake2Hasher> = MemoryDB::default();
-	for node in branch_nodes.iter() {
-		(&mut trie_storage as &mut trie::HashDB<_>).insert(EMPTY_PREFIX, node.as_slice());
+	for node in branch_nodes.as_vec().iter() {
+		(&mut trie_storage as &mut trie::HashDB<_>).insert(EMPTY_PREFIX, node);
 	}
 
 	let trie = TrieDB::new(&trie_storage, &root).map_err(|_| Error::InvalidBranchProof)?;
@@ -422,10 +422,7 @@ mod tests {
 		assert_eq!(proofs.len(), 10);
 
 		for (i, proof) in proofs.into_iter().enumerate() {
-			assert_eq!(
-				branch_hash(&root, &proof.as_vec(), i).unwrap(),
-				BlakeTwo256::hash(&chunks[i])
-			);
+			assert_eq!(branch_hash(&root, &proof, i).unwrap(), BlakeTwo256::hash(&chunks[i]));
 		}
 	}
 }

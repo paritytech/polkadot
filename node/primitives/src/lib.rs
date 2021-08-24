@@ -45,6 +45,9 @@ pub use polkadot_parachain::primitives::BlockData;
 
 pub mod approval;
 
+#[cfg(test)]
+mod tests;
+
 /// Disputes related types.
 pub mod disputes;
 pub use disputes::{
@@ -299,8 +302,8 @@ pub struct Proof(BoundedVec<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, 1, MERKLE_P
 
 impl Proof {
 	/// This function allows to convert back to the standard nested Vec format
-	pub fn as_vec(&self) -> Vec<Vec<u8>> {
-		self.0.as_vec().iter().map(|v| v.as_vec().clone()).collect()
+	pub fn as_vec(&self) -> Vec<&[u8]> {
+		self.0.iter().map(|v| v.as_slice()).collect::<Vec<&[u8]>>()
 	}
 }
 
@@ -395,8 +398,8 @@ pub struct ErasureChunk {
 
 impl ErasureChunk {
 	/// Convert bounded Vec Proof to regular Vec<Vec<u8>>
-	pub fn proof_as_vec(&self) -> Vec<Vec<u8>> {
-		self.proof.as_vec()
+	pub fn proof(&self) -> &Proof {
+		&self.proof
 	}
 }
 

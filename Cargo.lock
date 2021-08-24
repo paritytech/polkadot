@@ -6331,6 +6331,7 @@ dependencies = [
  "bounded-vec",
  "futures 0.3.16",
  "parity-scale-codec",
+ "polkadot-erasure-coding",
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-statement-table",
