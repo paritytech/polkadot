@@ -17,9 +17,9 @@
 //! Runtimes implementing the v1 runtime API are recommended to forward directly to these
 //! functions.
 
-use sp_std::prelude::*;
-use sp_std::collections::btree_map::BTreeMap;
-use sp_runtime::traits::One;
+use crate::{
+	configuration, dmp, hrmp, inclusion, initializer, paras, scheduler, session_info, shared,
+};
 use primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
@@ -27,38 +27,36 @@ use primitives::v1::{
 	ScheduledCore, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId,
 	ValidatorIndex,
 };
-use crate::{initializer, inclusion, scheduler, configuration, paras, session_info, dmp, hrmp, shared};
-
+use sp_runtime::traits::One;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Config>() -> Vec<ValidatorId> {
-	<shared::Module<T>>::active_validator_keys()
+	<shared::Pallet<T>>::active_validator_keys()
 }
 
 /// Implementation for the `validator_groups` function of the runtime API.
-pub fn validator_groups<T: initializer::Config>() -> (
-	Vec<Vec<ValidatorIndex>>,
-	GroupRotationInfo<T::BlockNumber>,
-) {
+pub fn validator_groups<T: initializer::Config>(
+) -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<T::BlockNumber>) {
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
 
-	let groups = <scheduler::Module<T>>::validator_groups();
-	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
+	let groups = <scheduler::Pallet<T>>::validator_groups();
+	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
 
 	(groups, rotation_info)
 }
 
 /// Implementation for the `availability_cores` function of the runtime API.
 pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
-	let cores = <scheduler::Module<T>>::availability_cores();
-	let parachains = <paras::Module<T>>::parachains();
-	let config = <configuration::Module<T>>::config();
+	let cores = <scheduler::Pallet<T>>::availability_cores();
+	let parachains = <paras::Pallet<T>>::parachains();
+	let config = <configuration::Pallet<T>>::config();
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
-	<scheduler::Module<T>>::clear();
-	<scheduler::Module<T>>::schedule(Vec::new(), now);
+	<scheduler::Pallet<T>>::clear();
+	<scheduler::Pallet<T>>::schedule(Vec::new(), now);
 
-	let rotation_info = <scheduler::Module<T>>::group_rotation_info(now);
+	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
 
 	let time_out_at = |backed_in_number, availability_period| {
 		let time_out_at = backed_in_number + availability_period;
@@ -80,10 +78,13 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		}
 	};
 
-	let group_responsible_for = |backed_in_number, core_index| {
-		match <scheduler::Module<T>>::group_assigned_to_core(core_index, backed_in_number) {
+	let group_responsible_for =
+		|backed_in_number, core_index| match <scheduler::Pallet<T>>::group_assigned_to_core(
+			core_index,
+			backed_in_number,
+		) {
 			Some(g) => g,
-			None =>  {
+			None => {
 				log::warn!(
 					target: "runtime::polkadot-api::v1",
 					"Could not determine the group responsible for core extracted \
@@ -91,31 +92,32 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 				);
 
 				GroupIndex(0)
-			}
-		}
-	};
+			},
+		};
 
-	let mut core_states: Vec<_> = cores.into_iter().enumerate().map(|(i, core)| match core {
-		Some(occupied) => {
-			CoreState::Occupied(match occupied {
+	let mut core_states: Vec<_> = cores
+		.into_iter()
+		.enumerate()
+		.map(|(i, core)| match core {
+			Some(occupied) => CoreState::Occupied(match occupied {
 				CoreOccupied::Parachain => {
 					let para_id = parachains[i];
-					let pending_availability = <inclusion::Module<T>>
-						::pending_availability(para_id)
-						.expect("Occupied core always has pending availability; qed");
+					let pending_availability =
+						<inclusion::Pallet<T>>::pending_availability(para_id)
+							.expect("Occupied core always has pending availability; qed");
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
-							CoreIndex(i as u32)
+						next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(
+							CoreIndex(i as u32),
 						),
 						occupied_since: backed_in_number,
 						time_out_at: time_out_at(
 							backed_in_number,
 							config.chain_availability_period,
 						),
-						next_up_on_time_out: <scheduler::Module<T>>::next_up_on_time_out(
-							CoreIndex(i as u32)
+						next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(
+							CoreIndex(i as u32),
 						),
 						availability: pending_availability.availability_votes().clone(),
 						group_responsible: group_responsible_for(
@@ -125,25 +127,25 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 						candidate_hash: pending_availability.candidate_hash(),
 						candidate_descriptor: pending_availability.candidate_descriptor().clone(),
 					}
-				}
+				},
 				CoreOccupied::Parathread(p) => {
 					let para_id = p.claim.0;
-					let pending_availability = <inclusion::Module<T>>
-						::pending_availability(para_id)
-						.expect("Occupied core always has pending availability; qed");
+					let pending_availability =
+						<inclusion::Pallet<T>>::pending_availability(para_id)
+							.expect("Occupied core always has pending availability; qed");
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
-							CoreIndex(i as u32)
+						next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(
+							CoreIndex(i as u32),
 						),
 						occupied_since: backed_in_number,
 						time_out_at: time_out_at(
 							backed_in_number,
 							config.thread_availability_period,
 						),
-						next_up_on_time_out: <scheduler::Module<T>>::next_up_on_time_out(
-							CoreIndex(i as u32)
+						next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(
+							CoreIndex(i as u32),
 						),
 						availability: pending_availability.availability_votes().clone(),
 						group_responsible: group_responsible_for(
@@ -153,14 +155,14 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 						candidate_hash: pending_availability.candidate_hash(),
 						candidate_descriptor: pending_availability.candidate_descriptor().clone(),
 					}
-				}
-			})
-		}
-		None => CoreState::Free,
-	}).collect();
+				},
+			}),
+			None => CoreState::Free,
+		})
+		.collect();
 
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
-	for scheduled in <scheduler::Module<T>>::scheduled() {
+	for scheduled in <scheduler::Pallet<T>>::scheduled() {
 		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(ScheduledCore {
 			para_id: scheduled.para_id,
 			collator: scheduled.required_collator().map(|c| c.clone()),
@@ -174,25 +176,24 @@ fn with_assumption<Config, T, F>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 	build: F,
-) -> Option<T> where
+) -> Option<T>
+where
 	Config: inclusion::Config,
 	F: FnOnce() -> Option<T>,
 {
 	match assumption {
 		OccupiedCoreAssumption::Included => {
-			<inclusion::Module<Config>>::force_enact(para_id);
+			<inclusion::Pallet<Config>>::force_enact(para_id);
 			build()
-		}
-		OccupiedCoreAssumption::TimedOut => {
-			build()
-		}
+		},
+		OccupiedCoreAssumption::TimedOut => build(),
 		OccupiedCoreAssumption::Free => {
-			if <inclusion::Module<Config>>::pending_availability(para_id).is_some() {
+			if <inclusion::Pallet<Config>>::pending_availability(para_id).is_some() {
 				None
 			} else {
 				build()
 			}
-		}
+		},
 	}
 }
 
@@ -219,7 +220,7 @@ pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
 	outputs: primitives::v1::CandidateCommitments,
 ) -> bool {
-	<inclusion::Module<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
+	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.
@@ -231,15 +232,16 @@ pub fn session_index_for_child<T: initializer::Config>() -> SessionIndex {
 	//
 	// Incidentally, this is also the rationale for why it is OK to query validators or
 	// occupied cores or etc. and expect the correct response "for child".
-	<shared::Module<T>>::session_index()
+	<shared::Pallet<T>>::session_index()
 }
 
 /// Implementation for the `AuthorityDiscoveryApi::authorities()` function of the runtime API.
 /// It is a heavy call, but currently only used for authority discovery, so it is fine.
-/// Gets next, current and some historical authority ids using session_info module.
-pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>() -> Vec<AuthorityDiscoveryId> {
+/// Gets next, current and some historical authority ids using `session_info` module.
+pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discovery::Config>(
+) -> Vec<AuthorityDiscoveryId> {
 	let current_session_index = session_index_for_child::<T>();
-	let earliest_stored_session = <session_info::Module<T>>::earliest_stored_session();
+	let earliest_stored_session = <session_info::Pallet<T>>::earliest_stored_session();
 
 	// Due to `max_validators`, the `SessionInfo` stores only the validators who are actively
 	// selected to participate in parachain consensus. We'd like all authorities for the current
@@ -250,7 +252,7 @@ pub fn relevant_authority_ids<T: initializer::Config + pallet_authority_discover
 	// Due to disputes, we'd like to remain connected to authorities of the previous few sessions.
 	// For this, we don't need anyone other than the validators actively participating in consensus.
 	for session_index in earliest_stored_session..current_session_index {
-		let info = <session_info::Module<T>>::session_info(session_index);
+		let info = <session_info::Pallet<T>>::session_info(session_index);
 		if let Some(mut info) = info {
 			authority_ids.append(&mut info.discovery_keys);
 		}
@@ -267,18 +269,14 @@ pub fn validation_code<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<ValidationCode> {
-	with_assumption::<T, _, _>(
-		para_id,
-		assumption,
-		|| <paras::Module<T>>::current_code(&para_id),
-	)
+	with_assumption::<T, _, _>(para_id, assumption, || <paras::Pallet<T>>::current_code(&para_id))
 }
 
 /// Implementation for the `candidate_pending_availability` function of the runtime API.
-pub fn candidate_pending_availability<T: initializer::Config>(para_id: ParaId)
-	-> Option<CommittedCandidateReceipt<T::Hash>>
-{
-	<inclusion::Module<T>>::candidate_pending_availability(para_id)
+pub fn candidate_pending_availability<T: initializer::Config>(
+	para_id: ParaId,
+) -> Option<CommittedCandidateReceipt<T::Hash>> {
+	<inclusion::Pallet<T>>::candidate_pending_availability(para_id)
 }
 
 /// Implementation for the `candidate_events` function of the runtime API.
@@ -291,41 +289,43 @@ where
 {
 	use inclusion::Event as RawEvent;
 
-	<frame_system::Pallet<T>>::events().into_iter()
+	<frame_system::Pallet<T>>::events()
+		.into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
-			RawEvent::<T>::CandidateBacked(c, h, core, group)
-				=> CandidateEvent::CandidateBacked(c, h, core, group),
-			RawEvent::<T>::CandidateIncluded(c, h, core, group)
-				=> CandidateEvent::CandidateIncluded(c, h, core, group),
-			RawEvent::<T>::CandidateTimedOut(c, h, core)
-				=> CandidateEvent::CandidateTimedOut(c, h, core),
+			RawEvent::<T>::CandidateBacked(c, h, core, group) =>
+				CandidateEvent::CandidateBacked(c, h, core, group),
+			RawEvent::<T>::CandidateIncluded(c, h, core, group) =>
+				CandidateEvent::CandidateIncluded(c, h, core, group),
+			RawEvent::<T>::CandidateTimedOut(c, h, core) =>
+				CandidateEvent::CandidateTimedOut(c, h, core),
+			RawEvent::<T>::__Ignore(_, _) => unreachable!("__Ignore cannot be used"),
 		})
 		.collect()
 }
 
 /// Get the session info for the given session, if stored.
 pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<SessionInfo> {
-	<session_info::Module<T>>::session_info(index)
+	<session_info::Pallet<T>>::session_info(index)
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.
 pub fn dmq_contents<T: dmp::Config>(
 	recipient: ParaId,
 ) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-	<dmp::Module<T>>::dmq_contents(recipient)
+	<dmp::Pallet<T>>::dmq_contents(recipient)
 }
 
 /// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
 pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(
 	recipient: ParaId,
 ) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
-	<hrmp::Module<T>>::inbound_hrmp_channels_contents(recipient)
+	<hrmp::Pallet<T>>::inbound_hrmp_channels_contents(recipient)
 }
 
 /// Implementation for the `validation_code_by_hash` function of the runtime API.
 pub fn validation_code_by_hash<T: paras::Config>(
 	hash: ValidationCodeHash,
 ) -> Option<ValidationCode> {
-	<paras::Module<T>>::code_by_hash(hash)
+	<paras::Pallet<T>>::code_by_hash(hash)
 }

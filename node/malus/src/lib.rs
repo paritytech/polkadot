@@ -21,13 +21,12 @@
 //! messages on the overseer level.
 
 use polkadot_node_subsystem::*;
-pub use polkadot_node_subsystem::{messages::AllMessages, FromOverseer};
-use std::future::Future;
-use std::pin::Pin;
+pub use polkadot_node_subsystem::{messages::AllMessages, overseer, FromOverseer};
+use std::{future::Future, pin::Pin};
 
 /// Filter incoming and outgoing messages.
 pub trait MsgFilter: Send + Sync + Clone + 'static {
-	/// The message type the original subsystm handles incoming.
+	/// The message type the original subsystem handles incoming.
 	type Message: Send + 'static;
 
 	/// Filter messages that are to be received by
@@ -50,9 +49,9 @@ pub struct FilteredSender<Sender, Fil> {
 }
 
 #[async_trait::async_trait]
-impl<Sender, Fil> SubsystemSender for FilteredSender<Sender, Fil>
+impl<Sender, Fil> overseer::SubsystemSender<AllMessages> for FilteredSender<Sender, Fil>
 where
-	Sender: SubsystemSender,
+	Sender: overseer::SubsystemSender<AllMessages>,
 	Fil: MsgFilter,
 {
 	async fn send_message(&mut self, msg: AllMessages) {
@@ -79,48 +78,48 @@ where
 }
 
 /// A subsystem context, that filters the outgoing messages.
-pub struct FilteredContext<Context: SubsystemContext, Fil: MsgFilter> {
+pub struct FilteredContext<Context: overseer::SubsystemContext + SubsystemContext, Fil: MsgFilter> {
 	inner: Context,
 	message_filter: Fil,
-	sender: FilteredSender<<Context as SubsystemContext>::Sender, Fil>,
+	sender: FilteredSender<<Context as overseer::SubsystemContext>::Sender, Fil>,
 }
 
 impl<Context, Fil> FilteredContext<Context, Fil>
 where
-	Context: SubsystemContext,
-	Fil: MsgFilter<Message = <Context as SubsystemContext>::Message>,
+	Context: overseer::SubsystemContext + SubsystemContext,
+	Fil: MsgFilter<Message = <Context as overseer::SubsystemContext>::Message>,
 {
 	pub fn new(mut inner: Context, message_filter: Fil) -> Self {
-		let sender = FilteredSender::<<Context as SubsystemContext>::Sender, Fil> {
+		let sender = FilteredSender::<<Context as overseer::SubsystemContext>::Sender, Fil> {
 			inner: inner.sender().clone(),
 			message_filter: message_filter.clone(),
 		};
-		Self {
-			inner,
-			message_filter,
-			sender,
-		}
+		Self { inner, message_filter, sender }
 	}
 }
 
 #[async_trait::async_trait]
-impl<Context, Fil> SubsystemContext for FilteredContext<Context, Fil>
+impl<Context, Fil> overseer::SubsystemContext for FilteredContext<Context, Fil>
 where
-	Context: SubsystemContext,
-	Fil: MsgFilter<Message = <Context as SubsystemContext>::Message>,
+	Context: overseer::SubsystemContext + SubsystemContext,
+	Fil: MsgFilter<Message = <Context as overseer::SubsystemContext>::Message>,
+	<Context as overseer::SubsystemContext>::AllMessages:
+		From<<Context as overseer::SubsystemContext>::Message>,
 {
-	type Message = <Context as SubsystemContext>::Message;
-	type Sender = FilteredSender<<Context as SubsystemContext>::Sender, Fil>;
+	type Message = <Context as overseer::SubsystemContext>::Message;
+	type Sender = FilteredSender<<Context as overseer::SubsystemContext>::Sender, Fil>;
+	type Error = <Context as overseer::SubsystemContext>::Error;
+	type AllMessages = <Context as overseer::SubsystemContext>::AllMessages;
+	type Signal = <Context as overseer::SubsystemContext>::Signal;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<Self::Message>>, ()> {
 		loop {
 			match self.inner.try_recv().await? {
 				None => return Ok(None),
-				Some(msg) => {
+				Some(msg) =>
 					if let Some(msg) = self.message_filter.filter_in(msg) {
-						return Ok(Some(msg));
-					}
-				}
+						return Ok(Some(msg))
+					},
 			}
 		}
 	}
@@ -129,25 +128,25 @@ where
 		loop {
 			let msg = self.inner.recv().await?;
 			if let Some(msg) = self.message_filter.filter_in(msg) {
-				return Ok(msg);
+				return Ok(msg)
 			}
 		}
 	}
 
-	async fn spawn(
+	fn spawn(
 		&mut self,
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
 	) -> SubsystemResult<()> {
-		self.inner.spawn(name, s).await
+		self.inner.spawn(name, s)
 	}
 
-	async fn spawn_blocking(
+	fn spawn_blocking(
 		&mut self,
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
 	) -> SubsystemResult<()> {
-		self.inner.spawn_blocking(name, s).await
+		self.inner.spawn_blocking(name, s)
 	}
 
 	fn sender(&mut self) -> &mut Self::Sender {
@@ -163,22 +162,22 @@ pub struct FilteredSubsystem<Sub, Fil> {
 
 impl<Sub, Fil> FilteredSubsystem<Sub, Fil> {
 	pub fn new(subsystem: Sub, message_filter: Fil) -> Self {
-		Self {
-			subsystem,
-			message_filter,
-		}
+		Self { subsystem, message_filter }
 	}
 }
 
-impl<Context, Sub, Fil> Subsystem<Context> for FilteredSubsystem<Sub, Fil>
+impl<Context, Sub, Fil> overseer::Subsystem<Context, SubsystemError> for FilteredSubsystem<Sub, Fil>
 where
-	Context: SubsystemContext + Sync + Send,
-	Sub: Subsystem<FilteredContext<Context, Fil>>,
-	FilteredContext<Context, Fil>: SubsystemContext,
-	Fil: MsgFilter<Message = <Context as SubsystemContext>::Message>,
+	Context: overseer::SubsystemContext + SubsystemContext + Sync + Send,
+	Sub: overseer::Subsystem<FilteredContext<Context, Fil>, SubsystemError>,
+	FilteredContext<Context, Fil>: overseer::SubsystemContext + SubsystemContext,
+	Fil: MsgFilter<Message = <Context as overseer::SubsystemContext>::Message>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let ctx = FilteredContext::new(ctx, self.message_filter);
-		Subsystem::<FilteredContext<Context, Fil>>::start(self.subsystem, ctx)
+		overseer::Subsystem::<FilteredContext<Context, Fil>, SubsystemError>::start(
+			self.subsystem,
+			ctx,
+		)
 	}
 }

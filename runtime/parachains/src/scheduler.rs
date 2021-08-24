@@ -17,7 +17,7 @@
 //! The scheduler module for parachains and parathreads.
 //!
 //! This module is responsible for two main tasks:
-//!   - Paritioning validators into groups and assigning groups to parachains and parathreads
+//!   - Partitioning validators into groups and assigning groups to parachains and parathreads
 //!   - Scheduling parachains and parathreads
 //!
 //! It aims to achieve these tasks with these goals in mind:
@@ -35,20 +35,17 @@
 //! number of groups as availability cores. Validator groups will be assigned to different availability cores
 //! over time.
 
-use sp_std::prelude::*;
-use sp_std::convert::TryInto;
+use frame_support::pallet_prelude::*;
 use primitives::v1::{
-	Id as ParaId, ValidatorIndex, CoreOccupied, CoreIndex, CollatorId,
-	GroupIndex, ParathreadClaim, ParathreadEntry, GroupRotationInfo, ScheduledCore,
+	CollatorId, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
+	ParathreadClaim, ParathreadEntry, ScheduledCore, ValidatorIndex,
 };
-use frame_support::{
-	decl_storage, decl_module, decl_error,
-	weights::Weight,
-};
-use parity_scale_codec::{Encode, Decode};
 use sp_runtime::traits::{One, Saturating};
+use sp_std::{convert::TryInto, prelude::*};
 
-use crate::{configuration, paras, initializer::SessionChangeNotification};
+use crate::{configuration, initializer::SessionChangeNotification, paras};
+
+pub use pallet::*;
 
 /// A queued parathread entry, pre-assigned to a core.
 #[derive(Encode, Decode, Default)]
@@ -75,10 +72,7 @@ impl ParathreadClaimQueue {
 		let core_offset = self.next_core_offset;
 		self.next_core_offset = (self.next_core_offset + 1) % n_parathread_cores;
 
-		self.queue.push(QueuedParathread {
-			claim: entry,
-			core_offset,
-		})
+		self.queue.push(QueuedParathread { claim: entry, core_offset })
 	}
 
 	/// Take next queued entry with given core offset, if any.
@@ -101,7 +95,6 @@ pub enum FreedReason {
 	/// The core's work timed out.
 	TimedOut,
 }
-
 
 /// The assignment type.
 #[derive(Clone, Encode, Decode)]
@@ -140,104 +133,111 @@ impl CoreAssignment {
 	pub fn to_core_occupied(&self) -> CoreOccupied {
 		match self.kind {
 			AssignmentKind::Parachain => CoreOccupied::Parachain,
-			AssignmentKind::Parathread(ref collator, retries) => CoreOccupied::Parathread(
-				ParathreadEntry {
+			AssignmentKind::Parathread(ref collator, retries) =>
+				CoreOccupied::Parathread(ParathreadEntry {
 					claim: ParathreadClaim(self.para_id, collator.clone()),
 					retries,
-				}
-			),
+				}),
 		}
 	}
 }
 
-pub trait Config: frame_system::Config + configuration::Config + paras::Config { }
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
 
-decl_storage! {
-	trait Store for Module<T: Config> as ParaScheduler {
-		/// All the validator groups. One for each core. Indices are into `ActiveValidators` - not the
-		/// broader set of Polkadot validators, but instead just the subset used for parachains during
-		/// this session.
-		///
-		/// Bound: The number of cores is the sum of the numbers of parachains and parathread multiplexers.
-		/// Reasonably, 100-1000. The dominant factor is the number of validators: safe upper bound at 10k.
-		ValidatorGroups get(fn validator_groups): Vec<Vec<ValidatorIndex>>;
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
 
-		/// A queue of upcoming claims and which core they should be mapped onto.
-		///
-		/// The number of queued claims is bounded at the `scheduling_lookahead`
-		/// multiplied by the number of parathread multiplexer cores. Reasonably, 10 * 50 = 500.
-		ParathreadQueue: ParathreadClaimQueue;
-		/// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
-		/// temporarily `Some` if scheduled but not occupied.
-		/// The i'th parachain belongs to the i'th core, with the remaining cores all being
-		/// parathread-multiplexers.
-		///
-		/// Bounded by the maximum of either of these two values:
-		///   * The number of parachains and parathread multiplexers
-		///   * The number of validators divided by `configuration.max_validators_per_core`.
-		AvailabilityCores get(fn availability_cores): Vec<Option<CoreOccupied>>;
-		/// An index used to ensure that only one claim on a parathread exists in the queue or is
-		/// currently being handled by an occupied core.
-		///
-		/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
-		ParathreadClaimIndex: Vec<ParaId>;
-		/// The block number where the session start occurred. Used to track how many group rotations have occurred.
-		///
-		/// Note that in the context of parachains modules the session change is signalled during
-		/// the block and enacted at the end of the block (at the finalization stage, to be exact).
-		/// Thus for all intents and purposes the effect of the session change is observed at the
-		/// block following the session change, block number of which we save in this storage value.
-		SessionStartBlock get(fn session_start_block): T::BlockNumber;
-		/// Currently scheduled cores - free but up to be occupied.
-		///
-		/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
-		///
-		/// The value contained here will not be valid after the end of a block. Runtime APIs should be used to determine scheduled cores/
-		/// for the upcoming block.
-		Scheduled get(fn scheduled): Vec<CoreAssignment>; // sorted ascending by CoreIndex.
-	}
+	#[pallet::config]
+	pub trait Config: frame_system::Config + configuration::Config + paras::Config {}
+
+	/// All the validator groups. One for each core. Indices are into `ActiveValidators` - not the
+	/// broader set of Polkadot validators, but instead just the subset used for parachains during
+	/// this session.
+	///
+	/// Bound: The number of cores is the sum of the numbers of parachains and parathread multiplexers.
+	/// Reasonably, 100-1000. The dominant factor is the number of validators: safe upper bound at 10k.
+	#[pallet::storage]
+	#[pallet::getter(fn validator_groups)]
+	pub(crate) type ValidatorGroups<T> = StorageValue<_, Vec<Vec<ValidatorIndex>>, ValueQuery>;
+
+	/// A queue of upcoming claims and which core they should be mapped onto.
+	///
+	/// The number of queued claims is bounded at the `scheduling_lookahead`
+	/// multiplied by the number of parathread multiplexer cores. Reasonably, 10 * 50 = 500.
+	#[pallet::storage]
+	pub(crate) type ParathreadQueue<T> = StorageValue<_, ParathreadClaimQueue, ValueQuery>;
+
+	/// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
+	/// temporarily `Some` if scheduled but not occupied.
+	/// The i'th parachain belongs to the i'th core, with the remaining cores all being
+	/// parathread-multiplexers.
+	///
+	/// Bounded by the maximum of either of these two values:
+	///   * The number of parachains and parathread multiplexers
+	///   * The number of validators divided by `configuration.max_validators_per_core`.
+	#[pallet::storage]
+	#[pallet::getter(fn availability_cores)]
+	pub(crate) type AvailabilityCores<T> = StorageValue<_, Vec<Option<CoreOccupied>>, ValueQuery>;
+
+	/// An index used to ensure that only one claim on a parathread exists in the queue or is
+	/// currently being handled by an occupied core.
+	///
+	/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
+	#[pallet::storage]
+	pub(crate) type ParathreadClaimIndex<T> = StorageValue<_, Vec<ParaId>, ValueQuery>;
+
+	/// The block number where the session start occurred. Used to track how many group rotations have occurred.
+	///
+	/// Note that in the context of parachains modules the session change is signaled during
+	/// the block and enacted at the end of the block (at the finalization stage, to be exact).
+	/// Thus for all intents and purposes the effect of the session change is observed at the
+	/// block following the session change, block number of which we save in this storage value.
+	#[pallet::storage]
+	#[pallet::getter(fn session_start_block)]
+	pub(crate) type SessionStartBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+
+	/// Currently scheduled cores - free but up to be occupied.
+	///
+	/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
+	///
+	/// The value contained here will not be valid after the end of a block. Runtime APIs should be used to determine scheduled cores/
+	/// for the upcoming block.
+	#[pallet::storage]
+	#[pallet::getter(fn scheduled)]
+	pub(crate) type Scheduled<T> = StorageValue<_, Vec<CoreAssignment>, ValueQuery>;
+	// sorted ascending by CoreIndex.
 }
 
-decl_error! {
-	pub enum Error for Module<T: Config> { }
-}
-
-decl_module! {
-	/// The scheduler module.
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
-	}
-}
-
-impl<T: Config> Module<T> {
+impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the scheduler module.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
 		0
 	}
 
 	/// Called by the initializer to finalize the scheduler module.
-	pub(crate) fn initializer_finalize() { }
+	pub(crate) fn initializer_finalize() {}
 
 	/// Called by the initializer to note that a new session has started.
-	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
-		let &SessionChangeNotification {
-			ref validators,
-			ref new_config,
-			..
-		} = notification;
+	pub(crate) fn initializer_on_new_session(
+		notification: &SessionChangeNotification<T::BlockNumber>,
+	) {
+		let &SessionChangeNotification { ref validators, ref new_config, .. } = notification;
 		let config = new_config;
 
-		let mut thread_queue = ParathreadQueue::get();
-		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
+		let mut thread_queue = ParathreadQueue::<T>::get();
+		let n_parachains = <paras::Pallet<T>>::parachains().len() as u32;
 		let n_cores = core::cmp::max(
 			n_parachains + config.parathread_cores,
 			match config.max_validators_per_core {
-				Some(x) if x != 0 => { validators.len() as u32 / x },
+				Some(x) if x != 0 => validators.len() as u32 / x,
 				_ => 0,
 			},
 		);
 
-		AvailabilityCores::mutate(|cores| {
+		AvailabilityCores::<T>::mutate(|cores| {
 			// clear all occupied cores.
 			for maybe_occupied in cores.iter_mut() {
 				if let Some(CoreOccupied::Parathread(claim)) = maybe_occupied.take() {
@@ -255,7 +255,7 @@ impl<T: Config> Module<T> {
 
 		// shuffle validators into groups.
 		if n_cores == 0 || validators.is_empty() {
-			ValidatorGroups::set(Vec::new());
+			ValidatorGroups::<T>::set(Vec::new());
 		} else {
 			let group_base_size = validators.len() / n_cores as usize;
 			let n_larger_groups = validators.len() % n_cores as usize;
@@ -267,37 +267,40 @@ impl<T: Config> Module<T> {
 			for i in 0..n_larger_groups {
 				let offset = (group_base_size + 1) * i;
 				groups.push(
-					(0..group_base_size + 1).map(|j| offset + j).map(|j| ValidatorIndex(j as _)).collect()
+					(0..group_base_size + 1)
+						.map(|j| offset + j)
+						.map(|j| ValidatorIndex(j as _))
+						.collect(),
 				);
 			}
 
 			for i in 0..(n_cores as usize - n_larger_groups) {
 				let offset = (n_larger_groups * (group_base_size + 1)) + (i * group_base_size);
 				groups.push(
-					(0..group_base_size).map(|j| offset + j).map(|j| ValidatorIndex(j as _)).collect()
+					(0..group_base_size)
+						.map(|j| offset + j)
+						.map(|j| ValidatorIndex(j as _))
+						.collect(),
 				);
 			}
 
-			ValidatorGroups::set(groups);
+			ValidatorGroups::<T>::set(groups);
 		}
 
 		// prune out all parathread claims with too many retries.
 		// assign all non-pruned claims to new cores, if they've changed.
-		ParathreadClaimIndex::mutate(|claim_index| {
+		ParathreadClaimIndex::<T>::mutate(|claim_index| {
 			// wipe all parathread metadata if no parathread cores are configured.
 			if config.parathread_cores == 0 {
-				thread_queue = ParathreadClaimQueue {
-					queue: Vec::new(),
-					next_core_offset: 0,
-				};
+				thread_queue = ParathreadClaimQueue { queue: Vec::new(), next_core_offset: 0 };
 				claim_index.clear();
-				return;
+				return
 			}
 
 			// prune out all entries beyond retry or that no longer correspond to live parathread.
 			thread_queue.queue.retain(|queued| {
-				let will_keep = queued.claim.retries <= config.parathread_retries
-					&& <paras::Module<T>>::is_parathread(queued.claim.claim.0);
+				let will_keep = queued.claim.retries <= config.parathread_retries &&
+					<paras::Pallet<T>>::is_parathread(queued.claim.claim.0);
 
 				if !will_keep {
 					let claim_para = queued.claim.claim.0;
@@ -321,7 +324,7 @@ impl<T: Config> Module<T> {
 					((thread_queue.queue.len()) as u32) % config.parathread_cores;
 			}
 		});
-		ParathreadQueue::set(thread_queue);
+		ParathreadQueue::<T>::set(thread_queue);
 
 		let now = <frame_system::Pallet<T>>::block_number() + One::one();
 		<SessionStartBlock<T>>::set(now);
@@ -333,27 +336,32 @@ impl<T: Config> Module<T> {
 	/// Fails if the claim does not correspond to any live parathread.
 	#[allow(unused)]
 	pub fn add_parathread_claim(claim: ParathreadClaim) {
-		if !<paras::Module<T>>::is_parathread(claim.0) { return }
+		if !<paras::Pallet<T>>::is_parathread(claim.0) {
+			return
+		}
 
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 		let queue_max_size = config.parathread_cores * config.scheduling_lookahead;
 
-		ParathreadQueue::mutate(|queue| {
-			if queue.queue.len() >= queue_max_size as usize { return }
+		ParathreadQueue::<T>::mutate(|queue| {
+			if queue.queue.len() >= queue_max_size as usize {
+				return
+			}
 
 			let para_id = claim.0;
 
-			let competes_with_another = ParathreadClaimIndex::mutate(|index| {
-				match index.binary_search(&para_id) {
+			let competes_with_another =
+				ParathreadClaimIndex::<T>::mutate(|index| match index.binary_search(&para_id) {
 					Ok(_) => true,
 					Err(i) => {
 						index.insert(i, para_id);
 						false
-					}
-				}
-			});
+					},
+				});
 
-			if competes_with_another { return }
+			if competes_with_another {
+				return
+			}
 
 			let entry = ParathreadEntry { claim, retries: 0 };
 			queue.enqueue_entry(entry, config.parathread_cores);
@@ -367,8 +375,8 @@ impl<T: Config> Module<T> {
 		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
 		now: T::BlockNumber,
 	) {
-		let mut cores = AvailabilityCores::get();
-		let config = <configuration::Module<T>>::config();
+		let mut cores = AvailabilityCores::<T>::get();
+		let config = <configuration::Pallet<T>>::config();
 
 		for (freed_index, freed_reason) in just_freed_cores {
 			if (freed_index.0 as usize) < cores.len() {
@@ -380,30 +388,32 @@ impl<T: Config> Module<T> {
 							FreedReason::Concluded => {
 								// After a parathread candidate has successfully been included,
 								// open it up for further claims!
-								ParathreadClaimIndex::mutate(|index| {
+								ParathreadClaimIndex::<T>::mutate(|index| {
 									if let Ok(i) = index.binary_search(&entry.claim.0) {
 										index.remove(i);
 									}
 								})
-							}
+							},
 							FreedReason::TimedOut => {
 								// If a parathread candidate times out, it's not the collator's fault,
 								// so we don't increment retries.
-								ParathreadQueue::mutate(|queue| {
+								ParathreadQueue::<T>::mutate(|queue| {
 									queue.enqueue_entry(entry, config.parathread_cores);
 								})
-							}
+							},
 						}
-					}
+					},
 				}
 			}
 		}
 
-		let parachains = <paras::Module<T>>::parachains();
-		let mut scheduled = Scheduled::get();
-		let mut parathread_queue = ParathreadQueue::get();
+		let parachains = <paras::Pallet<T>>::parachains();
+		let mut scheduled = Scheduled::<T>::get();
+		let mut parathread_queue = ParathreadQueue::<T>::get();
 
-		if ValidatorGroups::get().is_empty() { return }
+		if ValidatorGroups::<T>::get().is_empty() {
+			return
+		}
 
 		{
 			let mut prev_scheduled_in_order = scheduled.iter().enumerate().peekable();
@@ -416,10 +426,10 @@ impl<T: Config> Module<T> {
 			for (core_index, _core) in cores.iter().enumerate().filter(|(_, ref c)| c.is_none()) {
 				let schedule_and_insert_at = {
 					// advance the iterator until just before the core index we are looking at now.
-					while prev_scheduled_in_order.peek().map_or(
-						false,
-						|(_, assign)| (assign.core.0 as usize) < core_index,
-					) {
+					while prev_scheduled_in_order
+						.peek()
+						.map_or(false, |(_, assign)| (assign.core.0 as usize) < core_index)
+					{
 						let _ = prev_scheduled_in_order.next();
 					}
 
@@ -431,10 +441,12 @@ impl<T: Config> Module<T> {
 					//     insertion position.
 					prev_scheduled_in_order.peek().map_or(
 						Some(scheduled.len()),
-						|(idx_in_scheduled, assign)| if (assign.core.0 as usize) == core_index {
-							None
-						} else {
-							Some(*idx_in_scheduled)
+						|(idx_in_scheduled, assign)| {
+							if (assign.core.0 as usize) == core_index {
+								None
+							} else {
+								Some(*idx_in_scheduled)
+							}
 						},
 					)
 				};
@@ -452,9 +464,10 @@ impl<T: Config> Module<T> {
 						kind: AssignmentKind::Parachain,
 						para_id: parachains[core_index],
 						core: core.clone(),
-						group_idx: Self::group_assigned_to_core(core, now)
-							.expect("core is not out of bounds and we are guaranteed \
-									to be after the most recent session start; qed"),
+						group_idx: Self::group_assigned_to_core(core, now).expect(
+							"core is not out of bounds and we are guaranteed \
+									to be after the most recent session start; qed",
+						),
 					})
 				} else {
 					// parathread core offset, rel. to beginning.
@@ -464,9 +477,10 @@ impl<T: Config> Module<T> {
 						kind: AssignmentKind::Parathread(entry.claim.1, entry.retries),
 						para_id: entry.claim.0,
 						core: core.clone(),
-						group_idx: Self::group_assigned_to_core(core, now)
-							.expect("core is not out of bounds and we are guaranteed \
-									to be after the most recent session start; qed"),
+						group_idx: Self::group_assigned_to_core(core, now).expect(
+							"core is not out of bounds and we are guaranteed \
+									to be after the most recent session start; qed",
+						),
 					})
 				};
 
@@ -481,7 +495,9 @@ impl<T: Config> Module<T> {
 			// while inserting, we have to account for the amount of insertions already done.
 			//
 			// This is O(n) as well, capped at n operations, where n is the number of cores.
-			for (num_insertions_before, (insert_at, to_insert)) in scheduled_updates.into_iter().enumerate() {
+			for (num_insertions_before, (insert_at, to_insert)) in
+				scheduled_updates.into_iter().enumerate()
+			{
 				let insert_at = num_insertions_before + insert_at;
 				scheduled.insert(insert_at, to_insert);
 			}
@@ -491,9 +507,9 @@ impl<T: Config> Module<T> {
 			// insertions.
 		}
 
-		Scheduled::set(scheduled);
-		ParathreadQueue::set(parathread_queue);
-		AvailabilityCores::set(cores);
+		Scheduled::<T>::set(scheduled);
+		ParathreadQueue::<T>::set(parathread_queue);
+		AvailabilityCores::<T>::set(cores);
 	}
 
 	/// Note that the given cores have become occupied. Behavior undefined if any of the given cores were not scheduled
@@ -502,77 +518,87 @@ impl<T: Config> Module<T> {
 	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
 	/// This is efficient in the case that most scheduled cores are occupied.
 	pub(crate) fn occupied(now_occupied: &[CoreIndex]) {
-		if now_occupied.is_empty() { return }
+		if now_occupied.is_empty() {
+			return
+		}
 
-		let mut availability_cores = AvailabilityCores::get();
-		Scheduled::mutate(|scheduled| {
+		let mut availability_cores = AvailabilityCores::<T>::get();
+		Scheduled::<T>::mutate(|scheduled| {
 			// The constraints on the function require that now_occupied is a sorted subset of the
 			// `scheduled` cores, which are also sorted.
 
 			let mut occupied_iter = now_occupied.iter().cloned().peekable();
 			scheduled.retain(|assignment| {
-				let retain = occupied_iter.peek().map_or(true, |occupied_idx| {
-					occupied_idx != &assignment.core
-				});
+				let retain = occupied_iter
+					.peek()
+					.map_or(true, |occupied_idx| occupied_idx != &assignment.core);
 
 				if !retain {
 					// remove this entry - it's now occupied. and begin inspecting the next extry
 					// of the occupied iterator.
 					let _ = occupied_iter.next();
 
-					availability_cores[assignment.core.0 as usize] = Some(assignment.to_core_occupied());
+					availability_cores[assignment.core.0 as usize] =
+						Some(assignment.to_core_occupied());
 				}
 
 				retain
 			})
 		});
 
-		AvailabilityCores::set(availability_cores);
+		AvailabilityCores::<T>::set(availability_cores);
 	}
 
 	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
 	/// out of bounds will return `None`, as will indices of unassigned cores.
 	pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
-		let cores = AvailabilityCores::get();
+		let cores = AvailabilityCores::<T>::get();
 		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
 			None => None,
 			Some(CoreOccupied::Parachain) => {
-				let parachains = <paras::Module<T>>::parachains();
+				let parachains = <paras::Pallet<T>>::parachains();
 				Some(parachains[core_index.0 as usize])
-			}
+			},
 			Some(CoreOccupied::Parathread(ref entry)) => Some(entry.claim.0),
 		}
 	}
 
 	/// Get the validators in the given group, if the group index is valid for this session.
 	pub(crate) fn group_validators(group_index: GroupIndex) -> Option<Vec<ValidatorIndex>> {
-		ValidatorGroups::get().get(group_index.0 as usize).map(|g| g.clone())
+		ValidatorGroups::<T>::get().get(group_index.0 as usize).map(|g| g.clone())
 	}
 
 	/// Get the group assigned to a specific core by index at the current block number. Result undefined if the core index is unknown
 	/// or the block number is less than the session start index.
-	pub(crate) fn group_assigned_to_core(core: CoreIndex, at: T::BlockNumber) -> Option<GroupIndex> {
-		let config = <configuration::Module<T>>::config();
+	pub(crate) fn group_assigned_to_core(
+		core: CoreIndex,
+		at: T::BlockNumber,
+	) -> Option<GroupIndex> {
+		let config = <configuration::Pallet<T>>::config();
 		let session_start_block = <SessionStartBlock<T>>::get();
 
-		if at < session_start_block { return None }
+		if at < session_start_block {
+			return None
+		}
 
-		let validator_groups = ValidatorGroups::get();
+		let validator_groups = ValidatorGroups::<T>::get();
 
-		if core.0 as usize >= validator_groups.len() { return None }
+		if core.0 as usize >= validator_groups.len() {
+			return None
+		}
 
 		let rotations_since_session_start: T::BlockNumber =
 			(at - session_start_block) / config.group_rotation_frequency.into();
 
-		let rotations_since_session_start
-			= match <T::BlockNumber as TryInto<u32>>::try_into(rotations_since_session_start)
-		{
-			Ok(i) => i,
-			Err(_) => 0, // can only happen if rotations occur only once every u32::max(),
-						 // so functionally no difference in behavior.
-		};
+		let rotations_since_session_start =
+			match <T::BlockNumber as TryInto<u32>>::try_into(rotations_since_session_start) {
+				Ok(i) => i,
+				Err(_) => 0, // can only happen if rotations occur only once every u32::max(),
+				             // so functionally no difference in behavior.
+			};
 
-		let group_idx = (core.0 as usize + rotations_since_session_start as usize) % validator_groups.len();
+		let group_idx =
+			(core.0 as usize + rotations_since_session_start as usize) % validator_groups.len();
 		Some(GroupIndex(group_idx as u32))
 	}
 
@@ -586,27 +612,27 @@ impl<T: Config> Module<T> {
 	/// This really should not be a box, but is working around a compiler limitation filed here:
 	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
-	pub(crate) fn availability_timeout_predicate() -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
+	pub(crate) fn availability_timeout_predicate(
+	) -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
 		let now = <frame_system::Pallet<T>>::block_number();
-		let config = <configuration::Module<T>>::config();
+		let config = <configuration::Pallet<T>>::config();
 
 		let session_start = <SessionStartBlock<T>>::get();
 		let blocks_since_session_start = now.saturating_sub(session_start);
-		let blocks_since_last_rotation = blocks_since_session_start % config.group_rotation_frequency;
+		let blocks_since_last_rotation =
+			blocks_since_session_start % config.group_rotation_frequency;
 
-		let absolute_cutoff = sp_std::cmp::max(
-			config.chain_availability_period,
-			config.thread_availability_period,
-		);
+		let absolute_cutoff =
+			sp_std::cmp::max(config.chain_availability_period, config.thread_availability_period);
 
-		let availability_cores = AvailabilityCores::get();
+		let availability_cores = AvailabilityCores::<T>::get();
 
 		if blocks_since_last_rotation >= absolute_cutoff {
 			None
 		} else {
 			Some(Box::new(move |core_index: CoreIndex, pending_since| {
 				match availability_cores.get(core_index.0 as usize) {
-					None => true, // out-of-bounds, doesn't really matter what is returned.
+					None => true,       // out-of-bounds, doesn't really matter what is returned.
 					Some(None) => true, // core not occupied, still doesn't really matter.
 					Some(Some(CoreOccupied::Parachain)) => {
 						if blocks_since_last_rotation >= config.chain_availability_period {
@@ -614,14 +640,14 @@ impl<T: Config> Module<T> {
 						} else {
 							now.saturating_sub(pending_since) >= config.chain_availability_period
 						}
-					}
+					},
 					Some(Some(CoreOccupied::Parathread(_))) => {
 						if blocks_since_last_rotation >= config.thread_availability_period {
 							false // no pruning except recently after rotation.
 						} else {
 							now.saturating_sub(pending_since) >= config.thread_availability_period
 						}
-					}
+					},
 				}
 			}))
 		}
@@ -630,31 +656,24 @@ impl<T: Config> Module<T> {
 	/// Returns a helper for determining group rotation.
 	pub(crate) fn group_rotation_info(now: T::BlockNumber) -> GroupRotationInfo<T::BlockNumber> {
 		let session_start_block = Self::session_start_block();
-		let group_rotation_frequency = <configuration::Module<T>>::config()
-			.group_rotation_frequency;
+		let group_rotation_frequency =
+			<configuration::Pallet<T>>::config().group_rotation_frequency;
 
-		GroupRotationInfo {
-			session_start_block,
-			now,
-			group_rotation_frequency,
-		}
+		GroupRotationInfo { session_start_block, now, group_rotation_frequency }
 	}
 
 	/// Return the next thing that will be scheduled on this core assuming it is currently
 	/// occupied and the candidate occupying it became available.
 	///
 	/// For parachains, this is always the ID of the parachain and no specified collator.
-	/// For parathreads, this is based on the next item in the ParathreadQueue assigned to that
+	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
 	/// core, and is None if there isn't one.
 	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
-		let parachains = <paras::Module<T>>::parachains();
+		let parachains = <paras::Pallet<T>>::parachains();
 		if (core.0 as usize) < parachains.len() {
-			Some(ScheduledCore {
-				para_id: parachains[core.0 as usize],
-				collator: None,
-			})
+			Some(ScheduledCore { para_id: parachains[core.0 as usize], collator: None })
 		} else {
-			let queue = ParathreadQueue::get();
+			let queue = ParathreadQueue::<T>::get();
 			let core_offset = (core.0 as usize - parachains.len()) as u32;
 			queue.get_next_on_core(core_offset).map(|entry| ScheduledCore {
 				para_id: entry.claim.0,
@@ -667,22 +686,20 @@ impl<T: Config> Module<T> {
 	/// occupied and the candidate occupying it became available.
 	///
 	/// For parachains, this is always the ID of the parachain and no specified collator.
-	/// For parathreads, this is based on the next item in the ParathreadQueue assigned to that
+	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
 	/// core, or if there isn't one, the claim that is currently occupying the core, as long
 	/// as the claim's retries would not exceed the limit. Otherwise None.
 	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
-		let parachains = <paras::Module<T>>::parachains();
+		let parachains = <paras::Pallet<T>>::parachains();
 		if (core.0 as usize) < parachains.len() {
-			Some(ScheduledCore {
-				para_id: parachains[core.0 as usize],
-				collator: None,
-			})
+			Some(ScheduledCore { para_id: parachains[core.0 as usize], collator: None })
 		} else {
-			let queue = ParathreadQueue::get();
+			let queue = ParathreadQueue::<T>::get();
 
 			// This is the next scheduled para on this core.
 			let core_offset = (core.0 as usize - parachains.len()) as u32;
-			queue.get_next_on_core(core_offset)
+			queue
+				.get_next_on_core(core_offset)
 				.map(|entry| ScheduledCore {
 					para_id: entry.claim.0,
 					collator: Some(entry.claim.1.clone()),
@@ -690,15 +707,13 @@ impl<T: Config> Module<T> {
 				.or_else(|| {
 					// Or, if none, the claim currently occupying the core,
 					// as it would be put back on the queue after timing out.
-					let cores = AvailabilityCores::get();
+					let cores = AvailabilityCores::<T>::get();
 					cores.get(core.0 as usize).and_then(|c| c.as_ref()).and_then(|o| {
 						match o {
-							CoreOccupied::Parathread(entry) => {
-								Some(ScheduledCore {
-									para_id: entry.claim.0,
-									collator: Some(entry.claim.1.clone()),
-								})
-							}
+							CoreOccupied::Parathread(entry) => Some(ScheduledCore {
+								para_id: entry.claim.0,
+								collator: Some(entry.claim.1.clone()),
+							}),
 							CoreOccupied::Parachain => None, // defensive; not possible.
 						}
 					})
@@ -708,11 +723,13 @@ impl<T: Config> Module<T> {
 
 	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
 	pub(crate) fn clear() {
-		let config = <configuration::Module<T>>::config();
-		ParathreadQueue::mutate(|queue| {
-			for core_assignment in Scheduled::take() {
+		let config = <configuration::Pallet<T>>::config();
+		ParathreadQueue::<T>::mutate(|queue| {
+			for core_assignment in Scheduled::<T>::take() {
 				if let AssignmentKind::Parathread(collator, retries) = core_assignment.kind {
-					if !<paras::Module<T>>::is_parathread(core_assignment.para_id) { continue }
+					if !<paras::Pallet<T>>::is_parathread(core_assignment.para_id) {
+						continue
+					}
 
 					let entry = ParathreadEntry {
 						claim: ParathreadClaim(core_assignment.para_id, collator),
@@ -728,29 +745,33 @@ impl<T: Config> Module<T> {
 	}
 }
 
-
 #[cfg(test)]
 mod tests {
 	use super::*;
 
-	use primitives::v1::{BlockNumber, ValidatorId, CollatorId, SessionIndex};
-	use frame_support::{
-		assert_ok,
-		traits::{OnFinalize, OnInitialize},
-	};
+	use frame_support::assert_ok;
 	use keyring::Sr25519Keyring;
+	use primitives::v1::{BlockNumber, CollatorId, SessionIndex, ValidatorId};
 
-	use crate::mock::{new_test_ext, Configuration, Paras, Shared, System, Scheduler, MockGenesisConfig};
-	use crate::initializer::SessionChangeNotification;
-	use crate::configuration::HostConfiguration;
-	use crate::paras::ParaGenesisArgs;
+	use crate::{
+		configuration::HostConfiguration,
+		initializer::SessionChangeNotification,
+		mock::{
+			new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, Scheduler, System,
+			Test,
+		},
+		paras::ParaGenesisArgs,
+	};
 
 	fn schedule_blank_para(id: ParaId, is_chain: bool) {
-		assert_ok!(Paras::schedule_para_initialize(id, ParaGenesisArgs {
-			genesis_head: Vec::new().into(),
-			validation_code: Vec::new().into(),
-			parachain: is_chain,
-		}));
+		assert_ok!(Paras::schedule_para_initialize(
+			id,
+			ParaGenesisArgs {
+				genesis_head: Vec::new().into(),
+				validation_code: Vec::new().into(),
+				parachain: is_chain,
+			}
+		));
 	}
 
 	fn run_to_block(
@@ -767,7 +788,8 @@ mod tests {
 				let mut notification_with_session_index = notification;
 				// We will make every session change trigger an action queue. Normally this may require 2 or more session changes.
 				if notification_with_session_index.session_index == SessionIndex::default() {
-					notification_with_session_index.session_index = Shared::scheduled_session();
+					notification_with_session_index.session_index =
+						ParasShared::scheduled_session();
 				}
 				Paras::initializer_on_new_session(&notification_with_session_index);
 				Scheduler::initializer_on_new_session(&notification_with_session_index);
@@ -840,48 +862,57 @@ mod tests {
 
 			{
 				Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
-				let queue = ParathreadQueue::get();
+				let queue = ParathreadQueue::<Test>::get();
 				assert_eq!(queue.next_core_offset, 1);
 				assert_eq!(queue.queue.len(), 1);
-				assert_eq!(queue.queue[0], QueuedParathread {
-					claim: ParathreadEntry {
-						claim: ParathreadClaim(thread_id, collator.clone()),
-						retries: 0,
-					},
-					core_offset: 0,
-				});
+				assert_eq!(
+					queue.queue[0],
+					QueuedParathread {
+						claim: ParathreadEntry {
+							claim: ParathreadClaim(thread_id, collator.clone()),
+							retries: 0,
+						},
+						core_offset: 0,
+					}
+				);
 			}
 
 			// due to the index, completing claims are not allowed.
 			{
 				let collator2 = CollatorId::from(Sr25519Keyring::Bob.public());
 				Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator2.clone()));
-				let queue = ParathreadQueue::get();
+				let queue = ParathreadQueue::<Test>::get();
 				assert_eq!(queue.next_core_offset, 1);
 				assert_eq!(queue.queue.len(), 1);
-				assert_eq!(queue.queue[0], QueuedParathread {
-					claim: ParathreadEntry {
-						claim: ParathreadClaim(thread_id, collator.clone()),
-						retries: 0,
-					},
-					core_offset: 0,
-				});
+				assert_eq!(
+					queue.queue[0],
+					QueuedParathread {
+						claim: ParathreadEntry {
+							claim: ParathreadClaim(thread_id, collator.clone()),
+							retries: 0,
+						},
+						core_offset: 0,
+					}
+				);
 			}
 
 			// claims on non-live parathreads have no effect.
 			{
 				let thread_id2 = ParaId::from(11);
 				Scheduler::add_parathread_claim(ParathreadClaim(thread_id2, collator.clone()));
-				let queue = ParathreadQueue::get();
+				let queue = ParathreadQueue::<Test>::get();
 				assert_eq!(queue.next_core_offset, 1);
 				assert_eq!(queue.queue.len(), 1);
-				assert_eq!(queue.queue[0], QueuedParathread {
-					claim: ParathreadEntry {
-						claim: ParathreadClaim(thread_id, collator.clone()),
-						retries: 0,
-					},
-					core_offset: 0,
-				});
+				assert_eq!(
+					queue.queue[0],
+					QueuedParathread {
+						claim: ParathreadEntry {
+							claim: ParathreadClaim(thread_id, collator.clone()),
+							retries: 0,
+						},
+						core_offset: 0,
+					}
+				);
 			}
 		})
 	}
@@ -894,10 +925,7 @@ mod tests {
 			config
 		};
 		let genesis_config = MockGenesisConfig {
-			configuration: crate::configuration::GenesisConfig {
-				config,
-				..Default::default()
-			},
+			configuration: crate::configuration::GenesisConfig { config, ..Default::default() },
 			..Default::default()
 		};
 
@@ -914,7 +942,7 @@ mod tests {
 			assert!(Paras::is_parathread(thread_id));
 
 			Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
-			assert_eq!(ParathreadQueue::get(), Default::default());
+			assert_eq!(ParathreadQueue::<Test>::get(), Default::default());
 		});
 	}
 
@@ -947,51 +975,60 @@ mod tests {
 			}
 
 			// set up a queue as if n_cores was 4 and with some with many retries.
-			ParathreadQueue::put({
+			ParathreadQueue::<Test>::put({
 				let mut queue = ParathreadClaimQueue::default();
 
 				// Will be pruned: too many retries.
-				queue.enqueue_entry(ParathreadEntry {
-					claim: ParathreadClaim(thread_a, collator.clone()),
-					retries: max_parathread_retries + 1,
-				}, 4);
+				queue.enqueue_entry(
+					ParathreadEntry {
+						claim: ParathreadClaim(thread_a, collator.clone()),
+						retries: max_parathread_retries + 1,
+					},
+					4,
+				);
 
 				// Will not be pruned.
-				queue.enqueue_entry(ParathreadEntry {
-					claim: ParathreadClaim(thread_b, collator.clone()),
-					retries: max_parathread_retries,
-				}, 4);
+				queue.enqueue_entry(
+					ParathreadEntry {
+						claim: ParathreadClaim(thread_b, collator.clone()),
+						retries: max_parathread_retries,
+					},
+					4,
+				);
 
 				// Will not be pruned.
-				queue.enqueue_entry(ParathreadEntry {
-					claim: ParathreadClaim(thread_c, collator.clone()),
-					retries: 0,
-				}, 4);
+				queue.enqueue_entry(
+					ParathreadEntry {
+						claim: ParathreadClaim(thread_c, collator.clone()),
+						retries: 0,
+					},
+					4,
+				);
 
 				// Will be pruned: not a live parathread.
-				queue.enqueue_entry(ParathreadEntry {
-					claim: ParathreadClaim(thread_d, collator.clone()),
-					retries: 0,
-				}, 4);
+				queue.enqueue_entry(
+					ParathreadEntry {
+						claim: ParathreadClaim(thread_d, collator.clone()),
+						retries: 0,
+					},
+					4,
+				);
 
 				queue
 			});
 
-			ParathreadClaimIndex::put(vec![thread_a, thread_b, thread_c, thread_d]);
+			ParathreadClaimIndex::<Test>::put(vec![thread_a, thread_b, thread_c, thread_d]);
 
-			run_to_block(
-				10,
-				|b| match b {
-					10 => Some(SessionChangeNotification {
-						new_config: Configuration::config(),
-						..Default::default()
-					}),
-					_ => None,
-				}
-			);
+			run_to_block(10, |b| match b {
+				10 => Some(SessionChangeNotification {
+					new_config: Configuration::config(),
+					..Default::default()
+				}),
+				_ => None,
+			});
 			assert_eq!(Configuration::config(), default_config());
 
-			let queue = ParathreadQueue::get();
+			let queue = ParathreadQueue::<Test>::get();
 			assert_eq!(
 				queue.queue,
 				vec![
@@ -1013,7 +1050,7 @@ mod tests {
 			);
 			assert_eq!(queue.next_core_offset, 2);
 
-			assert_eq!(ParathreadClaimIndex::get(), vec![thread_b, thread_c]);
+			assert_eq!(ParathreadClaimIndex::<Test>::get(), vec![thread_b, thread_c]);
 		})
 	}
 
@@ -1036,7 +1073,6 @@ mod tests {
 			schedule_blank_para(chain_a, true);
 			schedule_blank_para(chain_b, true);
 
-
 			run_to_block(1, |number| match number {
 				1 => Some(SessionChangeNotification {
 					new_config: default_config(),
@@ -1055,7 +1091,7 @@ mod tests {
 				_ => None,
 			});
 
-			let groups = ValidatorGroups::get();
+			let groups = ValidatorGroups::<Test>::get();
 			assert_eq!(groups.len(), 5);
 
 			// first two groups have the overflow.
@@ -1096,7 +1132,6 @@ mod tests {
 			schedule_blank_para(chain_b, true);
 			schedule_blank_para(chain_c, false);
 
-
 			run_to_block(1, |number| match number {
 				1 => Some(SessionChangeNotification {
 					new_config: config.clone(),
@@ -1115,7 +1150,7 @@ mod tests {
 				_ => None,
 			});
 
-			let groups = ValidatorGroups::get();
+			let groups = ValidatorGroups::<Test>::get();
 			assert_eq!(groups.len(), 7);
 
 			// Every validator gets its own group, even though there are 2 paras.
@@ -1176,19 +1211,25 @@ mod tests {
 				let scheduled = Scheduler::scheduled();
 				assert_eq!(scheduled.len(), 2);
 
-				assert_eq!(scheduled[0], CoreAssignment {
-					core: CoreIndex(0),
-					para_id: chain_a,
-					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(0),
-				});
+				assert_eq!(
+					scheduled[0],
+					CoreAssignment {
+						core: CoreIndex(0),
+						para_id: chain_a,
+						kind: AssignmentKind::Parachain,
+						group_idx: GroupIndex(0),
+					}
+				);
 
-				assert_eq!(scheduled[1], CoreAssignment {
-					core: CoreIndex(1),
-					para_id: chain_b,
-					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(1),
-				});
+				assert_eq!(
+					scheduled[1],
+					CoreAssignment {
+						core: CoreIndex(1),
+						para_id: chain_b,
+						kind: AssignmentKind::Parachain,
+						group_idx: GroupIndex(1),
+					}
+				);
 			}
 
 			// add a couple of parathread claims.
@@ -1201,33 +1242,45 @@ mod tests {
 				let scheduled = Scheduler::scheduled();
 				assert_eq!(scheduled.len(), 4);
 
-				assert_eq!(scheduled[0], CoreAssignment {
-					core: CoreIndex(0),
-					para_id: chain_a,
-					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(0),
-				});
+				assert_eq!(
+					scheduled[0],
+					CoreAssignment {
+						core: CoreIndex(0),
+						para_id: chain_a,
+						kind: AssignmentKind::Parachain,
+						group_idx: GroupIndex(0),
+					}
+				);
 
-				assert_eq!(scheduled[1], CoreAssignment {
-					core: CoreIndex(1),
-					para_id: chain_b,
-					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(1),
-				});
+				assert_eq!(
+					scheduled[1],
+					CoreAssignment {
+						core: CoreIndex(1),
+						para_id: chain_b,
+						kind: AssignmentKind::Parachain,
+						group_idx: GroupIndex(1),
+					}
+				);
 
-				assert_eq!(scheduled[2], CoreAssignment{
-					core: CoreIndex(2),
-					para_id: thread_a,
-					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(2),
-				});
+				assert_eq!(
+					scheduled[2],
+					CoreAssignment {
+						core: CoreIndex(2),
+						para_id: thread_a,
+						kind: AssignmentKind::Parathread(collator.clone(), 0),
+						group_idx: GroupIndex(2),
+					}
+				);
 
-				assert_eq!(scheduled[3], CoreAssignment{
-					core: CoreIndex(3),
-					para_id: thread_c,
-					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(3),
-				});
+				assert_eq!(
+					scheduled[3],
+					CoreAssignment {
+						core: CoreIndex(3),
+						para_id: thread_c,
+						kind: AssignmentKind::Parathread(collator.clone(), 0),
+						group_idx: GroupIndex(3),
+					}
+				);
 			}
 		});
 	}
@@ -1295,7 +1348,7 @@ mod tests {
 			Scheduler::occupied(&[CoreIndex(0), CoreIndex(1), CoreIndex(2), CoreIndex(3)]);
 
 			{
-				let cores = AvailabilityCores::get();
+				let cores = AvailabilityCores::<Test>::get();
 
 				assert!(cores[0].is_some());
 				assert!(cores[1].is_some());
@@ -1321,12 +1374,15 @@ mod tests {
 				// cores 0 and 1 are occupied by parachains. cores 2 and 3 are occupied by parathread
 				// claims. core 4 was free.
 				assert_eq!(scheduled.len(), 1);
-				assert_eq!(scheduled[0], CoreAssignment {
-					core: CoreIndex(4),
-					para_id: thread_b,
-					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(4),
-				});
+				assert_eq!(
+					scheduled[0],
+					CoreAssignment {
+						core: CoreIndex(4),
+						para_id: thread_b,
+						kind: AssignmentKind::Parathread(collator.clone(), 0),
+						group_idx: GroupIndex(4),
+					}
+				);
 			}
 
 			// now note that cores 0, 2, and 3 were freed.
@@ -1336,7 +1392,7 @@ mod tests {
 					(CoreIndex(2), FreedReason::Concluded),
 					(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
 				],
-				3
+				3,
 			);
 
 			{
@@ -1344,48 +1400,63 @@ mod tests {
 
 				// 1 thing scheduled before, + 3 cores freed.
 				assert_eq!(scheduled.len(), 4);
-				assert_eq!(scheduled[0], CoreAssignment {
-					core: CoreIndex(0),
-					para_id: chain_a,
-					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(0),
-				});
-				assert_eq!(scheduled[1], CoreAssignment {
-					core: CoreIndex(2),
-					para_id: thread_d,
-					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(2),
-				});
-				assert_eq!(scheduled[2], CoreAssignment {
-					core: CoreIndex(3),
-					para_id: thread_e,
-					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(3),
-				});
-				assert_eq!(scheduled[3], CoreAssignment {
-					core: CoreIndex(4),
-					para_id: thread_b,
-					kind: AssignmentKind::Parathread(collator.clone(), 0),
-					group_idx: GroupIndex(4),
-				});
+				assert_eq!(
+					scheduled[0],
+					CoreAssignment {
+						core: CoreIndex(0),
+						para_id: chain_a,
+						kind: AssignmentKind::Parachain,
+						group_idx: GroupIndex(0),
+					}
+				);
+				assert_eq!(
+					scheduled[1],
+					CoreAssignment {
+						core: CoreIndex(2),
+						para_id: thread_d,
+						kind: AssignmentKind::Parathread(collator.clone(), 0),
+						group_idx: GroupIndex(2),
+					}
+				);
+				assert_eq!(
+					scheduled[2],
+					CoreAssignment {
+						core: CoreIndex(3),
+						para_id: thread_e,
+						kind: AssignmentKind::Parathread(collator.clone(), 0),
+						group_idx: GroupIndex(3),
+					}
+				);
+				assert_eq!(
+					scheduled[3],
+					CoreAssignment {
+						core: CoreIndex(4),
+						para_id: thread_b,
+						kind: AssignmentKind::Parathread(collator.clone(), 0),
+						group_idx: GroupIndex(4),
+					}
+				);
 
 				// the prior claim on thread A concluded, but the claim on thread C was marked as
 				// timed out.
-				let index = ParathreadClaimIndex::get();
-				let parathread_queue = ParathreadQueue::get();
+				let index = ParathreadClaimIndex::<Test>::get();
+				let parathread_queue = ParathreadQueue::<Test>::get();
 
 				// thread A claim should have been wiped, but thread C claim should remain.
 				assert_eq!(index, vec![thread_b, thread_c, thread_d, thread_e]);
 
 				// Although C was descheduled, the core `4`  was occupied so C goes back on the queue.
 				assert_eq!(parathread_queue.queue.len(), 1);
-				assert_eq!(parathread_queue.queue[0], QueuedParathread {
-					claim: ParathreadEntry {
-						claim: ParathreadClaim(thread_c, collator.clone()),
-						retries: 0, // retries not incremented by timeout - validators' fault.
-					},
-					core_offset: 2, // reassigned to next core. thread_e claim was on offset 1.
-				});
+				assert_eq!(
+					parathread_queue.queue[0],
+					QueuedParathread {
+						claim: ParathreadEntry {
+							claim: ParathreadClaim(thread_c, collator.clone()),
+							retries: 0, // retries not incremented by timeout - validators' fault.
+						},
+						core_offset: 2, // reassigned to next core. thread_e claim was on offset 1.
+					}
+				);
 			}
 		});
 	}
@@ -1436,7 +1507,7 @@ mod tests {
 			Scheduler::occupied(&[CoreIndex(0), CoreIndex(1), CoreIndex(2)]);
 
 			{
-				let cores = AvailabilityCores::get();
+				let cores = AvailabilityCores::<Test>::get();
 
 				assert!(cores[0].is_some());
 				assert!(cores[1].is_some());
@@ -1460,21 +1531,27 @@ mod tests {
 				let scheduled = Scheduler::scheduled();
 
 				assert_eq!(scheduled.len(), 2);
-				assert_eq!(scheduled[0], CoreAssignment {
-					core: CoreIndex(0),
-					para_id: chain_a,
-					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(0),
-				});
-				assert_eq!(scheduled[1], CoreAssignment {
-					core: CoreIndex(2),
-					para_id: chain_c,
-					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(2),
-				});
+				assert_eq!(
+					scheduled[0],
+					CoreAssignment {
+						core: CoreIndex(0),
+						para_id: chain_a,
+						kind: AssignmentKind::Parachain,
+						group_idx: GroupIndex(0),
+					}
+				);
+				assert_eq!(
+					scheduled[1],
+					CoreAssignment {
+						core: CoreIndex(2),
+						para_id: chain_c,
+						kind: AssignmentKind::Parachain,
+						group_idx: GroupIndex(2),
+					}
+				);
 
 				// The freed cores should be `None` in `AvailabilityCores`.
-				let cores = AvailabilityCores::get();
+				let cores = AvailabilityCores::<Test>::get();
 				assert!(cores[0].is_none());
 				assert!(cores[2].is_none());
 			}
@@ -1538,8 +1615,14 @@ mod tests {
 			let assert_groups_rotated = |rotations: u32| {
 				let scheduled = Scheduler::scheduled();
 				assert_eq!(scheduled.len(), 2);
-				assert_eq!(scheduled[0].group_idx, GroupIndex((0u32 + rotations) % parathread_cores));
-				assert_eq!(scheduled[1].group_idx, GroupIndex((1u32 + rotations) % parathread_cores));
+				assert_eq!(
+					scheduled[0].group_idx,
+					GroupIndex((0u32 + rotations) % parathread_cores)
+				);
+				assert_eq!(
+					scheduled[1].group_idx,
+					GroupIndex((1u32 + rotations) % parathread_cores)
+				);
 			};
 
 			assert_groups_rotated(0);
@@ -1632,8 +1715,8 @@ mod tests {
 		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 		assert!(
-			chain_availability_period < thread_availability_period
-				&& thread_availability_period < group_rotation_frequency
+			chain_availability_period < thread_availability_period &&
+				thread_availability_period < group_rotation_frequency
 		);
 
 		let chain_a = ParaId::from(1);
@@ -1661,7 +1744,7 @@ mod tests {
 
 			// assign some availability cores.
 			{
-				AvailabilityCores::mutate(|cores| {
+				AvailabilityCores::<Test>::mutate(|cores| {
 					cores[0] = Some(CoreOccupied::Parachain);
 					cores[1] = Some(CoreOccupied::Parathread(ParathreadEntry {
 						claim: ParathreadClaim(thread_a, collator),
@@ -1681,7 +1764,7 @@ mod tests {
 
 				let now = System::block_number();
 				let would_be_timed_out = now - thread_availability_period;
-				for i in 0..AvailabilityCores::get().len() {
+				for i in 0..AvailabilityCores::<Test>::get().len() {
 					// returns true for unoccupied cores.
 					// And can time out both threads and chains at this stage.
 					assert!(pred(CoreIndex(i as u32), would_be_timed_out));
@@ -1776,7 +1859,7 @@ mod tests {
 
 				Scheduler::add_parathread_claim(thread_claim_b);
 
-				let queue = ParathreadQueue::get();
+				let queue = ParathreadQueue::<Test>::get();
 				assert_eq!(
 					queue.get_next_on_core(0).unwrap().claim,
 					ParathreadClaim(thread_b, collator.clone()),
@@ -1784,10 +1867,7 @@ mod tests {
 
 				assert_eq!(
 					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-					ScheduledCore {
-						para_id: thread_b,
-						collator: Some(collator.clone()),
-					}
+					ScheduledCore { para_id: thread_b, collator: Some(collator.clone()) }
 				);
 			}
 		});
@@ -1847,19 +1927,16 @@ mod tests {
 					_ => panic!("with no chains, only core should be a thread core"),
 				}
 
-				let queue = ParathreadQueue::get();
+				let queue = ParathreadQueue::<Test>::get();
 				assert!(queue.get_next_on_core(0).is_none());
 				assert_eq!(
 					Scheduler::next_up_on_time_out(CoreIndex(0)).unwrap(),
-					ScheduledCore {
-						para_id: thread_a,
-						collator: Some(collator.clone()),
-					}
+					ScheduledCore { para_id: thread_a, collator: Some(collator.clone()) }
 				);
 
 				Scheduler::add_parathread_claim(thread_claim_b);
 
-				let queue = ParathreadQueue::get();
+				let queue = ParathreadQueue::<Test>::get();
 				assert_eq!(
 					queue.get_next_on_core(0).unwrap().claim,
 					ParathreadClaim(thread_b, collator.clone()),
@@ -1868,10 +1945,7 @@ mod tests {
 				// Now that there is an earlier next-up, we use that.
 				assert_eq!(
 					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-					ScheduledCore {
-						para_id: thread_b,
-						collator: Some(collator.clone()),
-					}
+					ScheduledCore { para_id: thread_b, collator: Some(collator.clone()) }
 				);
 			}
 		});
@@ -1925,10 +1999,7 @@ mod tests {
 				// Now that there is an earlier next-up, we use that.
 				assert_eq!(
 					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-					ScheduledCore {
-						para_id: chain_a,
-						collator: None,
-					}
+					ScheduledCore { para_id: chain_a, collator: None }
 				);
 			}
 		});
@@ -1982,10 +2053,7 @@ mod tests {
 				// Now that there is an earlier next-up, we use that.
 				assert_eq!(
 					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
-					ScheduledCore {
-						para_id: chain_a,
-						collator: None,
-					}
+					ScheduledCore { para_id: chain_a, collator: None }
 				);
 			}
 		});
@@ -2010,7 +2078,6 @@ mod tests {
 			schedule_blank_para(chain_a, true);
 			schedule_blank_para(chain_b, true);
 
-
 			run_to_block(1, |number| match number {
 				1 => Some(SessionChangeNotification {
 					new_config: default_config(),
@@ -2031,7 +2098,7 @@ mod tests {
 
 			assert_eq!(Scheduler::scheduled().len(), 2);
 
-			let groups = ValidatorGroups::get();
+			let groups = ValidatorGroups::<Test>::get();
 			assert_eq!(groups.len(), 5);
 
 			assert_ok!(Paras::schedule_para_cleanup(chain_b));
@@ -2059,14 +2126,12 @@ mod tests {
 
 			assert_eq!(
 				Scheduler::scheduled(),
-				vec![
-					CoreAssignment {
-						core: CoreIndex(0),
-						para_id: chain_a,
-						kind: AssignmentKind::Parachain,
-						group_idx: GroupIndex(0),
-					}
-				],
+				vec![CoreAssignment {
+					core: CoreIndex(0),
+					para_id: chain_a,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
+				}],
 			);
 		});
 	}
@@ -2129,5 +2194,4 @@ mod tests {
 			assert_eq!(Scheduler::scheduled().len(), 1);
 		});
 	}
-
 }

@@ -17,12 +17,14 @@
 //! Requester takes care of requesting erasure chunks for candidates that are pending
 //! availability.
 
-use std::collections::{
-	hash_map::{Entry, HashMap},
-	hash_set::HashSet,
+use std::{
+	collections::{
+		hash_map::{Entry, HashMap},
+		hash_set::HashSet,
+	},
+	iter::IntoIterator,
+	pin::Pin,
 };
-use std::iter::IntoIterator;
-use std::pin::Pin;
 
 use futures::{
 	channel::mpsc,
@@ -30,18 +32,17 @@ use futures::{
 	Stream,
 };
 
-use polkadot_node_subsystem_util::runtime::{RuntimeInfo, get_occupied_cores};
+use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
 use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
 use polkadot_subsystem::{
-	messages::AllMessages, ActiveLeavesUpdate, SubsystemContext, ActivatedLeaf,
+	messages::AllMessages, ActivatedLeaf, ActiveLeavesUpdate, SubsystemContext,
 };
 
-use super::{LOG_TARGET, Metrics};
+use super::{Metrics, LOG_TARGET};
 
 /// Cache for session information.
 mod session_cache;
 use session_cache::SessionCache;
-
 
 /// A task fetching a particular chunk.
 mod fetch_task;
@@ -80,13 +81,7 @@ impl Requester {
 	/// by advancing the stream.
 	pub fn new(metrics: Metrics) -> Self {
 		let (tx, rx) = mpsc::channel(1);
-		Requester {
-			fetches: HashMap::new(),
-			session_cache: SessionCache::new(),
-			tx,
-			rx,
-			metrics,
-		}
+		Requester { fetches: HashMap::new(), session_cache: SessionCache::new(), tx, rx, metrics }
 	}
 	/// Update heads that need availability distribution.
 	///
@@ -100,15 +95,8 @@ impl Requester {
 	where
 		Context: SubsystemContext,
 	{
-		tracing::trace!(
-			target: LOG_TARGET,
-			?update,
-			"Update fetching heads"
-		);
-		let ActiveLeavesUpdate {
-			activated,
-			deactivated,
-		} = update;
+		tracing::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
+		let ActiveLeavesUpdate { activated, deactivated } = update;
 		// Order important! We need to handle activated, prior to deactivated, otherwise we might
 		// cancel still needed jobs.
 		self.start_requesting_chunks(ctx, runtime, activated.into_iter()).await?;
@@ -152,8 +140,8 @@ impl Requester {
 	///
 	/// Starting requests where necessary.
 	///
-	/// Note: The passed in `leaf` is not the same as CandidateDescriptor::relay_parent in the
-	/// given cores. The latter is the relay_parent this candidate considers its parent, while the
+	/// Note: The passed in `leaf` is not the same as `CandidateDescriptor::relay_parent` in the
+	/// given cores. The latter is the `relay_parent` this candidate considers its parent, while the
 	/// passed in leaf might be some later block where the candidate is still pending availability.
 	async fn add_cores<Context>(
 		&mut self,
@@ -193,7 +181,7 @@ impl Requester {
 						e.insert(FetchTask::start(task_cfg, ctx).await?);
 					}
 					// Not a validator, nothing to do.
-				}
+				},
 			}
 		}
 		Ok(())
@@ -203,30 +191,22 @@ impl Requester {
 impl Stream for Requester {
 	type Item = AllMessages;
 
-	fn poll_next(
-		mut self: Pin<&mut Self>,
-		ctx: &mut Context,
-	) -> Poll<Option<AllMessages>> {
+	fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<AllMessages>> {
 		loop {
 			match Pin::new(&mut self.rx).poll_next(ctx) {
-				Poll::Ready(Some(FromFetchTask::Message(m))) =>
-					return Poll::Ready(Some(m)),
+				Poll::Ready(Some(FromFetchTask::Message(m))) => return Poll::Ready(Some(m)),
 				Poll::Ready(Some(FromFetchTask::Concluded(Some(bad_boys)))) => {
 					self.session_cache.report_bad_log(bad_boys);
 					continue
-				}
-				Poll::Ready(Some(FromFetchTask::Concluded(None))) =>
-					continue,
+				},
+				Poll::Ready(Some(FromFetchTask::Concluded(None))) => continue,
 				Poll::Ready(Some(FromFetchTask::Failed(candidate_hash))) => {
 					// Make sure we retry on next block still pending availability.
 					self.fetches.remove(&candidate_hash);
-				}
-				Poll::Ready(None) =>
-					return Poll::Ready(None),
-				Poll::Pending =>
-					return Poll::Pending,
+				},
+				Poll::Ready(None) => return Poll::Ready(None),
+				Poll::Pending => return Poll::Pending,
 			}
 		}
 	}
 }
-

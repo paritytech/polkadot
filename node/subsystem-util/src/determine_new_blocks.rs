@@ -16,13 +16,9 @@
 
 //! A utility for fetching all unknown blocks based on a new chain-head hash.
 
-use polkadot_node_subsystem::{
-	messages::ChainApiMessage,
-	SubsystemSender, SubsystemError, SubsystemResult,
-};
-use polkadot_primitives::v1::{Hash, Header, BlockNumber};
-use futures::prelude::*;
-use futures::channel::oneshot;
+use futures::{channel::oneshot, prelude::*};
+use polkadot_node_subsystem::{messages::ChainApiMessage, SubsystemSender};
+use polkadot_primitives::v1::{BlockNumber, Hash, Header};
 
 /// Given a new chain-head hash, this determines the hashes of all new blocks we should track
 /// metadata for, given this head.
@@ -35,14 +31,15 @@ use futures::channel::oneshot;
 /// then the returned list will be empty.
 ///
 /// This may be somewhat expensive when first recovering from major sync.
-pub async fn determine_new_blocks<E>(
-	ctx: &mut impl SubsystemSender,
+pub async fn determine_new_blocks<E, Sender>(
+	sender: &mut Sender,
 	is_known: impl Fn(&Hash) -> Result<bool, E>,
 	head: Hash,
 	header: &Header,
 	lower_bound_number: BlockNumber,
-) -> SubsystemResult<Vec<(Hash, Header)>>
-	where SubsystemError: From<E>
+) -> Result<Vec<(Hash, Header)>, E>
+where
+	Sender: SubsystemSender,
 {
 	const ANCESTRY_STEP: usize = 4;
 
@@ -55,7 +52,7 @@ pub async fn determine_new_blocks<E>(
 		let before_relevant = header.number < min_block_needed;
 
 		if already_known || before_relevant {
-			return Ok(Vec::new());
+			return Ok(Vec::new())
 		}
 	}
 
@@ -64,11 +61,12 @@ pub async fn determine_new_blocks<E>(
 	// Early exit if the parent hash is in the DB or no further blocks
 	// are needed.
 	if is_known(&header.parent_hash)? || header.number == min_block_needed {
-		return Ok(ancestry);
+		return Ok(ancestry)
 	}
 
 	'outer: loop {
-		let &(ref last_hash, ref last_header) = ancestry.last()
+		let &(ref last_hash, ref last_header) = ancestry
+			.last()
 			.expect("ancestry has length 1 at initialization and is only added to; qed");
 
 		assert!(
@@ -82,19 +80,22 @@ pub async fn determine_new_blocks<E>(
 
 		// This is always non-zero as determined by the loop invariant
 		// above.
-		let ancestry_step = std::cmp::min(
-			ANCESTRY_STEP,
-			(last_header.number - min_block_needed) as usize,
-		);
+		let ancestry_step =
+			std::cmp::min(ANCESTRY_STEP, (last_header.number - min_block_needed) as usize);
 
 		let batch_hashes = if ancestry_step == 1 {
 			vec![last_header.parent_hash]
 		} else {
-			ctx.send_message(ChainApiMessage::Ancestors {
-				hash: *last_hash,
-				k: ancestry_step,
-				response_channel: tx,
-			}.into()).await;
+			sender
+				.send_message(
+					ChainApiMessage::Ancestors {
+						hash: *last_hash,
+						k: ancestry_step,
+						response_channel: tx,
+					}
+					.into(),
+				)
+				.await;
 
 			// Continue past these errors.
 			match rx.await {
@@ -108,28 +109,32 @@ pub async fn determine_new_blocks<E>(
 				.map(|_| oneshot::channel())
 				.unzip::<_, _, Vec<_>, Vec<_>>();
 
-			for (hash, sender) in batch_hashes.iter().cloned().zip(batch_senders) {
-				ctx.send_message(ChainApiMessage::BlockHeader(hash, sender).into()).await;
+			for (hash, batched_sender) in batch_hashes.iter().cloned().zip(batch_senders) {
+				sender
+					.send_message(ChainApiMessage::BlockHeader(hash, batched_sender).into())
+					.await;
 			}
 
 			let mut requests = futures::stream::FuturesOrdered::new();
-			batch_receivers.into_iter().map(|rx| async move {
-				match rx.await {
-					Err(_) | Ok(Err(_)) => None,
-					Ok(Ok(h)) => h,
-				}
-			})
+			batch_receivers
+				.into_iter()
+				.map(|rx| async move {
+					match rx.await {
+						Err(_) | Ok(Err(_)) => None,
+						Ok(Ok(h)) => h,
+					}
+				})
 				.for_each(|x| requests.push(x));
 
-			let batch_headers: Vec<_> = requests
-				.flat_map(|x: Option<Header>| stream::iter(x))
-				.collect()
-				.await;
+			let batch_headers: Vec<_> =
+				requests.flat_map(|x: Option<Header>| stream::iter(x)).collect().await;
 
 			// Any failed header fetch of the batch will yield a `None` result that will
 			// be skipped. Any failure at this stage means we'll just ignore those blocks
 			// as the chain DB has failed us.
-			if batch_headers.len() != batch_hashes.len() { break 'outer }
+			if batch_headers.len() != batch_hashes.len() {
+				break 'outer
+			}
 			batch_headers
 		};
 
@@ -157,11 +162,11 @@ pub async fn determine_new_blocks<E>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::collections::{HashSet, HashMap};
-	use sp_core::testing::TaskExecutor;
-	use polkadot_node_subsystem::{messages::AllMessages, SubsystemContext};
-	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use assert_matches::assert_matches;
+	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+	use polkadot_overseer::{AllMessages, SubsystemContext};
+	use sp_core::testing::TaskExecutor;
+	use std::collections::{HashMap, HashSet};
 
 	#[derive(Default)]
 	struct TestKnownBlocks {
@@ -173,7 +178,7 @@ mod tests {
 			self.blocks.insert(hash);
 		}
 
-		fn is_known(&self, hash: &Hash) -> Result<bool, SubsystemError> {
+		fn is_known(&self, hash: &Hash) -> Result<bool, ()> {
 			Ok(self.blocks.contains(hash))
 		}
 	}
@@ -285,12 +290,11 @@ mod tests {
 				head_hash,
 				&head,
 				lower_bound_number,
-			).await.unwrap();
+			)
+			.await
+			.unwrap();
 
-			assert_eq!(
-				ancestry,
-				expected_ancestry,
-			);
+			assert_eq!(ancestry, expected_ancestry);
 		});
 
 		let aux_fut = Box::pin(async move {
@@ -359,12 +363,11 @@ mod tests {
 				head_hash,
 				&head,
 				lower_bound_number,
-			).await.unwrap();
+			)
+			.await
+			.unwrap();
 
-			assert_eq!(
-				ancestry,
-				expected_ancestry,
-			);
+			assert_eq!(ancestry, expected_ancestry);
 		});
 
 		let aux_fut = Box::pin(async move {
@@ -419,12 +422,11 @@ mod tests {
 				head_hash,
 				&head,
 				lower_bound_number,
-			).await.unwrap();
+			)
+			.await
+			.unwrap();
 
-			assert_eq!(
-				ancestry,
-				expected_ancestry,
-			);
+			assert_eq!(ancestry, expected_ancestry);
 		});
 
 		futures::executor::block_on(test_fut);
@@ -456,12 +458,11 @@ mod tests {
 				head_hash,
 				&head,
 				lower_bound_number,
-			).await.unwrap();
+			)
+			.await
+			.unwrap();
 
-			assert_eq!(
-				ancestry,
-				expected_ancestry,
-			);
+			assert_eq!(ancestry, expected_ancestry);
 		});
 
 		futures::executor::block_on(test_fut);
@@ -482,44 +483,26 @@ mod tests {
 		known.insert(parent_hash);
 
 		let test_fut = Box::pin(async move {
-			let after_finality = determine_new_blocks(
-				ctx.sender(),
-				|h| known.is_known(h),
-				head_hash,
-				&head,
-				17,
-			).await.unwrap();
+			let after_finality =
+				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 17)
+					.await
+					.unwrap();
 
-			let at_finality = determine_new_blocks(
-				ctx.sender(),
-				|h| known.is_known(h),
-				head_hash,
-				&head,
-				18,
-			).await.unwrap();
+			let at_finality =
+				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 18)
+					.await
+					.unwrap();
 
-			let before_finality = determine_new_blocks(
-				ctx.sender(),
-				|h| known.is_known(h),
-				head_hash,
-				&head,
-				19,
-			).await.unwrap();
+			let before_finality =
+				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 19)
+					.await
+					.unwrap();
 
-			assert_eq!(
-				after_finality,
-				vec![(head_hash, head.clone())],
-			);
+			assert_eq!(after_finality, vec![(head_hash, head.clone())]);
 
-			assert_eq!(
-				at_finality,
-				Vec::new(),
-			);
+			assert_eq!(at_finality, Vec::new());
 
-			assert_eq!(
-				before_finality,
-				Vec::new(),
-			);
+			assert_eq!(before_finality, Vec::new());
 		});
 
 		futures::executor::block_on(test_fut);
@@ -542,13 +525,10 @@ mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = Box::pin(async move {
-			let ancestry = determine_new_blocks(
-				ctx.sender(),
-				|h| known.is_known(h),
-				head_hash,
-				&head,
-				0,
-			).await.unwrap();
+			let ancestry =
+				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 0)
+					.await
+					.unwrap();
 
 			assert_eq!(ancestry, expected_ancestry);
 		});
@@ -583,13 +563,10 @@ mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = Box::pin(async move {
-			let ancestry = determine_new_blocks(
-				ctx.sender(),
-				|h| known.is_known(h),
-				head_hash,
-				&head,
-				0,
-			).await.unwrap();
+			let ancestry =
+				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 0)
+					.await
+					.unwrap();
 
 			assert_eq!(ancestry, expected_ancestry);
 		});
@@ -609,7 +586,7 @@ mod tests {
 				}
 			);
 
-			for _ in 0..2 {
+			for _ in 0_u8..2 {
 				assert_matches!(
 					handle.recv().await,
 					AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {

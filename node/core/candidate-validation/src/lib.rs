@@ -23,33 +23,32 @@
 #![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
-use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult, SubsystemError,
-	FromOverseer, OverseerSignal,
+use polkadot_node_core_pvf::{
+	InvalidCandidate as WasmInvalidCandidate, Pvf, ValidationError, ValidationHost,
+};
+use polkadot_node_primitives::{
+	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
+};
+use polkadot_node_subsystem::{
+	errors::RuntimeApiError,
 	messages::{
-		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
-		ValidationFailed, RuntimeApiRequest,
+		CandidateValidationMessage, RuntimeApiMessage, RuntimeApiRequest, ValidationFailed,
 	},
+	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
+	SubsystemResult,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_subsystem::errors::RuntimeApiError;
-use polkadot_node_primitives::{
-	VALIDATION_CODE_BOMB_LIMIT, POV_BOMB_LIMIT, ValidationResult, InvalidCandidate, PoV, BlockData,
-};
-use polkadot_primitives::v1::{
-	ValidationCode, CandidateDescriptor, PersistedValidationData,
-	OccupiedCoreAssumption, Hash, CandidateCommitments,
-};
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
-use polkadot_node_core_pvf::{Pvf, ValidationHost, ValidationError, InvalidCandidate as WasmInvalidCandidate};
+use polkadot_primitives::v1::{
+	CandidateCommitments, CandidateDescriptor, Hash, OccupiedCoreAssumption,
+	PersistedValidationData, ValidationCode, ValidationCodeHash,
+};
 
 use parity_scale_codec::Encode;
 
-use futures::channel::oneshot;
-use futures::prelude::*;
+use futures::{channel::oneshot, prelude::*};
 
-use std::sync::Arc;
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use async_trait::async_trait;
 
@@ -71,6 +70,7 @@ pub struct Config {
 /// The candidate validation subsystem.
 pub struct CandidateValidationSubsystem {
 	metrics: Metrics,
+	pvf_metrics: polkadot_node_core_pvf::Metrics,
 	config: Config,
 }
 
@@ -79,40 +79,55 @@ impl CandidateValidationSubsystem {
 	/// strategy.
 	///
 	/// Check out [`IsolationStrategy`] to get more details.
-	pub fn with_config(config: Config, metrics: Metrics) -> Self {
-		CandidateValidationSubsystem { config, metrics, }
+	pub fn with_config(
+		config: Config,
+		metrics: Metrics,
+		pvf_metrics: polkadot_node_core_pvf::Metrics,
+	) -> Self {
+		CandidateValidationSubsystem { config, metrics, pvf_metrics }
 	}
 }
 
-impl<C> Subsystem<C> for CandidateValidationSubsystem where
-	C: SubsystemContext<Message = CandidateValidationMessage>,
+impl<Context> overseer::Subsystem<Context, SubsystemError> for CandidateValidationSubsystem
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
 {
-	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run(ctx, self.metrics, self.config.artifacts_cache_path, self.config.program_path)
-			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-			.boxed();
-		SpawnedSubsystem {
-			name: "candidate-validation-subsystem",
-			future,
-		}
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = run(
+			ctx,
+			self.metrics,
+			self.pvf_metrics,
+			self.config.artifacts_cache_path,
+			self.config.program_path,
+		)
+		.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
+		.boxed();
+		SpawnedSubsystem { name: "candidate-validation-subsystem", future }
 	}
 }
 
-async fn run(
-	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
+async fn run<Context>(
+	mut ctx: Context,
 	metrics: Metrics,
+	pvf_metrics: polkadot_node_core_pvf::Metrics,
 	cache_path: PathBuf,
 	program_path: PathBuf,
-) -> SubsystemResult<()> {
+) -> SubsystemResult<()>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
 	let (mut validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),
+		pvf_metrics,
 	);
-	ctx.spawn_blocking("pvf-validation-host", task.boxed()).await?;
+	ctx.spawn_blocking("pvf-validation-host", task.boxed())?;
 
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {}
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Communication { msg } => match msg {
 				CandidateValidationMessage::ValidateFromChainState(
@@ -128,16 +143,17 @@ async fn run(
 						descriptor,
 						pov,
 						&metrics,
-					).await;
+					)
+					.await;
 
 					match res {
 						Ok(x) => {
 							metrics.on_validation_event(&x);
 							let _ = response_sender.send(x);
-						}
+						},
 						Err(e) => return Err(e),
 					}
-				}
+				},
 				CandidateValidationMessage::ValidateFromExhaustive(
 					persisted_validation_data,
 					validation_code,
@@ -154,11 +170,13 @@ async fn run(
 						descriptor,
 						pov,
 						&metrics,
-					).await;
+					)
+					.await;
 
 					match res {
 						Ok(x) => {
 							metrics.on_validation_event(&x);
+
 							if let Err(_e) = response_sender.send(x) {
 								tracing::warn!(
 									target: LOG_TARGET,
@@ -168,24 +186,23 @@ async fn run(
 						},
 						Err(e) => return Err(e),
 					}
-				}
-			}
+				},
+			},
 		}
 	}
 }
 
-async fn runtime_api_request<T>(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+async fn runtime_api_request<T, Context>(
+	ctx: &mut Context,
 	relay_parent: Hash,
 	request: RuntimeApiRequest,
 	receiver: oneshot::Receiver<Result<T, RuntimeApiError>>,
-) -> SubsystemResult<Result<T, RuntimeApiError>> {
-	ctx.send_message(
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			relay_parent,
-			request,
-		))
-	).await;
+) -> SubsystemResult<Result<T, RuntimeApiError>>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
+	ctx.send_message(RuntimeApiMessage::Request(relay_parent, request)).await;
 
 	receiver.await.map_err(Into::into)
 }
@@ -197,60 +214,62 @@ enum AssumptionCheckOutcome {
 	BadRequest,
 }
 
-async fn check_assumption_validation_data(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+async fn check_assumption_validation_data<Context>(
+	ctx: &mut Context,
 	descriptor: &CandidateDescriptor,
 	assumption: OccupiedCoreAssumption,
-) -> SubsystemResult<AssumptionCheckOutcome> {
+) -> SubsystemResult<AssumptionCheckOutcome>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
 	let validation_data = {
 		let (tx, rx) = oneshot::channel();
 		let d = runtime_api_request(
 			ctx,
 			descriptor.relay_parent,
-			RuntimeApiRequest::PersistedValidationData(
-				descriptor.para_id,
-				assumption,
-				tx,
-			),
+			RuntimeApiRequest::PersistedValidationData(descriptor.para_id, assumption, tx),
 			rx,
-		).await?;
+		)
+		.await?;
 
 		match d {
-			Ok(None) | Err(_) => {
-				return Ok(AssumptionCheckOutcome::BadRequest);
-			}
+			Ok(None) | Err(_) => return Ok(AssumptionCheckOutcome::BadRequest),
 			Ok(Some(d)) => d,
 		}
 	};
 
 	let persisted_validation_data_hash = validation_data.hash();
 
-	SubsystemResult::Ok(if descriptor.persisted_validation_data_hash == persisted_validation_data_hash {
-		let (code_tx, code_rx) = oneshot::channel();
-		let validation_code = runtime_api_request(
-			ctx,
-			descriptor.relay_parent,
-			RuntimeApiRequest::ValidationCode(
-				descriptor.para_id,
-				assumption,
-				code_tx,
-			),
-			code_rx,
-		).await?;
+	SubsystemResult::Ok(
+		if descriptor.persisted_validation_data_hash == persisted_validation_data_hash {
+			let (code_tx, code_rx) = oneshot::channel();
+			let validation_code = runtime_api_request(
+				ctx,
+				descriptor.relay_parent,
+				RuntimeApiRequest::ValidationCode(descriptor.para_id, assumption, code_tx),
+				code_rx,
+			)
+			.await?;
 
-		match validation_code {
-			Ok(None) | Err(_) => AssumptionCheckOutcome::BadRequest,
-			Ok(Some(v)) => AssumptionCheckOutcome::Matches(validation_data, v),
-		}
-	} else {
-		AssumptionCheckOutcome::DoesNotMatch
-	})
+			match validation_code {
+				Ok(None) | Err(_) => AssumptionCheckOutcome::BadRequest,
+				Ok(Some(v)) => AssumptionCheckOutcome::Matches(validation_data, v),
+			}
+		} else {
+			AssumptionCheckOutcome::DoesNotMatch
+		},
+	)
 }
 
-async fn find_assumed_validation_data(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+async fn find_assumed_validation_data<Context>(
+	ctx: &mut Context,
 	descriptor: &CandidateDescriptor,
-) -> SubsystemResult<AssumptionCheckOutcome> {
+) -> SubsystemResult<AssumptionCheckOutcome>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
 	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
 	// one of up to two possible values that we can derive from the state of the
 	// relay-parent. We can fetch these values by getting the persisted validation data
@@ -278,27 +297,29 @@ async fn find_assumed_validation_data(
 	Ok(AssumptionCheckOutcome::DoesNotMatch)
 }
 
-async fn spawn_validate_from_chain_state(
-	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+async fn spawn_validate_from_chain_state<Context>(
+	ctx: &mut Context,
 	validation_host: &mut ValidationHost,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	metrics: &Metrics,
-) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
+) -> SubsystemResult<Result<ValidationResult, ValidationFailed>>
+where
+	Context: SubsystemContext<Message = CandidateValidationMessage>,
+	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
+{
 	let (validation_data, validation_code) =
 		match find_assumed_validation_data(ctx, &descriptor).await? {
-			AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
-				(validation_data, validation_code)
-			}
+			AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
+				(validation_data, validation_code),
 			AssumptionCheckOutcome::DoesNotMatch => {
 				// If neither the assumption of the occupied core having the para included or the assumption
 				// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
 				// is not based on the relay parent and is thus invalid.
-				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)));
-			}
-			AssumptionCheckOutcome::BadRequest => {
-				return Ok(Err(ValidationFailed("Assumption Check: Bad request".into())));
-			}
+				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
+			},
+			AssumptionCheckOutcome::BadRequest =>
+				return Ok(Err(ValidationFailed("Assumption Check: Bad request".into()))),
 		};
 
 	let validation_result = validate_candidate_exhaustive(
@@ -321,15 +342,10 @@ async fn spawn_validate_from_chain_state(
 		)
 		.await?
 		{
-			Ok(true) => {}
-			Ok(false) => {
-				return Ok(Ok(ValidationResult::Invalid(
-					InvalidCandidate::InvalidOutputs,
-				)));
-			}
-			Err(_) => {
-				return Ok(Err(ValidationFailed("Check Validation Outputs: Bad request".into())));
-			}
+			Ok(true) => {},
+			Ok(false) => return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::InvalidOutputs))),
+			Err(_) =>
+				return Ok(Err(ValidationFailed("Check Validation Outputs: Bad request".into()))),
 		}
 	}
 
@@ -346,13 +362,21 @@ async fn validate_candidate_exhaustive(
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
+	let validation_code_hash = validation_code.hash();
+	tracing::debug!(
+		target: LOG_TARGET,
+		?validation_code_hash,
+		para_id = ?descriptor.para_id,
+		"About to validate a candidate.",
+	);
+
 	if let Err(e) = perform_basic_checks(
 		&descriptor,
 		persisted_validation_data.max_pov_size,
 		&*pov,
-		&validation_code,
+		&validation_code_hash,
 	) {
-		return Ok(Ok(ValidationResult::Invalid(e)));
+		return Ok(Ok(ValidationResult::Invalid(e)))
 	}
 
 	let raw_validation_code = match sp_maybe_compressed_blob::decompress(
@@ -364,22 +388,20 @@ async fn validate_candidate_exhaustive(
 			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
 
 			// If the validation code is invalid, the candidate certainly is.
-			return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)));
-		}
+			return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)))
+		},
 	};
 
-	let raw_block_data = match sp_maybe_compressed_blob::decompress(
-		&pov.block_data.0,
-		POV_BOMB_LIMIT,
-	) {
-		Ok(block_data) => BlockData(block_data.to_vec()),
-		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
+	let raw_block_data =
+		match sp_maybe_compressed_blob::decompress(&pov.block_data.0, POV_BOMB_LIMIT) {
+			Ok(block_data) => BlockData(block_data.to_vec()),
+			Err(e) => {
+				tracing::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
 
-			// If the PoV is invalid, the candidate certainly is.
-			return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)));
-		}
-	};
+				// If the PoV is invalid, the candidate certainly is.
+				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)))
+			},
+		};
 
 	let params = ValidationParams {
 		parent_head: persisted_validation_data.parent_head.clone(),
@@ -388,11 +410,8 @@ async fn validate_candidate_exhaustive(
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};
 
-	let result =
-		validation_backend.validate_candidate(
-			raw_validation_code.to_vec(),
-			params
-		)
+	let result = validation_backend
+		.validate_candidate(raw_validation_code.to_vec(), params)
 		.await;
 
 	if let Err(ref e) = result {
@@ -411,9 +430,11 @@ async fn validate_candidate_exhaustive(
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbigiousWorkerDeath)) =>
-			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError("ambigious worker death".to_string()))),
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
+				"ambigious worker death".to_string(),
+			))),
 
-		Ok(res) => {
+		Ok(res) =>
 			if res.head_data.hash() != descriptor.para_head {
 				Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch))
 			} else {
@@ -426,8 +447,7 @@ async fn validate_candidate_exhaustive(
 					hrmp_watermark: res.hrmp_watermark,
 				};
 				Ok(ValidationResult::Valid(outputs, persisted_validation_data))
-			}
-		}
+			},
 	};
 
 	Ok(result)
@@ -438,7 +458,7 @@ trait ValidationBackend {
 	async fn validate_candidate(
 		&mut self,
 		raw_validation_code: Vec<u8>,
-		params: ValidationParams
+		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError>;
 }
 
@@ -447,16 +467,22 @@ impl ValidationBackend for &'_ mut ValidationHost {
 	async fn validate_candidate(
 		&mut self,
 		raw_validation_code: Vec<u8>,
-		params: ValidationParams
+		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		let (tx, rx) = oneshot::channel();
-		if let Err(err) = self.execute_pvf(
-			Pvf::from_code(raw_validation_code),
-			params.encode(),
-			polkadot_node_core_pvf::Priority::Normal,
-			tx,
-		).await {
-			return Err(ValidationError::InternalError(format!("cannot send pvf to the validation host: {:?}", err)));
+		if let Err(err) = self
+			.execute_pvf(
+				Pvf::from_code(raw_validation_code),
+				params.encode(),
+				polkadot_node_core_pvf::Priority::Normal,
+				tx,
+			)
+			.await
+		{
+			return Err(ValidationError::InternalError(format!(
+				"cannot send pvf to the validation host: {:?}",
+				err
+			)))
 		}
 
 		let validation_result = rx
@@ -473,26 +499,25 @@ fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
 	max_pov_size: u32,
 	pov: &PoV,
-	validation_code: &ValidationCode,
+	validation_code_hash: &ValidationCodeHash,
 ) -> Result<(), InvalidCandidate> {
 	let pov_hash = pov.hash();
-	let validation_code_hash = validation_code.hash();
 
 	let encoded_pov_size = pov.encoded_size();
 	if encoded_pov_size > max_pov_size as usize {
-		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov_size as u64));
+		return Err(InvalidCandidate::ParamsTooLarge(encoded_pov_size as u64))
 	}
 
 	if pov_hash != candidate.pov_hash {
-		return Err(InvalidCandidate::PoVHashMismatch);
+		return Err(InvalidCandidate::PoVHashMismatch)
 	}
 
-	if validation_code_hash != candidate.validation_code_hash {
-		return Err(InvalidCandidate::CodeHashMismatch);
+	if *validation_code_hash != candidate.validation_code_hash {
+		return Err(InvalidCandidate::CodeHashMismatch)
 	}
 
 	if let Err(()) = candidate.check_collator_signature() {
-		return Err(InvalidCandidate::BadSignature);
+		return Err(InvalidCandidate::BadSignature)
 	}
 
 	Ok(())
@@ -528,18 +553,26 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `validate_from_chain_state` which observes on drop.
-	fn time_validate_from_chain_state(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	fn time_validate_from_chain_state(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.validate_from_chain_state.start_timer())
 	}
 
 	/// Provide a timer for `validate_from_exhaustive` which observes on drop.
-	fn time_validate_from_exhaustive(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	fn time_validate_from_exhaustive(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.validate_from_exhaustive.start_timer())
 	}
 
 	/// Provide a timer for `validate_candidate_exhaustive` which observes on drop.
-	fn time_validate_candidate_exhaustive(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.validate_candidate_exhaustive.start_timer())
+	fn time_validate_candidate_exhaustive(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.validate_candidate_exhaustive.start_timer())
 	}
 }
 
@@ -557,30 +590,24 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			validate_from_chain_state: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_candidate_validation_validate_from_chain_state",
-						"Time spent within `candidate_validation::validate_from_chain_state`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_candidate_validation_validate_from_chain_state",
+					"Time spent within `candidate_validation::validate_from_chain_state`",
+				))?,
 				registry,
 			)?,
 			validate_from_exhaustive: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_candidate_validation_validate_from_exhaustive",
-						"Time spent within `candidate_validation::validate_from_exhaustive`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_candidate_validation_validate_from_exhaustive",
+					"Time spent within `candidate_validation::validate_from_exhaustive`",
+				))?,
 				registry,
 			)?,
 			validate_candidate_exhaustive: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_candidate_validation_validate_candidate_exhaustive",
-						"Time spent within `candidate_validation::validate_candidate_exhaustive`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_candidate_validation_validate_candidate_exhaustive",
+					"Time spent within `candidate_validation::validate_candidate_exhaustive`",
+				))?,
 				registry,
 			)?,
 		};

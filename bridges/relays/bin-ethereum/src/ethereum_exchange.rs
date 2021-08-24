@@ -335,8 +335,10 @@ async fn run_single_transaction_relay(params: EthereumExchangeParams, eth_tx_has
 		..
 	} = params;
 
-	let eth_client = EthereumClient::new(eth_params).await.map_err(RpcError::Ethereum)?;
-	let sub_client = SubstrateClient::<Rialto>::new(sub_params)
+	let eth_client = EthereumClient::try_connect(eth_params)
+		.await
+		.map_err(RpcError::Ethereum)?;
+	let sub_client = SubstrateClient::<Rialto>::try_connect(sub_params)
 		.await
 		.map_err(RpcError::Substrate)?;
 
@@ -363,12 +365,8 @@ async fn run_auto_transactions_relay_loop(
 		..
 	} = params;
 
-	let eth_client = EthereumClient::new(eth_params)
-		.await
-		.map_err(|err| format!("Error starting Ethereum client: {:?}", err))?;
-	let sub_client = SubstrateClient::<Rialto>::new(sub_params)
-		.await
-		.map_err(|err| format!("Error starting Substrate client: {:?}", err))?;
+	let eth_client = EthereumClient::new(eth_params).await;
+	let sub_client = SubstrateClient::<Rialto>::new(sub_params).await;
 
 	let eth_start_with_block_number = match eth_start_with_block_number {
 		Some(eth_start_with_block_number) => eth_start_with_block_number,

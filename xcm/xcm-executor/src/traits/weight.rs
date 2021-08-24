@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::result::Result;
-use xcm::v0::{Xcm, MultiAsset, MultiLocation, Error};
-use frame_support::weights::Weight;
 use crate::Assets;
+use frame_support::weights::Weight;
+use sp_std::result::Result;
+use xcm::latest::{Error, MultiAsset, MultiLocation, Xcm};
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {
@@ -41,7 +41,7 @@ pub trait WeightBounds<Call> {
 	///
 	/// This is guaranteed equal to the eventual sum of all `shallow` XCM messages that get executed through
 	/// any internal effects. Inner XCM messages may be executed by:
-	/// - Order::BuyExecution
+	/// - `Order::BuyExecution`
 	fn deep(message: &mut Xcm<Call>) -> Result<Weight, ()>;
 
 	/// Return the total weight for executing `message`.
@@ -58,6 +58,11 @@ pub trait UniversalWeigher {
 }
 
 /// Charge for weight in order to execute XCM.
+///
+/// A `WeightTrader` may also be put into a tuple, in which case the default behavior of
+/// `buy_weight` and `refund_weight` would be to attempt to call each tuple element's own
+/// implementation of these two functions, in the order of which they appear in the tuple,
+/// returning early when a successful result is returned.
 pub trait WeightTrader: Sized {
 	/// Create a new trader instance.
 	fn new() -> Self;
@@ -71,12 +76,36 @@ pub trait WeightTrader: Sized {
 	/// purchased using `buy_weight`.
 	///
 	/// Default implementation refunds nothing.
-	fn refund_weight(&mut self, _weight: Weight) -> MultiAsset { MultiAsset::None }
+	fn refund_weight(&mut self, _weight: Weight) -> Option<MultiAsset> {
+		None
+	}
 }
 
-impl WeightTrader for () {
-	fn new() -> Self { () }
-	fn buy_weight(&mut self, _: Weight, _: Assets) -> Result<Assets, Error> {
-		Err(Error::Unimplemented)
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl WeightTrader for Tuple {
+	fn new() -> Self {
+		for_tuples!( ( #( Tuple::new() ),* ) )
+	}
+
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
+		let mut last_error = None;
+		for_tuples!( #(
+			match Tuple.buy_weight(weight, payment.clone()) {
+				Ok(assets) => return Ok(assets),
+				Err(e) => { last_error = Some(e) }
+			}
+		)* );
+		let last_error = last_error.unwrap_or(Error::TooExpensive);
+		log::trace!(target: "xcm::buy_weight", "last_error: {:?}", last_error);
+		Err(last_error)
+	}
+
+	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
+		for_tuples!( #(
+			if let Some(asset) = Tuple.refund_weight(weight) {
+				return Some(asset);
+			}
+		)* );
+		None
 	}
 }

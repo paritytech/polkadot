@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-runtime"
-version = "0.9.5"
+version = "0.9.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
 
 [dependencies]
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
 log = { version = "0.4.14", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.123", default-features = false }
@@ -54,7 +54,6 @@ pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -74,25 +73,22 @@ frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = 
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-hex-literal = { version = "0.3.1", optional = true }
+hex-literal = { version = "0.3.3", optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 
-max-encoded-len = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-
 [dev-dependencies]
-hex-literal = "0.3.1"
-libsecp256k1 = "0.3.5"
+hex-literal = "0.3.3"
 tiny-keccak = "2.0.2"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 trie-db = "0.22.3"
-serde_json = "1.0.61"
+serde_json = "1.0.66"
 separator = "0.4.1"
 
 [build-dependencies]
-substrate-wasm-builder = "3.0.0"
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]
@@ -139,7 +135,6 @@ std = [
 	"pallet-treasury/std",
 	"pallet-tips/std",
 	"pallet-babe/std",
-	"pallet-randomness-collective-flip/std",
 	"pallet-vesting/std",
 	"pallet-utility/std",
 	"sp-runtime/std",
@@ -157,7 +152,6 @@ std = [
 	"sp-npos-elections/std",
 	"beefy-primitives/std",
 	"pallet-mmr-primitives/std",
-	"max-encoded-len/std",
 	"frame-election-provider-support/std",
 ]
 runtime-benchmarks = [
@@ -222,15 +216,14 @@ try-runtime = [
 	"pallet-treasury/try-runtime",
 	"pallet-tips/try-runtime",
 	"pallet-babe/try-runtime",
-	"pallet-randomness-collective-flip/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-utility/try-runtime",
 	"runtime-common/try-runtime",
 ]
-# When enabled, the runtime api will not be build.
+# When enabled, the runtime API will not be build.
 #
 # This is required by Cumulus to access certain types of the
-# runtime without clashing with the runtime api exported functions
+# runtime without clashing with the runtime API exported functions
 # in WASM.
 disable-runtime-api = []
 

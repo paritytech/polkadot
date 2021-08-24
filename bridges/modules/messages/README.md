@@ -101,7 +101,14 @@ the `MessageAccepted` event is emitted in the `send_message()` transaction. The 
 message lane identifier and nonce that has been assigned to the message. When a message is delivered
 to the target chain, the `MessagesDelivered` event is emitted from the
 `receive_messages_delivery_proof()` transaction. The `MessagesDelivered` contains the message lane
-identifier and inclusive range of delivered message nonces.
+identifier, inclusive range of delivered message nonces and their single-bit dispatch results.
+
+Please note that the meaning of the 'dispatch result' is determined by the message dispatcher at
+the target chain. For example, in case of immediate call dispatcher it will be the `true` if call
+has been successfully dispatched and `false` if it has only been delivered. This simple mechanism
+built into the messages module allows building basic bridge applications, which only care whether
+their messages have been successfully dispatched or not. More sophisticated applications may use
+their own dispatch result delivery mechanism to deliver something larger than single bit.
 
 ### How to plug-in Messages Module to Send Messages to the Bridged Chain?
 
@@ -152,7 +159,7 @@ all required traits and will simply reject all transactions, related to outbound
 
 The `pallet_bridge_messages::Config` trait has 2 main associated types that are used to work with
 inbound messages. The `pallet_bridge_messages::Config::SourceHeaderChain` defines how we see the
-bridged chain as the source or our inbound messages. When relayer sends us a  delivery transaction,
+bridged chain as the source or our inbound messages. When relayer sends us a delivery transaction,
 this implementation must be able to parse and verify the proof of messages wrapped in this
 transaction. Normally, you would reuse the same (configurable) type on all chains that are sending
 messages to the same bridged chain.
@@ -194,7 +201,7 @@ message needs to be read. So there's another
 When choosing values for these parameters, you must also keep in mind that if proof in your scheme
 is based on finality of headers (and it is the most obvious option for Substrate-based chains with
 finality notion), then choosing too small values for these parameters may cause significant delays
-in message delivery. That's because there too many actors involved in this scheme: 1) authorities
+in message delivery. That's because there are too many actors involved in this scheme: 1) authorities
 that are finalizing headers of the target chain need to finalize header with non-empty map; 2) the
 headers relayer then needs to submit this header and its finality proof to the source chain; 3) the
 messages relayer must then send confirmation transaction (storage proof of this map) to the source
@@ -346,6 +353,23 @@ be `MaximalExtrinsicSize / 3 * 2 - EXPECTED_DEFAULT_MESSAGE_LENGTH`.
 Both conditions are verified by `pallet_bridge_messages::ensure_weights_are_correct` and
 `pallet_bridge_messages::ensure_able_to_receive_messages` functions, which must be called from every
 runtime's tests.
+
+### Post-dispatch weight refunds of the `receive_messages_proof` call
+
+Weight formula of the `receive_messages_proof` call assumes that the dispatch fee of every message is
+paid at the target chain (where call is executed), that every message will be dispatched and that
+dispatch weight of the message will be exactly the weight that is returned from the
+`MessageDispatch::dispatch_weight` method call. This isn't true for all messages, so the call returns
+actual weight used to dispatch messages.
+
+This actual weight is the weight, returned by the weight formula, minus:
+- the weight of undispatched messages, if we have failed to dispatch because of different issues;
+- the unspent dispatch weight if the declared weight of some messages is less than their actual post-dispatch weight;
+- the pay-dispatch-fee weight for every message that had dispatch fee paid at the source chain.
+
+The last component is computed as a difference between two benchmarks results - the `receive_single_message_proof`
+benchmark (that assumes that the fee is paid during dispatch) and the `receive_single_prepaid_message_proof`
+(that assumes that the dispatch fee is already paid).
 
 ### Weight of `receive_messages_delivery_proof` call
 

@@ -18,15 +18,15 @@ use futures::{future::Either, FutureExt, StreamExt, TryFutureExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 
+use polkadot_node_network_protocol::request_response::{v1, IncomingRequestReceiver};
 use polkadot_subsystem::{
-	messages::AvailabilityDistributionMessage, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	Subsystem, SubsystemContext, SubsystemError,
+	messages::AvailabilityDistributionMessage, overseer, FromOverseer, OverseerSignal,
+	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-use error::Fatal;
-use error::{Result, log_error};
+use error::{log_error, Fatal, Result};
 
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
@@ -39,7 +39,7 @@ mod pov_requester;
 
 /// Responding to erasure chunk requests:
 mod responder;
-use responder::{answer_chunk_request_log, answer_pov_request_log};
+use responder::{run_chunk_receiver, run_pov_receiver};
 
 mod metrics;
 /// Prometheus `Metrics` for availability distribution.
@@ -54,13 +54,24 @@ const LOG_TARGET: &'static str = "parachain::availability-distribution";
 pub struct AvailabilityDistributionSubsystem {
 	/// Easy and efficient runtime access for this subsystem.
 	runtime: RuntimeInfo,
+	/// Receivers to receive messages from.
+	recvs: IncomingRequestReceivers,
 	/// Prometheus metrics.
 	metrics: Metrics,
 }
 
-impl<Context> Subsystem<Context> for AvailabilityDistributionSubsystem
+/// Receivers to be passed into availability distribution.
+pub struct IncomingRequestReceivers {
+	/// Receiver for incoming PoV requests.
+	pub pov_req_receiver: IncomingRequestReceiver<v1::PoVFetchingRequest>,
+	/// Receiver for incoming availability chunk requests.
+	pub chunk_req_receiver: IncomingRequestReceiver<v1::ChunkFetchingRequest>,
+}
+
+impl<Context> overseer::Subsystem<Context, SubsystemError> for AvailabilityDistributionSubsystem
 where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
+	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+	Context: overseer::SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
@@ -68,27 +79,47 @@ where
 			.map_err(|e| SubsystemError::with_origin("availability-distribution", e))
 			.boxed();
 
-		SpawnedSubsystem {
-			name: "availability-distribution-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "availability-distribution-subsystem", future }
 	}
 }
 
 impl AvailabilityDistributionSubsystem {
-
 	/// Create a new instance of the availability distribution.
-	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+	pub fn new(
+		keystore: SyncCryptoStorePtr,
+		recvs: IncomingRequestReceivers,
+		metrics: Metrics,
+	) -> Self {
 		let runtime = RuntimeInfo::new(Some(keystore));
-		Self { runtime,  metrics }
+		Self { runtime, recvs, metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), Fatal>
+	async fn run<Context>(self, mut ctx: Context) -> std::result::Result<(), Fatal>
 	where
-		Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
+		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+		Context: overseer::SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
-		let mut requester = Requester::new(self.metrics.clone()).fuse();
+		let Self { mut runtime, recvs, metrics } = self;
+
+		let IncomingRequestReceivers { pov_req_receiver, chunk_req_receiver } = recvs;
+		let mut requester = Requester::new(metrics.clone()).fuse();
+
+		{
+			let sender = ctx.sender().clone();
+			ctx.spawn(
+				"pov-receiver",
+				run_pov_receiver(sender.clone(), pov_req_receiver, metrics.clone()).boxed(),
+			)
+			.map_err(Fatal::SpawnTask)?;
+
+			ctx.spawn(
+				"chunk-receiver",
+				run_chunk_receiver(sender, chunk_req_receiver, metrics.clone()).boxed(),
+			)
+			.map_err(Fatal::SpawnTask)?;
+		}
+
 		loop {
 			let action = {
 				let mut subsystem_next = ctx.recv().fuse();
@@ -100,58 +131,50 @@ impl AvailabilityDistributionSubsystem {
 
 			// Handle task messages sending:
 			let message = match action {
-				Either::Left(subsystem_msg) => {
-					subsystem_msg.map_err(|e| Fatal::IncomingMessageChannel(e))?
-				}
+				Either::Left(subsystem_msg) =>
+					subsystem_msg.map_err(|e| Fatal::IncomingMessageChannel(e))?,
 				Either::Right(from_task) => {
 					let from_task = from_task.ok_or(Fatal::RequesterExhausted)?;
 					ctx.send_message(from_task).await;
-					continue;
-				}
+					continue
+				},
 			};
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					log_error(
-						requester.get_mut().update_fetching_heads(&mut ctx, &mut self.runtime, update).await,
-						"Error in Requester::update_fetching_heads"
+						requester
+							.get_mut()
+							.update_fetching_heads(&mut ctx, &mut runtime, update)
+							.await,
+						"Error in Requester::update_fetching_heads",
 					)?;
-				}
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
-				FromOverseer::Signal(OverseerSignal::Conclude) => {
-					return Ok(());
-				}
+				},
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
+				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::ChunkFetchingRequest(req),
-				} => {
-					answer_chunk_request_log(&mut ctx, req, &self.metrics).await
-				}
-				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::PoVFetchingRequest(req),
-				} => {
-					answer_pov_request_log(&mut ctx, req, &self.metrics).await
-				}
-				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::FetchPoV {
-						relay_parent,
-						from_validator,
-						candidate_hash,
-						pov_hash,
-						tx,
-					},
-				} => {
-					log_error(
-						pov_requester::fetch_pov(
-							&mut ctx,
-							&mut self.runtime,
+					msg:
+						AvailabilityDistributionMessage::FetchPoV {
 							relay_parent,
 							from_validator,
 							candidate_hash,
 							pov_hash,
 							tx,
-						).await,
-						"pov_requester::fetch_pov"
+						},
+				} => {
+					log_error(
+						pov_requester::fetch_pov(
+							&mut ctx,
+							&mut runtime,
+							relay_parent,
+							from_validator,
+							candidate_hash,
+							pov_hash,
+							tx,
+						)
+						.await,
+						"pov_requester::fetch_pov",
 					)?;
-				}
+				},
 			}
 		}
 	}

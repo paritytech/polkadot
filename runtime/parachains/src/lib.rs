@@ -23,18 +23,19 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod configuration;
-pub mod shared;
+pub mod disputes;
+pub mod dmp;
+pub mod hrmp;
 pub mod inclusion;
 pub mod initializer;
+pub mod origin;
 pub mod paras;
 pub mod paras_inherent;
+pub mod reward_points;
 pub mod scheduler;
 pub mod session_info;
-pub mod origin;
-pub mod dmp;
+pub mod shared;
 pub mod ump;
-pub mod hrmp;
-pub mod reward_points;
 
 pub mod runtime_api_impl;
 
@@ -43,29 +44,29 @@ mod util;
 #[cfg(test)]
 mod mock;
 
-pub use origin::{Origin, ensure_parachain};
-use primitives::v1::Id as ParaId;
+pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;
+use primitives::v1::Id as ParaId;
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 pub fn schedule_para_initialize<T: paras::Config>(
 	id: ParaId,
 	genesis: paras::ParaGenesisArgs,
 ) -> Result<(), ()> {
-	<paras::Module<T>>::schedule_para_initialize(id, genesis).map_err(|_| ())
+	<paras::Pallet<T>>::schedule_para_initialize(id, genesis).map_err(|_| ())
 }
 
 /// Schedule a para to be cleaned up at the start of the next session.
 pub fn schedule_para_cleanup<T: paras::Config>(id: primitives::v1::Id) -> Result<(), ()> {
-	<paras::Module<T>>::schedule_para_cleanup(id).map_err(|_| ())
+	<paras::Pallet<T>>::schedule_para_cleanup(id).map_err(|_| ())
 }
 
 /// Schedule a parathread to be upgraded to a parachain.
 pub fn schedule_parathread_upgrade<T: paras::Config>(id: ParaId) -> Result<(), ()> {
-	paras::Module::<T>::schedule_parathread_upgrade(id).map_err(|_| ())
+	paras::Pallet::<T>::schedule_parathread_upgrade(id).map_err(|_| ())
 }
 
 /// Schedule a parachain to be downgraded to a parathread.
 pub fn schedule_parachain_downgrade<T: paras::Config>(id: ParaId) -> Result<(), ()> {
-	paras::Module::<T>::schedule_parachain_downgrade(id).map_err(|_| ())
+	paras::Pallet::<T>::schedule_parachain_downgrade(id).map_err(|_| ())
 }

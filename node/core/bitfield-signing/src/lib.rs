@@ -18,25 +18,36 @@
 
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
-use futures::{channel::{mpsc, oneshot}, lock::Mutex, prelude::*, future, Future};
-use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
+use futures::{
+	channel::{mpsc, oneshot},
+	future,
+	lock::Mutex,
+	prelude::*,
+	Future,
+};
 use polkadot_node_subsystem::{
-	jaeger, PerLeafSpan, SubsystemSender,
-	messages::{
-		AvailabilityStoreMessage, BitfieldDistributionMessage,
-		BitfieldSigningMessage, RuntimeApiMessage, RuntimeApiRequest,
-	},
 	errors::RuntimeApiError,
+	jaeger,
+	messages::{
+		AvailabilityStoreMessage, BitfieldDistributionMessage, BitfieldSigningMessage,
+		RuntimeApiMessage, RuntimeApiRequest,
+	},
+	PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
-	self as util, JobSubsystem, JobTrait, Validator, metrics::{self, prometheus},
-	JobSender,
+	self as util,
+	metrics::{self, prometheus},
+	JobSender, JobSubsystem, JobTrait, Validator,
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
-use std::{pin::Pin, time::Duration, iter::FromIterator, sync::Arc};
+use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
+use std::{iter::FromIterator, pin::Pin, sync::Arc, time::Duration};
 use wasm_timer::{Delay, Instant};
+
+#[cfg(test)]
+mod tests;
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
@@ -88,7 +99,8 @@ async fn get_core_availability(
 					core.candidate_hash,
 					validator_idx,
 					tx,
-				).into(),
+				)
+				.into(),
 			)
 			.await;
 
@@ -115,15 +127,15 @@ async fn get_availability_cores(
 ) -> Result<Vec<CoreState>, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::AvailabilityCores(tx),
-		).into())
+		.send_message(
+			RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::AvailabilityCores(tx))
+				.into(),
+		)
 		.await;
 	match rx.await {
 		Ok(Ok(out)) => Ok(out),
 		Ok(Err(runtime_err)) => Err(runtime_err.into()),
-		Err(err) => Err(err.into())
+		Err(err) => Err(err.into()),
 	}
 }
 
@@ -153,9 +165,11 @@ async fn construct_availability_bitfield(
 	// Handle all cores concurrently
 	// `try_join_all` returns all results in the same order as the input futures.
 	let results = future::try_join_all(
-		availability_cores.iter()
+		availability_cores
+			.iter()
 			.map(|core| get_core_availability(core, validator_idx, &sender, span)),
-	).await?;
+	)
+	.await?;
 
 	tracing::debug!(
 		target: LOG_TARGET,
@@ -202,12 +216,10 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			run: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_bitfield_signing_run",
-						"Time spent within `bitfield_signing::run`",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_bitfield_signing_run",
+					"Time spent within `bitfield_signing::run`",
+				))?,
 				registry,
 			)?,
 		};
@@ -240,7 +252,8 @@ impl JobTrait for BitfieldSigningJob {
 
 			// now do all the work we can before we need to wait for the availability store
 			// if we're not a validator, we can just succeed effortlessly
-			let validator = match Validator::new(relay_parent, keystore.clone(), &mut sender).await {
+			let validator = match Validator::new(relay_parent, keystore.clone(), &mut sender).await
+			{
 				Ok(validator) => validator,
 				Err(util::Error::NotAValidator) => return Ok(()),
 				Err(err) => return Err(Error::Util(err)),
@@ -256,19 +269,19 @@ impl JobTrait for BitfieldSigningJob {
 			drop(_span);
 			let span_availability = span.child("availability");
 
-			let bitfield =
-				match construct_availability_bitfield(
-					relay_parent,
-					&span_availability,
-					validator.index(),
-					sender.subsystem_sender(),
-				).await
+			let bitfield = match construct_availability_bitfield(
+				relay_parent,
+				&span_availability,
+				validator.index(),
+				sender.subsystem_sender(),
+			)
+			.await
 			{
 				Err(Error::Runtime(runtime_err)) => {
 					// Don't take down the node on runtime API errors.
 					tracing::warn!(target: LOG_TARGET, err = ?runtime_err, "Encountered a runtime API error");
-					return Ok(());
-				}
+					return Ok(())
+				},
 				Err(err) => return Err(err),
 				Ok(bitfield) => bitfield,
 			};
@@ -276,7 +289,8 @@ impl JobTrait for BitfieldSigningJob {
 			drop(span_availability);
 			let _span = span.child("signing");
 
-			let signed_bitfield = match validator.sign(keystore.clone(), bitfield)
+			let signed_bitfield = match validator
+				.sign(keystore.clone(), bitfield)
 				.await
 				.map_err(|e| Error::Keystore(e))?
 			{
@@ -286,8 +300,8 @@ impl JobTrait for BitfieldSigningJob {
 						target: LOG_TARGET,
 						"Key was found at construction, but while signing it could not be found.",
 					);
-					return Ok(());
-				}
+					return Ok(())
+				},
 			};
 
 			metrics.on_bitfield_signed();
@@ -299,7 +313,7 @@ impl JobTrait for BitfieldSigningJob {
 				.send_message(BitfieldDistributionMessage::DistributeBitfield(
 					relay_parent,
 					signed_bitfield,
-				).into())
+				))
 				.await;
 
 			Ok(())
@@ -308,76 +322,5 @@ impl JobTrait for BitfieldSigningJob {
 	}
 }
 
-/// BitfieldSigningSubsystem manages a number of bitfield signing jobs.
+/// `BitfieldSigningSubsystem` manages a number of bitfield signing jobs.
 pub type BitfieldSigningSubsystem<Spawner> = JobSubsystem<BitfieldSigningJob, Spawner>;
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use futures::{pin_mut, executor::block_on};
-	use polkadot_primitives::v1::{CandidateHash, OccupiedCore};
-	use polkadot_node_subsystem::messages::AllMessages;
-
-	fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {
-		CoreState::Occupied(OccupiedCore {
-			group_responsible: para_id.into(),
-			next_up_on_available: None,
-			occupied_since: 100_u32,
-			time_out_at: 200_u32,
-			next_up_on_time_out: None,
-			availability: Default::default(),
-			candidate_hash,
-			candidate_descriptor: Default::default(),
-		})
-	}
-
-	#[test]
-	fn construct_availability_bitfield_works() {
-		block_on(async move {
-			let relay_parent = Hash::default();
-			let validator_index = ValidatorIndex(1u32);
-
-			let (mut sender, mut receiver) = polkadot_node_subsystem_test_helpers::sender_receiver();
-			let future = construct_availability_bitfield(
-				relay_parent,
-				&jaeger::Span::Disabled,
-				validator_index,
-				&mut sender,
-			).fuse();
-			pin_mut!(future);
-
-			let hash_a = CandidateHash(Hash::repeat_byte(1));
-			let hash_b = CandidateHash(Hash::repeat_byte(2));
-
-			loop {
-				futures::select! {
-					m = receiver.next() => match m.unwrap() {
-						AllMessages::RuntimeApi(
-							RuntimeApiMessage::Request(rp, RuntimeApiRequest::AvailabilityCores(tx)),
-						) => {
-							assert_eq!(relay_parent, rp);
-							tx.send(Ok(vec![CoreState::Free, occupied_core(1, hash_a), occupied_core(2, hash_b)])).unwrap();
-						}
-						AllMessages::AvailabilityStore(
-							AvailabilityStoreMessage::QueryChunkAvailability(c_hash, vidx, tx),
-						) => {
-							assert_eq!(validator_index, vidx);
-
-							tx.send(c_hash == hash_a).unwrap();
-						},
-						o => panic!("Unknown message: {:?}", o),
-					},
-					r = future => match r {
-						Ok(r) => {
-							assert!(!r.0.get(0).unwrap());
-							assert!(r.0.get(1).unwrap());
-							assert!(!r.0.get(2).unwrap());
-							break
-						},
-						Err(e) => panic!("Failed: {:?}", e),
-					},
-				}
-			}
-		});
-	}
-}

@@ -16,16 +16,16 @@
 
 //! Types relevant for approval.
 
-pub use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof, Randomness};
 pub use sp_consensus_babe::Slot;
+pub use sp_consensus_vrf::schnorrkel::{Randomness, VRFOutput, VRFProof};
 
+use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
-	CandidateHash, Hash, ValidatorIndex, ValidatorSignature, CoreIndex,
-	Header, BlockNumber, CandidateIndex,
+	BlockNumber, CandidateHash, CandidateIndex, CoreIndex, Hash, Header, ValidatorIndex,
+	ValidatorSignature,
 };
-use parity_scale_codec::{Encode, Decode};
-use sp_consensus_babe as babe_primitives;
 use sp_application_crypto::Public;
+use sp_consensus_babe as babe_primitives;
 
 /// Validators assigning to check a particular candidate are split up into tranches.
 /// Earlier tranches of validators check first, with later tranches serving as backup.
@@ -86,7 +86,7 @@ pub struct AssignmentCert {
 	pub vrf: (VRFOutput, VRFProof),
 }
 
-/// An assignment crt which refers to the candidate under which the assignment is
+/// An assignment criterion which refers to the candidate under which the assignment is
 /// relevant by block hash.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct IndirectAssignmentCert {
@@ -168,13 +168,12 @@ impl UnsafeVRFOutput {
 		let pubkey = schnorrkel::PublicKey::from_bytes(author.as_slice())
 			.map_err(ApprovalError::SchnorrkelSignature)?;
 
-		let transcript = babe_primitives::make_transcript(
-			randomness,
-			self.slot,
-			epoch_index,
-		);
+		let transcript = babe_primitives::make_transcript(randomness, self.slot, epoch_index);
 
-		let inout = self.vrf_output.0.attach_input_hash(&pubkey, transcript)
+		let inout = self
+			.vrf_output
+			.0
+			.attach_input_hash(&pubkey, transcript)
 			.map_err(ApprovalError::SchnorrkelSignature)?;
 		Ok(RelayVRFStory(inout.make_bytes(RELAY_VRF_STORY_CONTEXT)))
 	}
@@ -200,11 +199,7 @@ pub fn babe_unsafe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
 				PreDigest::SecondaryPlain(_) => return None,
 			};
 
-			return Some(UnsafeVRFOutput {
-				vrf_output,
-				slot,
-				authority_index,
-			});
+			return Some(UnsafeVRFOutput { vrf_output, slot, authority_index })
 		}
 	}
 

@@ -14,30 +14,35 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Xcm sender for relay chain.
+//! XCM sender for relay chain.
 
 use parity_scale_codec::Encode;
-use sp_std::marker::PhantomData;
-use xcm::opaque::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Result, Error}};
 use runtime_parachains::{configuration, dmp};
+use sp_std::marker::PhantomData;
+use xcm::opaque::latest::*;
 
-/// Xcm sender for relay chain. It only sends downward message.
-pub struct ChildParachainRouter<T>(PhantomData<T>);
+/// XCM sender for relay chain. It only sends downward message.
+pub struct ChildParachainRouter<T, W>(PhantomData<(T, W)>);
 
-impl<T: configuration::Config + dmp::Config> SendXcm for ChildParachainRouter<T> {
+impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
+	for ChildParachainRouter<T, W>
+{
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result {
 		match dest {
-			MultiLocation::X1(Junction::Parachain(id)) => {
+			MultiLocation { parents: 0, interior: Junctions::X1(Junction::Parachain(id)) } => {
 				// Downward message passing.
-				let config = <configuration::Module<T>>::config();
-				<dmp::Module<T>>::queue_downward_message(
+				let versioned_xcm =
+					W::wrap_version(&dest, msg).map_err(|()| Error::DestinationUnsupported)?;
+				let config = <configuration::Pallet<T>>::config();
+				<dmp::Pallet<T>>::queue_downward_message(
 					&config,
 					id.into(),
-					VersionedXcm::from(msg).encode(),
-				).map_err(Into::<Error>::into)?;
+					versioned_xcm.encode(),
+				)
+				.map_err(Into::<Error>::into)?;
 				Ok(())
-			}
-			d => Err(Error::CannotReachDestination(d, msg)),
+			},
+			dest => Err(Error::CannotReachDestination(dest, msg)),
 		}
 	}
 }

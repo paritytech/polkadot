@@ -214,7 +214,7 @@ impl HeaderBuilder {
 /// Helper function for getting a genesis header which has been signed by an authority.
 pub fn build_genesis_header(author: &SecretKey) -> AuraHeader {
 	let genesis = HeaderBuilder::genesis();
-	genesis.header.sign_by(&author)
+	genesis.header.sign_by(author)
 }
 
 /// Helper function for building a custom child header which has been signed by an authority.
@@ -222,7 +222,7 @@ pub fn build_custom_header<F>(author: &SecretKey, previous: &AuraHeader, customi
 where
 	F: FnOnce(AuraHeader) -> AuraHeader,
 {
-	let new_header = HeaderBuilder::with_parent(&previous);
+	let new_header = HeaderBuilder::with_parent(previous);
 	let custom_header = customize_header(new_header.header);
 	custom_header.sign_by(author)
 }

@@ -53,12 +53,22 @@ ignore = [
 	"RUSTSEC-2020-0146",
 	# yaml-rust < clap. Not feasible to upgrade and also not possible to trigger in practice.
 	"RUSTSEC-2018-0006",
-	# We need to wait until Substrate updates their `wasmtime` dependency to fix this.
-	# TODO: See issue #676: https://github.com/paritytech/parity-bridges-common/issues/676
-	"RUSTSEC-2021-0013",
-	# We need to wait until Substrate updates their `hyper` dependency to fix this.
-	# TODO: See issue #710: https://github.com/paritytech/parity-bridges-common/issues/681
-	"RUSTSEC-2021-0020",
+    # Comes from wasmtime via Substrate: 'cranelift-codegen'
+    "RUSTSEC-2021-0067",
+    # Comes from libp2p via Substrate: 'aes-soft', 'aesni', 'block-cipher', 'stream-cipher'
+    "RUSTSEC-2021-0060",
+    "RUSTSEC-2021-0059",
+    "RUSTSEC-2020-0057",
+    "RUSTSEC-2021-0064",
+    # Comes from jsonrpc via Substrate: 'failure', 'net2', 'lock_api'
+    "RUSTSEC-2020-0036",
+    "RUSTSEC-2020-0077",
+    "RUSTSEC-2019-0036",
+    "RUSTSEC-2020-0070",
+    # Comes from honggfuzz via storage-proof-fuzzer: 'memmap'
+    "RUSTSEC-2020-0077",
+    # Comes from time: 'stweb' (will be fixed in upcoming time 0.3)
+    "RUSTSEC-2020-0056"
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -134,6 +144,7 @@ license-files = [
     # Each entry is a crate relative path, and the (opaque) hash of its contents
     { path = "LICENSE", hash = 0xbd0eed23 }
 ]
+
 [[licenses.clarify]]
 name = "webpki"
 expression = "ISC"

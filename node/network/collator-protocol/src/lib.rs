@@ -18,7 +18,7 @@
 //! This subsystem implements both sides of the collator protocol.
 
 #![deny(missing_docs, unused_crate_dependencies)]
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
 use std::time::Duration;
 
@@ -26,15 +26,20 @@ use futures::{FutureExt, TryFutureExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 
-use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange as Rep};
+use polkadot_node_network_protocol::{
+	request_response::{v1 as request_v1, IncomingRequestReceiver},
+	PeerId, UnifiedReputationChange as Rep,
+};
 use polkadot_primitives::v1::CollatorPair;
+
 use polkadot_subsystem::{
-	messages::{AllMessages, CollatorProtocolMessage, NetworkBridgeMessage},
-	SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError,
+	errors::SubsystemError,
+	messages::{CollatorProtocolMessage, NetworkBridgeMessage},
+	overseer, SpawnedSubsystem, SubsystemContext, SubsystemSender,
 };
 
 mod error;
-use error::Result;
+use error::{FatalResult, Result};
 
 mod collator_side;
 mod validator_side;
@@ -71,7 +76,12 @@ pub enum ProtocolSide {
 		metrics: validator_side::Metrics,
 	},
 	/// Collators operate on a parachain.
-	Collator(PeerId, CollatorPair, collator_side::Metrics),
+	Collator(
+		PeerId,
+		CollatorPair,
+		IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
+		collator_side::Metrics,
+	),
 }
 
 /// The collator protocol subsystem.
@@ -85,35 +95,28 @@ impl CollatorProtocolSubsystem {
 	/// If `id` is `None` this is a validator side of the protocol.
 	/// Caller must provide a registry for prometheus metrics.
 	pub fn new(protocol_side: ProtocolSide) -> Self {
-		Self {
-			protocol_side,
-		}
+		Self { protocol_side }
 	}
 
-	async fn run<Context>(self, ctx: Context) -> Result<()>
+	async fn run<Context>(self, ctx: Context) -> FatalResult<()>
 	where
+		Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
-			ProtocolSide::Validator { keystore, eviction_policy, metrics } => validator_side::run(
-				ctx,
-				keystore,
-				eviction_policy,
-				metrics,
-			).await,
-			ProtocolSide::Collator(local_peer_id, collator_pair, metrics) => collator_side::run(
-				ctx,
-				local_peer_id,
-				collator_pair,
-				metrics,
-			).await,
+			ProtocolSide::Validator { keystore, eviction_policy, metrics } =>
+				validator_side::run(ctx, keystore, eviction_policy, metrics).await,
+			ProtocolSide::Collator(local_peer_id, collator_pair, req_receiver, metrics) =>
+				collator_side::run(ctx, local_peer_id, collator_pair, req_receiver, metrics).await,
 		}
 	}
 }
 
-impl<Context> Subsystem<Context> for CollatorProtocolSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for CollatorProtocolSubsystem
 where
-	Context: SubsystemContext<Message = CollatorProtocolMessage> + Sync + Send,
+	Context: SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+	<Context as SubsystemContext>::Sender: SubsystemSender,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = self
@@ -121,10 +124,7 @@ where
 			.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
 			.boxed();
 
-		SpawnedSubsystem {
-			name: "collator-protocol-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "collator-protocol-subsystem", future }
 	}
 }
 
@@ -140,7 +140,5 @@ where
 		"reputation change for peer",
 	);
 
-	ctx.send_message(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::ReportPeer(peer, rep),
-	)).await;
+	ctx.send_message(NetworkBridgeMessage::ReportPeer(peer, rep)).await;
 }

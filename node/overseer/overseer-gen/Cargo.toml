@@ -1,0 +1,22 @@
+[package]
+name = "polkadot-overseer-gen"
+version = "0.9.9"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+description = "Generate an overseer including builder pattern and message wrapper from a single struct."
+
+[dependencies]
+tracing = "0.1"
+futures = "0.3"
+async-trait = "0.1"
+thiserror = "1"
+metered = { package = "metered-channel", path = "../../metered-channel" }
+polkadot-overseer-gen-proc-macro = { path = "./proc-macro" }
+polkadot-node-network-protocol = { path = "../../network/protocol"}
+# trait SpawnNamed
+polkadot-node-primitives = { path = "../../primitives" }
+futures-timer = "3.0.2"
+pin-project = "1.0"
+
+[dev-dependencies]
+trybuild = "1.0.41"

@@ -1,0 +1,13 @@
+[package]
+authors = ["Parity Technologies <admin@parity.io>"]
+name = "xcm-procedural"
+version = "0.1.0"
+edition = "2018"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0.28"
+quote = "1.0.9"
+syn = "1.0.74"

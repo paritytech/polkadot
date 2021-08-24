@@ -26,19 +26,25 @@ use sp_core::storage::Storage;
 use sp_runtime::BuildStorage;
 
 pub use block_builder::*;
-pub use substrate_test_client::*;
-pub use polkadot_test_service::{
-	Client, construct_extrinsic, construct_transfer_extrinsic, PolkadotTestExecutor, FullBackend,
-};
 pub use polkadot_test_runtime as runtime;
+pub use polkadot_test_service::{
+	construct_extrinsic, construct_transfer_extrinsic, Client, FullBackend,
+	PolkadotTestExecutorDispatch,
+};
+pub use substrate_test_client::*;
 
 /// Test client executor.
-pub type Executor = client::LocalCallExecutor<Block, FullBackend, sc_executor::NativeExecutor<PolkadotTestExecutor>>;
+pub type Executor = client::LocalCallExecutor<
+	Block,
+	FullBackend,
+	sc_executor::NativeElseWasmExecutor<PolkadotTestExecutorDispatch>,
+>;
 
 /// Test client builder for Polkadot.
-pub type TestClientBuilder = substrate_test_client::TestClientBuilder<Block, Executor, FullBackend, GenesisParameters>;
+pub type TestClientBuilder =
+	substrate_test_client::TestClientBuilder<Block, Executor, FullBackend, GenesisParameters>;
 
-/// LongestChain type for the test runtime/client.
+/// `LongestChain` type for the test runtime/client.
 pub type LongestChain = sc_consensus::LongestChain<FullBackend, Block>;
 
 /// Parameters of test-client builder with test-runtime.
@@ -83,7 +89,7 @@ impl DefaultTestClientBuilderExt for TestClientBuilder {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
 	use super::*;
 	use sp_consensus::BlockOrigin;
 
@@ -94,7 +100,8 @@ mod tests{
 		let block_builder = client.init_polkadot_block_builder();
 		let block = block_builder.build().expect("Finalizes the block").block;
 
-		futures::executor::block_on(client.import(BlockOrigin::Own, block)).expect("Imports the block");
+		futures::executor::block_on(client.import(BlockOrigin::Own, block))
+			.expect("Imports the block");
 	}
 
 	#[test]
@@ -112,6 +119,7 @@ mod tests{
 
 		let block = block_builder.build().expect("Finalizes the block").block;
 
-		futures::executor::block_on(client.import(BlockOrigin::Own, block)).expect("Imports the block");
+		futures::executor::block_on(client.import(BlockOrigin::Own, block))
+			.expect("Imports the block");
 	}
 }

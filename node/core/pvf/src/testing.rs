@@ -29,9 +29,12 @@ pub fn validate_candidate(
 	code: &[u8],
 	params: &[u8],
 ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-	use crate::executor_intf::{prevalidate, prepare, execute, TaskExecutor};
+	use crate::executor_intf::{execute, prepare, prevalidate, TaskExecutor};
 
-	let blob = prevalidate(code)?;
+	let code = sp_maybe_compressed_blob::decompress(code, 10 * 1024 * 1024)
+		.expect("Decompressing code failed");
+
+	let blob = prevalidate(&*code)?;
 	let artifact = prepare(blob)?;
 	let executor = TaskExecutor::new()?;
 	let result = unsafe {
@@ -48,6 +51,8 @@ pub fn validate_candidate(
 macro_rules! decl_puppet_worker_main {
 	() => {
 		fn main() {
+			$crate::sp_tracing::try_init_simple();
+
 			let args = std::env::args().collect::<Vec<_>>();
 			if args.len() < 2 {
 				panic!("wrong number of arguments");
@@ -57,15 +62,15 @@ macro_rules! decl_puppet_worker_main {
 			match subcommand.as_ref() {
 				"sleep" => {
 					std::thread::sleep(std::time::Duration::from_secs(5));
-				}
+				},
 				"prepare-worker" => {
 					let socket_path = &args[2];
 					$crate::prepare_worker_entrypoint(socket_path);
-				}
+				},
 				"execute-worker" => {
 					let socket_path = &args[2];
 					$crate::execute_worker_entrypoint(socket_path);
-				}
+				},
 				other => panic!("unknown subcommand: {}", other),
 			}
 		}

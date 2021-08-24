@@ -16,13 +16,16 @@
 
 //! Metered variant of bounded mpsc channels to be able to extract metrics.
 
-use futures::{channel::mpsc, task::Poll, task::Context, sink::SinkExt, stream::Stream};
+use futures::{
+	channel::mpsc,
+	sink::SinkExt,
+	stream::Stream,
+	task::{Context, Poll},
+};
 
-use std::result;
-use std::pin::Pin;
+use std::{pin::Pin, result};
 
 use super::Meter;
-
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn channel<T>(capacity: usize) -> (MeteredSender<T>, MeteredReceiver<T>) {
@@ -61,7 +64,7 @@ impl<T> Stream for MeteredReceiver<T> {
 			Poll::Ready(x) => {
 				self.meter.note_received();
 				Poll::Ready(x)
-			}
+			},
 			other => other,
 		}
 	}
@@ -84,7 +87,7 @@ impl<T> MeteredReceiver<T> {
 			Some(x) => {
 				self.meter.note_received();
 				Ok(Some(x))
-			}
+			},
 			None => Ok(None),
 		}
 	}
@@ -95,7 +98,6 @@ impl<T> futures::stream::FusedStream for MeteredReceiver<T> {
 		self.inner.is_terminated()
 	}
 }
-
 
 /// The sender component, tracking the number of items
 /// sent across it.
@@ -151,36 +153,5 @@ impl<T> MeteredSender<T> {
 			self.meter.retract_sent();
 			e
 		})
-	}
-}
-
-impl<T> futures::sink::Sink<T> for MeteredSender<T> {
-	type Error = mpsc::SendError;
-
-	fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
-		Pin::new(&mut self.inner).start_send(item)
-	}
-
-	fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.inner).poll_ready(cx)
-	}
-
-	fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-		match Pin::new(&mut self.inner).poll_close(cx) {
-			val @ Poll::Ready(_)=> {
-				val
-			}
-			other => other,
-		}
-	}
-
-	fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-		match Pin::new(&mut self.inner).poll_flush(cx) {
-			val @ Poll::Ready(_)=> {
-				self.meter.note_sent();
-				val
-			}
-			other => other,
-		}
 	}
 }

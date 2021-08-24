@@ -54,7 +54,7 @@ The bulk of the work done by this subsystem is in responding to network events, 
 
 Each network event is associated with a particular peer-set.
 
-### Overseer Signal: ActiveLeavesUpdate
+### Overseer Signal: `ActiveLeavesUpdate`
 
 The `activated` and `deactivated` lists determine the evolution of our local view over time. A `ProtocolMessage::ViewUpdate` is issued to each connected peer on each peer-set, and a `NetworkBridgeEvent::OurViewChange` is issued to each event handler for each protocol.
 
@@ -62,51 +62,51 @@ We only send view updates if the node has indicated that it has finished major b
 
 If we are connected to the same peer on both peer-sets, we will send the peer two view updates as a result.
 
-### Overseer Signal: BlockFinalized
+### Overseer Signal: `BlockFinalized`
 
 We update our view's `finalized_number` to the provided one and delay `ProtocolMessage::ViewUpdate` and `NetworkBridgeEvent::OurViewChange` till the next `ActiveLeavesUpdate`.
 
-### Network Event: Peer Connected
+### Network Event: `PeerConnected`
 
 Issue a `NetworkBridgeEvent::PeerConnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer. Also issue a `NetworkBridgeEvent::PeerViewChange` and send the peer our current view, but only if the node has indicated that it has finished major blockchain synchronization. Otherwise, we only send the peer an empty view.
 
-### Network Event: Peer Disconnected
+### Network Event: `PeerDisconnected`
 
 Issue a `NetworkBridgeEvent::PeerDisconnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer.
 
-### Network Event: ProtocolMessage
+### Network Event: `ProtocolMessage`
 
 Map the message onto the corresponding [Event Handler](#event-handlers) based on the peer-set this message was received on and dispatch via overseer.
 
-### Network Event: ViewUpdate
+### Network Event: `ViewUpdate`
 
 - Check that the new view is valid and note it as the most recent view update of the peer on this peer-set.
 - Map a `NetworkBridgeEvent::PeerViewChange` onto the corresponding [Event Handler](#event-handlers) based on the peer-set this message was received on and dispatch  via overseer.
 
-### ReportPeer
+### `ReportPeer`
 
 - Adjust peer reputation according to cost or benefit provided
 
-### DisconnectPeer
+### `DisconnectPeer`
 
 - Disconnect the peer from the peer-set requested, if connected.
 
-### SendValidationMessage / SendValidationMessages
+### `SendValidationMessage` / `SendValidationMessages`
 
 - Issue a corresponding `ProtocolMessage` to each listed peer on the validation peer-set.
 
-### SendCollationMessage / SendCollationMessages
+### `SendCollationMessage` / `SendCollationMessages`
 
 - Issue a corresponding `ProtocolMessage` to each listed peer on the collation peer-set.
 
-### ConnectToValidators
+### `ConnectToValidators`
 
 - Determine the DHT keys to use for each validator based on the relay-chain state and Runtime API.
 - Recover the Peer IDs of the validators from the DHT. There may be more than one peer ID per validator.
 - Send all `(ValidatorId, PeerId)` pairs on the response channel.
 - Feed all Peer IDs to peer set manager the underlying network provides.
 
-### NewGossipTopology
+### `NewGossipTopology`
 
 - Map all `AuthorityDiscoveryId`s to `PeerId`s and issue a corresponding `NetworkBridgeUpdateV1`
   to all validation subsystems.

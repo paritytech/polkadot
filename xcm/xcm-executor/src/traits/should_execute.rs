@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::result::Result;
-use xcm::v0::{Xcm, MultiLocation};
 use frame_support::weights::Weight;
+use sp_std::result::Result;
+use xcm::latest::{MultiLocation, Xcm};
 
 /// Trait to determine whether the execution engine should actually execute a given XCM.
 ///
@@ -31,7 +31,7 @@ pub trait ShouldExecute {
 	/// - `message`: The message itself.
 	/// - `shallow_weight`: The weight of the non-negotiable execution of the message. This does not include any
 	///   embedded XCMs sat behind mechanisms like `BuyExecution` which would need to answer for their own weight.
-	/// - `weight_credit`: The pre-established amount of weight that the system has determined this message may utilise
+	/// - `weight_credit`: The pre-established amount of weight that the system has determined this message may utilize
 	///   in its execution. Typically non-zero only because of prior fee payment, but could in principle be due to other
 	///   factors.
 	fn should_execute<Call>(
@@ -58,6 +58,15 @@ impl ShouldExecute for Tuple {
 				_ => (),
 			}
 		)* );
+		log::trace!(
+			target: "xcm::should_execute",
+			"did not pass barrier: origin: {:?}, top_level: {:?}, message: {:?}, shallow_weight: {:?}, weight_credit: {:?}",
+			origin,
+			top_level,
+			message,
+			shallow_weight,
+			weight_credit,
+		);
 		Err(())
 	}
 }

@@ -14,20 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 
-use sp_std::prelude::Vec;
-#[cfg(feature = "std")]
-use sp_std::convert::TryInto;
 #[cfg(feature = "std")]
 use application_crypto::AppKey;
 #[cfg(feature = "std")]
-use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
+use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
+#[cfg(feature = "std")]
+use sp_std::convert::TryInto;
+use sp_std::prelude::Vec;
 
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 
-use crate::v0::{SigningContext, ValidatorId, ValidatorSignature, ValidatorIndex};
+use crate::v0::{SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature};
 
 /// Signed data with signature already verified.
 ///
@@ -95,7 +95,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	pub fn try_from_unchecked<H: Encode>(
 		unchecked: UncheckedSigned<Payload, RealPayload>,
 		context: &SigningContext<H>,
-		key: &ValidatorId
+		key: &ValidatorId,
 	) -> Result<Self, UncheckedSigned<Payload, RealPayload>> {
 		if unchecked.check_signature(context, key).is_ok() {
 			Ok(Self(unchecked))
@@ -134,7 +134,10 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	}
 
 	/// Convert `Payload` into `RealPayload`.
-	pub fn convert_payload(&self) -> Signed<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
+	pub fn convert_payload(&self) -> Signed<RealPayload>
+	where
+		for<'a> &'a Payload: Into<RealPayload>,
+	{
 		Signed(self.0.unchecked_convert_payload())
 	}
 }
@@ -153,19 +156,14 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		validator_index: ValidatorIndex,
 		signature: ValidatorSignature,
 	) -> Self {
-		Self {
-			payload,
-			validator_index,
-			signature,
-			real_payload: std::marker::PhantomData,
-		}
+		Self { payload, validator_index, signature, real_payload: std::marker::PhantomData }
 	}
 
 	/// Check signature and convert to `Signed` if successful.
 	pub fn try_into_checked<H: Encode>(
 		self,
 		context: &SigningContext<H>,
-		key: &ValidatorId
+		key: &ValidatorId,
 	) -> Result<Signed<Payload, RealPayload>, Self> {
 		Signed::try_from_unchecked(self, context, key)
 	}
@@ -195,7 +193,10 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	}
 
 	/// Convert `Payload` into `RealPayload`.
-	pub fn unchecked_convert_payload(&self) -> UncheckedSigned<RealPayload> where for<'a> &'a Payload: Into<RealPayload> {
+	pub fn unchecked_convert_payload(&self) -> UncheckedSigned<RealPayload>
+	where
+		for<'a> &'a Payload: Into<RealPayload>,
+	{
 		UncheckedSigned {
 			signature: self.signature.clone(),
 			validator_index: self.validator_index,
@@ -221,15 +222,12 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		key: &ValidatorId,
 	) -> Result<Option<Self>, KeystoreError> {
 		let data = Self::payload_data(&payload, context);
-		let signature = CryptoStore::sign_with(
-			&**keystore,
-			ValidatorId::ID,
-			&key.into(),
-			&data,
-		).await?;
+		let signature =
+			CryptoStore::sign_with(&**keystore, ValidatorId::ID, &key.into(), &data).await?;
 
 		let signature = match signature {
-			Some(sig) => sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?,
+			Some(sig) =>
+				sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?,
 			None => return Ok(None),
 		};
 
@@ -242,24 +240,33 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	}
 
 	/// Validate the payload given the context and public key.
-	fn check_signature<H: Encode>(&self, context: &SigningContext<H>, key: &ValidatorId) -> Result<(), ()> {
+	fn check_signature<H: Encode>(
+		&self,
+		context: &SigningContext<H>,
+		key: &ValidatorId,
+	) -> Result<(), ()> {
 		let data = Self::payload_data(&self.payload, context);
-		if self.signature.verify(data.as_slice(), key) { Ok(()) } else { Err(()) }
+		if self.signature.verify(data.as_slice(), key) {
+			Ok(())
+		} else {
+			Err(())
+		}
 	}
-
 }
 
-impl<Payload, RealPayload> From<Signed<Payload, RealPayload>> for UncheckedSigned<Payload, RealPayload> {
+impl<Payload, RealPayload> From<Signed<Payload, RealPayload>>
+	for UncheckedSigned<Payload, RealPayload>
+{
 	fn from(signed: Signed<Payload, RealPayload>) -> Self {
 		signed.0
 	}
 }
 
-/// This helper trait ensures that we can encode Statement as CompactStatement,
+/// This helper trait ensures that we can encode `Statement` as `CompactStatement`,
 /// and anything as itself.
 ///
 /// This resembles `parity_scale_codec::EncodeLike`, but it's distinct:
-/// EncodeLike is a marker trait which asserts at the typesystem level that
+/// `EncodeLike` is a marker trait which asserts at the typesystem level that
 /// one type's encoding is a valid encoding for another type. It doesn't
 /// perform any type conversion when encoding.
 ///

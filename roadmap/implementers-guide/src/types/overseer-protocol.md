@@ -70,6 +70,7 @@ enum AllMessages {
     GossipSupport(GossipSupportMessage),
     DisputeCoordinator(DisputeCoordinatorMessage),
     DisputeParticipation(DisputeParticipationMessage),
+    ChainSelection(ChainSelectionMessage),
 }
 ```
 
@@ -325,7 +326,7 @@ enum ChainApiMessage {
     BlockHeader(Hash, ResponseChannel<Result<Option<BlockHeader>, Error>>),
     /// Get the cumulative weight of the given block, by hash.
     /// If the block or weight is unknown, this returns `None`.
-    /// 
+    ///
     /// Weight is used for comparing blocks in a fork-choice rule.
     BlockWeight(Hash, ResponseChannel<Result<Option<Weight>, Error>>),
     /// Get the finalized block hash by number.
@@ -386,7 +387,7 @@ enum CollatorProtocolMessage {
     ///
     /// The result sender should be informed when at least one parachain validator seconded the collation. It is also
     /// completely okay to just drop the sender.
-    DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
+    DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<CollationSecondedSignal>>),
     /// Fetch a collation under the given relay-parent for the given ParaId.
     FetchCollation(Hash, ParaId, ResponseChannel<(CandidateReceipt, PoV)>),
     /// Report a collator as having provided an invalid collation. This should lead to disconnect
@@ -431,8 +432,19 @@ enum DisputeCoordinatorMessage {
         /// - The validator index (within the session of the candidate) of the validator casting the vote.
         /// - The signature of the validator casting the vote.
         statements: Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>,
+
+        /// Inform the requester once we finished importing.
+        ///
+        /// This is, we either discarded the votes, just record them because we
+        /// casted our vote already or recovered availability for the candidate
+        /// successfully.
+        pending_confirmation: oneshot::Sender<ImportStatementsResult>
     },
+    /// Fetch a list of all recent disputes that the co-ordinator is aware of.
+    /// These are disputes which have occured any time in recent sessions, which may have already concluded.
+    RecentDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
     /// Fetch a list of all active disputes that the co-ordinator is aware of.
+    /// These disputes are either unconcluded or recently concluded.
     ActiveDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
     /// Get candidate votes for a candidate.
     QueryCandidateVotes(SessionIndex, CandidateHash, ResponseChannel<Option<CandidateVotes>>),
@@ -450,6 +462,14 @@ enum DisputeCoordinatorMessage {
         block_descriptions: Vec<(BlockHash, SessionIndex, Vec<CandidateHash>)>,
         rx: ResponseSender<Option<(BlockNumber, BlockHash)>>,
     }
+}
+
+/// Result of `ImportStatements`.
+pub enum ImportStatementsResult {
+	/// Import was invalid (candidate was not available)  and the sending peer should get banned.
+	InvalidImport,
+	/// Import was valid and can be confirmed to peer.
+	ValidImport
 }
 ```
 
@@ -471,7 +491,37 @@ enum DisputeParticipationMessage {
         session: SessionIndex,
         /// The number of validators in the session.
         n_validators: u32,
+        /// Give immediate feedback on whether the candidate was available or
+        /// not.
+        report_availability: oneshot::Sender<bool>,
     }
+}
+```
+
+## Dispute Distribution Message
+
+Messages received by the [Dispute Distribution
+subsystem](../node/disputes/dispute-distribution.md). This subsystem is
+responsible of distributing explicit dispute statements.
+
+```rust
+enum DisputeDistributionMessage {
+
+  /// Tell dispute distribution to distribute an explicit dispute statement to
+  /// validators.
+  SendDispute((ValidVote, InvalidVote)),
+
+  /// Ask DisputeDistribution to get votes we don't know about.
+  /// Fetched votes will be reported via `DisputeCoordinatorMessage::ImportStatements`
+  FetchMissingVotes {
+    candidate_hash: CandidateHash,
+    session: SessionIndex,
+    known_valid_votes: Bitfield,
+    known_invalid_votes: Bitfield,
+    /// Optional validator to query from. `ValidatorIndex` as in the above
+    /// referenced session.
+    from_validator: Option<ValidatorIndex>,
+  }
 }
 ```
 

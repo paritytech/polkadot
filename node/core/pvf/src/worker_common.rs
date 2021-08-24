@@ -20,12 +20,13 @@ use crate::LOG_TARGET;
 use async_std::{
 	io,
 	os::unix::net::{UnixListener, UnixStream},
-	path::{PathBuf, Path},
+	path::{Path, PathBuf},
 };
 use futures::{
-	AsyncRead, AsyncWrite, AsyncReadExt as _, AsyncWriteExt as _, FutureExt as _, never::Never,
+	never::Never, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, FutureExt as _,
 };
 use futures_timer::Delay;
+use pin_project::pin_project;
 use rand::Rng;
 use std::{
 	fmt, mem,
@@ -33,7 +34,6 @@ use std::{
 	task::{Context, Poll},
 	time::Duration,
 };
-use pin_project::pin_project;
 
 /// This is publicly exposed only for integration tests.
 #[doc(hidden)]
@@ -47,9 +47,7 @@ pub async fn spawn_with_program_path(
 	with_transient_socket_path(debug_id, |socket_path| {
 		let socket_path = socket_path.to_owned();
 		async move {
-			let listener = UnixListener::bind(&socket_path)
-				.await
-				.map_err(|_| SpawnErr::Bind)?;
+			let listener = UnixListener::bind(&socket_path).await.map_err(|_| SpawnErr::Bind)?;
 
 			let handle = WorkerHandle::spawn(program_path, extra_args, socket_path)
 				.map_err(|_| SpawnErr::ProcessSpawn)?;
@@ -97,11 +95,7 @@ pub async fn tmpfile_in(prefix: &str, dir: &Path) -> io::Result<PathBuf> {
 
 		let mut buf = Vec::with_capacity(prefix.len() + DESCRIMINATOR_LEN);
 		buf.extend(prefix.as_bytes());
-		buf.extend(
-			rand::thread_rng()
-				.sample_iter(&Alphanumeric)
-				.take(DESCRIMINATOR_LEN),
-		);
+		buf.extend(rand::thread_rng().sample_iter(&Alphanumeric).take(DESCRIMINATOR_LEN));
 
 		let s = std::str::from_utf8(&buf)
 			.expect("the string is collected from a valid utf-8 sequence; qed");
@@ -120,9 +114,7 @@ pub async fn tmpfile_in(prefix: &str, dir: &Path) -> io::Result<PathBuf> {
 		}
 	}
 
-	Err(
-		io::Error::new(io::ErrorKind::Other, "failed to create a temporary file")
-	)
+	Err(io::Error::new(io::ErrorKind::Other, "failed to create a temporary file"))
 }
 
 /// The same as [`tmpfile_in`], but uses [`std::env::temp_dir`] as the directory.
@@ -156,7 +148,7 @@ where
 /// A struct that represents an idle worker.
 ///
 /// This struct is supposed to be used as a token that is passed by move into a subroutine that
-/// initiates a job. If the worker dies on the duty, then the token is not returned back.
+/// initiates a job. If the worker dies on the duty, then the token is not returned.
 #[derive(Debug)]
 pub struct IdleWorker {
 	/// The stream to which the child process is connected.
@@ -177,7 +169,7 @@ pub enum SpawnErr {
 	Accept,
 	/// An error happened during spawning the process.
 	ProcessSpawn,
-	/// The deadline alloted for the worker spawning and connecting to the socket has elapsed.
+	/// The deadline allotted for the worker spawning and connecting to the socket has elapsed.
 	AcceptTimeout,
 }
 
@@ -187,7 +179,7 @@ pub enum SpawnErr {
 /// has been terminated. Since the worker is running in another process it is obviously not necessarily
 ///  to poll this future to make the worker run, it's only for termination detection.
 ///
-/// This future relies on the fact that a child process's stdout fd is closed upon it's termination.
+/// This future relies on the fact that a child process's stdout `fd` is closed upon it's termination.
 #[pin_project]
 pub struct WorkerHandle {
 	child: async_process::Child,
@@ -245,17 +237,17 @@ impl futures::Future for WorkerHandle {
 			Ok(0) => {
 				// 0 means EOF means the child was terminated. Resolve.
 				Poll::Ready(())
-			}
+			},
 			Ok(_bytes_read) => {
 				// weird, we've read something. Pretend that never happened and reschedule ourselves.
 				cx.waker().wake_by_ref();
 				Poll::Pending
-			}
+			},
 			Err(_) => {
 				// The implementation is guaranteed to not to return WouldBlock and Interrupted. This
 				// leaves us with a legit errors which we suppose were due to termination.
 				Poll::Ready(())
-			}
+			},
 		}
 	}
 }

@@ -51,10 +51,7 @@ pub enum Subcommand {
 	PvfExecuteWorker(ValidationWorkerCommand),
 
 	/// The custom benchmark subcommand benchmarking runtime pallets.
-	#[structopt(
-		name = "benchmark",
-		about = "Benchmark runtime pallets."
-	)]
+	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
 	/// Try some command against runtime state.
@@ -65,7 +62,7 @@ pub enum Subcommand {
 	#[cfg(not(feature = "try-runtime"))]
 	TryRuntime,
 
-	/// Key management cli utilities
+	/// Key management CLI utilities
 	Key(sc_cli::KeySubcommand),
 }
 

@@ -93,17 +93,15 @@ impl SubstrateCli for Cli {
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let id = if id.is_empty() { "rococo" } else { id };
 		Ok(match id {
-			"rococo-staging" => {
-				Box::new(polkadot_service::chain_spec::rococo_staging_testnet_config()?)
-			}
-			"rococo-local" => {
-				Box::new(polkadot_service::chain_spec::rococo_local_testnet_config()?)
-			}
+			"rococo-staging" =>
+				Box::new(polkadot_service::chain_spec::rococo_staging_testnet_config()?),
+			"rococo-local" =>
+				Box::new(polkadot_service::chain_spec::rococo_local_testnet_config()?),
 			"rococo" => Box::new(polkadot_service::chain_spec::rococo_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
 				Box::new(polkadot_service::RococoChainSpec::from_json_file(path)?)
-			}
+			},
 		})
 	}
 
