@@ -26,8 +26,14 @@ mod tests;
 use codec::{Decode, Encode};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
-use sp_std::{boxed::Box, convert::TryInto, marker::PhantomData, prelude::*, vec};
-use xcm::latest::prelude::*;
+use sp_std::{
+	boxed::Box,
+	convert::{TryFrom, TryInto},
+	marker::PhantomData,
+	prelude::*,
+	vec,
+};
+use xcm::{latest::prelude::*, VersionedMultiAssets, VersionedMultiLocation, VersionedXcm};
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -108,6 +114,8 @@ pub mod pallet {
 		TooManyAssets,
 		/// Origin is invalid for sending.
 		InvalidOrigin,
+		/// The version of the `Versioned` value used is not able to be interpreted.
+		BadVersion,
 	}
 
 	#[pallet::hooks]
@@ -118,17 +126,20 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn send(
 			origin: OriginFor<T>,
-			dest: Box<MultiLocation>,
-			message: Box<Xcm<()>>,
+			dest: Box<VersionedMultiLocation>,
+			message: Box<VersionedXcm<()>>,
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
 			let interior =
 				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
-			Self::send_xcm(interior, *dest.clone(), *message.clone()).map_err(|e| match e {
+			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
+			let message: Xcm<()> = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
+
+			Self::send_xcm(interior, dest.clone(), message.clone()).map_err(|e| match e {
 				XcmError::CannotReachDestination(..) => Error::<T>::Unreachable,
 				_ => Error::<T>::SendFailure,
 			})?;
-			Self::deposit_event(Event::Sent(origin_location, *dest, *message));
+			Self::deposit_event(Event::Sent(origin_location, dest, message));
 			Ok(())
 		}
 
@@ -146,25 +157,37 @@ pub mod pallet {
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
 		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
-			let mut message = Xcm::WithdrawAsset {
-				assets: assets.clone(),
-				effects: sp_std::vec![ InitiateTeleport {
-					assets: Wild(All),
-					dest: *dest.clone(),
-					effects: sp_std::vec![],
-				} ]
-			};
-			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			match (maybe_assets, maybe_dest) {
+				(Ok(assets), Ok(dest)) => {
+					let mut message = Xcm::WithdrawAsset {
+						assets,
+						effects: sp_std::vec![ InitiateTeleport {
+							assets: Wild(All),
+							dest,
+							effects: sp_std::vec![],
+						} ]
+					};
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+				},
+				_ => Weight::max_value(),
+			}
 		})]
 		pub fn teleport_assets(
 			origin: OriginFor<T>,
-			dest: Box<MultiLocation>,
-			beneficiary: Box<MultiLocation>,
-			assets: MultiAssets,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
 			fee_asset_item: u32,
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
+			let beneficiary =
+				MultiLocation::try_from(*beneficiary).map_err(|()| Error::<T>::BadVersion)?;
+			let assets = MultiAssets::try_from(*assets).map_err(|()| Error::<T>::BadVersion)?;
+
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
@@ -182,7 +205,7 @@ pub mod pallet {
 				assets,
 				effects: vec![InitiateTeleport {
 					assets: Wild(All),
-					dest: *dest,
+					dest,
 					effects: vec![
 						BuyExecution {
 							fees,
@@ -192,7 +215,7 @@ pub mod pallet {
 							halt_on_error: false,
 							instructions: vec![],
 						},
-						DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
+						DepositAsset { assets: Wild(All), max_assets, beneficiary },
 					],
 				}],
 			};
@@ -219,22 +242,28 @@ pub mod pallet {
 		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
 		///   `ReserveAssetDeposited { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
 		#[pallet::weight({
-			let mut message = Xcm::TransferReserveAsset {
-				assets: assets.clone(),
-				dest: *dest.clone(),
-				effects: sp_std::vec![],
-			};
-			T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
+				(Ok(assets), Ok(dest)) => {
+					let effects = sp_std::vec![];
+					let mut message = Xcm::TransferReserveAsset { assets, dest, effects };
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+				},
+				_ => Weight::max_value(),
+			}
 		})]
 		pub fn reserve_transfer_assets(
 			origin: OriginFor<T>,
-			dest: Box<MultiLocation>,
-			beneficiary: Box<MultiLocation>,
-			assets: MultiAssets,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
 			fee_asset_item: u32,
 			dest_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let beneficiary = (*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
+
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
@@ -250,7 +279,7 @@ pub mod pallet {
 			let assets = assets.into();
 			let mut message = Xcm::TransferReserveAsset {
 				assets,
-				dest: *dest,
+				dest,
 				effects: vec![
 					BuyExecution {
 						fees,
@@ -260,7 +289,7 @@ pub mod pallet {
 						halt_on_error: false,
 						instructions: vec![],
 					},
-					DepositAsset { assets: Wild(All), max_assets, beneficiary: *beneficiary },
+					DepositAsset { assets: Wild(All), max_assets, beneficiary },
 				],
 			};
 			let weight =
@@ -285,11 +314,12 @@ pub mod pallet {
 		#[pallet::weight(max_weight.saturating_add(100_000_000u64))]
 		pub fn execute(
 			origin: OriginFor<T>,
-			message: Box<Xcm<T::Call>>,
+			message: Box<VersionedXcm<T::Call>>,
 			max_weight: Weight,
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let value = (origin_location, *message);
+			let message = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let value = (origin_location, message);
 			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, message) = value;
 			let outcome = T::XcmExecutor::execute_xcm(origin_location, message, max_weight);
