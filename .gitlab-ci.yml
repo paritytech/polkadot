@@ -200,6 +200,28 @@ build-adder-collator:
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - cp -r scripts/docker/* ./artifacts
 
+build-malus:
+  stage:                           test
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  script:
+    - time cargo build --release --verbose -p polkadot-test-malus
+    - sccache -s
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/release/malus-dispute-ancestor ./artifacts/.
+    - mv ./target/release/malus-suggest-garbage-candidate ./artifacts/.
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - cp -r scripts/docker/* ./artifacts
+
 #### stage:                        build
 
 check-transaction-versions:
@@ -345,6 +367,33 @@ publish-adder-collator-image:
       # this artifact is used in simnet-tests job
       dotenv: ./artifacts/collator.env
 
+publish-malus-image:
+  # service image for Simnet
+  stage:                           build
+  <<:                              *build-push-image
+  variables:
+    <<:                            *image-variables
+    # scripts/docker/malus.Dockerfile
+    DOCKERFILE:                    collator.Dockerfile
+    IMAGE_NAME:                    docker.io/paritypr/malus
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  needs:
+    - job:                         build-malus
+      artifacts:                   true
+  after_script:
+    - buildah logout "$IMAGE_NAME"
+    # pass artifacts to the simnet-tests job
+    - echo "MALUS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/malus.env
+    - echo "MALUS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/malus.env
+  artifacts:
+    reports:
+      # this artifact is used in simnet-tests job
+      dotenv: ./artifacts/malus.env
+
 .update_weights:                   &update-weights
   stage:                           build
   when:                            manual
@@ -470,7 +519,7 @@ deploy-polkasync-kusama:
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-simnet-tests:
+simnet-tests-parachians-smoketest:
   stage:                           deploy
   image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
   <<:                              *kubernetes-env
@@ -487,6 +536,39 @@ simnet-tests:
   # `collator.env` brings here `$COLLATOR_IMAGE_NAME` and  `$COLLATOR_IMAGE_TAG`
   # For local tests with docker `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG`
   # can be replaced with `master` tag.
+
+  # SIMNET_REF is a gitlab variable
+  before_script:
+    - echo "Simnet Tests Config
+        ${SIMNET_IMAGE_NAME} ${SIMNET_REF}
+        ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
+        ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+  script:
+    - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
+        --github-remote-dir="https://github.com/paritytech/polkadot/tree/master/simnet_tests"
+        --config="simnet_tests/configs/simple_rococo_testnet.toml"
+        --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
+        --image-simnet="docker.io/paritytech/simnet:${SIMNET_REF}"
+  allow_failure:                   true
+  retry: 2
+  tags:
+    - parity-simnet
+
+simnet-tests-malus-dispute-valid:
+  stage:                           deploy
+  image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
+  <<:                              *kubernetes-env
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  needs:
+    - job:                         publish-malus-image
+  # `malus.env` brings here `$MALUS_IMAGE_NAME` and `$MALUS_IMAGE_TAG`
+  # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
+  # For local tests with docker `$MALUS_IMAGE_TAG` can be replaced with `master` tag.
 
   # SIMNET_REF is a gitlab variable
   before_script:

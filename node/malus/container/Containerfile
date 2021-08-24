@@ -60,7 +60,6 @@ WORKDIR /home/nonroot/polkadot-malus
 RUN chown -R nonroot. /home/nonroot
 
 # Use the non-root user to run our application
-# Tell run test script that it runs in container
 USER nonroot
 # check if executable works in this container
 RUN /usr/local/bin/malus-$VARIANT --version
