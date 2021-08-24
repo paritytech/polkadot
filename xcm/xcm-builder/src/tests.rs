@@ -208,7 +208,7 @@ fn code_registers_should_work() {
 	AllowUnpaidFrom::set(vec![Here.into()]);
 	// We own 1000 of our tokens.
 	add_asset(3000, (Here, 21));
-	let message = Xcm(vec![
+	let mut message = Xcm(vec![
 		// Set our error handler - this will fire only on the second message, when there's an error
 		SetErrorHandler(Xcm(vec![
 			TransferAsset {
@@ -237,7 +237,7 @@ fn code_registers_should_work() {
 		},
 	]);
 	// Weight limit of 70 is needed.
-	let limit = <TestConfig as Config>::Weigher::weight(&mut message);
+	let limit = <TestConfig as Config>::Weigher::weight(&mut message).unwrap();
 	assert_eq!(limit, 70);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message.clone(), limit);
@@ -386,7 +386,7 @@ fn prepaid_result_of_query_should_get_free_execution() {
 
 	// Second time it doesn't, since we're not.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin.clone(), message.clone(), weight_limit);
-	assert_eq!(r, Outcome::Incomplete(10, XcmError::Barrier));
+	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 }
 
 fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
