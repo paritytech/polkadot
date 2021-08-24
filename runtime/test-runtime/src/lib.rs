@@ -494,6 +494,7 @@ impl parachains_ump::Config for Runtime {
 parameter_types! {
 	pub const BaseXcmWeight: frame_support::weights::Weight = 1_000;
 	pub const AnyNetwork: xcm::latest::NetworkId = xcm::latest::NetworkId::Any;
+	pub const MaxInstructions: u32 = 100;
 }
 
 pub type LocalOriginToLocation = xcm_builder::SignedToAccountId32<Origin, AccountId, AnyNetwork>;
@@ -505,7 +506,7 @@ impl pallet_xcm::Config for Runtime {
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	type LocationInverter = xcm_config::InvertNothing;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type XcmRouter = xcm_config::DoNothingRouter;
 	type XcmExecuteFilter = Everything;
 	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
