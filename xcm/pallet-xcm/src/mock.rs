@@ -229,6 +229,7 @@ parameter_types! {
 	pub const BaseXcmWeight: Weight = 1_000;
 	pub CurrencyPerSecond: (AssetId, u128) = (Concrete(RelayLocation::get()), 1);
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
+	pub const MaxInstructions: u32 = 100;
 }
 
 pub type Barrier = (
@@ -247,7 +248,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = Case<TrustedAssets>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Trader = FixedRateOfFungible<CurrencyPerSecond, ()>;
 	type ResponseHandler = XcmPallet;
 }
@@ -263,7 +264,7 @@ impl pallet_xcm::Config for Test {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type Call = Call;

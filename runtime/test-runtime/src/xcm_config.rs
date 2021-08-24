@@ -24,6 +24,7 @@ use xcm_executor::{
 
 parameter_types! {
 	pub const OurNetwork: NetworkId = NetworkId::Polkadot;
+	pub const MaxInstructions: u32 = 100;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
@@ -82,7 +83,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = ();
 	type LocationInverter = InvertNothing;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call>;
+	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call, MaxInstructions>;
 	type Trader = DummyWeightTrader;
 	type ResponseHandler = super::Xcm;
 }

@@ -1300,7 +1300,6 @@ impl xcm_executor::Config for XcmConfig {
 
 parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
-	pub const MaxInstructions: u32 = 100;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
