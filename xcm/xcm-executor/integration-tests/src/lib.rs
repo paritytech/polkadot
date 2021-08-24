@@ -56,10 +56,10 @@ fn execute_within_recursion_limit() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
-			Box::new(VersionedXcm::from(msg.clone())),
-			1_000_000_000,
-		)),
+		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute {
+			message: Box::new(VersionedXcm::from(msg.clone())),
+			max_weight: 1_000_000_000,
+		}),
 		sp_keyring::Sr25519Keyring::Alice,
 	);
 
@@ -110,10 +110,10 @@ fn exceed_recursion_limit() {
 
 	let execute = construct_extrinsic(
 		&client,
-		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute(
-			Box::new(VersionedXcm::from(msg.clone())),
-			1_000_000_000,
-		)),
+		polkadot_test_runtime::Call::Xcm(pallet_xcm::Call::execute {
+			message: Box::new(VersionedXcm::from(msg.clone())),
+			max_weight: 1_000_000_000,
+		}),
 		sp_keyring::Sr25519Keyring::Alice,
 	);
 
