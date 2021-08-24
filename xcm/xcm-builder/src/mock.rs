@@ -259,6 +259,7 @@ parameter_types! {
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
 	pub static WeightPrice: (AssetId, u128) = (From::from(Here), 1_000_000_000_000);
+	pub static MaxInstructions: u32 = 100;
 }
 
 pub type TestBarrier = (
@@ -278,7 +279,7 @@ impl Config for TestConfig {
 	type IsTeleporter = TestIsTeleporter;
 	type LocationInverter = LocationInverter<TestAncestry>;
 	type Barrier = TestBarrier;
-	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall>;
+	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
 }

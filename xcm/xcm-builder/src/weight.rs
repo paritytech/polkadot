@@ -27,22 +27,29 @@ use xcm_executor::{
 	Assets,
 };
 
-pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
-impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
+pub struct FixedWeightBounds<T, C, M>(PhantomData<(T, C, M)>);
+impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M: Get<u32>> WeightBounds<C>
+	for FixedWeightBounds<T, C, M>
+{
 	fn weight(message: &mut Xcm<C>) -> Result<Weight, ()> {
-		let mut r = 0;
-		for m in message.0.iter_mut() {
-			r += Self::instr_weight(m)?;
-		}
-		Ok(r)
+		let mut instructions_left = M::get();
+		Self::weight_with_limit(message, &mut instructions_left)
 	}
 }
 
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo> FixedWeightBounds<T, C> {
-	fn instr_weight(message: &mut Instruction<C>) -> Result<Weight, ()> {
+	fn weight_with_limit(message: &mut Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
+		let mut r = 0;
+		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
+		for m in message.0.iter_mut() {
+			r += Self::instr_weight(m, instrs_limit)?;
+		}
+		Ok(r)
+	}
+	fn instr_weight(message: &mut Instruction<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
 		Ok(T::get().saturating_add(match message {
 			Transact { require_weight_at_most, .. } => *require_weight_at_most,
-			SetErrorHandler(xcm) | SetAppendix(xcm) => Self::weight(xcm)?,
+			SetErrorHandler(xcm) | SetAppendix(xcm) => Self::weight_with_limit(xcm, instrs_limit)?,
 			_ => 0,
 		}))
 	}

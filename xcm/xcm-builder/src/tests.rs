@@ -219,12 +219,10 @@ fn code_registers_should_work() {
 			ClearError,
 		])),
 		// Set the appendix - this will always fire.
-		SetAppendix(Xcm(vec![
-			TransferAsset {
-				assets: (Here, 4).into(),
-				beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
-			},
-		])),
+		SetAppendix(Xcm(vec![TransferAsset {
+			assets: (Here, 4).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+		}])),
 		// First xfer always works ok
 		TransferAsset {
 			assets: (Here, 1).into(),
@@ -241,13 +239,13 @@ fn code_registers_should_work() {
 	assert_eq!(limit, 70);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message.clone(), limit);
-	assert_eq!(r, Outcome::Complete(50));	// We don't pay the 20 weight for the error handler. 
+	assert_eq!(r, Outcome::Complete(50)); // We don't pay the 20 weight for the error handler.
 	assert_eq!(assets(3), vec![(Here, 13).into()]);
 	assert_eq!(assets(3000), vec![(Here, 8).into()]);
 	assert_eq!(sent_xcm(), vec![]);
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message, limit);
-	assert_eq!(r, Outcome::Complete(70));	// We pay the full weight here.
+	assert_eq!(r, Outcome::Complete(70)); // We pay the full weight here.
 	assert_eq!(assets(3), vec![(Here, 20).into()]);
 	assert_eq!(assets(3000), vec![(Here, 1).into()]);
 	assert_eq!(sent_xcm(), vec![]);

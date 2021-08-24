@@ -441,11 +441,11 @@ pub enum Instruction<Call> {
 	RefundSurplus,
 
 	/// Set code that should be called in the case of an error happening.
-	/// 
-	/// An error occuring within execution of this code will _NOT_ result in the error register
+	///
+	/// An error occurring within execution of this code will _NOT_ result in the error register
 	/// being set, nor will an error handler be called due to it. The error handler and appendix
 	/// may each still be set.
-	/// 
+	///
 	/// The apparent weight of this instruction is inclusive of the inner `Xcm`; the executing
 	/// weight however includes only the difference between the previous handler and the new
 	/// handler, which can reasonably be negative, which would result in a surplus.
@@ -453,10 +453,10 @@ pub enum Instruction<Call> {
 
 	/// Set code that should be called after code execution (including the error handler if any)
 	/// is finished. This will be called regardless of whether an error occurred.
-	/// 
-	/// Any error occuring due to execution of this code will result in the error register being
+	///
+	/// Any error occurring due to execution of this code will result in the error register being
 	/// set, and the error handler (if set) firing.
-	/// 
+	///
 	/// The apparent weight of this instruction is inclusive of the inner `Xcm`; the executing
 	/// weight however includes only the difference between the previous appendix and the new
 	/// appendix, which can reasonably be negative, which would result in a surplus.

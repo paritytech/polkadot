@@ -86,17 +86,19 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			return Outcome::Error(XcmError::WeightLimitReached(xcm_weight))
 		}
 		let origin = Some(origin);
-		
+
 		if Config::Barrier::should_execute(
-			&origin, 
-			true, 
-			&mut message, 
-			xcm_weight, 
+			&origin,
+			true,
+			&mut message,
+			xcm_weight,
 			&mut weight_credit,
-		).is_err() {
+		)
+		.is_err()
+		{
 			return Outcome::Error(XcmError::Barrier)
 		}
-		
+
 		let mut vm = Self::new(origin);
 
 		while !message.0.is_empty() {
@@ -147,10 +149,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 	/// Execute the XCM program fragment and report back the error and which instruction caused it,
 	/// or `Ok` if there was no error.
-	fn execute(
-		&mut self,
-		xcm: Xcm<Config::Call>,
-	) -> Result<(), (u32, XcmError)> {
+	fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), (u32, XcmError)> {
 		log::trace!(
 			target: "xcm::execute",
 			"origin: {:?}, total_surplus/refunded: {:?}/{:?}, error_handler_weight: {:?}",
@@ -161,20 +160,20 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		);
 		for (i, instr) in xcm.0.into_iter().enumerate() {
 			if let Err(e) = self.process_instruction(instr) {
-				return Err((i as u32, e));
+				return Err((i as u32, e))
 			}
 		}
 		return Ok(())
 	}
-	
+
 	/// Remove the registered error handler and return it. Do not refund its weight.
-	fn take_error_handler(&mut self) -> Xcm::<Config::Call> {
+	fn take_error_handler(&mut self) -> Xcm<Config::Call> {
 		let mut r = Xcm::<Config::Call>(vec![]);
 		sp_std::mem::swap(&mut self.error_handler, &mut r);
 		self.error_handler_weight = 0;
 		r
 	}
-	
+
 	/// Drop the registered error handler and refund its weight.
 	fn drop_error_handler(&mut self) {
 		self.error_handler = Xcm::<Config::Call>(vec![]);
@@ -183,7 +182,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 
 	/// Remove the registered appendix and return it.
-	fn take_appendix(&mut self) -> Xcm::<Config::Call> {
+	fn take_appendix(&mut self) -> Xcm<Config::Call> {
 		let mut r = Xcm::<Config::Call>(vec![]);
 		sp_std::mem::swap(&mut self.appendix, &mut r);
 		self.appendix_weight = 0;
@@ -201,7 +200,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		}
 	}
 
-	/// Process a single XCM instruction, mutating the state of the XCM VM.
+	/// Process a single XCM instruction, mutating the state of the XCM virtual machine.
 	fn process_instruction(&mut self, instr: Instruction<Config::Call>) -> Result<(), XcmError> {
 		match instr {
 			WithdrawAsset(assets) => {
@@ -303,7 +302,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::ResponseHandler::on_response(origin, query_id, response, max_weight);
 				Ok(())
 			},
-			DescendOrigin(who) => self.origin
+			DescendOrigin(who) => self
+				.origin
 				.as_mut()
 				.ok_or(XcmError::BadOrigin)?
 				.append_with(who)
@@ -371,9 +371,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// should be executed.
 				if let Some(weight) = Option::<u64>::from(weight_limit) {
 					// pay for `weight` using up to `fees` of the holding register.
-					let max_fee = self.holding
-						.try_take(fees.into())
-						.map_err(|_| XcmError::NotHoldingFees)?;
+					let max_fee =
+						self.holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
 					let unspent = self.trader.buy_weight(weight, max_fee)?;
 					self.holding.subsume_assets(unspent);
 				}
@@ -389,18 +388,18 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.error_handler = handler;
 				self.error_handler_weight = handler_weight;
 				Ok(())
-			}
+			},
 			SetAppendix(mut appendix) => {
 				let appendix_weight = Config::Weigher::weight(&mut appendix)?;
 				self.total_surplus = self.total_surplus.saturating_add(self.appendix_weight);
 				self.appendix = appendix;
 				self.appendix_weight = appendix_weight;
 				Ok(())
-			}
+			},
 			ClearError => {
 				self.error = None;
 				Ok(())
-			}
+			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
