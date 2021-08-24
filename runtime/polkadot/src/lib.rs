@@ -1141,7 +1141,13 @@ pub struct BountiesPrefixMigration;
 
 impl OnRuntimeUpgrade for BountiesPrefixMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
+			.expect("Bounties is part of runtime, so it has a name; qed");
+		pallet_bounties::migrations::v4::migrate::<Runtime, Bounties, _>(
+			BOUNTIES_OLD_PREFIX,
+			name,
+		)
 	}
 
 	#[cfg(feature = "try-runtime")]
