@@ -528,6 +528,7 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#16926936beabacd652fbcea795aa35ad1525daa5"
 dependencies = [
  "parity-scale-codec",
+ "scale-info",
  "sp-api",
  "sp-application-crypto",
  "sp-core",
@@ -714,6 +715,7 @@ dependencies = [
  "finality-grandpa",
  "frame-support",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-core",
  "sp-finality-grandpa",
@@ -728,6 +730,7 @@ dependencies = [
  "bp-runtime",
  "frame-support",
  "parity-scale-codec",
+ "scale-info",
  "sp-std",
 ]
 
@@ -741,6 +744,7 @@ dependencies = [
  "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-std",
 ]
@@ -755,6 +759,7 @@ dependencies = [
  "frame-system",
  "hex",
  "parity-scale-codec",
+ "scale-info",
  "sp-api",
  "sp-core",
  "sp-runtime",
@@ -800,6 +805,7 @@ dependencies = [
  "hash-db",
  "num-traits",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -851,6 +857,7 @@ dependencies = [
  "pallet-bridge-messages",
  "pallet-transaction-payment",
  "parity-scale-codec",
+ "scale-info",
  "sp-core",
  "sp-runtime",
  "sp-state-machine",
@@ -1864,9 +1871,9 @@ dependencies = [
 
 [[package]]
 name = "finality-grandpa"
-version = "0.14.1"
+version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74a1bfdcc776e63e49f741c7ce6116fa1b887e8ac2e3ccb14dd4aa113e54feb9"
+checksum = "c832d0ed507622c7cb98e9b7f10426850fc9d38527ab8071778dcc3a81d45875"
 dependencies = [
  "either",
  "futures 0.3.16",
@@ -1875,6 +1882,7 @@ dependencies = [
  "num-traits",
  "parity-scale-codec",
  "parking_lot 0.11.1",
+ "scale-info",
 ]
 
 [[package]]
@@ -3193,6 +3201,7 @@ dependencies = [
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
  "rustc-hex",
+ "scale-info",
  "separator",
  "serde",
  "serde_derive",
@@ -4665,6 +4674,7 @@ dependencies = [
  "frame-system",
  "log",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-core",
  "sp-io",
@@ -4686,6 +4696,7 @@ dependencies = [
  "log",
  "num-traits",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-finality-grandpa",
  "sp-io",
@@ -4712,6 +4723,7 @@ dependencies = [
  "num-traits",
  "pallet-balances",
  "parity-scale-codec",
+ "scale-info",
  "serde",
  "sp-core",
  "sp-io",
@@ -5284,6 +5296,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-runtime-parachains",
+ "scale-info",
  "serde",
  "sp-core",
  "sp-io",
@@ -5857,6 +5870,7 @@ version = "0.9.9"
 dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
+ "scale-info",
  "sp-core",
  "sp-runtime",
  "sp-std",
@@ -6513,6 +6527,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "polkadot-core-primitives",
+ "scale-info",
  "serde",
  "sp-core",
  "sp-runtime",
@@ -6531,6 +6546,7 @@ dependencies = [
  "polkadot-core-primitives",
  "polkadot-parachain",
  "pretty_assertions 0.7.2",
+ "scale-info",
  "serde",
  "sp-api",
  "sp-application-crypto",
@@ -6634,6 +6650,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "rustc-hex",
+ "scale-info",
  "separator",
  "serde",
  "serde_derive",
@@ -6666,6 +6683,7 @@ dependencies = [
 name = "polkadot-runtime-common"
 version = "0.9.9"
 dependencies = [
+ "beefy-primitives",
  "bitvec 0.20.1",
  "frame-benchmarking",
  "frame-support",
@@ -6692,6 +6710,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-parachains",
  "rustc-hex",
+ "scale-info",
  "serde",
  "serde_derive",
  "serde_json",
@@ -6744,6 +6763,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rustc-hex",
  "sc-keystore",
+ "scale-info",
  "serde",
  "serde_json",
  "sp-api",
@@ -7039,6 +7059,7 @@ dependencies = [
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
  "rustc-hex",
+ "scale-info",
  "serde",
  "serde_derive",
  "serde_json",
@@ -7910,6 +7931,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
+ "scale-info",
  "serde",
  "serde_derive",
  "smallvec",
@@ -11588,6 +11610,7 @@ dependencies = [
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
  "rustc-hex",
+ "scale-info",
  "serde",
  "serde_derive",
  "serde_json",
@@ -11720,6 +11743,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
+ "scale-info",
  "xcm-procedural",
 ]
 
@@ -11736,6 +11760,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-runtime-parachains",
+ "scale-info",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
@@ -11819,6 +11844,7 @@ dependencies = [
  "polkadot-core-primitives",
  "polkadot-parachain",
  "polkadot-runtime-parachains",
+ "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
