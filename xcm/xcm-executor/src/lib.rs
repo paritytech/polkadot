@@ -109,7 +109,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		instr: Instruction<Config::Call>,
 		holding: &mut Assets,
 		origin: &mut Option<MultiLocation>,
-		report_outcome: &mut Option<_>,
+		report_outcome: &mut Option<(MultiLocation, u64, u64)>,
 		weight_credit: &mut u64,
 		total_surplus: &mut u64,
 		total_refunded: &mut u64,
