@@ -535,7 +535,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const MinVestedTransfer: u64 = 0;
+		pub const MinVestedTransfer: u64 = 1;
 	}
 
 	impl pallet_vesting::Config for Test {
@@ -544,6 +544,7 @@ mod tests {
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
 		type WeightInfo = ();
+		const MAX_VESTING_SCHEDULES: u32 = 28;
 	}
 
 	parameter_types! {
