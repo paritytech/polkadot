@@ -49,7 +49,7 @@ pub struct FuturesUndead<Output> {
 	undead: usize,
 }
 
-/// All futures get a number, to determine whiche are live.
+/// All futures get a number, to determine which are live.
 #[derive(Eq, PartialEq, Copy, Clone, Debug, PartialOrd)]
 struct SequenceNumber(usize);
 
@@ -136,7 +136,9 @@ impl<Output> Stream for FuturesUndead<Output> {
 
 impl SequenceNumber {
 	pub fn inc(&mut self) {
-		self.0 += 1;
+		self.0 = self.0.checked_add(1).expect(
+            "We don't expect an `UndeadFuture` to live long enough for 2^64 entries ever getting inserted."
+        );
 	}
 }
 

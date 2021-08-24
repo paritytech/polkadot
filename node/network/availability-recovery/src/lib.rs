@@ -81,11 +81,11 @@ const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request")
 
 /// Time after which we consider a request to have failed
 ///
-/// and we should try more peers. Note in theory the rquest times out at the network level,
+/// and we should try more peers. Note in theory the request times out at the network level,
 /// measurements have shown, that in practice requests might actually take longer to fail in
 /// certain occasions. (The very least, authority discovery is not part of the timeout.)
 ///
-/// For the time beeing this value is the same as the timeout on the networking layer, but as this
+/// For the time being this value is the same as the timeout on the networking layer, but as this
 /// timeout is more soft than the networking one, it might make sense to pick different values as
 /// well.
 const TIMEOUT_START_NEW_REQUESTS: Duration = CHUNK_REQUEST_TIMEOUT;

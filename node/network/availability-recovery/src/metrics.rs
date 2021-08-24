@@ -38,7 +38,7 @@ struct MetricsInner {
 	/// Split by result:
 	/// - no_such_chunk ... peer did not have the requested chunk
 	/// - timeout ... request timed out.
-	/// - nework_error ... Some networking issue except timeout
+	/// - network_error ... Some networking issue except timeout
 	/// - invalid ... Chunk was received, but not valid.
 	/// - success
 	chunk_requests_finished: CounterVec<U64>,
