@@ -60,8 +60,11 @@ use polkadot_subsystem::{
 
 mod error;
 mod futures_undead;
+mod metrics;
+use metrics::Metrics;
 
 use futures_undead::FuturesUndead;
+use sc_network::{OutboundFailure, RequestFailure};
 
 #[cfg(test)]
 mod tests;
@@ -92,6 +95,8 @@ pub struct AvailabilityRecoverySubsystem {
 	fast_path: bool,
 	/// Receiver for available data requests.
 	req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+	/// Metrics for this subsystem.
+	metrics: Metrics,
 }
 
 struct RequestFromBackersPhase {
@@ -130,6 +135,9 @@ struct InteractionParams {
 
 	/// The root of the erasure encoding of the para block.
 	erasure_root: Hash,
+
+	/// Metrics to report
+	metrics: Metrics,
 }
 
 enum InteractionPhase {
@@ -302,7 +310,11 @@ impl RequestChunksPhase {
 					OutgoingRequest::new(Recipient::Authority(validator), raw_request.clone());
 				requests.push(Requests::ChunkFetching(req));
 
+				params.metrics.on_chunk_request_issued();
+				let timer = params.metrics.time_chunk_request();
+
 				self.requesting_chunks.push(Box::pin(async move {
+					let _timer = timer;
 					match res.await {
 						Ok(req_res::v1::ChunkFetchingResponse::Chunk(chunk)) =>
 							Ok(Some(chunk.recombine_into_chunk(&raw_request))),
@@ -323,15 +335,19 @@ impl RequestChunksPhase {
 	}
 
 	async fn wait_for_chunks(&mut self, params: &InteractionParams) {
+
+		let metrics = &params.metrics;
+
 		// Wait for all current requests to conclude or time-out, or until we reach enough chunks.
 		// We also declare requests undead, once `TIMEOUT_START_NEW_REQUESTS` is reached and will
 		// return in that case for `launch_parallel_requests` to fill up slots again.
 		while let Some(request_result) =
 			self.requesting_chunks.next_with_timeout(TIMEOUT_START_NEW_REQUESTS).await
 		{
+			self.total_received_responses += 1;
+
 			match request_result {
 				Ok(Some(chunk)) => {
-					self.total_received_responses += 1;
 					// Check merkle proofs of any received chunks.
 
 					let validator_index = chunk.index;
@@ -342,14 +358,20 @@ impl RequestChunksPhase {
 						let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 
 						if erasure_chunk_hash != anticipated_hash {
+
+							metrics.on_chunk_request_invalid();
+							self.error_count += 1;
+
 							tracing::debug!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
 								?validator_index,
 								"Merkle proof mismatch",
 							);
-							self.error_count += 1;
 						} else {
+
+							metrics.on_chunk_request_succeeded();
+
 							tracing::trace!(
 								target: LOG_TARGET,
 								candidate_hash = ?params.candidate_hash,
@@ -359,7 +381,10 @@ impl RequestChunksPhase {
 							self.received_chunks.insert(validator_index, chunk);
 						}
 					} else {
+
+						metrics.on_chunk_request_invalid();
 						self.error_count += 1;
+
 						tracing::debug!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
@@ -368,10 +393,14 @@ impl RequestChunksPhase {
 						);
 					}
 				},
-				Ok(None) => {},
-				Err((validator_index, e)) => {
-					self.total_received_responses += 1;
+				Ok(None) => {
+					metrics.on_chunk_request_no_such_chunk();
 					self.error_count += 1;
+				},
+				Err((validator_index, e)) => {
+
+					self.error_count += 1;
+
 					tracing::debug!(
 						target: LOG_TARGET,
 						candidate_hash= ?params.candidate_hash,
@@ -381,10 +410,24 @@ impl RequestChunksPhase {
 					);
 
 					match e {
-						RequestError::InvalidResponse(_) => {},
-						RequestError::NetworkError(_) | RequestError::Canceled(_) => {
+						RequestError::InvalidResponse(_) => {
+							metrics.on_chunk_request_invalid();
+						},
+						RequestError::NetworkError(err) => {
+							if let RequestFailure::Network(OutboundFailure::Timeout) = err {
+								metrics.on_chunk_request_timeout();
+							} else {
+								metrics.on_chunk_request_error();
+							}
+
 							self.shuffling.push_front(validator_index);
 						},
+						RequestError::Canceled(_) => {
+
+							metrics.on_chunk_request_error();
+
+							self.shuffling.push_front(validator_index);
+						}
 					}
 				},
 			}
@@ -690,6 +733,7 @@ async fn launch_interaction<Context>(
 	receipt: CandidateReceipt,
 	backing_group: Option<GroupIndex>,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
+	metrics: &Metrics,
 ) -> error::Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityRecoveryMessage>,
@@ -703,6 +747,7 @@ where
 		threshold: recovery_threshold(session_info.validators.len())?,
 		candidate_hash,
 		erasure_root: receipt.descriptor.erasure_root,
+		metrics: metrics.clone(),
 	};
 
 	let phase = backing_group
@@ -743,6 +788,7 @@ async fn handle_recover<Context>(
 	session_index: SessionIndex,
 	backing_group: Option<GroupIndex>,
 	response_sender: oneshot::Sender<Result<AvailableData, RecoveryError>>,
+	metrics: &Metrics,
 ) -> error::Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityRecoveryMessage>,
@@ -778,7 +824,7 @@ where
 	let _span = span.child("session-info-ctx-received");
 	match session_info {
 		Some(session_info) =>
-			launch_interaction(state, ctx, session_info, receipt, backing_group, response_sender)
+			launch_interaction(state, ctx, session_info, receipt, backing_group, response_sender, metrics)
 				.await,
 		None => {
 			tracing::warn!(target: LOG_TARGET, "SessionInfo is `None` at {:?}", state.live_block);
@@ -807,18 +853,21 @@ where
 }
 
 impl AvailabilityRecoverySubsystem {
-	/// Create a new instance of `AvailabilityRecoverySubsystem` which starts with a fast path to request data from backers.
+	/// Create a new instance of `AvailabilityRecoverySubsystem` which starts with a fast path to
+	/// request data from backers.
 	pub fn with_fast_path(
 		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+		metrics: Metrics,
 	) -> Self {
-		Self { fast_path: true, req_receiver }
+		Self { fast_path: true, req_receiver, metrics }
 	}
 
 	/// Create a new instance of `AvailabilityRecoverySubsystem` which requests only chunks
 	pub fn with_chunks_only(
 		req_receiver: IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
+		metrics: Metrics,
 	) -> Self {
-		Self { fast_path: false, req_receiver }
+		Self { fast_path: false, req_receiver, metrics }
 	}
 
 	async fn run<Context>(self, mut ctx: Context) -> SubsystemResult<()>
@@ -827,7 +876,7 @@ impl AvailabilityRecoverySubsystem {
 		Context: overseer::SubsystemContext<Message = AvailabilityRecoveryMessage>,
 	{
 		let mut state = State::default();
-		let Self { fast_path, mut req_receiver } = self;
+		let Self { fast_path, mut req_receiver, metrics } = self;
 
 		loop {
 			let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
@@ -856,6 +905,7 @@ impl AvailabilityRecoverySubsystem {
 										session_index,
 										maybe_backing_group.filter(|_| fast_path),
 										response_sender,
+										&metrics,
 									).await {
 										tracing::warn!(
 											target: LOG_TARGET,

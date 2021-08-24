@@ -37,9 +37,13 @@ struct MetricsInner {
 	///
 	/// Split by result:
 	/// - no_such_chunk ... peer did not have the requested chunk
-	/// - nework_error ... Some networking issue except timeout
 	/// - timeout ... request timed out.
+	/// - nework_error ... Some networking issue except timeout
+	/// - invalid ... Chunk was received, but not valid.
+	/// - success
 	chunk_requests_finished: CounterVec<U64>,
+	/// The duration of request to response.
+	time_chunk_request: prometheus::Histogram,
 }
 
 impl Metrics {
@@ -62,18 +66,36 @@ impl Metrics {
 		}
 	}
 
-	/// A chunk request failed for some non timeout related error.
+	/// A chunk request failed because validator did not have its chunk.
+	pub fn on_chunk_request_no_such_chunk(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.chunk_requests_finished.with_label_values(&["no_such_chunk"]).inc()
+		}
+	}
+
+	/// A chunk request failed for some non timeout related network error.
 	pub fn on_chunk_request_error(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.chunk_requests_finished.with_label_values(&["error"]).inc()
 		}
 	}
 
-	/// A chunk request succeeded.
-	pub fn on_chunk_request_finished(&self) {
+	/// A chunk request succeeded, but was not valid.
+	pub fn on_chunk_request_invalid(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.chunk_requests_finished.with_label_values(&["received"]).inc()
+			metrics.chunk_requests_finished.with_label_values(&["invalid"]).inc()
 		}
+	}
+
+	/// A chunk request succeeded.
+	pub fn on_chunk_request_succeeded(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.chunk_requests_finished.with_label_values(&["success"]).inc()
+		}
+	}
+	/// Get a timer to time request/response duration.
+	pub fn time_chunk_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_chunk_request.start_timer())
 	}
 }
 
@@ -94,6 +116,15 @@ impl metrics::Metrics for Metrics {
 						"",
 					),
 					&["result"]
+				)?,
+				registry,
+			)?,
+			time_chunk_request: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_availability_recovery_time_chunk_request",
+						"Time spent waiting for a response to a chunk request",
+					)
 				)?,
 				registry,
 			)?,
