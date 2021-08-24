@@ -311,7 +311,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	DescendOrigin(InteriorMultiLocation),
 
-	/// When execution of the current XCM scope finished report its outcome to `dest`.
+	/// Immediately report the contents of the Error Register to the given destination via XCM.
 	///
 	/// A `QueryResponse` message of type `ExecutionOutcome` is sent to `dest` with the given
 	/// `query_id` and the outcome of the XCM.
@@ -319,7 +319,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	ReportOutcome {
+	ReportError {
 		#[codec(compact)]
 		query_id: u64,
 		dest: MultiLocation,
@@ -442,10 +442,28 @@ pub enum Instruction<Call> {
 
 	/// Set code that should be called in the case of an error happening.
 	/// 
+	/// An error occuring within execution of this code will _NOT_ result in the error register
+	/// being set, nor will an error handler be called due to it. The error handler and appendix
+	/// may each still be set.
+	/// 
 	/// The apparent weight of this instruction is inclusive of the inner `Xcm`; the executing
-	/// weight however includes only the difference between the previous handler and the inner
-	/// handler, which can reasonably be negative.
+	/// weight however includes only the difference between the previous handler and the new
+	/// handler, which can reasonably be negative, which would result in a surplus.
 	SetErrorHandler(Xcm<Call>),
+
+	/// Set code that should be called after code execution (including the error handler if any)
+	/// is finished. This will be called regardless of whether an error occurred.
+	/// 
+	/// Any error occuring due to execution of this code will result in the error register being
+	/// set, and the error handler (if set) firing.
+	/// 
+	/// The apparent weight of this instruction is inclusive of the inner `Xcm`; the executing
+	/// weight however includes only the difference between the previous appendix and the new
+	/// appendix, which can reasonably be negative, which would result in a surplus.
+	SetAppendix(Xcm<Call>),
+
+	/// Clear the error register.
+	ClearError,
 }
 
 impl<Call> Xcm<Call> {
@@ -479,8 +497,8 @@ impl<Call> Instruction<Call> {
 				HrmpChannelClosing { initiator, sender, recipient },
 			Transact { origin_type, require_weight_at_most, call } =>
 				Transact { origin_type, require_weight_at_most, call: call.into() },
-			ReportOutcome { query_id, dest, max_response_weight } =>
-				ReportOutcome { query_id, dest, max_response_weight },
+			ReportError { query_id, dest, max_response_weight } =>
+				ReportError { query_id, dest, max_response_weight },
 			DepositAsset { assets, max_assets, beneficiary } =>
 				DepositAsset { assets, max_assets, beneficiary },
 			DepositReserveAsset { assets, max_assets, dest, xcm } =>
@@ -496,6 +514,8 @@ impl<Call> Instruction<Call> {
 			DescendOrigin(who) => DescendOrigin(who),
 			RefundSurplus => RefundSurplus,
 			SetErrorHandler(xcm) => SetErrorHandler(xcm.into()),
+			SetAppendix(xcm) => SetAppendix(xcm.into()),
+			ClearError => ClearError,
 		}
 	}
 }

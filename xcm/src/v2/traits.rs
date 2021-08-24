@@ -21,7 +21,7 @@ use parity_scale_codec::{Decode, Encode};
 
 use super::{MultiLocation, Xcm};
 
-#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Error {
 	Undefined,
 	/// An arithmetic overflow happened.

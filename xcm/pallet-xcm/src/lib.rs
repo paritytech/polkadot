@@ -482,7 +482,8 @@ pub mod pallet {
 		) -> QueryId {
 			let dest = T::LocationInverter::invert_location(&responder);
 			let query_id = Self::new_query(responder, timeout);
-			message.0.insert(0, ReportOutcome { dest, query_id, max_response_weight: 0 });
+			let report_error = Xcm(vec![ReportError { dest, query_id, max_response_weight: 0 }]);
+			message.0.insert(0, SetAppendix(report_error));
 			query_id
 		}
 
@@ -514,7 +515,8 @@ pub mod pallet {
 			let notify: <T as Config>::Call = notify.into();
 			let max_response_weight = notify.get_dispatch_info().weight;
 			let query_id = Self::new_notify_query(responder, notify, timeout);
-			message.0.insert(0, ReportOutcome { dest, query_id, max_response_weight });
+			let report_error = Xcm(vec![ReportError { dest, query_id, max_response_weight }]);
+			message.0.insert(0, SetAppendix(report_error));
 		}
 
 		/// Attempt to create a new query ID and register it as a query that is yet to respond.

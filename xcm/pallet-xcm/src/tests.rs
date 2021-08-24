@@ -43,7 +43,9 @@ fn report_outcome_notify_works() {
 		assert_eq!(
 			message,
 			Xcm(vec![
-				ReportOutcome { query_id: 0, dest: Parent.into(), max_response_weight: 1_000_000 },
+				SetAppendix(Xcm(vec![
+					ReportError { query_id: 0, dest: Parent.into(), max_response_weight: 1_000_000 },
+				])),
 				TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
 			])
 		);
@@ -93,7 +95,9 @@ fn report_outcome_works() {
 		assert_eq!(
 			message,
 			Xcm(vec![
-				ReportOutcome { query_id: 0, dest: Parent.into(), max_response_weight: 0 },
+				SetAppendix(Xcm(vec![
+					ReportError { query_id: 0, dest: Parent.into(), max_response_weight: 0 },
+				])),
 				TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
 			])
 		);
