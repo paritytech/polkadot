@@ -53,7 +53,8 @@ fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseCo
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
-	let subsystem = AvailabilityRecoverySubsystem::with_fast_path(collation_req_receiver);
+	let subsystem =
+		AvailabilityRecoverySubsystem::with_fast_path(collation_req_receiver, Metrics::new_dummy());
 	let subsystem = async {
 		subsystem.run(context).await.unwrap();
 	};
@@ -86,7 +87,10 @@ fn test_harness_chunks_only<T: Future<Output = (VirtualOverseer, RequestResponse
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
-	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only(collation_req_receiver);
+	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only(
+		collation_req_receiver,
+		Metrics::new_dummy(),
+	);
 	let subsystem = subsystem.run(context);
 
 	let test_fut = test(virtual_overseer, req_cfg);
@@ -1098,4 +1102,35 @@ fn does_not_query_local_validator() {
 		assert_eq!(rx.await.unwrap().unwrap(), test_state.available_data);
 		(virtual_overseer, req_cfg)
 	});
+}
+
+#[test]
+fn parallel_request_calculation_works_as_expected() {
+	let num_validators = 100;
+	let threshold = recovery_threshold(num_validators).unwrap();
+	let mut phase = RequestChunksPhase::new(100);
+	assert_eq!(phase.get_desired_request_count(threshold), threshold);
+	phase.error_count = 1;
+	phase.total_received_responses = 1;
+	// We saturate at threshold (34):
+	assert_eq!(phase.get_desired_request_count(threshold), threshold);
+
+	let dummy_chunk =
+		ErasureChunk { chunk: Vec::new(), index: ValidatorIndex(0), proof: Vec::new() };
+	phase.received_chunks.insert(ValidatorIndex(0), dummy_chunk.clone());
+	phase.total_received_responses = 2;
+	// With given error rate - still saturating:
+	assert_eq!(phase.get_desired_request_count(threshold), threshold);
+	for i in 1..9 {
+		phase.received_chunks.insert(ValidatorIndex(i), dummy_chunk.clone());
+	}
+	phase.total_received_responses += 8;
+	// error rate: 1/10
+	// remaining chunks needed: threshold (34) - 9
+	// expected: 24 * (1+ 1/10) = (next greater integer) = 27
+	assert_eq!(phase.get_desired_request_count(threshold), 27);
+	phase.received_chunks.insert(ValidatorIndex(9), dummy_chunk.clone());
+	phase.error_count = 0;
+	// With error count zero - we should fetch exactly as needed:
+	assert_eq!(phase.get_desired_request_count(threshold), threshold - phase.received_chunks.len());
 }

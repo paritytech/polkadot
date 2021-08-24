@@ -253,7 +253,7 @@ impl RequestChunksPhase {
 	fn is_unavailable(&self, params: &InteractionParams) -> bool {
 		is_unavailable(
 			self.received_chunks.len(),
-			self.requesting_chunks.len(),
+			self.requesting_chunks.total_len(),
 			self.shuffling.len(),
 			params.threshold,
 		)
@@ -263,11 +263,11 @@ impl RequestChunksPhase {
 		self.received_chunks.len() >= params.threshold || self.is_unavailable(params)
 	}
 
-	async fn launch_parallel_requests(
-		&mut self,
-		params: &InteractionParams,
-		sender: &mut impl SubsystemSender,
-	) {
+	/// Desired number of parallel requests.
+	///
+	/// For the given threshold (total required number of chunks) get the desired number of
+	/// requests we want to have running in parallel at this time.
+	fn get_desired_request_count(&self, threshold: usize) -> usize {
 		// Upper bound for parallel requests.
 		// We want to limit this, so requests can be processed within the timeout and we limit the
 		// following feedback loop:
@@ -275,18 +275,25 @@ impl RequestChunksPhase {
 		// 2. We request more chunks to make up for it
 		// 3. Bandwidth is spread out even more, so we get even more timeouts
 		// 4. We request more chunks to make up for it ...
-		let max_requests_boundary = std::cmp::min(N_PARALLEL, params.threshold);
+		let max_requests_boundary = std::cmp::min(N_PARALLEL, threshold);
 		// How many chunks are still needed?
-		let remaining_chunks = params.threshold.saturating_sub(self.received_chunks.len());
+		let remaining_chunks = threshold.saturating_sub(self.received_chunks.len());
 		// What is the current error rate, so we can make up for it?
 		let inv_error_rate =
 			self.total_received_responses.checked_div(self.error_count).unwrap_or(0);
 		// Actual number of requests we want to have in flight in parallel:
-		let num_requests = std::cmp::min(
+		std::cmp::min(
 			max_requests_boundary,
 			remaining_chunks + remaining_chunks.checked_div(inv_error_rate).unwrap_or(0),
-		);
+		)
+	}
 
+	async fn launch_parallel_requests(
+		&mut self,
+		params: &InteractionParams,
+		sender: &mut impl SubsystemSender,
+	) {
+		let num_requests = self.get_desired_request_count(params.threshold);
 		let mut requests = Vec::with_capacity(num_requests - self.requesting_chunks.len());
 
 		while self.requesting_chunks.len() < num_requests {
@@ -335,7 +342,6 @@ impl RequestChunksPhase {
 	}
 
 	async fn wait_for_chunks(&mut self, params: &InteractionParams) {
-
 		let metrics = &params.metrics;
 
 		// Wait for all current requests to conclude or time-out, or until we reach enough chunks.
@@ -358,7 +364,6 @@ impl RequestChunksPhase {
 						let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
 
 						if erasure_chunk_hash != anticipated_hash {
-
 							metrics.on_chunk_request_invalid();
 							self.error_count += 1;
 
@@ -369,7 +374,6 @@ impl RequestChunksPhase {
 								"Merkle proof mismatch",
 							);
 						} else {
-
 							metrics.on_chunk_request_succeeded();
 
 							tracing::trace!(
@@ -381,7 +385,6 @@ impl RequestChunksPhase {
 							self.received_chunks.insert(validator_index, chunk);
 						}
 					} else {
-
 						metrics.on_chunk_request_invalid();
 						self.error_count += 1;
 
@@ -398,7 +401,6 @@ impl RequestChunksPhase {
 					self.error_count += 1;
 				},
 				Err((validator_index, e)) => {
-
 					self.error_count += 1;
 
 					tracing::debug!(
@@ -423,11 +425,10 @@ impl RequestChunksPhase {
 							self.shuffling.push_front(validator_index);
 						},
 						RequestError::Canceled(_) => {
-
 							metrics.on_chunk_request_error();
 
 							self.shuffling.push_front(validator_index);
-						}
+						},
 					}
 				},
 			}
@@ -483,6 +484,7 @@ impl RequestChunksPhase {
 					erasure_root = ?params.erasure_root,
 					received = %self.received_chunks.len(),
 					requesting = %self.requesting_chunks.len(),
+					total_requesting = %self.requesting_chunks.total_len(),
 					n_validators = %params.validators.len(),
 					"Data recovery is not possible",
 				);
@@ -824,8 +826,16 @@ where
 	let _span = span.child("session-info-ctx-received");
 	match session_info {
 		Some(session_info) =>
-			launch_interaction(state, ctx, session_info, receipt, backing_group, response_sender, metrics)
-				.await,
+			launch_interaction(
+				state,
+				ctx,
+				session_info,
+				receipt,
+				backing_group,
+				response_sender,
+				metrics,
+			)
+			.await,
 		None => {
 			tracing::warn!(target: LOG_TARGET, "SessionInfo is `None` at {:?}", state.live_block);
 			response_sender

@@ -104,32 +104,26 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			chunk_requests_issued: prometheus::register(
 				Counter::new(
-						"parachain_availability_recovery_chunk_requests_issued",
-						"Total number of issued chunk requests.",
+					"parachain_availability_recovery_chunk_requests_issued",
+					"Total number of issued chunk requests.",
 				)?,
 				registry,
 			)?,
 			chunk_requests_finished: prometheus::register(
 				CounterVec::new(
-					Opts::new(
-						"parachain_availability_recovery_chunk_requests_finished",
-						"",
-					),
-					&["result"]
+					Opts::new("parachain_availability_recovery_chunk_requests_finished", ""),
+					&["result"],
 				)?,
 				registry,
 			)?,
 			time_chunk_request: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_availability_recovery_time_chunk_request",
-						"Time spent waiting for a response to a chunk request",
-					)
-				)?,
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"parachain_availability_recovery_time_chunk_request",
+					"Time spent waiting for a response to a chunk request",
+				))?,
 				registry,
 			)?,
 		};
 		Ok(Metrics(Some(metrics)))
 	}
 }
-
