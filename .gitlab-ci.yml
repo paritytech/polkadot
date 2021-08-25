@@ -28,6 +28,8 @@ variables:
   CI_SERVER_NAME:                  "GitLab CI"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
+  SIMNET_IMAGE_NAME:               "docker.io/paritytech/simnet"
+  SIMNET_IMAGE_TAG:                "v9"
 
 default:
   cache:                           {}
@@ -142,7 +144,9 @@ test-build-linux-stable:
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
-    - time cargo build --release --verbose --bin polkadot
+    # disputes feature is needed for simnet parachains malus test
+    - time cargo build --release --verbose --bin polkadot --features disputes
+    - time c
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
@@ -374,7 +378,7 @@ publish-malus-image:
   variables:
     <<:                            *image-variables
     # scripts/docker/malus.Dockerfile
-    DOCKERFILE:                    collator.Dockerfile
+    DOCKERFILE:                    malus.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/malus
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -521,7 +525,6 @@ deploy-polkasync-kusama:
 
 simnet-tests-parachians-smoketest:
   stage:                           deploy
-  image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
   <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -531,25 +534,34 @@ simnet-tests-parachians-smoketest:
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-adder-collator-image
+
+  image:                           '${SIMNET_IMAGE_NAME}:${SIMNET_IMAGE_TAG}'
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx/simnet_tests'
+    # FIXME: use the master after the merge of the malus pr
+    # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/simnet_tests'
+    NETWORK_CONFIG:                'simnet_tests/configs/simple_rococo_testnet.toml'
   # `parachains.env` brings here `$PARACHAINS_IMAGE_NAME` and `$PARACHAINS_IMAGE_TAG`
   # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
   # `collator.env` brings here `$COLLATOR_IMAGE_NAME` and  `$COLLATOR_IMAGE_TAG`
   # For local tests with docker `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG`
   # can be replaced with `master` tag.
-
-  # SIMNET_REF is a gitlab variable
   before_script:
     - echo "Simnet Tests Config
-        ${SIMNET_IMAGE_NAME} ${SIMNET_REF}
+        ${SIMNET_IMAGE_NAME} ${SIMNET_IMAGE_TAG}
         ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
-        ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+        ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}
+        ${GH_DIR}
+        ${NETWORK_CONFIG}
+        "
   script:
     - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
-        --github-remote-dir="https://github.com/paritytech/polkadot/tree/master/simnet_tests"
-        --config="simnet_tests/configs/simple_rococo_testnet.toml"
+        --github-remote-dir="${GH_DIR}"
+        --config="${NETWORK_CONFIG}"
         --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image-simnet="docker.io/paritytech/simnet:${SIMNET_REF}"
+        -e "SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}" 
+        -e "COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}" 
+        -e "SCRIPTSIMAGE=${SIMNET_IMAGE_NAME}:${SIMNET_IMAGE_TAG}"
   allow_failure:                   true
   retry: 2
   tags:
@@ -557,7 +569,7 @@ simnet-tests-parachians-smoketest:
 
 simnet-tests-malus-dispute-valid:
   stage:                           deploy
-  image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
+  image:                           '${SIMNET_IMAGE_NAME}:${SIMNET_IMAGE_TAG}'
   <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -566,23 +578,31 @@ simnet-tests-malus-dispute-valid:
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         publish-malus-image
+
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx/simnet_tests'
+    # FIXME: use the master after the merge of the malus pr
+    # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/simnet_tests'
+    NETWORK_CONFIG:                'simnet_tests/configs/simple_rococo_testnet.toml'
   # `malus.env` brings here `$MALUS_IMAGE_NAME` and `$MALUS_IMAGE_TAG`
   # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
   # For local tests with docker `$MALUS_IMAGE_TAG` can be replaced with `master` tag.
 
-  # SIMNET_REF is a gitlab variable
   before_script:
     - echo "Simnet Tests Config
-        ${SIMNET_IMAGE_NAME} ${SIMNET_REF}
+        ${SIMNET_IMAGE_NAME} ${SIMNET_IMAGE_TAG}
         ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
-        ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+        ${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}
+        ${GH_DIR}
+        ${NETWORK_CONFIG}
+        "
   script:
     - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
-        --github-remote-dir="https://github.com/paritytech/polkadot/tree/master/simnet_tests"
-        --config="simnet_tests/configs/simple_rococo_testnet.toml"
+        --github-remote-dir="${GH_DIR}"
+        --config="${NETWORK_CONFIG}"
         --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image-simnet="docker.io/paritytech/simnet:${SIMNET_REF}"
+        -e "SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}" 
+        -e "MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}" 
   allow_failure:                   true
   retry: 2
   tags:

@@ -1,5 +1,5 @@
 [settings.defaults]
-image = "parity/polkadot"
+image = "{{get_env(name="SYNTHIMAGE") | safe }}"
 command = "polkadot"
 chain-name = "polkadot-local"
 timeout = 1000
@@ -7,23 +7,23 @@ timeout = 1000
 [nodes.alice]
 validator = true
 extra-args = ["--alice"]
-image = "parity/polkadot"
+image = "{{get_env(name="SYNTHIMAGE") | safe }}"
 command = "polkadot"
 
 [nodes.bob]
 validator = true
 extra-args = ["--bob"]
-image = "parity/polkadot"
+image = "{{get_env(name="SYNTHIMAGE") | safe }}"
 command = "polkadot"
 
 [nodes.charlie]
 validator = true
 extra-args = ["--charlie"]
-image = "parity/polkadot"
+image = "{{get_env(name="SYNTHIMAGE") | safe }}"
 command = "polkadot"
 
 [nodes.david]
 validator = true
 extra-args = ["--dave"]
-image = "paritypr/malus:v1"
+image = "{{get_env(name="MALUSIMAGE") | safe }}"
 command = "/usr/local/bin/malus-dispute-valid-block"
