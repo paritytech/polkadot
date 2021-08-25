@@ -170,6 +170,7 @@ where
 		),
 		availability_recovery: AvailabilityRecoverySubsystem::with_chunks_only(
 			available_data_req_receiver,
+			Metrics::register(registry)?,
 		),
 		availability_store: AvailabilityStoreSubsystem::new(
 			parachains_db.clone(),
