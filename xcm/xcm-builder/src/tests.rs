@@ -255,6 +255,39 @@ fn errors_should_return_unused_weight() {
 }
 
 #[test]
+fn weight_bounds_should_respect_instructions_limit() {
+	MaxInstructions::set(3);
+	let mut message = Xcm(vec![ClearOrigin; 4]);
+	// 4 instructions are too many.
+	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Err(()));
+
+	let mut message = Xcm(vec![
+		SetErrorHandler(Xcm(vec![ClearOrigin])),
+		SetAppendix(Xcm(vec![ClearOrigin])),
+	]);
+	// 4 instructions are too many, even when hidden within 2.
+	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Err(()));
+
+	let mut message = Xcm(vec![
+		SetErrorHandler(Xcm(vec![
+			SetErrorHandler(Xcm(vec![
+				SetErrorHandler(Xcm(vec![ClearOrigin]))
+			]))
+		])),
+	]);
+	// 4 instructions are too many, even when it's just one that's 3 levels deep.
+	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Err(()));
+
+	let mut message = Xcm(vec![
+		SetErrorHandler(Xcm(vec![
+			SetErrorHandler(Xcm(vec![ClearOrigin]))
+		])),
+	]);
+	// 3 instructions are OK.
+	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Ok(30));
+}
+
+#[test]
 fn code_registers_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![Here.into()]);
