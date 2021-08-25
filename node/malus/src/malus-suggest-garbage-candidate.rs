@@ -85,7 +85,6 @@ where
 					.unbounded_send((sender.clone(), hash, candidate_receipt.clone()))
 					.unwrap();
 
-				// TODO not sure if this is necessary or not
 				Some(FromOverseer::Communication {
 					msg: CandidateBackingMessage::Second(
 						hash,

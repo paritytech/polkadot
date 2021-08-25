@@ -107,10 +107,6 @@ where
 		msg: FromOverseer<Self::Message>,
 	) -> Option<FromOverseer<Self::Message>> {
 		match msg {
-			// FromOverseer::Communication {
-			// 	msg:
-			// 	DisputeCoordinatorMessage::
-			// }
 			FromOverseer::Communication {
 				msg:
 					CandidateValidationMessage::ValidateFromExhaustive(

@@ -6,39 +6,39 @@ ARG BUILD_DATE
 ARG IMAGE_NAME
 
 LABEL io.parity.image.authors="devops-team@parity.io" \
-	io.parity.image.vendor="Parity Technologies" \
-	io.parity.image.title="${IMAGE_NAME}" \
-	io.parity.image.description="polkadot: a platform for web3" \
-	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/docker/malus.Dockerfile" \
-	io.parity.image.revision="${VCS_REF}" \
-	io.parity.image.created="${BUILD_DATE}" \
-	io.parity.image.documentation="https://github.com/paritytech/polkadot/"
+    io.parity.image.vendor="Parity Technologies" \
+    io.parity.image.title="${IMAGE_NAME}" \
+    io.parity.image.description="polkadot: a platform for web3" \
+    io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/docker/malus.Dockerfile" \
+    io.parity.image.revision="${VCS_REF}" \
+    io.parity.image.created="${BUILD_DATE}" \
+    io.parity.image.documentation="https://github.com/paritytech/polkadot/"
 
 # show backtraces
 ENV RUST_BACKTRACE 1
 
 # install tools and dependencies
 RUN apt-get update && \
-	DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ca-certificates \
     curl \
     libssl1.1 \
     tini && \
 # apt cleanup
-	apt-get autoremove -y && \
-	apt-get clean && \
-	find /var/lib/apt/lists/ -type f -not -name lock -delete; \
-# add user  
-  groupadd --gid 10000 nonroot && \
-  useradd  --home-dir /home/nonroot \
-           --create-home \
-           --shell /bin/bash \
-           --gid nonroot \
-           --groups nonroot \
-           --uid 10000 nonroot
+    apt-get autoremove -y && \
+    apt-get clean && \
+    find /var/lib/apt/lists/ -type f -not -name lock -delete; \
+# add user
+    groupadd --gid 10000 nonroot && \
+    useradd --home-dir /home/nonroot \
+            --create-home \
+            --shell /bin/bash \
+            --gid nonroot \
+            --groups nonroot \
+            --uid 10000 nonroot
 
 
-# add adder-collator binary to docker image
+# add malus binaries to the docker image
 COPY ./malus-dispute-ancestor /usr/local/bin
 COPY ./malus-suggest-garbage-candidate /usr/local/bin
 
