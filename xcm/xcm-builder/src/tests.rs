@@ -261,28 +261,20 @@ fn weight_bounds_should_respect_instructions_limit() {
 	// 4 instructions are too many.
 	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Err(()));
 
-	let mut message = Xcm(vec![
-		SetErrorHandler(Xcm(vec![ClearOrigin])),
-		SetAppendix(Xcm(vec![ClearOrigin])),
-	]);
+	let mut message =
+		Xcm(vec![SetErrorHandler(Xcm(vec![ClearOrigin])), SetAppendix(Xcm(vec![ClearOrigin]))]);
 	// 4 instructions are too many, even when hidden within 2.
 	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Err(()));
 
-	let mut message = Xcm(vec![
-		SetErrorHandler(Xcm(vec![
-			SetErrorHandler(Xcm(vec![
-				SetErrorHandler(Xcm(vec![ClearOrigin]))
-			]))
-		])),
-	]);
+	let mut message =
+		Xcm(vec![SetErrorHandler(Xcm(vec![SetErrorHandler(Xcm(vec![SetErrorHandler(Xcm(
+			vec![ClearOrigin],
+		))]))]))]);
 	// 4 instructions are too many, even when it's just one that's 3 levels deep.
 	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Err(()));
 
-	let mut message = Xcm(vec![
-		SetErrorHandler(Xcm(vec![
-			SetErrorHandler(Xcm(vec![ClearOrigin]))
-		])),
-	]);
+	let mut message =
+		Xcm(vec![SetErrorHandler(Xcm(vec![SetErrorHandler(Xcm(vec![ClearOrigin]))]))]);
 	// 3 instructions are OK.
 	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Ok(30));
 }
