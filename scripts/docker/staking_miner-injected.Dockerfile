@@ -1,3 +1,8 @@
+# to build on a linux host:
+#   cargo build --release --lockec -p staking-miner
+#   cd target/release
+# 	docker build -t taking-miner -f ../../scripts/docker/staking_miner-injected.Dockerfile .
+
 FROM debian:buster-slim
 
 # metadata
