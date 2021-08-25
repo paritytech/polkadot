@@ -1115,8 +1115,11 @@ fn parallel_request_calculation_works_as_expected() {
 	// We saturate at threshold (34):
 	assert_eq!(phase.get_desired_request_count(threshold), threshold);
 
-	let dummy_chunk =
-		ErasureChunk { chunk: Vec::new(), index: ValidatorIndex(0), proof: unsafe { Proof::dummy_proof() } };
+	let dummy_chunk = ErasureChunk {
+		chunk: Vec::new(),
+		index: ValidatorIndex(0),
+		proof: unsafe { Proof::dummy_proof() },
+	};
 	phase.received_chunks.insert(ValidatorIndex(0), dummy_chunk.clone());
 	phase.total_received_responses = 2;
 	// With given error rate - still saturating:

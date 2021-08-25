@@ -75,7 +75,7 @@ impl<Output> FuturesUndead<Output> {
 
 	/// Make all contained futures undead.
 	///
-	/// (They will no longer be counted on a call to `len`.
+	/// They will no longer be counted on a call to `len`.
 	pub fn soft_cancel(&mut self) {
 		self.undead = self.inner.len();
 		self.first_live = Some(self.next_sequence);
