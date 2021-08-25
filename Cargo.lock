@@ -6211,6 +6211,7 @@ dependencies = [
  "bitvec 0.20.1",
  "futures 0.3.16",
  "futures-timer 3.0.2",
+ "parity-scale-codec",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",

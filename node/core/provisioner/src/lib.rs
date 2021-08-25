@@ -25,6 +25,7 @@ use futures::{
 	prelude::*,
 };
 use futures_timer::Delay;
+use parity_scale_codec::Encode;
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	jaeger,
@@ -53,6 +54,8 @@ mod tests;
 
 /// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
+const MAX_CANDIDATES_SIZE: usize = 53_000;
+const MAX_SINGLE_CANDIDATE_SIZE: usize = 1_500;
 
 const LOG_TARGET: &str = "parachain::provisioner";
 
@@ -466,18 +469,42 @@ async fn select_candidates(
 	}
 
 	// keep only one candidate with validation code.
-	let mut with_validation_code = false;
-	candidates.retain(|c| {
-		if c.candidate.commitments.new_validation_code.is_some() {
-			if with_validation_code {
-				return false
-			}
+	let mut with_validation_code = None;
+	let mut cumulative_size = 0usize;
+	let mut out = Vec::new();
 
-			with_validation_code = true;
+	// Drain the candidates list to extract a suitable list to propose
+	while let Some(c) = candidates.pop() {
+		// If candidate exceeds max candidate size, we needn't include them
+		let encoded = c.encode();
+		if encoded.len() > MAX_SINGLE_CANDIDATE_SIZE {
+			continue
 		}
 
-		true
-	});
+		// If candidate leads to an overlength block, we needn't include them
+		cumulative_size += encoded.len();
+		if cumulative_size > MAX_CANDIDATES_SIZE {
+			break
+		}
+
+		// If candidate contains new validation code, we update cumulative_size
+		if c.candidate
+			.commitments
+			.new_validation_code
+			.as_ref()
+			.map(|_| {
+				cumulative_size.saturating_sub(
+					with_validation_code
+						.replace(c.clone())
+						.map(|v| v.encode().len())
+						.unwrap_or_default(),
+				)
+			})
+			.is_none()
+		{
+			out.push(c);
+		}
+	}
 
 	tracing::debug!(
 		target: LOG_TARGET,
@@ -486,7 +513,7 @@ async fn select_candidates(
 		availability_cores.len(),
 	);
 
-	Ok(candidates)
+	Ok(out)
 }
 
 /// Produces a block number 1 higher than that of the relay parent

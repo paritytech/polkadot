@@ -9,6 +9,7 @@ bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 futures = "0.3.15"
 tracing = "0.1.26"
 thiserror = "1.0.26"
+parity-scale-codec = "2.2.0"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
