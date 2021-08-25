@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Lt dest: (), max_response_weight: () d.
+// Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify

@@ -65,7 +65,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 			_ => return Err(()),
 		}
 		let mut i = iter.next().ok_or(())?;
-		if let ClearOrigin = i {
+		while let ClearOrigin = i {
 			i = iter.next().ok_or(())?;
 		}
 		match i {

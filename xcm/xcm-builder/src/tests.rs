@@ -350,7 +350,7 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 		Transact {
 			origin_type: OriginKind::Native,
 			require_weight_at_most: 50,
-			// call estimated at 70 but only takes 10.
+			// call estimated at 50 but only takes 10.
 			call: TestCall::Any(50, Some(10)).encode().into(),
 		},
 		RefundSurplus,
