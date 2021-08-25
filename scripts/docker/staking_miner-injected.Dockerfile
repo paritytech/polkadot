@@ -30,7 +30,7 @@ RUN apt-get update && \
 	apt-get autoremove -y && \
 	apt-get clean && \
 	find /var/lib/apt/lists/ -type f -not -name lock -delete; \
-	useradd -m -u 1000 -U -s /bin/sh
+	useradd -u 1000 -U -s /bin/sh polkadot
 	# && \
 	# mkdir -p /data /polkadot/.local/share && \
 	# chown -R polkadot:polkadot /data && \
