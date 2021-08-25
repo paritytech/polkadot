@@ -88,7 +88,10 @@ const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request")
 /// For the time being this value is the same as the timeout on the networking layer, but as this
 /// timeout is more soft than the networking one, it might make sense to pick different values as
 /// well.
+#[cfg(not(test))]
 const TIMEOUT_START_NEW_REQUESTS: Duration = CHUNK_REQUEST_TIMEOUT;
+#[cfg(test)]
+const TIMEOUT_START_NEW_REQUESTS: Duration = Duration::from_millis(4);
 
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem {
