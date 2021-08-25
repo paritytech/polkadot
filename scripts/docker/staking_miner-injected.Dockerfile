@@ -1,8 +1,3 @@
-# to build on a linux host:
-#   cargo build --release --lockec -p staking-miner
-#   cd target/release
-# 	docker build -t taking-miner -f ../../scripts/docker/staking_miner-injected.Dockerfile .
-
 FROM debian:buster-slim
 
 # metadata
@@ -30,13 +25,12 @@ ENV RUST_BACKTRACE 1
 RUN apt-get update && \
 	DEBIAN_FRONTEND=noninteractive apt-get install -y \
 		libssl1.1 \
-		ca-certificates \
-		curl && \
+		ca-certificates && \
 # apt cleanup
 	apt-get autoremove -y && \
 	apt-get clean && \
 	find /var/lib/apt/lists/ -type f -not -name lock -delete; \
-	useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot
+	useradd -m -u 1000 -U -s /bin/sh
 	# && \
 	# mkdir -p /data /polkadot/.local/share && \
 	# chown -R polkadot:polkadot /data && \
