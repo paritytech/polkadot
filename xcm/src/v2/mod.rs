@@ -54,7 +54,7 @@ impl<Call> Xcm<Call> {
 		self.0.is_empty()
 	}
 
-	/// Return the numbber of instructions held in `self`.
+	/// Return the number of instructions held in `self`.
 	pub fn len(&self) -> usize {
 		self.0.len()
 	}
