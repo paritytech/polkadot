@@ -1283,7 +1283,7 @@ dependencies = [
  "cranelift-codegen",
  "cranelift-entity",
  "cranelift-frontend",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "log",
  "serde",
  "smallvec",
@@ -2878,9 +2878,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37d572918e350e82412fe766d24b15e6682fb2ed2bbe018280caa810397cb319"
+checksum = "69ddb889f9d0d08a67338271fa9b62996bc788c7796a5c18cf057420aaed5eaf"
 dependencies = [
  "either",
 ]
@@ -6424,7 +6424,7 @@ dependencies = [
  "env_logger 0.9.0",
  "futures 0.3.16",
  "futures-timer 3.0.2",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "log",
  "lru",
  "metered-channel",
@@ -7385,7 +7385,7 @@ checksum = "355f634b43cdd80724ee7848f95770e7e70eefa6dcf14fea676216573b8fd603"
 dependencies = [
  "bytes 1.0.1",
  "heck",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "log",
  "multimap",
  "petgraph",
@@ -7415,7 +7415,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "600d2f334aa05acb02a755e217ef1ab6dea4d51b58b7846588b747edec04efba"
 dependencies = [
  "anyhow",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "proc-macro2",
  "quote",
  "syn",
@@ -7717,7 +7717,7 @@ checksum = "3bd8f48b2066e9f69ab192797d66da804d1935bf22763204ed3675740cb0f221"
 dependencies = [
  "derive_more",
  "fs-err",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "static_init",
  "thiserror",
 ]
@@ -10679,9 +10679,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.10.0"
+version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01cf844b23c6131f624accf65ce0e4e9956a8bb329400ea5bcc26ae3a5c20b0b"
+checksum = "92036be488bb6594459f2e03b60e42df6f937fe6ca5c5ffdcb539c6b84dc40f5"
 dependencies = [
  "autocfg",
  "bytes 1.0.1",
@@ -10943,9 +10943,9 @@ dependencies = [
 
 [[package]]
 name = "trybuild"
-version = "1.0.43"
+version = "1.0.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c02c413315329fc96167f922b46fd0caa3a43f4697b7a7896b183c7142635832"
+checksum = "5bdaf2a1d317f3d58b44b31c7f6436b9b9acafe7bddfeace50897c2b804d7792"
 dependencies = [
  "glob",
  "lazy_static",
