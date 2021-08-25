@@ -339,9 +339,9 @@ checksum = "e91831deabf0d6d7ec49552e489aed63b7456a7a3c46cff62adad428110b0af0"
 
 [[package]]
 name = "async-trait"
-version = "0.1.50"
+version = "0.1.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b98e84bbb4cbcdd97da190ba0c58a1bb0de2c1fdf67d159e192ed766aeca722"
+checksum = "44318e776df68115a881de9a8fd1b9e53368d7a4a5ce4cc48517da3393233a5e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1283,7 +1283,7 @@ dependencies = [
  "cranelift-codegen",
  "cranelift-entity",
  "cranelift-frontend",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "log",
  "serde",
  "smallvec",
@@ -2878,9 +2878,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37d572918e350e82412fe766d24b15e6682fb2ed2bbe018280caa810397cb319"
+checksum = "69ddb889f9d0d08a67338271fa9b62996bc788c7796a5c18cf057420aaed5eaf"
 dependencies = [
  "either",
 ]
@@ -6424,7 +6424,7 @@ dependencies = [
  "env_logger 0.9.0",
  "futures 0.3.16",
  "futures-timer 3.0.2",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "log",
  "lru",
  "metered-channel",
@@ -7385,7 +7385,7 @@ checksum = "355f634b43cdd80724ee7848f95770e7e70eefa6dcf14fea676216573b8fd603"
 dependencies = [
  "bytes 1.0.1",
  "heck",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "log",
  "multimap",
  "petgraph",
@@ -7415,7 +7415,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "600d2f334aa05acb02a755e217ef1ab6dea4d51b58b7846588b747edec04efba"
 dependencies = [
  "anyhow",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "proc-macro2",
  "quote",
  "syn",
@@ -7717,7 +7717,7 @@ checksum = "3bd8f48b2066e9f69ab192797d66da804d1935bf22763204ed3675740cb0f221"
 dependencies = [
  "derive_more",
  "fs-err",
- "itertools 0.10.0",
+ "itertools 0.10.1",
  "static_init",
  "thiserror",
 ]
