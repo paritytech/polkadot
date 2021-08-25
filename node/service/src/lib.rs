@@ -31,7 +31,7 @@ pub use self::overseer::{
 	create_default_subsystems, OverseerGen, OverseerGenArgs, RealOverseerGen,
 };
 
-#[cfg(test)]
+#[cfg(all(test, feature = "disputes"))]
 mod tests;
 
 #[cfg(feature = "full-node")]
