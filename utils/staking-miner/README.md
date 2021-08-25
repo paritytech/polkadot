@@ -1,12 +1,10 @@
 # Staking Miner
 
-The staking miner connects to a specified chains and keeps
-listening to new Phragmen elections. When the time comes,
-it computes its solution and submit it to the chain. Running
-the staking-miner requires passing the seed of a funded
-account in order to pay the fees for the transactions that
-will be sent. At the moment, submitting solutions is not
-rewarded.
+The staking miner connects to a specified chains and keeps listening to new Signed phase of the [pallet-election-provider-multi-phase](https://crates.parity.io/pallet_election_provider_multi_phase/index.html) in order to submit solutions to the NPoS election. When the correct time comes, it computes its solution and submit it to the chain.
+The default miner algorithm is [sequential-phragmen](https://crates.parity.io/sp_npos_elections/phragmen/fn.seq_phragmen_core.html)] with a configurable number of balancing iterations that improve the score.
+
+Running the staking-miner requires passing the seed of a funded account in order to pay the fees for the transactions that will be sent. 
+The same account's balance is used to reserve deposits as well. The best solution in each round is rewarded. All correct solutions will get their bond back. Any invalid solution will lose their bond.
 
 You can check the help with:
 ```
@@ -44,7 +42,7 @@ docker run --rm -it \
         dry-run
 ```
 
-There is a [pending PR](https://github.com/paritytech/polkadot/pull/3680) that removes the need to pass the seed as a file. The commend will then become:
+There is a [pending PR](https://github.com/paritytech/polkadot/pull/3680) that removes the need to pass the seed as a file. The command will then become:
 ```
 docker run --rm -it \
     --name staking-miner \
