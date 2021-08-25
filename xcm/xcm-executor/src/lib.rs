@@ -159,12 +159,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let mut result = Ok(());
 		for (i, instr) in xcm.0.into_iter().enumerate() {
 			match &mut result {
-				r @ Ok(()) => if let Err(e) = self.process_instruction(instr) {
-					*r = Err((i as u32, e, 0));
-				},
-				Err((_, _, ref mut w)) => if let Ok(x) = Config::Weigher::instr_weight(&instr) {
-					w.saturating_accrue(x)
-				},
+				r @ Ok(()) =>
+					if let Err(e) = self.process_instruction(instr) {
+						*r = Err((i as u32, e, 0));
+					},
+				Err((_, _, ref mut w)) =>
+					if let Ok(x) = Config::Weigher::instr_weight(&instr) {
+						w.saturating_accrue(x)
+					},
 			}
 		}
 		result
