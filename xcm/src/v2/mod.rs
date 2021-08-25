@@ -37,11 +37,63 @@ pub use super::v1::{
 	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WildFungibility, WildMultiAsset,
 };
 
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Default, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub struct Xcm<Call>(pub Vec<Instruction<Call>>);
+
+impl<Call> Xcm<Call> {
+	/// Create an empty instance.
+	pub fn new() -> Self {
+		Self(vec![])
+	}
+
+	/// Return `true` if no instructions are held in `self`.
+	pub fn is_empty(&self) -> bool {
+		self.0.is_empty()
+	}
+
+	/// Return the numbber of instructions held in `self`.
+	pub fn len(&self) -> usize {
+		self.0.len()
+	}
+
+	/// Consume and either return `self` if it contains some instructions, or if it's empty, then
+	/// instead return the result of `f`.
+	pub fn or_else(self, f: impl FnOnce() -> Self) -> Self {
+		if self.0.is_empty() {
+			f()
+		} else {
+			self
+		}
+	}
+
+	/// Return the first instruction, if any.
+	pub fn first(&self) -> Option<&Instruction<Call>> {
+		self.0.first()
+	}
+
+	/// Return the last instruction, if any.
+	pub fn last(&self) -> Option<&Instruction<Call>> {
+		self.0.last()
+	}
+
+	/// Return the only instruction, contained in `Self`, iff only one exists (`None` otherwise).
+	pub fn only(&self) -> Option<&Instruction<Call>> {
+		if self.0.len() == 1 { self.0.first() } else { None }
+	}
+
+	/// Return the only instruction, contained in `Self`, iff only one exists (returns `self`
+	/// otherwise).
+	pub fn into_only(mut self) -> core::result::Result<Instruction<Call>, Self> {
+		if self.0.len() == 1 {
+    		self.0.pop().ok_or(self)
+ 		} else {
+			Err(self)
+		}
+	}
+}
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {

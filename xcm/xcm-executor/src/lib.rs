@@ -87,15 +87,13 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		}
 		let origin = Some(origin);
 
-		if Config::Barrier::should_execute(
+		if let Err(_) = Config::Barrier::should_execute(
 			&origin,
 			true,
 			&mut message,
 			xcm_weight,
 			&mut weight_credit,
-		)
-		.is_err()
-		{
+		) {
 			return Outcome::Error(XcmError::Barrier)
 		}
 
@@ -104,21 +102,19 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		while !message.0.is_empty() {
 			let result = vm.execute(message);
 			log::trace!(target: "xcm::execute_xcm_in_credit", "result: {:?}", result);
-			if let Err(e) = result {
+			message = if let Err(e) = result {
 				vm.error = Some(e);
-				let error_handler = vm.take_error_handler();
-				// Error handler never generates errors of its own.
-				let _ = vm.execute(error_handler);
+				vm.take_error_handler().or_else(|| vm.take_appendix())
 			} else {
 				vm.drop_error_handler();
+				vm.take_appendix()
 			}
-			message = vm.take_appendix();
 		}
 
 		vm.refund_surplus();
-
-		// TODO #2841: Do something with holding? (Fail-safe AssetTrap?)
 		drop(vm.trader);
+		
+		// TODO #2841: Do something with holding? (Fail-safe AssetTrap?)
 
 		let weight_used = xcm_weight.saturating_sub(vm.total_surplus);
 		match vm.error {
