@@ -802,19 +802,10 @@ async fn handle_startup(
 		e
 	})?;
 
-	let candidates_by_session: HashMap<_, _> =
-		all_candidates
-			.into_iter()
-			.fold(HashMap::new(), |mut candidates_by_session, candidate| {
-				candidates_by_session
-					.entry(candidate.session)
-					.or_insert_with(Vec::new)
-					.push(candidate);
-				candidates_by_session
-			});
-
 	let mut actions = Vec::new();
-	for (session, candidates) in candidates_by_session {
+	for candidate in all_candidates.into_iter() {
+		let mut assigned_but_unapproved_candidates = Vec::new();
+		let session = candidate.session;
 		let info = match state.session_info(session) {
 			Some(info) => info,
 			None => {
@@ -864,14 +855,9 @@ async fn handle_startup(
 		}
 
 		// Determine the candidates in this session that need to have their approvals resumed.
-		let assigned_but_unapproved_candidates: Vec<_> = candidates
-			.into_iter()
-			// Ignore any candidates that have our validator indexes in the approvals bitfield.
-			.filter(|candidate| {
-				!local_validators.iter().all(|index| candidate.has_approved(*index))
-			})
-			.flat_map(|candidate| {
-				let candidate_receipt = candidate.candidate.clone();
+		if !local_validators.iter().all(|index| candidate.has_approved(*index)) {
+			let candidate_receipt = candidate.candidate.clone();
+			assigned_but_unapproved_candidates.extend(
 				candidate
 					.block_assignments
 					.into_iter()
@@ -883,14 +869,14 @@ async fn handle_startup(
 					.map(|(block_hash, approval_entry)| {
 						(candidate_receipt.clone(), block_hash, approval_entry)
 					})
-					.collect::<Vec<_>>()
-			})
-			.collect();
+					.collect::<Vec<_>>(),
+			);
+		}
 
 		// Construct the LaunchApproval action for each candidate.
-		for candidate in assigned_but_unapproved_candidates.into_iter() {
-			let (candidate_receipt, block_hash, approval_entry) = candidate;
-
+		for (candidate_receipt, block_hash, approval_entry) in
+			assigned_but_unapproved_candidates.into_iter()
+		{
 			// Skip any candidates for which we don't have our assignment triggered.
 			let (cert, assignment_tranche, validator) = match approval_entry.our_assignment() {
 				Some(our) => (our.cert().clone(), our.tranche(), our.validator_index()),
