@@ -84,6 +84,7 @@ fn query_holding_works() {
 		let amount = REGISTER_AMOUNT;
 		let query_id = 1234;
 		let weight = 4 * BaseXcmWeight::get();
+		let max_response_weight = 1_000_000_000;
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
@@ -99,7 +100,7 @@ fn query_holding_works() {
 					query_id,
 					dest: Parachain(PARA_ID).into(),
 					assets: All.into(),
-					max_response_weight: 1_000_000_000,
+					max_response_weight,
 				},
 			]),
 			weight,
@@ -107,7 +108,7 @@ fn query_holding_works() {
 		assert_eq!(
 			r,
 			Outcome::Incomplete(
-				weight,
+				weight - BaseXcmWeight::get(),
 				XcmError::FailedToTransactAsset("AccountIdConversionFailed")
 			)
 		);
