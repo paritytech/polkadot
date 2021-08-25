@@ -113,7 +113,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 
 		vm.refund_surplus();
 		drop(vm.trader);
-		
+
 		// TODO #2841: Do something with holding? (Fail-safe AssetTrap?)
 
 		let weight_used = xcm_weight.saturating_sub(vm.total_surplus);

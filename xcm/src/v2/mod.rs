@@ -81,15 +81,19 @@ impl<Call> Xcm<Call> {
 
 	/// Return the only instruction, contained in `Self`, iff only one exists (`None` otherwise).
 	pub fn only(&self) -> Option<&Instruction<Call>> {
-		if self.0.len() == 1 { self.0.first() } else { None }
+		if self.0.len() == 1 {
+			self.0.first()
+		} else {
+			None
+		}
 	}
 
 	/// Return the only instruction, contained in `Self`, iff only one exists (returns `self`
 	/// otherwise).
 	pub fn into_only(mut self) -> core::result::Result<Instruction<Call>, Self> {
 		if self.0.len() == 1 {
-    		self.0.pop().ok_or(self)
- 		} else {
+			self.0.pop().ok_or(self)
+		} else {
 			Err(self)
 		}
 	}
