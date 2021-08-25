@@ -555,7 +555,7 @@ simnet-tests-parachians-smoketest:
         ${NETWORK_CONFIG}
         "
   script:
-    - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
+    - /home/nonroot/simnet/scripts/run-test-environment-manager.sh
         --github-remote-dir="${GH_DIR}"
         --config="${NETWORK_CONFIG}"
         --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
@@ -597,7 +597,7 @@ simnet-tests-malus-dispute-valid:
         ${NETWORK_CONFIG}
         "
   script:
-    - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
+    - /home/nonroot/simnet/scripts/run-test-environment-manager.sh
         --github-remote-dir="${GH_DIR}"
         --config="${NETWORK_CONFIG}"
         --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
