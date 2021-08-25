@@ -22,11 +22,12 @@
 
 #![deny(missing_docs)]
 
-use std::pin::Pin;
+use std::{convert::TryFrom, pin::Pin};
 
+use bounded_vec::BoundedVec;
 use futures::Future;
-use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
+use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 pub use sp_consensus_babe::{
 	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -50,6 +51,11 @@ pub use disputes::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, InvalidDisputeVote,
 	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
 };
+
+// For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node.
+const MERKLE_NODE_MAX_SIZE: usize = 512;
+// 16-ary Merkle Prefix Trie for 32-bit ValidatorIndex has depth at most 8.
+const MERKLE_PROOF_MAX_DEPTH: usize = 8;
 
 /// The bomb limit for decompressing code blobs.
 pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
@@ -287,6 +293,102 @@ pub struct AvailableData {
 	pub validation_data: PersistedValidationData,
 }
 
+/// This is a convenience type to allow the Erasure chunk proof to Decode into a nested BoundedVec
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub struct Proof(BoundedVec<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, 1, MERKLE_PROOF_MAX_DEPTH>);
+
+impl Proof {
+	/// This function allows to convert back to the standard nested Vec format
+	pub fn as_vec(&self) -> Vec<Vec<u8>> {
+		self.0.as_vec().iter().map(|v| v.as_vec().clone()).collect()
+	}
+
+	/// Construct an invalid dummy proof
+	///
+	/// Useful for testing, should absolutely not be used in production.
+	pub unsafe fn dummy_proof() -> Proof {
+		Proof(BoundedVec::from_vec(vec![BoundedVec::from_vec(vec![0]).unwrap()]).unwrap())
+	}
+}
+
+#[derive(thiserror::Error, Debug)]
+///
+pub enum MerkleProofError {
+	#[error("Merkle max proof depth exceeded {0} > {} .", MERKLE_PROOF_MAX_DEPTH)]
+	/// This error signifies that the Proof length exceeds the trie's max depth
+	MerkleProofDepthExceeded(usize),
+
+	#[error("Merkle node max size exceeded {0} > {} .", MERKLE_NODE_MAX_SIZE)]
+	/// This error signifies that a Proof node exceeds the 16-ary max node size
+	MerkleProofNodeSizeExceeded(usize),
+}
+
+impl TryFrom<Vec<Vec<u8>>> for Proof {
+	type Error = MerkleProofError;
+
+	fn try_from(input: Vec<Vec<u8>>) -> Result<Self, Self::Error> {
+		if input.len() > MERKLE_PROOF_MAX_DEPTH {
+			return Err(Self::Error::MerkleProofDepthExceeded(input.len()))
+		}
+		let mut out = Vec::new();
+		for element in input.into_iter() {
+			let length = element.len();
+			let data: BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE> = BoundedVec::from_vec(element)
+				.map_err(|_| Self::Error::MerkleProofNodeSizeExceeded(length))?;
+			out.push(data);
+		}
+		Ok(Proof(BoundedVec::from_vec(out).expect("Buffer size is deterined above. qed")))
+	}
+}
+
+impl Decode for Proof {
+	fn decode<I: Input>(value: &mut I) -> Result<Self, CodecError> {
+		let temp: Vec<Vec<u8>> = Decode::decode(value)?;
+		let mut out = Vec::new();
+		for element in temp.into_iter() {
+			let bounded_temp: Result<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, CodecError> =
+				BoundedVec::from_vec(element)
+					.map_err(|_| "Inner node exceeds maximum node size.".into());
+			out.push(bounded_temp?);
+		}
+		BoundedVec::from_vec(out)
+			.map(Self)
+			.map_err(|_| "Merkle proof depth exceeds maximum trie depth".into())
+	}
+}
+
+impl Encode for Proof {
+	fn size_hint(&self) -> usize {
+		MERKLE_NODE_MAX_SIZE * MERKLE_PROOF_MAX_DEPTH
+	}
+
+	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+		let temp = self.as_vec();
+		temp.using_encoded(f)
+	}
+}
+
+impl Serialize for Proof {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_bytes(&self.encode())
+	}
+}
+
+impl<'de> Deserialize<'de> for Proof {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		// Deserialize the string and get individual components
+		let s = Vec::<u8>::deserialize(deserializer)?;
+		let mut slice = s.as_slice();
+		Decode::decode(&mut slice).map_err(de::Error::custom)
+	}
+}
+
 /// A chunk of erasure-encoded block data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, Serialize, Deserialize, Debug, Hash)]
 pub struct ErasureChunk {
@@ -295,7 +397,14 @@ pub struct ErasureChunk {
 	/// The index of this erasure-encoded chunk of data.
 	pub index: ValidatorIndex,
 	/// Proof for this chunk's branch in the Merkle tree.
-	pub proof: Vec<Vec<u8>>,
+	pub proof: Proof,
+}
+
+impl ErasureChunk {
+	/// Convert bounded Vec Proof to regular Vec<Vec<u8>>
+	pub fn proof_as_vec(&self) -> Vec<Vec<u8>> {
+		self.proof.as_vec()
+	}
 }
 
 /// Compress a PoV, unless it exceeds the [`POV_BOMB_LIMIT`].

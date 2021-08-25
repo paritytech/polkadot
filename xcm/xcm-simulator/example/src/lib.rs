@@ -211,9 +211,9 @@ mod tests {
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::reserve_transfer_assets(
 				relay_chain::Origin::signed(ALICE),
-				Box::new(X1(Parachain(1)).into()),
-				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() }).into()),
-				(Here, withdraw_amount).into(),
+				Box::new(X1(Parachain(1)).into().into()),
+				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() }).into().into()),
+				Box::new((Here, withdraw_amount).into()),
 				0,
 				max_weight_for_execution,
 			));
