@@ -522,7 +522,7 @@ deploy-polkasync-kusama:
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-simnet-tests-parachians-smoketest:
+simnet-tests-parachains-smoketest:
   stage:                           deploy
   <<:                              *kubernetes-env
   rules:
