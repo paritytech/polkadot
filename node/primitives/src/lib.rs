@@ -45,20 +45,12 @@ pub use polkadot_parachain::primitives::BlockData;
 
 pub mod approval;
 
-#[cfg(test)]
-mod tests;
-
 /// Disputes related types.
 pub mod disputes;
 pub use disputes::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, InvalidDisputeVote,
 	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
 };
-
-// For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node.
-const MERKLE_NODE_MAX_SIZE: usize = 512;
-// 16-ary Merkle Prefix Trie for 32-bit ValidatorIndex has depth at most 8.
-const MERKLE_PROOF_MAX_DEPTH: usize = 8;
 
 /// The bomb limit for decompressing code blobs.
 pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
@@ -71,6 +63,12 @@ pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
 ///
 /// Number of sessions we want to consider in disputes.
 pub const DISPUTE_WINDOW: SessionIndex = 6;
+
+// For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node.
+const MERKLE_NODE_MAX_SIZE: usize = 512;
+
+// 16-ary Merkle Prefix Trie for 32-bit ValidatorIndex has depth at most 8.
+const MERKLE_PROOF_MAX_DEPTH: usize = 8;
 
 /// The cumulative weight of a block in a fork-choice rule.
 pub type BlockWeight = u32;
@@ -302,8 +300,8 @@ pub struct Proof(BoundedVec<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, 1, MERKLE_P
 
 impl Proof {
 	/// This function allows to convert back to the standard nested Vec format
-	pub fn as_vec(&self) -> Vec<&[u8]> {
-		self.0.iter().map(|v| v.as_slice()).collect::<Vec<&[u8]>>()
+	pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
+		self.0.iter().map(|v| v.as_slice())
 	}
 }
 
@@ -359,7 +357,7 @@ impl Encode for Proof {
 	}
 
 	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
-		let temp = self.as_vec();
+		let temp = self.0.iter().map(|v| v.as_vec()).collect::<Vec<_>>();
 		temp.using_encoded(f)
 	}
 }
