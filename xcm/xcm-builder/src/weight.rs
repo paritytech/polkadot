@@ -35,18 +35,21 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M: Get<u32>> WeightBounds<C>
 		let mut instructions_left = M::get();
 		Self::weight_with_limit(message, &mut instructions_left)
 	}
+	fn instr_weight(message: &Instruction<C>) -> Result<Weight, ()> {
+		Self::instr_weight_with_limit(message, &mut u32::max_value())
+	}
 }
 
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> {
-	fn weight_with_limit(message: &mut Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
+	fn weight_with_limit(message: &Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
 		let mut r = 0;
 		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
-		for m in message.0.iter_mut() {
-			r += Self::instr_weight(m, instrs_limit)?;
+		for m in message.0.iter() {
+			r += Self::instr_weight_with_limit(m, instrs_limit)?;
 		}
 		Ok(r)
 	}
-	fn instr_weight(message: &mut Instruction<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
+	fn instr_weight_with_limit(message: &Instruction<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
 		Ok(T::get().saturating_add(match message {
 			Transact { require_weight_at_most, .. } => *require_weight_at_most,
 			SetErrorHandler(xcm) | SetAppendix(xcm) => Self::weight_with_limit(xcm, instrs_limit)?,

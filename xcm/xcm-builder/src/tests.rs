@@ -203,6 +203,58 @@ fn transfer_should_work() {
 }
 
 #[test]
+fn errors_should_return_unused_weight() {
+	// we'll let them have message execution for free.
+	AllowUnpaidFrom::set(vec![Here.into()]);
+	// We own 1000 of our tokens.
+	add_asset(3000, (Here, 11));
+	let mut message = Xcm(vec![
+		// First xfer results in an error on the last message only
+		TransferAsset {
+			assets: (Here, 1).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+		},
+		// Second xfer results in error third message and after
+		TransferAsset {
+			assets: (Here, 2).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+		},
+		// Third xfer results in error second message and after
+		TransferAsset {
+			assets: (Here, 4).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+		},
+	]);
+	// Weight limit of 70 is needed.
+	let limit = <TestConfig as Config>::Weigher::weight(&mut message).unwrap();
+	assert_eq!(limit, 30);
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message.clone(), limit);
+	assert_eq!(r, Outcome::Complete(30));
+	assert_eq!(assets(3), vec![(Here, 7).into()]);
+	assert_eq!(assets(3000), vec![(Here, 4).into()]);
+	assert_eq!(sent_xcm(), vec![]);
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message.clone(), limit);
+	assert_eq!(r, Outcome::Incomplete(30, XcmError::NotWithdrawable));
+	assert_eq!(assets(3), vec![(Here, 10).into()]);
+	assert_eq!(assets(3000), vec![(Here, 1).into()]);
+	assert_eq!(sent_xcm(), vec![]);
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message.clone(), limit);
+	assert_eq!(r, Outcome::Incomplete(20, XcmError::NotWithdrawable));
+	assert_eq!(assets(3), vec![(Here, 11).into()]);
+	assert_eq!(assets(3000), vec![]);
+	assert_eq!(sent_xcm(), vec![]);
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Here.into(), message, limit);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::NotWithdrawable));
+	assert_eq!(assets(3), vec![(Here, 11).into()]);
+	assert_eq!(assets(3000), vec![]);
+	assert_eq!(sent_xcm(), vec![]);
+}
+
+#[test]
 fn code_registers_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![Here.into()]);

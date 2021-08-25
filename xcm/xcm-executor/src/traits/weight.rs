@@ -17,13 +17,17 @@
 use crate::Assets;
 use frame_support::weights::Weight;
 use sp_std::result::Result;
-use xcm::latest::{Error, MultiAsset, MultiLocation, Xcm};
+use xcm::latest::prelude::*;
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {
 	/// Return the maximum amount of weight that an attempted execution of this message could
 	/// consume.
 	fn weight(message: &mut Xcm<Call>) -> Result<Weight, ()>;
+
+	/// Return the maximum amount of weight that an attempted execution of this instruction could
+	/// consume.
+	fn instr_weight(instruction: &Instruction<Call>) -> Result<Weight, ()>;
 }
 
 /// A means of getting approximate weight consumption for a given destination message executor and a
@@ -46,7 +50,7 @@ pub trait WeightTrader: Sized {
 	/// Purchase execution weight credit in return for up to a given `fee`. If less of the fee is required
 	/// then the surplus is returned. If the `fee` cannot be used to pay for the `weight`, then an error is
 	/// returned.
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error>;
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError>;
 
 	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight was
 	/// purchased using `buy_weight`.
@@ -63,7 +67,7 @@ impl WeightTrader for Tuple {
 		for_tuples!( ( #( Tuple::new() ),* ) )
 	}
 
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		let mut last_error = None;
 		for_tuples!( #(
 			match Tuple.buy_weight(weight, payment.clone()) {
@@ -71,7 +75,7 @@ impl WeightTrader for Tuple {
 				Err(e) => { last_error = Some(e) }
 			}
 		)* );
-		let last_error = last_error.unwrap_or(Error::TooExpensive);
+		let last_error = last_error.unwrap_or(XcmError::TooExpensive);
 		log::trace!(target: "xcm::buy_weight", "last_error: {:?}", last_error);
 		Err(last_error)
 	}

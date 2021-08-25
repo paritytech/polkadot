@@ -21,6 +21,7 @@ use frame_support::{
 	ensure,
 	weights::GetDispatchInfo,
 };
+use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{
 	Error as XcmError, ExecuteXcm,
@@ -102,8 +103,9 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		while !message.0.is_empty() {
 			let result = vm.execute(message);
 			log::trace!(target: "xcm::execute_xcm_in_credit", "result: {:?}", result);
-			message = if let Err(e) = result {
-				vm.error = Some(e);
+			message = if let Err((i, e, w)) = result {
+				vm.total_surplus.saturating_accrue(w);
+				vm.error = Some((i, e));
 				vm.take_error_handler().or_else(|| vm.take_appendix())
 			} else {
 				vm.drop_error_handler();
@@ -145,7 +147,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 	/// Execute the XCM program fragment and report back the error and which instruction caused it,
 	/// or `Ok` if there was no error.
-	fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), (u32, XcmError)> {
+	fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), (u32, XcmError, u64)> {
 		log::trace!(
 			target: "xcm::execute",
 			"origin: {:?}, total_surplus/refunded: {:?}/{:?}, error_handler_weight: {:?}",
@@ -154,12 +156,18 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			self.total_refunded,
 			self.error_handler_weight,
 		);
+		let mut result = Ok(());
 		for (i, instr) in xcm.0.into_iter().enumerate() {
-			if let Err(e) = self.process_instruction(instr) {
-				return Err((i as u32, e))
+			match &mut result {
+				r @ Ok(()) => if let Err(e) = self.process_instruction(instr) {
+					*r = Err((i as u32, e, 0));
+				},
+				Err((_, _, ref mut w)) => if let Ok(x) = Config::Weigher::instr_weight(&instr) {
+					w.saturating_accrue(x)
+				},
 			}
 		}
-		return Ok(())
+		result
 	}
 
 	/// Remove the registered error handler and return it. Do not refund its weight.
