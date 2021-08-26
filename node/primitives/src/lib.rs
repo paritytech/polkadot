@@ -308,7 +308,7 @@ impl Proof {
 	/// Construct an invalid dummy proof
 	///
 	/// Useful for testing, should absolutely not be used in production.
-	pub unsafe fn dummy_proof() -> Proof {
+	pub fn dummy_proof() -> Proof {
 		Proof(BoundedVec::from_vec(vec![BoundedVec::from_vec(vec![0]).unwrap()]).unwrap())
 	}
 }
