@@ -111,7 +111,10 @@ impl metrics::Metrics for Metrics {
 			)?,
 			chunk_requests_finished: prometheus::register(
 				CounterVec::new(
-					Opts::new("parachain_availability_recovery_chunk_requests_finished", ""),
+					Opts::new(
+						"parachain_availability_recovery_chunk_requests_finished",
+						"Total number of chunk requests finished.",
+					),
 					&["result"],
 				)?,
 				registry,
