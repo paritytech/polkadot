@@ -36,11 +36,11 @@ struct MetricsInner {
 	/// A counter for finished chunk requests.
 	///
 	/// Split by result:
-	/// - no_such_chunk ... peer did not have the requested chunk
-	/// - timeout ... request timed out.
-	/// - network_error ... Some networking issue except timeout
-	/// - invalid ... Chunk was received, but not valid.
-	/// - success
+	/// - `no_such_chunk` ... peer did not have the requested chunk
+	/// - `timeout` ... request timed out.
+	/// - `network_error` ... Some networking issue except timeout
+	/// - `invalid` ... Chunk was received, but not valid.
+	/// - `success`
 	chunk_requests_finished: CounterVec<U64>,
 	/// The duration of request to response.
 	time_chunk_request: prometheus::Histogram,

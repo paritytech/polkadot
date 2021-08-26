@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! FuturesUndead: A `FuturesUnordered` with support for semi cancelled futures. Those undead
+//! FuturesUndead: A `FuturesUnordered` with support for semi canceled futures. Those undead
 //! futures will still get polled, but will not count towards length. So length will only count
 //! futures, which are still considered live.
 //!
@@ -34,10 +34,10 @@ use std::{
 use futures::{future::BoxFuture, stream::FuturesUnordered, Future, Stream, StreamExt};
 use polkadot_node_subsystem_util::TimeoutExt;
 
-/// FuturesUndead - `FuturesUnordered` with semi cancelled (undead) futures.
+/// FuturesUndead - `FuturesUnordered` with semi canceled (undead) futures.
 ///
 /// Limitations: Keeps track of undead futures by means of a counter, which is limited to 64
-/// bits, so after 1.8*10^19 pushed futures, this implementation will panic.
+/// bits, so after `1.8*10^19` pushed futures, this implementation will panic.
 pub struct FuturesUndead<Output> {
 	/// Actual `FuturesUnordered`.
 	inner: FuturesUnordered<Undead<Output>>,
