@@ -137,8 +137,8 @@ impl<Output> Stream for FuturesUndead<Output> {
 impl SequenceNumber {
 	pub fn inc(&mut self) {
 		self.0 = self.0.checked_add(1).expect(
-            "We don't expect an `UndeadFuture` to live long enough for 2^64 entries ever getting inserted."
-        );
+			"We don't expect an `UndeadFuture` to live long enough for 2^64 entries ever getting inserted."
+		);
 	}
 }
 
