@@ -134,6 +134,7 @@ impl Config for XcmConfig {
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
 	type AssetTrap = ();
+	type AssetClaims = ();
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;

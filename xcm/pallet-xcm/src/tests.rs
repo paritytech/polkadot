@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{mock::*, QueryStatus};
+use crate::{mock::*, QueryStatus, AssetTraps};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use std::convert::TryInto;
@@ -292,6 +292,74 @@ fn execute_withdraw_to_deposit_works() {
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
+		);
+	});
+}
+
+/// Test drop/claim assets.
+#[test]
+fn trapped_assets_can_be_claimed() {
+	let balances =
+		vec![(ALICE, INITIAL_BALANCE), (BOB, INITIAL_BALANCE)];
+	new_test_ext_with_balances(balances).execute_with(|| {
+		let weight = 6 * BaseXcmWeight::get();
+		let dest: MultiLocation =
+			Junction::AccountId32 { network: NetworkId::Any, id: BOB.into() }.into();
+
+		assert_ok!(XcmPallet::execute(
+			Origin::signed(ALICE),
+			Box::new(VersionedXcm::from(Xcm(vec![
+				WithdrawAsset((Here, SEND_AMOUNT).into()),
+				buy_execution((Here, SEND_AMOUNT)),
+				// Don't propagated the error into the result.
+				SetErrorHandler(Xcm(vec![ClearError])),
+				// This will make an error.
+				Trap(0),
+				// This would succeed, but we never get to it.
+				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest.clone() },
+			]))),
+			weight
+		));
+
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+		assert_eq!(Balances::total_balance(&BOB), INITIAL_BALANCE);
+
+		let source: MultiLocation =
+			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
+		let trapped = AssetTraps::<Test>::iter().collect::<Vec<_>>();
+		let expected = vec![(0u64, (source, MultiAssets::from((Here, SEND_AMOUNT)).into()))];
+		assert_eq!(trapped, expected);
+
+		let weight = 3 * BaseXcmWeight::get();
+		assert_ok!(XcmPallet::execute(
+			Origin::signed(ALICE),
+			Box::new(VersionedXcm::from(Xcm(vec![
+				ClaimAsset { assets: (Here, SEND_AMOUNT).into(), ticket: GeneralIndex(0).into() },
+				buy_execution((Here, SEND_AMOUNT)),
+				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest.clone() },
+			]))),
+			weight
+		));
+
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+		assert_eq!(Balances::total_balance(&BOB), INITIAL_BALANCE + SEND_AMOUNT);
+		assert_eq!(AssetTraps::<Test>::iter().collect::<Vec<_>>(), vec![]);
+
+		let weight = 3 * BaseXcmWeight::get();
+		assert_ok!(XcmPallet::execute(
+			Origin::signed(ALICE),
+			Box::new(VersionedXcm::from(Xcm(vec![
+				ClaimAsset { assets: (Here, SEND_AMOUNT).into(), ticket: GeneralIndex(0).into() },
+				buy_execution((Here, SEND_AMOUNT)),
+				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+			]))),
+			weight
+		));
+		assert_eq!(
+			last_event(),
+			Event::XcmPallet(crate::Event::Attempted(
+				Outcome::Incomplete(BaseXcmWeight::get(), XcmError::AssetNotFound)
+			))
 		);
 	});
 }

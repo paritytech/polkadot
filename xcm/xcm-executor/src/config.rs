@@ -16,7 +16,7 @@
 
 use crate::traits::{
 	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
-	WeightBounds, WeightTrader, DropAssets,
+	WeightBounds, WeightTrader, DropAssets, ClaimAssets,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
@@ -62,4 +62,8 @@ pub trait Config {
 	/// The general asset trap - handler for when assets are left in the Holding Register at the
 	/// end of execution.
 	type AssetTrap: DropAssets;
+
+	/// The general asset trap - handler for when assets are left in the Holding Register at the
+	/// end of execution.
+	type AssetClaims: ClaimAssets;
 }

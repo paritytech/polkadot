@@ -144,6 +144,7 @@ impl Config for XcmConfig {
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
 	type AssetTrap = ();
+	type AssetClaims = ();
 }
 
 #[frame_support::pallet]

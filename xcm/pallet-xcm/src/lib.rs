@@ -51,7 +51,7 @@ pub mod pallet {
 	};
 	use frame_system::{pallet_prelude::*, Config as SysConfig};
 	use sp_runtime::traits::{AccountIdConversion, BlockNumberProvider};
-	use xcm_executor::{Assets, traits::{InvertLocation, OnResponse, WeightBounds, DropAssets}};
+	use xcm_executor::{Assets, traits::{ClaimAssets, DropAssets, InvertLocation, OnResponse, WeightBounds}};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -226,21 +226,32 @@ pub mod pallet {
 	/// Value of a query, must be unique for each query.
 	pub type QueryId = u64;
 
+	/// Identifier for an asset trap.
+	pub type TrapId = u64;
+
 	/// The latest available query index.
 	#[pallet::storage]
 	pub(super) type QueryCount<T: Config> = StorageValue<_, QueryId, ValueQuery>;
-
+	
 	/// The ongoing queries.
 	#[pallet::storage]
 	#[pallet::getter(fn query)]
 	pub(super) type Queries<T: Config> =
-		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
+	StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
 
-	/// The latest available query index.
+	/// The latest available trap index.
+	#[pallet::storage]
+	pub(super) type TrapCount<T: Config> = StorageValue<_, TrapId, ValueQuery>;
+	
+	/// The existing asset traps - i.e. those assets which have been placed with us through our
+	/// `DropAsset` impl.
+	/// 
+	/// There are two fields to the value; the origin which dropped the assets and the assets
+	/// themselves.
 	#[pallet::storage]
 	#[pallet::getter(fn asset_trap)]
 	pub(super) type AssetTraps<T: Config> =
-		StorageMap<_, Blake2_128Concat, MultiLocation, Vec<VersionedMultiAssets>, ValueQuery>;
+		StorageMap<_, Blake2_128Concat, TrapId, (MultiLocation, VersionedMultiAssets), OptionQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -561,23 +572,31 @@ pub mod pallet {
 
 	impl<T: Config> DropAssets for Pallet<T> {
 		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+			if assets.is_empty() { return 0 }
+			let trap_id = TrapCount::<T>::mutate(|c| { *c += 1; *c - 1 });
 			let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
-			AssetTraps::<T>::append(origin, versioned);
+			AssetTraps::<T>::insert(trap_id, (origin, versioned));
+			// TODO: Put the real weight in there.
 			0
 		}
+	}
 
-		fn collect_assets(origin: &MultiLocation, _max_weight: Weight) -> (Assets, Weight) {
-			// TODO: Check max_weight and figure out weight of this operation.
-			let versioned_assetss: Vec<VersionedMultiAssets> = AssetTraps::<T>::take(origin);
-			let mut all_assets = Assets::new();
-			for versioned_assets in versioned_assetss.into_iter() {
-				if let Ok(assets) = MultiAssets::try_from(versioned_assets) {
-					for asset in assets.drain().into_iter() {
-						all_assets.subsume(asset);
+	impl<T: Config> ClaimAssets for Pallet<T> {
+		fn claim_assets(origin: &MultiLocation, id: &MultiLocation, assets: &MultiAssets) -> bool {
+			if let MultiLocation { parents: 0, interior: X1(GeneralIndex(trap_id)) } = id {
+				if *trap_id <= u64::max_value() as u128 {
+					let trap_id = *trap_id as u64;
+					if let Some((o, a)) = AssetTraps::<T>::get(trap_id) {
+						if &o == origin && Some(assets) == MultiAssets::try_from(a).ok().as_ref() {
+							AssetTraps::<T>::remove(trap_id);
+							// TODO: figure out weight of this operation (state map read and asset
+							// conversion).
+							return true
+						}
 					}
 				}
 			}
-			(all_assets, 0)
+			false
 		}
 	}
 
