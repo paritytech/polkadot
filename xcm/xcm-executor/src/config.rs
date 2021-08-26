@@ -16,7 +16,7 @@
 
 use crate::traits::{
 	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
-	WeightBounds, WeightTrader,
+	WeightBounds, WeightTrader, DropAssets,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
@@ -58,4 +58,8 @@ pub trait Config {
 
 	/// What to do when a response of a query is found.
 	type ResponseHandler: OnResponse;
+
+	/// The general asset trap - handler for when assets are left in the Holding Register at the
+	/// end of execution.
+	type AssetTrap: DropAssets;
 }

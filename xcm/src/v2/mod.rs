@@ -226,11 +226,11 @@ pub enum Instruction<Call> {
 	/// Errors:
 	ReceiveTeleportedAsset(MultiAssets),
 
-	/// Respond with information that the local system is expecting.
+	/// Indication of the contents of the holding register corresponding to the `QueryHolding`
+	/// order of `query_id`.
 	///
 	/// - `query_id`: The identifier of the query that resulted in this message being sent.
-	/// - `response`: The message content.
-	/// - `max_weight`: The maximum weight that handling this response should take.
+	/// - `assets`: The message content.
 	///
 	/// Safety: No concerns.
 	///

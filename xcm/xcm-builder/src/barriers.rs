@@ -30,7 +30,7 @@ use xcm_executor::traits::{OnResponse, ShouldExecute};
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
 	fn should_execute<Call>(
-		_origin: &Option<MultiLocation>,
+		_origin: &MultiLocation,
 		_top_level: bool,
 		_message: &mut Xcm<Call>,
 		max_weight: Weight,
@@ -49,13 +49,12 @@ impl ShouldExecute for TakeWeightCredit {
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(
-		origin: &Option<MultiLocation>,
+		origin: &MultiLocation,
 		top_level: bool,
 		message: &mut Xcm<Call>,
 		max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		let origin = origin.as_ref().ok_or(())?;
 		ensure!(T::contains(origin), ());
 		ensure!(top_level, ());
 		let mut iter = message.0.iter_mut();
@@ -87,13 +86,12 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	fn should_execute<Call>(
-		origin: &Option<MultiLocation>,
+		origin: &MultiLocation,
 		_top_level: bool,
 		_message: &mut Xcm<Call>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		let origin = origin.as_ref().ok_or(())?;
 		ensure!(T::contains(origin), ());
 		Ok(())
 	}
@@ -115,13 +113,12 @@ impl<ParaId: IsSystem + From<u32>> Contains<MultiLocation> for IsChildSystemPara
 pub struct AllowKnownQueryResponses<ResponseHandler>(PhantomData<ResponseHandler>);
 impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<ResponseHandler> {
 	fn should_execute<Call>(
-		origin: &Option<MultiLocation>,
+		origin: &MultiLocation,
 		_top_level: bool,
 		message: &mut Xcm<Call>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		let origin = origin.as_ref().ok_or(())?;
 		match message.0.first() {
 			Some(QueryResponse { query_id, .. })
 				if ResponseHandler::expecting_response(origin, *query_id) =>

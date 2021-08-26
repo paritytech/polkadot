@@ -32,7 +32,7 @@ use xcm::latest::{
 pub mod traits;
 use traits::{
 	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
-	WeightBounds, WeightTrader,
+	WeightBounds, WeightTrader, DropAssets,
 };
 
 mod assets;
@@ -86,7 +86,6 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		if xcm_weight > weight_limit {
 			return Outcome::Error(XcmError::WeightLimitReached(xcm_weight))
 		}
-		let origin = Some(origin);
 
 		if let Err(_) = Config::Barrier::should_execute(
 			&origin,
@@ -98,7 +97,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			return Outcome::Error(XcmError::Barrier)
 		}
 
-		let mut vm = Self::new(origin);
+		let mut vm = Self::new(origin.clone());
 
 		while !message.0.is_empty() {
 			let result = vm.execute(message);
@@ -116,9 +115,9 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		vm.refund_surplus();
 		drop(vm.trader);
 
-		// TODO #2841: Do something with holding? (Fail-safe AssetTrap?)
+		let drop_weight = Config::AssetTrap::drop_assets(&origin, vm.holding);
 
-		let weight_used = xcm_weight.saturating_sub(vm.total_surplus);
+		let weight_used = xcm_weight.saturating_add(drop_weight).saturating_sub(vm.total_surplus);
 		match vm.error {
 			None => Outcome::Complete(weight_used),
 			// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
@@ -129,10 +128,10 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	fn new(origin: Option<MultiLocation>) -> Self {
+	fn new(origin: MultiLocation) -> Self {
 		Self {
 			holding: Assets::new(),
-			origin,
+			origin: Some(origin),
 			trader: Config::Trader::new(),
 			error: None,
 			total_surplus: 0,

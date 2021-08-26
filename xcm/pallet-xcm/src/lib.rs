@@ -51,7 +51,7 @@ pub mod pallet {
 	};
 	use frame_system::{pallet_prelude::*, Config as SysConfig};
 	use sp_runtime::traits::{AccountIdConversion, BlockNumberProvider};
-	use xcm_executor::traits::{InvertLocation, OnResponse, WeightBounds};
+	use xcm_executor::{Assets, traits::{InvertLocation, OnResponse, WeightBounds, DropAssets}};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -235,6 +235,12 @@ pub mod pallet {
 	#[pallet::getter(fn query)]
 	pub(super) type Queries<T: Config> =
 		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
+
+	/// The latest available query index.
+	#[pallet::storage]
+	#[pallet::getter(fn asset_trap)]
+	pub(super) type AssetTraps<T: Config> =
+		StorageMap<_, Blake2_128Concat, MultiLocation, Vec<VersionedMultiAssets>, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -553,8 +559,29 @@ pub mod pallet {
 		}
 	}
 
+	impl<T: Config> DropAssets for Pallet<T> {
+		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+			let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
+			AssetTraps::<T>::append(origin, versioned);
+			0
+		}
+
+		fn collect_assets(origin: &MultiLocation, _max_weight: Weight) -> (Assets, Weight) {
+			// TODO: Check max_weight and figure out weight of this operation.
+			let versioned_assetss: Vec<VersionedMultiAssets> = AssetTraps::<T>::take(origin);
+			let mut all_assets = Assets::new();
+			for versioned_assets in versioned_assetss.into_iter() {
+				if let Ok(assets) = MultiAssets::try_from(versioned_assets) {
+					for asset in assets.drain().into_iter() {
+						all_assets.subsume(asset);
+					}
+				}
+			}
+			(all_assets, 0)
+		}
+	}
+
 	impl<T: Config> OnResponse for Pallet<T> {
-		/// Returns `true` if we are expecting a response from `origin` for query `query_id`.
 		fn expecting_response(origin: &MultiLocation, query_id: QueryId) -> bool {
 			if let Some(QueryStatus::Pending { responder, .. }) = Queries::<T>::get(query_id) {
 				return MultiLocation::try_from(responder).map_or(false, |r| origin == &r)
@@ -562,7 +589,6 @@ pub mod pallet {
 			false
 		}
 
-		/// Handler for receiving a `response` from `origin` relating to `query_id`.
 		fn on_response(
 			origin: &MultiLocation,
 			query_id: QueryId,
