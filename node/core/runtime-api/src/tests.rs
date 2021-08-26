@@ -89,6 +89,13 @@ sp_api::mock_impl_runtime_apis! {
 			self.validation_data.get(&para).cloned()
 		}
 
+		fn persisted_validation_data_with_code_hash(
+			_para_id: ParaId,
+			_expected_persisted_validation_data_hash: Hash
+		) -> Option<(PersistedValidationData, ValidationCodeHash)> {
+			None
+		}
+
 		fn check_validation_outputs(
 			&self,
 			para_id: ParaId,
