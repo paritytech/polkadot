@@ -37,9 +37,6 @@ pub use super::v1::{
 	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WildFungibility, WildMultiAsset,
 };
 
-/// Identifier for assets that were trapped.
-pub type TrapId = u64;
-
 #[derive(Derivative, Default, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
@@ -558,9 +555,10 @@ pub enum Instruction<Call> {
 
 	/// Create some assets which are being held on behalf of the origin.
 	/// 
-	/// - `ticket`: An identifier for the assets to be claimed.
 	/// - `assets`: The assets which are to be claimed. This must match exactly with the assets
 	///   claimable by the origin of the ticket.
+	/// - `ticket`: The ticket of the asset; this is an abstract identifier to help locate the
+	///   asset.
 	///
 	/// Kind: *Instruction*
 	///

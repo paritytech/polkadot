@@ -96,6 +96,8 @@ pub enum Error {
 	UnknownWeightRequired,
 	/// An error was intentionally forced. A code is included.
 	Trap(u64),
+	/// The given claim could not be recognised/found.
+	UnknownClaim,
 }
 
 impl From<()> for Error {

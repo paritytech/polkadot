@@ -411,7 +411,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ClaimAsset { assets, ticket } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				let ok = Config::AssetClaims::claim_assets(origin, &ticket, &assets);
-				ensure!(ok, XcmError::AssetNotFound);
+				ensure!(ok, XcmError::UnknownClaim);
 				for asset in assets.drain().into_iter() {
 					self.holding.subsume(asset);
 				}

@@ -50,7 +50,8 @@ pub mod pallet {
 		pallet_prelude::*,
 	};
 	use frame_system::{pallet_prelude::*, Config as SysConfig};
-	use sp_runtime::traits::{AccountIdConversion, BlockNumberProvider};
+	use sp_core::H256;
+	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
 	use xcm_executor::{Assets, traits::{ClaimAssets, DropAssets, InvertLocation, OnResponse, WeightBounds}};
 
 	#[pallet::pallet]
@@ -170,6 +171,10 @@ pub mod pallet {
 		///
 		/// \[ id \]
 		ResponseTaken(QueryId),
+		/// Some assets have been placed in an asset trap.
+		/// 
+		/// \[ hash, origin, assets \]
+		AssetsTrapped(H256, MultiLocation, VersionedMultiAssets),
 	}
 
 	#[pallet::origin]
@@ -239,19 +244,13 @@ pub mod pallet {
 	pub(super) type Queries<T: Config> =
 	StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
 
-	/// The latest available trap index.
-	#[pallet::storage]
-	pub(super) type TrapCount<T: Config> = StorageValue<_, TrapId, ValueQuery>;
-	
-	/// The existing asset traps - i.e. those assets which have been placed with us through our
-	/// `DropAsset` impl.
+	/// The existing asset traps.
 	/// 
-	/// There are two fields to the value; the origin which dropped the assets and the assets
-	/// themselves.
+	/// Key is the blake2 256 hash of (origin, versioned multiassets) pair. Value is the number of
+	/// times this pair has been trapped (usually just 1 if it exists at all).
 	#[pallet::storage]
 	#[pallet::getter(fn asset_trap)]
-	pub(super) type AssetTraps<T: Config> =
-		StorageMap<_, Blake2_128Concat, TrapId, (MultiLocation, VersionedMultiAssets), OptionQuery>;
+	pub(super) type AssetTraps<T: Config> = StorageMap<_, Identity, H256, u32, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -573,30 +572,33 @@ pub mod pallet {
 	impl<T: Config> DropAssets for Pallet<T> {
 		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
 			if assets.is_empty() { return 0 }
-			let trap_id = TrapCount::<T>::mutate(|c| { *c += 1; *c - 1 });
 			let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
-			AssetTraps::<T>::insert(trap_id, (origin, versioned));
+			let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
+			AssetTraps::<T>::mutate(hash, |n| *n += 1);
+			Self::deposit_event(Event::AssetsTrapped(hash, origin.clone(), versioned));
 			// TODO: Put the real weight in there.
 			0
 		}
 	}
 
 	impl<T: Config> ClaimAssets for Pallet<T> {
-		fn claim_assets(origin: &MultiLocation, id: &MultiLocation, assets: &MultiAssets) -> bool {
-			if let MultiLocation { parents: 0, interior: X1(GeneralIndex(trap_id)) } = id {
-				if *trap_id <= u64::max_value() as u128 {
-					let trap_id = *trap_id as u64;
-					if let Some((o, a)) = AssetTraps::<T>::get(trap_id) {
-						if &o == origin && Some(assets) == MultiAssets::try_from(a).ok().as_ref() {
-							AssetTraps::<T>::remove(trap_id);
-							// TODO: figure out weight of this operation (state map read and asset
-							// conversion).
-							return true
-						}
-					}
-				}
+		fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, assets: &MultiAssets) -> bool {
+			let mut versioned = VersionedMultiAssets::from(assets.clone());
+			match (ticket.parents, &ticket.interior) {
+				(0, X1(GeneralIndex(i))) => versioned = match versioned.into_version(*i as u32) {
+					Ok(v) => v,
+					Err(()) => return false,
+				},
+				(0, Here) => (),
+				_ => return false,
+			};
+			let hash = BlakeTwo256::hash_of(&(origin, versioned));
+			match AssetTraps::<T>::get(hash) {
+				0 => return false,
+				1 => AssetTraps::<T>::remove(hash),
+				n => AssetTraps::<T>::insert(hash, n - 1),
 			}
-			false
+			return true
 		}
 	}
 

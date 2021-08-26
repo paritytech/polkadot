@@ -17,8 +17,9 @@
 use crate::{mock::*, QueryStatus, AssetTraps};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
+use sp_runtime::traits::{BlakeTwo256, Hash};
 use std::convert::TryInto;
-use xcm::{latest::prelude::*, VersionedXcm};
+use xcm::{VersionedMultiAssets, VersionedXcm, latest::prelude::*};
 use xcm_executor::XcmExecutor;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
@@ -320,21 +321,31 @@ fn trapped_assets_can_be_claimed() {
 			]))),
 			weight
 		));
-
-		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
-		assert_eq!(Balances::total_balance(&BOB), INITIAL_BALANCE);
-
 		let source: MultiLocation =
 			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
 		let trapped = AssetTraps::<Test>::iter().collect::<Vec<_>>();
-		let expected = vec![(0u64, (source, MultiAssets::from((Here, SEND_AMOUNT)).into()))];
+		let vma = VersionedMultiAssets::from(MultiAssets::from((Here, SEND_AMOUNT)));
+		let hash = BlakeTwo256::hash_of(&(source.clone(), vma.clone()));
+		assert_eq!(
+			last_events(2),
+			vec![
+				Event::XcmPallet(crate::Event::AssetsTrapped(hash.clone(), source, vma)),
+				Event::XcmPallet(crate::Event::Attempted(
+					Outcome::Complete(5 * BaseXcmWeight::get())
+				))
+			]
+		);
+		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+		assert_eq!(Balances::total_balance(&BOB), INITIAL_BALANCE);
+
+		let expected = vec![(hash, 1u32)];
 		assert_eq!(trapped, expected);
 
 		let weight = 3 * BaseXcmWeight::get();
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
 			Box::new(VersionedXcm::from(Xcm(vec![
-				ClaimAsset { assets: (Here, SEND_AMOUNT).into(), ticket: GeneralIndex(0).into() },
+				ClaimAsset { assets: (Here, SEND_AMOUNT).into(), ticket: Here.into() },
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest.clone() },
 			]))),
@@ -349,7 +360,7 @@ fn trapped_assets_can_be_claimed() {
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
 			Box::new(VersionedXcm::from(Xcm(vec![
-				ClaimAsset { assets: (Here, SEND_AMOUNT).into(), ticket: GeneralIndex(0).into() },
+				ClaimAsset { assets: (Here, SEND_AMOUNT).into(), ticket: Here.into() },
 				buy_execution((Here, SEND_AMOUNT)),
 				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 			]))),
@@ -358,7 +369,7 @@ fn trapped_assets_can_be_claimed() {
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(
-				Outcome::Incomplete(BaseXcmWeight::get(), XcmError::AssetNotFound)
+				Outcome::Incomplete(BaseXcmWeight::get(), XcmError::UnknownClaim)
 			))
 		);
 	});
