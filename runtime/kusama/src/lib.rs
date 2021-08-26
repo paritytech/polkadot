@@ -1523,7 +1523,7 @@ impl OnRuntimeUpgrade for BountiesPrefixMigration {
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_bounties::migrations::v4::post_migration::<Bounties>(BOUNTIES_OLD_PREFIX);
+		pallet_bounties::migrations::v4::post_migration::<Bounties, _>(BOUNTIES_OLD_PREFIX);
 		Ok(())
 	}
 }
