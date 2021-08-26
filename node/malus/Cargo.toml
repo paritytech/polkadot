@@ -30,8 +30,8 @@ polkadot-cli = { path = "../../cli", default-features = false, features = [ "cli
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-subsystem-types = { path = "../subsystem-types" }
-polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator"}
-polkadot-node-core-candidate-validation = { path = "../core/candidate-validation"}
+polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator" }
+polkadot-node-core-candidate-validation = { path = "../core/candidate-validation" }
 polkadot-node-core-backing = { path = "../core/backing" }
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
@@ -44,3 +44,6 @@ async-trait = "0.1.50"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tracing = "0.1.26"
 futures = "0.3.16"
+
+[features]
+disputes = ["polkadot-node-core-dispute-coordinator/disputes"]
