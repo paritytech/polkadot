@@ -107,7 +107,7 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> XcmResult {
+	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> SendResult {
 		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
 		Ok(())
 	}
@@ -222,9 +222,10 @@ impl OnResponse for TestResponseHandler {
 		})
 	}
 	fn on_response(
-		_origin: MultiLocation,
+		_origin: &MultiLocation,
 		query_id: u64,
 		response: xcm::latest::Response,
+		_max_weight: Weight,
 	) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut().entry(query_id).and_modify(|v| {
@@ -258,6 +259,7 @@ parameter_types! {
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
 	pub static WeightPrice: (AssetId, u128) = (From::from(Here), 1_000_000_000_000);
+	pub static MaxInstructions: u32 = 100;
 }
 
 pub type TestBarrier = (
@@ -277,7 +279,7 @@ impl Config for TestConfig {
 	type IsTeleporter = TestIsTeleporter;
 	type LocationInverter = LocationInverter<TestAncestry>;
 	type Barrier = TestBarrier;
-	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall>;
+	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
 }

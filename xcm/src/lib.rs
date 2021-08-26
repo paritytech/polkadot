@@ -33,9 +33,10 @@ use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
 pub mod v0;
 pub mod v1;
+pub mod v2;
 
 pub mod latest {
-	pub use super::v1::*;
+	pub use super::v2::*;
 }
 
 mod double_encoded;
@@ -97,6 +98,71 @@ impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
 	}
 }
 
+/// A single `Response` value, together with its version code.
+#[derive(Derivative, Encode, Decode)]
+#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
+#[codec(encode_bound())]
+#[codec(decode_bound())]
+pub enum VersionedResponse {
+	V0(v0::Response),
+	V1(v1::Response),
+	V2(v2::Response),
+}
+
+impl From<v0::Response> for VersionedResponse {
+	fn from(x: v0::Response) -> Self {
+		VersionedResponse::V0(x)
+	}
+}
+
+impl From<v1::Response> for VersionedResponse {
+	fn from(x: v1::Response) -> Self {
+		VersionedResponse::V1(x)
+	}
+}
+
+impl<T: Into<v2::Response>> From<T> for VersionedResponse {
+	fn from(x: T) -> Self {
+		VersionedResponse::V2(x.into())
+	}
+}
+
+impl TryFrom<VersionedResponse> for v0::Response {
+	type Error = ();
+	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
+		use VersionedResponse::*;
+		match x {
+			V0(x) => Ok(x),
+			V1(x) => x.try_into(),
+			V2(x) => VersionedResponse::V1(x.try_into()?).try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedResponse> for v1::Response {
+	type Error = ();
+	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
+		use VersionedResponse::*;
+		match x {
+			V0(x) => x.try_into(),
+			V1(x) => Ok(x),
+			V2(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedResponse> for v2::Response {
+	type Error = ();
+	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
+		use VersionedResponse::*;
+		match x {
+			V0(x) => VersionedResponse::V1(x.try_into()?).try_into(),
+			V1(x) => x.try_into(),
+			V2(x) => Ok(x),
+		}
+	}
+}
+
 /// A single `MultiAsset` value, together with its version code.
 #[derive(Derivative, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
@@ -142,8 +208,6 @@ impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
 }
 
 /// A single `MultiAssets` value, together with its version code.
-///
-/// NOTE: For XCM v0, this was `Vec<MultiAsset>`.
 #[derive(Derivative, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
@@ -195,6 +259,7 @@ impl TryFrom<VersionedMultiAssets> for v1::MultiAssets {
 pub enum VersionedXcm<Call> {
 	V0(v0::Xcm<Call>),
 	V1(v1::Xcm<Call>),
+	V2(v2::Xcm<Call>),
 }
 
 impl<Call> From<v0::Xcm<Call>> for VersionedXcm<Call> {
@@ -209,12 +274,20 @@ impl<Call> From<v1::Xcm<Call>> for VersionedXcm<Call> {
 	}
 }
 
+impl<Call> From<v2::Xcm<Call>> for VersionedXcm<Call> {
+	fn from(x: v2::Xcm<Call>) -> Self {
+		VersionedXcm::V2(x)
+	}
+}
+
 impl<Call> TryFrom<VersionedXcm<Call>> for v0::Xcm<Call> {
 	type Error = ();
 	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+		use VersionedXcm::*;
 		match x {
-			VersionedXcm::V0(x) => Ok(x),
-			VersionedXcm::V1(x) => x.try_into(),
+			V0(x) => Ok(x),
+			V1(x) => x.try_into(),
+			V2(x) => V1(x.try_into()?).try_into(),
 		}
 	}
 }
@@ -222,9 +295,23 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v0::Xcm<Call> {
 impl<Call> TryFrom<VersionedXcm<Call>> for v1::Xcm<Call> {
 	type Error = ();
 	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+		use VersionedXcm::*;
 		match x {
-			VersionedXcm::V0(x) => x.try_into(),
-			VersionedXcm::V1(x) => Ok(x),
+			V0(x) => x.try_into(),
+			V1(x) => Ok(x),
+			V2(x) => x.try_into(),
+		}
+	}
+}
+
+impl<Call> TryFrom<VersionedXcm<Call>> for v2::Xcm<Call> {
+	type Error = ();
+	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+		use VersionedXcm::*;
+		match x {
+			V0(x) => V1(x.try_into()?).try_into(),
+			V1(x) => x.try_into(),
+			V2(x) => Ok(x),
 		}
 	}
 }
@@ -269,6 +356,17 @@ impl WrapVersion for AlwaysV1 {
 	}
 }
 
+/// `WrapVersion` implementation which attempts to always convert the XCM to version 1 before wrapping it.
+pub struct AlwaysV2;
+impl WrapVersion for AlwaysV2 {
+	fn wrap_version<Call>(
+		_: &latest::MultiLocation,
+		xcm: impl Into<VersionedXcm<Call>>,
+	) -> Result<VersionedXcm<Call>, ()> {
+		Ok(VersionedXcm::<Call>::V2(xcm.into().try_into()?))
+	}
+}
+
 /// `WrapVersion` implementation which attempts to always convert the XCM to the latest version before wrapping it.
 pub type AlwaysLatest = AlwaysV1;
 
@@ -288,9 +386,15 @@ pub mod opaque {
 		// Then override with the opaque types in v1
 		pub use crate::v1::opaque::{Order, Xcm};
 	}
+	pub mod v2 {
+		// Everything from v1
+		pub use crate::v2::*;
+		// Then override with the opaque types in v2
+		pub use crate::v2::opaque::{Instruction, Xcm};
+	}
 
 	pub mod latest {
-		pub use super::v1::*;
+		pub use super::v2::*;
 	}
 
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
