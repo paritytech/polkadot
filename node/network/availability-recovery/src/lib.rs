@@ -36,15 +36,15 @@ use lru::LruCache;
 use rand::seq::SliceRandom;
 
 use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1, recovery_threshold};
+#[cfg(not(test))]
+use polkadot_node_network_protocol::request_response::CHUNK_REQUEST_TIMEOUT;
 use polkadot_node_network_protocol::{
 	request_response::{
 		self as req_res, incoming, outgoing::RequestError, v1 as request_v1,
-		IncomingRequestReceiver, OutgoingRequest, Recipient, Requests
+		IncomingRequestReceiver, OutgoingRequest, Recipient, Requests,
 	},
 	IfDisconnected, UnifiedReputationChange as Rep,
 };
-#[cfg(not(test))]
-use polkadot_node_network_protocol::request_response::CHUNK_REQUEST_TIMEOUT;
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem_util::request_session_info;
 use polkadot_primitives::v1::{
