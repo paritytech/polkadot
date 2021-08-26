@@ -18,12 +18,14 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, ValidatorIndex};
-use polkadot_primitives::v1::Id as ParaId;
-use polkadot_node_primitives::{AvailableData, PoV, ErasureChunk};
+use polkadot_node_primitives::{
+	AvailableData, DisputeMessage, ErasureChunk, PoV, Proof, UncheckedDisputeMessage,
+};
+use polkadot_primitives::v1::{
+	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, Id as ParaId, ValidatorIndex,
+};
 
-use super::request::IsRequest;
-use super::Protocol;
+use super::{IsRequest, Protocol};
 
 /// Request an availability chunk.
 #[derive(Debug, Copy, Clone, Encode, Decode)]
@@ -65,23 +67,19 @@ pub struct ChunkResponse {
 	/// The erasure-encoded chunk of data belonging to the candidate block.
 	pub chunk: Vec<u8>,
 	/// Proof for this chunk's branch in the Merkle tree.
-	pub proof: Vec<Vec<u8>>,
+	pub proof: Proof,
 }
 
 impl From<ErasureChunk> for ChunkResponse {
-	fn from(ErasureChunk {chunk, index: _, proof}: ErasureChunk) -> Self {
-		ChunkResponse {chunk, proof}
+	fn from(ErasureChunk { chunk, index: _, proof }: ErasureChunk) -> Self {
+		ChunkResponse { chunk, proof }
 	}
 }
 
 impl ChunkResponse {
 	/// Re-build an `ErasureChunk` from response and request.
 	pub fn recombine_into_chunk(self, req: &ChunkFetchingRequest) -> ErasureChunk {
-		ErasureChunk {
-			chunk: self.chunk,
-			proof: self.proof,
-			index: req.index,
-		}
+		ErasureChunk { chunk: self.chunk, proof: self.proof, index: req.index }
 	}
 }
 
@@ -172,7 +170,7 @@ impl IsRequest for AvailableDataFetchingRequest {
 pub struct StatementFetchingRequest {
 	/// Data needed to locate and identify the needed statement.
 	pub relay_parent: Hash,
-	/// Hash of candidate that was used create the CommitedCandidateRecept.
+	/// Hash of candidate that was used create the `CommitedCandidateRecept`.
 	pub candidate_hash: CandidateHash,
 }
 
@@ -191,4 +189,29 @@ pub enum StatementFetchingResponse {
 impl IsRequest for StatementFetchingRequest {
 	type Response = StatementFetchingResponse;
 	const PROTOCOL: Protocol = Protocol::StatementFetching;
+}
+
+/// A dispute request.
+///
+/// Contains an invalid vote a valid one for a particular candidate in a given session.
+#[derive(Clone, Encode, Decode, Debug)]
+pub struct DisputeRequest(pub UncheckedDisputeMessage);
+
+impl From<DisputeMessage> for DisputeRequest {
+	fn from(msg: DisputeMessage) -> Self {
+		Self(msg.into())
+	}
+}
+
+/// Possible responses to a `DisputeRequest`.
+#[derive(Encode, Decode, Debug, PartialEq, Eq)]
+pub enum DisputeResponse {
+	/// Recipient successfully processed the dispute request.
+	#[codec(index = 0)]
+	Confirmed,
+}
+
+impl IsRequest for DisputeRequest {
+	type Response = DisputeResponse;
+	const PROTOCOL: Protocol = Protocol::DisputeSending;
 }

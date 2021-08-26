@@ -102,7 +102,9 @@ This trait represents this chain from bridge point of view. Let's review every m
   have declared dispatch weight larger than 50% of the maximal bridged extrinsic weight.
 
 - `MessageBridge::estimate_delivery_transaction`: you will need to return estimated dispatch weight and
-  size of the delivery transaction that delivers a given message to the target chain.
+  size of the delivery transaction that delivers a given message to the target chain. The transaction
+  weight must or must not include the weight of pay-dispatch-fee operation, depending on the value
+  of `include_pay_dispatch_fee_cost` argument.
 
 - `MessageBridge::transaction_payment`: you'll need to return fee that the submitter
   must pay for given transaction on bridged chain. The best case is when you have the same conversion

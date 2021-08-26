@@ -18,34 +18,30 @@
 
 #![warn(missing_docs)]
 
-use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem::{
-	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult, Subsystem,
-	SpawnedSubsystem, OverseerSignal, SubsystemSender,
+	messages::AllMessages, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	SubsystemContext, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 
-use futures::channel::mpsc;
-use futures::poll;
-use futures::prelude::*;
+use futures::{channel::mpsc, poll, prelude::*};
 use parking_lot::Mutex;
 use sp_core::{testing::TaskExecutor, traits::SpawnNamed};
 
-use std::convert::Infallible;
-use std::pin::Pin;
-use std::sync::Arc;
-use std::task::{Context, Poll, Waker};
-use std::time::Duration;
+use std::{
+	convert::Infallible,
+	pin::Pin,
+	sync::Arc,
+	task::{Context, Poll, Waker},
+	time::Duration,
+};
+
+/// Generally useful mock data providers for unit tests.
+pub mod mock;
 
 enum SinkState<T> {
-	Empty {
-		read_waker: Option<Waker>,
-	},
-	Item {
-		item: T,
-		ready_waker: Option<Waker>,
-		flush_waker: Option<Waker>,
-	},
+	Empty { read_waker: Option<Waker> },
+	Item { item: T, ready_waker: Option<Waker>, flush_waker: Option<Waker> },
 }
 
 /// The sink half of a single-item sink that does not resolve until the item has been read.
@@ -68,13 +64,10 @@ impl<T> Sink<T> for SingleItemSink<T> {
 		let mut state = self.0.lock();
 		match *state {
 			SinkState::Empty { .. } => Poll::Ready(Ok(())),
-			SinkState::Item {
-				ref mut ready_waker,
-				..
-			} => {
+			SinkState::Item { ref mut ready_waker, .. } => {
 				*ready_waker = Some(cx.waker().clone());
 				Poll::Pending
-			}
+			},
 		}
 	}
 
@@ -82,19 +75,14 @@ impl<T> Sink<T> for SingleItemSink<T> {
 		let mut state = self.0.lock();
 
 		match *state {
-			SinkState::Empty { ref mut read_waker } => {
+			SinkState::Empty { ref mut read_waker } =>
 				if let Some(waker) = read_waker.take() {
 					waker.wake();
-				}
-			}
+				},
 			_ => panic!("start_send called outside of empty sink state ensured by poll_ready"),
 		}
 
-		*state = SinkState::Item {
-			item,
-			ready_waker: None,
-			flush_waker: None,
-		};
+		*state = SinkState::Item { item, ready_waker: None, flush_waker: None };
 
 		Ok(())
 	}
@@ -103,13 +91,10 @@ impl<T> Sink<T> for SingleItemSink<T> {
 		let mut state = self.0.lock();
 		match *state {
 			SinkState::Empty { .. } => Poll::Ready(Ok(())),
-			SinkState::Item {
-				ref mut flush_waker,
-				..
-			} => {
+			SinkState::Item { ref mut flush_waker, .. } => {
 				*flush_waker = Some(cx.waker().clone());
 				Poll::Pending
-			}
+			},
 		}
 	}
 
@@ -128,11 +113,7 @@ impl<T> Stream for SingleItemStream<T> {
 
 		match std::mem::replace(&mut *state, SinkState::Empty { read_waker }) {
 			SinkState::Empty { .. } => Poll::Pending,
-			SinkState::Item {
-				item,
-				ready_waker,
-				flush_waker,
-			} => {
+			SinkState::Item { item, ready_waker, flush_waker } => {
 				if let Some(waker) = ready_waker {
 					waker.wake();
 				}
@@ -142,7 +123,7 @@ impl<T> Stream for SingleItemStream<T> {
 				}
 
 				Poll::Ready(Some(item))
-			}
+			},
 		}
 	}
 }
@@ -165,19 +146,13 @@ pub struct TestSubsystemSender {
 /// Construct a sender/receiver pair.
 pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMessages>) {
 	let (tx, rx) = mpsc::unbounded();
-	(
-		TestSubsystemSender { tx },
-		rx,
-	)
+	(TestSubsystemSender { tx }, rx)
 }
 
 #[async_trait::async_trait]
-impl SubsystemSender for TestSubsystemSender {
+impl overseer::SubsystemSender<AllMessages> for TestSubsystemSender {
 	async fn send_message(&mut self, msg: AllMessages) {
-		self.tx
-			.send(msg)
-			.await
-			.expect("test overseer no longer live");
+		self.tx.send(msg).await.expect("test overseer no longer live");
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
@@ -186,10 +161,7 @@ impl SubsystemSender for TestSubsystemSender {
 		T::IntoIter: Send,
 	{
 		let mut iter = stream::iter(msgs.into_iter().map(Ok));
-		self.tx
-			.send_all(&mut iter)
-			.await
-			.expect("test overseer no longer live");
+		self.tx.send_all(&mut iter).await.expect("test overseer no longer live");
 	}
 
 	fn send_unbounded_message(&mut self, msg: AllMessages) {
@@ -205,11 +177,17 @@ pub struct TestSubsystemContext<M, S> {
 }
 
 #[async_trait::async_trait]
-impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
-	for TestSubsystemContext<M, S>
+impl<M, S> overseer::SubsystemContext for TestSubsystemContext<M, S>
+where
+	M: std::fmt::Debug + Send + 'static,
+	AllMessages: From<M>,
+	S: SpawnNamed + Send + 'static,
 {
 	type Message = M;
 	type Sender = TestSubsystemSender;
+	type Signal = OverseerSignal;
+	type AllMessages = AllMessages;
+	type Error = SubsystemError;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
 		match poll!(self.rx.next()) {
@@ -220,11 +198,13 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 	}
 
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
-		self.rx.next().await
+		self.rx
+			.next()
+			.await
 			.ok_or_else(|| SubsystemError::Context("Receiving end closed".to_owned()))
 	}
 
-	async fn spawn(
+	fn spawn(
 		&mut self,
 		name: &'static str,
 		s: Pin<Box<dyn Future<Output = ()> + Send>>,
@@ -233,9 +213,11 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 		Ok(())
 	}
 
-	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
-		-> SubsystemResult<()>
-	{
+	fn spawn_blocking(
+		&mut self,
+		name: &'static str,
+		s: Pin<Box<dyn Future<Output = ()> + Send>>,
+	) -> SubsystemResult<()> {
 		self.spawn.spawn_blocking(name, s);
 		Ok(())
 	}
@@ -261,10 +243,7 @@ impl<M> TestSubsystemContextHandle<M> {
 	/// Send a message or signal to the subsystem. This resolves at the point in time where the
 	/// subsystem has _read_ the message.
 	pub async fn send(&mut self, from_overseer: FromOverseer<M>) {
-		self.tx
-			.send(from_overseer)
-			.await
-			.expect("Test subsystem no longer live");
+		self.tx.send(from_overseer).await.expect("Test subsystem no longer live");
 	}
 
 	/// Receive the next message from the subsystem.
@@ -291,10 +270,7 @@ pub fn make_subsystem_context<M, S>(
 			rx: overseer_rx,
 			spawn,
 		},
-		TestSubsystemContextHandle {
-			tx: overseer_tx,
-			rx: all_messages_rx,
-		},
+		TestSubsystemContextHandle { tx: overseer_tx, rx: all_messages_rx },
 	)
 }
 
@@ -302,7 +278,7 @@ pub fn make_subsystem_context<M, S>(
 ///
 /// Pass in two async closures: one mocks the overseer, the other runs the test from the perspective of a subsystem.
 ///
-/// Times out in two seconds.
+/// Times out in 5 seconds.
 pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 	overseer_factory: OverseerFactory,
 	test_factory: TestFactory,
@@ -321,7 +297,7 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 
 	futures::executor::block_on(async move {
 		future::join(overseer, test)
-			.timeout(Duration::from_secs(2))
+			.timeout(Duration::from_secs(5))
 			.await
 			.expect("test timed out instead of completing")
 	});
@@ -333,10 +309,14 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 /// channel.
 ///
 /// This subsystem is useful for testing functionality that interacts with the overseer.
-pub struct ForwardSubsystem<Msg>(pub mpsc::Sender<Msg>);
+pub struct ForwardSubsystem<M>(pub mpsc::Sender<M>);
 
-impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for ForwardSubsystem<Msg> {
-	fn start(mut self, mut ctx: C) -> SpawnedSubsystem {
+impl<M, Context> overseer::Subsystem<Context, SubsystemError> for ForwardSubsystem<M>
+where
+	M: std::fmt::Debug + Send + 'static,
+	Context: SubsystemContext<Message = M> + overseer::SubsystemContext<Message = M>,
+{
+	fn start(mut self, mut ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
@@ -350,42 +330,47 @@ impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for F
 			}
 		});
 
-		SpawnedSubsystem {
-			name: "forward-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "forward-subsystem", future }
 	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_overseer::{Overseer, HeadSupportsParachains, AllSubsystems};
 	use futures::executor::block_on;
-	use polkadot_primitives::v1::Hash;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
+	use polkadot_overseer::{AllSubsystems, Handle, HeadSupportsParachains, Overseer};
+	use polkadot_primitives::v1::Hash;
 
 	struct AlwaysSupportsParachains;
 	impl HeadSupportsParachains for AlwaysSupportsParachains {
-		fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
+		fn head_supports_parachains(&self, _head: &Hash) -> bool {
+			true
+		}
 	}
 
 	#[test]
 	fn forward_subsystem_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
 		let (tx, rx) = mpsc::channel(2);
-		let all_subsystems = AllSubsystems::<()>::dummy().replace_collator_protocol(ForwardSubsystem(tx));
-		let (overseer, mut handler) = Overseer::new(
+		let all_subsystems =
+			AllSubsystems::<()>::dummy().replace_collator_protocol(ForwardSubsystem(tx));
+		let (overseer, handle) = Overseer::new(
 			Vec::new(),
 			all_subsystems,
 			None,
 			AlwaysSupportsParachains,
 			spawner.clone(),
-		).unwrap();
+		)
+		.unwrap();
+		let mut handle = Handle::Connected(handle);
 
 		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
 
-		block_on(handler.send_msg(CollatorProtocolMessage::CollateOn(Default::default())));
-		assert!(matches!(block_on(rx.into_future()).0.unwrap(), CollatorProtocolMessage::CollateOn(_)));
+		block_on(handle.send_msg_anon(CollatorProtocolMessage::CollateOn(Default::default())));
+		assert!(matches!(
+			block_on(rx.into_future()).0.unwrap(),
+			CollatorProtocolMessage::CollateOn(_)
+		));
 	}
 }

@@ -25,54 +25,67 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
-	errors::RuntimeApiError,
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender, BoundToRelayParent},
-	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemSender,
-	ActiveLeavesUpdate, OverseerSignal,
+	errors::{RuntimeApiError, SubsystemError},
+	messages::{
+		AllMessages, BoundToRelayParent, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender,
+	},
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	SubsystemSender,
 };
-use polkadot_node_jaeger as jaeger;
-use futures::{channel::{mpsc, oneshot}, prelude::*, select, stream::Stream};
-use futures_timer::Delay;
+
+pub use overseer::{
+	gen::{OverseerError, Timeout},
+	Subsystem, TimeoutExt,
+};
+
+pub use polkadot_node_metrics::{metrics, Metronome};
+
+use futures::{
+	channel::{mpsc, oneshot},
+	prelude::*,
+	select,
+	stream::{SelectAll, Stream},
+};
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
+use polkadot_node_jaeger as jaeger;
 use polkadot_primitives::v1::{
-	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
-	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex, SessionInfo,
-	AuthorityDiscoveryId, GroupIndex,
+	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
+	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+	PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode,
+	ValidatorId, ValidatorIndex,
 };
-use sp_core::{traits::SpawnNamed, Public};
 use sp_application_crypto::AppKey;
-use sp_keystore::{CryptoStore, SyncCryptoStorePtr, Error as KeystoreError};
+use sp_core::{traits::SpawnNamed, Public};
+use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
 use std::{
-	collections::{HashMap, hash_map::Entry}, convert::TryFrom, marker::Unpin, pin::Pin, task::{Poll, Context},
-	time::Duration, fmt, sync::Arc,
+	collections::{hash_map::Entry, HashMap},
+	convert::TryFrom,
+	fmt,
+	marker::Unpin,
+	pin::Pin,
+	sync::Arc,
+	task::{Context, Poll},
+	time::Duration,
 };
-use streamunordered::{StreamUnordered, StreamYield};
 use thiserror::Error;
 
 pub use metered_channel as metered;
 pub use polkadot_node_network_protocol::MIN_GOSSIP_PEERS;
 
-/// Error classification.
-pub use error_handling::{Fault, unwrap_non_fatal};
+pub use determine_new_blocks::determine_new_blocks;
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
-	pub use sp_core::traits::SpawnNamed;
-	pub use polkadot_node_subsystem::{
-		SpawnedSubsystem,
-		Subsystem,
-		SubsystemContext,
-	};
+	pub use polkadot_overseer::gen::{SpawnNamed, SpawnedSubsystem, Subsystem, SubsystemContext};
 }
 
-/// Convenient and efficient runtime info access.
-pub mod runtime;
 /// A rolling session window cache.
 pub mod rolling_session_window;
+/// Convenient and efficient runtime info access.
+pub mod runtime;
 
-mod error_handling;
+mod determine_new_blocks;
 
 #[cfg(test)]
 mod tests;
@@ -100,7 +113,7 @@ pub enum Error {
 	/// The type system wants this even though it doesn't make sense
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),
-	/// Attempted to convert from an AllMessages to a FromJob, and failed.
+	/// Attempted to convert from an `AllMessages` to a `FromJob`, and failed.
 	#[error("AllMessage not relevant to Job")]
 	SenderConversion(String),
 	/// The local node is not a validator.
@@ -109,6 +122,12 @@ pub enum Error {
 	/// Already forwarding errors to another sender
 	#[error("AlreadyForwarding")]
 	AlreadyForwarding,
+}
+
+impl From<OverseerError> for Error {
+	fn from(e: OverseerError) -> Self {
+		Self::from(SubsystemError::from(e))
+	}
 }
 
 /// A type alias for Runtime API receivers.
@@ -126,7 +145,9 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 
-	sender.send_message(RuntimeApiMessage::Request(parent, request_builder(tx)).into()).await;
+	sender
+		.send_message(RuntimeApiMessage::Request(parent, request_builder(tx)).into())
+		.await;
 
 	rx
 }
@@ -147,13 +168,14 @@ macro_rules! specialize_requests {
 		#[doc = "Request `"]
 		#[doc = $doc_name]
 		#[doc = "` from the runtime"]
-		pub async fn $func_name(
+		pub async fn $func_name (
 			parent: Hash,
 			$(
 				$param_name: $param_ty,
 			)*
 			sender: &mut impl SubsystemSender,
-		) -> RuntimeApiReceiver<$return_ty> {
+		) -> RuntimeApiReceiver<$return_ty>
+		{
 			request_from_runtime(parent, sender, |tx| RuntimeApiRequest::$request_variant(
 				$( $param_name, )* tx
 			)).await
@@ -192,60 +214,71 @@ specialize_requests! {
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub async fn signing_key(validators: &[ValidatorId], keystore: &SyncCryptoStorePtr)
-	-> Option<ValidatorId>
-{
+pub async fn signing_key(
+	validators: &[ValidatorId],
+	keystore: &SyncCryptoStorePtr,
+) -> Option<ValidatorId> {
 	signing_key_and_index(validators, keystore).await.map(|(k, _)| k)
 }
 
 /// From the given set of validators, find the first key we can sign with, if any, and return it
 /// along with the validator index.
-pub async fn signing_key_and_index(validators: &[ValidatorId], keystore: &SyncCryptoStorePtr)
-	-> Option<(ValidatorId, ValidatorIndex)>
-{
+pub async fn signing_key_and_index(
+	validators: &[ValidatorId],
+	keystore: &SyncCryptoStorePtr,
+) -> Option<(ValidatorId, ValidatorIndex)> {
 	for (i, v) in validators.iter().enumerate() {
 		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
-			return Some((v.clone(), ValidatorIndex(i as _)));
+			return Some((v.clone(), ValidatorIndex(i as _)))
 		}
 	}
 	None
 }
 
 /// Find the validator group the given validator index belongs to.
-pub fn find_validator_group(groups: &[Vec<ValidatorIndex>], index: ValidatorIndex)
-	-> Option<GroupIndex>
-{
-	groups.iter().enumerate().find_map(|(i, g)| if g.contains(&index) {
-		Some(GroupIndex(i as _))
-	} else {
-		None
+pub fn find_validator_group(
+	groups: &[Vec<ValidatorIndex>],
+	index: ValidatorIndex,
+) -> Option<GroupIndex> {
+	groups.iter().enumerate().find_map(|(i, g)| {
+		if g.contains(&index) {
+			Some(GroupIndex(i as _))
+		} else {
+			None
+		}
 	})
 }
 
-/// Chooses a random subset of sqrt(v.len()), but at least `min` elements.
-pub fn choose_random_sqrt_subset<T>(mut v: Vec<T>, min: usize) -> Vec<T> {
+/// Choose a random subset of `min` elements.
+/// But always include `is_priority` elements.
+pub fn choose_random_subset<T, F: FnMut(&T) -> bool>(
+	is_priority: F,
+	mut v: Vec<T>,
+	min: usize,
+) -> Vec<T> {
 	use rand::seq::SliceRandom as _;
-	let mut rng = rand::thread_rng();
-	v.shuffle(&mut rng);
 
-	let len = max_of_min_and_sqrt_len(v.len(), min);
-	v.truncate(len);
+	// partition the elements into priority first
+	// the returned index is when non_priority elements start
+	let i = itertools::partition(&mut v, is_priority);
+
+	if i >= min || v.len() <= i {
+		v.truncate(i);
+		return v
+	}
+
+	let mut rng = rand::thread_rng();
+	v[i..].shuffle(&mut rng);
+
+	v.truncate(min);
 	v
 }
 
-/// Returns bool with a probability of `max(len.sqrt(), min) / len`
-/// being true.
-pub fn gen_ratio_sqrt_subset(len: usize, min: usize) -> bool {
+/// Returns a `bool` with a probability of `a / b` of being true.
+pub fn gen_ratio(a: usize, b: usize) -> bool {
 	use rand::Rng as _;
 	let mut rng = rand::thread_rng();
-	let threshold = max_of_min_and_sqrt_len(len, min);
-	let n = rng.gen_range(0..len);
-	n < threshold
-}
-
-fn max_of_min_and_sqrt_len(len: usize, min: usize) -> usize {
-	let len_sqrt = (len as f64).sqrt() as usize;
-	std::cmp::max(min, len_sqrt)
+	rng.gen_ratio(a as u32, b as u32)
 }
 
 /// Local validator information
@@ -274,10 +307,7 @@ impl Validator {
 			request_session_index_for_child(parent, sender).await,
 		)?;
 
-		let signing_context = SigningContext {
-			session_index: session_index?,
-			parent_hash: parent,
-		};
+		let signing_context = SigningContext { session_index: session_index?, parent_hash: parent };
 
 		let validators = validators?;
 
@@ -292,15 +322,10 @@ impl Validator {
 		signing_context: SigningContext,
 		keystore: SyncCryptoStorePtr,
 	) -> Result<Self, Error> {
-		let (key, index) = signing_key_and_index(validators, &keystore)
-			.await
-			.ok_or(Error::NotAValidator)?;
+		let (key, index) =
+			signing_key_and_index(validators, &keystore).await.ok_or(Error::NotAValidator)?;
 
-		Ok(Validator {
-			signing_context,
-			key,
-			index,
-		})
+		Ok(Validator { signing_context, key, index })
 	}
 
 	/// Get this validator's id.
@@ -336,7 +361,7 @@ impl Drop for AbortOnDrop {
 	}
 }
 
-/// A JobHandle manages a particular job for a subsystem.
+/// A `JobHandle` manages a particular job for a subsystem.
 struct JobHandle<ToJob> {
 	_abort_handle: AbortOnDrop,
 	to_job: mpsc::Sender<ToJob>,
@@ -349,41 +374,6 @@ impl<ToJob> JobHandle<ToJob> {
 	}
 }
 
-/// This module reexports Prometheus types and defines the [`Metrics`] trait.
-pub mod metrics {
-	/// Reexport Substrate Prometheus types.
-	pub use substrate_prometheus_endpoint as prometheus;
-
-
-	/// Subsystem- or job-specific Prometheus metrics.
-	///
-	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
-	/// to ensure `Default` bounds or as a dummy type ().
-	/// Prometheus metrics internally hold an `Arc` reference, so cloning them is fine.
-	pub trait Metrics: Default + Clone {
-		/// Try to register metrics in the Prometheus registry.
-		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
-
-		/// Convenience method to register metrics in the optional Promethius registry.
-		///
-		/// If no registry is provided, returns `Default::default()`. Otherwise, returns the same
-		/// thing that `try_register` does.
-		fn register(registry: Option<&prometheus::Registry>) -> Result<Self, prometheus::PrometheusError> {
-			match registry {
-				None => Ok(Self::default()),
-				Some(registry) => Self::try_register(registry),
-			}
-		}
-	}
-
-	// dummy impl
-	impl Metrics for () {
-		fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-			Ok(())
-		}
-	}
-}
-
 /// Commands from a job to the broader subsystem.
 pub enum FromJobCommand {
 	/// Spawn a child task on the executor.
@@ -393,10 +383,17 @@ pub enum FromJobCommand {
 }
 
 /// A sender for messages from jobs, as well as commands to the overseer.
-#[derive(Clone)]
-pub struct JobSender<S> {
+pub struct JobSender<S: SubsystemSender> {
 	sender: S,
 	from_job: mpsc::Sender<FromJobCommand>,
+}
+
+// A custom clone impl, since M does not need to impl `Clone`
+// which `#[derive(Clone)]` requires.
+impl<S: SubsystemSender> Clone for JobSender<S> {
+	fn clone(&self) -> Self {
+		Self { sender: self.sender.clone(), from_job: self.from_job.clone() }
+	}
 }
 
 impl<S: SubsystemSender> JobSender<S> {
@@ -406,25 +403,27 @@ impl<S: SubsystemSender> JobSender<S> {
 	}
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	pub async fn send_message(&mut self, msg: AllMessages) {
-		self.sender.send_message(msg).await
+	pub async fn send_message(&mut self, msg: impl Into<AllMessages>) {
+		self.sender.send_message(msg.into()).await
 	}
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	pub async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
+	pub async fn send_messages<T, M>(&mut self, msgs: T)
+	where
+		T: IntoIterator<Item = M> + Send,
+		T::IntoIter: Send,
+		M: Into<AllMessages>,
 	{
-		self.sender.send_messages(msgs).await
+		self.sender.send_messages(msgs.into_iter().map(|m| m.into())).await
 	}
-
 
 	/// Send a message onto the unbounded queue of some other `Subsystem`, routed based on message
 	/// type.
 	///
 	/// This function should be used only when there is some other bounding factor on the messages
 	/// sent with it. Otherwise, it risks a memory leak.
-	pub fn send_unbounded_message(&mut self, msg: AllMessages) {
-		self.sender.send_unbounded_message(msg)
+	pub fn send_unbounded_message(&mut self, msg: impl Into<AllMessages>) {
+		self.sender.send_unbounded_message(msg.into())
 	}
 
 	/// Send a command to the subsystem, to be relayed onwards to the overseer.
@@ -434,19 +433,25 @@ impl<S: SubsystemSender> JobSender<S> {
 }
 
 #[async_trait::async_trait]
-impl<S: SubsystemSender> SubsystemSender for JobSender<S> {
-	async fn send_message(&mut self, msg: AllMessages) {
-		self.sender.send_message(msg).await
+impl<S, M> overseer::SubsystemSender<M> for JobSender<S>
+where
+	M: Send + 'static + Into<AllMessages>,
+	S: SubsystemSender + Clone,
+{
+	async fn send_message(&mut self, msg: M) {
+		self.sender.send_message(msg.into()).await
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T)
-		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
+	where
+		T: IntoIterator<Item = M> + Send,
+		T::IntoIter: Send,
 	{
-		self.sender.send_messages(msgs).await
+		self.sender.send_messages(msgs.into_iter().map(|m| m.into())).await
 	}
 
-	fn send_unbounded_message(&mut self, msg: AllMessages) {
-		self.sender.send_unbounded_message(msg)
+	fn send_unbounded_message(&mut self, msg: M) {
+		self.sender.send_unbounded_message(msg.into())
 	}
 }
 
@@ -519,17 +524,17 @@ pub enum JobsError<JobError: std::fmt::Debug + std::error::Error + 'static> {
 struct Jobs<Spawner, ToJob> {
 	spawner: Spawner,
 	running: HashMap<Hash, JobHandle<ToJob>>,
-	outgoing_msgs: StreamUnordered<mpsc::Receiver<FromJobCommand>>,
+	outgoing_msgs: SelectAll<mpsc::Receiver<FromJobCommand>>,
 }
 
-impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
+impl<Spawner, ToJob> Jobs<Spawner, ToJob>
+where
+	Spawner: SpawnNamed,
+	ToJob: Send + 'static,
+{
 	/// Create a new Jobs manager which handles spawning appropriate jobs.
 	pub fn new(spawner: Spawner) -> Self {
-		Self {
-			spawner,
-			running: HashMap::new(),
-			outgoing_msgs: StreamUnordered::new(),
-		}
+		Self { spawner, running: HashMap::new(), outgoing_msgs: SelectAll::new() }
 	}
 
 	/// Spawn a new job for this `parent_hash`, with whatever args are appropriate.
@@ -540,8 +545,9 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 		run_args: Job::RunArgs,
 		metrics: Job::Metrics,
 		sender: Sender,
-	)
-		where Job: JobTrait<ToJob = ToJob>, Sender: SubsystemSender,
+	) where
+		Job: JobTrait<ToJob = ToJob>,
+		Sender: SubsystemSender,
 	{
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
@@ -553,11 +559,10 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 				run_args,
 				metrics,
 				to_job_rx,
-				JobSender {
-					sender,
-					from_job: from_job_tx,
-				},
-			).await {
+				JobSender { sender, from_job: from_job_tx },
+			)
+			.await
+			{
 				tracing::error!(
 					job = Job::NAME,
 					parent_hash = %parent_hash,
@@ -565,7 +570,7 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 					"job finished with an error",
 				);
 
-				return Err(e);
+				return Err(e)
 			}
 
 			Ok(())
@@ -574,10 +579,7 @@ impl<Spawner: SpawnNamed, ToJob: Send + 'static> Jobs<Spawner, ToJob> {
 		self.spawner.spawn(Job::NAME, future.map(drop).boxed());
 		self.outgoing_msgs.push(from_job_rx);
 
-		let handle = JobHandle {
-			_abort_handle: AbortOnDrop(abort_handle),
-			to_job: to_job_tx,
-		};
+		let handle = JobHandle { _abort_handle: AbortOnDrop(abort_handle), to_job: to_job_tx };
 
 		self.running.insert(parent_hash, handle);
 	}
@@ -604,17 +606,10 @@ where
 	type Item = FromJobCommand;
 
 	fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-		loop {
-			match Pin::new(&mut self.outgoing_msgs).poll_next(cx) {
-				Poll::Pending => return Poll::Pending,
-				Poll::Ready(r) => match r.map(|v| v.0) {
-					Some(StreamYield::Item(msg)) => return Poll::Ready(Some(msg)),
-					// If a job is finished, rerun the loop
-					Some(StreamYield::Finished(_)) => continue,
-					// Don't end if there are no jobs running
-					None => return Poll::Pending,
-				}
-			}
+		match futures::ready!(Pin::new(&mut self.outgoing_msgs).poll_next(cx)) {
+			Some(msg) => Poll::Ready(Some(msg)),
+			// Don't end if there are no jobs running
+			None => Poll::Pending,
 		}
 	}
 }
@@ -655,35 +650,26 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	/// Create a new `JobSubsystem`.
 	pub fn new(spawner: Spawner, run_args: Job::RunArgs, metrics: Job::Metrics) -> Self {
 		JobSubsystem {
-			params: JobSubsystemParams {
-				spawner,
-				run_args,
-				metrics,
-			},
+			params: JobSubsystemParams { spawner, run_args, metrics },
 			_marker: std::marker::PhantomData,
 		}
 	}
 
 	/// Run the subsystem to completion.
 	pub async fn run<Context>(self, mut ctx: Context)
-		where
-			Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
-			Context: SubsystemContext,
-			Job: 'static + JobTrait + Send,
-			Job::RunArgs: Clone + Sync,
-			Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
-			Job::Metrics: Sync,
+	where
+		Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
+		Context: SubsystemContext<Message = <Job as JobTrait>::ToJob, Signal = OverseerSignal>,
+		<Context as SubsystemContext>::Sender: SubsystemSender,
+		Job: 'static + JobTrait + Send,
+		<Job as JobTrait>::RunArgs: Clone + Sync,
+		<Job as JobTrait>::ToJob:
+			Sync + From<<Context as polkadot_overseer::SubsystemContext>::Message>,
+		<Job as JobTrait>::Metrics: Sync,
 	{
-		let JobSubsystem {
-			params: JobSubsystemParams {
-				spawner,
-				run_args,
-				metrics,
-			},
-			..
-		} = self;
+		let JobSubsystem { params: JobSubsystemParams { spawner, run_args, metrics }, .. } = self;
 
-		let mut jobs = Jobs::new(spawner);
+		let mut jobs = Jobs::<Spawner, Job::ToJob>::new(spawner);
 
 		loop {
 			select! {
@@ -694,7 +680,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 							deactivated,
 						}))) => {
 							for activated in activated {
-								let sender: Context::Sender = ctx.sender().clone();
+								let sender = ctx.sender().clone();
 								jobs.spawn_job::<Job, _>(
 									activated.hash,
 									activated.span,
@@ -714,7 +700,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 						}
 						Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => {}
 						Ok(FromOverseer::Communication { msg }) => {
-							if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
+							if let Ok(to_job) = <<Context as SubsystemContext>::Message>::try_from(msg) {
 								jobs.send_msg(to_job.relay_parent(), to_job).await;
 							}
 						}
@@ -729,10 +715,12 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 					}
 				}
 				outgoing = jobs.next() => {
+					// TODO verify the introduced .await here is not a problem
+					// TODO it should only wait for the spawn to complete
+					// TODO but not for anything beyond that
 					let res = match outgoing.expect("the Jobs stream never ends; qed") {
-						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task).await,
-						FromJobCommand::SpawnBlocking(name, task)
-							=> ctx.spawn_blocking(name, task).await,
+						FromJobCommand::Spawn(name, task) => ctx.spawn(name, task),
+						FromJobCommand::SpawnBlocking(name, task) => ctx.spawn_blocking(name, task),
 					};
 
 					if let Err(e) = res {
@@ -745,13 +733,14 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	}
 }
 
-impl<Context, Job, Spawner> Subsystem<Context> for JobSubsystem<Job, Spawner>
+impl<Context, Job, Spawner> Subsystem<Context, SubsystemError> for JobSubsystem<Job, Spawner>
 where
 	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
-	Context: SubsystemContext,
+	Context: SubsystemContext<Message = Job::ToJob, Signal = OverseerSignal>,
 	Job: 'static + JobTrait + Send,
 	Job::RunArgs: Clone + Sync,
-	Job::ToJob: From<<Context as SubsystemContext>::Message> + Sync,
+	<Job as JobTrait>::ToJob:
+		Sync + From<<Context as polkadot_overseer::SubsystemContext>::Message>,
 	Job::Metrics: Sync,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -760,107 +749,6 @@ where
 			Ok(())
 		});
 
-		SpawnedSubsystem {
-			name: Job::NAME.strip_suffix("Job").unwrap_or(Job::NAME),
-			future,
-		}
-	}
-}
-
-/// A future that wraps another future with a `Delay` allowing for time-limited futures.
-#[pin_project]
-pub struct Timeout<F: Future> {
-	#[pin]
-	future: F,
-	#[pin]
-	delay: Delay,
-}
-
-/// Extends `Future` to allow time-limited futures.
-pub trait TimeoutExt: Future {
-	/// Adds a timeout of `duration` to the given `Future`.
-	/// Returns a new `Future`.
-	fn timeout(self, duration: Duration) -> Timeout<Self>
-	where
-		Self: Sized,
-	{
-		Timeout {
-			future: self,
-			delay: Delay::new(duration),
-		}
-	}
-}
-
-impl<F: Future> TimeoutExt for F {}
-
-impl<F: Future> Future for Timeout<F> {
-	type Output = Option<F::Output>;
-
-	fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
-		let this = self.project();
-
-		if this.delay.poll(ctx).is_ready() {
-			return Poll::Ready(None);
-		}
-
-		if let Poll::Ready(output) = this.future.poll(ctx) {
-			return Poll::Ready(Some(output));
-		}
-
-		Poll::Pending
-	}
-}
-
-
-#[derive(Copy, Clone)]
-enum MetronomeState {
-	Snooze,
-	SetAlarm,
-}
-
-/// Create a stream of ticks with a defined cycle duration.
-pub struct Metronome {
-	delay: Delay,
-	period: Duration,
-	state: MetronomeState,
-}
-
-impl Metronome
-{
-	/// Create a new metronome source with a defined cycle duration.
-	pub fn new(cycle: Duration) -> Self {
-		let period = cycle.into();
-		Self {
-			period,
-			delay: Delay::new(period),
-			state: MetronomeState::Snooze,
-		}
-	}
-}
-
-impl futures::Stream for Metronome
-{
-	type Item = ();
-	fn poll_next(
-		mut self: Pin<&mut Self>,
-		cx: &mut Context<'_>
-	) -> Poll<Option<Self::Item>> {
-		loop {
-			match self.state {
-				MetronomeState::SetAlarm => {
-					let val = self.period.clone();
-					self.delay.reset(val);
-					self.state = MetronomeState::Snooze;
-				}
-				MetronomeState::Snooze => {
-					if !Pin::new(&mut self.delay).poll(cx).is_ready() {
-						break
-					}
-					self.state = MetronomeState::SetAlarm;
-					return Poll::Ready(Some(()));
-				}
-			}
-		}
-		Poll::Pending
+		SpawnedSubsystem { name: Job::NAME.strip_suffix("Job").unwrap_or(Job::NAME), future }
 	}
 }

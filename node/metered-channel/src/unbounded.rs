@@ -16,13 +16,15 @@
 
 //! Metered variant of unbounded mpsc channels to be able to extract metrics.
 
-use futures::{channel::mpsc, task::Poll, task::Context, sink::SinkExt, stream::Stream};
+use futures::{
+	channel::mpsc,
+	stream::Stream,
+	task::{Context, Poll},
+};
 
-use std::result;
-use std::pin::Pin;
+use std::{pin::Pin, result};
 
 use super::Meter;
-
 
 /// Create a wrapped `mpsc::channel` pair of `MeteredSender` and `MeteredReceiver`.
 pub fn unbounded<T>() -> (UnboundedMeteredSender<T>, UnboundedMeteredReceiver<T>) {
@@ -61,7 +63,7 @@ impl<T> Stream for UnboundedMeteredReceiver<T> {
 			Poll::Ready(x) => {
 				self.meter.note_received();
 				Poll::Ready(x)
-			}
+			},
 			other => other,
 		}
 	}
@@ -84,7 +86,7 @@ impl<T> UnboundedMeteredReceiver<T> {
 			Some(x) => {
 				self.meter.note_received();
 				Ok(Some(x))
-			}
+			},
 			None => Ok(None),
 		}
 	}
@@ -95,7 +97,6 @@ impl<T> futures::stream::FusedStream for UnboundedMeteredReceiver<T> {
 		self.inner.is_terminated()
 	}
 }
-
 
 /// The sender component, tracking the number of items
 /// sent across it.
@@ -130,21 +131,6 @@ impl<T> UnboundedMeteredSender<T> {
 		&self.meter
 	}
 
-	/// Send message, wait until capacity is available.
-	pub async fn send(&mut self, item: T) -> result::Result<(), mpsc::SendError>
-	where
-		Self: Unpin,
-	{
-		self.meter.note_sent();
-		let fut = self.inner.send(item);
-		futures::pin_mut!(fut);
-		fut.await.map_err(|e| {
-			self.meter.retract_sent();
-			e
-		})
-	}
-
-
 	/// Attempt to send message or fail immediately.
 	pub fn unbounded_send(&self, msg: T) -> result::Result<(), mpsc::TrySendError<T>> {
 		self.meter.note_sent();
@@ -152,36 +138,5 @@ impl<T> UnboundedMeteredSender<T> {
 			self.meter.retract_sent();
 			e
 		})
-	}
-}
-
-impl<T> futures::sink::Sink<T> for UnboundedMeteredSender<T> {
-	type Error = <futures::channel::mpsc::UnboundedSender<T> as futures::sink::Sink<T>>::Error;
-
-	fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<(), Self::Error> {
-		Pin::new(&mut self.inner).start_send(item)
-	}
-
-	fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-		Pin::new(&mut self.inner).poll_ready(cx)
-	}
-
-	fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-		match Pin::new(&mut self.inner).poll_ready(cx) {
-			val @ Poll::Ready(_)=> {
-				val
-			}
-			other => other,
-		}
-	}
-
-	fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-		match Pin::new(&mut self.inner).poll_ready(cx) {
-			val @ Poll::Ready(_)=> {
-				self.meter.note_sent();
-				val
-			}
-			other => other,
-		}
 	}
 }

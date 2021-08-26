@@ -60,7 +60,7 @@ async fn run_command(matches: &clap::ArgMatches<'_>) {
 	match matches.subcommand() {
 		("eth-to-sub", Some(eth_to_sub_matches)) => {
 			log::info!(target: "bridge", "Starting ETH ➡ SUB relay.");
-			if ethereum_sync_loop::run(match ethereum_sync_params(&eth_to_sub_matches) {
+			if ethereum_sync_loop::run(match ethereum_sync_params(eth_to_sub_matches) {
 				Ok(ethereum_sync_params) => ethereum_sync_params,
 				Err(err) => {
 					log::error!(target: "bridge", "Error parsing parameters: {}", err);
@@ -75,7 +75,7 @@ async fn run_command(matches: &clap::ArgMatches<'_>) {
 		}
 		("sub-to-eth", Some(sub_to_eth_matches)) => {
 			log::info!(target: "bridge", "Starting SUB ➡ ETH relay.");
-			if substrate_sync_loop::run(match substrate_sync_params(&sub_to_eth_matches) {
+			if substrate_sync_loop::run(match substrate_sync_params(sub_to_eth_matches) {
 				Ok(substrate_sync_params) => substrate_sync_params,
 				Err(err) => {
 					log::error!(target: "bridge", "Error parsing parameters: {}", err);
@@ -90,7 +90,7 @@ async fn run_command(matches: &clap::ArgMatches<'_>) {
 		}
 		("eth-deploy-contract", Some(eth_deploy_matches)) => {
 			log::info!(target: "bridge", "Deploying ETH contracts.");
-			ethereum_deploy_contract::run(match ethereum_deploy_contract_params(&eth_deploy_matches) {
+			ethereum_deploy_contract::run(match ethereum_deploy_contract_params(eth_deploy_matches) {
 				Ok(ethereum_deploy_params) => ethereum_deploy_params,
 				Err(err) => {
 					log::error!(target: "bridge", "Error during contract deployment: {}", err);
@@ -101,7 +101,7 @@ async fn run_command(matches: &clap::ArgMatches<'_>) {
 		}
 		("eth-submit-exchange-tx", Some(eth_exchange_submit_matches)) => {
 			log::info!(target: "bridge", "Submitting ETH ➡ SUB exchange transaction.");
-			ethereum_exchange_submit::run(match ethereum_exchange_submit_params(&eth_exchange_submit_matches) {
+			ethereum_exchange_submit::run(match ethereum_exchange_submit_params(eth_exchange_submit_matches) {
 				Ok(eth_exchange_submit_params) => eth_exchange_submit_params,
 				Err(err) => {
 					log::error!(target: "bridge", "Error submitting Eethereum exchange transaction: {}", err);
@@ -112,7 +112,7 @@ async fn run_command(matches: &clap::ArgMatches<'_>) {
 		}
 		("eth-exchange-sub", Some(eth_exchange_matches)) => {
 			log::info!(target: "bridge", "Starting ETH ➡ SUB exchange transactions relay.");
-			ethereum_exchange::run(match ethereum_exchange_params(&eth_exchange_matches) {
+			ethereum_exchange::run(match ethereum_exchange_params(eth_exchange_matches) {
 				Ok(eth_exchange_params) => eth_exchange_params,
 				Err(err) => {
 					log::error!(target: "bridge", "Error relaying Ethereum transactions proofs: {}", err);
@@ -285,7 +285,7 @@ fn ethereum_exchange_submit_params(matches: &clap::ArgMatches) -> Result<Ethereu
 	let eth_nonce = matches
 		.value_of("eth-nonce")
 		.map(|eth_nonce| {
-			relay_ethereum_client::types::U256::from_dec_str(&eth_nonce)
+			relay_ethereum_client::types::U256::from_dec_str(eth_nonce)
 				.map_err(|e| format!("Failed to parse eth-nonce: {}", e))
 		})
 		.transpose()?;

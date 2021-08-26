@@ -20,10 +20,14 @@
 //!
 //! These core Polkadot types are used by the relay chain and the Parachains.
 
-use sp_runtime::{generic, MultiSignature, traits::{Verify, IdentifyAccount}};
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "std")]
 use parity_util_mem::MallocSizeOf;
+use sp_runtime::{
+	generic,
+	traits::{IdentifyAccount, Verify},
+	MultiSignature,
+};
 
 pub use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 
@@ -64,7 +68,7 @@ pub type Hash = sp_core::H256;
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct CandidateHash(pub Hash);
 
-#[cfg(feature="std")]
+#[cfg(feature = "std")]
 impl std::fmt::Display for CandidateHash {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		self.0.fmt(f)
@@ -81,11 +85,11 @@ impl sp_std::fmt::Debug for CandidateHash {
 pub type Nonce = u32;
 
 /// The balance of an account.
-/// 128-bits (or 38 significant decimal figures) will allow for 10m currency (10^7) at a resolution
-/// to all for one second's worth of an annualised 50% reward be paid to a unit holder (10^11 unit
-/// denomination), or 10^18 total atomic units, to grow at 50%/year for 51 years (10^9 multiplier)
-/// for an eventual total of 10^27 units (27 significant decimal figures).
-/// We round denomination to 10^12 (12 sdf), and leave the other redundancy at the upper end so
+/// 128-bits (or 38 significant decimal figures) will allow for 10 m currency (`10^7`) at a resolution
+/// to all for one second's worth of an annualised 50% reward be paid to a unit holder (`10^11` unit
+/// denomination), or `10^18` total atomic units, to grow at 50%/year for 51 years (`10^9` multiplier)
+/// for an eventual total of `10^27` units (27 significant decimal figures).
+/// We round denomination to `10^12` (12 SDF), and leave the other redundancy at the upper end so
 /// that 32 bits may be multiplied with a balance in 128 bits without worrying about overflow.
 pub type Balance = u128;
 
@@ -99,7 +103,7 @@ pub type BlockId = generic::BlockId<Block>;
 /// Opaque, encoded, unchecked extrinsic.
 pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
 
-/// The information that goes alongside a transfer_into_parachain operation. Entirely opaque, it
+/// The information that goes alongside a `transfer_into_parachain` operation. Entirely opaque, it
 /// will generally be used for identifying the reason for the transfer. Typically it will hold the
 /// destination account to which the transfer should be credited. If still more information is
 /// needed, then this should be a hash with the pre-image presented via an off-chain mechanism on
@@ -116,7 +120,7 @@ pub type DownwardMessage = sp_std::vec::Vec<u8>;
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
-	/// The block number at which this messages was put into the downward message queue.
+	/// The block number at which these messages were put into the downward message queue.
 	pub sent_at: BlockNumber,
 	/// The actual downward message to processes.
 	pub msg: DownwardMessage,
@@ -144,7 +148,7 @@ pub struct OutboundHrmpMessage<Id> {
 	pub data: sp_std::vec::Vec<u8>,
 }
 
-/// V1 primitives.
+/// `V1` primitives.
 pub mod v1 {
 	pub use super::*;
 }

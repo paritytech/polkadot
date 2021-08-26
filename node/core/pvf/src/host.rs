@@ -21,22 +21,21 @@
 //! [`ValidationHost`], that allows communication with that event-loop.
 
 use crate::{
-	Priority, Pvf, ValidationError,
-	artifacts::{Artifacts, ArtifactState, ArtifactId},
-	execute, prepare,
+	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
+	execute,
+	metrics::Metrics,
+	prepare, Priority, Pvf, ValidationError, LOG_TARGET,
 };
+use always_assert::never;
+use async_std::path::{Path, PathBuf};
+use futures::{
+	channel::{mpsc, oneshot},
+	Future, FutureExt, SinkExt, StreamExt,
+};
+use polkadot_parachain::primitives::ValidationResult;
 use std::{
 	collections::HashMap,
 	time::{Duration, SystemTime},
-};
-use always_assert::never;
-use async_std::{
-	path::{Path, PathBuf},
-};
-use polkadot_parachain::primitives::ValidationResult;
-use futures::{
-	Future, FutureExt, SinkExt, StreamExt,
-	channel::{mpsc, oneshot},
 };
 
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
@@ -49,7 +48,7 @@ pub struct ValidationHost {
 }
 
 impl ValidationHost {
-	/// Execute PVF with the given code, params and priority. The result of execution will be sent
+	/// Execute PVF with the given code, parameters and priority. The result of execution will be sent
 	/// to the provided result sender.
 	///
 	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
@@ -64,12 +63,7 @@ impl ValidationHost {
 		result_tx: ResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
-			.send(ToHost::ExecutePvf {
-				pvf,
-				params,
-				priority,
-				result_tx,
-			})
+			.send(ToHost::ExecutePvf { pvf, params, priority, result_tx })
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
 	}
@@ -89,15 +83,8 @@ impl ValidationHost {
 }
 
 enum ToHost {
-	ExecutePvf {
-		pvf: Pvf,
-		params: Vec<u8>,
-		priority: Priority,
-		result_tx: ResultSender,
-	},
-	HeadsUp {
-		active_pvfs: Vec<Pvf>,
-	},
+	ExecutePvf { pvf: Pvf, params: Vec<u8>, priority: Priority, result_tx: ResultSender },
+	HeadsUp { active_pvfs: Vec<Pvf> },
 }
 
 /// Configuration for the validation host.
@@ -106,7 +93,7 @@ pub struct Config {
 	pub cache_path: PathBuf,
 	/// The path to the program that can be used to spawn the prepare workers.
 	pub prepare_worker_program_path: PathBuf,
-	/// The time alloted for a prepare worker to spawn and report to the host.
+	/// The time allotted for a prepare worker to spawn and report to the host.
 	pub prepare_worker_spawn_timeout: Duration,
 	/// The maximum number of workers that can be spawned in the prepare pool for tasks with the
 	/// priority below critical.
@@ -115,7 +102,7 @@ pub struct Config {
 	pub prepare_workers_hard_max_num: usize,
 	/// The path to the program that can be used to spawn the execute workers.
 	pub execute_worker_program_path: PathBuf,
-	/// The time alloted for an execute worker to spawn and report to the host.
+	/// The time allotted for an execute worker to spawn and report to the host.
 	pub execute_worker_spawn_timeout: Duration,
 	/// The maximum number of execute workers that can run at the same time.
 	pub execute_workers_max_num: usize,
@@ -147,20 +134,22 @@ impl Config {
 /// must be polled in order for validation host to function.
 ///
 /// The future should not return normally but if it does then that indicates an unrecoverable error.
-/// In that case all pending requests will be cancelled, dropping the result senders and new ones
+/// In that case all pending requests will be canceled, dropping the result senders and new ones
 /// will be rejected.
-pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
+pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<Output = ()>) {
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
 	let validation_host = ValidationHost { to_host_tx };
 
 	let (to_prepare_pool, from_prepare_pool, run_prepare_pool) = prepare::start_pool(
+		metrics.clone(),
 		config.prepare_worker_program_path.clone(),
 		config.cache_path.clone(),
 		config.prepare_worker_spawn_timeout,
 	);
 
 	let (to_prepare_queue_tx, from_prepare_queue_rx, run_prepare_queue) = prepare::start_queue(
+		metrics.clone(),
 		config.prepare_workers_soft_max_num,
 		config.prepare_workers_hard_max_num,
 		config.cache_path.clone(),
@@ -169,6 +158,7 @@ pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	);
 
 	let (to_execute_queue_tx, run_execute_queue) = execute::start(
+		metrics.clone(),
 		config.execute_worker_program_path.to_owned(),
 		config.execute_workers_max_num,
 		config.execute_worker_spawn_timeout,
@@ -180,12 +170,7 @@ pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	let run = async move {
 		let artifacts = Artifacts::new(&config.cache_path).await;
 
-		futures::pin_mut!(
-			run_prepare_queue,
-			run_prepare_pool,
-			run_execute_queue,
-			run_sweeper
-		);
+		futures::pin_mut!(run_prepare_queue, run_prepare_pool, run_execute_queue, run_sweeper);
 
 		run(
 			Inner {
@@ -220,7 +205,7 @@ struct PendingExecutionRequest {
 }
 
 /// A mapping from an artifact ID which is in preparation state to the list of pending execution
-/// requests that should be executed once the artifact's prepration is finished.
+/// requests that should be executed once the artifact's preparation is finished.
 #[derive(Default)]
 struct AwaitingPrepare(HashMap<ArtifactId, Vec<PendingExecutionRequest>>);
 
@@ -375,12 +360,7 @@ async fn handle_to_host(
 	to_host: ToHost,
 ) -> Result<(), Fatal> {
 	match to_host {
-		ToHost::ExecutePvf {
-			pvf,
-			params,
-			priority,
-			result_tx,
-		} => {
+		ToHost::ExecutePvf { pvf, params, priority, result_tx } => {
 			handle_execute_pvf(
 				cache_path,
 				artifacts,
@@ -393,10 +373,10 @@ async fn handle_to_host(
 				result_tx,
 			)
 			.await?;
-		}
+		},
 		ToHost::HeadsUp { active_pvfs } => {
 			handle_heads_up(artifacts, prepare_queue, active_pvfs).await?;
-		}
+		},
 	}
 
 	Ok(())
@@ -417,33 +397,28 @@ async fn handle_execute_pvf(
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
-			ArtifactState::Prepared {
-				ref mut last_time_needed,
-			} => {
+			ArtifactState::Prepared { ref mut last_time_needed } => {
 				*last_time_needed = SystemTime::now();
 
 				send_execute(
 					execute_queue,
 					execute::ToQueue::Enqueue {
-						artifact_path: artifact_id.path(cache_path),
+						artifact: ArtifactPathId::new(artifact_id, cache_path),
 						params,
 						result_tx,
 					},
 				)
 				.await?;
-			}
+			},
 			ArtifactState::Preparing => {
 				send_prepare(
 					prepare_queue,
-					prepare::ToQueue::Amend {
-						priority,
-						artifact_id: artifact_id.clone(),
-					},
+					prepare::ToQueue::Amend { priority, artifact_id: artifact_id.clone() },
 				)
 				.await?;
 
 				awaiting_prepare.add(artifact_id, params, result_tx);
-			}
+			},
 		}
 	} else {
 		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
@@ -454,7 +429,7 @@ async fn handle_execute_pvf(
 		awaiting_prepare.add(artifact_id, params, result_tx);
 	}
 
-	return Ok(());
+	return Ok(())
 }
 
 async fn handle_heads_up(
@@ -468,15 +443,13 @@ async fn handle_heads_up(
 		let artifact_id = active_pvf.as_artifact_id();
 		if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 			match state {
-				ArtifactState::Prepared {
-					last_time_needed, ..
-				} => {
+				ArtifactState::Prepared { last_time_needed, .. } => {
 					*last_time_needed = now;
-				}
+				},
 				ArtifactState::Preparing => {
 					// Already preparing. We don't need to send a priority amend either because
 					// it can't get any lower than the background.
-				}
+				},
 			}
 		} else {
 			// The artifact is unknown: register it and put a background job into the prepare queue.
@@ -484,10 +457,7 @@ async fn handle_heads_up(
 
 			send_prepare(
 				prepare_queue,
-				prepare::ToQueue::Enqueue {
-					priority: Priority::Background,
-					pvf: active_pvf,
-				},
+				prepare::ToQueue::Enqueue { priority: Priority::Background, pvf: active_pvf },
 			)
 			.await?;
 		}
@@ -512,8 +482,8 @@ async fn handle_prepare_done(
 			// thus the artifact cannot be unknown, only preparing;
 			// qed.
 			never!("an unknown artifact was prepared: {:?}", artifact_id);
-			return Ok(());
-		}
+			return Ok(())
+		},
 		Some(ArtifactState::Prepared { .. }) => {
 			// before sending request to prepare, the artifact is inserted with `preparing` state;
 			// the requests are deduplicated for the same artifact id;
@@ -521,26 +491,25 @@ async fn handle_prepare_done(
 			// thus the artifact cannot be prepared, only preparing;
 			// qed.
 			never!("the artifact is already prepared: {:?}", artifact_id);
-			return Ok(());
-		}
+			return Ok(())
+		},
 		Some(state @ ArtifactState::Preparing) => state,
 	};
 
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
-	let artifact_path = artifact_id.path(&cache_path);
 	let pending_requests = awaiting_prepare.take(&artifact_id);
 	for PendingExecutionRequest { params, result_tx } in pending_requests {
 		if result_tx.is_canceled() {
 			// Preparation could've taken quite a bit of time and the requester may be not interested
 			// in execution anymore, in which case we just skip the request.
-			continue;
+			continue
 		}
 
 		send_execute(
 			execute_queue,
 			execute::ToQueue::Enqueue {
-				artifact_path: artifact_path.clone(),
+				artifact: ArtifactPathId::new(artifact_id.clone(), cache_path),
 				params,
 				result_tx,
 			},
@@ -549,9 +518,7 @@ async fn handle_prepare_done(
 	}
 
 	// Now consider the artifact prepared.
-	*state = ArtifactState::Prepared {
-		last_time_needed: SystemTime::now(),
-	};
+	*state = ArtifactState::Prepared { last_time_needed: SystemTime::now() };
 
 	Ok(())
 }
@@ -577,7 +544,17 @@ async fn handle_cleanup_pulse(
 	artifact_ttl: Duration,
 ) -> Result<(), Fatal> {
 	let to_remove = artifacts.prune(artifact_ttl);
+	tracing::info!(
+		target: LOG_TARGET,
+		"PVF pruning: {} artifacts reached their end of life",
+		to_remove.len(),
+	);
 	for artifact_id in to_remove {
+		tracing::debug!(
+			target: LOG_TARGET,
+			validation_code_hash = ?artifact_id.code_hash,
+			"pruning artifact",
+		);
 		let artifact_path = artifact_id.path(cache_path);
 		sweeper_tx.send(artifact_path).await.map_err(|_| Fatal)?;
 	}
@@ -591,8 +568,14 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 		match sweeper_rx.next().await {
 			None => break,
 			Some(condemned) => {
-				let _ = async_std::fs::remove_file(condemned).await;
-			}
+				let result = async_std::fs::remove_file(&condemned).await;
+				tracing::trace!(
+					target: LOG_TARGET,
+					?result,
+					"Sweeping the artifact file {}",
+					condemned.display(),
+				);
+			},
 		}
 	}
 }
@@ -611,8 +594,8 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::future::BoxFuture;
 	use assert_matches::assert_matches;
+	use futures::future::BoxFuture;
 
 	#[async_std::test]
 	async fn pulse_test() {
@@ -628,15 +611,13 @@ mod tests {
 		}
 	}
 
-	/// Creates a new pvf which artifact id can be uniquely identified by the given number.
+	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn artifact_id(descriminator: u32) -> ArtifactId {
 		Pvf::from_discriminator(descriminator).as_artifact_id()
 	}
 
 	fn artifact_path(descriminator: u32) -> PathBuf {
-		artifact_id(descriminator)
-			.path(&PathBuf::from(std::env::temp_dir()))
-			.to_owned()
+		artifact_id(descriminator).path(&PathBuf::from(std::env::temp_dir())).to_owned()
 	}
 
 	struct Builder {
@@ -673,13 +654,7 @@ mod tests {
 	}
 
 	impl Test {
-		fn new(
-			Builder {
-				cleanup_pulse_interval,
-				artifact_ttl,
-				artifacts,
-			}: Builder,
-		) -> Self {
+		fn new(Builder { cleanup_pulse_interval, artifact_ttl, artifacts }: Builder) -> Self {
 			let cache_path = PathBuf::from(std::env::temp_dir());
 
 			let (to_host_tx, to_host_rx) = mpsc::channel(10);
@@ -727,20 +702,14 @@ mod tests {
 
 		async fn poll_and_recv_to_prepare_queue(&mut self) -> prepare::ToQueue {
 			let to_prepare_queue_rx = &mut self.to_prepare_queue_rx;
-			run_until(
-				&mut self.run,
-				async { to_prepare_queue_rx.next().await.unwrap() }.boxed(),
-			)
-			.await
+			run_until(&mut self.run, async { to_prepare_queue_rx.next().await.unwrap() }.boxed())
+				.await
 		}
 
 		async fn poll_and_recv_to_execute_queue(&mut self) -> execute::ToQueue {
 			let to_execute_queue_rx = &mut self.to_execute_queue_rx;
-			run_until(
-				&mut self.run,
-				async { to_execute_queue_rx.next().await.unwrap() }.boxed(),
-			)
-			.await
+			run_until(&mut self.run, async { to_execute_queue_rx.next().await.unwrap() }.boxed())
+				.await
 		}
 
 		async fn poll_ensure_to_execute_queue_is_empty(&mut self) {
@@ -798,7 +767,7 @@ mod tests {
 			}
 
 			if let Poll::Ready(r) = futures::poll!(&mut *fut) {
-				break r;
+				break r
 			}
 
 			if futures::poll!(&mut *task).is_ready() {
@@ -831,9 +800,7 @@ mod tests {
 		let mut test = builder.build();
 		let mut host = test.host_handle();
 
-		host.heads_up(vec![Pvf::from_discriminator(1)])
-			.await
-			.unwrap();
+		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
 
 		let to_sweeper_rx = &mut test.to_sweeper_rx;
 		run_until(
@@ -847,9 +814,7 @@ mod tests {
 
 		// Extend TTL for the first artifact and make sure we don't receive another file removal
 		// request.
-		host.heads_up(vec![Pvf::from_discriminator(1)])
-			.await
-			.unwrap();
+		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
 		test.poll_ensure_to_sweeper_is_empty().await;
 	}
 
@@ -858,9 +823,7 @@ mod tests {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
 
-		host.heads_up(vec![Pvf::from_discriminator(1)])
-			.await
-			.unwrap();
+		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
 
 		// Run until we receive a prepare request.
 		let prepare_q_rx = &mut test.to_prepare_queue_rx;
@@ -877,22 +840,14 @@ mod tests {
 		.await;
 
 		let (result_tx, _result_rx) = oneshot::channel();
-		host.execute_pvf(
-			Pvf::from_discriminator(1),
-			vec![],
-			Priority::Critical,
-			result_tx,
-		)
-		.await
-		.unwrap();
+		host.execute_pvf(Pvf::from_discriminator(1), vec![], Priority::Critical, result_tx)
+			.await
+			.unwrap();
 
 		run_until(
 			&mut test.run,
 			async {
-				assert_matches!(
-					prepare_q_rx.next().await.unwrap(),
-					prepare::ToQueue::Amend { .. }
-				);
+				assert_matches!(prepare_q_rx.next().await.unwrap(), prepare::ToQueue::Amend { .. });
 			}
 			.boxed(),
 		)
@@ -907,14 +862,9 @@ mod tests {
 		let mut host = test.host_handle();
 
 		let (result_tx, result_rx_pvf_1_1) = oneshot::channel();
-		host.execute_pvf(
-			Pvf::from_discriminator(1),
-			b"pvf1".to_vec(),
-			Priority::Normal,
-			result_tx,
-		)
-		.await
-		.unwrap();
+		host.execute_pvf(Pvf::from_discriminator(1), b"pvf1".to_vec(), Priority::Normal, result_tx)
+			.await
+			.unwrap();
 
 		let (result_tx, result_rx_pvf_1_2) = oneshot::channel();
 		host.execute_pvf(
@@ -927,14 +877,9 @@ mod tests {
 		.unwrap();
 
 		let (result_tx, result_rx_pvf_2) = oneshot::channel();
-		host.execute_pvf(
-			Pvf::from_discriminator(2),
-			b"pvf2".to_vec(),
-			Priority::Normal,
-			result_tx,
-		)
-		.await
-		.unwrap();
+		host.execute_pvf(Pvf::from_discriminator(2), b"pvf2".to_vec(), Priority::Normal, result_tx)
+			.await
+			.unwrap();
 
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,
@@ -972,39 +917,27 @@ mod tests {
 		);
 
 		result_tx_pvf_1_1
-			.send(Err(ValidationError::InvalidCandidate(
-				InvalidCandidate::AmbigiousWorkerDeath,
-			)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_1_1.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(
-				InvalidCandidate::AmbigiousWorkerDeath,
-			))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
 		);
 
 		result_tx_pvf_1_2
-			.send(Err(ValidationError::InvalidCandidate(
-				InvalidCandidate::AmbigiousWorkerDeath,
-			)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_1_2.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(
-				InvalidCandidate::AmbigiousWorkerDeath,
-			))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
 		);
 
 		result_tx_pvf_2
-			.send(Err(ValidationError::InvalidCandidate(
-				InvalidCandidate::AmbigiousWorkerDeath,
-			)))
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath)))
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_2.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(
-				InvalidCandidate::AmbigiousWorkerDeath,
-			))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
 		);
 	}
 
@@ -1014,14 +947,9 @@ mod tests {
 		let mut host = test.host_handle();
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.execute_pvf(
-			Pvf::from_discriminator(1),
-			b"pvf1".to_vec(),
-			Priority::Normal,
-			result_tx,
-		)
-		.await
-		.unwrap();
+		host.execute_pvf(Pvf::from_discriminator(1), b"pvf1".to_vec(), Priority::Normal, result_tx)
+			.await
+			.unwrap();
 
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,

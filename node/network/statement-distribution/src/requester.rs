@@ -16,21 +16,23 @@
 
 use std::time::Duration;
 
-use futures::{SinkExt, channel::{mpsc, oneshot}};
+use futures::{
+	channel::{mpsc, oneshot},
+	SinkExt,
+};
 
 use polkadot_node_network_protocol::{
-	PeerId, UnifiedReputationChange,
 	request_response::{
+		v1::{StatementFetchingRequest, StatementFetchingResponse},
 		OutgoingRequest, Recipient, Requests,
-		v1::{
-			StatementFetchingRequest, StatementFetchingResponse
-		}
-	}};
+	},
+	PeerId, UnifiedReputationChange,
+};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{CandidateHash, CommittedCandidateReceipt, Hash};
 use polkadot_subsystem::{Span, Stage};
 
-use crate::{LOG_TARGET, Metrics, COST_WRONG_HASH};
+use crate::{Metrics, COST_WRONG_HASH, LOG_TARGET};
 
 // In case we failed fetching from our known peers, how long we should wait before attempting a
 // retry, even though we have not yet discovered any new peers. Or in other words how long to
@@ -43,9 +45,9 @@ pub enum RequesterMessage {
 	GetMorePeers {
 		relay_parent: Hash,
 		candidate_hash: CandidateHash,
-		tx: oneshot::Sender<Vec<PeerId>>
+		tx: oneshot::Sender<Vec<PeerId>>,
 	},
-	/// Fetching finished, ask for verification. If verification failes, task will continue asking
+	/// Fetching finished, ask for verification. If verification fails, task will continue asking
 	/// peers for data.
 	Finished {
 		/// Relay parent this candidate is in the context of.
@@ -64,7 +66,6 @@ pub enum RequesterMessage {
 	/// Ask subsystem to send a request for us.
 	SendRequest(Requests),
 }
-
 
 /// A fetching task, taking care of fetching large statements via request/response.
 ///
@@ -87,28 +88,21 @@ pub async fn fetch(
 	// Peers left for trying out.
 	let mut new_peers = peers;
 
-	let req = StatementFetchingRequest {
-		relay_parent,
-		candidate_hash,
-	};
+	let req = StatementFetchingRequest { relay_parent, candidate_hash };
 
 	// We retry endlessly (with sleep periods), and rely on the subsystem to kill us eventually.
 	loop {
-
 		let span = span.child("try-available-peers");
 
 		while let Some(peer) = new_peers.pop() {
+			let _span = span.child("try-peer").with_peer_id(&peer);
 
-			let _span = span.child("try-peer")
-				.with_peer_id(&peer);
-
-			let (outgoing, pending_response) = OutgoingRequest::new(
-				Recipient::Peer(peer),
-				req.clone(),
-			);
-			if let Err(err) = sender.feed(
-				RequesterMessage::SendRequest(Requests::StatementFetching(outgoing))
-			).await {
+			let (outgoing, pending_response) =
+				OutgoingRequest::new(Recipient::Peer(peer), req.clone());
+			if let Err(err) = sender
+				.feed(RequesterMessage::SendRequest(Requests::StatementFetching(outgoing)))
+				.await
+			{
 				tracing::info!(
 					target: LOG_TARGET,
 					?err,
@@ -121,13 +115,12 @@ pub async fn fetch(
 
 			match pending_response.await {
 				Ok(StatementFetchingResponse::Statement(statement)) => {
-
 					if statement.hash() != candidate_hash {
 						metrics.on_received_response(false);
 
-						if let Err(err) = sender.feed(
-							RequesterMessage::ReportPeer(peer, COST_WRONG_HASH)
-						).await {
+						if let Err(err) =
+							sender.feed(RequesterMessage::ReportPeer(peer, COST_WRONG_HASH)).await
+						{
 							tracing::warn!(
 								target: LOG_TARGET,
 								?err,
@@ -138,15 +131,16 @@ pub async fn fetch(
 						continue
 					}
 
-					if let Err(err) = sender.feed(
-						RequesterMessage::Finished {
+					if let Err(err) = sender
+						.feed(RequesterMessage::Finished {
 							relay_parent,
 							candidate_hash,
 							from_peer: peer,
 							response: statement,
 							bad_peers: tried_peers,
-						}
-						).await {
+						})
+						.await
+					{
 						tracing::warn!(
 							target: LOG_TARGET,
 							?err,
@@ -167,7 +161,7 @@ pub async fn fetch(
 					);
 
 					metrics.on_received_response(false);
-				}
+				},
 			}
 
 			tried_peers.push(peer);
@@ -178,14 +172,10 @@ pub async fn fetch(
 		// All our peers failed us - try getting new ones before trying again:
 		match try_get_new_peers(relay_parent, candidate_hash, &mut sender, &span).await {
 			Ok(Some(mut peers)) => {
-				tracing::trace!(
-					target: LOG_TARGET,
-					?peers,
-					"Received new peers."
-				);
+				tracing::trace!(target: LOG_TARGET, ?peers, "Received new peers.");
 				// New arrivals will be tried first:
 				new_peers.append(&mut peers);
-			}
+			},
 			// No new peers, try the old ones again (if we have any):
 			Ok(None) => {
 				// Note: In case we don't have any more peers, we will just keep asking for new
@@ -205,14 +195,14 @@ async fn try_get_new_peers(
 	sender: &mut mpsc::Sender<RequesterMessage>,
 	span: &Span,
 ) -> Result<Option<Vec<PeerId>>, ()> {
-
 	let _span = span.child("wait-for-peers");
 
 	let (tx, rx) = oneshot::channel();
 
-	if let Err(err) = sender.send(
-		RequesterMessage::GetMorePeers { relay_parent, candidate_hash, tx }
-	).await {
+	if let Err(err) = sender
+		.send(RequesterMessage::GetMorePeers { relay_parent, candidate_hash, tx })
+		.await
+	{
 		tracing::debug!(
 			target: LOG_TARGET,
 			?err,
@@ -223,13 +213,9 @@ async fn try_get_new_peers(
 
 	match rx.timeout(RETRY_TIMEOUT).await.transpose() {
 		Err(_) => {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"Failed fetching more peers."
-			);
+			tracing::debug!(target: LOG_TARGET, "Failed fetching more peers.");
 			Err(())
-		}
-		Ok(val) => Ok(val)
+		},
+		Ok(val) => Ok(val),
 	}
 }
-

@@ -1,34 +1,37 @@
 // Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Cumulus.
+// This file is part of Polkadot.
 
-// Substrate is free software: you can redistribute it and/or modify
+// Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Substrate is distributed in the hope that it will be useful,
+// Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Cross-Consensus Message format data structures.
 
 use core::result;
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 
 use super::{MultiLocation, Xcm};
 
 #[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
 pub enum Error {
 	Undefined,
+	/// An arithmetic overflow happened.
 	Overflow,
 	/// The operation is intentionally unsupported.
 	Unimplemented,
 	UnhandledXcmVersion,
+	/// The implementation does not handle a given XCM.
 	UnhandledXcmMessage,
+	/// The implementation does not handle an effect present in an XCM.
 	UnhandledEffect,
 	EscalationOfPrivilege,
 	UntrustedReserveLocation,
@@ -43,10 +46,15 @@ pub enum Error {
 	FailedToDecode,
 	BadOrigin,
 	ExceedsMaxMessageSize,
+	/// An asset transaction (like withdraw or deposit) failed.
+	/// See implementers of the `TransactAsset` trait for sources.
+	/// Causes can include type conversion failures between id or balance types.
 	FailedToTransactAsset(#[codec(skip)] &'static str),
 	/// Execution of the XCM would potentially result in a greater weight used than the pre-specified
 	/// weight limit. The amount that is potentially required is the parameter.
 	WeightLimitReached(Weight),
+	/// An asset wildcard was passed where it was not expected (e.g. as the asset to withdraw in a
+	/// `WithdrawAsset` XCM).
 	Wildcard,
 	/// The case where an XCM message has specified a optional weight limit and the weight required for
 	/// processing is too great.
@@ -79,6 +87,8 @@ pub enum Error {
 	TooExpensive,
 	/// The given asset is not handled.
 	AssetNotFound,
+	/// `execute_xcm` has been called too many times recursively.
+	RecursionLimitReached,
 }
 
 impl From<()> for Error {
@@ -134,6 +144,13 @@ pub trait ExecuteXcm<Call> {
 	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
 	/// other aspects.
 	fn execute_xcm(origin: MultiLocation, message: Xcm<Call>, weight_limit: Weight) -> Outcome {
+		log::debug!(
+			target: "xcm::execute_xcm",
+			"origin: {:?}, message: {:?}, weight_limit: {:?}",
+			origin,
+			message,
+			weight_limit,
+		);
 		Self::execute_xcm_in_credit(origin, message, weight_limit, 0)
 	}
 
@@ -164,7 +181,7 @@ impl<C> ExecuteXcm<C> for () {
 ///
 /// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
 /// `CannotReachDestination` to pass the execution to the next sender item. Note that each `CannotReachDestination`
-/// might alter the destination and the xcm message for to the next router.
+/// might alter the destination and the XCM message for to the next router.
 ///
 ///
 /// # Example

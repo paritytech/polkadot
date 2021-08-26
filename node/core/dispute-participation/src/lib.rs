@@ -20,19 +20,18 @@
 //! notified of a dispute, we recover the candidate data, validate the
 //! candidate, and cast our vote in the dispute.
 
-use futures::channel::oneshot;
-use futures::prelude::*;
+use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_primitives::ValidationResult;
 use polkadot_node_subsystem::{
 	errors::{RecoveryError, RuntimeApiError},
 	messages::{
-		AllMessages, AvailabilityRecoveryMessage, AvailabilityStoreMessage,
-		CandidateValidationMessage, DisputeCoordinatorMessage, DisputeParticipationMessage,
-		RuntimeApiMessage, RuntimeApiRequest,
+		AvailabilityRecoveryMessage, AvailabilityStoreMessage, CandidateValidationMessage,
+		DisputeCoordinatorMessage, DisputeParticipationMessage, RuntimeApiMessage,
+		RuntimeApiRequest,
 	},
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
-	SubsystemContext, SubsystemError,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
+	SubsystemError,
 };
 use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
@@ -55,17 +54,15 @@ impl DisputeParticipationSubsystem {
 	}
 }
 
-impl<Context> Subsystem<Context> for DisputeParticipationSubsystem
+impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeParticipationSubsystem
 where
 	Context: SubsystemContext<Message = DisputeParticipationMessage>,
+	Context: overseer::SubsystemContext<Message = DisputeParticipationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(ctx).map(|_| Ok(())).boxed();
 
-		SpawnedSubsystem {
-			name: "dispute-participation-subsystem",
-			future,
-		}
+		SpawnedSubsystem { name: "dispute-participation-subsystem", future }
 	}
 }
 
@@ -80,6 +77,9 @@ pub enum Error {
 
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
+
+	#[error("Oneshot receiver died")]
+	OneshotSendFailed,
 
 	#[error(transparent)]
 	Participation(#[from] ParticipationError),
@@ -101,7 +101,7 @@ impl Error {
 			// don't spam the log with spurious errors
 			Self::RuntimeApi(_) | Self::Oneshot(_) => {
 				tracing::debug!(target: LOG_TARGET, err = ?self)
-			}
+			},
 			// it's worth reporting otherwise
 			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
 		}
@@ -111,6 +111,7 @@ impl Error {
 async fn run<Context>(mut ctx: Context)
 where
 	Context: SubsystemContext<Message = DisputeParticipationMessage>,
+	Context: overseer::SubsystemContext<Message = DisputeParticipationMessage>,
 {
 	let mut state = State { recent_block: None };
 
@@ -119,20 +120,20 @@ where
 			Err(_) => return,
 			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
 				tracing::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
-				return;
-			}
-			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _))) => {}
+				return
+			},
+			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _))) => {},
 			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(update))) => {
 				update_state(&mut state, update);
-			}
+			},
 			Ok(FromOverseer::Communication { msg }) => {
 				if let Err(err) = handle_incoming(&mut ctx, &mut state, msg).await {
 					err.trace();
 					if let Error::Subsystem(SubsystemError::Context(_)) = err {
-						return;
+						return
 					}
 				}
-			}
+			},
 		}
 	}
 }
@@ -156,7 +157,8 @@ async fn handle_incoming(
 			candidate_receipt,
 			session,
 			n_validators,
-		} => {
+			report_availability,
+		} =>
 			if let Some((_, block_hash)) = state.recent_block {
 				participate(
 					ctx,
@@ -165,12 +167,12 @@ async fn handle_incoming(
 					candidate_receipt,
 					session,
 					n_validators,
+					report_availability,
 				)
 				.await
 			} else {
-				return Err(ParticipationError::MissingRecentBlockState.into());
-			}
-		}
+				return Err(ParticipationError::MissingRecentBlockState.into())
+			},
 	}
 }
 
@@ -181,6 +183,7 @@ async fn participate(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 	n_validators: u32,
+	report_availability: oneshot::Sender<bool>,
 ) -> Result<(), Error> {
 	let (recover_available_data_tx, recover_available_data_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
@@ -189,42 +192,43 @@ async fn participate(
 
 	// in order to validate a candidate we need to start by recovering the
 	// available data
-	ctx.send_message(
-		AvailabilityRecoveryMessage::RecoverAvailableData(
-			candidate_receipt.clone(),
-			session,
-			None,
-			recover_available_data_tx,
-		)
-		.into(),
-	)
+	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
+		candidate_receipt.clone(),
+		session,
+		None,
+		recover_available_data_tx,
+	))
 	.await;
 
 	let available_data = match recover_available_data_rx.await? {
-		Ok(data) => data,
+		Ok(data) => {
+			report_availability.send(true).map_err(|_| Error::OneshotSendFailed)?;
+			data
+		},
 		Err(RecoveryError::Invalid) => {
+			report_availability.send(true).map_err(|_| Error::OneshotSendFailed)?;
+
 			// the available data was recovered but it is invalid, therefore we'll
 			// vote negatively for the candidate dispute
 			cast_invalid_vote(ctx, candidate_hash, candidate_receipt, session).await;
-			return Ok(());
-		}
+			return Ok(())
+		},
 		Err(RecoveryError::Unavailable) => {
-			return Err(ParticipationError::MissingAvailableData(candidate_hash).into());
-		}
+			report_availability.send(false).map_err(|_| Error::OneshotSendFailed)?;
+
+			return Err(ParticipationError::MissingAvailableData(candidate_hash).into())
+		},
 	};
 
 	// we also need to fetch the validation code which we can reference by its
 	// hash as taken from the candidate descriptor
-	ctx.send_message(
-		RuntimeApiMessage::Request(
-			block_hash,
-			RuntimeApiRequest::ValidationCodeByHash(
-				candidate_receipt.descriptor.validation_code_hash,
-				code_tx,
-			),
-		)
-		.into(),
-	)
+	ctx.send_message(RuntimeApiMessage::Request(
+		block_hash,
+		RuntimeApiRequest::ValidationCodeByHash(
+			candidate_receipt.descriptor.validation_code_hash,
+			code_tx,
+		),
+	))
 	.await;
 
 	let validation_code = match code_rx.await?? {
@@ -237,23 +241,20 @@ async fn participate(
 				block_hash,
 			);
 
-			return Err(ParticipationError::MissingValidationCode(candidate_hash).into());
-		}
+			return Err(ParticipationError::MissingValidationCode(candidate_hash).into())
+		},
 	};
 
 	// we dispatch a request to store the available data for the candidate. we
 	// want to maximize data availability for other potential checkers involved
 	// in the dispute
-	ctx.send_message(
-		AvailabilityStoreMessage::StoreAvailableData(
-			candidate_hash,
-			None,
-			n_validators,
-			available_data.clone(),
-			store_available_data_tx,
-		)
-		.into(),
-	)
+	ctx.send_message(AvailabilityStoreMessage::StoreAvailableData(
+		candidate_hash,
+		None,
+		n_validators,
+		available_data.clone(),
+		store_available_data_tx,
+	))
 	.await;
 
 	match store_available_data_rx.await? {
@@ -263,22 +264,19 @@ async fn participate(
 				"Failed to store available data for candidate {:?}",
 				candidate_hash,
 			);
-		}
-		Ok(()) => {}
+		},
+		Ok(()) => {},
 	}
 
 	// we issue a request to validate the candidate with the provided exhaustive
 	// parameters
-	ctx.send_message(
-		CandidateValidationMessage::ValidateFromExhaustive(
-			available_data.validation_data,
-			validation_code,
-			candidate_receipt.descriptor.clone(),
-			available_data.pov,
-			validation_tx,
-		)
-		.into(),
-	)
+	ctx.send_message(CandidateValidationMessage::ValidateFromExhaustive(
+		available_data.validation_data,
+		validation_code,
+		candidate_receipt.descriptor.clone(),
+		available_data.pov,
+		validation_tx,
+	))
 	.await;
 
 	// we cast votes (either positive or negative) depending on the outcome of
@@ -293,7 +291,7 @@ async fn participate(
 			);
 
 			cast_invalid_vote(ctx, candidate_hash, candidate_receipt, session).await;
-		}
+		},
 		Ok(ValidationResult::Invalid(invalid)) => {
 			tracing::warn!(
 				target: LOG_TARGET,
@@ -303,7 +301,7 @@ async fn participate(
 			);
 
 			cast_invalid_vote(ctx, candidate_hash, candidate_receipt, session).await;
-		}
+		},
 		Ok(ValidationResult::Valid(commitments, _)) => {
 			if commitments.hash() != candidate_receipt.commitments_hash {
 				tracing::warn!(
@@ -317,7 +315,7 @@ async fn participate(
 			} else {
 				cast_valid_vote(ctx, candidate_hash, candidate_receipt, session).await;
 			}
-		}
+		},
 	}
 
 	Ok(())
@@ -360,13 +358,11 @@ async fn issue_local_statement(
 	session: SessionIndex,
 	valid: bool,
 ) {
-	ctx.send_message(AllMessages::DisputeCoordinator(
-		DisputeCoordinatorMessage::IssueLocalStatement(
-			session,
-			candidate_hash,
-			candidate_receipt,
-			valid,
-		),
+	ctx.send_message(DisputeCoordinatorMessage::IssueLocalStatement(
+		session,
+		candidate_hash,
+		candidate_receipt,
+		valid,
 	))
 	.await
 }

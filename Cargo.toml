@@ -6,7 +6,7 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.5"
+version = "0.9.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
@@ -39,7 +39,11 @@ members = [
 	"xcm",
 	"xcm/xcm-builder",
 	"xcm/xcm-executor",
+	"xcm/xcm-executor/integration-tests",
+	"xcm/xcm-simulator",
+	"xcm/xcm-simulator/example",
 	"xcm/pallet-xcm",
+	"xcm/procedural",
 	"node/client",
 	"node/collation-generation",
 	"node/core/approval-voting",
@@ -48,6 +52,7 @@ members = [
 	"node/core/bitfield-signing",
 	"node/core/candidate-validation",
 	"node/core/chain-api",
+	"node/core/chain-selection",
 	"node/core/dispute-coordinator",
 	"node/core/dispute-participation",
 	"node/core/parachains-inherent",
@@ -63,20 +68,30 @@ members = [
 	"node/network/availability-recovery",
 	"node/network/collator-protocol",
 	"node/network/gossip-support",
+	"node/network/dispute-distribution",
 	"node/overseer",
+	"node/overseer/overseer-gen",
+	"node/overseer/overseer-gen/proc-macro",
+	"node/overseer/all-subsystems-gen",
+	"node/malus",
 	"node/primitives",
 	"node/service",
 	"node/subsystem",
-	"node/subsystem/dispatch-gen",
+	"node/subsystem-types",
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
 	"node/jaeger",
+	"node/metrics",
 	"node/metered-channel",
 	"node/test/client",
 	"node/test/service",
+	"node/test/polkadot-simnet/common",
+	"node/test/polkadot-simnet/node",
+	"node/test/polkadot-simnet/test",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
+	"utils/staking-miner",
 ]
 
 # We want to be able to build the bridge relayer without pulling it (and all of its
@@ -98,6 +113,7 @@ panic = "unwind"
 [features]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
+disputes = [ "polkadot-cli/disputes" ]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
@@ -129,6 +145,8 @@ polkadot = { path = "/usr/bin/polkadot" }
 [package.metadata.rpm.files]
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
 
+[package.metadata.spellcheck]
+config = "./scripts/gitlab/spellcheck.toml"
 
 [patch.'https://github.com/paritytech/substrate']
 sp-core = { git="https://github.com/cheme/substrate", branch="state-update4" }

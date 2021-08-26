@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::result::Result;
-use xcm::v0::{Error as XcmError, Result as XcmResult, MultiAsset, MultiLocation};
 use crate::Assets;
+use sp_std::result::Result;
+use xcm::latest::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult};
 
 /// Facility for asset transacting.
 ///
@@ -44,7 +44,7 @@ pub trait TransactAsset {
 	/// not be needed if the teleporting chains are to be trusted, but better to be safe than sorry). On chains
 	/// where the asset is not native then it will generally just be a no-op.
 	///
-	/// When composed as a tuple, all type-items are called. It is up to the implementor that there exists no
+	/// When composed as a tuple, all type-items are called. It is up to the implementer that there exists no
 	/// value for `_what` which can cause side-effects for more than one of the type-items.
 	fn check_in(_origin: &MultiLocation, _what: &MultiAsset) {}
 
@@ -56,9 +56,9 @@ pub trait TransactAsset {
 	/// be needed if the teleporting chains are to be trusted, but better to be safe than sorry). On chains where
 	/// the asset is not native then it will generally just be a no-op.
 	///
-	/// When composed as a tuple, all type-items are called. It is up to the implementor that there exists no
+	/// When composed as a tuple, all type-items are called. It is up to the implementer that there exists no
 	/// value for `_what` which can cause side-effects for more than one of the type-items.
-	fn check_out(_origin: &MultiLocation, _what: &MultiAsset) {}
+	fn check_out(_dest: &MultiLocation, _what: &MultiAsset) {}
 
 	/// Deposit the `what` asset into the account of `who`.
 	///
@@ -67,8 +67,8 @@ pub trait TransactAsset {
 		Err(XcmError::Unimplemented)
 	}
 
-	/// Withdraw the given asset from the consensus system. Return the actual asset(s) withdrawn. In
-	/// the case of `what` being a wildcard, this may be something more specific.
+	/// Withdraw the given asset from the consensus system. Return the actual asset(s) withdrawn,
+	/// which should always be equal to `_what`.
 	///
 	/// Implementations should return `XcmError::FailedToTransactAsset` if withdraw failed.
 	fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
@@ -78,22 +78,30 @@ pub trait TransactAsset {
 	/// Move an `asset` `from` one location in `to` another location.
 	///
 	/// Returns `XcmError::FailedToTransactAsset` if transfer failed.
-	fn transfer_asset(_asset: &MultiAsset, _from: &MultiLocation, _to: &MultiLocation) -> Result<Assets, XcmError> {
+	fn transfer_asset(
+		_asset: &MultiAsset,
+		_from: &MultiLocation,
+		_to: &MultiLocation,
+	) -> Result<Assets, XcmError> {
 		Err(XcmError::Unimplemented)
 	}
 
 	/// Move an `asset` `from` one location in `to` another location.
 	///
 	/// Attempts to use `transfer_asset` and if not available then falls back to using a two-part withdraw/deposit.
-	fn teleport_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
+	fn beam_asset(
+		asset: &MultiAsset,
+		from: &MultiLocation,
+		to: &MultiLocation,
+	) -> Result<Assets, XcmError> {
 		match Self::transfer_asset(asset, from, to) {
 			Err(XcmError::Unimplemented) => {
 				let assets = Self::withdraw_asset(asset, from)?;
 				// Not a very forgiving attitude; once we implement roll-backs then it'll be nicer.
 				Self::deposit_asset(asset, to)?;
 				Ok(assets)
-			}
-			result => result
+			},
+			result => result,
 		}
 	}
 }
@@ -103,38 +111,194 @@ impl TransactAsset for Tuple {
 	fn can_check_in(origin: &MultiLocation, what: &MultiAsset) -> XcmResult {
 		for_tuples!( #(
 			match Tuple::can_check_in(origin, what) {
-				Err(XcmError::AssetNotFound) => (),
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
 				r => return r,
 			}
 		)* );
+		log::trace!(
+			target: "xcm::TransactAsset::can_check_in",
+			"asset not found: what: {:?}, origin: {:?}",
+			what,
+			origin,
+		);
 		Err(XcmError::AssetNotFound)
 	}
+
 	fn check_in(origin: &MultiLocation, what: &MultiAsset) {
 		for_tuples!( #(
 			Tuple::check_in(origin, what);
 		)* );
 	}
+
 	fn check_out(dest: &MultiLocation, what: &MultiAsset) {
 		for_tuples!( #(
 			Tuple::check_out(dest, what);
 		)* );
 	}
+
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
 		for_tuples!( #(
-			match Tuple::deposit_asset(what, who) { o @ Ok(_) => return o, _ => () }
+			match Tuple::deposit_asset(what, who) {
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
+				r => return r,
+			}
 		)* );
-		Err(XcmError::Unimplemented)
+		log::trace!(
+			target: "xcm::TransactAsset::deposit_asset",
+			"did not deposit asset: what: {:?}, who: {:?}",
+			what,
+			who,
+		);
+		Err(XcmError::AssetNotFound)
 	}
+
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<Assets, XcmError> {
 		for_tuples!( #(
-			match Tuple::withdraw_asset(what, who) { o @ Ok(_) => return o, _ => () }
+			match Tuple::withdraw_asset(what, who) {
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
+				r => return r,
+			}
 		)* );
-		Err(XcmError::Unimplemented)
+		log::trace!(
+			target: "xcm::TransactAsset::withdraw_asset",
+			"did not withdraw asset: what: {:?}, who: {:?}",
+			what,
+			who,
+		);
+		Err(XcmError::AssetNotFound)
 	}
-	fn transfer_asset(what: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<Assets, XcmError> {
+
+	fn transfer_asset(
+		what: &MultiAsset,
+		from: &MultiLocation,
+		to: &MultiLocation,
+	) -> Result<Assets, XcmError> {
 		for_tuples!( #(
-			match Tuple::transfer_asset(what, from, to) { o @ Ok(_) => return o, _ => () }
+			match Tuple::transfer_asset(what, from, to) {
+				Err(XcmError::AssetNotFound) | Err(XcmError::Unimplemented) => (),
+				r => return r,
+			}
 		)* );
-		Err(XcmError::Unimplemented)
+		log::trace!(
+			target: "xcm::TransactAsset::transfer_asset",
+			"did not transfer asset: what: {:?}, from: {:?}, to: {:?}",
+			what,
+			from,
+			to,
+		);
+		Err(XcmError::AssetNotFound)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use xcm::latest::Junctions::Here;
+
+	pub struct UnimplementedTransactor;
+	impl TransactAsset for UnimplementedTransactor {}
+
+	pub struct NotFoundTransactor;
+	impl TransactAsset for NotFoundTransactor {
+		fn can_check_in(_origin: &MultiLocation, _what: &MultiAsset) -> XcmResult {
+			Err(XcmError::AssetNotFound)
+		}
+
+		fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation) -> XcmResult {
+			Err(XcmError::AssetNotFound)
+		}
+
+		fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
+			Err(XcmError::AssetNotFound)
+		}
+
+		fn transfer_asset(
+			_what: &MultiAsset,
+			_from: &MultiLocation,
+			_to: &MultiLocation,
+		) -> Result<Assets, XcmError> {
+			Err(XcmError::AssetNotFound)
+		}
+	}
+
+	pub struct OverflowTransactor;
+	impl TransactAsset for OverflowTransactor {
+		fn can_check_in(_origin: &MultiLocation, _what: &MultiAsset) -> XcmResult {
+			Err(XcmError::Overflow)
+		}
+
+		fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation) -> XcmResult {
+			Err(XcmError::Overflow)
+		}
+
+		fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
+			Err(XcmError::Overflow)
+		}
+
+		fn transfer_asset(
+			_what: &MultiAsset,
+			_from: &MultiLocation,
+			_to: &MultiLocation,
+		) -> Result<Assets, XcmError> {
+			Err(XcmError::Overflow)
+		}
+	}
+
+	pub struct SuccessfulTransactor;
+	impl TransactAsset for SuccessfulTransactor {
+		fn can_check_in(_origin: &MultiLocation, _what: &MultiAsset) -> XcmResult {
+			Ok(())
+		}
+
+		fn deposit_asset(_what: &MultiAsset, _who: &MultiLocation) -> XcmResult {
+			Ok(())
+		}
+
+		fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
+			Ok(Assets::default())
+		}
+
+		fn transfer_asset(
+			_what: &MultiAsset,
+			_from: &MultiLocation,
+			_to: &MultiLocation,
+		) -> Result<Assets, XcmError> {
+			Ok(Assets::default())
+		}
+	}
+
+	#[test]
+	fn defaults_to_asset_not_found() {
+		type MultiTransactor =
+			(UnimplementedTransactor, NotFoundTransactor, UnimplementedTransactor);
+
+		assert_eq!(
+			MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into()),
+			Err(XcmError::AssetNotFound)
+		);
+	}
+
+	#[test]
+	fn unimplemented_and_not_found_continue_iteration() {
+		type MultiTransactor = (UnimplementedTransactor, NotFoundTransactor, SuccessfulTransactor);
+
+		assert_eq!(MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into()), Ok(()),);
+	}
+
+	#[test]
+	fn unexpected_error_stops_iteration() {
+		type MultiTransactor = (OverflowTransactor, SuccessfulTransactor);
+
+		assert_eq!(
+			MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into()),
+			Err(XcmError::Overflow)
+		);
+	}
+
+	#[test]
+	fn success_stops_iteration() {
+		type MultiTransactor = (SuccessfulTransactor, OverflowTransactor);
+
+		assert_eq!(MultiTransactor::deposit_asset(&(Here, 1).into(), &Here.into()), Ok(()),);
 	}
 }

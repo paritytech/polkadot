@@ -84,12 +84,13 @@
 //! ```
 
 use parity_scale_codec::Encode;
-use polkadot_primitives::v1::{BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, ValidatorIndex};
 use polkadot_node_primitives::PoV;
+use polkadot_primitives::v1::{
+	BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, ValidatorIndex,
+};
 use sc_network::PeerId;
 
-use std::fmt;
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 
 use super::INSTANCE;
 
@@ -143,7 +144,6 @@ impl std::ops::Deref for PerLeafSpan {
 #[repr(u8)]
 #[non_exhaustive]
 pub enum Stage {
-	CandidateSelection = 1,
 	CandidateBacking = 2,
 	StatementDistribution = 3,
 	PoVDistribution = 4,
@@ -241,7 +241,10 @@ impl Span {
 	/// Creates a new span builder based on anything that can be lazily evaluated
 	/// to and identifier.
 	pub fn new<I: LazyIdent>(identifier: I, span_name: &'static str) -> Span {
-		let mut span = INSTANCE.read_recursive().span(|| <I as LazyIdent>::eval(&identifier), span_name).into();
+		let mut span = INSTANCE
+			.read_recursive()
+			.span(|| <I as LazyIdent>::eval(&identifier), span_name)
+			.into();
 		<I as LazyIdent>::extra_tags(&identifier, &mut span);
 		span
 	}
@@ -327,7 +330,7 @@ impl Span {
 
 	/// Add an additional int tag to the span without consuming.
 	///
-	/// Should be used sparingly, introduction of new types is prefered.
+	/// Should be used sparingly, introduction of new types is preferred.
 	#[inline(always)]
 	pub fn with_int_tag(mut self, tag: &'static str, i: i64) -> Self {
 		self.add_int_tag(tag, i);
@@ -350,16 +353,17 @@ impl Span {
 	#[inline(always)]
 	pub fn add_follows_from(&mut self, other: &Self) {
 		match (self, other) {
-			(Self::Enabled(ref mut inner), Self::Enabled(ref other_inner)) => inner.add_follows_from(&other_inner),
-			_ => {}
+			(Self::Enabled(ref mut inner), Self::Enabled(ref other_inner)) =>
+				inner.add_follows_from(&other_inner),
+			_ => {},
 		}
 	}
 
-	/// Add a pov hash meta tag with lazy hash eval, without consuming the span.
+	/// Add a PoV hash meta tag with lazy hash evaluation, without consuming the span.
 	#[inline(always)]
 	pub fn add_pov(&mut self, pov: &PoV) {
 		if self.is_enabled() {
-			// avoid computing the pov hash if jaeger is not enabled
+			// avoid computing the PoV hash if jaeger is not enabled
 			self.add_string_fmt_debug_tag("pov", pov.hash());
 		}
 	}
@@ -373,29 +377,30 @@ impl Span {
 	pub fn add_string_tag<V: ToString>(&mut self, tag: &'static str, val: V) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, val.to_string().as_str()),
-			Self::Disabled => {}
+			Self::Disabled => {},
 		}
 	}
 
 	/// Add a string tag, without consuming the span.
 	pub fn add_string_fmt_debug_tag<V: fmt::Debug>(&mut self, tag: &'static str, val: V) {
 		match self {
-			Self::Enabled(ref mut inner) => inner.add_string_tag(tag, format!("{:?}", val).as_str()),
-			Self::Disabled => {}
+			Self::Enabled(ref mut inner) =>
+				inner.add_string_tag(tag, format!("{:?}", val).as_str()),
+			Self::Disabled => {},
 		}
 	}
 
 	pub fn add_int_tag(&mut self, tag: &'static str, value: i64) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value),
-			Self::Disabled => {}
+			Self::Disabled => {},
 		}
 	}
 
 	pub fn add_uint_tag(&mut self, tag: &'static str, value: u64) {
 		match self {
 			Self::Enabled(ref mut inner) => inner.add_int_tag(tag, value as i64),
-			Self::Disabled => {}
+			Self::Disabled => {},
 		}
 	}
 

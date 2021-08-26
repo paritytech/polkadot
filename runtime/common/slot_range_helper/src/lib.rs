@@ -14,15 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A helper macro for generating SlotRange enum.
+//! A helper macro for generating `SlotRange` enum.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub use sp_std::{result, ops::Add, convert::TryInto};
-pub use sp_runtime::traits::CheckedSub;
-pub use parity_scale_codec::{Encode, Decode};
-pub use paste;
 pub use enumn::N;
+pub use parity_scale_codec::{Decode, Encode};
+pub use paste;
+pub use sp_runtime::traits::CheckedSub;
+pub use sp_std::{convert::TryInto, ops::Add, result};
 
 /// This macro generates a `SlotRange` enum of arbitrary length for use in the Slot Auction
 /// mechanism on Polkadot.

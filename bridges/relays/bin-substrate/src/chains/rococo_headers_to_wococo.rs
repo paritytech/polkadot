@@ -16,6 +16,7 @@
 
 //! Rococo-to-Wococo headers sync entrypoint.
 
+use crate::chains::wococo_headers_to_rococo::MAXIMAL_BALANCE_DECREASE_PER_DAY;
 use crate::finality_pipeline::{SubstrateFinalitySyncPipeline, SubstrateFinalityToSubstrate};
 
 use bp_header_chain::justification::GrandpaJustification;
@@ -38,6 +39,18 @@ impl SubstrateFinalitySyncPipeline for RococoFinalityToWococo {
 		crate::chains::add_polkadot_kusama_price_metrics::<Self>(params)
 	}
 
+	fn start_relay_guards(&self) {
+		relay_substrate_client::guard::abort_on_spec_version_change(
+			self.target_client.clone(),
+			bp_wococo::VERSION.spec_version,
+		);
+		relay_substrate_client::guard::abort_when_account_balance_decreased(
+			self.target_client.clone(),
+			self.transactions_author(),
+			MAXIMAL_BALANCE_DECREASE_PER_DAY,
+		);
+	}
+
 	fn transactions_author(&self) -> bp_wococo::AccountId {
 		(*self.target_sign.public().as_array_ref()).into()
 	}
@@ -48,10 +61,9 @@ impl SubstrateFinalitySyncPipeline for RococoFinalityToWococo {
 		header: RococoSyncHeader,
 		proof: GrandpaJustification<bp_rococo::Header>,
 	) -> Bytes {
-		let call = bp_wococo::Call::BridgeGrandpaRococo(bp_wococo::BridgeGrandpaRococoCall::submit_finality_proof(
-			header.into_inner(),
-			proof,
-		));
+		let call = relay_wococo_client::runtime::Call::BridgeGrandpaRococo(
+			relay_wococo_client::runtime::BridgeGrandpaRococoCall::submit_finality_proof(header.into_inner(), proof),
+		);
 		let genesis_hash = *self.target_client.genesis_hash();
 		let transaction = Wococo::sign_transaction(genesis_hash, &self.target_sign, transaction_nonce, call);
 

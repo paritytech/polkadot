@@ -19,13 +19,13 @@
 #![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
-use polkadot_primitives::v1::{Hash, BlockNumber};
-use parity_scale_codec::{Encode, Decode};
-use std::{fmt, collections::HashMap};
+use parity_scale_codec::{Decode, Encode};
+use polkadot_primitives::v1::{BlockNumber, Hash};
+use std::{collections::HashMap, fmt};
 
-pub use sc_network::{PeerId, IfDisconnected};
 #[doc(hidden)]
 pub use polkadot_node_jaeger as jaeger;
+pub use sc_network::{IfDisconnected, PeerId};
 #[doc(hidden)]
 pub use std::sync::Arc;
 
@@ -38,11 +38,13 @@ pub mod peer_set;
 /// Request/response protocols used in Polkadot.
 pub mod request_response;
 
+/// Accessing authority discovery service
+pub mod authority_discovery;
+
 /// A version of the protocol.
 pub type ProtocolVersion = u32;
 /// The minimum amount of peers to send gossip messages to.
 pub const MIN_GOSSIP_PEERS: usize = 25;
-
 
 /// An error indicating that this the over-arching message type had the wrong variant
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -87,13 +89,15 @@ impl Into<sc_network::ObservedRole> for ObservedRole {
 	}
 }
 
+/// Implement `TryFrom` for one enum variant into the inner type.
+/// `$m_ty::$variant(inner) -> Ok(inner)`
 macro_rules! impl_try_from {
 	($m_ty:ident, $variant:ident, $out:ty) => {
 		impl TryFrom<$m_ty> for $out {
 			type Error = crate::WrongVariant;
 
-			#[allow(unreachable_patterns)] // when there is only one variant
 			fn try_from(x: $m_ty) -> Result<$out, Self::Error> {
+				#[allow(unreachable_patterns)] // when there is only one variant
 				match x {
 					$m_ty::$variant(y) => Ok(y),
 					_ => Err(crate::WrongVariant),
@@ -112,9 +116,8 @@ macro_rules! impl_try_from {
 				}
 			}
 		}
-	}
+	};
 }
-
 
 /// Specialized wrapper around [`View`].
 ///
@@ -127,16 +130,13 @@ pub struct OurView {
 
 impl OurView {
 	/// Creates a new instance.
-	pub fn new(heads: impl IntoIterator<Item = (Hash, Arc<jaeger::Span>)>, finalized_number: BlockNumber) -> Self {
+	pub fn new(
+		heads: impl IntoIterator<Item = (Hash, Arc<jaeger::Span>)>,
+		finalized_number: BlockNumber,
+	) -> Self {
 		let state_per_head = heads.into_iter().collect::<HashMap<_, _>>();
-		let view = View::new(
-			state_per_head.keys().cloned(),
-			finalized_number,
-		);
-		Self {
-			view,
-			span_per_head: state_per_head,
-		}
+		let view = View::new(state_per_head.keys().cloned(), finalized_number);
+		Self { view, span_per_head: state_per_head }
 	}
 
 	/// Returns the span per head map.
@@ -215,22 +215,15 @@ macro_rules! view {
 
 impl View {
 	/// Construct a new view based on heads and a finalized block number.
-	pub fn new(heads: impl IntoIterator<Item=Hash>, finalized_number: BlockNumber) -> Self
-	{
+	pub fn new(heads: impl IntoIterator<Item = Hash>, finalized_number: BlockNumber) -> Self {
 		let mut heads = heads.into_iter().collect::<Vec<Hash>>();
 		heads.sort();
-		Self {
-			heads,
-			finalized_number,
-		}
+		Self { heads, finalized_number }
 	}
 
 	/// Start with no heads, but only a finalized block number.
 	pub fn with_finalized(finalized_number: BlockNumber) -> Self {
-		Self {
-			heads: Vec::new(),
-			finalized_number,
-		}
+		Self { heads: Vec::new(), finalized_number }
 	}
 
 	/// Obtain the number of heads that are in view.
@@ -244,12 +237,12 @@ impl View {
 	}
 
 	/// Obtain an iterator over all heads.
-	pub fn iter<'a>(&'a self) -> impl Iterator<Item=&'a Hash> {
+	pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Hash> {
 		self.heads.iter()
 	}
 
 	/// Obtain an iterator over all heads.
-	pub fn into_iter(self) -> impl Iterator<Item=Hash> {
+	pub fn into_iter(self) -> impl Iterator<Item = Hash> {
 		self.heads.into_iter()
 	}
 
@@ -279,7 +272,7 @@ impl View {
 
 	/// Check if two views have the same heads.
 	///
-	/// Equivalent to the `PartialEq` fn,
+	/// Equivalent to the `PartialEq` function,
 	/// but ignores the `finalized_number` field.
 	pub fn check_heads_eq(&self, other: &Self) -> bool {
 		self.heads == other.heads
@@ -288,13 +281,12 @@ impl View {
 
 /// v1 protocol types.
 pub mod v1 {
-	use parity_scale_codec::{Encode, Decode};
+	use parity_scale_codec::{Decode, Encode};
 	use std::convert::TryFrom;
 
 	use polkadot_primitives::v1::{
-		CandidateHash, CandidateIndex, CollatorId, CollatorSignature,
-		CompactStatement, Hash, Id as ParaId, UncheckedSignedAvailabilityBitfield,
-		ValidatorIndex, ValidatorSignature,
+		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash,
+		Id as ParaId, UncheckedSignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature,
 	};
 
 	use polkadot_node_primitives::{
@@ -302,7 +294,6 @@ pub mod v1 {
 		UncheckedSignedFullStatement,
 	};
 
-	
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {
@@ -320,7 +311,7 @@ pub mod v1 {
 		/// Seconded statement with large payload (e.g. containing a runtime upgrade).
 		///
 		/// We only gossip the hash in that case, actual payloads can be fetched from sending node
-		/// via req/response.
+		/// via request/response.
 		#[codec(index = 1)]
 		LargeStatement(StatementMetadata),
 	}
@@ -355,8 +346,10 @@ pub mod v1 {
 		/// Get fingerprint describing the contained statement uniquely.
 		pub fn get_fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
 			match self {
-				Self::Statement(_, statement) =>
-					(statement.unchecked_payload().to_compact(), statement.unchecked_validator_index()),
+				Self::Statement(_, statement) => (
+					statement.unchecked_payload().to_compact(),
+					statement.unchecked_validator_index(),
+				),
 				Self::LargeStatement(meta) =>
 					(CompactStatement::Seconded(meta.candidate_hash), meta.signed_by),
 			}

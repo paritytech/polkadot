@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{prelude::*, result::Result, borrow::Borrow, convert::TryFrom};
-use parity_scale_codec::{Encode, Decode};
-use xcm::v0::{MultiLocation, OriginKind};
+use parity_scale_codec::{Decode, Encode};
+use sp_std::{borrow::Borrow, convert::TryFrom, prelude::*, result::Result};
+use xcm::latest::{MultiLocation, OriginKind};
 
 /// Generic third-party conversion trait. Use this when you don't want to force the user to use default
-/// impls of `From` and `Into` for the types you wish to convert between.
+/// implementations of `From` and `Into` for the types you wish to convert between.
 ///
 /// One of `convert`/`convert_ref` and `reverse`/`reverse_ref` MUST be implemented. If possible, implement
 /// `convert_ref`, since this will never result in a clone. Use `convert` when you definitely need to consume
@@ -29,12 +29,16 @@ use xcm::v0::{MultiLocation, OriginKind};
 /// the `Err(_)` of the last failing conversion (or `Err(())` for ref conversions).
 pub trait Convert<A: Clone, B: Clone> {
 	/// Convert from `value` (of type `A`) into an equivalent value of type `B`, `Err` if not possible.
-	fn convert(value: A) -> Result<B, A> { Self::convert_ref(&value).map_err(|_| value) }
+	fn convert(value: A) -> Result<B, A> {
+		Self::convert_ref(&value).map_err(|_| value)
+	}
 	fn convert_ref(value: impl Borrow<A>) -> Result<B, ()> {
 		Self::convert(value.borrow().clone()).map_err(|_| ())
 	}
 	/// Convert from `value` (of type `B`) into an equivalent value of type `A`, `Err` if not possible.
-	fn reverse(value: B) -> Result<A, B> { Self::reverse_ref(&value).map_err(|_| value) }
+	fn reverse(value: B) -> Result<A, B> {
+		Self::reverse_ref(&value).map_err(|_| value)
+	}
 	fn reverse_ref(value: impl Borrow<B>) -> Result<A, ()> {
 		Self::reverse(value.borrow().clone()).map_err(|_| ())
 	}
@@ -85,13 +89,19 @@ impl<A: Clone, B: Clone> Convert<A, B> for Tuple {
 /// Simple pass-through which implements `BytesConversion` while not doing any conversion.
 pub struct Identity;
 impl<T: Clone> Convert<T, T> for Identity {
-	fn convert(value: T) -> Result<T, T> { Ok(value) }
-	fn reverse(value: T) -> Result<T, T> { Ok(value) }
+	fn convert(value: T) -> Result<T, T> {
+		Ok(value)
+	}
+	fn reverse(value: T) -> Result<T, T> {
+		Ok(value)
+	}
 }
 
 /// Implementation of `Convert` trait using `TryFrom`.
 pub struct JustTry;
-impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> Convert<Source, Dest> for JustTry {
+impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> Convert<Source, Dest>
+	for JustTry
+{
 	fn convert(value: Source) -> Result<Dest, Source> {
 		Dest::try_from(value.clone()).map_err(|_| value)
 	}
@@ -103,7 +113,9 @@ impl<Source: TryFrom<Dest> + Clone, Dest: TryFrom<Source> + Clone> Convert<Sourc
 /// Implementation of `Convert<_, Vec<u8>>` using the parity scale codec.
 pub struct Encoded;
 impl<T: Clone + Encode + Decode> Convert<T, Vec<u8>> for Encoded {
-	fn convert_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> { Ok(value.borrow().encode()) }
+	fn convert_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> {
+		Ok(value.borrow().encode())
+	}
 	fn reverse_ref(bytes: impl Borrow<Vec<u8>>) -> Result<T, ()> {
 		T::decode(&mut &bytes.borrow()[..]).map_err(|_| ())
 	}
@@ -115,25 +127,27 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 	fn convert_ref(bytes: impl Borrow<Vec<u8>>) -> Result<T, ()> {
 		T::decode(&mut &bytes.borrow()[..]).map_err(|_| ())
 	}
-	fn reverse_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> { Ok(value.borrow().encode()) }
+	fn reverse_ref(value: impl Borrow<T>) -> Result<Vec<u8>, ()> {
+		Ok(value.borrow().encode())
+	}
 }
 
-/// A convertor trait for origin types.
+/// A converter `trait` for origin types.
 ///
 /// Can be amalgamated into tuples. If any of the tuple elements returns `Ok(_)`, it short circuits. Else, the `Err(_)`
 /// of the last tuple item is returned. Each intermediate `Err(_)` might return a different `origin` of type `Origin`
 /// which is passed to the next convert item.
 ///
 /// ```rust
-/// # use xcm::v0::{MultiLocation, Junction, OriginKind};
+/// # use xcm::latest::{MultiLocation, Junctions, Junction, OriginKind};
 /// # use xcm_executor::traits::ConvertOrigin;
 /// // A convertor that will bump the para id and pass it to the next one.
 /// struct BumpParaId;
 /// impl ConvertOrigin<u32> for BumpParaId {
 /// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
-/// 		match origin {
-/// 			MultiLocation::X1(Junction::Parachain(id)) => {
-/// 				Err(MultiLocation::X1(Junction::Parachain(id + 1)))
+/// 		match origin.interior() {
+/// 			Junctions::X1(Junction::Parachain(id)) if origin.parent_count() == 0 => {
+/// 				Err(Junctions::X1(Junction::Parachain(id + 1)).into())
 /// 			}
 /// 			_ => unreachable!()
 /// 		}
@@ -143,8 +157,8 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// struct AcceptPara7;
 /// impl ConvertOrigin<u32> for AcceptPara7 {
 /// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
-/// 		match origin {
-/// 			MultiLocation::X1(Junction::Parachain(id)) if id == 7 => {
+/// 		match origin.interior() {
+/// 			Junctions::X1(Junction::Parachain(id)) if id == &7 && origin.parent_count() == 0 => {
 /// 				Ok(7)
 /// 			}
 /// 			_ => Err(origin)
@@ -152,7 +166,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// 	}
 /// }
 /// # fn main() {
-/// let origin = MultiLocation::X1(Junction::Parachain(6));
+/// let origin: MultiLocation = Junctions::X1(Junction::Parachain(6)).into();
 /// assert!(
 /// 	<(BumpParaId, AcceptPara7) as ConvertOrigin<u32>>::convert_origin(origin, OriginKind::Native)
 /// 		.is_ok()
@@ -173,6 +187,12 @@ impl<O> ConvertOrigin<O> for Tuple {
 				r => return r
 			};
 		)* );
+		log::trace!(
+			target: "xcm::convert_origin",
+			"could not convert: origin: {:?}, kind: {:?}",
+			origin,
+			kind,
+		);
 		Err(origin)
 	}
 }

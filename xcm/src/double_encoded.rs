@@ -14,8 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::MAX_XCM_DECODE_DEPTH;
 use alloc::vec::Vec;
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, DecodeLimit, Encode};
 
 /// Wrapper around the encoded and decoded versions of a value.
 /// Caches the decoded value once computed.
@@ -29,16 +30,22 @@ pub struct DoubleEncoded<T> {
 }
 
 impl<T> Clone for DoubleEncoded<T> {
-	fn clone(&self) -> Self { Self { encoded: self.encoded.clone(), decoded: None } }
+	fn clone(&self) -> Self {
+		Self { encoded: self.encoded.clone(), decoded: None }
+	}
 }
 
 impl<T> PartialEq for DoubleEncoded<T> {
-	fn eq(&self, other: &Self) -> bool { self.encoded.eq(&other.encoded) }
+	fn eq(&self, other: &Self) -> bool {
+		self.encoded.eq(&other.encoded)
+	}
 }
 impl<T> Eq for DoubleEncoded<T> {}
 
 impl<T> core::fmt::Debug for DoubleEncoded<T> {
-	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result { self.encoded.fmt(f) }
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		self.encoded.fmt(f)
+	}
 }
 
 impl<T> From<Vec<u8>> for DoubleEncoded<T> {
@@ -48,13 +55,12 @@ impl<T> From<Vec<u8>> for DoubleEncoded<T> {
 }
 
 impl<T> DoubleEncoded<T> {
-	pub fn into<S>(self) -> DoubleEncoded<S> { DoubleEncoded::from(self) }
+	pub fn into<S>(self) -> DoubleEncoded<S> {
+		DoubleEncoded::from(self)
+	}
 
 	pub fn from<S>(e: DoubleEncoded<S>) -> Self {
-		Self {
-			encoded: e.encoded,
-			decoded: None,
-		}
+		Self { encoded: e.encoded, decoded: None }
 	}
 
 	/// Provides an API similar to `AsRef` that provides access to the inner value.
@@ -69,14 +75,20 @@ impl<T: Decode> DoubleEncoded<T> {
 	/// Returns a reference to the value in case of success and `Err(())` in case the decoding fails.
 	pub fn ensure_decoded(&mut self) -> Result<&T, ()> {
 		if self.decoded.is_none() {
-			self.decoded = T::decode(&mut &self.encoded[..]).ok();
+			self.decoded =
+				T::decode_all_with_depth_limit(MAX_XCM_DECODE_DEPTH, &mut &self.encoded[..]).ok();
 		}
 		self.decoded.as_ref().ok_or(())
 	}
 
 	/// Move the decoded value out or (if not present) decode `encoded`.
 	pub fn take_decoded(&mut self) -> Result<T, ()> {
-		self.decoded.take().or_else(|| T::decode(&mut &self.encoded[..]).ok()).ok_or(())
+		self.decoded
+			.take()
+			.or_else(|| {
+				T::decode_all_with_depth_limit(MAX_XCM_DECODE_DEPTH, &mut &self.encoded[..]).ok()
+			})
+			.ok_or(())
 	}
 
 	/// Provides an API similar to `TryInto` that allows fallible conversion to the inner value type.

@@ -14,65 +14,51 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
 //! Helper functions and tools to generate mock data useful for testing this subsystem.
 
-use std::sync::Arc;
+use std::{convert::TryFrom, sync::Arc};
 
-use sc_keystore::LocalKeystore;
 use sp_keyring::Sr25519Keyring;
-use sp_application_crypto::AppKey;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
+use polkadot_node_primitives::{AvailableData, BlockData, ErasureChunk, PoV, Proof};
 use polkadot_primitives::v1::{
-	CandidateCommitments, CandidateDescriptor, CandidateHash,
-	CommittedCandidateReceipt, GroupIndex, Hash, HeadData, Id as ParaId,
-	OccupiedCore, PersistedValidationData, SessionInfo, ValidatorId, ValidatorIndex
+	CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
+	GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore, PersistedValidationData, SessionInfo,
+	ValidatorIndex,
 };
-use polkadot_node_primitives::{PoV, ErasureChunk, AvailableData, BlockData};
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
-
-/// Get mock keystore with `Ferdie` key.
-pub fn make_ferdie_keystore() -> SyncCryptoStorePtr {
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-	SyncCryptoStore::sr25519_generate_new(
-		&*keystore,
-		ValidatorId::ID,
-		Some(&Sr25519Keyring::Ferdie.to_seed()),
-	)
-	.expect("Insert key into keystore");
-	keystore
-}
 
 /// Create dummy session info with two validator groups.
 pub fn make_session_info() -> SessionInfo {
-		let validators = vec![
-			Sr25519Keyring::Ferdie, // <- this node, role: validator
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Eve,
-			Sr25519Keyring::One,
-		];
+	let validators = vec![
+		Sr25519Keyring::Ferdie, // <- this node, role: validator
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Eve,
+		Sr25519Keyring::One,
+	];
 
-		let validator_groups: Vec<Vec<ValidatorIndex>> = [vec![5, 0, 3], vec![1, 6, 2, 4]]
-			.iter().map(|g| g.into_iter().map(|v| ValidatorIndex(*v)).collect()).collect();
+	let validator_groups: Vec<Vec<ValidatorIndex>> = [vec![5, 0, 3], vec![1, 6, 2, 4]]
+		.iter()
+		.map(|g| g.into_iter().map(|v| ValidatorIndex(*v)).collect())
+		.collect();
 
-		SessionInfo {
-			discovery_keys: validators.iter().map(|k| k.public().into()).collect(),
-			// Not used:
-			n_cores: validator_groups.len() as u32,
-			validator_groups,
-			// Not used values:
-			validators: validators.iter().map(|k| k.public().into()).collect(),
-			assignment_keys: Vec::new(),
-			zeroth_delay_tranche_width: 0,
-			relay_vrf_modulo_samples: 0,
-			n_delay_tranches: 0,
-			no_show_slots: 0,
-			needed_approvals: 0,
-		}
+	SessionInfo {
+		discovery_keys: validators.iter().map(|k| k.public().into()).collect(),
+		// Not used:
+		n_cores: validator_groups.len() as u32,
+		validator_groups,
+		// Not used values:
+		validators: validators.iter().map(|k| k.public().into()).collect(),
+		assignment_keys: Vec::new(),
+		zeroth_delay_tranche_width: 0,
+		relay_vrf_modulo_samples: 0,
+		n_delay_tranches: 0,
+		no_show_slots: 0,
+		needed_approvals: 0,
+	}
 }
 
 /// Builder for constructing occupied cores.
@@ -86,9 +72,7 @@ pub struct OccupiedCoreBuilder {
 
 impl OccupiedCoreBuilder {
 	pub fn build(self) -> (OccupiedCore, (CandidateHash, ErasureChunk)) {
-		let pov = PoV {
-			block_data: BlockData(vec![45, 46, 47]),
-		};
+		let pov = PoV { block_data: BlockData(vec![45, 46, 47]) };
 		let pov_hash = pov.hash();
 		let (erasure_root, chunk) = get_valid_chunk_data(pov.clone());
 		let candidate_receipt = TestCandidateBuilder {
@@ -97,7 +81,8 @@ impl OccupiedCoreBuilder {
 			relay_parent: self.relay_parent,
 			erasure_root,
 			..Default::default()
-		}.build();
+		}
+		.build();
 		let core = OccupiedCore {
 			next_up_on_available: None,
 			occupied_since: 0,
@@ -131,10 +116,7 @@ impl TestCandidateBuilder {
 				erasure_root: self.erasure_root,
 				..Default::default()
 			},
-			commitments: CandidateCommitments {
-				head_data: self.head_data,
-				..Default::default()
-			},
+			commitments: CandidateCommitments { head_data: self.head_data, ..Default::default() },
 		}
 	}
 }
@@ -148,18 +130,18 @@ pub fn get_valid_chunk_data(pov: PoV) -> (Hash, ErasureChunk) {
 		max_pov_size: 1024,
 		relay_parent_storage_root: Default::default(),
 	};
-	let available_data = AvailableData {
-		validation_data: persisted, pov: Arc::new(pov),
-	};
+	let available_data = AvailableData { validation_data: persisted, pov: Arc::new(pov) };
 	let chunks = obtain_chunks(fake_validator_count, &available_data).unwrap();
 	let branches = branches(chunks.as_ref());
 	let root = branches.root();
-	let chunk = branches.enumerate()
-			.map(|(index, (proof, chunk))| ErasureChunk {
-				chunk: chunk.to_vec(),
-				index: ValidatorIndex(index as _),
-				proof,
-			})
-			.next().expect("There really should be 10 chunks.");
+	let chunk = branches
+		.enumerate()
+		.map(|(index, (proof, chunk))| ErasureChunk {
+			chunk: chunk.to_vec(),
+			index: ValidatorIndex(index as _),
+			proof: Proof::try_from(proof).unwrap(),
+		})
+		.next()
+		.expect("There really should be 10 chunks.");
 	(root, chunk)
 }

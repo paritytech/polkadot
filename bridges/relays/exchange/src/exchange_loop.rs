@@ -215,7 +215,7 @@ async fn run_loop_iteration<P: TransactionProofPipeline>(
 					state.best_processed_header_number = state.best_processed_header_number + One::one();
 					storage.set_state(state);
 
-					if let Some(ref exchange_loop_metrics) = exchange_loop_metrics {
+					if let Some(exchange_loop_metrics) = exchange_loop_metrics {
 						exchange_loop_metrics.update::<P>(
 							state.best_processed_header_number,
 							best_finalized_header_id.0,

@@ -21,24 +21,24 @@
 //! as it has no initialization logic and its finalization logic depends only on the details of
 //! this module.
 
-use sp_std::prelude::*;
-use sp_runtime::traits::Header as HeaderT;
-use primitives::v1::{
-	BackedCandidate, PARACHAINS_INHERENT_IDENTIFIER, InherentData as ParachainsInherentData,
-};
-use frame_support::{
-	decl_error, decl_module, decl_storage, ensure,
-	dispatch::DispatchResultWithPostInfo,
-	weights::{DispatchClass, Weight},
-	traits::Get,
-	inherent::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent},
-};
-use frame_system::ensure_none;
 use crate::{
+	disputes::DisputesHandler,
 	inclusion,
 	scheduler::{self, FreedReason},
-	ump,
+	shared, ump,
 };
+use frame_support::{
+	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
+	pallet_prelude::*,
+};
+use frame_system::pallet_prelude::*;
+use primitives::v1::{
+	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
+};
+use sp_runtime::traits::Header as HeaderT;
+use sp_std::prelude::*;
+
+pub use pallet::*;
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
@@ -47,63 +47,122 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
-pub trait Config: inclusion::Config + scheduler::Config {}
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
 
-decl_storage! {
-	trait Store for Module<T: Config> as ParaInherent {
-		/// Whether the paras inherent was included within this block.
-		///
-		/// The `Option<()>` is effectively a bool, but it never hits storage in the `None` variant
-		/// due to the guarantees of FRAME's storage APIs.
-		///
-		/// If this is `None` at the end of the block, we panic and render the block invalid.
-		Included: Option<()>;
-	}
-}
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	pub struct Pallet<T>(_);
 
-decl_error! {
-	pub enum Error for Module<T: Config> {
+	#[pallet::config]
+	#[pallet::disable_frame_system_supertrait_check]
+	pub trait Config: inclusion::Config + scheduler::Config {}
+
+	#[pallet::error]
+	pub enum Error<T> {
 		/// Inclusion inherent called more than once per block.
 		TooManyInclusionInherents,
 		/// The hash of the submitted parent header doesn't correspond to the saved block hash of
 		/// the parent.
 		InvalidParentHeader,
+		/// Potentially invalid candidate.
+		CandidateCouldBeInvalid,
 	}
-}
 
-decl_module! {
-	/// The paras inherent module.
-	pub struct Module<T: Config> for enum Call where origin: <T as frame_system::Config>::Origin {
-		type Error = Error<T>;
+	/// Whether the paras inherent was included within this block.
+	///
+	/// The `Option<()>` is effectively a `bool`, but it never hits storage in the `None` variant
+	/// due to the guarantees of FRAME's storage APIs.
+	///
+	/// If this is `None` at the end of the block, we panic and render the block invalid.
+	#[pallet::storage]
+	pub(crate) type Included<T> = StorageValue<_, ()>;
 
-		fn on_initialize() -> Weight {
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(_: T::BlockNumber) -> Weight {
 			T::DbWeight::get().reads_writes(1, 1) // in on_finalize.
 		}
 
-		fn on_finalize() {
-			if Included::take().is_none() {
+		fn on_finalize(_: T::BlockNumber) {
+			if Included::<T>::take().is_none() {
 				panic!("Bitfields and heads must be included every block");
 			}
 		}
+	}
 
+	#[pallet::inherent]
+	impl<T: Config> ProvideInherent for Pallet<T> {
+		type Call = Call<T>;
+		type Error = MakeFatalError<()>;
+		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
+
+		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+			let mut inherent_data: ParachainsInherentData<T::Header> =
+				match data.get_data(&Self::INHERENT_IDENTIFIER) {
+					Ok(Some(d)) => d,
+					Ok(None) => return None,
+					Err(_) => {
+						log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
+
+						return None
+					},
+				};
+
+			// filter out any unneeded dispute statements
+			T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
+
+			// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
+			// See github.com/paritytech/polkadot/issues/1327
+			let inherent_data =
+				match Self::enter(frame_system::RawOrigin::None.into(), inherent_data.clone()) {
+					Ok(_) => inherent_data,
+					Err(err) => {
+						log::warn!(
+						target: LOG_TARGET,
+						"dropping signed_bitfields and backed_candidates because they produced \
+						an invalid paras inherent: {:?}",
+						err,
+					);
+
+						ParachainsInherentData {
+							bitfields: Vec::new(),
+							backed_candidates: Vec::new(),
+							disputes: Vec::new(),
+							parent_header: inherent_data.parent_header,
+						}
+					},
+				};
+
+			Some(Call::enter(inherent_data))
+		}
+
+		fn is_inherent(call: &Self::Call) -> bool {
+			matches!(call, Call::enter(..))
+		}
+	}
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
-		#[weight = (
+		#[pallet::weight((
 			MINIMAL_INCLUSION_INHERENT_WEIGHT + data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
 			DispatchClass::Mandatory,
-		)]
+		))]
 		pub fn enter(
-			origin,
+			origin: OriginFor<T>,
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
 			let ParachainsInherentData {
 				bitfields: signed_bitfields,
 				backed_candidates,
 				parent_header,
-				disputes: _,
+				disputes,
 			} = data;
 
 			ensure_none(origin)?;
-			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
+			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
 			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
@@ -112,58 +171,107 @@ decl_module! {
 				Error::<T>::InvalidParentHeader,
 			);
 
+			// Handle disputes logic.
+			let current_session = <shared::Pallet<T>>::session_index();
+			let freed_disputed: Vec<(_, FreedReason)> = {
+				let fresh_disputes = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				if T::DisputesHandler::is_frozen() {
+					// The relay chain we are currently on is invalid. Proceed no further on parachains.
+					Included::<T>::set(Some(()));
+					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
+				}
+
+				let any_current_session_disputes =
+					fresh_disputes.iter().any(|(s, _)| s == &current_session);
+
+				if any_current_session_disputes {
+					let current_session_disputes: Vec<_> = fresh_disputes
+						.iter()
+						.filter(|(s, _)| s == &current_session)
+						.map(|(_, c)| *c)
+						.collect();
+
+					<inclusion::Pallet<T>>::collect_disputed(current_session_disputes)
+						.into_iter()
+						.map(|core| (core, FreedReason::Concluded))
+						.collect()
+				} else {
+					Vec::new()
+				}
+			};
+
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
-			let expected_bits = <scheduler::Module<T>>::availability_cores().len();
-			let freed_concluded = <inclusion::Module<T>>::process_bitfields(
+			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
+			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
 				signed_bitfields,
-				<scheduler::Module<T>>::core_para,
+				<scheduler::Pallet<T>>::core_para,
 			)?;
 
+			// Inform the disputes module of all included candidates.
+			let now = <frame_system::Pallet<T>>::block_number();
+			for (_, candidate_hash) in &freed_concluded {
+				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
+			}
+
 			// Handle timeouts for any availability core work.
-			let availability_pred = <scheduler::Module<T>>::availability_timeout_predicate();
+			let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
 			let freed_timeout = if let Some(pred) = availability_pred {
-				<inclusion::Module<T>>::collect_pending(pred)
+				<inclusion::Pallet<T>>::collect_pending(pred)
 			} else {
 				Vec::new()
 			};
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
-			let freed = freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded))
-				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)));
+			let mut freed = freed_disputed
+				.into_iter()
+				.chain(freed_concluded.into_iter().map(|(c, _hash)| (c, FreedReason::Concluded)))
+				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
+				.collect::<Vec<_>>();
 
-			<scheduler::Module<T>>::clear();
-			<scheduler::Module<T>>::schedule(
-				freed,
-				<frame_system::Pallet<T>>::block_number(),
-			);
+			freed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+
+			<scheduler::Pallet<T>>::clear();
+			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
 
+			// Refuse to back any candidates that are disputed or invalid.
+			for candidate in &backed_candidates {
+				ensure!(
+					!T::DisputesHandler::could_be_invalid(
+						current_session,
+						candidate.candidate.hash(),
+					),
+					Error::<T>::CandidateCouldBeInvalid,
+				);
+			}
+
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
-			let occupied = <inclusion::Module<T>>::process_candidates(
+			let occupied = <inclusion::Pallet<T>>::process_candidates(
 				parent_storage_root,
 				backed_candidates,
-				<scheduler::Module<T>>::scheduled(),
-				<scheduler::Module<T>>::group_validators,
+				<scheduler::Pallet<T>>::scheduled(),
+				<scheduler::Pallet<T>>::group_validators,
 			)?;
 
 			// Note which of the scheduled cores were actually occupied by a backed candidate.
-			<scheduler::Module<T>>::occupied(&occupied);
+			<scheduler::Pallet<T>>::occupied(&occupied);
 
 			// Give some time slice to dispatch pending upward messages.
-			<ump::Module<T>>::process_pending_upward_messages();
+			<ump::Pallet<T>>::process_pending_upward_messages();
 
 			// And track that we've finished processing the inherent for this block.
-			Included::set(Some(()));
+			Included::<T>::set(Some(()));
 
 			Ok(Some(
 				MINIMAL_INCLUSION_INHERENT_WEIGHT +
-				(backed_candidates_len * BACKED_CANDIDATE_WEIGHT)
-			).into())
+					(backed_candidates_len * BACKED_CANDIDATE_WEIGHT),
+			)
+			.into())
 		}
 	}
 }
@@ -194,7 +302,7 @@ fn limit_backed_candidates<T: Config>(
 					return false
 				}
 
-				code_upgrades +=1;
+				code_upgrades += 1;
 			}
 
 			true
@@ -203,63 +311,12 @@ fn limit_backed_candidates<T: Config>(
 
 	// the weight of the paras inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
-	if frame_system::Pallet::<T>::block_weight().total() > <T as frame_system::Config>::BlockWeights::get().max_block {
+	if frame_system::Pallet::<T>::block_weight().total() >
+		<T as frame_system::Config>::BlockWeights::get().max_block
+	{
 		Vec::new()
 	} else {
 		backed_candidates
-	}
-}
-
-impl<T: Config> ProvideInherent for Module<T> {
-	type Call = Call<T>;
-	type Error = MakeFatalError<()>;
-	const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
-
-	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-		let inherent_data: ParachainsInherentData<T::Header>
-			= match data.get_data(&Self::INHERENT_IDENTIFIER)
-		{
-			Ok(Some(d)) => d,
-			Ok(None) => return None,
-			Err(_) => {
-				log::warn!(
-					target: LOG_TARGET,
-					"ParachainsInherentData failed to decode",
-				);
-
-				return None;
-			}
-		};
-
-		// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
-		// See github.com/paritytech/polkadot/issues/1327
-		let inherent_data = match Self::enter(
-			frame_system::RawOrigin::None.into(),
-			inherent_data.clone(),
-		) {
-			Ok(_) => inherent_data,
-			Err(err) => {
-				log::warn!(
-					target: LOG_TARGET,
-					"dropping signed_bitfields and backed_candidates because they produced \
-					an invalid paras inherent: {:?}",
-					err,
-				);
-
-				ParachainsInherentData {
-					bitfields: Vec::new(),
-					backed_candidates: Vec::new(),
-					disputes: Vec::new(),
-					parent_header: inherent_data.parent_header,
-				}
-			}
-		};
-
-		Some(Call::enter(inherent_data))
-	}
-
-	fn is_inherent(call: &Self::Call) -> bool {
-		matches!(call, Call::enter(..))
 	}
 }
 
@@ -267,9 +324,7 @@ impl<T: Config> ProvideInherent for Module<T> {
 mod tests {
 	use super::*;
 
-	use crate::mock::{
-		new_test_ext, System, MockGenesisConfig, Test
-	};
+	use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
 
 	mod limit_backed_candidates {
 		use super::*;
@@ -287,7 +342,8 @@ mod tests {
 		fn does_not_truncate_on_exactly_full_block() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let backed_candidates = vec![BackedCandidate::default()];
-				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
 				System::set_block_consumed_resources(max_block_weight, 0);
 				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 1);
@@ -298,7 +354,8 @@ mod tests {
 		fn truncates_on_over_full_block() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let backed_candidates = vec![BackedCandidate::default()];
-				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
 				System::set_block_consumed_resources(max_block_weight + 1, 0);
 				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 0);
@@ -309,7 +366,8 @@ mod tests {
 		fn all_backed_candidates_get_truncated() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let backed_candidates = vec![BackedCandidate::default(); 10];
-				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
 				System::set_block_consumed_resources(max_block_weight + 1, 0);
 				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 0);
@@ -330,9 +388,7 @@ mod tests {
 	mod paras_inherent_weight {
 		use super::*;
 
-		use crate::mock::{
-			new_test_ext, System, MockGenesisConfig, Test
-		};
+		use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
 		use primitives::v1::Header;
 
 		use frame_support::traits::UnfilteredDispatchable;
@@ -367,7 +423,8 @@ mod tests {
 					(backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT);
 
 				// we've used half the block weight; there's plenty of margin
-				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				let used_block_weight = max_block_weight / 2;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
@@ -378,7 +435,9 @@ mod tests {
 					disputes: Vec::new(),
 					parent_header: default_header(),
 				})
-					.dispatch_bypass_filter(None.into()).unwrap_err().post_info;
+				.dispatch_bypass_filter(None.into())
+				.unwrap_err()
+				.post_info;
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
 				// call has returned the appropriate post-dispatch weight for refund, and trust
@@ -412,7 +471,8 @@ mod tests {
 				let expected_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
 
 				// oops, looks like this mandatory call pushed the block weight over the limit
-				let max_block_weight = <Test as frame_system::Config>::BlockWeights::get().max_block;
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				let used_block_weight = max_block_weight + 1;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
@@ -423,15 +483,13 @@ mod tests {
 					disputes: Vec::new(),
 					parent_header: header,
 				})
-					.dispatch_bypass_filter(None.into()).unwrap();
+				.dispatch_bypass_filter(None.into())
+				.unwrap();
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
 				// call has returned the appropriate post-dispatch weight for refund, and trust
 				// Substrate to do the right thing with that information.
-				assert_eq!(
-					post_info.actual_weight.unwrap(),
-					expected_weight,
-				);
+				assert_eq!(post_info.actual_weight.unwrap(), expected_weight);
 			});
 		}
 	}
