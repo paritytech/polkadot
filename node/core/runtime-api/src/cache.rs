@@ -32,6 +32,7 @@ const VALIDATORS_CACHE_SIZE: usize = 64 * 1024;
 const VALIDATOR_GROUPS_CACHE_SIZE: usize = 64 * 1024;
 const AVAILABILITY_CORES_CACHE_SIZE: usize = 64 * 1024;
 const PERSISTED_VALIDATION_DATA_CACHE_SIZE: usize = 64 * 1024;
+const PERSISTED_VALIDATION_DATA_WITH_CODE_HASH_CACHE_SIZE: usize = 64 * 1024;
 const CHECK_VALIDATION_OUTPUTS_CACHE_SIZE: usize = 64 * 1024;
 const SESSION_INDEX_FOR_CHILD_CACHE_SIZE: usize = 64 * 1024;
 const VALIDATION_CODE_CACHE_SIZE: usize = 10 * 1024 * 1024;
@@ -78,6 +79,10 @@ pub(crate) struct RequestResultCache {
 		(Hash, ParaId, OccupiedCoreAssumption),
 		ResidentSizeOf<Option<PersistedValidationData>>,
 	>,
+	persisted_validation_data_with_code_hash: MemoryLruCache<
+		(ParaId, Hash),
+		ResidentSizeOf<Option<(PersistedValidationData, ValidationCodeHash)>>,
+	>,
 	check_validation_outputs:
 		MemoryLruCache<(Hash, ParaId, CandidateCommitments), ResidentSizeOf<bool>>,
 	session_index_for_child: MemoryLruCache<Hash, ResidentSizeOf<SessionIndex>>,
@@ -108,6 +113,9 @@ impl Default for RequestResultCache {
 			validator_groups: MemoryLruCache::new(VALIDATOR_GROUPS_CACHE_SIZE),
 			availability_cores: MemoryLruCache::new(AVAILABILITY_CORES_CACHE_SIZE),
 			persisted_validation_data: MemoryLruCache::new(PERSISTED_VALIDATION_DATA_CACHE_SIZE),
+			persisted_validation_data_with_code_hash: MemoryLruCache::new(
+				PERSISTED_VALIDATION_DATA_WITH_CODE_HASH_CACHE_SIZE,
+			),
 			check_validation_outputs: MemoryLruCache::new(CHECK_VALIDATION_OUTPUTS_CACHE_SIZE),
 			session_index_for_child: MemoryLruCache::new(SESSION_INDEX_FOR_CHILD_CACHE_SIZE),
 			validation_code: MemoryLruCache::new(VALIDATION_CODE_CACHE_SIZE),
@@ -184,6 +192,21 @@ impl RequestResultCache {
 		data: Option<PersistedValidationData>,
 	) {
 		self.persisted_validation_data.insert(key, ResidentSizeOf(data));
+	}
+
+	pub(crate) fn persisted_validation_data_with_code_hash(
+		&mut self,
+		key: (Hash, ParaId, Hash),
+	) -> Option<&Option<(PersistedValidationData, ValidationCodeHash)>> {
+		self.persisted_validation_data_with_code_hash.get(&(key.1, key.2)).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_persisted_validation_data_with_code_hash(
+		&mut self,
+		key: (ParaId, Hash),
+		data: Option<(PersistedValidationData, ValidationCodeHash)>,
+	) {
+		self.persisted_validation_data_with_code_hash.insert(key, ResidentSizeOf(data));
 	}
 
 	pub(crate) fn check_validation_outputs(
@@ -328,6 +351,12 @@ pub(crate) enum RequestResult {
 	ValidatorGroups(Hash, (Vec<Vec<ValidatorIndex>>, GroupRotationInfo)),
 	AvailabilityCores(Hash, Vec<CoreState>),
 	PersistedValidationData(Hash, ParaId, OccupiedCoreAssumption, Option<PersistedValidationData>),
+	PersistedValidationDataWithCodeHash(
+		Hash,
+		ParaId,
+		Hash,
+		Option<(PersistedValidationData, ValidationCodeHash)>,
+	),
 	CheckValidationOutputs(Hash, ParaId, CandidateCommitments, bool),
 	SessionIndexForChild(Hash, SessionIndex),
 	ValidationCode(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCode>),

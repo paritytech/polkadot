@@ -594,6 +594,13 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<PersistedValidationData>>,
 	),
+	/// Get the persisted validation data for a particular para along with the current validation code
+	/// hash, matching the data hash against an expected one without any assumptions.
+	PersistedValidationDataWithCodeHash(
+		ParaId,
+		Hash,
+		RuntimeApiSender<Option<(PersistedValidationData, ValidationCodeHash)>>,
+	),
 	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
 	CheckValidationOutputs(
 		ParaId,

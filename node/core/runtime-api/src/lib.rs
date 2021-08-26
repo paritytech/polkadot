@@ -119,6 +119,15 @@ where
 			PersistedValidationData(relay_parent, para_id, assumption, data) => self
 				.requests_cache
 				.cache_persisted_validation_data((relay_parent, para_id, assumption), data),
+			PersistedValidationDataWithCodeHash(
+				_relay_parent,
+				para_id,
+				expected_persisted_validation_data_hash,
+				data,
+			) => self.requests_cache.cache_persisted_validation_data_with_code_hash(
+				(para_id, expected_persisted_validation_data_hash),
+				data,
+			),
 			CheckValidationOutputs(relay_parent, para_id, commitments, b) => self
 				.requests_cache
 				.cache_check_validation_outputs((relay_parent, para_id, commitments), b),
@@ -184,6 +193,24 @@ where
 			Request::PersistedValidationData(para, assumption, sender) =>
 				query!(persisted_validation_data(para, assumption), sender)
 					.map(|sender| Request::PersistedValidationData(para, assumption, sender)),
+			Request::PersistedValidationDataWithCodeHash(
+				para,
+				expected_persisted_validation_data_hash,
+				sender,
+			) => query!(
+				persisted_validation_data_with_code_hash(
+					para,
+					expected_persisted_validation_data_hash
+				),
+				sender
+			)
+			.map(|sender| {
+				Request::PersistedValidationDataWithCodeHash(
+					para,
+					expected_persisted_validation_data_hash,
+					sender,
+				)
+			}),
 			Request::CheckValidationOutputs(para, commitments, sender) =>
 				query!(check_validation_outputs(para, commitments), sender)
 					.map(|sender| Request::CheckValidationOutputs(para, commitments, sender)),
@@ -326,6 +353,15 @@ where
 			query!(AvailabilityCores, availability_cores(), sender),
 		Request::PersistedValidationData(para, assumption, sender) =>
 			query!(PersistedValidationData, persisted_validation_data(para, assumption), sender),
+		Request::PersistedValidationDataWithCodeHash(
+			para,
+			expected_persisted_validation_data_hash,
+			sender,
+		) => query!(
+			PersistedValidationDataWithCodeHash,
+			persisted_validation_data_with_code_hash(para, expected_persisted_validation_data_hash),
+			sender
+		),
 		Request::CheckValidationOutputs(para, commitments, sender) =>
 			query!(CheckValidationOutputs, check_validation_outputs(para, commitments), sender),
 		Request::SessionIndexForChild(sender) =>
