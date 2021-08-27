@@ -1,10 +1,11 @@
 # Staking Miner
 
-The staking miner connects to a specified chains and keeps listening to new Signed phase of the [pallet-election-provider-multi-phase](https://crates.parity.io/pallet_election_provider_multi_phase/index.html) in order to submit solutions to the NPoS election. When the correct time comes, it computes its solution and submit it to the chain.
+Substrate chains validators compute a basic solution for the NPoS election. The optimization of the solution is computing-intensive and can be delegated to the `staking-miner`. The `staking-miner` does not act as validator and focuses solely on the optimization of the solution.
+
+The staking miner connects to a specified chain and keeps listening to new Signed phase of the [pallet-election-provider-multi-phase](https://crates.parity.io/pallet_election_provider_multi_phase/index.html) in order to submit solutions to the NPoS election. When the correct time comes, it computes its solution and submit it to the chain.
 The default miner algorithm is [sequential-phragmen](https://crates.parity.io/sp_npos_elections/phragmen/fn.seq_phragmen_core.html)] with a configurable number of balancing iterations that improve the score.
 
-Running the staking-miner requires passing the seed of a funded account in order to pay the fees for the transactions that will be sent. 
-The same account's balance is used to reserve deposits as well. The best solution in each round is rewarded. All correct solutions will get their bond back. Any invalid solution will lose their bond.
+Running the staking-miner requires passing the seed of a funded account in order to pay the fees for the transactions that will be sent. The same account's balance is used to reserve deposits as well. The best solution in each round is rewarded. All correct solutions will get their bond back. Any invalid solution will lose their bond.
 
 You can check the help with:
 ```
@@ -20,11 +21,24 @@ cargo build --release --locked --package staking-miner
 
 ## Docker
 
-### Building
+There are 2 options to build a staking-miner Docker image:
+- injected binary: the binary is first built on a Linux host and then injected into a Docker base image. This method only works if you have a Linux host or access to a pre-built binary from a Linux host.
+- multi-stage: the binary is entirely built within the multi-stage Docker image. There is no requirement on the host in terms of OS and the host does not even need to have any Rust toolchain installed.
 
-You can also use docker on a Linux host from the root of the Polkadot repository after building the binary (see above):
+### Building the injected image
+
+First build the binary as documented [above](#building).
+You may then inject the binary into a Docker base image usingfrom the root of the Polkadot repository:
 ```
 docker build -t staking-miner -f scripts/docker/staking_miner-injected.Dockerfile target/release
+```
+
+### Building the multi-stage image
+
+Unlike the inject image that requires a Linux pre-built binary, this option does not requires a Linux host, nor Rust to be installed.
+You may build the multi-stage image the root of the Polkadot repository:
+```
+docker build -t staking-miner -f scripts/docker/staking-miner/staking_miner-builder.Dockerfile .
 ```
 
 ### Running
@@ -35,19 +49,8 @@ A Docker container, especially one holding one of your `SEED` should be kept sec
 docker run --rm -it \
     --name staking-miner \
     --read-only \
-    -v /tmp/seed.txt:/seed.txt \
-    staking-miner \
-        --account-seed /seed.txt \
-        --uri wss://your-nodes:9944 \
-        dry-run
-```
-
-There is a [pending PR](https://github.com/paritytech/polkadot/pull/3680) that removes the need to pass the seed as a file. The command will then become:
-```
-docker run --rm -it \
-    --name staking-miner \
-    --read-only \
+    -e RUST_LOG=info \
     -e SEED=0x1234... \
-    -e URI=wss://your-nodes:9944 \
+    -e URI=wss://your-node:9944 \
     staking-miner dry-run
 ```
