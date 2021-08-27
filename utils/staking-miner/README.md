@@ -30,7 +30,7 @@ There are 2 options to build a staking-miner Docker image:
 First build the binary as documented [above](#building).
 You may then inject the binary into a Docker base image usingfrom the root of the Polkadot repository:
 ```
-docker build -t staking-miner -f scripts/docker/staking_miner-injected.Dockerfile target/release
+docker build -t staking-miner -f scripts/docker/staking-miner/staking_miner-injected.Dockerfile target/release
 ```
 
 ### Building the multi-stage image
