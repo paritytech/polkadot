@@ -282,6 +282,6 @@ impl Config for TestConfig {
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
-	type AssetTrap = (); // TODO: TestAssetTrap
-	type AssetClaims = (); // TODO: TestAssetClaims
+	type AssetTrap = ();
+	type AssetClaims = ();
 }

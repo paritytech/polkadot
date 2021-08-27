@@ -14,8 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use std::marker::PhantomData;
+
 use crate::Assets;
-use frame_support::weights::Weight;
+use frame_support::{traits::Contains, weights::Weight};
 use xcm::latest::{MultiAssets, MultiLocation};
 
 /// Define a handler for when some non-empty `Assets` value should be dropped.
@@ -26,6 +28,41 @@ pub trait DropAssets {
 impl DropAssets for () {
 	fn drop_assets(_origin: &MultiLocation, _assets: Assets) -> Weight {
 		0
+	}
+}
+
+/// Morph a given `DropAssets` implementation into one which can filter based on assets. This can
+/// be used to ensure that `Assets` values which hold no value are ignores.
+pub struct FilterAssets<D, A>(PhantomData<(D, A)>);
+
+impl<
+	D: DropAssets,
+	A: Contains<Assets>,
+> DropAssets for FilterAssets<D, A> {
+	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+		if A::contains(&assets) {
+			D::drop_assets(origin, assets)
+		} else {
+			0
+		}
+	}
+}
+
+/// Morph a given `DropAssets` implementation into one which can filter based on origin. This can
+/// be used to ban origins which don't have proper protections/policies against misuse of the
+/// asset trap facility don't get to use it.
+pub struct FilterOrigin<D, O>(PhantomData<(D, O)>);
+
+impl<
+	D: DropAssets,
+	O: Contains<MultiLocation>,
+> DropAssets for FilterOrigin<D, O> {
+	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+		if O::contains(origin) {
+			D::drop_assets(origin, assets)
+		} else {
+			0
+		}
 	}
 }
 
