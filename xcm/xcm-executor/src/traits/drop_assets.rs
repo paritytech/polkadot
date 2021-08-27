@@ -14,9 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::marker::PhantomData;
-
 use crate::Assets;
+use core::marker::PhantomData;
 use frame_support::{traits::Contains, weights::Weight};
 use xcm::latest::{MultiAssets, MultiLocation};
 

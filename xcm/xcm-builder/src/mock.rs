@@ -293,7 +293,7 @@ impl ClaimAssets for TestAssetTrap {
 				if l == origin && a == what {
 					t.swap_remove(*i as usize);
 					TrappedAssets::set(t);
-					return true;
+					return true
 				}
 			}
 		}

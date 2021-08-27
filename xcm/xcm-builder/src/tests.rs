@@ -216,7 +216,7 @@ fn basic_asset_trap_should_work() {
 			WithdrawAsset((Here, 100).into()),
 			DepositAsset {
 				assets: Wild(All),
-				max_assets: 0,	//< Whoops!
+				max_assets: 0, //< Whoops!
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -263,7 +263,7 @@ fn basic_asset_trap_should_work() {
 	assert_eq!(assets(1001), vec![(Here, 900).into()]);
 	assert_eq!(assets(3), vec![]);
 	assert_eq!(old_trapped_assets, TrappedAssets::get());
-	
+
 	// Incorrect assets doesn't work.
 	let old_trapped_assets = TrappedAssets::get();
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
@@ -282,7 +282,7 @@ fn basic_asset_trap_should_work() {
 	assert_eq!(assets(1001), vec![(Here, 900).into()]);
 	assert_eq!(assets(3), vec![]);
 	assert_eq!(old_trapped_assets, TrappedAssets::get());
-	
+
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1).into(),
 		Xcm(vec![
