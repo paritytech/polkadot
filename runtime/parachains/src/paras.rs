@@ -331,6 +331,7 @@ pub mod pallet {
 	///
 	/// Corresponding code can be retrieved with [`CodeByHash`].
 	#[pallet::storage]
+	#[pallet::getter(fn current_code_hash)]
 	pub(super) type CurrentCodeHash<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ValidationCodeHash>;
 
@@ -585,11 +586,6 @@ impl<T: Config> Pallet<T> {
 	) -> Vec<ParaId> {
 		let outgoing_paras = Self::apply_actions_queue(notification.session_index);
 		outgoing_paras
-	}
-
-	/// The validation code hash of live para.
-	pub(crate) fn current_code_hash(para_id: &ParaId) -> Option<ValidationCodeHash> {
-		CurrentCodeHash::<T>::get(para_id)
 	}
 
 	/// The validation code of live para.
