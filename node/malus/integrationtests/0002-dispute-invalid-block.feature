@@ -17,11 +17,8 @@ Feature: Disputes
     Then david is up
     Then eve is up
     And alice reports polkadot_parachain_candidate_open_disputes is 1
-    And bob reports polkadot_parachain_candidate_open_disputes is 1
-    And charlie reports polkadot_parachain_candidate_open_disputes is 1
     Then alice polkadot_parachain_candidate_dispute_votes is at least 1
     And bob polkadot_parachain_candidate_dispute_votes is is at least 2
     And charlie polkadot_parachain_candidate_dispute_votes is at least 3
-    Then alice polkadot_parachain_candidate_dispute_concluded is "valid"
-    And bob polkadot_parachain_candidate_dispute_concluded is "valid"
-    And charlie polkadot_parachain_candidate_dispute_concluded is "valid"
+    And david polkadot_parachain_candidate_dispute_votes is at least 4
+    Then alice polkadot_parachain_candidate_dispute_concluded is "invalid"
