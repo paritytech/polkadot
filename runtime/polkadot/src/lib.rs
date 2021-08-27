@@ -1126,12 +1126,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(
-		// Needs to be before pallet version to storage version migration because it looks into the
-		// storage version to determine if it is already up to date.
-		TechnicalMembershipStoragePrefixMigration,
-		MigratePalletVersionToStorageVersion,
-	),
+	TechnicalMembershipStoragePrefixMigration,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1169,17 +1164,6 @@ impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
 			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
 		);
 		Ok(())
-	}
-}
-
-/// Migrate from `PalletVersion` to the new `StorageVersion`
-pub struct MigratePalletVersionToStorageVersion;
-
-impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
-			AllPalletsWithSystem,
-		>(&RocksDbWeight::get())
 	}
 }
 
