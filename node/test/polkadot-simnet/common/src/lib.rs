@@ -27,6 +27,7 @@ use polkadot_runtime::{
 use polkadot_runtime_common::claims;
 use sc_consensus_babe::BabeBlockImport;
 use sc_consensus_manual_seal::consensus::babe::SlotTimestampProvider;
+use sc_executor::NativeElseWasmExecutor;
 use sc_service::{TFullBackend, TFullClient};
 use sp_runtime::{app_crypto::sp_core::H256, generic::Era, AccountId32};
 use std::{error::Error, future::Future, str::FromStr};
@@ -40,26 +41,36 @@ type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B,
 type Block = polkadot_primitives::v1::Block;
 type SelectChain = sc_consensus::LongestChain<TFullBackend<Block>, Block>;
 
-sc_executor::native_executor_instance!(
-	pub Executor,
-	polkadot_runtime::api::dispatch,
-	polkadot_runtime::native_version,
-	(benchmarking::benchmarking::HostFunctions, SignatureVerificationOverride),
-);
+/// Declare an instance of the native executor named `ExecutorDispatch`. Include the wasm binary as the
+/// equivalent wasm code.
+pub struct ExecutorDispatch;
+
+impl sc_executor::NativeExecutionDispatch for ExecutorDispatch {
+	type ExtendHostFunctions =
+		(benchmarking::benchmarking::HostFunctions, SignatureVerificationOverride);
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		polkadot_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		polkadot_runtime::native_version()
+	}
+}
 
 /// `ChainInfo` implementation.
 pub struct PolkadotChainInfo;
 
 impl ChainInfo for PolkadotChainInfo {
 	type Block = Block;
-	type Executor = Executor;
+	type ExecutorDispatch = ExecutorDispatch;
 	type Runtime = Runtime;
 	type RuntimeApi = RuntimeApi;
 	type SelectChain = SelectChain;
 	type BlockImport = BlockImport<
 		Self::Block,
 		TFullBackend<Self::Block>,
-		TFullClient<Self::Block, RuntimeApi, Self::Executor>,
+		TFullClient<Self::Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>,
 		Self::SelectChain,
 	>;
 	type SignedExtras = polkadot_runtime::SignedExtra;
@@ -88,14 +99,14 @@ pub async fn dispatch_with_root<T>(
 where
 	T: ChainInfo<
 		Block = Block,
-		Executor = Executor,
+		ExecutorDispatch = ExecutorDispatch,
 		Runtime = Runtime,
 		RuntimeApi = RuntimeApi,
 		SelectChain = SelectChain,
 		BlockImport = BlockImport<
 			Block,
 			TFullBackend<Block>,
-			TFullClient<Block, RuntimeApi, Executor>,
+			TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>,
 			SelectChain,
 		>,
 		SignedExtras = polkadot_runtime::SignedExtra,
@@ -348,7 +359,7 @@ where
 	use sc_cli::{CliConfiguration, SubstrateCli};
 	use structopt::StructOpt;
 
-	let mut tokio_runtime = build_runtime()?;
+	let tokio_runtime = build_runtime()?;
 	let task_executor = task_executor(tokio_runtime.handle().clone());
 	// parse cli args
 	let cmd = <polkadot_cli::Cli as StructOpt>::from_args();
@@ -380,7 +391,7 @@ mod tests {
 
 	#[test]
 	fn test_runner() {
-		let mut runtime = build_runtime().unwrap();
+		let runtime = build_runtime().unwrap();
 		let task_executor = task_executor(runtime.handle().clone());
 		let (rpc, task_manager, client, pool, command_sink, backend) =
 			client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::ChainSpec(

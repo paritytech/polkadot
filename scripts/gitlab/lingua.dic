@@ -3,6 +3,7 @@ accessor/MS
 activations
 acyclic
 adversary/SM
+allocator/SM
 annualised
 anonymize/D
 Apache-2.0/M
@@ -107,6 +108,7 @@ inverter/MS
 io
 IP/S
 isn
+isolatable
 isolate/BG
 iterable
 jaeger/MS
@@ -188,6 +190,7 @@ prometheus/MS
 provisioner/MS
 proxy/DMSG
 proxy/G
+proxying
 PRs
 PVF/S
 README/MS
@@ -199,6 +202,7 @@ responder/SM
 retriability
 reverify
 roundtrip/MS
+routable
 rpc
 RPC/MS
 runtime/MS
@@ -230,6 +234,7 @@ taskmanager/MS
 TCP
 teleport/D
 teleport/RG
+teleports
 teleportation/SM
 teleporter/SM
 teleporters
@@ -250,6 +255,7 @@ unordered
 unreceived
 unreserve
 unreserving
+unroutable
 unservable/B
 untrusted
 untyped
