@@ -111,6 +111,7 @@ opt-level = 3
 panic = "unwind"
 
 [features]
+default = [ "disputes" ]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
 disputes = [ "polkadot-cli/disputes" ]
@@ -144,7 +145,6 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.rpm.files]
 "../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
-
 
 [package.metadata.spellcheck]
 config = "./scripts/gitlab/spellcheck.toml"
