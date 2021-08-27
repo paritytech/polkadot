@@ -1160,7 +1160,7 @@ impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_membership::migrations::v4::post_migration::<TechnicalMembership>(
+		pallet_membership::migrations::v4::post_migration::<TechnicalMembership, _>(
 			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
 		);
 		Ok(())
