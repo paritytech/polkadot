@@ -58,7 +58,7 @@ fn take_weight_credit_barrier_should_work() {
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 	let mut weight_credit = 10;
 	let r = TakeWeightCredit::should_execute(
-		&Some(Parent.into()),
+		&Parent.into(),
 		true,
 		&mut message,
 		10,
@@ -68,7 +68,7 @@ fn take_weight_credit_barrier_should_work() {
 	assert_eq!(weight_credit, 0);
 
 	let r = TakeWeightCredit::should_execute(
-		&Some(Parent.into()),
+		&Parent.into(),
 		true,
 		&mut message,
 		10,
@@ -86,7 +86,7 @@ fn allow_unpaid_should_work() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
-		&Some(Parachain(1).into()),
+		&Parachain(1).into(),
 		true,
 		&mut message,
 		10,
@@ -95,7 +95,7 @@ fn allow_unpaid_should_work() {
 	assert_eq!(r, Err(()));
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
-		&Some(Parent.into()),
+		&Parent.into(),
 		true,
 		&mut message,
 		10,
@@ -112,7 +112,7 @@ fn allow_paid_should_work() {
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Some(Parachain(1).into()),
+		&Parachain(1).into(),
 		true,
 		&mut message,
 		10,
@@ -128,7 +128,7 @@ fn allow_paid_should_work() {
 	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Some(Parent.into()),
+		&Parent.into(),
 		true,
 		&mut underpaying_message,
 		30,
@@ -144,7 +144,7 @@ fn allow_paid_should_work() {
 	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Some(Parachain(1).into()),
+		&Parachain(1).into(),
 		true,
 		&mut paying_message,
 		30,
@@ -153,7 +153,7 @@ fn allow_paid_should_work() {
 	assert_eq!(r, Err(()));
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Some(Parent.into()),
+		&Parent.into(),
 		true,
 		&mut paying_message,
 		30,
