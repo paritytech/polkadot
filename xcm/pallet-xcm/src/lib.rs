@@ -249,7 +249,7 @@ pub mod pallet {
 
 	/// The existing asset traps.
 	///
-	/// Key is the blake2 256 hash of (origin, versioned multiassets) pair. Value is the number of
+	/// Key is the blake2 256 hash of (origin, versioned `MultiAssets`) pair. Value is the number of
 	/// times this pair has been trapped (usually just 1 if it exists at all).
 	#[pallet::storage]
 	#[pallet::getter(fn asset_trap)]
