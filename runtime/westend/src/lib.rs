@@ -114,7 +114,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9090,
+	spec_version: 9100,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -629,6 +629,7 @@ impl pallet_vesting::Config for Runtime {
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
 	type WeightInfo = weights::pallet_vesting::WeightInfo<Runtime>;
+	const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -911,6 +912,7 @@ pub type XcmRouter = (
 parameter_types! {
 	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Parachain(1000).into());
+	pub const MaxInstructions: u32 = 100;
 }
 pub type TrustedTeleporters = (xcm_builder::Case<WestendForWestmint>,);
 
@@ -934,7 +936,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Trader = UsingComponents<WeightToFee, WndLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = ();
 }
@@ -957,8 +959,10 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
+	type Origin = Origin;
+	type Call = Call;
 }
 
 construct_runtime! {

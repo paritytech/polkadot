@@ -114,6 +114,7 @@ type LocalOriginConverter = (
 parameter_types! {
 	pub const BaseXcmWeight: Weight = 1_000;
 	pub KsmPerSecond: (AssetId, u128) = (Concrete(KsmLocation::get()), 1);
+	pub const MaxInstructions: u32 = 100;
 }
 
 pub type XcmRouter = super::RelayChainXcmRouter;
@@ -129,7 +130,7 @@ impl Config for XcmConfig {
 	type IsTeleporter = ();
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
 }
@@ -146,8 +147,10 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
+	type Origin = Origin;
+	type Call = Call;
 }
 
 parameter_types! {
@@ -175,6 +178,6 @@ construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
 		ParasUmp: ump::{Pallet, Call, Storage, Event},
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>},
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin},
 	}
 );
