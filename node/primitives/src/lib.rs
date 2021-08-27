@@ -52,8 +52,10 @@ pub use disputes::{
 	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
 };
 
-// For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node.
-const MERKLE_NODE_MAX_SIZE: usize = 512;
+// For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node
+// plus some overhead:
+// header 1 + bitmap 2 + max partial_key 8 + children 16 * (32 + len 1) + value 32 + value len 1
+const MERKLE_NODE_MAX_SIZE: usize = 512 + 100;
 // 16-ary Merkle Prefix Trie for 32-bit ValidatorIndex has depth at most 8.
 const MERKLE_PROOF_MAX_DEPTH: usize = 8;
 
