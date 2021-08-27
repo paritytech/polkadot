@@ -228,6 +228,8 @@ pub fn assumed_validation_data<T: initializer::Config>(
 	expected_persisted_validation_data_hash: Hash,
 ) -> Option<(PersistedValidationData<T::Hash, T::BlockNumber>, ValidationCodeHash)> {
 	let (relay_parent_number, relay_parent_storage_root) = current_relay_parent::<T>();
+	// This closure obtains the `persisted_validation_data` for the given `para_id` and matches
+	// its hash against an expected one.
 	let make_validation_data = || {
 		crate::util::make_persisted_validation_data::<T>(
 			para_id,
@@ -236,12 +238,16 @@ pub fn assumed_validation_data<T: initializer::Config>(
 		)
 		.filter(|validation_data| validation_data.hash() == expected_persisted_validation_data_hash)
 	};
+
 	let persisted_validation_data = make_validation_data().or_else(|| {
+		// Try again with force enacting the core. This check only makes sense if
+		// the core is occupied.
 		<inclusion::Pallet<T>>::pending_availability(para_id).and_then(|_| {
 			<inclusion::Pallet<T>>::force_enact(para_id);
 			make_validation_data()
 		})
 	});
+	// If we were successful, also query current validation code hash.
 	persisted_validation_data.zip(<paras::Pallet<T>>::current_code_hash(&para_id))
 }
 
