@@ -35,10 +35,7 @@ impl DropAssets for () {
 /// be used to ensure that `Assets` values which hold no value are ignores.
 pub struct FilterAssets<D, A>(PhantomData<(D, A)>);
 
-impl<
-	D: DropAssets,
-	A: Contains<Assets>,
-> DropAssets for FilterAssets<D, A> {
+impl<D: DropAssets, A: Contains<Assets>> DropAssets for FilterAssets<D, A> {
 	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
 		if A::contains(&assets) {
 			D::drop_assets(origin, assets)
@@ -53,10 +50,7 @@ impl<
 /// asset trap facility don't get to use it.
 pub struct FilterOrigin<D, O>(PhantomData<(D, O)>);
 
-impl<
-	D: DropAssets,
-	O: Contains<MultiLocation>,
-> DropAssets for FilterOrigin<D, O> {
+impl<D: DropAssets, O: Contains<MultiLocation>> DropAssets for FilterOrigin<D, O> {
 	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
 		if O::contains(origin) {
 			D::drop_assets(origin, assets)
