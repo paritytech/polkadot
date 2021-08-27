@@ -234,9 +234,6 @@ pub mod pallet {
 	/// Value of a query, must be unique for each query.
 	pub type QueryId = u64;
 
-	/// Identifier for an asset trap.
-	pub type TrapId = u64;
-
 	/// The latest available query index.
 	#[pallet::storage]
 	pub(super) type QueryCount<T: Config> = StorageValue<_, QueryId, ValueQuery>;
