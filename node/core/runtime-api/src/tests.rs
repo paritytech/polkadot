@@ -89,7 +89,7 @@ sp_api::mock_impl_runtime_apis! {
 			self.validation_data.get(&para).cloned()
 		}
 
-		fn persisted_validation_data_with_code_hash(
+		fn assumed_validation_data(
 			para_id: ParaId,
 			expected_persisted_validation_data_hash: Hash,
 		) -> Option<(PersistedValidationData, ValidationCodeHash)> {
@@ -352,7 +352,7 @@ fn requests_persisted_validation_data() {
 }
 
 #[test]
-fn requests_persisted_validation_data_with_code_hash() {
+fn requests_assumed_validation_data() {
 	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
 	let para_a = 5.into();
@@ -378,7 +378,7 @@ fn requests_persisted_validation_data_with_code_hash() {
 			.send(FromOverseer::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
-					Request::PersistedValidationDataWithCodeHash(para_a, expected_data_hash, tx),
+					Request::AssumedValidationData(para_a, expected_data_hash, tx),
 				),
 			})
 			.await;
@@ -390,7 +390,7 @@ fn requests_persisted_validation_data_with_code_hash() {
 			.send(FromOverseer::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
-					Request::PersistedValidationDataWithCodeHash(para_a, Hash::zero(), tx),
+					Request::AssumedValidationData(para_a, Hash::zero(), tx),
 				),
 			})
 			.await;

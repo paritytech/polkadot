@@ -222,8 +222,8 @@ pub fn persisted_validation_data<T: initializer::Config>(
 	})
 }
 
-/// Implementation for the `persisted_validation_data_with_code_hash` function of the runtime API.
-pub fn persisted_validation_data_with_code_hash<T: initializer::Config>(
+/// Implementation for the `assumed_validation_data` function of the runtime API.
+pub fn assumed_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	expected_persisted_validation_data_hash: Hash,
 ) -> Option<(PersistedValidationData<T::Hash, T::BlockNumber>, ValidationCodeHash)> {

@@ -119,12 +119,12 @@ where
 			PersistedValidationData(relay_parent, para_id, assumption, data) => self
 				.requests_cache
 				.cache_persisted_validation_data((relay_parent, para_id, assumption), data),
-			PersistedValidationDataWithCodeHash(
+			AssumedValidationData(
 				_relay_parent,
 				para_id,
 				expected_persisted_validation_data_hash,
 				data,
-			) => self.requests_cache.cache_persisted_validation_data_with_code_hash(
+			) => self.requests_cache.cache_assumed_validation_data(
 				(para_id, expected_persisted_validation_data_hash),
 				data,
 			),
@@ -193,19 +193,16 @@ where
 			Request::PersistedValidationData(para, assumption, sender) =>
 				query!(persisted_validation_data(para, assumption), sender)
 					.map(|sender| Request::PersistedValidationData(para, assumption, sender)),
-			Request::PersistedValidationDataWithCodeHash(
+			Request::AssumedValidationData(
 				para,
 				expected_persisted_validation_data_hash,
 				sender,
 			) => query!(
-				persisted_validation_data_with_code_hash(
-					para,
-					expected_persisted_validation_data_hash
-				),
+				assumed_validation_data(para, expected_persisted_validation_data_hash),
 				sender
 			)
 			.map(|sender| {
-				Request::PersistedValidationDataWithCodeHash(
+				Request::AssumedValidationData(
 					para,
 					expected_persisted_validation_data_hash,
 					sender,
@@ -353,15 +350,12 @@ where
 			query!(AvailabilityCores, availability_cores(), sender),
 		Request::PersistedValidationData(para, assumption, sender) =>
 			query!(PersistedValidationData, persisted_validation_data(para, assumption), sender),
-		Request::PersistedValidationDataWithCodeHash(
-			para,
-			expected_persisted_validation_data_hash,
-			sender,
-		) => query!(
-			PersistedValidationDataWithCodeHash,
-			persisted_validation_data_with_code_hash(para, expected_persisted_validation_data_hash),
-			sender
-		),
+		Request::AssumedValidationData(para, expected_persisted_validation_data_hash, sender) =>
+			query!(
+				AssumedValidationData,
+				assumed_validation_data(para, expected_persisted_validation_data_hash),
+				sender
+			),
 		Request::CheckValidationOutputs(para, commitments, sender) =>
 			query!(CheckValidationOutputs, check_validation_outputs(para, commitments), sender),
 		Request::SessionIndexForChild(sender) =>

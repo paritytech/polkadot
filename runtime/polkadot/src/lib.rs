@@ -1219,7 +1219,7 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
-		fn persisted_validation_data_with_code_hash(
+		fn assumed_validation_data(
 			_: Id,
 			_: Hash,
 		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {

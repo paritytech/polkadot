@@ -956,7 +956,7 @@ sp_api::decl_runtime_apis! {
 		/// Returns the persisted validation data for the given `ParaId` along with the corresponding
 		/// validation code hash. Instead of accepting assumption about the para, matches the validation
 		/// data hash against an expected one and yields `None` if they're not equal.
-		fn persisted_validation_data_with_code_hash(
+		fn assumed_validation_data(
 			para_id: Id,
 			expected_persisted_validation_data_hash: Hash,
 		) -> Option<(PersistedValidationData<H, N>, ValidationCodeHash)>;

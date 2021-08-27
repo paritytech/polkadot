@@ -695,13 +695,13 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
 
-		fn persisted_validation_data_with_code_hash(
+		fn assumed_validation_data(
 			para_id: ParaId,
 			expected_persisted_validation_data_hash: Hash,
 		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
-			runtime_impl::persisted_validation_data_with_code_hash::<Runtime>(
+			runtime_impl::assumed_validation_data::<Runtime>(
 				para_id,
-				expected_persisted_validation_data_hash
+				expected_persisted_validation_data_hash,
 			)
 		}
 
