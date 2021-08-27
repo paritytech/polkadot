@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-async-trait = "0.1.42"
+async-trait = "0.1.51"
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.15"

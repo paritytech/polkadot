@@ -25,7 +25,7 @@ rand = "0.8.3"
 lru = "0.6.6"
 
 [dev-dependencies]
-async-trait = "0.1.42"
+async-trait = "0.1.51"
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
