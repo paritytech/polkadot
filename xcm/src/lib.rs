@@ -222,7 +222,7 @@ impl VersionedMultiAssets {
 		Ok(match n {
 			0 => Self::V0(self.try_into()?),
 			1 | 2 => Self::V1(self.try_into()?),
-			_ => return Err(())
+			_ => return Err(()),
 		})
 	}
 }

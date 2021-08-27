@@ -31,8 +31,8 @@ use xcm::latest::{
 
 pub mod traits;
 use traits::{
-	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
-	WeightBounds, WeightTrader, DropAssets, ClaimAssets,
+	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
+	ShouldExecute, TransactAsset, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -416,10 +416,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					self.holding.subsume(asset);
 				}
 				Ok(())
-			}
-			Trap(code) => {
-				Err(XcmError::Trap(code))
-			}
+			},
+			Trap(code) => Err(XcmError::Trap(code)),
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),

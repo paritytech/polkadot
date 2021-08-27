@@ -21,16 +21,10 @@ use xcm::latest::{MultiAssets, MultiLocation};
 /// Define a handler for when some non-empty `Assets` value should be dropped.
 pub trait DropAssets {
 	/// Handler for receiving dropped assets. Returns the weight consumed by this operation.
-	fn drop_assets(
-		origin: &MultiLocation,
-		assets: Assets,
-	) -> Weight;
+	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight;
 }
 impl DropAssets for () {
-	fn drop_assets(
-		_origin: &MultiLocation,
-		_assets: Assets,
-	) -> Weight {
+	fn drop_assets(_origin: &MultiLocation, _assets: Assets) -> Weight {
 		0
 	}
 }

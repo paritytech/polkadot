@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{mock::*, QueryStatus, AssetTraps};
+use crate::{mock::*, AssetTraps, QueryStatus};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use sp_runtime::traits::{BlakeTwo256, Hash};
 use std::convert::TryInto;
-use xcm::{VersionedMultiAssets, VersionedXcm, latest::prelude::*};
+use xcm::{latest::prelude::*, VersionedMultiAssets, VersionedXcm};
 use xcm_executor::XcmExecutor;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
@@ -300,8 +300,7 @@ fn execute_withdraw_to_deposit_works() {
 /// Test drop/claim assets.
 #[test]
 fn trapped_assets_can_be_claimed() {
-	let balances =
-		vec![(ALICE, INITIAL_BALANCE), (BOB, INITIAL_BALANCE)];
+	let balances = vec![(ALICE, INITIAL_BALANCE), (BOB, INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 6 * BaseXcmWeight::get();
 		let dest: MultiLocation =
@@ -330,9 +329,9 @@ fn trapped_assets_can_be_claimed() {
 			last_events(2),
 			vec![
 				Event::XcmPallet(crate::Event::AssetsTrapped(hash.clone(), source, vma)),
-				Event::XcmPallet(crate::Event::Attempted(
-					Outcome::Complete(5 * BaseXcmWeight::get())
-				))
+				Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(
+					5 * BaseXcmWeight::get()
+				)))
 			]
 		);
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -368,9 +367,10 @@ fn trapped_assets_can_be_claimed() {
 		));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::Attempted(
-				Outcome::Incomplete(BaseXcmWeight::get(), XcmError::UnknownClaim)
-			))
+			Event::XcmPallet(crate::Event::Attempted(Outcome::Incomplete(
+				BaseXcmWeight::get(),
+				XcmError::UnknownClaim
+			)))
 		);
 	});
 }

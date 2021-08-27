@@ -60,7 +60,10 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		let mut iter = message.0.iter_mut();
 		let i = iter.next().ok_or(())?;
 		match i {
-			ReceiveTeleportedAsset(..) | WithdrawAsset(..) | ReserveAssetDeposited(..) | ClaimAsset{..} => (),
+			ReceiveTeleportedAsset(..) |
+			WithdrawAsset(..) |
+			ReserveAssetDeposited(..) |
+			ClaimAsset { .. } => (),
 			_ => return Err(()),
 		}
 		let mut i = iter.next().ok_or(())?;

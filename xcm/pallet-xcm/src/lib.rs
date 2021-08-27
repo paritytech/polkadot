@@ -52,7 +52,10 @@ pub mod pallet {
 	use frame_system::{pallet_prelude::*, Config as SysConfig};
 	use sp_core::H256;
 	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
-	use xcm_executor::{Assets, traits::{ClaimAssets, DropAssets, InvertLocation, OnResponse, WeightBounds}};
+	use xcm_executor::{
+		traits::{ClaimAssets, DropAssets, InvertLocation, OnResponse, WeightBounds},
+		Assets,
+	};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -172,7 +175,7 @@ pub mod pallet {
 		/// \[ id \]
 		ResponseTaken(QueryId),
 		/// Some assets have been placed in an asset trap.
-		/// 
+		///
 		/// \[ hash, origin, assets \]
 		AssetsTrapped(H256, MultiLocation, VersionedMultiAssets),
 	}
@@ -237,15 +240,15 @@ pub mod pallet {
 	/// The latest available query index.
 	#[pallet::storage]
 	pub(super) type QueryCount<T: Config> = StorageValue<_, QueryId, ValueQuery>;
-	
+
 	/// The ongoing queries.
 	#[pallet::storage]
 	#[pallet::getter(fn query)]
 	pub(super) type Queries<T: Config> =
-	StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
+		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
 
 	/// The existing asset traps.
-	/// 
+	///
 	/// Key is the blake2 256 hash of (origin, versioned multiassets) pair. Value is the number of
 	/// times this pair has been trapped (usually just 1 if it exists at all).
 	#[pallet::storage]
@@ -571,7 +574,9 @@ pub mod pallet {
 
 	impl<T: Config> DropAssets for Pallet<T> {
 		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
-			if assets.is_empty() { return 0 }
+			if assets.is_empty() {
+				return 0
+			}
 			let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
 			let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
 			AssetTraps::<T>::mutate(hash, |n| *n += 1);
@@ -582,13 +587,18 @@ pub mod pallet {
 	}
 
 	impl<T: Config> ClaimAssets for Pallet<T> {
-		fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, assets: &MultiAssets) -> bool {
+		fn claim_assets(
+			origin: &MultiLocation,
+			ticket: &MultiLocation,
+			assets: &MultiAssets,
+		) -> bool {
 			let mut versioned = VersionedMultiAssets::from(assets.clone());
 			match (ticket.parents, &ticket.interior) {
-				(0, X1(GeneralIndex(i))) => versioned = match versioned.into_version(*i as u32) {
-					Ok(v) => v,
-					Err(()) => return false,
-				},
+				(0, X1(GeneralIndex(i))) =>
+					versioned = match versioned.into_version(*i as u32) {
+						Ok(v) => v,
+						Err(()) => return false,
+					},
 				(0, Here) => (),
 				_ => return false,
 			};

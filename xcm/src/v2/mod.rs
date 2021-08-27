@@ -510,7 +510,7 @@ pub enum Instruction<Call> {
 	/// Refund any surplus weight previously bought with `BuyExecution`.
 	///
 	/// Kind: *Instruction*
-	/// 
+	///
 	/// Errors: None.
 	RefundSurplus,
 
@@ -526,7 +526,7 @@ pub enum Instruction<Call> {
 	/// handler, which can reasonably be negative, which would result in a surplus.
 	///
 	/// Kind: *Instruction*
-	/// 
+	///
 	/// Errors: None.
 	SetErrorHandler(Xcm<Call>),
 
@@ -554,7 +554,7 @@ pub enum Instruction<Call> {
 	ClearError,
 
 	/// Create some assets which are being held on behalf of the origin.
-	/// 
+	///
 	/// - `assets`: The assets which are to be claimed. This must match exactly with the assets
 	///   claimable by the origin of the ticket.
 	/// - `ticket`: The ticket of the asset; this is an abstract identifier to help locate the
@@ -566,9 +566,9 @@ pub enum Instruction<Call> {
 	ClaimAsset { assets: MultiAssets, ticket: MultiLocation },
 
 	/// Always throws an error of type `Trap`.
-	/// 
+	///
 	/// Kind: *Instruction*
-	/// 
+	///
 	/// Errors:
 	/// - `Trap`: All circumstances, whose inner value is the same as this item's inner value.
 	Trap(u64),
