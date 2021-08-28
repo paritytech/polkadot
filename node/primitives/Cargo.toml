@@ -22,7 +22,7 @@ polkadot-parachain = { path = "../../parachain", default-features = false }
 schnorrkel = "0.9.1"
 thiserror = "1.0.26"
 tracing = "0.1.26"
-serde = { version = "1.0.123", features = ["derive"] }
+serde = { version = "1.0.129", features = ["derive"] }
 
 [target.'cfg(not(target_os = "unknown"))'.dependencies]
 zstd = "0.6.0"
