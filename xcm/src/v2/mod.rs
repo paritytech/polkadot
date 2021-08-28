@@ -37,6 +37,8 @@ pub use super::v1::{
 	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WildFungibility, WildMultiAsset,
 };
 
+pub const VERSION: super::Version = 2;
+
 #[derive(Derivative, Default, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
@@ -121,6 +123,7 @@ pub mod prelude {
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
+			VERSION as XCM_VERSION,
 		};
 	}
 	pub use super::{Instruction, Xcm};

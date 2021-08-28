@@ -23,7 +23,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, EncodeLike};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
 use sp_runtime::{traits::BadOrigin, RuntimeDebug};
 use sp_std::{
@@ -34,10 +34,7 @@ use sp_std::{
 	result::Result,
 	vec,
 };
-use xcm::{
-	latest::prelude::*, VersionedMultiAssets, VersionedMultiLocation, VersionedResponse,
-	VersionedXcm,
-};
+use xcm::prelude::*;
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -219,6 +216,9 @@ pub mod pallet {
 		InvalidOrigin,
 		/// The version of the `Versioned` value used is not able to be interpreted.
 		BadVersion,
+		/// The given location could not be used (e.g. because it cannot be expressed in the
+		/// desired version of XCM).
+		BadLocation,
 	}
 
 	/// The status of a query.
@@ -232,6 +232,15 @@ pub mod pallet {
 		},
 		/// A response has been received.
 		Ready { response: VersionedResponse, at: BlockNumber },
+	}
+	struct LatestVersionedMultiLocation<'a>(&'a MultiLocation);
+	impl<'a> EncodeLike<VersionedMultiLocation> for LatestVersionedMultiLocation<'a> {}
+	impl<'a> Encode for LatestVersionedMultiLocation<'a> {
+		fn encode(&self) -> Vec<u8> {
+			let mut r = vec![XCM_VERSION as u8];
+			self.0.using_encoded(|d| r.extend_from_slice(d));
+			r
+		}
 	}
 
 	/// Value of a query, must be unique for each query.
@@ -255,8 +264,29 @@ pub mod pallet {
 	#[pallet::getter(fn asset_trap)]
 	pub(super) type AssetTraps<T: Config> = StorageMap<_, Identity, H256, u32, ValueQuery>;
 
+	/// Latest versions that we know various locations support.
+	#[pallet::storage]
+	pub(super) type SupportedVersion<T: Config> =
+		StorageDoubleMap<_, Twox64Concat, XcmVersion, Blake2_128Concat, VersionedMultiLocation, XcmVersion, OptionQuery>;
+
+	/// Default version to encode XCM when latest version of destination is unknown. If `None`,
+	/// then the destinations whose XCM version is unknown are considered unreachable. 
+	#[pallet::storage]
+	pub(super) type SafeXcmVersion<T: Config> = StorageValue<_, XcmVersion, OptionQuery>;
+
 	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_runtime_upgrade() -> Weight {
+			for v in 0..XCM_VERSION {
+				for (old_key, value) in SupportedVersion::<T>::drain_prefix(v) {
+					if let Ok(new_key) = old_key.into_latest() {
+						SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
+					}
+				}
+			}
+			0
+		}
+	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -448,6 +478,43 @@ pub mod pallet {
 			Self::deposit_event(Event::Attempted(outcome));
 			Ok(())
 		}
+
+		/// Extoll that a particular destination can be communicated with through a particular
+		/// version of XCM.
+		/// 
+		/// - `origin`: Must be Root.
+		/// - `location`: The destination that is being described.
+		/// - `xcm_version`: The latest version of XCM that `location` supports.
+		/// 
+		/// Errors:
+		/// - `BadLocation`: If the `location` cannot be expressed with the XCM version used by this
+		///   chain.
+		#[pallet::weight(100_000_000u64)]
+		pub fn force_xcm_version(
+			origin: OriginFor<T>,
+			location: MultiLocation,
+			xcm_version: XcmVersion,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			let versioned_location = VersionedMultiLocation::from(location);
+			SupportedVersion::<T>::insert(XCM_VERSION, versioned_location, xcm_version);
+			Ok(())
+		}
+
+		/// Set a safe XCM version (the version that XCM should be encoded with if the most recent
+		/// version a destination can accept is unknown).
+		/// 
+		/// - `origin`: Must be Root.
+		/// - `maybe_xcm_version`: The default XCM encoding version, or `None` to disable.
+		#[pallet::weight(100_000_000u64)]
+		pub fn force_default_xcm_version(
+			origin: OriginFor<T>,
+			maybe_xcm_version: Option<XcmVersion>,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			SafeXcmVersion::<T>::set(maybe_xcm_version);
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -581,6 +648,15 @@ pub mod pallet {
 		}
 	}
 
+	impl<T: Config> WrapVersion for Pallet<T> {
+		fn wrap_version<Call>(dest: &MultiLocation, xcm: impl Into<VersionedXcm<Call>>) -> Result<VersionedXcm<Call>, ()> {
+			SupportedVersion::<T>::get(XCM_VERSION, LatestVersionedMultiLocation(dest))
+			.or_else(SafeXcmVersion::<T>::get)
+			.ok_or(())
+			.and_then(|v| xcm.into().into_version(v))
+		}
+	}
+
 	impl<T: Config> DropAssets for Pallet<T> {
 		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
 			if assets.is_empty() {
@@ -590,7 +666,7 @@ pub mod pallet {
 			let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
 			AssetTraps::<T>::mutate(hash, |n| *n += 1);
 			Self::deposit_event(Event::AssetsTrapped(hash, origin.clone(), versioned));
-			// TODO: Put the real weight in there.
+			// TODO #3735: Put the real weight in there.
 			0
 		}
 	}
