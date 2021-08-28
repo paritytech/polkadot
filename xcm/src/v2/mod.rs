@@ -593,7 +593,7 @@ pub enum Instruction<Call> {
 	/// Cancel the effect of a previous `SubscribeVersion` instruction.
 	/// 
 	/// Kind: *Instruction*
-	UnsubscribeVersion(QueryId),
+	UnsubscribeVersion,
 }
 
 impl<Call> Xcm<Call> {
@@ -649,7 +649,7 @@ impl<Call> Instruction<Call> {
 			ClaimAsset { assets, ticket } => ClaimAsset { assets, ticket },
 			Trap(code) => Trap(code),
 			SubscribeVersion { query_id, max_response_weight } => SubscribeVersion { query_id, max_response_weight },
-			UnsubscribeVersion(query_id) => UnsubscribeVersion(query_id),
+			UnsubscribeVersion => UnsubscribeVersion,
 		}
 	}
 }

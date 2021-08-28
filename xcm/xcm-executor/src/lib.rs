@@ -420,16 +420,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			Trap(code) => Err(XcmError::Trap(code)),
 			SubscribeVersion { query_id, max_response_weight } => {
-				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
-				Config::SubscriptionService::start(origin, query_id, max_response_weight)?;
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				Config::SubscriptionService::start(&origin, query_id, max_response_weight)?;
 				let max_weight = max_response_weight;
 				let response = Response::Version(XCM_VERSION);
 				let instruction = QueryResponse { query_id, response, max_weight };
-				Config::XcmSender::send_xcm(dest, Xcm(vec![instruction])).map_err(Into::into)
+				Config::XcmSender::send_xcm(origin, Xcm(vec![instruction])).map_err(Into::into)
 			}
-			UnsubscribeVersion(query_id) => {
+			UnsubscribeVersion => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
-				Config::SubscriptionService::stop(origin, query_id)
+				Config::SubscriptionService::stop(origin)
 			}
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),

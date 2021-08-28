@@ -176,6 +176,10 @@ pub mod pallet {
 		///
 		/// \[ hash, origin, assets \]
 		AssetsTrapped(H256, MultiLocation, VersionedMultiAssets),
+		/// An XCM version change notification message has been attempted to be sent.
+		/// 
+		/// \[ destination, result \]
+		VersionChangeNotified(MultiLocation, XcmResult),
 	}
 
 	#[pallet::origin]
@@ -274,6 +278,11 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type SafeXcmVersion<T: Config> = StorageValue<_, XcmVersion, OptionQuery>;
 
+	/// Latest versions that we know various locations support.
+	#[pallet::storage]
+	pub(super) type VersionNotifyTargets<T: Config> =
+		StorageDoubleMap<_, Twox64Concat, XcmVersion, Blake2_128Concat, VersionedMultiLocation, (QueryId, u64), OptionQuery>;
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_runtime_upgrade() -> Weight {
@@ -281,6 +290,19 @@ pub mod pallet {
 				for (old_key, value) in SupportedVersion::<T>::drain_prefix(v) {
 					if let Ok(new_key) = old_key.into_latest() {
 						SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
+					}
+				}
+				let response = Response::Version(XCM_VERSION);
+				for (old_key, value) in VersionNotifyTargets::<T>::drain_prefix(v) {
+					if let Ok(new_key) = MultiLocation::try_from(old_key) {
+						VersionNotifyTargets::<T>::insert(XCM_VERSION, new_key.into(), value);
+						let instruction = QueryResponse {
+							query_id: value.0,
+							response: response.clone(),
+							max_weight: value.1,
+						};
+						let r = T::XcmRouter::send_xcm(new_key.clone(), Xcm(vec![instruction]));
+						Self::deposit_event(Event::VersionChangeNotified(new_key, r.into()));
 					}
 				}
 			}
@@ -657,6 +679,23 @@ pub mod pallet {
 		}
 	}
 
+	impl VersionChangeNotifier for Pallet<T> {
+		/// Start notifying `location` should the XCM version of this chain change.
+		/// 
+		/// When it does, this type should ensure an `QueryResponse` message is sent with the given
+		/// `query_id` & `max_weight` and with a `response` of `Repsonse::Version`. This should happen
+		/// until/unless `stop` is called with the correct `query_id`.
+		/// 
+		/// If the `location` has an ongoing notification and when this function is called, then an
+		/// error should be returned.
+		fn start(location: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult {
+
+		}
+	
+		/// Stop notifying `location` should the XCM change. Returns an error if there is no existing
+		/// notification set up.
+		fn stop(location: &MultiLocation) -> XcmResult;
+	}
 	impl<T: Config> DropAssets for Pallet<T> {
 		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
 			if assets.is_empty() {

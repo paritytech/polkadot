@@ -43,7 +43,19 @@ impl OnResponse for () {
 	}
 }
 
-pub trait VersionSubscription {
-	fn start(location: &MultiLocation, query_id: QueryId, max_response_weight: u64) -> XcmResult;
-	fn stop(location: &MultiLocation, query_id: QueryId) -> XcmResult;
+/// Trait for a type which handles notifying a destination of XCM version changes.
+pub trait VersionChangeNotifier {
+	/// Start notifying `location` should the XCM version of this chain change.
+	/// 
+	/// When it does, this type should ensure an `QueryResponse` message is sent with the given
+	/// `query_id` & `max_weight` and with a `response` of `Repsonse::Version`. This should happen
+	/// until/unless `stop` is called with the correct `query_id`.
+	/// 
+	/// If the `location` has an ongoing notification and when this function is called, then an
+	/// error should be returned.
+	fn start(location: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult;
+
+	/// Stop notifying `location` should the XCM change. Returns an error if there is no existing
+	/// notification set up.
+	fn stop(location: &MultiLocation) -> XcmResult;
 }
