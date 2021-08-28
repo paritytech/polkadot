@@ -31,8 +31,8 @@ use xcm::latest::{
 
 pub mod traits;
 use traits::{
-	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
-	WeightBounds, WeightTrader,
+	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
+	ShouldExecute, TransactAsset, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -86,7 +86,6 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		if xcm_weight > weight_limit {
 			return Outcome::Error(XcmError::WeightLimitReached(xcm_weight))
 		}
-		let origin = Some(origin);
 
 		if let Err(_) = Config::Barrier::should_execute(
 			&origin,
@@ -98,7 +97,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			return Outcome::Error(XcmError::Barrier)
 		}
 
-		let mut vm = Self::new(origin);
+		let mut vm = Self::new(origin.clone());
 
 		while !message.0.is_empty() {
 			let result = vm.execute(message);
@@ -116,9 +115,12 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		vm.refund_surplus();
 		drop(vm.trader);
 
-		// TODO #2841: Do something with holding? (Fail-safe AssetTrap?)
+		let mut weight_used = xcm_weight.saturating_sub(vm.total_surplus);
 
-		let weight_used = xcm_weight.saturating_sub(vm.total_surplus);
+		if !vm.holding.is_empty() {
+			weight_used.saturating_accrue(Config::AssetTrap::drop_assets(&origin, vm.holding));
+		};
+
 		match vm.error {
 			None => Outcome::Complete(weight_used),
 			// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
@@ -129,10 +131,10 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	fn new(origin: Option<MultiLocation>) -> Self {
+	fn new(origin: MultiLocation) -> Self {
 		Self {
 			holding: Assets::new(),
-			origin,
+			origin: Some(origin),
 			trader: Config::Trader::new(),
 			error: None,
 			total_surplus: 0,
@@ -183,7 +185,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	/// Drop the registered error handler and refund its weight.
 	fn drop_error_handler(&mut self) {
 		self.error_handler = Xcm::<Config::Call>(vec![]);
-		self.total_surplus = self.total_surplus.saturating_add(self.error_handler_weight);
+		self.total_surplus.saturating_accrue(self.error_handler_weight);
 		self.error_handler_weight = 0;
 	}
 
@@ -199,7 +201,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	fn refund_surplus(&mut self) {
 		let current_surplus = self.total_surplus.saturating_sub(self.total_refunded);
 		if current_surplus > 0 {
-			self.total_refunded = self.total_refunded.saturating_add(current_surplus);
+			self.total_refunded.saturating_accrue(current_surplus);
 			if let Some(w) = self.trader.refund_weight(current_surplus) {
 				self.holding.subsume(w);
 			}
@@ -300,7 +302,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// reported back to the caller and this ensures that they account for the total
 				// weight consumed correctly (potentially allowing them to do more operations in a
 				// block than they otherwise would).
-				self.total_surplus = self.total_surplus.saturating_add(surplus);
+				self.total_surplus.saturating_accrue(surplus);
 				Ok(())
 			},
 			QueryResponse { query_id, response, max_weight } => {
@@ -390,14 +392,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			SetErrorHandler(mut handler) => {
 				let handler_weight = Config::Weigher::weight(&mut handler)?;
-				self.total_surplus = self.total_surplus.saturating_add(self.error_handler_weight);
+				self.total_surplus.saturating_accrue(self.error_handler_weight);
 				self.error_handler = handler;
 				self.error_handler_weight = handler_weight;
 				Ok(())
 			},
 			SetAppendix(mut appendix) => {
 				let appendix_weight = Config::Weigher::weight(&mut appendix)?;
-				self.total_surplus = self.total_surplus.saturating_add(self.appendix_weight);
+				self.total_surplus.saturating_accrue(self.appendix_weight);
 				self.appendix = appendix;
 				self.appendix_weight = appendix_weight;
 				Ok(())
@@ -406,6 +408,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.error = None;
 				Ok(())
 			},
+			ClaimAsset { assets, ticket } => {
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				let ok = Config::AssetClaims::claim_assets(origin, &ticket, &assets);
+				ensure!(ok, XcmError::UnknownClaim);
+				for asset in assets.drain().into_iter() {
+					self.holding.subsume(asset);
+				}
+				Ok(())
+			},
+			Trap(code) => Err(XcmError::Trap(code)),
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),

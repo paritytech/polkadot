@@ -94,6 +94,10 @@ pub enum Error {
 	Unroutable,
 	/// The weight required was not specified when it should have been.
 	UnknownWeightRequired,
+	/// An error was intentionally forced. A code is included.
+	Trap(u64),
+	/// The given claim could not be recognized/found.
+	UnknownClaim,
 }
 
 impl From<()> for Error {

@@ -86,4 +86,6 @@ impl xcm_executor::Config for XcmConfig {
 	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call, MaxInstructions>;
 	type Trader = DummyWeightTrader;
 	type ResponseHandler = super::Xcm;
+	type AssetTrap = super::Xcm;
+	type AssetClaims = super::Xcm;
 }

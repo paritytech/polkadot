@@ -50,8 +50,12 @@ pub mod pallet {
 		pallet_prelude::*,
 	};
 	use frame_system::{pallet_prelude::*, Config as SysConfig};
-	use sp_runtime::traits::{AccountIdConversion, BlockNumberProvider};
-	use xcm_executor::traits::{InvertLocation, OnResponse, WeightBounds};
+	use sp_core::H256;
+	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
+	use xcm_executor::{
+		traits::{ClaimAssets, DropAssets, InvertLocation, OnResponse, WeightBounds},
+		Assets,
+	};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -170,6 +174,10 @@ pub mod pallet {
 		///
 		/// \[ id \]
 		ResponseTaken(QueryId),
+		/// Some assets have been placed in an asset trap.
+		///
+		/// \[ hash, origin, assets \]
+		AssetsTrapped(H256, MultiLocation, VersionedMultiAssets),
 	}
 
 	#[pallet::origin]
@@ -235,6 +243,14 @@ pub mod pallet {
 	#[pallet::getter(fn query)]
 	pub(super) type Queries<T: Config> =
 		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
+
+	/// The existing asset traps.
+	///
+	/// Key is the blake2 256 hash of (origin, versioned `MultiAssets`) pair. Value is the number of
+	/// times this pair has been trapped (usually just 1 if it exists at all).
+	#[pallet::storage]
+	#[pallet::getter(fn asset_trap)]
+	pub(super) type AssetTraps<T: Config> = StorageMap<_, Identity, H256, u32, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -553,8 +569,47 @@ pub mod pallet {
 		}
 	}
 
+	impl<T: Config> DropAssets for Pallet<T> {
+		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+			if assets.is_empty() {
+				return 0
+			}
+			let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
+			let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
+			AssetTraps::<T>::mutate(hash, |n| *n += 1);
+			Self::deposit_event(Event::AssetsTrapped(hash, origin.clone(), versioned));
+			// TODO: Put the real weight in there.
+			0
+		}
+	}
+
+	impl<T: Config> ClaimAssets for Pallet<T> {
+		fn claim_assets(
+			origin: &MultiLocation,
+			ticket: &MultiLocation,
+			assets: &MultiAssets,
+		) -> bool {
+			let mut versioned = VersionedMultiAssets::from(assets.clone());
+			match (ticket.parents, &ticket.interior) {
+				(0, X1(GeneralIndex(i))) =>
+					versioned = match versioned.into_version(*i as u32) {
+						Ok(v) => v,
+						Err(()) => return false,
+					},
+				(0, Here) => (),
+				_ => return false,
+			};
+			let hash = BlakeTwo256::hash_of(&(origin, versioned));
+			match AssetTraps::<T>::get(hash) {
+				0 => return false,
+				1 => AssetTraps::<T>::remove(hash),
+				n => AssetTraps::<T>::insert(hash, n - 1),
+			}
+			return true
+		}
+	}
+
 	impl<T: Config> OnResponse for Pallet<T> {
-		/// Returns `true` if we are expecting a response from `origin` for query `query_id`.
 		fn expecting_response(origin: &MultiLocation, query_id: QueryId) -> bool {
 			if let Some(QueryStatus::Pending { responder, .. }) = Queries::<T>::get(query_id) {
 				return MultiLocation::try_from(responder).map_or(false, |r| origin == &r)
@@ -562,7 +617,6 @@ pub mod pallet {
 			false
 		}
 
-		/// Handler for receiving a `response` from `origin` relating to `query_id`.
 		fn on_response(
 			origin: &MultiLocation,
 			query_id: QueryId,
