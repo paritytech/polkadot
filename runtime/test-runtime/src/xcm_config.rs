@@ -68,8 +68,8 @@ impl WeightTrader for DummyWeightTrader {
 
 pub struct InvertNothing;
 impl InvertLocation for InvertNothing {
-	fn invert_location(_: &MultiLocation) -> MultiLocation {
-		Here.into()
+	fn invert_location(_: &MultiLocation) -> sp_std::result::Result<MultiLocation, ()> {
+		Ok(Here.into())
 	}
 }
 

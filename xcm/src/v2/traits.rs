@@ -38,6 +38,7 @@ pub enum Error {
 	UntrustedTeleportLocation,
 	DestinationBufferOverflow,
 	MultiLocationFull,
+	MultiLocationNotInvertible,
 	FailedToDecode,
 	BadOrigin,
 	ExceedsMaxMessageSize,

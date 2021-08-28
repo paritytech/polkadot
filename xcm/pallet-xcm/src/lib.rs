@@ -31,6 +31,7 @@ use sp_std::{
 	convert::{TryFrom, TryInto},
 	marker::PhantomData,
 	prelude::*,
+	result::Result,
 	vec,
 };
 use xcm::{
@@ -206,6 +207,8 @@ pub mod pallet {
 		Filtered,
 		/// The message's weight could not be determined.
 		UnweighableMessage,
+		/// The destination `MultiLocation` provided cannot be inverted.
+		DestinationNotInvertible,
 		/// The assets to be sent are empty.
 		Empty,
 		/// Could not re-anchor the assets to declare the fees for the destination chain.
@@ -322,7 +325,8 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest);
+			let inv_dest = T::LocationInverter::invert_location(&dest)
+				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
 			let fees = assets
 				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
@@ -392,7 +396,8 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest);
+			let inv_dest = T::LocationInverter::invert_location(&dest)
+				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
 			let fees = assets
 				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
@@ -489,18 +494,21 @@ pub mod pallet {
 		/// - `timeout`: The block number after which it is permissible for `notify` not to be
 		///   called even if a response is received.
 		///
+		/// `report_outcome` may return an error if the `responder` is not invertible.
+		///
 		/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
 		/// value.
 		pub fn report_outcome(
 			message: &mut Xcm<()>,
 			responder: MultiLocation,
 			timeout: T::BlockNumber,
-		) -> QueryId {
-			let dest = T::LocationInverter::invert_location(&responder);
+		) -> Result<QueryId, XcmError> {
+			let dest = T::LocationInverter::invert_location(&responder)
+				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 			let query_id = Self::new_query(responder, timeout);
 			let report_error = Xcm(vec![ReportError { dest, query_id, max_response_weight: 0 }]);
 			message.0.insert(0, SetAppendix(report_error));
-			query_id
+			Ok(query_id)
 		}
 
 		/// Consume `message` and return another which is equivalent to it except that it reports
@@ -516,6 +524,8 @@ pub mod pallet {
 		/// - `timeout`: The block number after which it is permissible for `notify` not to be
 		///   called even if a response is received.
 		///
+		/// `report_outcome_notify` may return an error if the `responder` is not invertible.
+		///
 		/// NOTE: `notify` gets called as part of handling an incoming message, so it should be
 		/// lightweight. Its weight is estimated during this function and stored ready for
 		/// weighing `ReportOutcome` on the way back. If it turns out to be heavier once it returns
@@ -526,13 +536,15 @@ pub mod pallet {
 			responder: MultiLocation,
 			notify: impl Into<<T as Config>::Call>,
 			timeout: T::BlockNumber,
-		) {
-			let dest = T::LocationInverter::invert_location(&responder);
+		) -> Result<(), XcmError> {
+			let dest = T::LocationInverter::invert_location(&responder)
+				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 			let notify: <T as Config>::Call = notify.into();
 			let max_response_weight = notify.get_dispatch_info().weight;
 			let query_id = Self::new_notify_query(responder, notify, timeout);
 			let report_error = Xcm(vec![ReportError { dest, query_id, max_response_weight }]);
 			message.0.insert(0, SetAppendix(report_error));
+			Ok(())
 		}
 
 		/// Attempt to create a new query ID and register it as a query that is yet to respond.

@@ -244,7 +244,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			TransferReserveAsset { mut assets, dest, xcm } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				// Take `assets` from the origin account (on-chain) and place into dest account.
-				let inv_dest = Config::LocationInverter::invert_location(&dest);
+				let inv_dest = Config::LocationInverter::invert_location(&dest)
+					.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 				for asset in assets.inner() {
 					Config::AssetTransactor::beam_asset(asset, origin, &dest)?;
 				}
@@ -343,13 +344,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in deposited.assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
-				let assets = Self::reanchored(deposited, &dest);
+				let assets = Self::reanchored(deposited, &dest)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
-				let assets = Self::reanchored(self.holding.saturating_take(assets), &reserve);
+				let assets = Self::reanchored(self.holding.saturating_take(assets), &reserve)?;
 				let mut message = vec![WithdrawAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(reserve, Xcm(message)).map_err(Into::into)
@@ -360,13 +361,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets.assets_iter() {
 					Config::AssetTransactor::check_out(&dest, &asset);
 				}
-				let assets = Self::reanchored(assets, &dest);
+				let assets = Self::reanchored(assets, &dest)?;
 				let mut message = vec![ReceiveTeleportedAsset(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			QueryHolding { query_id, dest, assets, max_response_weight } => {
-				let assets = Self::reanchored(self.holding.min(&assets), &dest);
+				let assets = Self::reanchored(self.holding.min(&assets), &dest)?;
 				let max_weight = max_response_weight;
 				let response = Response::Assets(assets);
 				let instruction = QueryResponse { query_id, response, max_weight };
@@ -425,9 +426,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		}
 	}
 
-	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> MultiAssets {
-		let inv_dest = Config::LocationInverter::invert_location(&dest);
+	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> Result<MultiAssets, XcmError> {
+		let inv_dest = Config::LocationInverter::invert_location(&dest)
+			.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 		assets.prepend_location(&inv_dest);
-		assets.into_assets_iter().collect::<Vec<_>>().into()
+		Ok(assets.into_assets_iter().collect::<Vec<_>>().into())
 	}
 }

@@ -40,7 +40,8 @@ fn report_outcome_notify_works() {
 	let call = pallet_test_notifier::Call::notification_received(0, Default::default());
 	let notify = Call::TestNotifier(call);
 	new_test_ext_with_balances(balances).execute_with(|| {
-		XcmPallet::report_outcome_notify(&mut message, Parachain(PARA_ID).into(), notify, 100);
+		XcmPallet::report_outcome_notify(&mut message, Parachain(PARA_ID).into(), notify, 100)
+			.unwrap();
 		assert_eq!(
 			message,
 			Xcm(vec![
@@ -94,7 +95,7 @@ fn report_outcome_works() {
 		beneficiary: sender.clone(),
 	}]);
 	new_test_ext_with_balances(balances).execute_with(|| {
-		XcmPallet::report_outcome(&mut message, Parachain(PARA_ID).into(), 100);
+		XcmPallet::report_outcome(&mut message, Parachain(PARA_ID).into(), 100).unwrap();
 		assert_eq!(
 			message,
 			Xcm(vec![
