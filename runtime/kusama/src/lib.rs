@@ -50,7 +50,8 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade,
+		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, Nothing,
+		OnRuntimeUpgrade,
 	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
@@ -114,7 +115,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9090,
+	spec_version: 9100,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -345,11 +346,8 @@ parameter_types! {
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 16;
-	pub const SignedDepositBase: Balance = deposit(1, 0);
-	// A typical solution occupies within an order of magnitude of 50kb.
-	// This formula is currently adjusted such that a typical solution will spend an amount equal
-	// to the base deposit for every 50 kb.
-	pub const SignedDepositByte: Balance = deposit(1, 0) / (50 * 1024);
+	pub const SignedDepositBase: Balance = deposit(2, 0);
+	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1/10 KSM as reward
 	pub SignedRewardBase: Balance =  UNITS / 10;
 	// fallback: emergency phase.
@@ -392,7 +390,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
-	type CompactSolution = NposCompactSolution24;
+	type Solution = NposCompactSolution24;
 	type OnChainAccuracy = Perbill;
 	type Fallback = Fallback;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
@@ -484,7 +482,7 @@ type SlashCancelOrigin = EnsureOneOf<
 
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution24 as sp_npos_elections::CompactSolution>::LIMIT as u32;
+		<NposCompactSolution24 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -953,6 +951,7 @@ impl pallet_vesting::Config for Runtime {
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
 	type WeightInfo = weights::pallet_vesting::WeightInfo<Runtime>;
+	const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
 parameter_types! {
@@ -1044,14 +1043,16 @@ impl InstanceFilter<Call> for ProxyType {
 					Call::Treasury(..) | Call::Bounties(..) |
 					Call::Tips(..) | Call::Utility(..)
 			),
-			ProxyType::Staking =>
-				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..)),
+			ProxyType::Staking => {
+				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
+			},
 			ProxyType::IdentityJudgement => matches!(
 				c,
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) | Call::Utility(..)
 			),
-			ProxyType::CancelProxy =>
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..))),
+			ProxyType::CancelProxy => {
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..)))
+			},
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -1254,6 +1255,9 @@ type LocalOriginConverter = (
 parameter_types! {
 	/// The amount of weight an XCM operation takes. This is a safe overestimate.
 	pub const BaseXcmWeight: Weight = 1_000_000_000;
+	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
+	/// calculations getting too crazy.
+	pub const MaxInstructions: u32 = 100;
 }
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
@@ -1289,10 +1293,12 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader = UsingComponents<WeightToFee, KsmLocation, AccountId, Balances, ToAuthor<Runtime>>;
-	type ResponseHandler = ();
+	type ResponseHandler = XcmPallet;
+	type AssetTrap = XcmPallet;
+	type AssetClaims = XcmPallet;
 }
 
 parameter_types! {
@@ -1320,12 +1326,14 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects all.
-	type XcmExecuteFilter = ();
+	type XcmExecuteFilter = Nothing;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
+	type Origin = Origin;
+	type Call = Call;
 }
 
 parameter_types! {
@@ -1917,5 +1925,19 @@ sp_api::impl_runtime_apis! {
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests_fess {
+	use super::*;
+	use sp_runtime::assert_eq_error_rate;
+
+	#[test]
+	fn signed_deposit_is_sensible() {
+		// ensure this number does not change, or that it is checked after each change.
+		// a 1 MB solution should need around 0.16 KSM deposit
+		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
+		assert_eq_error_rate!(deposit, UNITS * 16 / 100, UNITS / 100);
 	}
 }

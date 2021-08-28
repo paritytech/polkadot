@@ -1007,13 +1007,13 @@ impl<T: Config> Pallet<T> {
 
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::opaque::{v1::Xcm, VersionedXcm};
+			use xcm::opaque::{latest::prelude::*, VersionedXcm};
 
-			VersionedXcm::from(Xcm::HrmpNewChannelOpenRequest {
+			VersionedXcm::from(Xcm(vec![HrmpNewChannelOpenRequest {
 				sender: u32::from(origin),
 				max_capacity: proposed_max_capacity,
 				max_message_size: proposed_max_message_size,
-			})
+			}]))
 			.encode()
 		};
 		if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
@@ -1066,9 +1066,9 @@ impl<T: Config> Pallet<T> {
 
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::opaque::{v1::Xcm, VersionedXcm};
-
-			VersionedXcm::from(Xcm::HrmpChannelAccepted { recipient: u32::from(origin) }).encode()
+			use xcm::opaque::{latest::prelude::*, VersionedXcm};
+			let xcm = Xcm(vec![HrmpChannelAccepted { recipient: u32::from(origin) }]);
+			VersionedXcm::from(xcm).encode()
 		};
 		if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
 			<dmp::Pallet<T>>::queue_downward_message(&config, sender, notification_bytes)
@@ -1106,13 +1106,13 @@ impl<T: Config> Pallet<T> {
 		let config = <configuration::Pallet<T>>::config();
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::opaque::{v1::Xcm, VersionedXcm};
+			use xcm::opaque::{latest::prelude::*, VersionedXcm};
 
-			VersionedXcm::from(Xcm::HrmpChannelClosing {
+			VersionedXcm::from(Xcm(vec![HrmpChannelClosing {
 				initiator: u32::from(origin),
 				sender: u32::from(channel_id.sender),
 				recipient: u32::from(channel_id.recipient),
-			})
+			}]))
 			.encode()
 		};
 		let opposite_party =

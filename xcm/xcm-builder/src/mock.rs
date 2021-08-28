@@ -35,6 +35,7 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::prelude::*;
+use xcm_executor::traits::{ClaimAssets, DropAssets};
 pub use xcm_executor::{
 	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
 	Assets, Config,
@@ -107,7 +108,7 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> XcmResult {
+	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> SendResult {
 		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
 		Ok(())
 	}
@@ -119,8 +120,8 @@ thread_local! {
 pub fn assets(who: u64) -> Vec<MultiAsset> {
 	ASSETS.with(|a| a.borrow().get(&who).map_or(vec![], |a| a.clone().into()))
 }
-pub fn add_asset(who: u64, what: MultiAsset) {
-	ASSETS.with(|a| a.borrow_mut().entry(who).or_insert(Assets::new()).subsume(what));
+pub fn add_asset<AssetArg: Into<MultiAsset>>(who: u64, what: AssetArg) {
+	ASSETS.with(|a| a.borrow_mut().entry(who).or_insert(Assets::new()).subsume(what.into()));
 }
 
 pub struct TestAssetTransactor;
@@ -222,9 +223,10 @@ impl OnResponse for TestResponseHandler {
 		})
 	}
 	fn on_response(
-		_origin: MultiLocation,
+		_origin: &MultiLocation,
 		query_id: u64,
 		response: xcm::latest::Response,
+		_max_weight: Weight,
 	) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut().entry(query_id).and_modify(|v| {
@@ -258,6 +260,7 @@ parameter_types! {
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
 	pub static WeightPrice: (AssetId, u128) = (From::from(Here), 1_000_000_000_000);
+	pub static MaxInstructions: u32 = 100;
 }
 
 pub type TestBarrier = (
@@ -266,6 +269,37 @@ pub type TestBarrier = (
 	AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,
 );
+
+parameter_types! {
+	pub static TrappedAssets: Vec<(MultiLocation, MultiAssets)> = vec![];
+}
+
+pub struct TestAssetTrap;
+
+impl DropAssets for TestAssetTrap {
+	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
+		t.push((origin.clone(), assets.into()));
+		TrappedAssets::set(t);
+		5
+	}
+}
+
+impl ClaimAssets for TestAssetTrap {
+	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool {
+		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
+		if let (0, X1(GeneralIndex(i))) = (ticket.parents, &ticket.interior) {
+			if let Some((l, a)) = t.get(*i as usize) {
+				if l == origin && a == what {
+					t.swap_remove(*i as usize);
+					TrappedAssets::set(t);
+					return true
+				}
+			}
+		}
+		false
+	}
+}
 
 pub struct TestConfig;
 impl Config for TestConfig {
@@ -277,7 +311,9 @@ impl Config for TestConfig {
 	type IsTeleporter = TestIsTeleporter;
 	type LocationInverter = LocationInverter<TestAncestry>;
 	type Barrier = TestBarrier;
-	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall>;
+	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
+	type AssetTrap = TestAssetTrap;
+	type AssetClaims = TestAssetTrap;
 }
