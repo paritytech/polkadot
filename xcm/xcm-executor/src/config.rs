@@ -63,7 +63,6 @@ pub trait Config {
 	/// end of execution.
 	type AssetTrap: DropAssets;
 
-	/// The general asset trap - handler for when assets are left in the Holding Register at the
-	/// end of execution.
+	/// The handler for when there is an instruction to claim assets.
 	type AssetClaims: ClaimAssets;
 }

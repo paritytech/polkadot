@@ -31,7 +31,7 @@ impl DropAssets for () {
 }
 
 /// Morph a given `DropAssets` implementation into one which can filter based on assets. This can
-/// be used to ensure that `Assets` values which hold no value are ignores.
+/// be used to ensure that `Assets` values which hold no value are ignored.
 pub struct FilterAssets<D, A>(PhantomData<(D, A)>);
 
 impl<D: DropAssets, A: Contains<Assets>> DropAssets for FilterAssets<D, A> {
