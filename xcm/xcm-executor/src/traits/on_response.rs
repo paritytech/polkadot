@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::weights::Weight;
-use xcm::latest::{MultiLocation, Response};
+use xcm::latest::{MultiLocation, Response, QueryId, Result as XcmResult};
 
 /// Define what needs to be done upon receiving a query response.
 pub trait OnResponse {
@@ -41,4 +41,9 @@ impl OnResponse for () {
 	) -> Weight {
 		0
 	}
+}
+
+pub trait VersionSubscription {
+	fn start(location: &MultiLocation, query_id: QueryId, max_response_weight: u64) -> XcmResult;
+	fn stop(location: &MultiLocation, query_id: QueryId) -> XcmResult;
 }

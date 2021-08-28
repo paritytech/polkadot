@@ -26,13 +26,13 @@ use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{
 	Error as XcmError, ExecuteXcm,
 	Instruction::{self, *},
-	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm,
+	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm, VERSION as XCM_VERSION
 };
 
 pub mod traits;
 use traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, WeightBounds, WeightTrader,
+	ShouldExecute, TransactAsset, WeightBounds, WeightTrader, VersionSubscription,
 };
 
 mod assets;
@@ -419,6 +419,18 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			Trap(code) => Err(XcmError::Trap(code)),
+			SubscribeVersion { query_id, max_response_weight } => {
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				Config::SubscriptionService::start(origin, query_id, max_response_weight)?;
+				let max_weight = max_response_weight;
+				let response = Response::Version(XCM_VERSION);
+				let instruction = QueryResponse { query_id, response, max_weight };
+				Config::XcmSender::send_xcm(dest, Xcm(vec![instruction])).map_err(Into::into)
+			}
+			UnsubscribeVersion(query_id) => {
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				Config::SubscriptionService::stop(origin, query_id)
+			}
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),

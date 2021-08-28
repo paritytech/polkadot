@@ -37,7 +37,11 @@ pub use super::v1::{
 	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WildFungibility, WildMultiAsset,
 };
 
+/// This module's XCM version.
 pub const VERSION: super::Version = 2;
+
+/// An identifier for a query.
+pub type QueryId = u64;
 
 #[derive(Derivative, Default, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
@@ -124,6 +128,7 @@ pub mod prelude {
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
 			VERSION as XCM_VERSION,
+			QueryId,
 		};
 	}
 	pub use super::{Instruction, Xcm};
@@ -145,6 +150,8 @@ pub enum Response {
 	Assets(MultiAssets),
 	/// The outcome of an XCM instruction.
 	ExecutionResult(result::Result<(), (u32, Error)>),
+	/// An XCM version.
+	Version(super::Version),
 }
 
 impl Default for Response {
@@ -242,7 +249,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	QueryResponse {
 		#[codec(compact)]
-		query_id: u64,
+		query_id: QueryId,
 		response: Response,
 		#[codec(compact)]
 		max_weight: u64,
@@ -380,7 +387,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	ReportError {
 		#[codec(compact)]
-		query_id: u64,
+		query_id: QueryId,
 		dest: MultiLocation,
 		#[codec(compact)]
 		max_response_weight: u64,
@@ -490,7 +497,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	QueryHolding {
 		#[codec(compact)]
-		query_id: u64,
+		query_id: QueryId,
 		dest: MultiLocation,
 		assets: MultiAssetFilter,
 		#[codec(compact)]
@@ -575,6 +582,18 @@ pub enum Instruction<Call> {
 	/// Errors:
 	/// - `Trap`: All circumstances, whose inner value is the same as this item's inner value.
 	Trap(u64),
+
+	/// Ask the destination system to respond with the most recent version of XCM that they
+	/// support in a `QueryResponse` instruction. Any changes to this should also ellicit similar
+	/// responses when they happen.
+	/// 
+	/// Kind: *Instruction*
+	SubscribeVersion { query_id: QueryId, max_response_weight: u64 },
+
+	/// Cancel the effect of a previous `SubscribeVersion` instruction.
+	/// 
+	/// Kind: *Instruction*
+	UnsubscribeVersion(QueryId),
 }
 
 impl<Call> Xcm<Call> {
@@ -629,6 +648,8 @@ impl<Call> Instruction<Call> {
 			ClearError => ClearError,
 			ClaimAsset { assets, ticket } => ClaimAsset { assets, ticket },
 			Trap(code) => Trap(code),
+			SubscribeVersion { query_id, max_response_weight } => SubscribeVersion { query_id, max_response_weight },
+			UnsubscribeVersion(query_id) => UnsubscribeVersion(query_id),
 		}
 	}
 }
