@@ -594,7 +594,7 @@ pub enum Instruction<Call> {
 	Trap(#[codec(compact)] u64),
 
 	/// Ask the destination system to respond with the most recent version of XCM that they
-	/// support in a `QueryResponse` instruction. Any changes to this should also ellicit similar
+	/// support in a `QueryResponse` instruction. Any changes to this should also elicit similar
 	/// responses when they happen.
 	///
 	/// Kind: *Instruction*
