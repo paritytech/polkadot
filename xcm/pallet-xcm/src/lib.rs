@@ -182,12 +182,17 @@ pub mod pallet {
 		/// An XCM version change notification message has been attempted to be sent.
 		///
 		/// \[ destination, result \]
-		VersionChangeNotified(MultiLocation, XcmResult),
+		VersionChangeNotified(MultiLocation),
 		/// The supported version of a location has been changed. This might be through an
 		/// automatic notification or a manual intervention.
 		///
 		/// \[ location, XCM version \]
 		SupportedVersionChanged(MultiLocation, XcmVersion),
+		/// A given location which had a version change subscription was dropped owing to an error
+		/// either migrating the location to our new XCM format or sending the notification to it.
+		///
+		/// \[ location, query ID, error type \]
+		NotifyTargetDropped(VersionedMultiLocation, QueryId, XcmError),
 	}
 
 	#[pallet::origin]
@@ -334,22 +339,31 @@ pub mod pallet {
 				}
 				let response = Response::Version(XCM_VERSION);
 				for (old_key, value) in VersionNotifyTargets::<T>::drain_prefix(v) {
-					if let Ok(new_key) = MultiLocation::try_from(old_key) {
-						VersionNotifyTargets::<T>::insert(
-							XCM_VERSION,
-							LatestVersionedMultiLocation(&new_key),
-							value,
-						);
-						let instruction = QueryResponse {
-							query_id: value.0,
-							response: response.clone(),
-							max_weight: value.1,
-						};
-						let r = T::XcmRouter::send_xcm(new_key.clone(), Xcm(vec![instruction]));
-						Self::deposit_event(Event::VersionChangeNotified(
-							new_key,
-							r.map_err(Into::into),
-						));
+					let new_key = match MultiLocation::try_from(old_key.clone()) {
+						Ok(k) => k,
+						Err(()) => {
+        					Self::deposit_event(Event::NotifyTargetDropped(old_key, value.0, XcmError::InvalidLocation));
+							return 0;
+    					},
+					};
+					let instruction = QueryResponse {
+						query_id: value.0,
+						response: response.clone(),
+						max_weight: value.1,
+					};
+					match T::XcmRouter::send_xcm(new_key.clone(), Xcm(vec![instruction])) {
+						Ok(()) => {
+							VersionNotifyTargets::<T>::insert(
+								XCM_VERSION,
+								LatestVersionedMultiLocation(&new_key),
+								value,
+							);
+							Self::deposit_event(Event::VersionChangeNotified(new_key));
+						},
+						Err(e) => {
+							let new_key = new_key.into();
+							Self::deposit_event(Event::NotifyTargetDropped(new_key, value.0, e.into()));
+						}
 					}
 				}
 			}
