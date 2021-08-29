@@ -301,7 +301,12 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
+	Transact {
+		origin_type: OriginKind,
+		#[codec(compact)]
+		require_weight_at_most: u64,
+		call: DoubleEncoded<Call>,
+	},
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.
@@ -405,7 +410,12 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	DepositAsset { assets: MultiAssetFilter, max_assets: u32, beneficiary: MultiLocation },
+	DepositAsset {
+		assets: MultiAssetFilter,
+		#[codec(compact)]
+		max_assets: u32,
+		beneficiary: MultiLocation,
+	},
 
 	/// Remove the asset(s) (`assets`) from the Holding Register and place equivalent assets under
 	/// the ownership of `dest` within this consensus system (i.e. deposit them into its sovereign
@@ -428,6 +438,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	DepositReserveAsset {
 		assets: MultiAssetFilter,
+		#[codec(compact)]
 		max_assets: u32,
 		dest: MultiLocation,
 		xcm: Xcm<()>,
@@ -581,14 +592,14 @@ pub enum Instruction<Call> {
 	///
 	/// Errors:
 	/// - `Trap`: All circumstances, whose inner value is the same as this item's inner value.
-	Trap(u64),
+	Trap(#[codec(compact)] u64),
 
 	/// Ask the destination system to respond with the most recent version of XCM that they
 	/// support in a `QueryResponse` instruction. Any changes to this should also ellicit similar
 	/// responses when they happen.
 	/// 
 	/// Kind: *Instruction*
-	SubscribeVersion { query_id: QueryId, max_response_weight: u64 },
+	SubscribeVersion { #[codec(compact)] query_id: QueryId, #[codec(compact)] max_response_weight: u64 },
 
 	/// Cancel the effect of a previous `SubscribeVersion` instruction.
 	/// 
