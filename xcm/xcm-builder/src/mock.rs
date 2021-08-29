@@ -316,5 +316,5 @@ impl Config for TestConfig {
 	type ResponseHandler = TestResponseHandler;
 	type AssetTrap = TestAssetTrap;
 	type AssetClaims = TestAssetTrap;
-	type SubscriptionService = ();	// TODO TestSubscriptionService
+	type SubscriptionService = (); // TODO TestSubscriptionService
 }

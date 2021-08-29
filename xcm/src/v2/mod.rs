@@ -122,13 +122,12 @@ pub mod prelude {
 			MultiAssetFilter::{self, *},
 			MultiAssets, MultiLocation,
 			NetworkId::{self, *},
-			OriginKind, Outcome, Parent, ParentThen, Response, Result as XcmResult, SendError,
-			SendResult, SendXcm,
+			OriginKind, Outcome, Parent, ParentThen, QueryId, Response, Result as XcmResult,
+			SendError, SendResult, SendXcm,
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
 			VERSION as XCM_VERSION,
-			QueryId,
 		};
 	}
 	pub use super::{Instruction, Xcm};
@@ -597,12 +596,17 @@ pub enum Instruction<Call> {
 	/// Ask the destination system to respond with the most recent version of XCM that they
 	/// support in a `QueryResponse` instruction. Any changes to this should also ellicit similar
 	/// responses when they happen.
-	/// 
+	///
 	/// Kind: *Instruction*
-	SubscribeVersion { #[codec(compact)] query_id: QueryId, #[codec(compact)] max_response_weight: u64 },
+	SubscribeVersion {
+		#[codec(compact)]
+		query_id: QueryId,
+		#[codec(compact)]
+		max_response_weight: u64,
+	},
 
 	/// Cancel the effect of a previous `SubscribeVersion` instruction.
-	/// 
+	///
 	/// Kind: *Instruction*
 	UnsubscribeVersion,
 }
@@ -659,7 +663,8 @@ impl<Call> Instruction<Call> {
 			ClearError => ClearError,
 			ClaimAsset { assets, ticket } => ClaimAsset { assets, ticket },
 			Trap(code) => Trap(code),
-			SubscribeVersion { query_id, max_response_weight } => SubscribeVersion { query_id, max_response_weight },
+			SubscribeVersion { query_id, max_response_weight } =>
+				SubscribeVersion { query_id, max_response_weight },
 			UnsubscribeVersion => UnsubscribeVersion,
 		}
 	}

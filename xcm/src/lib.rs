@@ -440,11 +440,10 @@ pub type AlwaysLatest = AlwaysV1;
 pub type AlwaysRelease = AlwaysV0;
 
 pub mod prelude {
-	pub use super::latest::prelude::*;
 	pub use super::{
-		VersionedXcm, VersionedMultiAsset, VersionedMultiAssets, VersionedMultiLocation,
-		VersionedResponse, Version as XcmVersion, IntoVersion, Unsupported,
-		WrapVersion, AlwaysLatest, AlwaysRelease, AlwaysV0, AlwaysV1, AlwaysV2, 
+		latest::prelude::*, AlwaysLatest, AlwaysRelease, AlwaysV0, AlwaysV1, AlwaysV2, IntoVersion,
+		Unsupported, Version as XcmVersion, VersionedMultiAsset, VersionedMultiAssets,
+		VersionedMultiLocation, VersionedResponse, VersionedXcm, WrapVersion,
 	};
 }
 

@@ -52,8 +52,10 @@ pub mod pallet {
 	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
 	use xcm_executor::{
 		traits::{
-    		ClaimAssets, DropAssets, InvertLocation, OnResponse, WeightBounds, VersionChangeNotifier
-		}, Assets,
+			ClaimAssets, DropAssets, InvertLocation, OnResponse, VersionChangeNotifier,
+			WeightBounds,
+		},
+		Assets,
 	};
 
 	#[pallet::pallet]
@@ -178,12 +180,12 @@ pub mod pallet {
 		/// \[ hash, origin, assets \]
 		AssetsTrapped(H256, MultiLocation, VersionedMultiAssets),
 		/// An XCM version change notification message has been attempted to be sent.
-		/// 
+		///
 		/// \[ destination, result \]
 		VersionChangeNotified(MultiLocation, XcmResult),
 		/// The supported version of a location has been changed. This might be through an
 		/// automatic notification or a manual intervention.
-		/// 
+		///
 		/// \[ location, xcm_version \]
 		SupportedVersionChanged(MultiLocation, XcmVersion),
 	}
@@ -241,10 +243,7 @@ pub mod pallet {
 			timeout: BlockNumber,
 		},
 		/// The query is for an ongoing version notification subscription.
-		VersionNotifier {
-			origin: VersionedMultiLocation,
-			is_active: bool,
-		},
+		VersionNotifier { origin: VersionedMultiLocation, is_active: bool },
 		/// A response has been received.
 		Ready { response: VersionedResponse, at: BlockNumber },
 	}
@@ -279,24 +278,45 @@ pub mod pallet {
 	pub(super) type AssetTraps<T: Config> = StorageMap<_, Identity, H256, u32, ValueQuery>;
 
 	/// Default version to encode XCM when latest version of destination is unknown. If `None`,
-	/// then the destinations whose XCM version is unknown are considered unreachable. 
+	/// then the destinations whose XCM version is unknown are considered unreachable.
 	#[pallet::storage]
 	pub(super) type SafeXcmVersion<T: Config> = StorageValue<_, XcmVersion, OptionQuery>;
 
 	/// Latest versions that we know various locations support.
 	#[pallet::storage]
-	pub(super) type SupportedVersion<T: Config> =
-		StorageDoubleMap<_, Twox64Concat, XcmVersion, Blake2_128Concat, VersionedMultiLocation, XcmVersion, OptionQuery>;
-	
-	/// All locations that we have requested verison notifications from.
+	pub(super) type SupportedVersion<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		XcmVersion,
+		Blake2_128Concat,
+		VersionedMultiLocation,
+		XcmVersion,
+		OptionQuery,
+	>;
+
+	/// All locations that we have requested version notifications from.
 	#[pallet::storage]
-	pub(super) type VersionNotifiers<T: Config> =
-		StorageDoubleMap<_, Twox64Concat, XcmVersion, Blake2_128Concat, VersionedMultiLocation, QueryId, OptionQuery>;
+	pub(super) type VersionNotifiers<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		XcmVersion,
+		Blake2_128Concat,
+		VersionedMultiLocation,
+		QueryId,
+		OptionQuery,
+	>;
 
 	/// Latest versions that we know various locations support.
 	#[pallet::storage]
-	pub(super) type VersionNotifyTargets<T: Config> =
-		StorageDoubleMap<_, Twox64Concat, XcmVersion, Blake2_128Concat, VersionedMultiLocation, (QueryId, u64), OptionQuery>;
+	pub(super) type VersionNotifyTargets<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		XcmVersion,
+		Blake2_128Concat,
+		VersionedMultiLocation,
+		(QueryId, u64),
+		OptionQuery,
+	>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -315,14 +335,21 @@ pub mod pallet {
 				let response = Response::Version(XCM_VERSION);
 				for (old_key, value) in VersionNotifyTargets::<T>::drain_prefix(v) {
 					if let Ok(new_key) = MultiLocation::try_from(old_key) {
-						VersionNotifyTargets::<T>::insert(XCM_VERSION, LatestVersionedMultiLocation(&new_key), value);
+						VersionNotifyTargets::<T>::insert(
+							XCM_VERSION,
+							LatestVersionedMultiLocation(&new_key),
+							value,
+						);
 						let instruction = QueryResponse {
 							query_id: value.0,
 							response: response.clone(),
 							max_weight: value.1,
 						};
 						let r = T::XcmRouter::send_xcm(new_key.clone(), Xcm(vec![instruction]));
-						Self::deposit_event(Event::VersionChangeNotified(new_key, r.map_err(Into::into)));
+						Self::deposit_event(Event::VersionChangeNotified(
+							new_key,
+							r.map_err(Into::into),
+						));
 					}
 				}
 			}
@@ -523,11 +550,11 @@ pub mod pallet {
 
 		/// Extoll that a particular destination can be communicated with through a particular
 		/// version of XCM.
-		/// 
+		///
 		/// - `origin`: Must be Root.
 		/// - `location`: The destination that is being described.
 		/// - `xcm_version`: The latest version of XCM that `location` supports.
-		/// 
+		///
 		/// Errors:
 		/// - `BadLocation`: If the `location` cannot be expressed with the XCM version used by this
 		///   chain.
@@ -538,14 +565,18 @@ pub mod pallet {
 			xcm_version: XcmVersion,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			SupportedVersion::<T>::insert(XCM_VERSION, LatestVersionedMultiLocation(&location), xcm_version);
+			SupportedVersion::<T>::insert(
+				XCM_VERSION,
+				LatestVersionedMultiLocation(&location),
+				xcm_version,
+			);
 			Self::deposit_event(Event::SupportedVersionChanged(location, xcm_version));
 			Ok(())
 		}
 
 		/// Set a safe XCM version (the version that XCM should be encoded with if the most recent
 		/// version a destination can accept is unknown).
-		/// 
+		///
 		/// - `origin`: Must be Root.
 		/// - `maybe_xcm_version`: The default XCM encoding version, or `None` to disable.
 		#[pallet::weight(100_000_000u64)]
@@ -567,15 +598,13 @@ pub mod pallet {
 				*q += 1;
 				r
 			});
-			// TODO: Correct weight.
+			// TODO #3735: Correct weight.
 			let instruction = SubscribeVersion { query_id, max_response_weight: 0 };
 			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![instruction]))?;
 			let versioned_dest = VersionedMultiLocation::from(dest);
 			VersionNotifiers::<T>::insert(XCM_VERSION, &versioned_dest, query_id);
-			let query_status = QueryStatus::VersionNotifier {
-				origin: versioned_dest,
-				is_active: false,
-			};
+			let query_status =
+				QueryStatus::VersionNotifier { origin: versioned_dest, is_active: false };
 			Queries::<T>::insert(query_id, query_status);
 			Ok(())
 		}
@@ -593,7 +622,7 @@ pub mod pallet {
 		// TODO: Barriers to let through Subscribe/UnsubscribeVersion single instruction messages.
 		// TODO: Weight for Subscribe/UnsubscribeVersion should be high to ensure non-first-class
 		//   locations can use them.
-		
+
 		/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
 		/// location. A null `dest` is not handled.
 		pub fn send_xcm(
@@ -725,21 +754,24 @@ pub mod pallet {
 	}
 
 	impl<T: Config> WrapVersion for Pallet<T> {
-		fn wrap_version<Call>(dest: &MultiLocation, xcm: impl Into<VersionedXcm<Call>>) -> Result<VersionedXcm<Call>, ()> {
+		fn wrap_version<Call>(
+			dest: &MultiLocation,
+			xcm: impl Into<VersionedXcm<Call>>,
+		) -> Result<VersionedXcm<Call>, ()> {
 			SupportedVersion::<T>::get(XCM_VERSION, LatestVersionedMultiLocation(dest))
-			.or_else(SafeXcmVersion::<T>::get)
-			.ok_or(())
-			.and_then(|v| xcm.into().into_version(v))
+				.or_else(SafeXcmVersion::<T>::get)
+				.ok_or(())
+				.and_then(|v| xcm.into().into_version(v))
 		}
 	}
 
 	impl<T: Config> VersionChangeNotifier for Pallet<T> {
 		/// Start notifying `location` should the XCM version of this chain change.
-		/// 
+		///
 		/// When it does, this type should ensure an `QueryResponse` message is sent with the given
 		/// `query_id` & `max_weight` and with a `response` of `Repsonse::Version`. This should happen
 		/// until/unless `stop` is called with the correct `query_id`.
-		/// 
+		///
 		/// If the `location` has an ongoing notification and when this function is called, then an
 		/// error should be returned.
 		fn start(dest: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult {
@@ -749,7 +781,7 @@ pub mod pallet {
 			VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_dest, (query_id, max_weight));
 			Ok(())
 		}
-	
+
 		/// Stop notifying `location` should the XCM change. Returns an error if there is no existing
 		/// notification set up.
 		fn stop(dest: &MultiLocation) -> XcmResult {
@@ -815,7 +847,10 @@ pub mod pallet {
 			max_weight: Weight,
 		) -> Weight {
 			match (response, Queries::<T>::get(query_id)) {
-				(Response::Version(v), Some(QueryStatus::VersionNotifier { origin: expected_origin, is_active })) => {
+				(
+					Response::Version(v),
+					Some(QueryStatus::VersionNotifier { origin: expected_origin, is_active }),
+				) => {
 					let origin: MultiLocation = match expected_origin.try_into() {
 						Ok(o) if &o == origin => o,
 						Ok(o) => {
@@ -824,7 +859,7 @@ pub mod pallet {
 								query_id,
 								Some(o),
 							));
-							return 0;
+							return 0
 						},
 						_ => {
 							Self::deposit_event(Event::InvalidResponder(
@@ -832,16 +867,26 @@ pub mod pallet {
 								query_id,
 								None,
 							));
-							// TODO: Correct weight for this.
-							return 0;
+							// TODO #3735: Correct weight for this.
+							return 0
 						},
 					};
-					// TODO: Check max_weight is correct.
+					// TODO #3735: Check max_weight is correct.
 					if !is_active {
-						Queries::<T>::insert(query_id, QueryStatus::VersionNotifier { origin: origin.clone().into(), is_active: true });
+						Queries::<T>::insert(
+							query_id,
+							QueryStatus::VersionNotifier {
+								origin: origin.clone().into(),
+								is_active: true,
+							},
+						);
 					}
 					// We're being notified of a version change.
-					SupportedVersion::<T>::insert(XCM_VERSION, LatestVersionedMultiLocation(&origin), v);
+					SupportedVersion::<T>::insert(
+						XCM_VERSION,
+						LatestVersionedMultiLocation(&origin),
+						v,
+					);
 					Self::deposit_event(Event::SupportedVersionChanged(origin, v));
 					0
 				},
@@ -849,9 +894,12 @@ pub mod pallet {
 					let responder = match MultiLocation::try_from(responder) {
 						Ok(r) => r,
 						Err(_) => {
-							Self::deposit_event(Event::InvalidResponderVersion(origin.clone(), query_id));
-							return 0;
-						}
+							Self::deposit_event(Event::InvalidResponderVersion(
+								origin.clone(),
+								query_id,
+							));
+							return 0
+						},
 					};
 					if origin != &responder {
 						Self::deposit_event(Event::InvalidResponder(
@@ -859,7 +907,7 @@ pub mod pallet {
 							query_id,
 							Some(responder),
 						));
-						return 0;
+						return 0
 					}
 					return match maybe_notify {
 						Some((pallet_index, call_index)) => {
@@ -867,9 +915,9 @@ pub mod pallet {
 							// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
 							// So we just encode that and then re-encode to a real Call.
 							let bare = (pallet_index, call_index, query_id, response);
-							if let Ok(call) = bare.using_encoded(|mut bytes| {
-								<T as Config>::Call::decode(&mut bytes)
-							}) {
+							if let Ok(call) = bare
+								.using_encoded(|mut bytes| <T as Config>::Call::decode(&mut bytes))
+							{
 								Queries::<T>::remove(query_id);
 								let weight = call.get_dispatch_info().weight;
 								if weight > max_weight {
@@ -886,8 +934,7 @@ pub mod pallet {
 								let dispatch_origin = Origin::Response(origin.clone()).into();
 								match call.dispatch(dispatch_origin) {
 									Ok(post_info) => {
-										let e =
-											Event::Notified(query_id, pallet_index, call_index);
+										let e = Event::Notified(query_id, pallet_index, call_index);
 										Self::deposit_event(e);
 										post_info.actual_weight
 									},
@@ -905,11 +952,8 @@ pub mod pallet {
 								}
 								.unwrap_or(weight)
 							} else {
-								let e = Event::NotifyDecodeFailed(
-									query_id,
-									pallet_index,
-									call_index,
-								);
+								let e =
+									Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
 								Self::deposit_event(e);
 								0
 							}
@@ -923,11 +967,11 @@ pub mod pallet {
 							0
 						},
 					}
-				}
+				},
 				_ => {
 					Self::deposit_event(Event::UnexpectedResponse(origin.clone(), query_id));
-					return 0;
-				}
+					return 0
+				},
 			}
 		}
 	}

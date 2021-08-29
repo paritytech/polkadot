@@ -26,13 +26,13 @@ use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{
 	Error as XcmError, ExecuteXcm,
 	Instruction::{self, *},
-	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm, VERSION as XCM_VERSION
+	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm, VERSION as XCM_VERSION,
 };
 
 pub mod traits;
 use traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, WeightBounds, WeightTrader, VersionChangeNotifier,
+	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -426,11 +426,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let response = Response::Version(XCM_VERSION);
 				let instruction = QueryResponse { query_id, response, max_weight };
 				Config::XcmSender::send_xcm(origin, Xcm(vec![instruction])).map_err(Into::into)
-			}
+			},
 			UnsubscribeVersion => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
 				Config::SubscriptionService::stop(origin)
-			}
+			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
