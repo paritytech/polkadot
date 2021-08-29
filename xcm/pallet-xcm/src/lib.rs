@@ -561,10 +561,11 @@ pub mod pallet {
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_xcm_version(
 			origin: OriginFor<T>,
-			location: MultiLocation,
+			location: Box<MultiLocation>,
 			xcm_version: XcmVersion,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+			let location = *location;
 			SupportedVersion::<T>::insert(
 				XCM_VERSION,
 				LatestVersionedMultiLocation(&location),
