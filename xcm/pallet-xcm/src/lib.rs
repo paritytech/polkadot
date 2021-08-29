@@ -186,7 +186,7 @@ pub mod pallet {
 		/// The supported version of a location has been changed. This might be through an
 		/// automatic notification or a manual intervention.
 		///
-		/// \[ location, xcm_version \]
+		/// \[ location, XCM version \]
 		SupportedVersionChanged(MultiLocation, XcmVersion),
 	}
 
