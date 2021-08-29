@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::weights::Weight;
-use xcm::latest::{MultiLocation, Response, QueryId, Result as XcmResult};
+use xcm::latest::{MultiLocation, Response, QueryId, Result as XcmResult, Error as XcmError};
 
 /// Define what needs to be done upon receiving a query response.
 pub trait OnResponse {
@@ -58,4 +58,13 @@ pub trait VersionChangeNotifier {
 	/// Stop notifying `location` should the XCM change. Returns an error if there is no existing
 	/// notification set up.
 	fn stop(location: &MultiLocation) -> XcmResult;
+}
+
+impl VersionChangeNotifier for () {
+	fn start(_: &MultiLocation, _: QueryId, _: u64) -> XcmResult {
+		Err(XcmError::Unimplemented)
+	}
+	fn stop(_: &MultiLocation) -> XcmResult {
+		Err(XcmError::Unimplemented)
+	}
 }

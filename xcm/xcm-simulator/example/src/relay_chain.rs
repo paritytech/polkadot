@@ -135,6 +135,7 @@ impl Config for XcmConfig {
 	type ResponseHandler = ();
 	type AssetTrap = ();
 	type AssetClaims = ();
+	type SubscriptionService = ();
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;

@@ -145,6 +145,7 @@ impl Config for XcmConfig {
 	type ResponseHandler = ();
 	type AssetTrap = ();
 	type AssetClaims = ();
+	type SubscriptionService = ();
 }
 
 #[frame_support::pallet]
