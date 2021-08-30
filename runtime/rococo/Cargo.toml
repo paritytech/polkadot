@@ -7,7 +7,7 @@ build = "build.rs"
 
 [dependencies]
 parity-scale-codec = { version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
-serde = { version = "1.0.123", default-features = false }
+serde = { version = "1.0.130", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.6.1"
 hex-literal = "0.3.3"
