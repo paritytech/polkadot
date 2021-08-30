@@ -85,13 +85,7 @@ where
 					.unbounded_send((sender.clone(), hash, candidate_receipt.clone()))
 					.unwrap();
 
-				Some(FromOverseer::Communication {
-					msg: CandidateBackingMessage::Second(
-						hash,
-						candidate_receipt,
-						PoV { block_data: BlockData(MALICIOUS_POV.to_vec()) },
-					),
-				})
+				None
 			},
 			other => Some(other),
 		}
