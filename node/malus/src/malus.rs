@@ -29,6 +29,7 @@ use variants::*;
 
 /// Define the different variants of behavior.
 #[derive(Debug, StructOpt, PartialEq, Eq)]
+#[structopt(rename_all = "kebab-case")]
 enum NemesisVariant {
     BackGarbageCandidate,
     SuggestGarabageCandidate,
@@ -75,7 +76,9 @@ mod tests {
 
     #[test]
     fn subcommand_works() {
-        let cli = MalusCli::from_iter_safe(IntoIterator::into_iter(["malus", "dispute-ancestor"])).unwrap();
+        let cli = MalusCli::from_iter_safe(IntoIterator::into_iter(
+            ["malus", "dispute-ancestor", "--alice"]
+        )).unwrap();
         assert_matches::assert_matches!(cli, MalusCli {
             variant,
             ..
