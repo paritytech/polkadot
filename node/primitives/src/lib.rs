@@ -304,6 +304,13 @@ impl Proof {
 	pub fn as_vec(&self) -> Vec<Vec<u8>> {
 		self.0.as_vec().iter().map(|v| v.as_vec().clone()).collect()
 	}
+
+	/// Construct an invalid dummy proof
+	///
+	/// Useful for testing, should absolutely not be used in production.
+	pub fn dummy_proof() -> Proof {
+		Proof(BoundedVec::from_vec(vec![BoundedVec::from_vec(vec![0]).unwrap()]).unwrap())
+	}
 }
 
 #[derive(thiserror::Error, Debug)]
