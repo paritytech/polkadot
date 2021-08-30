@@ -51,17 +51,24 @@ use structopt::StructOpt;
 #[derive(Clone, Default, Debug)]
 struct Skippy(Arc<AtomicUsize>);
 
-impl MsgFilter for Skippy {
+impl<Sender> MessageInterceptor<Sender> for Skippy
+where
+	Sender: SubsystemSender<AllMessages> + SubsystemSender<Self::Message> + Clone + 'static,
+{
 	type Message = CandidateValidationMessage;
 
-	fn filter_in(&self, msg: FromOverseer<Self::Message>) -> Option<FromOverseer<Self::Message>> {
+	fn intercept_incoming(
+		&self,
+		_sender: &mut S,
+		msg: FromOverseer<Self::Message>,
+	) -> Option<FromOverseer<Self::Message>> {
 		if self.0.fetch_add(1, Ordering::Relaxed) % 2 == 0 {
 			Some(msg)
 		} else {
 			None
 		}
 	}
-	fn filter_out(&self, msg: AllMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(&self, _sender: &mut S, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
