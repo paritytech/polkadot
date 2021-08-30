@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{mock::*, AssetTraps, Error, QueryStatus, Queries, VersionNotifiers, LatestVersionedMultiLocation};
+use crate::{
+	mock::*, AssetTraps, Error, LatestVersionedMultiLocation, Queries, QueryStatus,
+	VersionNotifiers,
+};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use sp_runtime::traits::{BlakeTwo256, Hash};
@@ -394,24 +397,24 @@ fn basic_subscription_works() {
 			Box::new(remote.clone().into()),
 		));
 
-		assert_eq!(Queries::<Test>::iter().collect::<Vec<_>>(), vec![
-			(0, QueryStatus::VersionNotifier {
-				origin: remote.clone().into(),
-				is_active: false,
-			})
-		]);
-		assert_eq!(VersionNotifiers::<Test>::iter().collect::<Vec<_>>(), vec![
-			(2, remote.clone().into(), 0)
-		]);
+		assert_eq!(
+			Queries::<Test>::iter().collect::<Vec<_>>(),
+			vec![(
+				0,
+				QueryStatus::VersionNotifier { origin: remote.clone().into(), is_active: false }
+			)]
+		);
+		assert_eq!(
+			VersionNotifiers::<Test>::iter().collect::<Vec<_>>(),
+			vec![(2, remote.clone().into(), 0)]
+		);
 
 		assert_eq!(
 			take_sent_xcm(),
-			vec![
-				(
-					remote.clone(),
-					Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
-				),
-			]
+			vec![(
+				remote.clone(),
+				Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
+			),]
 		);
 
 		let weight = BaseXcmWeight::get();
@@ -485,12 +488,10 @@ fn unsubscribe_works() {
 			Origin::root(),
 			Box::new(remote.clone().into()),
 		));
-		assert_ok!(
-			XcmPallet::force_unsubscribe_version_notify(
-				Origin::root(),
-				Box::new(remote.clone().into())
-			)
-		);
+		assert_ok!(XcmPallet::force_unsubscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into())
+		));
 		assert_noop!(
 			XcmPallet::force_unsubscribe_version_notify(
 				Origin::root(),
@@ -506,10 +507,7 @@ fn unsubscribe_works() {
 					remote.clone(),
 					Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
 				),
-				(
-					remote.clone(),
-					Xcm(vec![UnsubscribeVersion]),
-				),
+				(remote.clone(), Xcm(vec![UnsubscribeVersion]),),
 			]
 		);
 	});
@@ -553,4 +551,3 @@ fn subscriber_side_subscription_works() {
 		);
 	});
 }
-
