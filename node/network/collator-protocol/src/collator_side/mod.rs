@@ -70,6 +70,10 @@ const COST_APPARENT_FLOOD: Rep =
 /// the transfer should be possible within 0.1 seconds. 400 milliseconds should therefore be
 /// plenty and should be low enough for later validators to still be able to finish on time.
 ///
+/// NOTE: We choose a smaller timeout here, as all validators in the backing group will need the
+/// PoV anyway, so a parallel upload is not necessarily wasteful here. The situation is differently
+/// on the validator side, where we pick a slightly larger timeout.
+///
 /// There is debug logging output, so we can adjust this value based on production results.
 const MAX_UNSHARED_UPLOAD_TIME: Duration = Duration::from_millis(400);
 

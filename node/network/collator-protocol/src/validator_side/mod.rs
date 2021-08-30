@@ -80,12 +80,15 @@ const BENEFIT_NOTIFY_GOOD: Rep =
 /// This is to protect from a single slow collator preventing collations from happening.
 ///
 /// With a collation size of 5MB and bandwidth of 500Mbit/s (requirement for Kusama validators),
-/// the transfer should be possible within 0.1 seconds. 400 milliseconds should therefore be
+/// the transfer should be possible within 0.1 seconds. 600 milliseconds should therefore be
 /// plenty, even with multiple heads and should be low enough for later collators to still be able
 /// to finish on time.
 ///
+/// We pick a larger timeout here, as parallel downloads here are purely wasteful (we will only
+/// ever second one collation per block).
+///
 /// There is debug logging output, so we can adjust this value based on production results.
-const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(400);
+const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(600);
 
 // How often to check all peers with activity.
 #[cfg(not(test))]
@@ -1187,7 +1190,7 @@ where
 				tracing::debug!(
 					target: LOG_TARGET,
 					?relay_parent,
-					"Fetch for collation took too long, starting parallel download for next collator as well."
+					"Fetching collation took too long, starting parallel download for next collator as well."
 				);
 				dequeue_next_collation_and_fetch(&mut ctx, &mut state, relay_parent, collator_id).await;
 			}
