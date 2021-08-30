@@ -490,7 +490,7 @@ where
 			// error should be unreachable.
 			let error_message =
 				"Validation host failed to find artifact even though it was supplied";
-			tracing::error!(target: LOG_TARGET, error_message,);
+			tracing::error!(target: LOG_TARGET, error_message);
 			Err(ValidationFailed(error_message.to_string()))
 		},
 		Ok(res) =>
