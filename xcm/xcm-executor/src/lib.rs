@@ -88,12 +88,9 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			return Outcome::Error(XcmError::WeightLimitReached(xcm_weight))
 		}
 
-		if let Err(_) = Config::Barrier::should_execute(
-			&origin,
-			&mut message,
-			xcm_weight,
-			&mut weight_credit,
-		) {
+		if let Err(_) =
+			Config::Barrier::should_execute(&origin, &mut message, xcm_weight, &mut weight_credit)
+		{
 			return Outcome::Error(XcmError::Barrier)
 		}
 

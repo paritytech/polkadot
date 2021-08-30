@@ -25,7 +25,10 @@ mod tests;
 
 use codec::{Decode, Encode, EncodeLike};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
-use sp_runtime::{traits::{BadOrigin, Saturating}, RuntimeDebug};
+use sp_runtime::{
+	traits::{BadOrigin, Saturating},
+	RuntimeDebug,
+};
 use sp_std::{
 	boxed::Box,
 	convert::{TryFrom, TryInto},
@@ -347,7 +350,7 @@ pub mod pallet {
 			while let Some((versioned_dest, _)) = q.pop() {
 				if let Ok(dest) = versioned_dest.try_into() {
 					if Self::request_version_notify(dest).is_ok() {
-						break;
+						break
 					}
 				}
 			}
