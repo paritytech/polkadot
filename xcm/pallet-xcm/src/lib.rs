@@ -25,7 +25,7 @@ mod tests;
 
 use codec::{Decode, Encode, EncodeLike};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
-use sp_runtime::{traits::BadOrigin, RuntimeDebug};
+use sp_runtime::{traits::{BadOrigin, Saturating}, RuntimeDebug};
 use sp_std::{
 	boxed::Box,
 	convert::{TryFrom, TryInto},
@@ -106,6 +106,9 @@ pub mod pallet {
 			+ GetDispatchInfo
 			+ IsType<<Self as frame_system::Config>::Call>
 			+ Dispatchable<Origin = <Self as Config>::Origin, PostInfo = PostDispatchInfo>;
+
+		/// The maximum number of items that we can store in the version discovery queue.
+		type VersionDiscoveryQueueSize: Get<u32>;
 	}
 
 	/// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
@@ -325,8 +328,37 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
+	/// Destinations whose latest XCM version we would like to know. Duplicates allowed. The block
+	/// number is the most recent block which pushed to it.
+	#[pallet::storage]
+	pub(super) type VersionDiscoveryQueue<T: Config> = StorageValue<
+		_,
+		BoundedVec<(VersionedMultiLocation, u32), T::VersionDiscoveryQueueSize>,
+		ValueQuery,
+	>;
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+			// Here we aim to get one successful version negotiation request sent per block, ordered
+			// by the destinations being most sent to.
+			let mut q = VersionDiscoveryQueue::<T>::get().into_inner();
+			q.sort_by_key(|i| i.1);
+			while let Some((versioned_dest, _)) = q.pop() {
+				if let Ok(dest) = versioned_dest.try_into() {
+					if Self::request_version_notify(dest).is_ok() {
+						break;
+					}
+				}
+			}
+			// Should never fail since we only removed items. But better safe than panicking as it's
+			// way better to drop the queue than panic on initialize.
+			if let Ok(q) = BoundedVec::try_from(q) {
+				VersionDiscoveryQueue::<T>::put(q);
+			}
+			// TODO: correct weight.
+			0
+		}
 		fn on_runtime_upgrade() -> Weight {
 			for v in 0..XCM_VERSION {
 				for (old_key, value) in SupportedVersion::<T>::drain_prefix(v) {
@@ -798,6 +830,20 @@ pub mod pallet {
 				None
 			}
 		}
+
+		/// Note that a particular destination to whom we would like to send a message is unknown
+		/// and queue it for version discovery.
+		fn note_unknown_version(dest: &MultiLocation) {
+			let versioned_dest = VersionedMultiLocation::from(dest.clone());
+			VersionDiscoveryQueue::<T>::mutate(|q| {
+				if let Some(index) = q.iter().position(|i| &i.0 == &versioned_dest) {
+					// exists - just bump the count.
+					q[index].1.saturating_inc();
+				} else {
+					let _ = q.try_push((versioned_dest, 0));
+				}
+			});
+		}
 	}
 
 	impl<T: Config> WrapVersion for Pallet<T> {
@@ -806,7 +852,10 @@ pub mod pallet {
 			xcm: impl Into<VersionedXcm<Call>>,
 		) -> Result<VersionedXcm<Call>, ()> {
 			SupportedVersion::<T>::get(XCM_VERSION, LatestVersionedMultiLocation(dest))
-				.or_else(SafeXcmVersion::<T>::get)
+				.or_else(|| {
+					Self::note_unknown_version(dest);
+					SafeXcmVersion::<T>::get()
+				})
 				.ok_or(())
 				.and_then(|v| xcm.into().into_version(v))
 		}

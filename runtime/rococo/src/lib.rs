@@ -689,6 +689,10 @@ pub type LocalOriginToLocation = (
 	SignedToAccountId32<Origin, AccountId, RococoNetwork>,
 );
 
+parameter_types! {
+	pub const VersionDiscoveryQueueSize: u32 = 100;
+}
+
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
@@ -704,6 +708,7 @@ impl pallet_xcm::Config for Runtime {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type Call = Call;
+	type VersionDiscoveryQueueSize = VersionDiscoveryQueueSize;
 }
 
 impl parachains_session_info::Config for Runtime {}
