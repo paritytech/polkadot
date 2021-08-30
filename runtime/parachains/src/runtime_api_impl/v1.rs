@@ -289,7 +289,7 @@ where
 {
 	use inclusion::Event as RawEvent;
 
-	<frame_system::Pallet<T>>::events()
+	<frame_system::Pallet<T>>::read_events_no_consensus()
 		.into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
