@@ -37,7 +37,7 @@ where
 	///
 	/// For non-trivial cases, the `sender` can be used to send
 	/// multiple messages after doing some additional processing.
-	fn filter_in(
+	fn intercept_incoming(
 		&self,
 		_sender: &mut Sender,
 		msg: FromOverseer<Self::Message>,
@@ -46,7 +46,7 @@ where
 	}
 
 	/// Modify outgoing messages.
-	fn filter_out(&self, msg: AllMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
@@ -66,7 +66,7 @@ where
 	Fil: MessageInterceptor<Sender>,
 {
 	async fn send_message(&mut self, msg: AllMessages) {
-		if let Some(msg) = self.message_filter.filter_out(msg) {
+		if let Some(msg) = self.message_filter.intercept_outgoing(msg) {
 			self.inner.send_message(msg).await;
 		}
 	}
@@ -82,7 +82,7 @@ where
 	}
 
 	fn send_unbounded_message(&mut self, msg: AllMessages) {
-		if let Some(msg) = self.message_filter.filter_out(msg) {
+		if let Some(msg) = self.message_filter.intercept_outgoing(msg) {
 			self.inner.send_unbounded_message(msg);
 		}
 	}
@@ -147,7 +147,7 @@ where
 			match self.inner.try_recv().await? {
 				None => return Ok(None),
 				Some(msg) =>
-					if let Some(msg) = self.message_filter.filter_in(self.inner.sender(), msg) {
+					if let Some(msg) = self.message_filter.intercept_incoming(self.inner.sender(), msg) {
 						return Ok(Some(msg))
 					},
 			}
@@ -157,7 +157,7 @@ where
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message>> {
 		loop {
 			let msg = self.inner.recv().await?;
-			if let Some(msg) = self.message_filter.filter_in(self.inner.sender(), msg) {
+			if let Some(msg) = self.message_filter.intercept_incoming(self.inner.sender(), msg) {
 				return Ok(msg)
 			}
 		}

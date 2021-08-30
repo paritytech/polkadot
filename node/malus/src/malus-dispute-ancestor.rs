@@ -68,7 +68,7 @@ where
 {
 	type Message = CandidateBackingMessage;
 
-	fn filter_in(
+	fn intercept_incoming(
 		&self,
 		sender: &mut Sender,
 		msg: FromOverseer<Self::Message>,
@@ -93,7 +93,7 @@ where
 		}
 	}
 
-	fn filter_out(&self, msg: AllMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
