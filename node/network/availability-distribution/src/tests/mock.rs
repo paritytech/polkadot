@@ -16,12 +16,12 @@
 
 //! Helper functions and tools to generate mock data useful for testing this subsystem.
 
-use std::sync::Arc;
+use std::{convert::TryFrom, sync::Arc};
 
 use sp_keyring::Sr25519Keyring;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
-use polkadot_node_primitives::{AvailableData, BlockData, ErasureChunk, PoV};
+use polkadot_node_primitives::{AvailableData, BlockData, ErasureChunk, PoV, Proof};
 use polkadot_primitives::v1::{
 	CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
 	GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore, PersistedValidationData, SessionInfo,
@@ -139,7 +139,7 @@ pub fn get_valid_chunk_data(pov: PoV) -> (Hash, ErasureChunk) {
 		.map(|(index, (proof, chunk))| ErasureChunk {
 			chunk: chunk.to_vec(),
 			index: ValidatorIndex(index as _),
-			proof,
+			proof: Proof::try_from(proof).unwrap(),
 		})
 		.next()
 		.expect("There really should be 10 chunks.");

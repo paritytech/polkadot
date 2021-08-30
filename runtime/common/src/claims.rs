@@ -773,7 +773,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const MinVestedTransfer: u64 = 0;
+		pub const MinVestedTransfer: u64 = 1;
 	}
 
 	impl pallet_vesting::Config for Test {
@@ -782,6 +782,7 @@ mod tests {
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
 		type WeightInfo = ();
+		const MAX_VESTING_SCHEDULES: u32 = 28;
 	}
 
 	parameter_types! {
@@ -1043,7 +1044,7 @@ mod tests {
 	}
 
 	#[test]
-	fn invalid_attest_transactions_are_recognised() {
+	fn invalid_attest_transactions_are_recognized() {
 		new_test_ext().execute_with(|| {
 			let p = PrevalidateAttests::<Test>::new();
 			let c = Call::Claims(ClaimsCall::attest(StatementKind::Regular.to_text().to_vec()));
