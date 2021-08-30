@@ -31,6 +31,7 @@ use sp_std::{
 	convert::{TryFrom, TryInto},
 	marker::PhantomData,
 	prelude::*,
+	result::Result,
 	vec,
 };
 use xcm::{
@@ -50,8 +51,12 @@ pub mod pallet {
 		pallet_prelude::*,
 	};
 	use frame_system::{pallet_prelude::*, Config as SysConfig};
-	use sp_runtime::traits::{AccountIdConversion, BlockNumberProvider};
-	use xcm_executor::traits::{InvertLocation, OnResponse, WeightBounds};
+	use sp_core::H256;
+	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
+	use xcm_executor::{
+		traits::{ClaimAssets, DropAssets, InvertLocation, OnResponse, WeightBounds},
+		Assets,
+	};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -170,6 +175,10 @@ pub mod pallet {
 		///
 		/// \[ id \]
 		ResponseTaken(QueryId),
+		/// Some assets have been placed in an asset trap.
+		///
+		/// \[ hash, origin, assets \]
+		AssetsTrapped(H256, MultiLocation, VersionedMultiAssets),
 	}
 
 	#[pallet::origin]
@@ -198,6 +207,8 @@ pub mod pallet {
 		Filtered,
 		/// The message's weight could not be determined.
 		UnweighableMessage,
+		/// The destination `MultiLocation` provided cannot be inverted.
+		DestinationNotInvertible,
 		/// The assets to be sent are empty.
 		Empty,
 		/// Could not re-anchor the assets to declare the fees for the destination chain.
@@ -235,6 +246,14 @@ pub mod pallet {
 	#[pallet::getter(fn query)]
 	pub(super) type Queries<T: Config> =
 		StorageMap<_, Blake2_128Concat, QueryId, QueryStatus<T::BlockNumber>, OptionQuery>;
+
+	/// The existing asset traps.
+	///
+	/// Key is the blake2 256 hash of (origin, versioned `MultiAssets`) pair. Value is the number of
+	/// times this pair has been trapped (usually just 1 if it exists at all).
+	#[pallet::storage]
+	#[pallet::getter(fn asset_trap)]
+	pub(super) type AssetTraps<T: Config> = StorageMap<_, Identity, H256, u32, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -306,7 +325,8 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest);
+			let inv_dest = T::LocationInverter::invert_location(&dest)
+				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
 			let fees = assets
 				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
@@ -376,7 +396,8 @@ pub mod pallet {
 			let value = (origin_location, assets.drain());
 			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
 			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest);
+			let inv_dest = T::LocationInverter::invert_location(&dest)
+				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
 			let fees = assets
 				.get(fee_asset_item as usize)
 				.ok_or(Error::<T>::Empty)?
@@ -475,18 +496,21 @@ pub mod pallet {
 		/// - `timeout`: The block number after which it is permissible for `notify` not to be
 		///   called even if a response is received.
 		///
+		/// `report_outcome` may return an error if the `responder` is not invertible.
+		///
 		/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
 		/// value.
 		pub fn report_outcome(
 			message: &mut Xcm<()>,
 			responder: MultiLocation,
 			timeout: T::BlockNumber,
-		) -> QueryId {
-			let dest = T::LocationInverter::invert_location(&responder);
+		) -> Result<QueryId, XcmError> {
+			let dest = T::LocationInverter::invert_location(&responder)
+				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 			let query_id = Self::new_query(responder, timeout);
 			let report_error = Xcm(vec![ReportError { dest, query_id, max_response_weight: 0 }]);
 			message.0.insert(0, SetAppendix(report_error));
-			query_id
+			Ok(query_id)
 		}
 
 		/// Consume `message` and return another which is equivalent to it except that it reports
@@ -502,6 +526,8 @@ pub mod pallet {
 		/// - `timeout`: The block number after which it is permissible for `notify` not to be
 		///   called even if a response is received.
 		///
+		/// `report_outcome_notify` may return an error if the `responder` is not invertible.
+		///
 		/// NOTE: `notify` gets called as part of handling an incoming message, so it should be
 		/// lightweight. Its weight is estimated during this function and stored ready for
 		/// weighing `ReportOutcome` on the way back. If it turns out to be heavier once it returns
@@ -512,13 +538,15 @@ pub mod pallet {
 			responder: MultiLocation,
 			notify: impl Into<<T as Config>::Call>,
 			timeout: T::BlockNumber,
-		) {
-			let dest = T::LocationInverter::invert_location(&responder);
+		) -> Result<(), XcmError> {
+			let dest = T::LocationInverter::invert_location(&responder)
+				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 			let notify: <T as Config>::Call = notify.into();
 			let max_response_weight = notify.get_dispatch_info().weight;
 			let query_id = Self::new_notify_query(responder, notify, timeout);
 			let report_error = Xcm(vec![ReportError { dest, query_id, max_response_weight }]);
 			message.0.insert(0, SetAppendix(report_error));
+			Ok(())
 		}
 
 		/// Attempt to create a new query ID and register it as a query that is yet to respond.
@@ -555,8 +583,47 @@ pub mod pallet {
 		}
 	}
 
+	impl<T: Config> DropAssets for Pallet<T> {
+		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+			if assets.is_empty() {
+				return 0
+			}
+			let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
+			let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
+			AssetTraps::<T>::mutate(hash, |n| *n += 1);
+			Self::deposit_event(Event::AssetsTrapped(hash, origin.clone(), versioned));
+			// TODO: Put the real weight in there.
+			0
+		}
+	}
+
+	impl<T: Config> ClaimAssets for Pallet<T> {
+		fn claim_assets(
+			origin: &MultiLocation,
+			ticket: &MultiLocation,
+			assets: &MultiAssets,
+		) -> bool {
+			let mut versioned = VersionedMultiAssets::from(assets.clone());
+			match (ticket.parents, &ticket.interior) {
+				(0, X1(GeneralIndex(i))) =>
+					versioned = match versioned.into_version(*i as u32) {
+						Ok(v) => v,
+						Err(()) => return false,
+					},
+				(0, Here) => (),
+				_ => return false,
+			};
+			let hash = BlakeTwo256::hash_of(&(origin, versioned));
+			match AssetTraps::<T>::get(hash) {
+				0 => return false,
+				1 => AssetTraps::<T>::remove(hash),
+				n => AssetTraps::<T>::insert(hash, n - 1),
+			}
+			return true
+		}
+	}
+
 	impl<T: Config> OnResponse for Pallet<T> {
-		/// Returns `true` if we are expecting a response from `origin` for query `query_id`.
 		fn expecting_response(origin: &MultiLocation, query_id: QueryId) -> bool {
 			if let Some(QueryStatus::Pending { responder, .. }) = Queries::<T>::get(query_id) {
 				return MultiLocation::try_from(responder).map_or(false, |r| origin == &r)
@@ -564,7 +631,6 @@ pub mod pallet {
 			false
 		}
 
-		/// Handler for receiving a `response` from `origin` relating to `query_id`.
 		fn on_response(
 			origin: &MultiLocation,
 			query_id: QueryId,

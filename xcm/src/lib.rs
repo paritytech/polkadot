@@ -217,6 +217,16 @@ pub enum VersionedMultiAssets {
 	V1(v1::MultiAssets),
 }
 
+impl VersionedMultiAssets {
+	pub fn into_version(self, n: u32) -> Result<Self, ()> {
+		Ok(match n {
+			0 => Self::V0(self.try_into()?),
+			1 | 2 => Self::V1(self.try_into()?),
+			_ => return Err(()),
+		})
+	}
+}
+
 impl From<Vec<v0::MultiAsset>> for VersionedMultiAssets {
 	fn from(x: Vec<v0::MultiAsset>) -> Self {
 		VersionedMultiAssets::V0(x)
