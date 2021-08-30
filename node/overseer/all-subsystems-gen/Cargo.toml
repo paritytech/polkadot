@@ -14,4 +14,4 @@ quote = "1.0.9"
 proc-macro2 = "1.0.24"
 
 [dev-dependencies]
-trybuild = "1.0.42"
+trybuild = "1.0.45"
