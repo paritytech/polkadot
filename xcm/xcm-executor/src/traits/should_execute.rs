@@ -26,8 +26,6 @@ pub trait ShouldExecute {
 	/// Returns `true` if the given `message` may be executed.
 	///
 	/// - `origin`: The origin (sender) of the message.
-	/// - `top_level`: `true` indicates the initial XCM coming from the `origin`, `false` indicates
-	///   an embedded XCM executed internally as part of another message or an `Order`.
 	/// - `message`: The message itself.
 	/// - `max_weight`: The (possibly over-) estimation of the weight of execution of the message.
 	/// - `weight_credit`: The pre-established amount of weight that the system has determined this
@@ -35,7 +33,6 @@ pub trait ShouldExecute {
 	///   payment, but could in principle be due to other factors.
 	fn should_execute<Call>(
 		origin: &MultiLocation,
-		top_level: bool,
 		message: &mut Xcm<Call>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
@@ -46,22 +43,20 @@ pub trait ShouldExecute {
 impl ShouldExecute for Tuple {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
-		top_level: bool,
 		message: &mut Xcm<Call>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		for_tuples!( #(
-			match Tuple::should_execute(origin, top_level, message, max_weight, weight_credit) {
+			match Tuple::should_execute(origin, message, max_weight, weight_credit) {
 				Ok(()) => return Ok(()),
 				_ => (),
 			}
 		)* );
 		log::trace!(
 			target: "xcm::should_execute",
-			"did not pass barrier: origin: {:?}, top_level: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			"did not pass barrier: origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin,
-			top_level,
 			message,
 			max_weight,
 			weight_credit,

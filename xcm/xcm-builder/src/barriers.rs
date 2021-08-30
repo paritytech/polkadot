@@ -31,7 +31,6 @@ pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
 	fn should_execute<Call>(
 		_origin: &MultiLocation,
-		_top_level: bool,
 		_message: &mut Xcm<Call>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
@@ -50,13 +49,11 @@ pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
-		top_level: bool,
 		message: &mut Xcm<Call>,
 		max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
-		ensure!(top_level, ());
 		let mut iter = message.0.iter_mut();
 		let i = iter.next().ok_or(())?;
 		match i {
@@ -90,7 +87,6 @@ pub struct AllowSubscriptionsFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
-		_top_level: bool,
 		message: &mut Xcm<Call>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
@@ -111,7 +107,6 @@ pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
-		_top_level: bool,
 		_message: &mut Xcm<Call>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
@@ -138,7 +133,6 @@ pub struct AllowKnownQueryResponses<ResponseHandler>(PhantomData<ResponseHandler
 impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<ResponseHandler> {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
-		_top_level: bool,
 		message: &mut Xcm<Call>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
