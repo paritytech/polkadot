@@ -86,8 +86,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 
 /// Allows execution from `origin` if it is just a straight `SubscribeVerison` or
 /// `UnsubscribeVersion` instruction.
-pub struct AllowJustSubscriptionsFrom<T>(PhantomData<T>);
-impl<T: Contains<MultiLocation>> ShouldExecute for AllowJustSubscriptionsFrom<T> {
+pub struct AllowSubscriptionsFrom<T>(PhantomData<T>);
+impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		_top_level: bool,

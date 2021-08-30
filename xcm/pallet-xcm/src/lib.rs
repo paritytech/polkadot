@@ -236,6 +236,8 @@ pub mod pallet {
 		/// The given location could not be used (e.g. because it cannot be expressed in the
 		/// desired version of XCM).
 		BadLocation,
+		/// The referenced subscription could not be found.
+		NoSubscription,
 	}
 
 	/// The status of a query.
@@ -610,6 +612,25 @@ pub mod pallet {
 			ensure_root(origin)?;
 			SafeXcmVersion::<T>::set(maybe_xcm_version);
 			Ok(())
+		}
+
+		/// Require that a particular destination should no longer notify us regarding any XCM
+		/// version changes.
+		///
+		/// - `origin`: Must be Root.
+		/// - `location`: The location to which we are currently subscribed for XCM version
+		///   notifications which we no longer desire.
+		#[pallet::weight(100_000_000u64)]
+		pub fn force_unsubscribe_version_notify(
+			origin: OriginFor<T>,
+			location: Box<MultiLocation>,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			let location = *location;
+			Self::unrequest_version_notify(location).map_err(|e| match e {
+				XcmError::InvalidLocation => Error::<T>::NoSubscription,
+				_ => Error::<T>::InvalidOrigin,
+			}.into())
 		}
 	}
 
