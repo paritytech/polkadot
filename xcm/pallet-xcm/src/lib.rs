@@ -264,11 +264,12 @@ pub mod pallet {
 	}
 
 	#[derive(Copy, Clone)]
-	struct LatestVersionedMultiLocation<'a>(&'a MultiLocation);
+	pub(crate) struct LatestVersionedMultiLocation<'a>(pub(crate) &'a MultiLocation);
 	impl<'a> EncodeLike<VersionedMultiLocation> for LatestVersionedMultiLocation<'a> {}
 	impl<'a> Encode for LatestVersionedMultiLocation<'a> {
 		fn encode(&self) -> Vec<u8> {
-			let mut r = vec![XCM_VERSION as u8];
+			let mut r = VersionedMultiLocation::from(MultiLocation::default()).encode();
+			r.truncate(1);
 			self.0.using_encoded(|d| r.extend_from_slice(d));
 			r
 		}

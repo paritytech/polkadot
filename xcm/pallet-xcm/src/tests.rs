@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{mock::*, AssetTraps, Error, QueryStatus};
+use crate::{mock::*, AssetTraps, Error, QueryStatus, Queries, VersionNotifiers, LatestVersionedMultiLocation};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use sp_runtime::traits::{BlakeTwo256, Hash};
@@ -378,32 +378,64 @@ fn trapped_assets_can_be_claimed() {
 }
 
 #[test]
-fn subscribe_unsubscribe_works() {
-	new_test_ext_with_balances(vec![]).execute_with(|| {
-		let remote = Parachain(1000).into();
-		assert_ok!(XcmPallet::request_version_notify(remote.clone()));
-		assert_noop!(XcmPallet::request_version_notify(remote.clone()), XcmError::InvalidLocation);
-
-		let remote2 = Parachain(1001).into();
-		assert_ok!(XcmPallet::request_version_notify(remote2.clone()));
-	})
+fn fake_latest_versioned_multilocation_works() {
+	use codec::Encode;
+	let remote = Parachain(1000).into();
+	let versioned_remote = LatestVersionedMultiLocation(&remote);
+	assert_eq!(versioned_remote.encode(), VersionedMultiLocation::from(remote.clone()).encode());
 }
 
 #[test]
-fn subscriber_side_subscription_works() {
+fn basic_subscription_works() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
 		let remote = Parachain(1000).into();
 		assert_ok!(XcmPallet::force_subscribe_version_notify(
 			Origin::root(),
 			Box::new(remote.clone().into()),
 		));
-		assert_noop!(
-			XcmPallet::force_subscribe_version_notify(
-				Origin::root(),
-				Box::new(remote.clone().into())
-			),
-			Error::<Test>::AlreadySubscribed
+
+		assert_eq!(Queries::<Test>::iter().collect::<Vec<_>>(), vec![
+			(0, QueryStatus::VersionNotifier {
+				origin: remote.clone().into(),
+				is_active: false,
+			})
+		]);
+		assert_eq!(VersionNotifiers::<Test>::iter().collect::<Vec<_>>(), vec![
+			(2, remote.clone().into(), 0)
+		]);
+
+		assert_eq!(
+			take_sent_xcm(),
+			vec![
+				(
+					remote.clone(),
+					Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
+				),
+			]
 		);
+
+		let weight = BaseXcmWeight::get();
+		let mut message = Xcm::<()>(vec![
+			// Remote supports XCM v1
+			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(1) },
+		]);
+		assert_ok!(AllowKnownQueryResponses::<XcmPallet>::should_execute(
+			&remote,
+			&mut message,
+			weight,
+			&mut 0
+		));
+	});
+}
+
+#[test]
+fn subscriptions_increment_id() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into()),
+		));
 
 		let remote2 = Parachain(1001).into();
 		assert_ok!(XcmPallet::force_subscribe_version_notify(
@@ -424,20 +456,81 @@ fn subscriber_side_subscription_works() {
 				),
 			]
 		);
+	});
+}
+
+#[test]
+fn double_subscription_fails() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into()),
+		));
+		assert_noop!(
+			XcmPallet::force_subscribe_version_notify(
+				Origin::root(),
+				Box::new(remote.clone().into())
+			),
+			Error::<Test>::AlreadySubscribed,
+		);
+	})
+}
+
+#[test]
+fn unsubscribe_works() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into()),
+		));
+		assert_ok!(
+			XcmPallet::force_unsubscribe_version_notify(
+				Origin::root(),
+				Box::new(remote.clone().into())
+			)
+		);
+		assert_noop!(
+			XcmPallet::force_unsubscribe_version_notify(
+				Origin::root(),
+				Box::new(remote.clone().into())
+			),
+			Error::<Test>::NoSubscription,
+		);
+
+		assert_eq!(
+			take_sent_xcm(),
+			vec![
+				(
+					remote.clone(),
+					Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
+				),
+				(
+					remote.clone(),
+					Xcm(vec![UnsubscribeVersion]),
+				),
+			]
+		);
+	});
+}
+
+#[test]
+fn subscriber_side_subscription_works() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into()),
+		));
 
 		// Assume subscription target is working ok.
 
 		let weight = BaseXcmWeight::get();
-		let mut message = Xcm(vec![
+		let message = Xcm(vec![
 			// Remote supports XCM v1
 			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(1) },
 		]);
-		assert_ok!(AllowKnownQueryResponses::<XcmPallet>::should_execute(
-			&remote,
-			&mut message,
-			weight,
-			&mut 0
-		));
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
 		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(take_sent_xcm(), vec![]);
@@ -460,3 +553,4 @@ fn subscriber_side_subscription_works() {
 		);
 	});
 }
+
