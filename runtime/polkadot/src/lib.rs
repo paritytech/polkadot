@@ -24,13 +24,14 @@ use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	claims, impls::DealWithFees, AssignmentSessionKeyPlaceholder, BlockHashCount, BlockLength,
 	BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit, OffchainSolutionWeightLimit,
-	ParachainSessionKeyPlaceholder, RocksDbWeight, SlowAdjustingFeeUpdate,
+	ParachainSessionKeyPlaceholder, RocksDbWeight, SlowAdjustingFeeUpdate, MAXIMUM_BLOCK_WEIGHT,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
+	signed_extensions::{AdjustPriority, Divide},
 	traits::{Contains, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
 	weights::Weight,
 	PalletId, RuntimeDebug,
@@ -806,7 +807,7 @@ where
 				current_block,
 			)),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
-			frame_system::CheckWeight::<Runtime>::new(),
+			frame_system::CheckWeight::<Runtime>::new().into(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 			claims::PrevalidateAttests::<Runtime>::new(),
 		);
@@ -1116,7 +1117,7 @@ pub type SignedExtra = (
 	frame_system::CheckGenesis<Runtime>,
 	frame_system::CheckMortality<Runtime>,
 	frame_system::CheckNonce<Runtime>,
-	frame_system::CheckWeight<Runtime>,
+	AdjustPriority<frame_system::CheckWeight<Runtime>, Divide, MAXIMUM_BLOCK_WEIGHT>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 	claims::PrevalidateAttests<Runtime>,
 );

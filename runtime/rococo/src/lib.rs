@@ -24,6 +24,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use frame_support::{
 	construct_runtime, parameter_types,
+	signed_extensions::{AdjustPriority, Divide},
 	traits::{
 		Contains, Everything, IsInVec, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade, Randomness,
 	},
@@ -45,7 +46,7 @@ use primitives::v1::{
 };
 use runtime_common::{
 	auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper, slots, xcm_sender,
-	BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
+	BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate, MAXIMUM_BLOCK_WEIGHT,
 };
 use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
 use sp_core::{OpaqueMetadata, RuntimeDebug};
@@ -144,7 +145,7 @@ pub type SignedExtra = (
 	frame_system::CheckGenesis<Runtime>,
 	frame_system::CheckMortality<Runtime>,
 	frame_system::CheckNonce<Runtime>,
-	frame_system::CheckWeight<Runtime>,
+	AdjustPriority<frame_system::CheckWeight<Runtime>, Divide, MAXIMUM_BLOCK_WEIGHT>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 
@@ -343,7 +344,7 @@ where
 				current_block,
 			)),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
-			frame_system::CheckWeight::<Runtime>::new(),
+			frame_system::CheckWeight::<Runtime>::new().into(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra)

@@ -31,7 +31,7 @@ use primitives::v1::{
 use runtime_common::{
 	auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper, slots, xcm_sender,
 	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, MAXIMUM_BLOCK_WEIGHT,
 };
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
@@ -58,6 +58,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
+	signed_extensions::{AdjustPriority, Divide},
 	traits::{
 		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
 	},
@@ -528,7 +529,7 @@ where
 				current_block,
 			)),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
-			frame_system::CheckWeight::<Runtime>::new(),
+			frame_system::CheckWeight::<Runtime>::new().into(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra)
@@ -1067,7 +1068,7 @@ pub type SignedExtra = (
 	frame_system::CheckGenesis<Runtime>,
 	frame_system::CheckMortality<Runtime>,
 	frame_system::CheckNonce<Runtime>,
-	frame_system::CheckWeight<Runtime>,
+	AdjustPriority<frame_system::CheckWeight<Runtime>, Divide, MAXIMUM_BLOCK_WEIGHT>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
