@@ -93,9 +93,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
 		match (message.0.len(), message.0.first()) {
-			(1, Some(SubscribeVersion { .. }))
-			| (1, Some(UnsubscribeVersion))
-			=> Ok(()),
+			(1, Some(SubscribeVersion { .. })) | (1, Some(UnsubscribeVersion)) => Ok(()),
 			_ => Err(()),
 		}
 	}

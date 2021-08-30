@@ -627,10 +627,13 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let location = *location;
-			Self::unrequest_version_notify(location).map_err(|e| match e {
-				XcmError::InvalidLocation => Error::<T>::NoSubscription,
-				_ => Error::<T>::InvalidOrigin,
-			}.into())
+			Self::unrequest_version_notify(location).map_err(|e| {
+				match e {
+					XcmError::InvalidLocation => Error::<T>::NoSubscription,
+					_ => Error::<T>::InvalidOrigin,
+				}
+				.into()
+			})
 		}
 	}
 
