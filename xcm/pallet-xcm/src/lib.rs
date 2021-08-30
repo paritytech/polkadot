@@ -244,6 +244,8 @@ pub mod pallet {
 		BadLocation,
 		/// The referenced subscription could not be found.
 		NoSubscription,
+		/// The location is invalid since it already has a subscription from us.
+		AlreadySubscribed,
 	}
 
 	/// The status of a query.
@@ -649,6 +651,26 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Ask a location to notify us regarding their XCM version and any changes to it.
+		///
+		/// - `origin`: Must be Root.
+		/// - `location`: The location to which we should subscribe for XCM version notifications.
+		#[pallet::weight(100_000_000u64)]
+		pub fn force_subscribe_version_notify(
+			origin: OriginFor<T>,
+			location: Box<VersionedMultiLocation>,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			let location = (*location).try_into().map_err(|()| Error::<T>::BadLocation)?;
+			Self::request_version_notify(location).map_err(|e| {
+				match e {
+					XcmError::InvalidLocation => Error::<T>::AlreadySubscribed,
+					_ => Error::<T>::InvalidOrigin,
+				}
+				.into()
+			})
+		}
+
 		/// Require that a particular destination should no longer notify us regarding any XCM
 		/// version changes.
 		///
@@ -658,10 +680,10 @@ pub mod pallet {
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_unsubscribe_version_notify(
 			origin: OriginFor<T>,
-			location: Box<MultiLocation>,
+			location: Box<VersionedMultiLocation>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let location = *location;
+			let location = (*location).try_into().map_err(|()| Error::<T>::BadLocation)?;
 			Self::unrequest_version_notify(location).map_err(|e| {
 				match e {
 					XcmError::InvalidLocation => Error::<T>::NoSubscription,
@@ -675,6 +697,9 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Request that `dest` informs us of its version.
 		pub fn request_version_notify(dest: MultiLocation) -> XcmResult {
+			let versioned_dest = VersionedMultiLocation::from(dest.clone());
+			let already = VersionNotifiers::<T>::contains_key(XCM_VERSION, &versioned_dest);
+			ensure!(!already, XcmError::InvalidLocation);
 			let query_id = QueryCount::<T>::mutate(|q| {
 				let r = *q;
 				*q += 1;
@@ -682,8 +707,7 @@ pub mod pallet {
 			});
 			// TODO #3735: Correct weight.
 			let instruction = SubscribeVersion { query_id, max_response_weight: 0 };
-			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![instruction]))?;
-			let versioned_dest = VersionedMultiLocation::from(dest);
+			T::XcmRouter::send_xcm(dest, Xcm(vec![instruction]))?;
 			VersionNotifiers::<T>::insert(XCM_VERSION, &versioned_dest, query_id);
 			let query_status =
 				QueryStatus::VersionNotifier { origin: versioned_dest, is_active: false };
@@ -700,10 +724,6 @@ pub mod pallet {
 			Queries::<T>::remove(query_id);
 			Ok(())
 		}
-
-		// TODO: Barriers to let through Subscribe/UnsubscribeVersion single instruction messages.
-		// TODO: Weight for Subscribe/UnsubscribeVersion should be high to ensure non-first-class
-		//   locations can use them.
 
 		/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
 		/// location. A null `dest` is not handled.
@@ -933,10 +953,13 @@ pub mod pallet {
 
 	impl<T: Config> OnResponse for Pallet<T> {
 		fn expecting_response(origin: &MultiLocation, query_id: QueryId) -> bool {
-			if let Some(QueryStatus::Pending { responder, .. }) = Queries::<T>::get(query_id) {
-				return MultiLocation::try_from(responder).map_or(false, |r| origin == &r)
+			match Queries::<T>::get(query_id) {
+				Some(QueryStatus::Pending { responder, .. }) =>
+					MultiLocation::try_from(responder).map_or(false, |r| origin == &r),
+				Some(QueryStatus::VersionNotifier { origin: r, .. }) =>
+					MultiLocation::try_from(r).map_or(false, |r| origin == &r),
+				_ => false,
 			}
-			false
 		}
 
 		fn on_response(

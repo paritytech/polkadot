@@ -26,7 +26,7 @@ use xcm_builder::{
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit,
+	TakeWeightCredit, AllowSubscriptionsFrom,
 };
 use xcm_executor::XcmExecutor;
 
@@ -133,8 +133,11 @@ construct_runtime!(
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
 }
-pub fn sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
+pub(crate) fn sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
+}
+pub(crate) fn take_sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
+	SENT_XCM.with(|q| { let mut r = Vec::new(); std::mem::swap(&mut r, &mut *q.borrow_mut()); r })
 }
 /// Sender that never returns error, always sends
 pub struct TestSendXcm;
@@ -236,6 +239,7 @@ pub type Barrier = (
 	TakeWeightCredit,
 	AllowTopLevelPaidExecutionFrom<Everything>,
 	AllowKnownQueryResponses<XcmPallet>,
+	AllowSubscriptionsFrom<Everything>,
 );
 
 pub struct XcmConfig;
@@ -312,3 +316,14 @@ pub(crate) fn new_test_ext_with_balances(
 	ext.execute_with(|| System::set_block_number(1));
 	ext
 }
+/*
+pub(crate) fn run_to_block(n: BlockNumber) {
+	while System::block_number() < n {
+		XcmPallet::on_finalize(System::block_number());
+		System::on_finalize(System::block_number());
+		System::set_block_number(System::block_number() + 1);
+		System::on_initialize(System::block_number());
+		XcmPallet::on_initialize(System::block_number());
+	}
+}
+*/

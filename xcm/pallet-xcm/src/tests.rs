@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{mock::*, AssetTraps, QueryStatus};
+use crate::{mock::*, AssetTraps, QueryStatus, Error};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use sp_runtime::traits::{BlakeTwo256, Hash};
 use std::convert::TryInto;
-use xcm::{latest::prelude::*, VersionedMultiAssets, VersionedXcm};
-use xcm_executor::XcmExecutor;
+use xcm::prelude::*;
+use xcm_executor::{XcmExecutor, traits::ShouldExecute};
+use xcm_builder::AllowKnownQueryResponses;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -373,5 +374,75 @@ fn trapped_assets_can_be_claimed() {
 				XcmError::UnknownClaim
 			)))
 		);
+	});
+}
+
+#[test]
+fn subscribe_unsubscribe_works() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::request_version_notify(remote.clone()));
+		assert_noop!(XcmPallet::request_version_notify(remote.clone()), XcmError::InvalidLocation);	
+
+		let remote2 = Parachain(1001).into();
+		assert_ok!(XcmPallet::request_version_notify(remote2.clone()));
+	})
+}
+
+#[test]
+fn subscriber_side_subscription_works() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into()),
+		));
+		assert_noop!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into())
+		), Error::<Test>::AlreadySubscribed);	
+
+		let remote2 = Parachain(1001).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote2.clone().into()),
+		));
+
+		assert_eq!(take_sent_xcm(), vec![
+			(
+				remote.clone(),
+				Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
+			),
+			(
+				remote2.clone(),
+				Xcm(vec![SubscribeVersion { query_id: 1, max_response_weight: 0 }]),
+			),
+		]);
+
+		// Assume subscription target is working ok.
+
+		let weight = BaseXcmWeight::get();
+		let mut message = Xcm(vec![
+			// Remote supports XCM v1
+			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(1) },
+		]);
+		assert_ok!(AllowKnownQueryResponses::<XcmPallet>::should_execute(&remote, &mut message, weight, &mut 0));
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
+		assert_eq!(r, Outcome::Complete(weight));
+		assert_eq!(take_sent_xcm(), vec![]);
+
+		// This message cannot be sent to a v1 remote.
+		let v2_msg = Xcm::<()>(vec![Trap(0)]);
+		assert_eq!(XcmPallet::wrap_version(&remote, v2_msg.clone()), Err(()));
+
+		let message = Xcm(vec![
+			// Remote upgraded to XCM v2
+			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(2) },
+		]);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
+		assert_eq!(r, Outcome::Complete(weight));
+
+		// This message can now be sent to remote as it's v2.
+		assert_eq!(XcmPallet::wrap_version(&remote, v2_msg.clone()), Ok(VersionedXcm::from(v2_msg)));
 	});
 }
