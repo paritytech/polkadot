@@ -44,6 +44,7 @@ pub use config::Config;
 pub struct XcmExecutor<Config: config::Config> {
 	holding: Assets,
 	origin: Option<MultiLocation>,
+	original_origin: MultiLocation,
 	trader: Config::Trader,
 	/// The most recent error result and instruction index into the fragment in which it occured,
 	/// if any.
@@ -97,7 +98,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			return Outcome::Error(XcmError::Barrier)
 		}
 
-		let mut vm = Self::new(origin.clone());
+		let mut vm = Self::new(origin);
 
 		while !message.0.is_empty() {
 			let result = vm.execute(message);
@@ -118,7 +119,8 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		let mut weight_used = xcm_weight.saturating_sub(vm.total_surplus);
 
 		if !vm.holding.is_empty() {
-			weight_used.saturating_accrue(Config::AssetTrap::drop_assets(&origin, vm.holding));
+			let trap_weight = Config::AssetTrap::drop_assets(&vm.original_origin, vm.holding);
+			weight_used.saturating_accrue(trap_weight);
 		};
 
 		match vm.error {
@@ -134,7 +136,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	fn new(origin: MultiLocation) -> Self {
 		Self {
 			holding: Assets::new(),
-			origin: Some(origin),
+			origin: Some(origin.clone()),
+			original_origin: origin,
 			trader: Config::Trader::new(),
 			error: None,
 			total_surplus: 0,
@@ -421,6 +424,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			Trap(code) => Err(XcmError::Trap(code)),
 			SubscribeVersion { query_id, max_response_weight } => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				// We don't allow derivative origins to subscribe since it would otherwise pose a
+				// DoS risk.
+				ensure!(self.original_origin == origin, XcmError::BadOrigin);
 				Config::SubscriptionService::start(&origin, query_id, max_response_weight)?;
 				let max_weight = max_response_weight;
 				let response = Response::Version(XCM_VERSION);
