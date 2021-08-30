@@ -342,9 +342,13 @@ pub mod pallet {
 					let new_key = match MultiLocation::try_from(old_key.clone()) {
 						Ok(k) => k,
 						Err(()) => {
-        					Self::deposit_event(Event::NotifyTargetDropped(old_key, value.0, XcmError::InvalidLocation));
-							return 0;
-    					},
+							Self::deposit_event(Event::NotifyTargetDropped(
+								old_key,
+								value.0,
+								XcmError::InvalidLocation,
+							));
+							return 0
+						},
 					};
 					let instruction = QueryResponse {
 						query_id: value.0,
@@ -362,8 +366,12 @@ pub mod pallet {
 						},
 						Err(e) => {
 							let new_key = new_key.into();
-							Self::deposit_event(Event::NotifyTargetDropped(new_key, value.0, e.into()));
-						}
+							Self::deposit_event(Event::NotifyTargetDropped(
+								new_key,
+								value.0,
+								e.into(),
+							));
+						},
 					}
 				}
 			}
