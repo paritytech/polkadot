@@ -441,7 +441,7 @@ enum DisputeCoordinatorMessage {
         pending_confirmation: oneshot::Sender<ImportStatementsResult>
     },
     /// Fetch a list of all recent disputes that the co-ordinator is aware of.
-    /// These are disputes which have occured any time in recent sessions, which may have already concluded.
+    /// These are disputes which have occurerd any time in recent sessions, which may have already concluded.
     RecentDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
     /// Fetch a list of all active disputes that the co-ordinator is aware of.
     /// These disputes are either unconcluded or recently concluded.
