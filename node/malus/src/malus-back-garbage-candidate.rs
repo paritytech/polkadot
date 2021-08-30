@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A malicious overseer backing anything that comes in.
+//! A malicious overseer backing a particular candidate with a
+//! malicious proof of validity that is received.
 
 #![allow(missing_docs)]
 
@@ -90,7 +91,7 @@ where
 	}
 }
 
-impl<Sender, Spawner> MsgFilter<Sender> for BribedPassage<Spawner>
+impl<Sender, Spawner> MessageInterceptor<Sender> for BribedPassage<Spawner>
 where
 	Sender: overseer::SubsystemSender<CandidateValidationMessage>
 		+ overseer::SubsystemSender<AllMessages>

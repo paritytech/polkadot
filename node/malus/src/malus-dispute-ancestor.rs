@@ -62,7 +62,7 @@ where
 	sink: metered::UnboundedMeteredSender<(Sender, CandidateReceipt)>,
 }
 
-impl<Sender> MsgFilter<Sender> for TrackCollations<Sender>
+impl<Sender> MessageInterceptor<Sender> for TrackCollations<Sender>
 where
 	Sender: overseer::SubsystemSender<CandidateBackingMessage> + Clone + Send + 'static,
 {

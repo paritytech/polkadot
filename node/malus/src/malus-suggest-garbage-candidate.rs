@@ -66,7 +66,7 @@ where
 	queue: metered::UnboundedMeteredSender<(Sender, Hash, CandidateReceipt)>,
 }
 
-impl<Sender> MsgFilter<Sender> for ReplacePoVBytes<Sender>
+impl<Sender> MessageInterceptor<Sender> for ReplacePoVBytes<Sender>
 where
 	Sender: overseer::SubsystemSender<CandidateBackingMessage> + Clone + Send + 'static,
 {

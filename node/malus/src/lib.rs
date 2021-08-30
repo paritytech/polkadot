@@ -25,7 +25,7 @@ pub use polkadot_node_subsystem::{messages::AllMessages, overseer, FromOverseer}
 use std::{future::Future, pin::Pin};
 
 /// Filter incoming and outgoing messages.
-pub trait MsgFilter<Sender>: Send + Sync + Clone + 'static
+pub trait MessageInterceptor<Sender>: Send + Sync + Clone + 'static
 where
 	Sender: overseer::SubsystemSender<Self::Message> + Clone + 'static,
 {
@@ -62,8 +62,8 @@ pub struct FilteredSender<Sender, Fil> {
 impl<Sender, Fil> overseer::SubsystemSender<AllMessages> for FilteredSender<Sender, Fil>
 where
 	Sender: overseer::SubsystemSender<AllMessages>
-		+ overseer::SubsystemSender<<Fil as MsgFilter<Sender>>::Message>,
-	Fil: MsgFilter<Sender>,
+		+ overseer::SubsystemSender<<Fil as MessageInterceptor<Sender>>::Message>,
+	Fil: MessageInterceptor<Sender>,
 {
 	async fn send_message(&mut self, msg: AllMessages) {
 		if let Some(msg) = self.message_filter.filter_out(msg) {
@@ -92,9 +92,9 @@ where
 pub struct FilteredContext<Context, Fil>
 where
 	Context: overseer::SubsystemContext + SubsystemContext,
-	Fil: MsgFilter<<Context as overseer::SubsystemContext>::Sender>,
+	Fil: MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>,
 	<Context as overseer::SubsystemContext>::Sender: overseer::SubsystemSender<
-		<Fil as MsgFilter<<Context as overseer::SubsystemContext>::Sender>>::Message,
+		<Fil as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
 	>,
 {
 	inner: Context,
@@ -105,12 +105,12 @@ where
 impl<Context, Fil> FilteredContext<Context, Fil>
 where
 	Context: overseer::SubsystemContext + SubsystemContext,
-	Fil: MsgFilter<
+	Fil: MessageInterceptor<
 		<Context as overseer::SubsystemContext>::Sender,
 		Message = <Context as overseer::SubsystemContext>::Message,
 	>,
 	<Context as overseer::SubsystemContext>::Sender: overseer::SubsystemSender<
-		<Fil as MsgFilter<<Context as overseer::SubsystemContext>::Sender>>::Message,
+		<Fil as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
 	>,
 {
 	pub fn new(mut inner: Context, message_filter: Fil) -> Self {
@@ -126,14 +126,14 @@ where
 impl<Context, Fil> overseer::SubsystemContext for FilteredContext<Context, Fil>
 where
 	Context: overseer::SubsystemContext + SubsystemContext,
-	Fil: MsgFilter<
+	Fil: MessageInterceptor<
 		<Context as overseer::SubsystemContext>::Sender,
 		Message = <Context as overseer::SubsystemContext>::Message,
 	>,
 	<Context as overseer::SubsystemContext>::AllMessages:
 		From<<Context as overseer::SubsystemContext>::Message>,
 	<Context as overseer::SubsystemContext>::Sender: overseer::SubsystemSender<
-		<Fil as MsgFilter<<Context as overseer::SubsystemContext>::Sender>>::Message,
+		<Fil as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
 	>,
 {
 	type Message = <Context as overseer::SubsystemContext>::Message;
@@ -201,12 +201,12 @@ where
 	Context: overseer::SubsystemContext + SubsystemContext + Sync + Send,
 	Sub: overseer::Subsystem<FilteredContext<Context, Fil>, SubsystemError>,
 	FilteredContext<Context, Fil>: overseer::SubsystemContext + SubsystemContext,
-	Fil: MsgFilter<
+	Fil: MessageInterceptor<
 		<Context as overseer::SubsystemContext>::Sender,
 		Message = <Context as overseer::SubsystemContext>::Message,
 	>,
 	<Context as overseer::SubsystemContext>::Sender: overseer::SubsystemSender<
-		<Fil as MsgFilter<<Context as overseer::SubsystemContext>::Sender>>::Message,
+		<Fil as MessageInterceptor<<Context as overseer::SubsystemContext>::Sender>>::Message,
 	>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
