@@ -1044,7 +1044,7 @@ mod tests {
 	}
 
 	#[test]
-	fn invalid_attest_transactions_are_recognised() {
+	fn invalid_attest_transactions_are_recognized() {
 		new_test_ext().execute_with(|| {
 			let p = PrevalidateAttests::<Test>::new();
 			let c = Call::Claims(ClaimsCall::attest(StatementKind::Regular.to_text().to_vec()));
