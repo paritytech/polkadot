@@ -476,9 +476,8 @@ fn simple_version_subscriptions_should_work() {
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
 	let origin = Parachain(1000).into();
-	let message = Xcm::<TestCall>(vec![
-		SubscribeVersion { query_id: 42, max_response_weight: 5000 }
-	]);
+	let message =
+		Xcm::<TestCall>(vec![SubscribeVersion { query_id: 42, max_response_weight: 5000 }]);
 	let weight_limit = 10;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
@@ -488,15 +487,17 @@ fn simple_version_subscriptions_should_work() {
 	assert_eq!(r, Outcome::Complete(10));
 
 	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), Some((42, 5000)))]);
-	assert_eq!(sent_xcm(), vec![
-		(Parent.into(), Xcm(vec![
-			QueryResponse {
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parent.into(),
+			Xcm(vec![QueryResponse {
 				query_id: 42,
 				max_weight: 5000,
 				response: Response::Version(XCM_VERSION),
-			}
-		])),
-	]);
+			}])
+		),]
+	);
 }
 
 #[test]
@@ -507,26 +508,38 @@ fn version_subscription_instruction_should_work() {
 		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
 	]);
 	let weight_limit = 20;
-	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(origin.clone(), message.clone(), weight_limit, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin.clone(),
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
 	assert_eq!(r, Outcome::Incomplete(20, XcmError::BadOrigin));
 
 	let message = Xcm::<TestCall>(vec![
 		SetAppendix(Xcm(vec![])),
-		SubscribeVersion { query_id: 42, max_response_weight: 5000 }
+		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
 	]);
-	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(origin, message.clone(), weight_limit, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin,
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
 	assert_eq!(r, Outcome::Complete(20));
 
 	assert_eq!(SubscriptionRequests::get(), vec![(Parachain(1000).into(), Some((42, 5000)))]);
-	assert_eq!(sent_xcm(), vec![
-		(Parachain(1000).into(), Xcm(vec![
-			QueryResponse {
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parachain(1000).into(),
+			Xcm(vec![QueryResponse {
 				query_id: 42,
 				max_weight: 5000,
 				response: Response::Version(XCM_VERSION),
-			}
-		])),
-	]);
+			}])
+		),]
+	);
 }
 
 #[test]
@@ -534,18 +547,13 @@ fn simple_version_unsubscriptions_should_work() {
 	AllowSubsFrom::set(vec![Parent.into()]);
 
 	let origin = Parachain(1000).into();
-	let message = Xcm::<TestCall>(vec![
-		SetAppendix(Xcm(vec![])),
-		UnsubscribeVersion,
-	]);
+	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
 	let weight_limit = 20;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
 
 	let origin = Parachain(1000).into();
-	let message = Xcm::<TestCall>(vec![
-		UnsubscribeVersion,
-	]);
+	let message = Xcm::<TestCall>(vec![UnsubscribeVersion]);
 	let weight_limit = 10;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), weight_limit);
 	assert_eq!(r, Outcome::Error(XcmError::Barrier));
@@ -568,15 +576,22 @@ fn version_unsubscription_instruction_should_work() {
 		UnsubscribeVersion,
 	]);
 	let weight_limit = 20;
-	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(origin.clone(), message.clone(), weight_limit, weight_limit);
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin.clone(),
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
 	assert_eq!(r, Outcome::Incomplete(20, XcmError::BadOrigin));
 
 	// Fine to do it when origin is untouched.
-	let message = Xcm::<TestCall>(vec![
-		SetAppendix(Xcm(vec![])),
-		UnsubscribeVersion,
-	]);
-	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(origin, message.clone(), weight_limit, weight_limit);
+	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin,
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
 	assert_eq!(r, Outcome::Complete(20));
 
 	assert_eq!(SubscriptionRequests::get(), vec![(Parachain(1000).into(), None)]);

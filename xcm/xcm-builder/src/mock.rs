@@ -270,7 +270,7 @@ pub type TestBarrier = (
 	AllowKnownQueryResponses<TestResponseHandler>,
 	AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,
-	AllowSubscriptionsFrom<IsInVec<AllowSubsFrom>>
+	AllowSubscriptionsFrom<IsInVec<AllowSubsFrom>>,
 );
 
 parameter_types! {
@@ -323,7 +323,6 @@ impl VersionChangeNotifier for TestSubscriptionService {
 		Ok(())
 	}
 }
-
 
 pub struct TestConfig;
 impl Config for TestConfig {
