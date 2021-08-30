@@ -44,8 +44,8 @@ impl ShouldExecute for TakeWeightCredit {
 /// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking
 /// payments into account.
 ///
-/// Only allows for `TeleportAsset`, `WithdrawAsset` and `ReserveAssetDeposit` XCMs because they are
-/// the only ones that place assets in the Holding Register to pay for execution.
+/// Only allows for `TeleportAsset`, `WithdrawAsset`, `ClaimAsset` and `ReserveAssetDeposit` XCMs
+/// because they are the only ones that place assets in the Holding Register to pay for execution.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(
@@ -79,6 +79,27 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 				*weight_limit = Limited(max_weight);
 				Ok(())
 			},
+			_ => Err(()),
+		}
+	}
+}
+
+/// Allows execution from `origin` if it is just a straight `SubscribeVerison` or
+/// `UnsubscribeVersion` instruction.
+pub struct AllowJustSubscriptionsFrom<T>(PhantomData<T>);
+impl<T: Contains<MultiLocation>> ShouldExecute for AllowJustSubscriptionsFrom<T> {
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		_top_level: bool,
+		message: &mut Xcm<Call>,
+		_max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> Result<(), ()> {
+		ensure!(T::contains(origin), ());
+		match (message.0.len(), message.0.first()) {
+			(1, Some(SubscribeVersion { .. }))
+			| (1, Some(UnsubscribeVersion))
+			=> Ok(()),
 			_ => Err(()),
 		}
 	}
