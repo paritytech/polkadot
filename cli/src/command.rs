@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::{Cli, Subcommand, RunCmd};
+use crate::cli::{Cli, RunCmd, Subcommand};
 use futures::future::TryFutureExt;
 use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
@@ -211,10 +211,7 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 /// for integration tests as needed.
 #[cfg(feature = "malus")]
 pub fn run_node(run: RunCmd, overseer_gen: impl service::OverseerGen) -> Result<()> {
-	run_node_inner(Cli {
-		subcommand: None,
-		run,
-	}, overseer_gen)
+	run_node_inner(Cli { subcommand: None, run }, overseer_gen)
 }
 
 fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<()> {

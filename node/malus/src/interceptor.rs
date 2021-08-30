@@ -147,7 +147,9 @@ where
 			match self.inner.try_recv().await? {
 				None => return Ok(None),
 				Some(msg) =>
-					if let Some(msg) = self.message_filter.intercept_incoming(self.inner.sender(), msg) {
+					if let Some(msg) =
+						self.message_filter.intercept_incoming(self.inner.sender(), msg)
+					{
 						return Ok(Some(msg))
 					},
 			}

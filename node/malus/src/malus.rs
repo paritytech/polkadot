@@ -20,8 +20,8 @@ use color_eyre::eyre;
 use polkadot_cli::RunCmd;
 use structopt::StructOpt;
 
-pub(crate) mod shared;
 pub(crate) mod interceptor;
+pub(crate) mod shared;
 
 mod variants;
 
@@ -31,59 +31,60 @@ use variants::*;
 #[derive(Debug, StructOpt, PartialEq, Eq)]
 #[structopt(rename_all = "kebab-case")]
 enum NemesisVariant {
-    BackGarbageCandidate,
-    SuggestGarabageCandidate,
-    DisputeAncestor,
+	BackGarbageCandidate,
+	SuggestGarabageCandidate,
+	DisputeAncestor,
 }
 
 #[derive(Debug, StructOpt)]
 #[allow(missing_docs)]
 struct MalusCli {
-    #[structopt(subcommand)]
-    pub variant: NemesisVariant,
+	#[structopt(subcommand)]
+	pub variant: NemesisVariant,
 
 	#[structopt(flatten)]
 	pub run: RunCmd,
 }
 
 impl MalusCli {
-    /// Launch a malus node.
-    fn launch(self) -> eyre::Result<()> {
-        let Self {
-            variant,
-            run,
-        } = self;
-        match variant {
-            NemesisVariant::BackGarbageCandidate => polkadot_cli::run_node(run, BackGarbageCandidate)?,
-            NemesisVariant::SuggestGarabageCandidate => polkadot_cli::run_node(run, SuggestGarbageCandidate)?,
-            NemesisVariant::DisputeAncestor => polkadot_cli::run_node(run, DisputeAncestor)?,
-        }
-        Ok(())
-    }
+	/// Launch a malus node.
+	fn launch(self) -> eyre::Result<()> {
+		let Self { variant, run } = self;
+		match variant {
+			NemesisVariant::BackGarbageCandidate =>
+				polkadot_cli::run_node(run, BackGarbageCandidate)?,
+			NemesisVariant::SuggestGarabageCandidate =>
+				polkadot_cli::run_node(run, SuggestGarbageCandidate)?,
+			NemesisVariant::DisputeAncestor => polkadot_cli::run_node(run, DisputeAncestor)?,
+		}
+		Ok(())
+	}
 }
 
 fn main() -> eyre::Result<()> {
 	color_eyre::install()?;
 	let cli = MalusCli::from_args();
-    cli.launch()?;
+	cli.launch()?;
 	Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+	use super::*;
 
-    #[test]
-    fn subcommand_works() {
-        let cli = MalusCli::from_iter_safe(IntoIterator::into_iter(
-            ["malus", "dispute-ancestor", "--alice"]
-        )).unwrap();
-        assert_matches::assert_matches!(cli, MalusCli {
-            variant,
-            ..
-        } => {
-            assert_eq!(variant, NemesisVariant::DisputeAncestor);
-        });
-    }
+	#[test]
+	fn subcommand_works() {
+		let cli = MalusCli::from_iter_safe(IntoIterator::into_iter([
+			"malus",
+			"dispute-ancestor",
+			"--alice",
+		]))
+		.unwrap();
+		assert_matches::assert_matches!(cli, MalusCli {
+			variant,
+			..
+		} => {
+			assert_eq!(variant, NemesisVariant::DisputeAncestor);
+		});
+	}
 }

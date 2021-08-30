@@ -37,8 +37,7 @@ use polkadot_node_subsystem_util as util;
 use util::metrics::Metrics as _;
 
 // Filter wrapping related types.
-use crate::interceptor::*;
-use crate::shared::*;
+use crate::{interceptor::*, shared::*};
 use polkadot_node_primitives::{PoV, ValidationResult};
 
 use polkadot_primitives::v1::{
@@ -47,8 +46,10 @@ use polkadot_primitives::v1::{
 };
 
 use futures::channel::oneshot;
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
+use std::{
+	collections::HashMap,
+	sync::{Arc, Mutex},
+};
 
 #[derive(Clone, Debug)]
 struct BribedPassageInner<Spawner> {

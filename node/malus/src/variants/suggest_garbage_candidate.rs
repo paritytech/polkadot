@@ -34,8 +34,10 @@ use polkadot_cli::{
 // subsystem.
 use polkadot_node_core_backing::{CandidateBackingSubsystem, Metrics};
 use polkadot_node_primitives::Statement;
-use polkadot_node_subsystem::messages::{CandidateBackingMessage, StatementDistributionMessage};
-use polkadot_node_subsystem::overseer::{self, SubsystemSender};
+use polkadot_node_subsystem::{
+	messages::{CandidateBackingMessage, StatementDistributionMessage},
+	overseer::{self, SubsystemSender},
+};
 use polkadot_node_subsystem_util as util;
 // Filter wrapping related types.
 use crate::interceptor::*;

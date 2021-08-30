@@ -30,8 +30,7 @@ use polkadot_cli::{
 };
 
 // Filter wrapping related types.
-use crate::interceptor::*;
-use crate::shared::*;
+use crate::{interceptor::*, shared::*};
 use polkadot_node_subsystem::overseer::SubsystemSender;
 
 // Import extra types relevant to the particular
@@ -43,9 +42,8 @@ use polkadot_primitives::v1::CandidateReceipt;
 use sp_keystore::SyncCryptoStorePtr;
 use util::{metered, metrics::Metrics as _};
 
-use std::sync::Arc;
-use std::time::Duration;
 use futures_timer::Delay;
+use std::{sync::Arc, time::Duration};
 
 /// Become Loki and throw in a dispute once in a while, for an unfinalized block.
 #[derive(Clone, Debug)]
