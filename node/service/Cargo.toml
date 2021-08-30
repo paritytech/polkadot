@@ -63,7 +63,7 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 futures = "0.3.15"
 hex-literal = "0.3.3"
 tracing = "0.1.26"
-serde = { version = "1.0.123", features = ["derive"] }
+serde = { version = "1.0.130", features = ["derive"] }
 thiserror = "1.0.26"
 kvdb = "0.10.0"
 kvdb-rocksdb = { version = "0.14.0", optional = true }
