@@ -24,6 +24,6 @@ command = "polkadot"
 
 [nodes.david]
 validator = true
-extra-args = ["--dave"]
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
-command = "/usr/local/bin/malus-dispute-valid-block"
+command = "/usr/local/bin/malus"
+extra-args = ["dispute-valid-block", "--dave"]

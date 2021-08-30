@@ -2,6 +2,12 @@
 
 Create nemesis nodes with alternate, at best faulty, at worst intentionally destructive behavior traits.
 
+The first argument determines the behavior strain. The currently supported are:
+
+* `suggest-garbage-candidate`
+* `back-garbage-candidate`
+* `dispute-ancestor`
+
 ## Integration test cases
 
 To define integration tests create file
@@ -38,16 +44,9 @@ This will also teardown the cluster after completion.
 In order to build the container image you need to have the latest changes from
 polkadot and substrate master branches.
 
-There different behavior strains, pick one that you'd like to use with a build arg:
-
-`$VARIANT` is one of:
-
-* `dispute-ancestor`
-* `second-garbage`
-
 ```sh
 pwd # run this from the current dir
-podman build --build-arg=$VARIANT -t paritypr/malus:v1 -f Containerfile ../../..
+podman build -t paritypr/malus:v1 -f Containerfile ../../..
 ```
 
 [gurke]: https://github.com/paritytech/gurke

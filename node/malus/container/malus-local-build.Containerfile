@@ -25,12 +25,10 @@ RUN export PATH="$PATH:$HOME/.cargo/bin" && \
 WORKDIR /usr/src/polkadot-malus/polkadot
 
 RUN cargo build -p polkadot-test-malus --release --verbose
-RUN cp -v /usr/src/polkadot-malus/polkadot/target/release/malus-dispute-ancestor /usr/local/bin
-RUN cp -v /usr/src/polkadot-malus/polkadot/target/release/malus-second-garbage   /usr/local/bin
+RUN cp -v /usr/src/polkadot-malus/polkadot/target/release/malus /usr/local/bin
 
 # check if executable works in this container
-RUN /usr/local/bin/malus-dispute-ancestor --version
-RUN /usr/local/bin/malus-second-garbage --version
+RUN /usr/local/bin/malus --version
 
 #
 ### Runtime
@@ -40,8 +38,7 @@ FROM debian:buster-slim as runtime
 RUN apt-get update && \
     apt-get install -y curl tini
 
-COPY --from=builder /usr/src/polkadot-malus/polkadot/target/release/malus-malus-dispute-ancestor /usr/local/bin
-COPY --from=builder /usr/src/polkadot-malus/polkadot/target/release/malus-malus-second-garbage /usr/local/bin
+COPY --from=builder /usr/src/polkadot-malus/polkadot/target/release/malus /usr/local/bin
 # Non-root user for security purposes.
 #
 # UIDs below 10,000 are a security risk, as a container breakout could result
@@ -64,7 +61,6 @@ RUN chown -R nonroot. /home/nonroot
 # Use the non-root user to run our application
 USER nonroot
 # check if executable works in this container
-RUN /usr/local/bin/malus-dispute-ancestor --version
-RUN /usr/local/bin/malus-second-garbage --version
+RUN /usr/local/bin/malus --version
 # Tini allows us to avoid several Docker edge cases, see https://github.com/krallin/tini.
-ENTRYPOINT ["tini", "--", "/usr/local/bin/malus-dispute-ancestor"]
+ENTRYPOINT ["tini", "--", "/usr/local/bin/malus"]

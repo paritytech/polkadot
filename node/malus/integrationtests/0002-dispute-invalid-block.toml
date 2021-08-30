@@ -12,24 +12,24 @@ command = "polkadot"
 
 [nodes.bob]
 validator = true
-extra-args = ["--bob"]
+extra-args = ["back-garbage-candidate", "--bob"]
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
-command = "/usr/local/bin/malus-back-garbage-candidate"
+command = "/usr/local/bin/malus"
 
 [nodes.charlie]
 validator = true
-extra-args = ["--charlie"]
+extra-args = ["back-garbage-candidate", "--charlie"]
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
-command = "/usr/local/bin/malus-back-garbage-candidate"
+command = "/usr/local/bin/malus"
 
 [nodes.david]
 validator = true
-extra-args = ["--dave"]
+extra-args = ["back-garbage-candidate", "--dave"]
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
-command = "/usr/local/bin/malus-back-garbage-candidate"
+command = "/usr/local/bin/malus"
 
 [nodes.eve]
 validator = true
-extra-args = ["--eve"]
+extra-args = ["suggest-garbage-candidate","--eve"]
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
-command = "/usr/local/bin/malus-suggest-garbage-candidate"
+command = "/usr/local/bin/malus"

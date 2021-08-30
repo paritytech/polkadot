@@ -39,14 +39,12 @@ RUN apt-get update && \
 
 
 # add malus binaries to the docker image
-COPY ./malus-dispute-ancestor /usr/local/bin
-COPY ./malus-suggest-garbage-candidate /usr/local/bin
+COPY ./malus /usr/local/bin
 
 USER nonroot
 
 # check if executable works in this container
-RUN /usr/local/bin/malus-dispute-ancestor --version
-RUN /usr/local/bin/malus-suggest-garbage-candidate --version
+RUN /usr/local/bin/malus --version
 
 # Tini allows us to avoid several Docker edge cases, see https://github.com/krallin/tini.
 ENTRYPOINT ["tini", "--", "/bin/bash"]
