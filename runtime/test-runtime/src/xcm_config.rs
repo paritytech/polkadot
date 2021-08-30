@@ -68,8 +68,8 @@ impl WeightTrader for DummyWeightTrader {
 
 pub struct InvertNothing;
 impl InvertLocation for InvertNothing {
-	fn invert_location(_: &MultiLocation) -> MultiLocation {
-		Here.into()
+	fn invert_location(_: &MultiLocation) -> sp_std::result::Result<MultiLocation, ()> {
+		Ok(Here.into())
 	}
 }
 
@@ -86,4 +86,6 @@ impl xcm_executor::Config for XcmConfig {
 	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call, MaxInstructions>;
 	type Trader = DummyWeightTrader;
 	type ResponseHandler = super::Xcm;
+	type AssetTrap = super::Xcm;
+	type AssetClaims = super::Xcm;
 }
