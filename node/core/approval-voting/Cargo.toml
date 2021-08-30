@@ -8,8 +8,8 @@ edition = "2018"
 futures = "0.3.15"
 futures-timer = "3.0.2"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = [
-    "bit-vec",
-    "derive",
+	"bit-vec",
+	"derive",
 ] }
 tracing = "0.1.26"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
@@ -29,14 +29,12 @@ polkadot-node-jaeger = { path = "../../jaeger" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = [
-    "full_crypto",
-] }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["full_crypto"] }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
 parking_lot = "0.11.1"
-rand_core = "0.5.1"                                                                        # should match schnorrkel
+rand_core = "0.5.1" # should match schnorrkel
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
