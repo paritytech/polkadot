@@ -45,7 +45,7 @@ pub struct XcmExecutor<Config: config::Config> {
 	holding: Assets,
 	origin: Option<MultiLocation>,
 	trader: Config::Trader,
-	/// The most recent error result and instruction index into the fragment in which it occured,
+	/// The most recent error result and instruction index into the fragment in which it occurred,
 	/// if any.
 	error: Option<(u32, XcmError)>,
 	/// The surplus weight, defined as the amount by which `max_weight` is
