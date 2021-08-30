@@ -88,7 +88,10 @@ const BENEFIT_NOTIFY_GOOD: Rep =
 /// ever second one collation per block).
 ///
 /// There is debug logging output, so we can adjust this value based on production results.
+#[cfg(not(test))]
 const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(600);
+#[cfg(test)]
+const MAX_UNSHARED_DOWNLOAD_TIME: Duration = Duration::from_millis(60);
 
 // How often to check all peers with activity.
 #[cfg(not(test))]
