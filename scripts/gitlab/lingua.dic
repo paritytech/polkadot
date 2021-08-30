@@ -29,8 +29,6 @@ broadcast/UDSMG
 BTC/S
 canonicalize/D
 CentOS
-Chain1
-Chain2
 CLI/MS
 codebase/SM
 codec/SM
@@ -247,7 +245,6 @@ teleporter/SM
 teleporters
 testnet/MS
 timestamp/MS
-ThisChain
 transitionary
 trie/MS
 trustless/Y
