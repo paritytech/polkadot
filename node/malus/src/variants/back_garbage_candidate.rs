@@ -19,14 +19,12 @@
 
 #![allow(missing_docs)]
 
-use color_eyre::eyre;
 use polkadot_cli::{
 	create_default_subsystems,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
 		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
 	},
-	Cli,
 };
 
 // Import extra types relevant to the particular
@@ -37,8 +35,10 @@ use polkadot_node_subsystem::messages::{
 };
 use polkadot_node_subsystem_util as util;
 use util::metrics::Metrics as _;
+
 // Filter wrapping related types.
-use malus::*;
+use crate::interceptor::*;
+use crate::shared::*;
 use polkadot_node_primitives::{PoV, ValidationResult};
 
 use polkadot_primitives::v1::{
@@ -48,13 +48,6 @@ use polkadot_primitives::v1::{
 
 use futures::channel::oneshot;
 use std::sync::{Arc, Mutex};
-
-use structopt::StructOpt;
-
-use shared::*;
-
-mod shared;
-
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -195,7 +188,7 @@ where
 }
 
 /// Generates an overseer that exposes bad behavior.
-struct BackGarbageCandidate;
+pub(crate) struct BackGarbageCandidate;
 
 impl OverseerGen for BackGarbageCandidate {
 	fn generate<'a, Spawner, RuntimeClient>(
@@ -236,12 +229,4 @@ impl OverseerGen for BackGarbageCandidate {
 
 		Ok((overseer, handle))
 	}
-}
-
-fn main() -> eyre::Result<()> {
-	color_eyre::install()?;
-	let cli = Cli::from_args();
-	assert_matches::assert_matches!(cli.subcommand, None);
-	polkadot_cli::run_node(cli, BackGarbageCandidate)?;
-	Ok(())
 }

@@ -21,18 +21,18 @@
 
 #![allow(missing_docs)]
 
-use color_eyre::eyre;
 use polkadot_cli::{
 	create_default_subsystems,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
 		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
 	},
-	Cli,
 };
 
 // Filter wrapping related types.
-use malus::*;
+use crate::interceptor::*;
+use crate::shared::*;
+use polkadot_node_subsystem::overseer::SubsystemSender;
 
 // Import extra types relevant to the particular
 // subsystem.
@@ -43,15 +43,9 @@ use polkadot_primitives::v1::CandidateReceipt;
 use sp_keystore::SyncCryptoStorePtr;
 use util::{metered, metrics::Metrics as _};
 
-// Filter wrapping related types.
-use malus::overseer::SubsystemSender;
-use shared::*;
-
 use std::sync::Arc;
-
-use structopt::StructOpt;
-
-mod shared;
+use std::time::Duration;
+use futures_timer::Delay;
 
 /// Become Loki and throw in a dispute once in a while, for an unfinalized block.
 #[derive(Clone, Debug)]
@@ -85,7 +79,6 @@ where
 				// make that disappear, and instead craft our own message.
 				msg: CandidateBackingMessage::Second(_, ccr, _),
 			} => {
-				// TODO FIXME avoid this, by moving all the logic in here by providing access to the spawner.
 				self.sink.unbounded_send((sender.clone(), ccr)).unwrap();
 				None
 			},
@@ -99,9 +92,9 @@ where
 }
 
 /// Generates an overseer that disputes every ancestor.
-struct DisputeEverything;
+pub(crate) struct DisputeAncestor;
 
-impl OverseerGen for DisputeEverything {
+impl OverseerGen for DisputeAncestor {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
@@ -137,7 +130,7 @@ impl OverseerGen for DisputeEverything {
 			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner.clone())?;
 
 		launch_processing_task(
-			spawner.clone(),
+			&spawner,
 			source,
 			|(mut subsystem_sender, candidate_receipt): (_, CandidateReceipt)| async move {
 				let relay_parent = candidate_receipt.descriptor().relay_parent;
@@ -155,8 +148,7 @@ impl OverseerGen for DisputeEverything {
 					relay_parent,
 				);
 
-				// consider adding a delay here
-				// Delay::new(Duration::from_secs(12)).await;
+				Delay::new(Duration::from_secs(12)).await;
 
 				// 😈
 				let msg = DisputeCoordinatorMessage::IssueLocalStatement(
@@ -172,12 +164,4 @@ impl OverseerGen for DisputeEverything {
 
 		Ok((overseer, handle))
 	}
-}
-
-fn main() -> eyre::Result<()> {
-	color_eyre::install()?;
-	let cli = Cli::from_args();
-	assert_matches::assert_matches!(cli.subcommand, None);
-	polkadot_cli::run_node(cli, DisputeEverything)?;
-	Ok(())
 }

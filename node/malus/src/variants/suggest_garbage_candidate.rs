@@ -22,25 +22,23 @@
 
 #![allow(missing_docs)]
 
-use color_eyre::eyre;
-use malus::overseer::SubsystemSender;
 use polkadot_cli::{
 	create_default_subsystems,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
 		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
 	},
-	Cli,
 };
 
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_backing::{CandidateBackingSubsystem, Metrics};
-use polkadot_node_primitives::{BlockData, PoV, Statement};
+use polkadot_node_primitives::Statement;
 use polkadot_node_subsystem::messages::{CandidateBackingMessage, StatementDistributionMessage};
+use polkadot_node_subsystem::overseer::{self, SubsystemSender};
 use polkadot_node_subsystem_util as util;
 // Filter wrapping related types.
-use malus::*;
+use crate::interceptor::*;
 use polkadot_primitives::v1::{
 	CandidateCommitments, CandidateReceipt, CommittedCandidateReceipt, CompactStatement, Hash,
 	Signed,
@@ -50,11 +48,8 @@ use util::{metered, metrics::Metrics as _};
 
 use std::sync::Arc;
 
-use structopt::StructOpt;
+use crate::shared::*;
 
-use shared::*;
-
-mod shared;
 /// Replaces the seconded PoV data
 /// of outgoing messages by some garbage data.
 #[derive(Clone)]
@@ -97,7 +92,7 @@ where
 }
 
 /// Generates an overseer that exposes bad behavior.
-struct SuggestGarbageCandidate;
+pub(crate) struct SuggestGarbageCandidate;
 
 impl OverseerGen for SuggestGarbageCandidate {
 	fn generate<'a, Spawner, RuntimeClient>(
@@ -136,7 +131,7 @@ impl OverseerGen for SuggestGarbageCandidate {
 			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner.clone())?;
 
 		launch_processing_task(
-			spawner,
+			&spawner,
 			source,
 			move |(mut subsystem_sender, hash, candidate_receipt): (_, Hash, CandidateReceipt)| {
 				let keystore = keystore.clone();
@@ -177,12 +172,4 @@ impl OverseerGen for SuggestGarbageCandidate {
 
 		Ok((overseer, handle))
 	}
-}
-
-fn main() -> eyre::Result<()> {
-	color_eyre::install()?;
-	let cli = Cli::from_args();
-	assert_matches::assert_matches!(cli.subcommand, None);
-	polkadot_cli::run_node(cli, SuggestGarbageCandidate)?;
-	Ok(())
 }

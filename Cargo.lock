@@ -7004,6 +7004,7 @@ dependencies = [
  "async-trait",
  "color-eyre",
  "futures 0.3.16",
+ "futures-timer 3.0.2",
  "parity-util-mem",
  "polkadot-cli",
  "polkadot-node-core-backing",
