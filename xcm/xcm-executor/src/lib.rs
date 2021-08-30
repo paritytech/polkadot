@@ -90,7 +90,6 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 
 		if let Err(_) = Config::Barrier::should_execute(
 			&origin,
-			true,
 			&mut message,
 			xcm_weight,
 			&mut weight_credit,
