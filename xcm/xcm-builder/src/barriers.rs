@@ -81,24 +81,6 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 	}
 }
 
-/// Allows execution from `origin` if it is just a straight `SubscribeVerison` or
-/// `UnsubscribeVersion` instruction.
-pub struct AllowSubscriptionsFrom<T>(PhantomData<T>);
-impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
-	fn should_execute<Call>(
-		origin: &MultiLocation,
-		message: &mut Xcm<Call>,
-		_max_weight: Weight,
-		_weight_credit: &mut Weight,
-	) -> Result<(), ()> {
-		ensure!(T::contains(origin), ());
-		match (message.0.len(), message.0.first()) {
-			(1, Some(SubscribeVersion { .. })) | (1, Some(UnsubscribeVersion)) => Ok(()),
-			_ => Err(()),
-		}
-	}
-}
-
 /// Allows execution from any origin that is contained in `T` (i.e. `T::Contains(origin)`) without any payments.
 /// Use only for executions from trusted origin groups.
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
@@ -139,6 +121,24 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 			Some(QueryResponse { query_id, .. })
 				if ResponseHandler::expecting_response(origin, *query_id) =>
 				Ok(()),
+			_ => Err(()),
+		}
+	}
+}
+
+/// Allows execution from `origin` if it is just a straight `SubscribeVerison` or
+/// `UnsubscribeVersion` instruction.
+pub struct AllowSubscriptionsFrom<T>(PhantomData<T>);
+impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		message: &mut Xcm<Call>,
+		_max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> Result<(), ()> {
+		ensure!(T::contains(origin), ());
+		match (message.0.len(), message.0.first()) {
+			(1, Some(SubscribeVersion { .. })) | (1, Some(UnsubscribeVersion)) => Ok(()),
 			_ => Err(()),
 		}
 	}

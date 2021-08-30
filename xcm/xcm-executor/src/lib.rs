@@ -431,6 +431,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			UnsubscribeVersion => {
 				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				ensure!(&self.original_origin == origin, XcmError::BadOrigin);
 				Config::SubscriptionService::stop(origin)
 			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
