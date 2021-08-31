@@ -16,7 +16,7 @@
 
 use crate::{
 	mock::*, AssetTraps, Error, LatestVersionedMultiLocation, Queries, QueryStatus,
-	VersionNotifiers, VersionNotifyTargets, VersionDiscoveryQueue,
+	VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -683,7 +683,7 @@ fn auto_subscription_works() {
 		assert_eq!(XcmPallet::wrap_version(&remote0, v2_msg.clone()), Err(()));
 		let expected = vec![(remote0.clone().into(), 2)];
 		assert_eq!(VersionDiscoveryQueue::<Test>::get().into_inner(), expected);
-		
+
 		assert_eq!(XcmPallet::wrap_version(&remote0, v2_msg.clone()), Err(()));
 		assert_eq!(XcmPallet::wrap_version(&remote1, v2_msg.clone()), Err(()));
 		let expected = vec![(remote0.clone().into(), 3), (remote1.clone().into(), 1)];
@@ -712,8 +712,8 @@ fn auto_subscription_works() {
 		assert_eq!(
 			XcmPallet::wrap_version(&remote0, v2_msg.clone()),
 			Ok(VersionedXcm::from(v2_msg.clone()))
-		);		
-		
+		);
+
 		XcmPallet::on_initialize(2);
 		assert_eq!(
 			take_sent_xcm(),
