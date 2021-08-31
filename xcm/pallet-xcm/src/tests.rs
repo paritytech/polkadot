@@ -18,7 +18,10 @@ use crate::{
 	mock::*, AssetTraps, Error, LatestVersionedMultiLocation, Queries, QueryStatus,
 	VersionNotifiers, VersionNotifyTargets,
 };
-use frame_support::{assert_noop, assert_ok, traits::{Currency, Hooks}};
+use frame_support::{
+	assert_noop, assert_ok,
+	traits::{Currency, Hooks},
+};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use sp_runtime::traits::{BlakeTwo256, Hash};
 use std::convert::TryInto;
@@ -565,20 +568,29 @@ fn subscription_side_upgrades_work_with_notify() {
 		let instr1 = QueryResponse { query_id: 70, max_weight: 0, response: Response::Version(2) };
 		let instr2 = QueryResponse { query_id: 71, max_weight: 0, response: Response::Version(2) };
 		let mut sent = take_sent_xcm();
-		sent.sort_by_key(|k| match (k.1).0[0] { QueryResponse { query_id: q, .. } => q, _ => 0 });
-		assert_eq!(sent, vec![
-			(Parachain(1000).into(), Xcm(vec![instr0])),
-			(Parachain(1001).into(), Xcm(vec![instr1])),
-			(Parachain(1002).into(), Xcm(vec![instr2])),
-		]);
+		sent.sort_by_key(|k| match (k.1).0[0] {
+			QueryResponse { query_id: q, .. } => q,
+			_ => 0,
+		});
+		assert_eq!(
+			sent,
+			vec![
+				(Parachain(1000).into(), Xcm(vec![instr0])),
+				(Parachain(1001).into(), Xcm(vec![instr1])),
+				(Parachain(1002).into(), Xcm(vec![instr2])),
+			]
+		);
 
 		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
 		contents.sort_by_key(|k| k.2);
-		assert_eq!(contents, vec![
-			(2, Parachain(1000).into().versioned(), (69, 0, 2)),
-			(2, Parachain(1001).into().versioned(), (70, 0, 2)),
-			(2, Parachain(1002).into().versioned(), (71, 0, 2)),
-		]);
+		assert_eq!(
+			contents,
+			vec![
+				(2, Parachain(1000).into().versioned(), (69, 0, 2)),
+				(2, Parachain(1001).into().versioned(), (70, 0, 2)),
+				(2, Parachain(1002).into().versioned(), (71, 0, 2)),
+			]
+		);
 	});
 }
 
@@ -598,11 +610,14 @@ fn subscription_side_upgrades_work_without_notify() {
 		XcmPallet::on_runtime_upgrade();
 		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
 		contents.sort_by_key(|k| k.2);
-		assert_eq!(contents, vec![
-			(2, Parachain(1000).into().versioned(), (69, 0, 2)),
-			(2, Parachain(1001).into().versioned(), (70, 0, 2)),
-			(2, Parachain(1002).into().versioned(), (71, 0, 2)),
-		]);
+		assert_eq!(
+			contents,
+			vec![
+				(2, Parachain(1000).into().versioned(), (69, 0, 2)),
+				(2, Parachain(1001).into().versioned(), (70, 0, 2)),
+				(2, Parachain(1002).into().versioned(), (71, 0, 2)),
+			]
+		);
 	});
 }
 
@@ -649,7 +664,5 @@ fn subscriber_side_subscription_works() {
 /// We should autosubscribe when we don't know the remote's version.
 #[test]
 fn auto_subscription_works() {
-	new_test_ext_with_balances(vec![]).execute_with(|| {
-
-	})
+	new_test_ext_with_balances(vec![]).execute_with(|| {})
 }

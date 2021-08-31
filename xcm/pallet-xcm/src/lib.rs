@@ -46,7 +46,11 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo}, pallet_prelude::*, parameter_types};
+	use frame_support::{
+		dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo},
+		pallet_prelude::*,
+		parameter_types,
+	};
 	use frame_system::{pallet_prelude::*, Config as SysConfig};
 	use sp_core::H256;
 	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
@@ -679,11 +683,11 @@ pub mod pallet {
 			let response = Response::Version(xcm_version);
 			for (key, mut value) in VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION) {
 				if value.2 == xcm_version {
-					continue;
+					continue
 				}
 				let new_key: MultiLocation = match key.clone().try_into() {
 					Ok(k) => k,
-					Err(_) => continue,	// will never happen since it's the latest version already.
+					Err(_) => continue, // will never happen since it's the latest version already.
 				};
 				value.2 = xcm_version;
 				let message = Xcm(vec![QueryResponse {
@@ -698,7 +702,11 @@ pub mod pallet {
 						Self::deposit_event(Event::VersionChangeNotified(new_key, xcm_version));
 					},
 					Err(e) => {
-						Self::deposit_event(Event::NotifyTargetSendFail(new_key, value.0, e.into()));
+						Self::deposit_event(Event::NotifyTargetSendFail(
+							new_key,
+							value.0,
+							e.into(),
+						));
 					},
 				}
 			}
