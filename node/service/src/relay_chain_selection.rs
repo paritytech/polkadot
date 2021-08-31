@@ -417,7 +417,7 @@ where
 
 		let (lag, subchain_head) = if cfg!(feature = "disputes") {
 			// Prevent sending flawed data to the dispute-coordinator.
-			if Some(subchain_block_descriptions.len() as _) !=
+			if Some(subchain_block_descriptions.len() as u32 - 1) !=
 				subchain_number.checked_sub(target_number)
 			{
 				tracing::error!(
