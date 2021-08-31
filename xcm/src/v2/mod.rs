@@ -392,6 +392,8 @@ pub enum Instruction<Call> {
 	///   prioritized under standard asset ordering. Any others will remain in holding.
 	/// - `beneficiary`: The new owner for the assets.
 	///
+	/// Kind: *Instruction*
+	///
 	/// Errors:
 	DepositAsset { assets: MultiAssetFilter, max_assets: u32, beneficiary: MultiLocation },
 
@@ -411,6 +413,8 @@ pub enum Instruction<Call> {
 	/// - `xcm`: The orders that should follow the `ReserveAssetDeposited` instruction
 	///   which is sent onwards to `dest`.
 	///
+	/// Kind: *Instruction*
+	///
 	/// Errors:
 	DepositReserveAsset {
 		assets: MultiAssetFilter,
@@ -428,6 +432,8 @@ pub enum Instruction<Call> {
 	/// - `give`: The asset(s) to remove from holding.
 	/// - `receive`: The minimum amount of assets(s) which `give` should be exchanged for.
 	///
+	/// Kind: *Instruction*
+	///
 	/// Errors:
 	ExchangeAsset { give: MultiAssetFilter, receive: MultiAssets },
 
@@ -442,6 +448,8 @@ pub enum Instruction<Call> {
 	/// - `xcm`: The instructions to execute on the assets once withdrawn *on the reserve
 	///   location*.
 	///
+	/// Kind: *Instruction*
+	///
 	/// Errors:
 	InitiateReserveWithdraw { assets: MultiAssetFilter, reserve: MultiLocation, xcm: Xcm<()> },
 
@@ -455,6 +463,8 @@ pub enum Instruction<Call> {
 	///
 	/// NOTE: The `dest` location *MUST* respect this origin as a valid teleportation origin for all
 	/// `assets`. If it does not, then the assets may be lost.
+	///
+	/// Kind: *Instruction*
 	///
 	/// Errors:
 	InitiateTeleport { assets: MultiAssetFilter, dest: MultiLocation, xcm: Xcm<()> },
@@ -471,6 +481,8 @@ pub enum Instruction<Call> {
 	/// - `max_response_weight`: The maximum amount of weight that the `QueryResponse` item which
 	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
 	///   response may not execute at all.
+	///
+	/// Kind: *Instruction*
 	///
 	/// Errors:
 	QueryHolding {
@@ -490,13 +502,20 @@ pub enum Instruction<Call> {
 	///   expected maximum weight of the total XCM to be executed for the
 	///   `AllowTopLevelPaidExecutionFrom` barrier to allow the XCM be executed.
 	///
+	/// Kind: *Instruction*
+	///
 	/// Errors:
 	BuyExecution { fees: MultiAsset, weight_limit: WeightLimit },
 
 	/// Refund any surplus weight previously bought with `BuyExecution`.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: None.
 	RefundSurplus,
 
-	/// Set code that should be called in the case of an error happening.
+	/// Set the Error Handler Register. This is code that should be called in the case of an error
+	/// happening.
 	///
 	/// An error occurring within execution of this code will _NOT_ result in the error register
 	/// being set, nor will an error handler be called due to it. The error handler and appendix
@@ -505,10 +524,15 @@ pub enum Instruction<Call> {
 	/// The apparent weight of this instruction is inclusive of the inner `Xcm`; the executing
 	/// weight however includes only the difference between the previous handler and the new
 	/// handler, which can reasonably be negative, which would result in a surplus.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: None.
 	SetErrorHandler(Xcm<Call>),
 
-	/// Set code that should be called after code execution (including the error handler if any)
-	/// is finished. This will be called regardless of whether an error occurred.
+	/// Set the Appendix Register. This is code that should be called after code execution
+	/// (including the error handler if any) is finished. This will be called regardless of whether
+	/// an error occurred.
 	///
 	/// Any error occurring due to execution of this code will result in the error register being
 	/// set, and the error handler (if set) firing.
@@ -516,10 +540,38 @@ pub enum Instruction<Call> {
 	/// The apparent weight of this instruction is inclusive of the inner `Xcm`; the executing
 	/// weight however includes only the difference between the previous appendix and the new
 	/// appendix, which can reasonably be negative, which would result in a surplus.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: None.
 	SetAppendix(Xcm<Call>),
 
-	/// Clear the error register.
+	/// Clear the Error Register.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: None.
 	ClearError,
+
+	/// Create some assets which are being held on behalf of the origin.
+	///
+	/// - `assets`: The assets which are to be claimed. This must match exactly with the assets
+	///   claimable by the origin of the ticket.
+	/// - `ticket`: The ticket of the asset; this is an abstract identifier to help locate the
+	///   asset.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
+	ClaimAsset { assets: MultiAssets, ticket: MultiLocation },
+
+	/// Always throws an error of type `Trap`.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
+	/// - `Trap`: All circumstances, whose inner value is the same as this item's inner value.
+	Trap(u64),
 }
 
 impl<Call> Xcm<Call> {
@@ -572,6 +624,8 @@ impl<Call> Instruction<Call> {
 			SetErrorHandler(xcm) => SetErrorHandler(xcm.into()),
 			SetAppendix(xcm) => SetAppendix(xcm.into()),
 			ClearError => ClearError,
+			ClaimAsset { assets, ticket } => ClaimAsset { assets, ticket },
+			Trap(code) => Trap(code),
 		}
 	}
 }
