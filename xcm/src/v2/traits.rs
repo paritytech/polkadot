@@ -18,10 +18,11 @@
 
 use core::result;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 use super::{MultiLocation, Xcm};
 
-#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
 pub enum Error {
 	Undefined,
 	/// An arithmetic overflow happened.
