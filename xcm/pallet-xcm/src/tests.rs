@@ -521,6 +521,7 @@ fn subscriber_side_subscription_works() {
 			Origin::root(),
 			Box::new(remote.clone().into()),
 		));
+		take_sent_xcm();
 
 		// Assume subscription target is working ok.
 
