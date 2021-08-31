@@ -17,12 +17,12 @@
 //! The dry-run command.
 
 use crate::{
-	params, prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, SharedConfig, Solvers,
-	WsClient,
+	params, prelude::*, rpc_helpers::*, signer::Signer, BalanceIterations, Balancing, DryRunConfig,
+	Error, SharedConfig, Solvers, WsClient,
 };
 use codec::Encode;
-use frame_support::traits::Currency;
 use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
+use frame_support::traits::Currency;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
 fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
@@ -123,16 +123,18 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		).await?;
 		force_create_snapshot::<Runtime>(&mut ext)?;
 
-		let (raw_solution, witness) = match config.solver {
-				Solvers::SeqPhragmen { .. } => {
-					type Solver = SequentialPhragmen<AccountId, sp_runtime::Perbill>;
-					crate::mine_unchecked::<Runtime, Solver>(&mut ext, false)?
-				},
-				Solvers::PhragMMS { .. } => {
-					type Solver = PhragMMS<AccountId, sp_runtime::Perbill>;
-					crate::mine_unchecked::<Runtime, Solver>(&mut ext, false)?
-				}
-		};
+			let (raw_solution, witness) = match config.solver {
+					Solvers::SeqPhragmen { iterations } => {
+						BalanceIterations::set(iterations);
+						type Solver = SequentialPhragmen<AccountId, sp_runtime::Perbill, Balancing>;
+						crate::mine_unchecked::<Runtime, Solver>(&mut ext, false)?
+					},
+					Solvers::PhragMMS { iterations } => {
+						BalanceIterations::set(iterations);
+						type Solver = PhragMMS<AccountId, sp_runtime::Perbill>;
+						crate::mine_unchecked::<Runtime, Solver>(&mut ext, false)?
+					}
+			};
 
 		let nonce = crate::get_account_info::<Runtime>(client, &signer.account, config.at)
 			.await?
