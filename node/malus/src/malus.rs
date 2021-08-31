@@ -28,12 +28,15 @@ mod variants;
 use variants::*;
 
 /// Define the different variants of behavior.
-#[derive(Debug, StructOpt, PartialEq, Eq)]
+#[derive(Debug, StructOpt)]
 #[structopt(rename_all = "kebab-case")]
 enum NemesisVariant {
-	BackGarbageCandidate,
-	SuggestGarabageCandidate,
-	DisputeAncestor,
+	/// Suggest a candidate with an invalid proof of validity.
+	SuggestGarabageCandidate(RunCmd),
+	/// Back a candidate with a specifically crafted proof of validity.
+	BackGarbageCandidate(RunCmd),
+	/// Delayed disputing of ancestors that are perfectly fine.
+	DisputeAncestor(RunCmd),
 }
 
 #[derive(Debug, StructOpt)]
@@ -41,21 +44,17 @@ enum NemesisVariant {
 struct MalusCli {
 	#[structopt(subcommand)]
 	pub variant: NemesisVariant,
-
-	#[structopt(flatten)]
-	pub run: RunCmd,
 }
 
 impl MalusCli {
 	/// Launch a malus node.
 	fn launch(self) -> eyre::Result<()> {
-		let Self { variant, run } = self;
-		match variant {
-			NemesisVariant::BackGarbageCandidate =>
+		match self.variant {
+			NemesisVariant::BackGarbageCandidate(run) =>
 				polkadot_cli::run_node(run, BackGarbageCandidate)?,
-			NemesisVariant::SuggestGarabageCandidate =>
+			NemesisVariant::SuggestGarabageCandidate(run) =>
 				polkadot_cli::run_node(run, SuggestGarbageCandidate)?,
-			NemesisVariant::DisputeAncestor => polkadot_cli::run_node(run, DisputeAncestor)?,
+			NemesisVariant::DisputeAncestor(run) => polkadot_cli::run_node(run, DisputeAncestor)?,
 		}
 		Ok(())
 	}
@@ -77,14 +76,14 @@ mod tests {
 		let cli = MalusCli::from_iter_safe(IntoIterator::into_iter([
 			"malus",
 			"dispute-ancestor",
-			"--alice",
+			"--bob",
 		]))
 		.unwrap();
 		assert_matches::assert_matches!(cli, MalusCli {
-			variant,
+			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
-			assert_eq!(variant, NemesisVariant::DisputeAncestor);
+			assert!(run.base.bob);
 		});
 	}
 }
