@@ -42,6 +42,7 @@ use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
 use jsonrpsee_ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
+use sp_npos_elections::ExtendedBalance;
 use sp_runtime::traits::Block as BlockT;
 use structopt::StructOpt;
 
@@ -296,8 +297,8 @@ frame_support::parameter_types! {
 
 /// Balancing configuration for for the solution algorithm. See [`Solvers`] for config options.
 struct Balancing;
-impl Get<Option<(usize, u128)>> for Balancing {
-	fn get() -> Option<(usize, u128)> {
+impl Get<Option<(usize, ExtendedBalance)>> for Balancing {
+	fn get() -> Option<(usize, ExtendedBalance)> {
 		Some((BalanceIterations::get() as usize, 0))
 	}
 }
