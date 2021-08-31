@@ -18,6 +18,7 @@
 
 use crate::{prelude::*, Error, SharedConfig};
 use codec::Encode;
+use frame_election_provider_support::SequentialPhragmen;
 use std::io::Write;
 
 macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
@@ -32,7 +33,7 @@ macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 			// NOTE: this internally calls feasibility_check, but we just re-do it here as an easy way
 			// to get a `ReadySolution`.
 			let (raw_solution, _) =
-				<EPM::Pallet<Runtime>>::mine_solution::<frame_election_provider_support::SequentialPhragmen<AccountId, sp_runtime::Perbill>>()?;
+				<EPM::Pallet<Runtime>>::mine_solution::<SequentialPhragmen<AccountId, sp_runtime::Perbill>>()?;
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 			let ready_solution = EPM::Pallet::<Runtime>::feasibility_check(raw_solution, EPM::ElectionCompute::Signed)?;
 			let encoded_ready = ready_solution.encode();

@@ -38,7 +38,7 @@ mod signer;
 pub(crate) use prelude::*;
 pub(crate) use signer::get_account_info;
 
-use frame_election_provider_support::{NposSolver, PhragMMS, SequentialPhragmen};
+use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
 use jsonrpsee_ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};

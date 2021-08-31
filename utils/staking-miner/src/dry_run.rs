@@ -21,8 +21,8 @@ use crate::{
 	WsClient,
 };
 use codec::Encode;
-use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 use frame_support::traits::Currency;
+use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
 fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
