@@ -16,7 +16,7 @@
 
 use crate::{
 	mock::*, AssetTraps, Error, LatestVersionedMultiLocation, Queries, QueryStatus,
-	VersionNotifiers, VersionNotifyTargets,
+	VersionNotifiers, VersionNotifyTargets, VersionDiscoveryQueue,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -664,5 +664,77 @@ fn subscriber_side_subscription_works() {
 /// We should autosubscribe when we don't know the remote's version.
 #[test]
 fn auto_subscription_works() {
-	new_test_ext_with_balances(vec![]).execute_with(|| {})
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote0 = Parachain(1000).into();
+		let remote1 = Parachain(1001).into();
+
+		assert_ok!(XcmPallet::force_default_xcm_version(Origin::root(), Some(1)));
+
+		// Wrapping a version for a destination we don't know elicits a subscription.
+		let v1_msg = xcm::v1::Xcm::<()>::QueryResponse {
+			query_id: 1,
+			response: xcm::v1::Response::Assets(vec![].into()),
+		};
+		let v2_msg = Xcm::<()>(vec![Trap(0)]);
+		assert_eq!(
+			XcmPallet::wrap_version(&remote0, v1_msg.clone()),
+			Ok(VersionedXcm::from(v1_msg.clone())),
+		);
+		assert_eq!(XcmPallet::wrap_version(&remote0, v2_msg.clone()), Err(()));
+		let expected = vec![(remote0.clone().into(), 2)];
+		assert_eq!(VersionDiscoveryQueue::<Test>::get().into_inner(), expected);
+		
+		assert_eq!(XcmPallet::wrap_version(&remote0, v2_msg.clone()), Err(()));
+		assert_eq!(XcmPallet::wrap_version(&remote1, v2_msg.clone()), Err(()));
+		let expected = vec![(remote0.clone().into(), 3), (remote1.clone().into(), 1)];
+		assert_eq!(VersionDiscoveryQueue::<Test>::get().into_inner(), expected);
+
+		XcmPallet::on_initialize(1);
+		assert_eq!(
+			take_sent_xcm(),
+			vec![(
+				remote0.clone(),
+				Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
+			)]
+		);
+
+		// Assume remote0 is working ok and XCM version 2.
+
+		let weight = BaseXcmWeight::get();
+		let message = Xcm(vec![
+			// Remote supports XCM v2
+			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(2) },
+		]);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote0.clone(), message, weight);
+		assert_eq!(r, Outcome::Complete(weight));
+
+		// This message can now be sent to remote0 as it's v2.
+		assert_eq!(
+			XcmPallet::wrap_version(&remote0, v2_msg.clone()),
+			Ok(VersionedXcm::from(v2_msg.clone()))
+		);		
+		
+		XcmPallet::on_initialize(2);
+		assert_eq!(
+			take_sent_xcm(),
+			vec![(
+				remote1.clone(),
+				Xcm(vec![SubscribeVersion { query_id: 1, max_response_weight: 0 }]),
+			)]
+		);
+
+		// Assume remote1 is working ok and XCM version 1.
+
+		let weight = BaseXcmWeight::get();
+		let message = Xcm(vec![
+			// Remote supports XCM v1
+			QueryResponse { query_id: 1, max_weight: 0, response: Response::Version(1) },
+		]);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote1.clone(), message, weight);
+		assert_eq!(r, Outcome::Complete(weight));
+
+		// v2 messages cannot be sent to remote1...
+		assert_eq!(XcmPallet::wrap_version(&remote1, v1_msg.clone()), Ok(VersionedXcm::V1(v1_msg)));
+		assert_eq!(XcmPallet::wrap_version(&remote1, v2_msg.clone()), Err(()));
+	})
 }

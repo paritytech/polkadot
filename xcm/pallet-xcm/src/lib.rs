@@ -360,6 +360,26 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	#[pallet::genesis_config]
+	pub struct GenesisConfig {
+		/// The default version to encode outgoing XCM messages with.
+		pub safe_xcm_version: Option<XcmVersion>,
+	}
+
+	#[cfg(feature = "std")]
+	impl Default for GenesisConfig {
+		fn default() -> Self {
+			Self { safe_xcm_version: Some(XCM_VERSION) }
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+		fn build(&self) {
+			SafeXcmVersion::<T>::set(self.safe_xcm_version);
+		}
+	}
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
@@ -912,7 +932,7 @@ pub mod pallet {
 					// exists - just bump the count.
 					q[index].1.saturating_inc();
 				} else {
-					let _ = q.try_push((versioned_dest, 0));
+					let _ = q.try_push((versioned_dest, 1));
 				}
 			});
 		}
@@ -929,7 +949,7 @@ pub mod pallet {
 					SafeXcmVersion::<T>::get()
 				})
 				.ok_or(())
-				.and_then(|v| xcm.into().into_version(v))
+				.and_then(|v| xcm.into().into_version(v.min(XCM_VERSION)))
 		}
 	}
 
