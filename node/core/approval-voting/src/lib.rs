@@ -809,7 +809,7 @@ async fn handle_startup(
 		let info = match state.session_info(session) {
 			Some(info) => info,
 			None => {
-				tracing::warn!(target: LOG_TARGET, "Missing session info for {:?}", session);
+				tracing::debug!(target: LOG_TARGET, "Missing session info for {:?}", session);
 				continue
 			},
 		};
