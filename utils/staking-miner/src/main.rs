@@ -289,10 +289,12 @@ enum Solvers {
 }
 
 frame_support::parameter_types! {
-	// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI
-	// config.
+	/// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI
+	/// config.
 	pub static BalanceIterations: u32 = 10;
 }
+
+/// Balancing configuration for for the solution algorithm. See [`Solvers`] for config options.
 struct Balancing;
 impl Get<Option<(usize, u128)>> for Balancing {
 	fn get() -> Option<(usize, u128)> {
