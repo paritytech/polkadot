@@ -90,6 +90,12 @@ default:
 #### Vault secrets
 .vault-secrets:                    &vault-secrets
   secrets:
+    DOCKER_HUB_USER:
+      vault:                       cicd/gitlab/parity/DOCKER_HUB_USER@kv
+      file:                        false
+    DOCKER_HUB_PASS:
+      vault:                       cicd/gitlab/parity/DOCKER_HUB_PASS@kv
+      file:                        false
     GITHUB_USER:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_USER@kv
       file:                        false
@@ -346,8 +352,8 @@ publish-polkadot-image:
       variables:
         <<:                        *image-variables
         IMAGE_NAME:                docker.io/parity/rococo
-        DOCKER_USER:               ${Docker_Hub_User_Parity}
-        DOCKER_PASS:               ${Docker_Hub_Pass_Parity}
+        DOCKER_USER:               ${DOCKER_HUB_USER}
+        DOCKER_PASS:               ${DOCKER_HUB_PASS}
   needs:
     - job:                         test-build-linux-stable
       artifacts:                   true
