@@ -322,14 +322,3 @@ pub(crate) fn new_test_ext_with_balances(
 	ext.execute_with(|| System::set_block_number(1));
 	ext
 }
-/*
-pub(crate) fn run_to_block(n: BlockNumber) {
-	while System::block_number() < n {
-		XcmPallet::on_finalize(System::block_number());
-		System::on_finalize(System::block_number());
-		System::set_block_number(System::block_number() + 1);
-		System::on_initialize(System::block_number());
-		XcmPallet::on_initialize(System::block_number());
-	}
-}
-*/
