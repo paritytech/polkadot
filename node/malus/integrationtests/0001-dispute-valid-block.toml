@@ -6,21 +6,21 @@ timeout = 1000
 
 [nodes.alice]
 validator = true
-extra-args = ["--alice"]
 image = "{{get_env(name="SYNTHIMAGE") | safe }}"
 command = "polkadot"
+extra-args = ["--alice"]
 
 [nodes.bob]
 validator = true
-extra-args = ["--bob"]
 image = "{{get_env(name="SYNTHIMAGE") | safe }}"
 command = "polkadot"
+extra-args = ["--bob"]
 
 [nodes.charlie]
 validator = true
-extra-args = ["--charlie"]
 image = "{{get_env(name="SYNTHIMAGE") | safe }}"
 command = "polkadot"
+extra-args = ["--charlie"]
 
 [nodes.david]
 validator = true
