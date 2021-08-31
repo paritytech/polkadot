@@ -344,8 +344,34 @@ parameter_types! {
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// miner configs
-	pub const MinerMaxIterations: u32 = 10;
 	pub OffchainRepeat: BlockNumber = 5;
+}
+
+/// Maximum number of iteration of balancing that will be executed in the embedded miner of
+/// the pallet.
+pub const MINER_MAX_ITERATIONS: u32 = 10;
+
+use frame_election_provider_support::SequentialPhragmen;
+use frame_support::pallet_prelude::Get;
+use sp_npos_elections::ExtendedBalance;
+/// A source of random balance for PhragMMS, which is mean to be run by the OCW election miner.
+pub struct OffchainRandomBalance;
+impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalance {
+	fn get() -> Option<(usize, ExtendedBalance)> {
+		use sp_runtime::traits::TrailingZeroInput;
+		let iters = match MINER_MAX_ITERATIONS {
+			0 => 0,
+			max @ _ => {
+				let seed = sp_io::offchain::random_seed();
+				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
+					.expect("input is padded with zeroes; qed") %
+					max.saturating_add(1);
+				random as usize
+			},
+		};
+
+		Some((iters, 0))
+	}
 }
 
 sp_npos_elections::generate_solution_type!(
@@ -372,7 +398,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
-	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
 	type MinerMaxLength = OffchainSolutionLengthLimit;
 	type OffchainRepeat = OffchainRepeat;
@@ -381,6 +406,11 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OnChainAccuracy = Perbill;
 	type Solution = NposCompactSolution16;
 	type Fallback = Fallback;
+	type Solver = SequentialPhragmen<
+		AccountId,
+		pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
+		OffchainRandomBalance,
+	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;

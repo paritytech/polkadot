@@ -376,7 +376,7 @@ use sp_npos_elections::ExtendedBalance;
 pub struct OffchainRandomBalance;
 impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalance {
 	fn get() -> Option<(usize, ExtendedBalance)> {
-		 use sp_runtime::traits::TrailingZeroInput;
+		use sp_runtime::traits::TrailingZeroInput;
 		let iters = match MINER_MAX_ITERATIONS {
 			0 => 0,
 			max @ _ => {

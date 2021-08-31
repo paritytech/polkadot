@@ -10002,8 +10002,10 @@ name = "staking-miner"
 version = "0.9.9"
 dependencies = [
  "env_logger 0.9.0",
+ "frame-election-provider-support",
  "frame-support",
  "frame-system",
+ "jsonrpsee-types",
  "jsonrpsee-ws-client",
  "kusama-runtime",
  "log",
@@ -10022,6 +10024,7 @@ dependencies = [
  "serde_json",
  "sp-core",
  "sp-io",
+ "sp-npos-elections",
  "sp-runtime",
  "sp-version",
  "structopt",
