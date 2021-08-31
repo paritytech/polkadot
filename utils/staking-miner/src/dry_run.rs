@@ -131,7 +131,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 					},
 					Solvers::PhragMMS { iterations } => {
 						BalanceIterations::set(iterations);
-						type Solver = PhragMMS<AccountId, sp_runtime::Perbill>;
+						type Solver = SequentialPhragmen<AccountId, sp_runtime::Perbill, Balancing>;
 						crate::mine_unchecked::<Runtime, Solver>(&mut ext, false)?
 					}
 			};

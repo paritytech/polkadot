@@ -10005,7 +10005,6 @@ dependencies = [
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
- "jsonrpsee-types",
  "jsonrpsee-ws-client",
  "kusama-runtime",
  "log",

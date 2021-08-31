@@ -22,7 +22,7 @@ pub(crate) use jsonrpsee_ws_client::types::v2::params::JsonRpcParams;
 
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 pub(crate) enum RpcHelperError {
-	Jsonrpsee(#[from] jsonrpsee_types::error::Error),
+	Jsonrpsee(#[from] jsonrpsee_ws_client::types::Error),
 	Codec(#[from] codec::Error),
 }
 
