@@ -882,7 +882,7 @@ async fn issue_local_statement(
 
 	// Do import
 	if !statements.is_empty() {
-		let (pending_confirmation, _rx) = oneshot::channel();
+		let (pending_confirmation, rx) = oneshot::channel();
 		handle_import_statements(
 			ctx,
 			overlay_db,
@@ -895,6 +895,32 @@ async fn issue_local_statement(
 			pending_confirmation,
 		)
 		.await?;
+		match rx.await {
+			Err(_) =>  {
+				tracing::error!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"pending confirmation receiver got dropped by `handle_import_statements` for our own votes!"
+				);
+			}
+			Ok(ImportStatementsResult::InvalidImport) => {
+				tracing::error!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"handle_import_statements` considers our own votes invalid!"
+				);
+			}
+			Ok(ImportStatementsResult::ValidImport) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"handle_import_statements` successfully imported our vote!"
+				);
+			}
+		}
 	}
 
 	Ok(())
