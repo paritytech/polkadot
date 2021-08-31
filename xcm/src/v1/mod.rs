@@ -16,7 +16,10 @@
 
 //! Version 1 of the Cross-Consensus Message format data structures.
 
-use super::v0::{Response as Response0, Xcm as Xcm0};
+use super::{
+	v0::{Response as OldResponse, Xcm as OldXcm},
+	v2::{Instruction, Response as NewResponse, Xcm as NewXcm},
+};
 use crate::DoubleEncoded;
 use alloc::vec::Vec;
 use core::{
@@ -28,7 +31,7 @@ use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
 mod junction;
-pub mod multiasset;
+mod multiasset;
 mod multilocation;
 mod order;
 mod traits; // the new multiasset.
@@ -38,7 +41,9 @@ pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
 };
-pub use multilocation::{Ancestor, AncestorThen, Junctions, MultiLocation, Parent, ParentThen};
+pub use multilocation::{
+	Ancestor, AncestorThen, InteriorMultiLocation, Junctions, MultiLocation, Parent, ParentThen,
+};
 pub use order::Order;
 pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
@@ -48,30 +53,23 @@ pub use super::v0::{BodyId, BodyPart, NetworkId, OriginKind};
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
-		super::v0::{
-			BodyId, BodyPart,
-			NetworkId::{self, *},
-		},
 		junction::Junction::{self, *},
-		multiasset::{
-			AssetId::{self, *},
-			AssetInstance::{self, *},
-			Fungibility::{self, *},
-			MultiAsset,
-			MultiAssetFilter::{self, *},
-			MultiAssets,
-			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
-			WildMultiAsset::{self, *},
-		},
-		multilocation::{
-			Ancestor, AncestorThen,
-			Junctions::{self, *},
-			MultiLocation, Parent, ParentThen,
-		},
 		opaque,
 		order::Order::{self, *},
-		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
-		OriginKind, Response,
+		Ancestor, AncestorThen,
+		AssetId::{self, *},
+		AssetInstance::{self, *},
+		BodyId, BodyPart, Error as XcmError, ExecuteXcm,
+		Fungibility::{self, *},
+		InteriorMultiLocation,
+		Junctions::{self, *},
+		MultiAsset,
+		MultiAssetFilter::{self, *},
+		MultiAssets, MultiLocation,
+		NetworkId::{self, *},
+		OriginKind, Outcome, Parent, ParentThen, Response, Result as XcmResult, SendXcm,
+		WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
+		WildMultiAsset::{self, *},
 		Xcm::{self, *},
 	};
 }
@@ -271,7 +269,7 @@ pub enum Xcm<Call> {
 	///
 	/// Errors:
 	#[codec(index = 10)]
-	RelayedFrom { who: Junctions, message: alloc::boxed::Box<Xcm<Call>> },
+	RelayedFrom { who: InteriorMultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
 }
 
 impl<Call> Xcm<Call> {
@@ -291,7 +289,7 @@ impl<Call> Xcm<Call> {
 				assets,
 				effects: effects.into_iter().map(Order::into).collect(),
 			},
-			QueryResponse { query_id: u64, response } => QueryResponse { query_id: u64, response },
+			QueryResponse { query_id, response } => QueryResponse { query_id, response },
 			TransferAsset { assets, beneficiary } => TransferAsset { assets, beneficiary },
 			TransferReserveAsset { assets, dest, effects } =>
 				TransferReserveAsset { assets, dest, effects },
@@ -317,46 +315,46 @@ pub mod opaque {
 }
 
 // Convert from a v0 response to a v1 response
-impl TryFrom<Response0> for Response {
+impl TryFrom<OldResponse> for Response {
 	type Error = ();
-	fn try_from(old_response: Response0) -> result::Result<Self, ()> {
+	fn try_from(old_response: OldResponse) -> result::Result<Self, ()> {
 		match old_response {
-			Response0::Assets(assets) => Ok(Self::Assets(assets.try_into()?)),
+			OldResponse::Assets(assets) => Ok(Self::Assets(assets.try_into()?)),
 		}
 	}
 }
 
-impl<Call> TryFrom<Xcm0<Call>> for Xcm<Call> {
+impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	type Error = ();
-	fn try_from(old: Xcm0<Call>) -> result::Result<Xcm<Call>, ()> {
+	fn try_from(old: OldXcm<Call>) -> result::Result<Xcm<Call>, ()> {
 		use Xcm::*;
 		Ok(match old {
-			Xcm0::WithdrawAsset { assets, effects } => WithdrawAsset {
+			OldXcm::WithdrawAsset { assets, effects } => WithdrawAsset {
 				assets: assets.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			Xcm0::ReserveAssetDeposit { assets, effects } => ReserveAssetDeposited {
+			OldXcm::ReserveAssetDeposit { assets, effects } => ReserveAssetDeposited {
 				assets: assets.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			Xcm0::TeleportAsset { assets, effects } => ReceiveTeleportedAsset {
+			OldXcm::TeleportAsset { assets, effects } => ReceiveTeleportedAsset {
 				assets: assets.try_into()?,
 				effects: effects
 					.into_iter()
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			Xcm0::QueryResponse { query_id: u64, response } =>
-				QueryResponse { query_id: u64, response: response.try_into()? },
-			Xcm0::TransferAsset { assets, dest } =>
+			OldXcm::QueryResponse { query_id, response } =>
+				QueryResponse { query_id, response: response.try_into()? },
+			OldXcm::TransferAsset { assets, dest } =>
 				TransferAsset { assets: assets.try_into()?, beneficiary: dest.try_into()? },
-			Xcm0::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
+			OldXcm::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
 				assets: assets.try_into()?,
 				dest: dest.try_into()?,
 				effects: effects
@@ -364,17 +362,83 @@ impl<Call> TryFrom<Xcm0<Call>> for Xcm<Call> {
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			Xcm0::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+			OldXcm::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
 				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
-			Xcm0::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
-			Xcm0::HrmpChannelClosing { initiator, sender, recipient } =>
+			OldXcm::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
+			OldXcm::HrmpChannelClosing { initiator, sender, recipient } =>
 				HrmpChannelClosing { initiator, sender, recipient },
-			Xcm0::Transact { origin_type, require_weight_at_most, call } =>
+			OldXcm::Transact { origin_type, require_weight_at_most, call } =>
 				Transact { origin_type, require_weight_at_most, call: call.into() },
-			Xcm0::RelayedFrom { who, message } => RelayedFrom {
+			OldXcm::RelayedFrom { who, message } => RelayedFrom {
 				who: MultiLocation::try_from(who)?.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
 		})
+	}
+}
+
+impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
+	type Error = ();
+	fn try_from(old: NewXcm<Call>) -> result::Result<Xcm<Call>, ()> {
+		use Xcm::*;
+		let mut iter = old.0.into_iter();
+		let instruction = iter.next().ok_or(())?;
+		Ok(match instruction {
+			Instruction::WithdrawAsset(assets) => {
+				let effects = iter.map(Order::try_from).collect::<result::Result<_, _>>()?;
+				WithdrawAsset { assets, effects }
+			},
+			Instruction::ReserveAssetDeposited(assets) => {
+				if !matches!(iter.next(), Some(Instruction::ClearOrigin)) {
+					return Err(())
+				}
+				let effects = iter.map(Order::try_from).collect::<result::Result<_, _>>()?;
+				ReserveAssetDeposited { assets, effects }
+			},
+			Instruction::ReceiveTeleportedAsset(assets) => {
+				if !matches!(iter.next(), Some(Instruction::ClearOrigin)) {
+					return Err(())
+				}
+				let effects = iter.map(Order::try_from).collect::<result::Result<_, _>>()?;
+				ReceiveTeleportedAsset { assets, effects }
+			},
+			Instruction::QueryResponse { query_id, response, max_weight } => {
+				// Cannot handle special response weights.
+				if max_weight > 0 {
+					return Err(())
+				}
+				QueryResponse { query_id, response: response.try_into()? }
+			},
+			Instruction::TransferAsset { assets, beneficiary } =>
+				TransferAsset { assets, beneficiary },
+			Instruction::TransferReserveAsset { assets, dest, xcm } => TransferReserveAsset {
+				assets,
+				dest,
+				effects: xcm
+					.0
+					.into_iter()
+					.map(Order::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Instruction::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
+			Instruction::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
+			Instruction::HrmpChannelClosing { initiator, sender, recipient } =>
+				HrmpChannelClosing { initiator, sender, recipient },
+			Instruction::Transact { origin_type, require_weight_at_most, call } =>
+				Transact { origin_type, require_weight_at_most, call },
+			_ => return Err(()),
+		})
+	}
+}
+
+// Convert from a v1 response to a v2 response
+impl TryFrom<NewResponse> for Response {
+	type Error = ();
+	fn try_from(response: NewResponse) -> result::Result<Self, ()> {
+		match response {
+			NewResponse::Assets(assets) => Ok(Self::Assets(assets)),
+			_ => Err(()),
+		}
 	}
 }
