@@ -18,6 +18,8 @@
 
 mod conversion;
 pub use conversion::{Convert, ConvertOrigin, Decoded, Encoded, Identity, InvertLocation, JustTry};
+mod drop_assets;
+pub use drop_assets::{ClaimAssets, DropAssets};
 mod filter_asset_location;
 pub use filter_asset_location::FilterAssetLocation;
 mod matches_fungible;
