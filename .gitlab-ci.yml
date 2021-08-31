@@ -96,6 +96,9 @@ default:
     DOCKER_HUB_PASS:
       vault:                       cicd/gitlab/parity/DOCKER_HUB_PASS@kv
       file:                        false
+    GITHUB_PR_TOKEN:
+      vault:                       cicd/gitlab/parity/GITHUB_PR_TOKEN@kv
+      file:                        false
     GITHUB_USER:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_USER@kv
       file:                        false
