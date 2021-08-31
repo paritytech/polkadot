@@ -21,76 +21,43 @@ use frame_support::{
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
 use sp_std::{convert::TryInto, marker::PhantomData, result::Result};
-use xcm::latest::{AssetId, AssetId::Concrete, Error, MultiAsset, MultiLocation, Order, Xcm};
+use xcm::latest::prelude::*;
 use xcm_executor::{
 	traits::{WeightBounds, WeightTrader},
 	Assets,
 };
 
-pub struct FixedWeightBounds<T, C>(PhantomData<(T, C)>);
-impl<T: Get<Weight>, C: Decode + GetDispatchInfo> WeightBounds<C> for FixedWeightBounds<T, C> {
-	fn shallow(message: &mut Xcm<C>) -> Result<Weight, ()> {
-		Ok(match message {
-			Xcm::Transact { call, .. } =>
-				call.ensure_decoded()?.get_dispatch_info().weight.saturating_add(T::get()),
-			Xcm::RelayedFrom { ref mut message, .. } =>
-				T::get().saturating_add(Self::shallow(message.as_mut())?),
-			Xcm::WithdrawAsset { effects, .. } |
-			Xcm::ReserveAssetDeposited { effects, .. } |
-			Xcm::ReceiveTeleportedAsset { effects, .. } => {
-				let mut extra = T::get();
-				for order in effects.iter_mut() {
-					extra.saturating_accrue(Self::shallow_order(order)?);
-				}
-				extra
-			},
-			_ => T::get(),
-		})
+pub struct FixedWeightBounds<T, C, M>(PhantomData<(T, C, M)>);
+impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M: Get<u32>> WeightBounds<C>
+	for FixedWeightBounds<T, C, M>
+{
+	fn weight(message: &mut Xcm<C>) -> Result<Weight, ()> {
+		let mut instructions_left = M::get();
+		Self::weight_with_limit(message, &mut instructions_left)
 	}
-	fn deep(message: &mut Xcm<C>) -> Result<Weight, ()> {
-		Ok(match message {
-			Xcm::RelayedFrom { ref mut message, .. } => Self::deep(message.as_mut())?,
-			Xcm::WithdrawAsset { effects, .. } |
-			Xcm::ReserveAssetDeposited { effects, .. } |
-			Xcm::ReceiveTeleportedAsset { effects, .. } => {
-				let mut extra = 0;
-				for order in effects.iter_mut() {
-					extra.saturating_accrue(Self::deep_order(order)?);
-				}
-				extra
-			},
-			_ => 0,
-		})
+	fn instr_weight(message: &Instruction<C>) -> Result<Weight, ()> {
+		Self::instr_weight_with_limit(message, &mut u32::max_value())
 	}
 }
 
-impl<T: Get<Weight>, C: Decode + GetDispatchInfo> FixedWeightBounds<T, C> {
-	fn shallow_order(order: &mut Order<C>) -> Result<Weight, ()> {
-		Ok(match order {
-			Order::BuyExecution { .. } => {
-				// On success, execution of this will result in more weight being consumed but
-				// we don't count it here since this is only the *shallow*, non-negotiable weight
-				// spend and doesn't count weight placed behind a `BuyExecution` since it will not
-				// be definitely consumed from any existing weight credit if execution of the message
-				// is attempted.
-				T::get()
-			},
-			_ => T::get(),
-		})
+impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> {
+	fn weight_with_limit(message: &Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
+		let mut r = 0;
+		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
+		for m in message.0.iter() {
+			r += Self::instr_weight_with_limit(m, instrs_limit)?;
+		}
+		Ok(r)
 	}
-	fn deep_order(order: &mut Order<C>) -> Result<Weight, ()> {
-		Ok(match order {
-			Order::BuyExecution { instructions, .. } => {
-				let mut extra = 0;
-				for instruction in instructions.iter_mut() {
-					extra.saturating_accrue(
-						Self::shallow(instruction)?.saturating_add(Self::deep(instruction)?),
-					);
-				}
-				extra
-			},
+	fn instr_weight_with_limit(
+		message: &Instruction<C>,
+		instrs_limit: &mut u32,
+	) -> Result<Weight, ()> {
+		Ok(T::get().saturating_add(match message {
+			Transact { require_weight_at_most, .. } => *require_weight_at_most,
+			SetErrorHandler(xcm) | SetAppendix(xcm) => Self::weight_with_limit(xcm, instrs_limit)?,
 			_ => 0,
-		})
+		}))
 	}
 }
 
@@ -124,10 +91,11 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 		Self(0, 0, PhantomData)
 	}
 
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
-		let unused = payment.checked_sub((id, amount).into()).map_err(|_| Error::TooExpensive)?;
+		let unused =
+			payment.checked_sub((id, amount).into()).map_err(|_| XcmError::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
 		self.1 = self.1.saturating_add(amount);
 		Ok(unused)
@@ -169,13 +137,14 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 		Self(0, 0, PhantomData)
 	}
 
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
 		if amount == 0 {
 			return Ok(payment)
 		}
-		let unused = payment.checked_sub((id, amount).into()).map_err(|_| Error::TooExpensive)?;
+		let unused =
+			payment.checked_sub((id, amount).into()).map_err(|_| XcmError::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
 		self.1 = self.1.saturating_add(amount);
 		Ok(unused)
@@ -228,11 +197,11 @@ impl<
 		Self(0, Zero::zero(), PhantomData)
 	}
 
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		let amount = WeightToFee::calc(&weight);
-		let u128_amount: u128 = amount.try_into().map_err(|_| Error::Overflow)?;
+		let u128_amount: u128 = amount.try_into().map_err(|_| XcmError::Overflow)?;
 		let required = (Concrete(AssetId::get()), u128_amount).into();
-		let unused = payment.checked_sub(required).map_err(|_| Error::TooExpensive)?;
+		let unused = payment.checked_sub(required).map_err(|_| XcmError::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
 		self.1 = self.1.saturating_add(amount);
 		Ok(unused)

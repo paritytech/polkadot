@@ -52,8 +52,10 @@ pub use disputes::{
 	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
 };
 
-// For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node.
-const MERKLE_NODE_MAX_SIZE: usize = 512;
+// For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node
+// plus some overhead:
+// header 1 + bitmap 2 + max partial_key 8 + children 16 * (32 + len 1) + value 32 + value len 1
+const MERKLE_NODE_MAX_SIZE: usize = 512 + 100;
 // 16-ary Merkle Prefix Trie for 32-bit ValidatorIndex has depth at most 8.
 const MERKLE_PROOF_MAX_DEPTH: usize = 8;
 
@@ -301,6 +303,13 @@ impl Proof {
 	/// This function allows to convert back to the standard nested Vec format
 	pub fn as_vec(&self) -> Vec<Vec<u8>> {
 		self.0.as_vec().iter().map(|v| v.as_vec().clone()).collect()
+	}
+
+	/// Construct an invalid dummy proof
+	///
+	/// Useful for testing, should absolutely not be used in production.
+	pub fn dummy_proof() -> Proof {
+		Proof(BoundedVec::from_vec(vec![BoundedVec::from_vec(vec![0]).unwrap()]).unwrap())
 	}
 }
 
