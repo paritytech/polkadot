@@ -268,6 +268,7 @@ pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwo
 
 parameter_types! {
 	pub const VersionDiscoveryQueueSize: u32 = 100;
+	pub static AdvertizeXcmVersion: pallet_xcm::XcmVersion = 2;
 }
 
 impl pallet_xcm::Config for Test {
@@ -284,6 +285,7 @@ impl pallet_xcm::Config for Test {
 	type Origin = Origin;
 	type Call = Call;
 	type VersionDiscoveryQueueSize = VersionDiscoveryQueueSize;
+	type AdvertizeXcmVersion = AdvertizeXcmVersion;
 }
 
 impl origin::Config for Test {}

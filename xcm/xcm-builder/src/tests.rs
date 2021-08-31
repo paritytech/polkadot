@@ -487,17 +487,6 @@ fn simple_version_subscriptions_should_work() {
 	assert_eq!(r, Outcome::Complete(10));
 
 	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), Some((42, 5000)))]);
-	assert_eq!(
-		sent_xcm(),
-		vec![(
-			Parent.into(),
-			Xcm(vec![QueryResponse {
-				query_id: 42,
-				max_weight: 5000,
-				response: Response::Version(XCM_VERSION),
-			}])
-		),]
-	);
 }
 
 #[test]
@@ -529,17 +518,6 @@ fn version_subscription_instruction_should_work() {
 	assert_eq!(r, Outcome::Complete(20));
 
 	assert_eq!(SubscriptionRequests::get(), vec![(Parachain(1000).into(), Some((42, 5000)))]);
-	assert_eq!(
-		sent_xcm(),
-		vec![(
-			Parachain(1000).into(),
-			Xcm(vec![QueryResponse {
-				query_id: 42,
-				max_weight: 5000,
-				response: Response::Version(XCM_VERSION),
-			}])
-		),]
-	);
 }
 
 #[test]

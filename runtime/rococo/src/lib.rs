@@ -709,6 +709,7 @@ impl pallet_xcm::Config for Runtime {
 	type Origin = Origin;
 	type Call = Call;
 	type VersionDiscoveryQueueSize = VersionDiscoveryQueueSize;
+	type AdvertizeXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 impl parachains_session_info::Config for Runtime {}

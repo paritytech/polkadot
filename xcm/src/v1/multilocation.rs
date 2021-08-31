@@ -71,6 +71,11 @@ impl MultiLocation {
 		MultiLocation { parents, interior: junctions }
 	}
 
+	/// Consume `self` and return the equivalent `VersionedMultiLocation` value.
+	pub fn versioned(self) -> crate::VersionedMultiLocation {
+		self.into()
+	}
+
 	/// Creates a new `MultiLocation` with 0 parents and a `Here` interior.
 	///
 	/// The resulting `MultiLocation` can be interpreted as the "current consensus system".

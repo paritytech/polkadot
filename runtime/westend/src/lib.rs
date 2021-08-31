@@ -971,6 +971,7 @@ impl pallet_xcm::Config for Runtime {
 	type Origin = Origin;
 	type Call = Call;
 	type VersionDiscoveryQueueSize = VersionDiscoveryQueueSize;
+	type AdvertizeXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 construct_runtime! {

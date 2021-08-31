@@ -46,10 +46,7 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{
-		dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo},
-		pallet_prelude::*,
-	};
+	use frame_support::{dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo}, pallet_prelude::*, parameter_types};
 	use frame_system::{pallet_prelude::*, Config as SysConfig};
 	use sp_core::H256;
 	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
@@ -60,6 +57,12 @@ pub mod pallet {
 		},
 		Assets,
 	};
+
+	parameter_types! {
+		/// An implementation of `Get<u32>` which just returns the latest XCM version which we can
+		/// support.
+		pub const CurrentXcmVersion: u32 = XCM_VERSION;
+	}
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -112,6 +115,10 @@ pub mod pallet {
 
 		/// The maximum number of items that we can store in the version discovery queue.
 		type VersionDiscoveryQueueSize: Get<u32>;
+
+		/// The latest supported version that we advertise. Generally just set it to
+		/// `pallet_xcm::CurrentXcmVersion`.
+		type AdvertizeXcmVersion: Get<XcmVersion>;
 	}
 
 	/// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
@@ -188,17 +195,22 @@ pub mod pallet {
 		/// An XCM version change notification message has been attempted to be sent.
 		///
 		/// \[ destination, result \]
-		VersionChangeNotified(MultiLocation),
+		VersionChangeNotified(MultiLocation, XcmVersion),
 		/// The supported version of a location has been changed. This might be through an
 		/// automatic notification or a manual intervention.
 		///
 		/// \[ location, XCM version \]
 		SupportedVersionChanged(MultiLocation, XcmVersion),
 		/// A given location which had a version change subscription was dropped owing to an error
-		/// either migrating the location to our new XCM format or sending the notification to it.
+		/// sending the notification to it.
 		///
-		/// \[ location, query ID, error type \]
-		NotifyTargetDropped(VersionedMultiLocation, QueryId, XcmError),
+		/// \[ location, query ID, error \]
+		NotifyTargetSendFail(MultiLocation, QueryId, XcmError),
+		/// A given location which had a version change subscription was dropped owing to an error
+		/// migrating the location to our new XCM format.
+		///
+		/// \[ location, query ID \]
+		NotifyTargetMigrationFail(VersionedMultiLocation, QueryId),
 	}
 
 	#[pallet::origin]
@@ -322,7 +334,8 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
-	/// Latest versions that we know various locations support.
+	/// The target locations that are subscribed to our version changes, as well as the most recent
+	/// of our versions we informed them of.
 	#[pallet::storage]
 	pub(super) type VersionNotifyTargets<T: Config> = StorageDoubleMap<
 		_,
@@ -330,7 +343,7 @@ pub mod pallet {
 		XcmVersion,
 		Blake2_128Concat,
 		VersionedMultiLocation,
-		(QueryId, u64),
+		(QueryId, u64, XcmVersion),
 		OptionQuery,
 	>;
 
@@ -366,56 +379,7 @@ pub mod pallet {
 			0
 		}
 		fn on_runtime_upgrade() -> Weight {
-			for v in 0..XCM_VERSION {
-				for (old_key, value) in SupportedVersion::<T>::drain_prefix(v) {
-					if let Ok(new_key) = old_key.into_latest() {
-						SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
-					}
-				}
-				for (old_key, value) in VersionNotifiers::<T>::drain_prefix(v) {
-					if let Ok(new_key) = old_key.into_latest() {
-						VersionNotifiers::<T>::insert(XCM_VERSION, new_key, value);
-					}
-				}
-				let response = Response::Version(XCM_VERSION);
-				for (old_key, value) in VersionNotifyTargets::<T>::drain_prefix(v) {
-					let new_key = match MultiLocation::try_from(old_key.clone()) {
-						Ok(k) => k,
-						Err(()) => {
-							Self::deposit_event(Event::NotifyTargetDropped(
-								old_key,
-								value.0,
-								XcmError::InvalidLocation,
-							));
-							return 0
-						},
-					};
-					let instruction = QueryResponse {
-						query_id: value.0,
-						response: response.clone(),
-						max_weight: value.1,
-					};
-					match T::XcmRouter::send_xcm(new_key.clone(), Xcm(vec![instruction])) {
-						Ok(()) => {
-							VersionNotifyTargets::<T>::insert(
-								XCM_VERSION,
-								LatestVersionedMultiLocation(&new_key),
-								value,
-							);
-							Self::deposit_event(Event::VersionChangeNotified(new_key));
-						},
-						Err(e) => {
-							let new_key = new_key.into();
-							Self::deposit_event(Event::NotifyTargetDropped(
-								new_key,
-								value.0,
-								e.into(),
-							));
-						},
-					}
-				}
-			}
-			0
+			Self::check_xcm_version_change()
 		}
 	}
 
@@ -696,6 +660,82 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn check_xcm_version_change() -> Weight {
+			// We assume that supported XCM version only ever increases, so just cycle through lower
+			// XCM versioned from the current.
+			for v in 0..XCM_VERSION {
+				for (old_key, value) in SupportedVersion::<T>::drain_prefix(v) {
+					if let Ok(new_key) = old_key.into_latest() {
+						SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
+					}
+				}
+				for (old_key, value) in VersionNotifiers::<T>::drain_prefix(v) {
+					if let Ok(new_key) = old_key.into_latest() {
+						VersionNotifiers::<T>::insert(XCM_VERSION, new_key, value);
+					}
+				}
+			}
+			let xcm_version = T::AdvertizeXcmVersion::get();
+			let response = Response::Version(xcm_version);
+			for (key, mut value) in VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION) {
+				if value.2 == xcm_version {
+					continue;
+				}
+				let new_key: MultiLocation = match key.clone().try_into() {
+					Ok(k) => k,
+					Err(_) => continue,	// will never happen since it's the latest version already.
+				};
+				value.2 = xcm_version;
+				let message = Xcm(vec![QueryResponse {
+					query_id: value.0,
+					response: response.clone(),
+					max_weight: value.1,
+				}]);
+				match T::XcmRouter::send_xcm(new_key.clone(), message) {
+					Ok(()) => {
+						let versioned_key = LatestVersionedMultiLocation(&new_key);
+						VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
+						Self::deposit_event(Event::VersionChangeNotified(new_key, xcm_version));
+					},
+					Err(e) => {
+						Self::deposit_event(Event::NotifyTargetSendFail(new_key, value.0, e.into()));
+					},
+				}
+			}
+			for v in 0..XCM_VERSION {
+				for (old_key, mut value) in VersionNotifyTargets::<T>::drain_prefix(v) {
+					let new_key = match MultiLocation::try_from(old_key.clone()) {
+						Ok(k) => k,
+						Err(()) => {
+							Self::deposit_event(Event::NotifyTargetMigrationFail(old_key, value.0));
+							return 0
+						},
+					};
+
+					if value.2 != xcm_version {
+						value.2 = xcm_version;
+						let instruction = QueryResponse {
+							query_id: value.0,
+							response: response.clone(),
+							max_weight: value.1,
+						};
+						match T::XcmRouter::send_xcm(new_key.clone(), Xcm(vec![instruction])) {
+							Ok(()) => (),
+							Err(e) => {
+								let event = Event::NotifyTargetSendFail(new_key, value.0, e.into());
+								Self::deposit_event(event);
+								continue
+							},
+						}
+					}
+					let versioned_key = LatestVersionedMultiLocation(&new_key);
+					VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
+					Self::deposit_event(Event::VersionChangeNotified(new_key, xcm_version));
+				}
+			}
+			0
+		}
+
 		/// Request that `dest` informs us of its version.
 		pub fn request_version_notify(dest: MultiLocation) -> XcmResult {
 			let versioned_dest = VersionedMultiLocation::from(dest.clone());
@@ -898,7 +938,14 @@ pub mod pallet {
 			let versioned_dest = LatestVersionedMultiLocation(dest);
 			let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest);
 			ensure!(!already, XcmError::InvalidLocation);
-			VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_dest, (query_id, max_weight));
+
+			let xcm_version = T::AdvertizeXcmVersion::get();
+			let response = Response::Version(xcm_version);
+			let instruction = QueryResponse { query_id, response, max_weight };
+			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![instruction]))?;
+
+			let value = (query_id, max_weight, xcm_version);
+			VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_dest, value);
 			Ok(())
 		}
 
