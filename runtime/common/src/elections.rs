@@ -67,8 +67,7 @@ impl frame_support::pallet_prelude::Get<Option<(usize, sp_npos_elections::Extend
 	for OffchainRandomBalancing
 {
 	fn get() -> Option<(usize, sp_npos_elections::ExtendedBalance)> {
-		use sp_runtime::codec::Decode;
-		use sp_runtime::traits::TrailingZeroInput;
+		use sp_runtime::{codec::Decode, traits::TrailingZeroInput};
 		let iters = match MINER_MAX_ITERATIONS {
 			0 => 0,
 			max @ _ => {

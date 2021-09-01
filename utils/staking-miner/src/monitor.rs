@@ -17,8 +17,7 @@
 //! The monitor command.
 
 use crate::{
-	params, prelude::*, rpc_helpers::*, signer::Signer, Error,
-	MonitorConfig, SharedConfig,
+	params, prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig,
 };
 use codec::Encode;
 use jsonrpsee_ws_client::{

@@ -291,37 +291,34 @@ enum Solvers {
 
 /// Mine a solution with the given `solver`.
 fn mine_with<T>(
-	solver: &Solvers, ext: &mut Ext
+	solver: &Solvers,
+	ext: &mut Ext,
 ) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
 where
 	T: EPM::Config,
-	T::Solver: NposSolver<Error=sp_npos_elections::Error>,
+	T::Solver: NposSolver<Error = sp_npos_elections::Error>,
 {
 	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 
 	match solver {
-			Solvers::SeqPhragmen { iterations } => {
-				BalanceIterations::set(*iterations);
-				mine_unchecked::<
-					T,
-					SequentialPhragmen<
-						<T as frame_system::Config>::AccountId,
-						sp_runtime::Perbill,
-						Balancing
-					>
-				>(ext, false)
-			},
-			Solvers::PhragMMS { iterations } => {
-				BalanceIterations::set(*iterations);
-				mine_unchecked::<
-					T,
-					PhragMMS<
-						<T as frame_system::Config>::AccountId,
-						sp_runtime::Perbill,
-						Balancing
-					>
-				>(ext, false)
-			}
+		Solvers::SeqPhragmen { iterations } => {
+			BalanceIterations::set(*iterations);
+			mine_unchecked::<
+				T,
+				SequentialPhragmen<
+					<T as frame_system::Config>::AccountId,
+					sp_runtime::Perbill,
+					Balancing,
+				>,
+			>(ext, false)
+		},
+		Solvers::PhragMMS { iterations } => {
+			BalanceIterations::set(*iterations);
+			mine_unchecked::<
+				T,
+				PhragMMS<<T as frame_system::Config>::AccountId, sp_runtime::Perbill, Balancing>,
+			>(ext, false)
+		},
 	}
 }
 

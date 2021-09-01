@@ -17,8 +17,7 @@
 //! The dry-run command.
 
 use crate::{
-	params, prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig,
-	Error, SharedConfig, WsClient,
+	params, prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, SharedConfig, WsClient,
 };
 use codec::Encode;
 use frame_support::traits::Currency;
