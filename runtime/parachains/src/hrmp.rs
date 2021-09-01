@@ -440,22 +440,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// This cancels a pending open channel request. It can be canceled be either of the sender
-		/// or the recipient for that request. The origin must be either of those.
-		///
-		/// The cancelling happens immediately. It is not possible to cancel the request if it is
-		/// already accepted.
-		#[pallet::weight(0)]
-		pub fn hrmp_cancel_open_request(
-			origin: OriginFor<T>,
-			channel_id: HrmpChannelId,
-		) -> DispatchResult {
-			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
-			Self::cancel_open_request(origin, channel_id.clone())?;
-			Self::deposit_event(Event::OpenChannelCanceled(origin, channel_id));
-			Ok(())
-		}
-
 		/// This extrinsic triggers the cleanup of all the HRMP storage items that
 		/// a para may have. Normally this happens once per session, but this allows
 		/// you to trigger the cleanup immediately for a specific parachain.
@@ -488,6 +472,22 @@ pub mod pallet {
 		pub fn force_process_hrmp_close(origin: OriginFor<T>) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::process_hrmp_close_channel_requests();
+			Ok(())
+		}
+
+		/// This cancels a pending open channel request. It can be canceled be either of the sender
+		/// or the recipient for that request. The origin must be either of those.
+		///
+		/// The cancelling happens immediately. It is not possible to cancel the request if it is
+		/// already accepted.
+		#[pallet::weight(0)]
+		pub fn hrmp_cancel_open_request(
+			origin: OriginFor<T>,
+			channel_id: HrmpChannelId,
+		) -> DispatchResult {
+			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			Self::cancel_open_request(origin, channel_id.clone())?;
+			Self::deposit_event(Event::OpenChannelCanceled(origin, channel_id));
 			Ok(())
 		}
 	}
