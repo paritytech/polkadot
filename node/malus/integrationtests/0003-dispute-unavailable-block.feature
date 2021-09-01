@@ -1,6 +1,6 @@
 Feature: Disputes
 
-  Scenario: Dispute Invalid Block
+  Scenario: Dispute Unavailable Block
     Given a test network
     Then alice is up
     And alice reports node_roles is 4
