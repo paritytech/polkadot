@@ -1242,11 +1242,9 @@ impl<T: Config> Pallet<T> {
 	/// it is removed completely.
 	fn decrease_open_channel_request_count(sender: ParaId) {
 		<Self as Store>::HrmpOpenChannelRequestCount::mutate_exists(&sender, |opt_rc| {
-			*opt_rc = opt_rc.and_then(|rc| {
-				match rc.saturating_sub(1) {
-					0 => None,
-					n => Some(n),
-				}
+			*opt_rc = opt_rc.and_then(|rc| match rc.saturating_sub(1) {
+				0 => None,
+				n => Some(n),
 			});
 		});
 	}
@@ -1255,11 +1253,9 @@ impl<T: Config> Pallet<T> {
 	/// zero it is removed completely.
 	fn decrease_accepted_channel_request_count(recipient: ParaId) {
 		<Self as Store>::HrmpAcceptedChannelRequestCount::mutate_exists(&recipient, |opt_rc| {
-			*opt_rc = opt_rc.and_then(|rc| {
-				match rc.saturating_sub(1) {
-					0 => None,
-					n => Some(n),
-				}
+			*opt_rc = opt_rc.and_then(|rc| match rc.saturating_sub(1) {
+				0 => None,
+				n => Some(n),
 			});
 		});
 	}
