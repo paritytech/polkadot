@@ -168,3 +168,13 @@ fn era_payout_should_give_sensible_results() {
 	assert_eq!(era_payout(75, 100, Perquintill::from_percent(10), Perquintill::one(), 0,), (10, 0));
 	assert_eq!(era_payout(80, 100, Perquintill::from_percent(10), Perquintill::one(), 0,), (6, 4));
 }
+
+#[test]
+fn call_size() {
+	assert!(
+		core::mem::size_of::<Call>() <= 230,
+		"size of Call is more than 230 bytes: some calls have too big arguments, use Box to reduce \
+		the size of Call.
+		If the limit is too strong, maybe consider increase the limit to 300.",
+	);
+}

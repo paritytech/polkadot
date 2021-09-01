@@ -19,46 +19,66 @@
 use frame_support::{ensure, traits::Contains, weights::Weight};
 use polkadot_parachain::primitives::IsSystem;
 use sp_std::{marker::PhantomData, result::Result};
-use xcm::v0::{Junction, MultiLocation, Order, Xcm};
+use xcm::latest::{Instruction::*, Junction, Junctions, MultiLocation, WeightLimit::*, Xcm};
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
-/// Execution barrier that just takes `shallow_weight` from `weight_credit`.
+/// Execution barrier that just takes `max_weight` from `weight_credit`.
+///
+/// Useful to allow XCM execution by local chain users via extrinsics.
+/// E.g. `pallet_xcm::reserve_asset_transfer` to transfer a reserve asset
+/// out of the local chain to another one.
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
 	fn should_execute<Call>(
 		_origin: &MultiLocation,
 		_top_level: bool,
-		_message: &Xcm<Call>,
-		shallow_weight: Weight,
+		_message: &mut Xcm<Call>,
+		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		*weight_credit = weight_credit.checked_sub(shallow_weight).ok_or(())?;
+		*weight_credit = weight_credit.checked_sub(max_weight).ok_or(())?;
 		Ok(())
 	}
 }
 
-/// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking payments into
-/// account.
+/// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking
+/// payments into account.
+///
+/// Only allows for `TeleportAsset`, `WithdrawAsset` and `ReserveAssetDeposit` XCMs because they are
+/// the only ones that place assets in the Holding Register to pay for execution.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		top_level: bool,
-		message: &Xcm<Call>,
-		shallow_weight: Weight,
+		message: &mut Xcm<Call>,
+		max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
 		ensure!(top_level, ());
-		match message {
-			Xcm::TeleportAsset { effects, .. } |
-			Xcm::WithdrawAsset { effects, .. } |
-			Xcm::ReserveAssetDeposit { effects, .. }
-				if matches!(
-					effects.first(),
-					Some(Order::BuyExecution { debt, ..}) if *debt >= shallow_weight
-				) =>
-				Ok(()),
+		let mut iter = message.0.iter_mut();
+		let i = iter.next().ok_or(())?;
+		match i {
+			ReceiveTeleportedAsset(..) |
+			WithdrawAsset(..) |
+			ReserveAssetDeposited(..) |
+			ClaimAsset { .. } => (),
+			_ => return Err(()),
+		}
+		let mut i = iter.next().ok_or(())?;
+		while let ClearOrigin = i {
+			i = iter.next().ok_or(())?;
+		}
+		match i {
+			BuyExecution { weight_limit: Limited(ref mut weight), .. } if *weight >= max_weight => {
+				*weight = max_weight;
+				Ok(())
+			},
+			BuyExecution { ref mut weight_limit, .. } if weight_limit == &Unlimited => {
+				*weight_limit = Limited(max_weight);
+				Ok(())
+			},
 			_ => Err(()),
 		}
 	}
@@ -71,8 +91,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		_top_level: bool,
-		_message: &Xcm<Call>,
-		_shallow_weight: Weight,
+		_message: &mut Xcm<Call>,
+		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		ensure!(T::contains(origin), ());
@@ -84,7 +104,11 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 pub struct IsChildSystemParachain<ParaId>(PhantomData<ParaId>);
 impl<ParaId: IsSystem + From<u32>> Contains<MultiLocation> for IsChildSystemParachain<ParaId> {
 	fn contains(l: &MultiLocation) -> bool {
-		matches!(l, MultiLocation::X1(Junction::Parachain(id)) if ParaId::from(*id).is_system())
+		matches!(
+			l.interior(),
+			Junctions::X1(Junction::Parachain(id))
+				if ParaId::from(*id).is_system() && l.parent_count() == 0,
+		)
 	}
 }
 
@@ -94,12 +118,12 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		_top_level: bool,
-		message: &Xcm<Call>,
-		_shallow_weight: Weight,
+		message: &mut Xcm<Call>,
+		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		match message {
-			Xcm::QueryResponse { query_id, .. }
+		match message.0.first() {
+			Some(QueryResponse { query_id, .. })
 				if ResponseHandler::expecting_response(origin, *query_id) =>
 				Ok(()),
 			_ => Err(()),

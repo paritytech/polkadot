@@ -92,9 +92,6 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-mod old_tests;
-
 const APPROVAL_SESSIONS: SessionIndex = 6;
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 const APPROVAL_CACHE_SIZE: usize = 1024;
@@ -455,8 +452,9 @@ impl Wakeups {
 			Some(tick) => {
 				clock.wait(tick).await;
 				match self.wakeups.entry(tick) {
-					Entry::Vacant(_) =>
-						panic!("entry is known to exist since `first` was `Some`; qed"),
+					Entry::Vacant(_) => {
+						panic!("entry is known to exist since `first` was `Some`; qed")
+					},
 					Entry::Occupied(mut entry) => {
 						let (hash, candidate_hash) = entry.get_mut().pop()
 							.expect("empty entries are removed here and in `schedule`; no other mutation of this map; qed");
@@ -504,6 +502,8 @@ impl ApprovalState {
 }
 
 struct CurrentlyCheckingSet {
+	/// Invariant: The contained `Vec` needs to stay sorted as we are using `binary_search_by_key`
+	/// on it.
 	candidate_hash_map: HashMap<CandidateHash, Vec<Hash>>,
 	currently_checking: FuturesUnordered<BoxFuture<'static, ApprovalState>>,
 }
@@ -919,8 +919,9 @@ async fn handle_actions(
 				.await;
 
 				match confirmation_rx.await {
-					Err(oneshot::Canceled) =>
-						tracing::warn!(target: LOG_TARGET, "Dispute coordinator confirmation lost",),
+					Err(oneshot::Canceled) => {
+						tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
+					},
 					Ok(ImportStatementsResult::ValidImport) => {},
 					Ok(ImportStatementsResult::InvalidImport) => tracing::warn!(
 						target: LOG_TARGET,
@@ -961,7 +962,7 @@ fn distribution_messages_for_activation(
 		let block_entry = match db.load_block_entry(&block_hash)? {
 			Some(b) => b,
 			None => {
-				tracing::warn!(target: LOG_TARGET, ?block_hash, "Missing block entry",);
+				tracing::warn!(target: LOG_TARGET, ?block_hash, "Missing block entry");
 
 				continue
 			},
@@ -2108,13 +2109,9 @@ async fn launch_approval(
 	}
 
 	let candidate_hash = candidate.hash();
+	let para_id = candidate.descriptor.para_id;
 
-	tracing::trace!(
-		target: LOG_TARGET,
-		?candidate_hash,
-		para_id = ?candidate.descriptor.para_id,
-		"Recovering data.",
-	);
+	tracing::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Recovering data.");
 
 	let timer = metrics.time_recover_and_approve();
 	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
@@ -2150,6 +2147,8 @@ async fn launch_approval(
 					&RecoveryError::Unavailable => {
 						tracing::warn!(
 							target: LOG_TARGET,
+							?para_id,
+							?candidate_hash,
 							"Data unavailable for candidate {:?}",
 							(candidate_hash, candidate.descriptor.para_id),
 						);
@@ -2159,6 +2158,8 @@ async fn launch_approval(
 					&RecoveryError::Invalid => {
 						tracing::warn!(
 							target: LOG_TARGET,
+							?para_id,
+							?candidate_hash,
 							"Data recovery invalid for candidate {:?}",
 							(candidate_hash, candidate.descriptor.para_id),
 						);
@@ -2202,8 +2203,6 @@ async fn launch_approval(
 
 		let (val_tx, val_rx) = oneshot::channel();
 
-		let para_id = candidate.descriptor.para_id;
-
 		sender
 			.send_message(
 				CandidateValidationMessage::ValidateFromExhaustive(
@@ -2223,7 +2222,7 @@ async fn launch_approval(
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
-				tracing::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Candidate Valid",);
+				tracing::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Candidate Valid");
 
 				let expected_commitments_hash = candidate.commitments_hash;
 				if commitments.hash() == expected_commitments_hash {
@@ -2275,6 +2274,8 @@ async fn launch_approval(
 				tracing::error!(
 					target: LOG_TARGET,
 					err = ?e,
+					?candidate_hash,
+					?para_id,
 					"Failed to validate candidate due to internal error",
 				);
 				metrics_guard.take().on_approval_error();

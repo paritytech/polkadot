@@ -21,8 +21,10 @@
 //! [`ValidationHost`], that allows communication with that event-loop.
 
 use crate::{
-	artifacts::{ArtifactId, ArtifactState, Artifacts},
-	execute, prepare, Priority, Pvf, ValidationError,
+	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
+	execute,
+	metrics::Metrics,
+	prepare, Priority, Pvf, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use async_std::path::{Path, PathBuf};
@@ -134,18 +136,20 @@ impl Config {
 /// The future should not return normally but if it does then that indicates an unrecoverable error.
 /// In that case all pending requests will be canceled, dropping the result senders and new ones
 /// will be rejected.
-pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
+pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<Output = ()>) {
 	let (to_host_tx, to_host_rx) = mpsc::channel(10);
 
 	let validation_host = ValidationHost { to_host_tx };
 
 	let (to_prepare_pool, from_prepare_pool, run_prepare_pool) = prepare::start_pool(
+		metrics.clone(),
 		config.prepare_worker_program_path.clone(),
 		config.cache_path.clone(),
 		config.prepare_worker_spawn_timeout,
 	);
 
 	let (to_prepare_queue_tx, from_prepare_queue_rx, run_prepare_queue) = prepare::start_queue(
+		metrics.clone(),
 		config.prepare_workers_soft_max_num,
 		config.prepare_workers_hard_max_num,
 		config.cache_path.clone(),
@@ -154,6 +158,7 @@ pub fn start(config: Config) -> (ValidationHost, impl Future<Output = ()>) {
 	);
 
 	let (to_execute_queue_tx, run_execute_queue) = execute::start(
+		metrics.clone(),
 		config.execute_worker_program_path.to_owned(),
 		config.execute_workers_max_num,
 		config.execute_worker_spawn_timeout,
@@ -398,7 +403,7 @@ async fn handle_execute_pvf(
 				send_execute(
 					execute_queue,
 					execute::ToQueue::Enqueue {
-						artifact_path: artifact_id.path(cache_path),
+						artifact: ArtifactPathId::new(artifact_id, cache_path),
 						params,
 						result_tx,
 					},
@@ -493,7 +498,6 @@ async fn handle_prepare_done(
 
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
-	let artifact_path = artifact_id.path(&cache_path);
 	let pending_requests = awaiting_prepare.take(&artifact_id);
 	for PendingExecutionRequest { params, result_tx } in pending_requests {
 		if result_tx.is_canceled() {
@@ -504,7 +508,11 @@ async fn handle_prepare_done(
 
 		send_execute(
 			execute_queue,
-			execute::ToQueue::Enqueue { artifact_path: artifact_path.clone(), params, result_tx },
+			execute::ToQueue::Enqueue {
+				artifact: ArtifactPathId::new(artifact_id.clone(), cache_path),
+				params,
+				result_tx,
+			},
 		)
 		.await?;
 	}
@@ -536,7 +544,17 @@ async fn handle_cleanup_pulse(
 	artifact_ttl: Duration,
 ) -> Result<(), Fatal> {
 	let to_remove = artifacts.prune(artifact_ttl);
+	tracing::info!(
+		target: LOG_TARGET,
+		"PVF pruning: {} artifacts reached their end of life",
+		to_remove.len(),
+	);
 	for artifact_id in to_remove {
+		tracing::debug!(
+			target: LOG_TARGET,
+			validation_code_hash = ?artifact_id.code_hash,
+			"pruning artifact",
+		);
 		let artifact_path = artifact_id.path(cache_path);
 		sweeper_tx.send(artifact_path).await.map_err(|_| Fatal)?;
 	}
@@ -550,7 +568,13 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 		match sweeper_rx.next().await {
 			None => break,
 			Some(condemned) => {
-				let _ = async_std::fs::remove_file(condemned).await;
+				let result = async_std::fs::remove_file(&condemned).await;
+				tracing::trace!(
+					target: LOG_TARGET,
+					?result,
+					"Sweeping the artifact file {}",
+					condemned.display(),
+				);
 			},
 		}
 	}

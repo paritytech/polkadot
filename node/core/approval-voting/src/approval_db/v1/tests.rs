@@ -524,7 +524,7 @@ fn force_approve_works() {
 		.unwrap()
 		.approved_bitfield
 		.not_any());
-	assert_eq!(approved_hashes, vec![block_hash_b, block_hash_a],);
+	assert_eq!(approved_hashes, vec![block_hash_b, block_hash_a]);
 }
 
 #[test]

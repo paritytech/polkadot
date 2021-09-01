@@ -24,7 +24,7 @@ use futures::{
 
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::request_response::{
-	request::{OutgoingRequest, Recipient, RequestError, Requests},
+	outgoing::{OutgoingRequest, Recipient, RequestError, Requests},
 	v1::{ChunkFetchingRequest, ChunkFetchingResponse},
 };
 use polkadot_node_primitives::ErasureChunk;
@@ -363,7 +363,7 @@ impl RunningTask {
 
 	fn validate_chunk(&self, validator: &AuthorityDiscoveryId, chunk: &ErasureChunk) -> bool {
 		let anticipated_hash =
-			match branch_hash(&self.erasure_root, &chunk.proof, chunk.index.0 as usize) {
+			match branch_hash(&self.erasure_root, &chunk.proof_as_vec(), chunk.index.0 as usize) {
 				Ok(hash) => hash,
 				Err(e) => {
 					tracing::warn!(

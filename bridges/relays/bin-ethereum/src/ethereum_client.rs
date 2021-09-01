@@ -431,7 +431,7 @@ async fn submit_substrate_headers_batch(
 	mut ids: Vec<RialtoHeaderId>,
 	mut headers: HeadersBatch,
 ) -> Option<RpcError> {
-	debug_assert_eq!(ids.len(), headers.len(),);
+	debug_assert_eq!(ids.len(), headers.len());
 
 	// if parent of first header is either incomplete, or rejected, we assume that contract
 	// will reject this header as well

@@ -28,8 +28,11 @@ use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
 
 use crate::{
-	backend::{Backend, BackendWriteOp, OverlayedBackend},
-	DisputeStatus, DISPUTE_WINDOW,
+	real::{
+		backend::{Backend, BackendWriteOp, OverlayedBackend},
+		DISPUTE_WINDOW,
+	},
+	DisputeStatus,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
@@ -304,7 +307,7 @@ mod tests {
 		);
 
 		// Test that overlay returns the correct values before committing.
-		assert_eq!(overlay_db.load_earliest_session().unwrap().unwrap(), 1,);
+		assert_eq!(overlay_db.load_earliest_session().unwrap().unwrap(), 1);
 
 		assert_eq!(
 			overlay_db.load_recent_disputes().unwrap().unwrap(),
@@ -328,7 +331,7 @@ mod tests {
 		backend.write(write_ops).unwrap();
 
 		// Test that subsequent writes were written.
-		assert_eq!(backend.load_earliest_session().unwrap().unwrap(), 1,);
+		assert_eq!(backend.load_earliest_session().unwrap().unwrap(), 1);
 
 		assert_eq!(
 			backend.load_recent_disputes().unwrap().unwrap(),
@@ -457,7 +460,7 @@ mod tests {
 		let mut overlay_db = OverlayedBackend::new(&backend);
 		note_current_session(&mut overlay_db, current_session).unwrap();
 
-		assert_eq!(overlay_db.load_earliest_session().unwrap(), Some(new_earliest_session),);
+		assert_eq!(overlay_db.load_earliest_session().unwrap(), Some(new_earliest_session));
 
 		assert_eq!(
 			overlay_db.load_recent_disputes().unwrap().unwrap(),

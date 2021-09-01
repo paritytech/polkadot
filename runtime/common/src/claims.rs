@@ -731,7 +731,7 @@ mod tests {
 		pub const BlockHashCount: u32 = 250;
 	}
 	impl frame_system::Config for Test {
-		type BaseCallFilter = frame_support::traits::AllowAll;
+		type BaseCallFilter = frame_support::traits::Everything;
 		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
@@ -773,7 +773,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const MinVestedTransfer: u64 = 0;
+		pub const MinVestedTransfer: u64 = 1;
 	}
 
 	impl pallet_vesting::Config for Test {
@@ -782,6 +782,7 @@ mod tests {
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
 		type WeightInfo = ();
+		const MAX_VESTING_SCHEDULES: u32 = 28;
 	}
 
 	parameter_types! {
@@ -1043,7 +1044,7 @@ mod tests {
 	}
 
 	#[test]
-	fn invalid_attest_transactions_are_recognised() {
+	fn invalid_attest_transactions_are_recognized() {
 		new_test_ext().execute_with(|| {
 			let p = PrevalidateAttests::<Test>::new();
 			let c = Call::Claims(ClaimsCall::attest(StatementKind::Regular.to_text().to_vec()));
@@ -1415,7 +1416,7 @@ mod benchmarking {
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 			let call = Call::<T>::claim(account.clone(), signature.clone());
 		}: {
-			super::Pallet::<T>::validate_unsigned(source, &call)?;
+			super::Pallet::<T>::validate_unsigned(source, &call).map_err(|e| -> &'static str { e.into() })?;
 			super::Pallet::<T>::claim(RawOrigin::None.into(), account, signature)?;
 		}
 		verify {
@@ -1461,7 +1462,7 @@ mod benchmarking {
 			let call = Call::<T>::claim_attest(account.clone(), signature.clone(), StatementKind::Regular.to_text().to_vec());
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
-			super::Pallet::<T>::validate_unsigned(source, &call)?;
+			super::Pallet::<T>::validate_unsigned(source, &call).map_err(|e| -> &'static str { e.into() })?;
 			super::Pallet::<T>::claim_attest(RawOrigin::None.into(), account, signature, statement.to_text().to_vec())?;
 		}
 		verify {
@@ -1564,20 +1565,11 @@ mod benchmarking {
 	#[cfg(test)]
 	mod tests {
 		use super::*;
-		use crate::claims::tests::{new_test_ext, Test};
-		use frame_support::assert_ok;
 
-		#[test]
-		fn test_benchmarks() {
-			new_test_ext().execute_with(|| {
-				assert_ok!(test_benchmark_claim::<Test>());
-				assert_ok!(test_benchmark_mint_claim::<Test>());
-				assert_ok!(test_benchmark_claim_attest::<Test>());
-				assert_ok!(test_benchmark_attest::<Test>());
-				assert_ok!(test_benchmark_move_claim::<Test>());
-				assert_ok!(test_benchmark_keccak256::<Test>());
-				assert_ok!(test_benchmark_eth_recover::<Test>());
-			});
-		}
+		frame_benchmarking::impl_benchmark_test_suite!(
+			Pallet,
+			crate::claims::tests::new_test_ext(),
+			crate::claims::tests::Test,
+		);
 	}
 }

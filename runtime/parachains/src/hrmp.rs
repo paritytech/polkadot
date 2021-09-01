@@ -995,12 +995,12 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let config = <configuration::Pallet<T>>::config();
-		ensure!(proposed_max_capacity > 0, Error::<T>::OpenHrmpChannelZeroCapacity,);
+		ensure!(proposed_max_capacity > 0, Error::<T>::OpenHrmpChannelZeroCapacity);
 		ensure!(
 			proposed_max_capacity <= config.hrmp_channel_max_capacity,
 			Error::<T>::OpenHrmpChannelCapacityExceedsLimit,
 		);
-		ensure!(proposed_max_message_size > 0, Error::<T>::OpenHrmpChannelZeroMessageSize,);
+		ensure!(proposed_max_message_size > 0, Error::<T>::OpenHrmpChannelZeroMessageSize);
 		ensure!(
 			proposed_max_message_size <= config.hrmp_channel_max_message_size,
 			Error::<T>::OpenHrmpChannelMessageSizeExceedsLimit,
@@ -1050,13 +1050,13 @@ impl<T: Config> Pallet<T> {
 
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::opaque::{v0::Xcm, VersionedXcm};
+			use xcm::opaque::{latest::prelude::*, VersionedXcm};
 
-			VersionedXcm::from(Xcm::HrmpNewChannelOpenRequest {
+			VersionedXcm::from(Xcm(vec![HrmpNewChannelOpenRequest {
 				sender: u32::from(origin),
 				max_capacity: proposed_max_capacity,
 				max_message_size: proposed_max_message_size,
-			})
+			}]))
 			.encode()
 		};
 		if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
@@ -1078,7 +1078,7 @@ impl<T: Config> Pallet<T> {
 		let channel_id = HrmpChannelId { sender, recipient: origin };
 		let mut channel_req = <Self as Store>::HrmpOpenChannelRequests::get(&channel_id)
 			.ok_or(Error::<T>::AcceptHrmpChannelDoesntExist)?;
-		ensure!(!channel_req.confirmed, Error::<T>::AcceptHrmpChannelAlreadyConfirmed,);
+		ensure!(!channel_req.confirmed, Error::<T>::AcceptHrmpChannelAlreadyConfirmed);
 
 		// check if by accepting this open channel request, this parachain would exceed the
 		// number of inbound channels.
@@ -1109,9 +1109,9 @@ impl<T: Config> Pallet<T> {
 
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::opaque::{v0::Xcm, VersionedXcm};
-
-			VersionedXcm::from(Xcm::HrmpChannelAccepted { recipient: u32::from(origin) }).encode()
+			use xcm::opaque::{latest::prelude::*, VersionedXcm};
+			let xcm = Xcm(vec![HrmpChannelAccepted { recipient: u32::from(origin) }]);
+			VersionedXcm::from(xcm).encode()
 		};
 		if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
 			<dmp::Pallet<T>>::queue_downward_message(&config, sender, notification_bytes)
@@ -1176,13 +1176,13 @@ impl<T: Config> Pallet<T> {
 		let config = <configuration::Pallet<T>>::config();
 		let notification_bytes = {
 			use parity_scale_codec::Encode as _;
-			use xcm::opaque::{v0::Xcm, VersionedXcm};
+			use xcm::opaque::{latest::prelude::*, VersionedXcm};
 
-			VersionedXcm::from(Xcm::HrmpChannelClosing {
+			VersionedXcm::from(Xcm(vec![HrmpChannelClosing {
 				initiator: u32::from(origin),
 				sender: u32::from(channel_id.sender),
 				recipient: u32::from(channel_id.recipient),
-			})
+			}]))
 			.encode()
 		};
 		let opposite_party =
@@ -1839,7 +1839,7 @@ mod tests {
 					.expect("the ingress index must be present for para_b");
 			let ingress_index = <Vec<ParaId>>::decode(&mut &raw_ingress_index[..])
 				.expect("ingress indexx should be decodable as a list of para ids");
-			assert_eq!(ingress_index, vec![para_a],);
+			assert_eq!(ingress_index, vec![para_a]);
 
 			// Now, verify that we can access and decode the egress index.
 			let raw_egress_index =
@@ -1847,7 +1847,7 @@ mod tests {
 					.expect("the egress index must be present for para_a");
 			let egress_index = <Vec<ParaId>>::decode(&mut &raw_egress_index[..])
 				.expect("egress index should be decodable as a list of para ids");
-			assert_eq!(egress_index, vec![para_b],);
+			assert_eq!(egress_index, vec![para_b]);
 		});
 	}
 

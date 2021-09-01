@@ -1,11 +1,11 @@
 [package]
 name = "polkadot-primitives"
-version = "0.9.8"
+version = "0.9.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-serde = { version = "1.0.123", optional = true, features = ["derive"] }
+serde = { version = "1.0.130", optional = true, features = ["derive"] }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -25,13 +25,9 @@ polkadot-core-primitives = { path = "../core-primitives", default-features = fal
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-hex-literal = "0.3.1"
+hex-literal = "0.3.3"
 parity-util-mem = { version = "0.10.0", default-features = false, optional = true }
-thiserror = "1.0.23"
 
-[dev-dependencies]
-sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pretty_assertions = "0.7.2"
 
 [features]
 default = ["std"]

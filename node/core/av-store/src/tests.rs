@@ -16,11 +16,13 @@
 
 use super::*;
 
+use std::convert::TryFrom;
+
 use assert_matches::assert_matches;
 use futures::{channel::oneshot, executor, future, Future};
 
 use parking_lot::Mutex;
-use polkadot_node_primitives::{AvailableData, BlockData, PoV};
+use polkadot_node_primitives::{AvailableData, BlockData, PoV, Proof};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
@@ -287,7 +289,7 @@ fn store_chunk_works() {
 		let chunk = ErasureChunk {
 			chunk: vec![1, 2, 3],
 			index: validator_index,
-			proof: vec![vec![3, 4, 5]],
+			proof: Proof::try_from(vec![vec![3, 4, 5]]).unwrap(),
 		};
 
 		// Ensure an entry already exists. In reality this would come from watching
@@ -333,7 +335,7 @@ fn store_chunk_does_nothing_if_no_entry_already() {
 		let chunk = ErasureChunk {
 			chunk: vec![1, 2, 3],
 			index: validator_index,
-			proof: vec![vec![3, 4, 5]],
+			proof: Proof::try_from(vec![vec![3, 4, 5]]).unwrap(),
 		};
 
 		let (tx, rx) = oneshot::channel();
@@ -441,8 +443,11 @@ fn store_block_works() {
 		let mut branches = erasure::branches(chunks.as_ref());
 
 		let branch = branches.nth(5).unwrap();
-		let expected_chunk =
-			ErasureChunk { chunk: branch.1.to_vec(), index: ValidatorIndex(5), proof: branch.0 };
+		let expected_chunk = ErasureChunk {
+			chunk: branch.1.to_vec(),
+			index: ValidatorIndex(5),
+			proof: Proof::try_from(branch.0).unwrap(),
+		};
 
 		assert_eq!(chunk, expected_chunk);
 		virtual_overseer
@@ -545,7 +550,7 @@ fn query_all_chunks_works() {
 			let chunk = ErasureChunk {
 				chunk: vec![1, 2, 3],
 				index: ValidatorIndex(1),
-				proof: vec![vec![3, 4, 5]],
+				proof: Proof::try_from(vec![vec![3, 4, 5]]).unwrap(),
 			};
 
 			let (tx, rx) = oneshot::channel();
@@ -720,7 +725,7 @@ fn stored_data_kept_until_finalized() {
 		test_state.wait_for_pruning().await;
 
 		// At this point data should be gone from the store.
-		assert!(query_available_data(&mut virtual_overseer, candidate_hash).await.is_none(),);
+		assert!(query_available_data(&mut virtual_overseer, candidate_hash).await.is_none());
 
 		assert!(has_all_chunks(&mut virtual_overseer, candidate_hash, n_validators, false).await);
 		virtual_overseer
@@ -964,9 +969,9 @@ fn forkfullness_works() {
 			available_data_2,
 		);
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await);
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, true).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, true).await);
 
 		// Candidate 2 should now be considered unavailable and will be pruned.
 		test_state.clock.inc(test_state.pruning_config.keep_unavailable_for);
@@ -977,24 +982,24 @@ fn forkfullness_works() {
 			available_data_1,
 		);
 
-		assert!(query_available_data(&mut virtual_overseer, candidate_2_hash).await.is_none(),);
+		assert!(query_available_data(&mut virtual_overseer, candidate_2_hash).await.is_none());
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, true).await);
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await);
 
 		// Wait for longer than finalized blocks should be kept for
 		test_state.clock.inc(test_state.pruning_config.keep_finalized_for);
 		test_state.wait_for_pruning().await;
 
 		// Everything should be pruned now.
-		assert!(query_available_data(&mut virtual_overseer, candidate_1_hash).await.is_none(),);
+		assert!(query_available_data(&mut virtual_overseer, candidate_1_hash).await.is_none());
 
-		assert!(query_available_data(&mut virtual_overseer, candidate_2_hash).await.is_none(),);
+		assert!(query_available_data(&mut virtual_overseer, candidate_2_hash).await.is_none());
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, false).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_1_hash, n_validators, false).await);
 
-		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await,);
+		assert!(has_all_chunks(&mut virtual_overseer, candidate_2_hash, n_validators, false).await);
 		virtual_overseer
 	});
 }
