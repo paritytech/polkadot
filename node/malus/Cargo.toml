@@ -26,4 +26,4 @@ parity-util-mem = { version = "0.10.0", default-features = false, features = ["j
 color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
 structopt = "0.3.21"
-async-trait = "0.1.50"
+async-trait = "0.1.51"

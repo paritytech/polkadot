@@ -422,6 +422,7 @@ where
 
 parameter_types! {
 	pub const MaxRetries: u32 = 3;
+	pub const MaxAuthorities: u32 = 100_000;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -430,7 +431,9 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = ();
 }
 
-impl pallet_authority_discovery::Config for Runtime {}
+impl pallet_authority_discovery::Config for Runtime {
+	type MaxAuthorities = MaxAuthorities;
+}
 
 parameter_types! {
 	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
@@ -631,6 +634,7 @@ parameter_types! {
 	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(110).into());
 	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(120).into());
 	pub const RococoForStatemint: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1001).into());
+	pub const MaxInstructions: u32 = 100;
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
@@ -666,9 +670,11 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
-	type ResponseHandler = ();
+	type ResponseHandler = XcmPallet;
+	type AssetTrap = XcmPallet;
+	type AssetClaims = XcmPallet;
 }
 
 parameter_types! {
@@ -696,8 +702,10 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
+	type Origin = Origin;
+	type Call = Call;
 }
 
 impl parachains_session_info::Config for Runtime {}
@@ -1030,6 +1038,7 @@ parameter_types! {
 pub enum ProxyType {
 	Any,
 	CancelProxy,
+	Auction,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -1042,6 +1051,10 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Any => true,
 			ProxyType::CancelProxy =>
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..))),
+			ProxyType::Auction => matches!(
+				c,
+				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {

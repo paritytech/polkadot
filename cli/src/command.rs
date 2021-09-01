@@ -420,8 +420,10 @@ pub fn run() -> Result<()> {
 			if chain_spec.is_kusama() {
 				return runner.async_run(|config| {
 					Ok((
-						cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
-							.map_err(Error::SubstrateCli),
+						cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(
+							config,
+						)
+						.map_err(Error::SubstrateCli),
 						task_manager,
 					))
 				})
@@ -431,7 +433,7 @@ pub fn run() -> Result<()> {
 			if chain_spec.is_westend() {
 				return runner.async_run(|config| {
 					Ok((
-						cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(
+						cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(
 							config,
 						)
 						.map_err(Error::SubstrateCli),
@@ -442,8 +444,10 @@ pub fn run() -> Result<()> {
 			// else we assume it is polkadot.
 			runner.async_run(|config| {
 				Ok((
-					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
-						.map_err(Error::SubstrateCli),
+					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
+						config,
+					)
+					.map_err(Error::SubstrateCli),
 					task_manager,
 				))
 			})
