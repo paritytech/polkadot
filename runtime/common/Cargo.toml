@@ -91,7 +91,7 @@ std = [
 	"libsecp256k1/std",
 	"runtime-parachains/std",
 	"xcm/std",
-  "sp-npos-elections/std",
+	"sp-npos-elections/std",
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
