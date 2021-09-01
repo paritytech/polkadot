@@ -157,9 +157,6 @@ impl TestChainStorage {
 		minimum_block_number: BlockNumber,
 		leaf: Hash,
 	) -> Option<HighestApprovedAncestorBlock> {
-		let hash = leaf;
-		let number = self.blocks_by_hash.get(&leaf)?.number;
-
 		let mut descriptions = Vec::new();
 		let mut block_hash = leaf;
 		let mut highest_approved_ancestor = None;
@@ -168,31 +165,23 @@ impl TestChainStorage {
 			if minimum_block_number >= block.number {
 				break
 			}
-			descriptions.push(BlockDescription {
-				session: 1 as _, // dummy, not checked
-				block_hash,
-				candidates: vec![], // not relevant for any test cases
-			});
-			if !self.approved_blocks.contains(&block_hash) {
+			if self.approved_blocks.contains(&block_hash) {
+				if highest_approved_ancestor.is_none() {
+					highest_approved_ancestor = Some((block_hash, block.number));
+				}
+				descriptions.push(BlockDescription {
+					session: 1 as _, // dummy, not checked
+					block_hash,
+					candidates: vec![], // not relevant for any test cases
+				});
+			} else {
 				highest_approved_ancestor = None;
 				descriptions.clear();
-			} else if highest_approved_ancestor.is_none() {
-				descriptions.clear();
-				highest_approved_ancestor = Some(block_hash);
 			}
-			let next = block.parent_hash();
-			if &leaf != next {
-				block_hash = *next;
-			} else {
-				break
-			}
+			block_hash = *block.parent_hash();
 		}
 
-		if highest_approved_ancestor.is_none() {
-			return None
-		}
-
-		Some(HighestApprovedAncestorBlock {
+		highest_approved_ancestor.map(|(hash, number)| HighestApprovedAncestorBlock {
 			hash,
 			number,
 			descriptions: descriptions.into_iter().rev().collect(),
@@ -212,16 +201,12 @@ impl TestChainStorage {
 		let mut undisputed_chain = Some(highest_approved_block_hash);
 		let mut block_hash = highest_approved_block_hash;
 		while let Some(block) = self.blocks_by_hash.get(&block_hash) {
-			block_hash = block.hash();
-			if ChainBuilder::GENESIS_HASH == block_hash {
-				return None
-			}
 			let next = block.parent_hash();
 			if self.disputed_blocks.contains(&block_hash) {
 				undisputed_chain = Some(*next);
 			}
 			if block.number() == &base_blocknumber {
-				return None
+				break
 			}
 			block_hash = *next;
 		}
@@ -436,34 +421,36 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars>(case_var_provider: F)
 		// ancestor must match the chain derived one.
 		let highest_approved_ancestor_w_desc =
 			best_chain_containing_block.and_then(|best_chain_containing_block| {
-				let min_blocknumber = chain
-					.blocks_by_hash
-					.get(&best_chain_containing_block)
-					.map(|x| x.number)
-					.unwrap_or_default();
-				let highest_approved_ancestor_w_desc =
-					chain.highest_approved_ancestors(min_blocknumber, best_chain_containing_block);
-				if let (
-					Some(highest_approved_ancestor_w_desc),
-					Some(highest_approved_ancestor_block),
-				) = (&highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
-				{
-					assert_eq!(
-					highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
-					"TestCaseIntegrity: Provided and expected approved ancestor hash mismatch: {:?} vs {:?}",
-					highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
-				);
-				}
-				highest_approved_ancestor_w_desc
-			});
-		if let Some(haacwd) = &highest_approved_ancestor_w_desc {
-			let expected = chain.undisputed_chain(haacwd.number, haacwd.hash);
-			assert_eq!(
-				expected, undisputed_chain,
-				"TestCaseIntegrity: Provided and anticipated undisputed chain mismatch: {:?} vs {:?}",
-				undisputed_chain, expected,
-			)
-		}
+				chain.blocks_by_hash.get(&target_block).map(|target_block_header| {
+                    let target_blocknumber = target_block_header.number;
+                    let highest_approved_ancestor_w_desc =
+                        chain.highest_approved_ancestors(target_blocknumber, best_chain_containing_block);
+                    if let (
+                        Some(highest_approved_ancestor_w_desc),
+                        Some(highest_approved_ancestor_block),
+                    ) = (&highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
+                    {
+                        assert_eq!(
+                            highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
+                            "TestCaseIntegrity: Provided and expected approved ancestor hash mismatch: {:?} vs {:?}",
+                            highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
+                        );
+
+                        let expected = chain.undisputed_chain(
+                            target_blocknumber,
+                            highest_approved_ancestor_block,
+                        );
+
+                        assert_eq!(
+                            expected, undisputed_chain,
+                            "TestCaseIntegrity: Provided and anticipated undisputed chain mismatch: {:?} vs {:?}",
+                            undisputed_chain, expected,
+                        );
+                    }
+                    highest_approved_ancestor_w_desc
+                })
+			})
+            .flatten();
 
 		test_skeleton(
 			&chain,
@@ -511,7 +498,7 @@ struct CaseVars {
 }
 
 /// ```raw
-/// genesis -- 0xA1 --- 0xA2 --- 0xA3 --- 0xA4(!avail) --- 0xA5(!avail)
+/// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed) --- 0xA4(!avail) --- 0xA5(!avail)
 ///               \
 ///                `- 0xB2
 /// ```
@@ -521,7 +508,7 @@ fn chain_0() -> CaseVars {
 
 	let a1 = builder.fast_forward_approved(0xA0, head, 1);
 	let a2 = builder.fast_forward_approved(0xA0, a1, 2);
-	let a3 = builder.fast_forward_approved(0xA0, a2, 3);
+	let a3 = builder.fast_forward_disputed(0xA0, a2, 3);
 	let a4 = builder.fast_forward(0xA0, a3, 4);
 	let a5 = builder.fast_forward(0xA0, a4, 5);
 
@@ -555,7 +542,7 @@ fn chain_1() -> CaseVars {
 	let a3 = builder.fast_forward_approved(0xA0, a2, 3);
 
 	let b2 = builder.fast_forward_approved(0xB0, a1, 2);
-	let b3 = builder.fast_forward_approved(0xB0, b2, 3);
+	let b3 = builder.fast_forward(0xB0, b2, 3);
 
 	builder.set_heads(vec![a3, b3]);
 
