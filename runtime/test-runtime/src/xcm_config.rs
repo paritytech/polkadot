@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{parameter_types, traits::All, weights::Weight};
+use frame_support::{parameter_types, traits::Everything, weights::Weight};
 use xcm::latest::{
 	Error as XcmError, Junctions::Here, MultiAsset, MultiLocation, NetworkId, Parent,
 	Result as XcmResult, SendXcm, Xcm,
