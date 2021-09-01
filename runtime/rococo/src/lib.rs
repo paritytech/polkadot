@@ -1049,6 +1049,7 @@ parameter_types! {
 pub enum ProxyType {
 	Any,
 	CancelProxy,
+	Auction,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -1061,6 +1062,13 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Any => true,
 			ProxyType::CancelProxy =>
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. })),
+			ProxyType::Auction => matches!(
+				c,
+				Call::Auctions { .. }
+					| Call::Crowdloan { .. }
+					| Call::Registrar { .. }
+					| Call::Slots { .. }
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
