@@ -118,7 +118,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
 		top_level: bool,
-		message: &mut Xcm<Call>,
+		message: &Xcm<Call>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {

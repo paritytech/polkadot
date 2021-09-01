@@ -1290,6 +1290,7 @@ impl xcm_executor::Config for XcmConfig {
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader = UsingComponents<WeightToFee, KsmLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = ();
+	type SubscriptionService = XcmPallet;
 }
 
 parameter_types! {

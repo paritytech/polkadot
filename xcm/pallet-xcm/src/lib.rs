@@ -376,7 +376,7 @@ pub mod pallet {
 		/// error should be returned.
 		fn start(dest: &MultiLocation, query_id: u64, max_weight: u64) -> XcmResult {
 			let versioned_dest: VersionedMultiLocation = dest.clone().into();
-			let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest);
+			let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, &versioned_dest);
 			ensure!(!already, XcmError::InvalidLocation);
 
 			let xcm_version = XCM_VERSION;
@@ -392,7 +392,7 @@ pub mod pallet {
 		/// Stop notifying `location` should the XCM change. This is a no-op if there was never a
 		/// subscription.
 		fn stop(dest: &MultiLocation) -> XcmResult {
-			VersionNotifyTargets::<T>::remove(XCM_VERSION, VersionedMultiLocation::from(dest));
+			VersionNotifyTargets::<T>::remove(XCM_VERSION, VersionedMultiLocation::from(dest.clone()));
 			Ok(())
 		}
 	}

@@ -262,11 +262,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// We don't allow derivative origins to subscribe since it would otherwise pose a
 				// DoS risk.
 				ensure!(top_level, XcmError::BadOrigin);
-				Config::SubscriptionService::start(&origin, query_id, max_response_weight)
+				Config::SubscriptionService::start(&origin, query_id, max_response_weight)?;
+				None
 			},
 			(origin, Xcm::UnsubscribeVersion) => {
 				ensure!(top_level, XcmError::BadOrigin);
-				Config::SubscriptionService::stop(origin)
+				Config::SubscriptionService::stop(&origin)?;
+				None
 			},
 			_ => Err(XcmError::UnhandledXcmMessage)?, // Unhandled XCM message.
 		};

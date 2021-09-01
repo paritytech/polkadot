@@ -287,7 +287,7 @@ pub enum Xcm<Call> {
 	#[codec(index = 11)]
 	SubscribeVersion {
 		#[codec(compact)]
-		query_id: QueryId,
+		query_id: u64,
 		#[codec(compact)]
 		max_response_weight: u64,
 	},

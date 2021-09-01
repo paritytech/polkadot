@@ -61,4 +61,4 @@ pub trait Config {
 
 	/// How we handle version subscription requests.
 	type SubscriptionService: VersionChangeNotifier;
-}}
+}
