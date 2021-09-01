@@ -595,17 +595,14 @@ async fn main() {
 			Command::Monitor(c) => monitor_cmd(&client, shared, c, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);
-					()
 				}),
 			Command::DryRun(c) => dry_run_cmd(&client, shared, c, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "DryRun error: {:?}", e);
-					()
 				}),
 			Command::EmergencySolution => emergency_solution_cmd(shared.clone()).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
-					()
 				}),
 		}
 	};
