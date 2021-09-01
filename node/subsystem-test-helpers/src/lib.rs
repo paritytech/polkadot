@@ -240,7 +240,7 @@ pub struct TestSubsystemContextHandle<M> {
 }
 
 impl<M> TestSubsystemContextHandle<M> {
-	/// Send a message or signal to the subsystem. This resolves at the point in time where the
+	/// Send a message or signal to the subsystem. This resolves at the point in time when the
 	/// subsystem has _read_ the message.
 	pub async fn send(&mut self, from_overseer: FromOverseer<M>) {
 		self.tx.send(from_overseer).await.expect("Test subsystem no longer live");
@@ -334,6 +334,36 @@ where
 	}
 }
 
+/// Asserts that two patterns match, yet only one
+#[macro_export]
+macro_rules! arbitrary_order {
+	($rx:expr; $p1:pat => $e1:expr; $p2:pat => $e2:expr) => {
+		// If i.e. a enum has only two variants, `_` is unreachable.
+		match $rx {
+			$p1 => {
+				let __ret1 = { $e1 };
+				let __ret2 = match $rx {
+					$p2 => $e2,
+					#[allow(unreachable_patterns)]
+					_ => unreachable!("first pattern matched, second pattern did not"),
+				};
+				(__ret1, __ret2)
+			},
+			$p2 => {
+				let __ret2 = { $e2 };
+				let __ret1 = match $rx {
+					$p1 => $e1,
+					#[allow(unreachable_patterns)]
+					_ => unreachable!("second pattern matched, first pattern did not"),
+				};
+				(__ret1, __ret2)
+			},
+			#[allow(unreachable_patterns)]
+			_ => unreachable!("neither first nor second pattern matched"),
+		}
+	};
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -372,5 +402,21 @@ mod tests {
 			block_on(rx.into_future()).0.unwrap(),
 			CollatorProtocolMessage::CollateOn(_)
 		));
+	}
+
+	#[test]
+	fn macro_arbitrary_order() {
+		let mut vals = vec![Some(15_usize), None];
+		let (first, second) = arbitrary_order!(vals.pop().unwrap(); Some(fx) => fx; None => 0);
+		assert_eq!(first, 15_usize);
+		assert_eq!(second, 0_usize);
+	}
+
+	#[test]
+	fn macro_arbitrary_order_swapped() {
+		let mut vals = vec![None, Some(11_usize)];
+		let (first, second) = arbitrary_order!(vals.pop().unwrap(); Some(fx) => fx; None => 0);
+		assert_eq!(first, 11_usize);
+		assert_eq!(second, 0);
 	}
 }
