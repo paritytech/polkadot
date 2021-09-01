@@ -25,5 +25,4 @@ extra-args = ["--charlie"]
 [nodes.david]
 validator = true
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
-command = "/usr/local/bin/malus"
-extra-args = ["dispute-valid-block", "--dave"]
+command-with-args = "/usr/local/bin/malus  dispute-ancestor --dave"
