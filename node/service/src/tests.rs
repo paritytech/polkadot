@@ -419,12 +419,14 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars>(case_var_provider: F)
 
 		// Verify test integrity: the provided highest approved
 		// ancestor must match the chain derived one.
-		let highest_approved_ancestor_w_desc =
-			best_chain_containing_block.and_then(|best_chain_containing_block| {
+		let highest_approved_ancestor_w_desc = best_chain_containing_block
+			.and_then(|best_chain_containing_block| {
 				chain.blocks_by_hash.get(&target_block).map(|target_block_header| {
 					let target_blocknumber = target_block_header.number;
-					let highest_approved_ancestor_w_desc =
-						chain.highest_approved_ancestors(target_blocknumber, best_chain_containing_block);
+					let highest_approved_ancestor_w_desc = chain.highest_approved_ancestors(
+						target_blocknumber,
+						best_chain_containing_block,
+					);
 					if let (
 						Some(highest_approved_ancestor_w_desc),
 						Some(highest_approved_ancestor_block),
@@ -436,10 +438,8 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars>(case_var_provider: F)
 							highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
 						);
 
-						let expected = chain.undisputed_chain(
-							target_blocknumber,
-							highest_approved_ancestor_block,
-						);
+						let expected = chain
+							.undisputed_chain(target_blocknumber, highest_approved_ancestor_block);
 
 						assert_eq!(
 							expected, undisputed_chain,
