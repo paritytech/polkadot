@@ -281,7 +281,7 @@ mod tests {
 				assert_eq!(v0.needed_approvals                         , v1.needed_approvals);
 				assert_eq!(v0.relay_vrf_modulo_samples                 , v1.relay_vrf_modulo_samples);
 
-				assert_eq!(v1.ump_max_individual_weight, 10_000_000_000);
+				assert_eq!(v1.ump_max_individual_weight, 20_000_000_000);
 			}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
 		});
 	}
