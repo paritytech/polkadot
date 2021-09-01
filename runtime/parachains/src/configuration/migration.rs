@@ -211,7 +211,7 @@ mod tests {
 	fn test_migrate_to_v1() {
 		// Host configuration has lots of fields. However, in this migration we only add a single
 		// field. The most important part to check are a couple of the last fields. We also pick
-		// extra fields to check arbitrary, e.g. depending on their position (i.e. the middle) and
+		// extra fields to check arbitrarily, e.g. depending on their position (i.e. the middle) and
 		// also their type.
 		//
 		// We specify only the picked fields and the rest should be provided by the `Default`
