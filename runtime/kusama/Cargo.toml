@@ -19,6 +19,7 @@ smallvec = "1.8.0"
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+bp-polkadot = { path = "../../bridges/primitives/chain-polkadot", default-features = false }
 kusama-runtime-constants = { package = "kusama-runtime-constants", path = "./constants", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -41,6 +42,7 @@ pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "maste
 pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-bridge-grandpa = { path = "../../bridges/modules/grandpa", default-features = false }
 pallet-child-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -111,6 +113,7 @@ only-staking = []
 std = [
 	"authority-discovery-primitives/std",
 	"bitvec/std",
+	"bp-polkadot/std",
 	"primitives/std",
 	"rustc-hex/std",
 	"parity-scale-codec/std",
@@ -130,6 +133,7 @@ std = [
 	"pallet-bags-list/std",
 	"pallet-balances/std",
 	"pallet-bounties/std",
+	"pallet-bridge-grandpa/std",
 	"pallet-child-bounties/std",
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
@@ -192,6 +196,7 @@ runtime-benchmarks = [
 	"pallet-babe/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-bounties/runtime-benchmarks",
+	"pallet-bridge-grandpa/runtime-benchmarks",
 	"pallet-child-bounties/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",

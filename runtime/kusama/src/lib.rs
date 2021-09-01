@@ -1379,6 +1379,31 @@ impl pallet_gilt::Config for Runtime {
 	type WeightInfo = weights::pallet_gilt::WeightInfo<Runtime>;
 }
 
+parameter_types! {
+	/// This is a pretty unscientific cap.
+	///
+	/// Note that once this is hit the bridge GRANDPA pallet will essentially throttle incoming requests down to one
+	/// call per block.
+	pub const MaxBridgeGrandpaRequests: u32 = 50;
+	/// Number of headers to keep in bridge GRANDPA pallet.
+	///
+	/// Assuming the worst case of every header being finalized, we will keep headers at least for a
+	/// week.
+	pub const BridgeGrandpaHeadersToKeep: u32 = 7 * bp_polkadot::DAYS as u32;
+}
+
+/// Instance of the with-Polkadot bridge GRANDPA pallet.
+pub type PolkadotGrandpaInstance = ();
+
+impl pallet_bridge_grandpa::Config for Runtime {
+	type BridgedChain = bp_polkadot::Polkadot;
+	type MaxRequests = MaxBridgeGrandpaRequests;
+	type HeadersToKeep = BridgeGrandpaHeadersToKeep;
+
+	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>; // TODO
+}
+
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1486,6 +1511,11 @@ construct_runtime! {
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
+
+		// Bridge pallets to bridge with Polkadot.
+		BridgePolkadotGrandpa: pallet_bridge_grandpa::{Pallet, Call, Storage, Config<T>} = 110,
+		//BridgePolkadotMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>} = 111,
+		//BridgePolkadotMessagesDispatch: pallet_bridge_dispatch::{Pallet, Event<T>} = 112,
 	}
 }
 
@@ -1782,6 +1812,17 @@ sp_api::impl_runtime_apis! {
 		) -> Result<(), mmr::Error> {
 			// dummy implementation due to lack of MMR pallet.
 			Err(mmr::Error::Verify)
+		}
+	}
+
+	impl bp_polkadot::PolkadotFinalityApi<Block> for Runtime {
+		fn best_finalized() -> (bp_polkadot::BlockNumber, bp_polkadot::Hash) {
+			let header = BridgePolkadotGrandpa::best_finalized();
+			(header.number, header.hash())
+		}
+
+		fn is_known_header(hash: bp_polkadot::Hash) -> bool {
+			BridgePolkadotGrandpa::is_known_header(hash)
 		}
 	}
 

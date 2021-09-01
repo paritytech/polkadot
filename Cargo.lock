@@ -742,6 +742,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "bp-kusama"
+version = "0.1.0"
+dependencies = [
+ "bp-messages",
+ "bp-polkadot-core",
+ "bp-runtime",
+ "frame-support",
+ "smallvec",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
+ "sp-version",
+]
+
+[[package]]
 name = "bp-message-dispatch"
 version = "0.1.0"
 dependencies = [
@@ -768,6 +783,21 @@ dependencies = [
  "serde",
  "sp-core",
  "sp-std",
+]
+
+[[package]]
+name = "bp-polkadot"
+version = "0.1.0"
+dependencies = [
+ "bp-messages",
+ "bp-polkadot-core",
+ "bp-runtime",
+ "frame-support",
+ "smallvec",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
+ "sp-version",
 ]
 
 [[package]]
@@ -3499,6 +3529,7 @@ version = "0.9.18"
 dependencies = [
  "beefy-primitives",
  "bitvec",
+ "bp-polkadot",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -3516,6 +3547,7 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-bounties",
+ "pallet-bridge-grandpa",
  "pallet-child-bounties",
  "pallet-collective",
  "pallet-democracy",
@@ -7260,6 +7292,7 @@ version = "0.9.18"
 dependencies = [
  "beefy-primitives",
  "bitvec",
+ "bp-kusama",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -7276,6 +7309,7 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-bounties",
+ "pallet-bridge-grandpa",
  "pallet-child-bounties",
  "pallet-collective",
  "pallet-democracy",
