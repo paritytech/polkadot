@@ -111,7 +111,6 @@ opt-level = 3
 panic = "unwind"
 
 [features]
-default = [ "disputes" ]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
 disputes = [ "polkadot-cli/disputes" ]
