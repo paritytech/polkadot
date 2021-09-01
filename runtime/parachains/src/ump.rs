@@ -226,9 +226,9 @@ pub mod pallet {
 	#[pallet::error]
 	pub enum Error<T> {
 		/// The message index given is unknown.
-		Unknown,
+		UnknownMessageIndex,
 		/// The amount of weight given is possibly not enough for executing the message.
-		OverLimit,
+		WeightOverLimit,
 	}
 
 	/// The messages waiting to be handled by the relay-chain originating from a certain parachain.
@@ -295,8 +295,8 @@ pub mod pallet {
 		/// - `weight_limit`: The amount of weight that message execution may take.
 		///
 		/// Errors:
-		/// - `Unknown`: Message of `index` is unknown.
-		/// - `OverLimit`: Message execution may use greater than `weight_limit`.
+		/// - `UnknownMessageIndex`: Message of `index` is unknown.
+		/// - `WeightOverLimit`: Message execution may use greater than `weight_limit`.
 		///
 		/// Events:
 		/// - `OverweightServiced`: On success.
@@ -308,9 +308,10 @@ pub mod pallet {
 		) -> DispatchResultWithPostInfo {
 			T::ExecuteOverweightOrigin::ensure_origin(origin)?;
 
-			let (sender, data) = Overweight::<T>::get(index).ok_or(Error::<T>::Unknown)?;
+			let (sender, data) =
+				Overweight::<T>::get(index).ok_or(Error::<T>::UnknownMessageIndex)?;
 			let used = T::UmpSink::process_upward_message(sender, &data[..], weight_limit)
-				.map_err(|_| Error::<T>::OverLimit)?;
+				.map_err(|_| Error::<T>::WeightOverLimit)?;
 			Overweight::<T>::remove(index);
 			Self::deposit_event(Event::OverweightServiced(index, used));
 			Ok(Some(used.saturating_add(1_000_000)).into())
@@ -973,7 +974,10 @@ pub(crate) mod tests {
 		// This test just makes sure that 0 is not a valid index and we can use it not worrying in
 		// the next test.
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-			assert_noop!(Ump::service_overweight(Origin::root(), 0, 1000), Error::<Test>::Unknown);
+			assert_noop!(
+				Ump::service_overweight(Origin::root(), 0, 1000),
+				Error::<Test>::UnknownMessageIndex
+			);
 		});
 	}
 
@@ -1018,7 +1022,7 @@ pub(crate) mod tests {
 			// weight it will fail.
 			assert_noop!(
 				Ump::service_overweight(Origin::root(), 0, 499),
-				Error::<Test>::OverLimit
+				Error::<Test>::WeightOverLimit
 			);
 
 			// ... and if we try to service it with just enough weight it will succeed as well.
@@ -1029,7 +1033,7 @@ pub(crate) mod tests {
 			// out.
 			assert_noop!(
 				Ump::service_overweight(Origin::root(), 1, 1000),
-				Error::<Test>::Unknown
+				Error::<Test>::UnknownMessageIndex
 			);
 		});
 	}
