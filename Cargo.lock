@@ -6647,6 +6647,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-keystore",
+ "sp-npos-elections",
  "sp-runtime",
  "sp-session",
  "sp-staking",

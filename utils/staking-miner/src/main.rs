@@ -289,6 +289,27 @@ enum Solvers {
 	},
 }
 
+/// Mine a solution with the given `solver`.
+// fn mine_with<T: EPM::Config, A: <T::Solver as NPoSSolver>::AccountId>(
+// 	solver: Solvers, ext: Ext
+// ) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
+// {
+// 	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
+
+// 	match solver {
+// 			Solvers::SeqPhragmen { iterations } => {
+// 				BalanceIterations::set(iterations);
+// 				type Solver = SequentialPhragmen<A, sp_runtime::Perbill, Balancing>;
+// 				crate::mine_unchecked::<T, Solver>(&mut ext, false)
+// 			},
+// 			Solvers::PhragMMS { iterations } => {
+// 				type Solver = PhragMMS<A, sp_runtime::Perbill, Balancing>;
+// 				BalanceIterations::set(iterations);
+// 				crate::mine_unchecked::<T, Solver>(&mut ext, false)
+// 			}
+// 	}
+// }
+
 frame_support::parameter_types! {
 	/// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI
 	/// config.

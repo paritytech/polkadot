@@ -365,33 +365,6 @@ parameter_types! {
 	pub OffchainRepeat: BlockNumber = 5;
 }
 
-/// Maximum number of iteration of balancing that will be executed in the embedded miner of
-/// the pallet.
-pub const MINER_MAX_ITERATIONS: u32 = 10;
-
-/// A source of random balance for the NPoS Solver, which is meant to be run by the OCW election
-// miner.
-pub struct OffchainRandomBalance;
-impl frame_support::pallet_prelude::Get<Option<(usize, sp_npos_elections::ExtendedBalance)>>
-	for OffchainRandomBalance
-{
-	fn get() -> Option<(usize, sp_npos_elections::ExtendedBalance)> {
-		use sp_runtime::traits::TrailingZeroInput;
-		let iters = match MINER_MAX_ITERATIONS {
-			0 => 0,
-			max @ _ => {
-				let seed = sp_io::offchain::random_seed();
-				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-					.expect("input is padded with zeroes; qed") %
-					max.saturating_add(1);
-				random as usize
-			},
-		};
-
-		Some((iters, 0))
-	}
-}
-
 sp_npos_elections::generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution16::<
@@ -427,7 +400,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Solver = frame_election_provider_support::SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
-		OffchainRandomBalance,
+		runtime_common::elections::OffchainRandomBalancing,
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureOneOf<
@@ -456,7 +429,7 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
 	// Six sessions in an era (24 hours).
-	pub const SessionsPerEra: SessionIndex = 6;
+	pub const SessionsPerEra: SessionIndex = 1;
 	// 28 eras for unbonding (28 days).
 	pub const BondingDuration: pallet_staking::EraIndex = 28;
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
