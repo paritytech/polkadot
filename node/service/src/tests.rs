@@ -422,35 +422,35 @@ fn run_specialized_test_w_harness<F: FnOnce() -> CaseVars>(case_var_provider: F)
 		let highest_approved_ancestor_w_desc =
 			best_chain_containing_block.and_then(|best_chain_containing_block| {
 				chain.blocks_by_hash.get(&target_block).map(|target_block_header| {
-                    let target_blocknumber = target_block_header.number;
-                    let highest_approved_ancestor_w_desc =
-                        chain.highest_approved_ancestors(target_blocknumber, best_chain_containing_block);
-                    if let (
-                        Some(highest_approved_ancestor_w_desc),
-                        Some(highest_approved_ancestor_block),
-                    ) = (&highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
-                    {
-                        assert_eq!(
-                            highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
-                            "TestCaseIntegrity: Provided and expected approved ancestor hash mismatch: {:?} vs {:?}",
-                            highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
-                        );
+					let target_blocknumber = target_block_header.number;
+					let highest_approved_ancestor_w_desc =
+						chain.highest_approved_ancestors(target_blocknumber, best_chain_containing_block);
+					if let (
+						Some(highest_approved_ancestor_w_desc),
+						Some(highest_approved_ancestor_block),
+					) = (&highest_approved_ancestor_w_desc, highest_approved_ancestor_block)
+					{
+						assert_eq!(
+							highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
+							"TestCaseIntegrity: Provided and expected approved ancestor hash mismatch: {:?} vs {:?}",
+							highest_approved_ancestor_block, highest_approved_ancestor_w_desc.hash,
+						);
 
-                        let expected = chain.undisputed_chain(
-                            target_blocknumber,
-                            highest_approved_ancestor_block,
-                        );
+						let expected = chain.undisputed_chain(
+							target_blocknumber,
+							highest_approved_ancestor_block,
+						);
 
-                        assert_eq!(
-                            expected, undisputed_chain,
-                            "TestCaseIntegrity: Provided and anticipated undisputed chain mismatch: {:?} vs {:?}",
-                            undisputed_chain, expected,
-                        );
-                    }
-                    highest_approved_ancestor_w_desc
-                })
+						assert_eq!(
+							expected, undisputed_chain,
+							"TestCaseIntegrity: Provided and anticipated undisputed chain mismatch: {:?} vs {:?}",
+							undisputed_chain, expected,
+						);
+					}
+					highest_approved_ancestor_w_desc
+				})
 			})
-            .flatten();
+			.flatten();
 
 		test_skeleton(
 			&chain,
@@ -499,8 +499,8 @@ struct CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3 --- 0xA4(!avail) --- 0xA5(!avail)
-///               \
-///                `- 0xB2
+///			   \
+///				`- 0xB2
 /// ```
 fn chain_undisputed() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -530,8 +530,8 @@ fn chain_undisputed() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed) --- 0xA4(!avail) --- 0xA5(!avail)
-///               \
-///                `- 0xB2
+///			   \
+///				`- 0xB2
 /// ```
 fn chain_0() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -561,8 +561,8 @@ fn chain_0() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2(disputed) --- 0xA3
-///               \
-///                `- 0xB2 --- 0xB3(!available)
+///			   \
+///				`- 0xB2 --- 0xB3(!available)
 /// ```
 fn chain_1() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -589,8 +589,8 @@ fn chain_1() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2(disputed) --- 0xA3
-///               \
-///                `- 0xB2 --- 0xB3
+///			   \
+///				`- 0xB2 --- 0xB3
 /// ```
 fn chain_2() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -617,8 +617,8 @@ fn chain_2() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed)
-///               \
-///                `- 0xB2 --- 0xB3
+///			   \
+///				`- 0xB2 --- 0xB3
 /// ```
 fn chain_3() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
@@ -645,10 +645,10 @@ fn chain_3() -> CaseVars {
 
 /// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed)
-///               \
-///                `- 0xB2 --- 0xB3
+///			   \
+///				`- 0xB2 --- 0xB3
 ///
-///      ? --- NEX(does_not_exist)
+///	            ? --- NEX(does_not_exist)
 /// ```
 fn chain_4() -> CaseVars {
 	let head: Hash = ChainBuilder::GENESIS_HASH;
