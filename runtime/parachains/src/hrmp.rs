@@ -1241,28 +1241,27 @@ impl<T: Config> Pallet<T> {
 	/// Decreases the open channel request count for the given sender. If the value reaches zero
 	/// it is removed completely.
 	fn decrease_open_channel_request_count(sender: ParaId) {
-		let new_open_channel_req_cnt =
-			<Self as Store>::HrmpOpenChannelRequestCount::get(&sender).saturating_sub(1);
-		if new_open_channel_req_cnt != 0 {
-			<Self as Store>::HrmpOpenChannelRequestCount::insert(&sender, new_open_channel_req_cnt);
-		} else {
-			<Self as Store>::HrmpOpenChannelRequestCount::remove(&sender);
-		}
+		<Self as Store>::HrmpOpenChannelRequestCount::mutate_exists(&sender, |opt_rc| {
+			*opt_rc = opt_rc.and_then(|rc| {
+				match rc.saturating_sub(1) {
+					0 => None,
+					n => Some(n),
+				}
+			});
+		});
 	}
 
 	/// Decreases the accepted channel request count for the given sender. If the value reaches
 	/// zero it is removed completely.
 	fn decrease_accepted_channel_request_count(recipient: ParaId) {
-		let new_accepted_channel_req_cnt =
-			<Self as Store>::HrmpAcceptedChannelRequestCount::get(&recipient).saturating_sub(1);
-		if new_accepted_channel_req_cnt != 0 {
-			<Self as Store>::HrmpAcceptedChannelRequestCount::insert(
-				&recipient,
-				new_accepted_channel_req_cnt,
-			);
-		} else {
-			<Self as Store>::HrmpAcceptedChannelRequestCount::remove(&recipient);
-		}
+		<Self as Store>::HrmpAcceptedChannelRequestCount::mutate_exists(&recipient, |opt_rc| {
+			*opt_rc = opt_rc.and_then(|rc| {
+				match rc.saturating_sub(1) {
+					0 => None,
+					n => Some(n),
+				}
+			});
+		});
 	}
 }
 
