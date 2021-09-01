@@ -290,25 +290,40 @@ enum Solvers {
 }
 
 /// Mine a solution with the given `solver`.
-// fn mine_with<T: EPM::Config, A: <T::Solver as NPoSSolver>::AccountId>(
-// 	solver: Solvers, ext: Ext
-// ) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
-// {
-// 	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
+fn mine_with<T>(
+	solver: &Solvers, ext: &mut Ext
+) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
+where
+	T: EPM::Config,
+	T::Solver: NposSolver<Error=sp_npos_elections::Error>,
+{
+	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 
-// 	match solver {
-// 			Solvers::SeqPhragmen { iterations } => {
-// 				BalanceIterations::set(iterations);
-// 				type Solver = SequentialPhragmen<A, sp_runtime::Perbill, Balancing>;
-// 				crate::mine_unchecked::<T, Solver>(&mut ext, false)
-// 			},
-// 			Solvers::PhragMMS { iterations } => {
-// 				type Solver = PhragMMS<A, sp_runtime::Perbill, Balancing>;
-// 				BalanceIterations::set(iterations);
-// 				crate::mine_unchecked::<T, Solver>(&mut ext, false)
-// 			}
-// 	}
-// }
+	match solver {
+			Solvers::SeqPhragmen { iterations } => {
+				BalanceIterations::set(*iterations);
+				mine_unchecked::<
+					T,
+					SequentialPhragmen<
+						<T as frame_system::Config>::AccountId,
+						sp_runtime::Perbill,
+						Balancing
+					>
+				>(ext, false)
+			},
+			Solvers::PhragMMS { iterations } => {
+				BalanceIterations::set(*iterations);
+				mine_unchecked::<
+					T,
+					PhragMMS<
+						<T as frame_system::Config>::AccountId,
+						sp_runtime::Perbill,
+						Balancing
+					>
+				>(ext, false)
+			}
+	}
+}
 
 frame_support::parameter_types! {
 	/// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI

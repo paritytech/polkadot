@@ -17,11 +17,10 @@
 //! The monitor command.
 
 use crate::{
-	params, prelude::*, rpc_helpers::*, signer::Signer, BalanceIterations, Balancing, Error,
-	MonitorConfig, SharedConfig, Solvers,
+	params, prelude::*, rpc_helpers::*, signer::Signer, Error,
+	MonitorConfig, SharedConfig,
 };
 use codec::Encode;
-use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 use jsonrpsee_ws_client::{
 	types::{traits::SubscriptionClient, v2::params::JsonRpcParams, Subscription},
 	WsClient,
@@ -112,18 +111,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				continue;
 			}
 
-			let (raw_solution, witness) = match config.solver {
-					Solvers::SeqPhragmen { iterations } => {
-						BalanceIterations::set(iterations);
-						type Solver = SequentialPhragmen<AccountId, sp_runtime::Perbill, Balancing>;
-						crate::mine_unchecked::<Runtime, Solver>(&mut ext, false)?
-					},
-					Solvers::PhragMMS { iterations } => {
-						BalanceIterations::set(iterations);
-						type Solver = SequentialPhragmen<AccountId, sp_runtime::Perbill, Balancing>;
-						crate::mine_unchecked::<Runtime, Solver>(&mut ext, false)?
-					}
-			};
+			let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext)?;
 
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
