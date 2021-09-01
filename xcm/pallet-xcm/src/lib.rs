@@ -366,12 +366,14 @@ pub mod pallet {
 
 	pub struct VersionDiscoveryQueueSize<T>(PhantomData<T>);
 	impl<T: Config> Get<u32> for VersionDiscoveryQueueSize<T> {
-		fn get() -> u32 { T::VERSION_DISCOVERY_QUEUE_SIZE }
+		fn get() -> u32 {
+			T::VERSION_DISCOVERY_QUEUE_SIZE
+		}
 	}
 
 	/// Destinations whose latest XCM version we would like to know. Duplicates not allowed, and
 	/// the `u32` counter is the number of times that a send to the destination has been attempted,
-	/// which is used as a prioritisation.
+	/// which is used as a prioritization.
 	#[pallet::storage]
 	pub(super) type VersionDiscoveryQueue<T: Config> = StorageValue<
 		_,
@@ -381,7 +383,8 @@ pub mod pallet {
 
 	/// The current migration's stage, if any.
 	#[pallet::storage]
-	pub(super) type CurrentMigration<T: Config> = StorageValue<_, VersionMigrationStage, OptionQuery>;
+	pub(super) type CurrentMigration<T: Config> =
+		StorageValue<_, VersionMigrationStage, OptionQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
@@ -410,8 +413,7 @@ pub mod pallet {
 			if let Some(migration) = CurrentMigration::<T>::get() {
 				// Consume 10% of block at most
 				let max_weight = T::BlockWeights::get().max_block / 10;
-				let (w, maybe_migration) =
-					Self::check_xcm_version_change(migration, max_weight);
+				let (w, maybe_migration) = Self::check_xcm_version_change(migration, max_weight);
 				CurrentMigration::<T>::set(maybe_migration);
 				weight_used.saturating_accrue(w);
 			}
@@ -735,10 +737,14 @@ pub mod pallet {
 			let todo_sv_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
 			let todo_vn_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
 			let todo_vnt_already_notified_weight: Weight = T::DbWeight::get().read;
-			let todo_vnt_notify_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write * 3;
-			let todo_vnt_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
-			let todo_vnt_migrate_fail_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
-			let todo_vnt_notify_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write * 3;
+			let todo_vnt_notify_weight: Weight =
+				T::DbWeight::get().read + T::DbWeight::get().write * 3;
+			let todo_vnt_migrate_weight: Weight =
+				T::DbWeight::get().read + T::DbWeight::get().write;
+			let todo_vnt_migrate_fail_weight: Weight =
+				T::DbWeight::get().read + T::DbWeight::get().write;
+			let todo_vnt_notify_migrate_weight: Weight =
+				T::DbWeight::get().read + T::DbWeight::get().write * 3;
 
 			use VersionMigrationStage::*;
 
@@ -751,7 +757,9 @@ pub mod pallet {
 							SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
 						}
 						weight_used.saturating_accrue(todo_sv_migrate_weight);
-						if weight_used >= weight_cutoff { return (weight_used, Some(stage)) }
+						if weight_used >= weight_cutoff {
+							return (weight_used, Some(stage))
+						}
 					}
 				}
 				stage = MigratateVersionNotifiers;
@@ -763,7 +771,9 @@ pub mod pallet {
 							VersionNotifiers::<T>::insert(XCM_VERSION, new_key, value);
 						}
 						weight_used.saturating_accrue(todo_vn_migrate_weight);
-						if weight_used >= weight_cutoff { return (weight_used, Some(stage)) }
+						if weight_used >= weight_cutoff {
+							return (weight_used, Some(stage))
+						}
 					}
 				}
 				stage = NotifyCurrentTargets;
@@ -774,15 +784,16 @@ pub mod pallet {
 
 			if stage == NotifyCurrentTargets {
 				for (key, mut value) in VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION) {
-					let new_key: MultiLocation = match (value.2 == xcm_version, key.clone().try_into()) {
-						(false, Ok(k)) => k,
-						_ => {
-							// We don't early return here since we need to be certain that we make some
-							// progress.
-							weight_used.saturating_accrue(todo_vnt_already_notified_weight);
-							continue
-						},
-					};
+					let new_key: MultiLocation =
+						match (value.2 == xcm_version, key.clone().try_into()) {
+							(false, Ok(k)) => k,
+							_ => {
+								// We don't early return here since we need to be certain that we make some
+								// progress.
+								weight_used.saturating_accrue(todo_vnt_already_notified_weight);
+								continue
+							},
+						};
 					value.2 = xcm_version;
 					let message = Xcm(vec![QueryResponse {
 						query_id: value.0,
@@ -801,7 +812,9 @@ pub mod pallet {
 					};
 					Self::deposit_event(event);
 					weight_used.saturating_accrue(todo_vnt_notify_weight);
-					if weight_used >= weight_cutoff { return (weight_used, Some(stage)) }
+					if weight_used >= weight_cutoff {
+						return (weight_used, Some(stage))
+					}
 				}
 				stage = MigrateAndNotifyOldTargets;
 			}
@@ -811,9 +824,13 @@ pub mod pallet {
 						let new_key = match MultiLocation::try_from(old_key.clone()) {
 							Ok(k) => k,
 							Err(()) => {
-								Self::deposit_event(Event::NotifyTargetMigrationFail(old_key, value.0));
+								Self::deposit_event(Event::NotifyTargetMigrationFail(
+									old_key, value.0,
+								));
 								weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
-								if weight_used >= weight_cutoff { return (weight_used, Some(stage)) }
+								if weight_used >= weight_cutoff {
+									return (weight_used, Some(stage))
+								}
 								continue
 							},
 						};
@@ -832,7 +849,11 @@ pub mod pallet {
 							}]);
 							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
 								Ok(()) => {
-									VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
+									VersionNotifyTargets::<T>::insert(
+										XCM_VERSION,
+										versioned_key,
+										value,
+									);
 									Event::VersionChangeNotified(new_key, xcm_version)
 								},
 								Err(e) => Event::NotifyTargetSendFail(new_key, value.0, e.into()),
@@ -840,7 +861,9 @@ pub mod pallet {
 							Self::deposit_event(event);
 							weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
 						}
-						if weight_used >= weight_cutoff { return (weight_used, Some(stage)) }
+						if weight_used >= weight_cutoff {
+							return (weight_used, Some(stage))
+						}
 					}
 				}
 			}

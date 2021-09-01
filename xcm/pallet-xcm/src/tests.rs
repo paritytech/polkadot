@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	mock::*, AssetTraps, Error, LatestVersionedMultiLocation, Queries, QueryStatus,
-	VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets, CurrentMigration,
+	mock::*, AssetTraps, CurrentMigration, Error, LatestVersionedMultiLocation, Queries,
+	QueryStatus, VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -772,7 +772,7 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 			maybe_migration = m;
 		}
 		assert_eq!(counter, 4);
-		
+
 		let instr0 = QueryResponse { query_id: 69, max_weight: 0, response: Response::Version(2) };
 		let instr1 = QueryResponse { query_id: 70, max_weight: 0, response: Response::Version(2) };
 		let instr2 = QueryResponse { query_id: 71, max_weight: 0, response: Response::Version(2) };
