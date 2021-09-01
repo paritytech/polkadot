@@ -65,9 +65,9 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
 use runtime_parachains::{
-	configuration as parachains_configuration, dmp as parachains_dmp, hrmp as parachains_hrmp,
-	inclusion as parachains_inclusion, initializer as parachains_initializer,
-	origin as parachains_origin, paras as parachains_paras,
+	configuration as parachains_configuration, disputes as parachains_disputes,
+	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
@@ -223,6 +223,7 @@ construct_runtime! {
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config},
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
+		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
 
 		// Parachain Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>},
@@ -374,6 +375,12 @@ impl sp_runtime::traits::Convert<AccountId, Option<()>> for FullIdentificationOf
 impl pallet_session::historical::Config for Runtime {
 	type FullIdentification = ();
 	type FullIdentificationOf = FullIdentificationOf;
+}
+
+impl parachains_disputes::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = ();
+	type PunishValidators = ();
 }
 
 parameter_types! {
