@@ -528,7 +528,7 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#16926936beabacd652fbcea795aa35ad1525daa5"
 dependencies = [
  "parity-scale-codec",
- "scale-info",
+ "scale-info 0.10.0",
  "sp-api",
  "sp-application-crypto",
  "sp-core",
@@ -724,7 +724,7 @@ dependencies = [
  "finality-grandpa",
  "frame-support",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "sp-core",
  "sp-finality-grandpa",
@@ -739,7 +739,7 @@ dependencies = [
  "bp-runtime",
  "frame-support",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 1.0.0",
  "sp-std",
 ]
 
@@ -753,7 +753,7 @@ dependencies = [
  "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "sp-std",
 ]
@@ -768,7 +768,7 @@ dependencies = [
  "frame-system",
  "hex",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 1.0.0",
  "sp-api",
  "sp-core",
  "sp-runtime",
@@ -814,7 +814,7 @@ dependencies = [
  "hash-db",
  "num-traits",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 1.0.0",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -866,7 +866,7 @@ dependencies = [
  "pallet-bridge-messages",
  "pallet-transaction-payment",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 1.0.0",
  "sp-core",
  "sp-runtime",
  "sp-state-machine",
@@ -1885,7 +1885,7 @@ dependencies = [
  "num-traits",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "scale-info",
+ "scale-info 0.10.0",
 ]
 
 [[package]]
@@ -3204,7 +3204,7 @@ dependencies = [
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
  "rustc-hex",
- "scale-info",
+ "scale-info 1.0.0",
  "separator",
  "serde",
  "serde_derive",
@@ -4621,7 +4621,7 @@ dependencies = [
  "frame-system",
  "pallet-session",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 0.10.0",
  "serde",
  "sp-runtime",
  "sp-std",
@@ -4644,7 +4644,7 @@ dependencies = [
  "pallet-mmr-primitives",
  "pallet-session",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 0.10.0",
  "serde",
  "sp-core",
  "sp-io",
@@ -4676,7 +4676,7 @@ dependencies = [
  "frame-system",
  "log",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "sp-core",
  "sp-io",
@@ -4698,7 +4698,7 @@ dependencies = [
  "log",
  "num-traits",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "sp-finality-grandpa",
  "sp-io",
@@ -4725,7 +4725,7 @@ dependencies = [
  "num-traits",
  "pallet-balances",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "sp-core",
  "sp-io",
@@ -5298,7 +5298,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-runtime-parachains",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "sp-core",
  "sp-io",
@@ -5869,7 +5869,7 @@ version = "0.9.9"
 dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
- "scale-info",
+ "scale-info 1.0.0",
  "sp-core",
  "sp-runtime",
  "sp-std",
@@ -6480,7 +6480,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "polkadot-core-primitives",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "sp-core",
  "sp-runtime",
@@ -6498,7 +6498,7 @@ dependencies = [
  "parity-util-mem",
  "polkadot-core-primitives",
  "polkadot-parachain",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "sp-api",
  "sp-application-crypto",
@@ -6598,7 +6598,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "rustc-hex",
- "scale-info",
+ "scale-info 1.0.0",
  "separator",
  "serde",
  "serde_derive",
@@ -6656,7 +6656,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-parachains",
  "rustc-hex",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "serde_derive",
  "serde_json",
@@ -6701,7 +6701,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rustc-hex",
  "sc-keystore",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "sp-api",
  "sp-core",
@@ -6988,7 +6988,7 @@ dependencies = [
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
  "rustc-hex",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "serde_derive",
  "serde_json",
@@ -7846,7 +7846,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "serde_derive",
  "smallvec",
@@ -8950,7 +8950,20 @@ dependencies = [
  "cfg-if 1.0.0",
  "derive_more",
  "parity-scale-codec",
- "scale-info-derive",
+ "scale-info-derive 0.7.0",
+]
+
+[[package]]
+name = "scale-info"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c55b744399c25532d63a0d2789b109df8d46fc93752d46b0782991a931a782f"
+dependencies = [
+ "bitvec 0.20.1",
+ "cfg-if 1.0.0",
+ "derive_more",
+ "parity-scale-codec",
+ "scale-info-derive 1.0.0",
 ]
 
 [[package]]
@@ -8958,6 +8971,18 @@ name = "scale-info-derive"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b648fa291891a4c80187a25532f6a7d96b82c70353e30b868b14632b8fe043d6"
+dependencies = [
+ "proc-macro-crate 1.0.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "scale-info-derive"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "baeb2780690380592f86205aa4ee49815feb2acad8c2f59e6dd207148c3f1fcd"
 dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
@@ -11519,7 +11544,7 @@ dependencies = [
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
  "rustc-hex",
- "scale-info",
+ "scale-info 1.0.0",
  "serde",
  "serde_derive",
  "serde_json",
@@ -11651,7 +11676,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "scale-info",
+ "scale-info 1.0.0",
  "xcm-procedural",
 ]
 
@@ -11667,7 +11692,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-runtime-parachains",
- "scale-info",
+ "scale-info 1.0.0",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
@@ -11750,7 +11775,7 @@ dependencies = [
  "polkadot-core-primitives",
  "polkadot-parachain",
  "polkadot-runtime-parachains",
- "scale-info",
+ "scale-info 1.0.0",
  "sp-core",
  "sp-io",
  "sp-runtime",
