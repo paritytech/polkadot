@@ -192,7 +192,7 @@ mod tests {
 				relay_chain::Origin::signed(ALICE),
 				Box::new(X1(Parachain(1)).into().into()),
 				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() }).into().into()),
-				Box::new((Here, withdraw_amount).into()),
+				Box::new((Here, 123).into()),
 				0,
 				3,
 			));
