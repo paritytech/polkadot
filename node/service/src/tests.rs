@@ -165,7 +165,10 @@ impl TestChainStorage {
 			if minimum_block_number >= block.number {
 				break
 			}
-			if self.approved_blocks.contains(&block_hash) {
+			if !self.approved_blocks.contains(&block_hash) {
+				highest_approved_ancestor = None;
+				descriptions.clear();
+			} else {
 				if highest_approved_ancestor.is_none() {
 					highest_approved_ancestor = Some((block_hash, block.number));
 				}
@@ -174,9 +177,6 @@ impl TestChainStorage {
 					block_hash,
 					candidates: vec![], // not relevant for any test cases
 				});
-			} else {
-				highest_approved_ancestor = None;
-				descriptions.clear();
 			}
 			block_hash = *block.parent_hash();
 		}
@@ -498,6 +498,37 @@ struct CaseVars {
 }
 
 /// ```raw
+/// genesis -- 0xA1 --- 0xA2 --- 0xA3 --- 0xA4(!avail) --- 0xA5(!avail)
+///               \
+///                `- 0xB2
+/// ```
+fn chain_undisputed() -> CaseVars {
+	let head: Hash = ChainBuilder::GENESIS_HASH;
+	let mut builder = ChainBuilder::new();
+
+	let a1 = builder.fast_forward_approved(0xA0, head, 1);
+	let a2 = builder.fast_forward_approved(0xA0, a1, 2);
+	let a3 = builder.fast_forward_approved(0xA0, a2, 3);
+	let a4 = builder.fast_forward(0xA0, a3, 4);
+	let a5 = builder.fast_forward(0xA0, a4, 5);
+
+	let b1 = builder.fast_forward_approved(0xB0, a1, 2);
+	let b2 = builder.fast_forward_approved(0xB0, b1, 3);
+	let b3 = builder.fast_forward_approved(0xB0, b2, 4);
+
+	builder.set_heads(vec![a5, b3]);
+
+	CaseVars {
+		chain: builder.init(),
+		target_block: a1,
+		best_chain_containing_block: Some(a5),
+		highest_approved_ancestor_block: Some(a3),
+		undisputed_chain: Some(a3),
+		expected_finality_target_result: Some(a3),
+	}
+}
+
+/// ```raw
 /// genesis -- 0xA1 --- 0xA2 --- 0xA3(disputed) --- 0xA4(!avail) --- 0xA5(!avail)
 ///               \
 ///                `- 0xB2
@@ -700,6 +731,11 @@ fn chain_6() -> CaseVars {
 		undisputed_chain: Some(approved),
 		expected_finality_target_result: Some(approved),
 	}
+}
+
+#[test]
+fn chain_sel_undisputed() {
+	run_specialized_test_w_harness(chain_undisputed);
 }
 
 #[test]
