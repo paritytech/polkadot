@@ -19,11 +19,7 @@
 use super::v1::{Order as OldOrder, Response as OldResponse, Xcm as OldXcm};
 use crate::DoubleEncoded;
 use alloc::{vec, vec::Vec};
-use core::{
-	convert::{TryFrom, TryInto},
-	fmt::Debug,
-	result,
-};
+use core::{convert::{TryFrom, TryInto}, fmt::Debug, ops::Sub, result};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
@@ -686,6 +682,7 @@ impl TryFrom<OldResponse> for Response {
 	fn try_from(old_response: OldResponse) -> result::Result<Self, ()> {
 		match old_response {
 			OldResponse::Assets(assets) => Ok(Self::Assets(assets)),
+			OldResponse::Version(version) => Ok(Self::Version(version)),
 		}
 	}
 }
@@ -735,6 +732,9 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 				vec![Transact { origin_type, require_weight_at_most, call }],
 			// We don't handle this one at all due to nested XCM.
 			OldXcm::RelayedFrom { .. } => return Err(()),
+			OldXcm::SubscribeVersion { query_id, max_response_weight } =>
+				vec![SubscribeVersion { query_id, max_response_weight }],
+			OldXcm::UnsubscribeVersion => vec![UnsubscribeVersion],
 		}))
 	}
 }
