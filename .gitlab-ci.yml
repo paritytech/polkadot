@@ -581,6 +581,7 @@ simnet-tests-malus-dispute-valid:
     GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx/simnet_tests'
     # FIXME: use the master after the merge of the malus pr
     # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/simnet_tests'
+    # FIXME: copy config of tests in simnet_test and use proper values
     NETWORK_CONFIG:                'simnet_tests/configs/simple_rococo_testnet.toml'
   # `malus.env` brings here `$MALUS_IMAGE_NAME` and `$MALUS_IMAGE_TAG`
   # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
