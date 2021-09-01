@@ -2945,7 +2945,7 @@ dependencies = [
  "log",
  "rustls",
  "rustls-native-certs",
- "tokio",
+ "tokio 1.10.0",
  "tokio-rustls",
  "webpki",
 ]
@@ -3316,7 +3316,7 @@ dependencies = [
  "jsonrpc-core",
  "lazy_static",
  "log",
- "tokio",
+ "tokio 1.10.0",
  "tokio-stream",
  "tokio-util",
  "unicase",
@@ -3387,9 +3387,9 @@ dependencies = [
  "serde_json",
  "soketto 0.6.0",
  "thiserror",
- "tokio 0.2.25",
- "tokio-rustls 0.15.0",
- "tokio-util 0.3.1",
+ "tokio 1.10.0",
+ "tokio-rustls",
+ "tokio-util",
  "url 2.2.2",
 ]
 
@@ -4434,17 +4434,6 @@ dependencies = [
  "log",
  "mio 0.6.23",
  "slab",
-]
-
-[[package]]
-name = "mio-uds"
-version = "0.6.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afcb699eb26d4332647cc848492bbc15eafb26f08d0304550d5aa1f612e066f0"
-dependencies = [
- "iovec",
- "libc",
- "mio 0.6.23",
 ]
 
 [[package]]
@@ -6307,6 +6296,7 @@ dependencies = [
  "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "log",
  "parity-scale-codec",
  "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
@@ -6406,7 +6396,7 @@ dependencies = [
  "libc",
  "log",
  "rand 0.7.3",
- "tokio",
+ "tokio 1.10.0",
  "winapi 0.3.9",
 ]
 
@@ -8168,7 +8158,7 @@ dependencies = [
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
- "tokio 0.2.25",
+ "tokio 1.10.0",
  "tracing",
 ]
 
@@ -8882,6 +8872,7 @@ dependencies = [
  "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
 ]
 
 [[package]]
@@ -9285,7 +9276,7 @@ dependencies = [
  "structopt",
  "thiserror",
  "tiny-bip39",
- "tokio 0.2.25",
+ "tokio 1.10.0",
 ]
 
 [[package]]
@@ -12148,7 +12139,7 @@ dependencies = [
  "structopt",
  "sub-tokens",
  "thiserror",
- "tokio 0.2.25",
+ "tokio 1.10.0",
  "westend-runtime",
 ]
 
@@ -12330,7 +12321,7 @@ dependencies = [
  "hyper",
  "log",
  "prometheus",
- "tokio",
+ "tokio 1.10.0",
 ]
 
 [[package]]
@@ -12367,7 +12358,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#b7a1a2cda5c8
 dependencies = [
  "futures 0.3.16",
  "substrate-test-utils-derive",
- "tokio 0.2.25",
+ "tokio 1.10.0",
 ]
 
 [[package]]
@@ -12529,7 +12520,7 @@ dependencies = [
  "structopt",
  "substrate-test-utils",
  "test-parachain-adder",
- "tokio 0.2.25",
+ "tokio 1.10.0",
 ]
 
 [[package]]
@@ -12593,7 +12584,7 @@ dependencies = [
  "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-transaction-pool 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "tokio 0.2.25",
+ "tokio 1.10.0",
 ]
 
 [[package]]
@@ -12716,18 +12707,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6703a273949a90131b290be1fe7b039d0fc884aa1935860dfcbe056f28cd8092"
 dependencies = [
  "bytes 0.5.6",
- "fnv",
- "iovec",
- "lazy_static",
- "libc",
- "mio 0.6.23",
- "mio-uds",
  "num_cpus",
  "pin-project-lite 0.1.12",
- "signal-hook-registry",
  "slab",
- "tokio-macros",
- "winapi 0.3.9",
+ "tokio-macros 0.2.6",
 ]
 
 [[package]]
@@ -12742,7 +12725,10 @@ dependencies = [
  "memchr",
  "mio 0.7.13",
  "num_cpus",
+ "once_cell",
  "pin-project-lite 0.2.7",
+ "signal-hook-registry",
+ "tokio-macros 1.3.0",
  "winapi 0.3.9",
 ]
 
@@ -12758,15 +12744,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "tokio-rustls"
-version = "0.15.0"
+name = "tokio-macros"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03d15e5669243a45f630a5167d101b942174ca94b615445b2057eace1c818736"
+checksum = "54473be61f4ebe4efd09cec9bd5d16fa51d70ea0192213d754d2d500457db110"
 dependencies = [
- "futures-core",
- "rustls",
- "tokio 0.2.25",
- "webpki",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -12776,7 +12761,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc6844de72e57df1980054b38be3a9f4702aba4858be64dd700181a8a6d0e1b6"
 dependencies = [
  "rustls",
- "tokio",
+ "tokio 1.10.0",
  "webpki",
 ]
 
@@ -12789,21 +12774,6 @@ dependencies = [
  "futures-core",
  "pin-project-lite 0.2.7",
  "tokio 1.10.0",
-]
-
-[[package]]
-name = "tokio-util"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be8242891f2b6cbef26a2d7e8605133c2c554cd35b3e4948ea892d6d68436499"
-dependencies = [
- "bytes 0.5.6",
- "futures-core",
- "futures-io",
- "futures-sink",
- "log",
- "pin-project-lite 0.1.12",
- "tokio 0.2.25",
 ]
 
 [[package]]
