@@ -383,18 +383,20 @@ async fn test_skeleton(
 	);
 
 	tracing::trace!("determine undisputed chain response: {:?}", undisputed_chain);
+
+	let target_block_number = chain.number(target_block_hash).unwrap().unwrap();
 	assert_matches!(
 		overseer_recv(
 			virtual_overseer
 		).await,
 		AllMessages::DisputeCoordinator(
 			DisputeCoordinatorMessage::DetermineUndisputedChain {
-				base_number: _,
+				base: _,
 				block_descriptions: _,
 				tx,
 			}
 		) => {
-			tx.send(undisputed_chain).unwrap();
+			tx.send(undisputed_chain.unwrap_or((target_block_number, target_block_hash))).unwrap();
 	});
 }
 
