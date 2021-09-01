@@ -82,7 +82,7 @@ where
 	Hash: serde::Serialize,
 {
 	let key = <V as StorageValue<T>>::hashed_key();
-	get_storage::<V::Query>(&client, params! { key, maybe_at }).await
+	get_storage::<V::Query>(client, params! { key, maybe_at }).await
 }
 
 #[allow(unused)]
@@ -103,5 +103,5 @@ where
 	Hash: serde::Serialize,
 {
 	let key = <M as StorageMap<K, T>>::hashed_key_for(key);
-	get_storage::<M::Query>(&client, params! { key, maybe_at }).await
+	get_storage::<M::Query>(client, params! { key, maybe_at }).await
 }

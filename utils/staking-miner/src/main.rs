@@ -38,6 +38,7 @@ mod signer;
 pub(crate) use prelude::*;
 pub(crate) use signer::get_account_info;
 
+use frame_support::traits::Get;
 use jsonrpsee_ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_runtime::traits::Block as BlockT;
@@ -65,7 +66,7 @@ macro_rules! construct_runtime_prelude {
 			mod private {
 				use super::*;
 				pub(crate) fn [<create_uxt_ $runtime>](
-					raw_solution: EPM::RawSolution<EPM::CompactOf<Runtime>>,
+					raw_solution: EPM::RawSolution<EPM::SolutionOf<Runtime>>,
 					witness: u32,
 					signer: crate::signer::Signer,
 					nonce: crate::prelude::Index,
@@ -78,7 +79,7 @@ macro_rules! construct_runtime_prelude {
 
 					let crate::signer::Signer { account, pair, .. } = signer;
 
-					let local_call = EPMCall::<Runtime>::submit(raw_solution, witness);
+					let local_call = EPMCall::<Runtime>::submit(Box::new(raw_solution), witness);
 					let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
 						.expect("election provider pallet must exist in the runtime, thus \
 							inner call can be converted, qed."
@@ -93,8 +94,9 @@ macro_rules! construct_runtime_prelude {
 					let address = <Runtime as frame_system::Config>::Lookup::unlookup(account.clone());
 					let extrinsic = UncheckedExtrinsic::new_signed(call, address, signature.into(), extra);
 					log::debug!(
-						target: crate::LOG_TARGET, "constructed extrinsic {}",
-						sp_core::hexdisplay::HexDisplay::from(&extrinsic.encode())
+						target: crate::LOG_TARGET, "constructed extrinsic {} with length {}",
+						sp_core::hexdisplay::HexDisplay::from(&extrinsic.encode()),
+						extrinsic.encode().len(),
 					);
 					extrinsic
 				}
@@ -172,14 +174,17 @@ macro_rules! any_runtime {
 		unsafe {
 			match $crate::RUNTIME {
 				$crate::AnyRuntime::Polkadot => {
+					#[allow(unused)]
 					use $crate::polkadot_runtime_exports::*;
 					$($code)*
 				},
 				$crate::AnyRuntime::Kusama => {
+					#[allow(unused)]
 					use $crate::kusama_runtime_exports::*;
 					$($code)*
 				},
 				$crate::AnyRuntime::Westend => {
+					#[allow(unused)]
 					use $crate::westend_runtime_exports::*;
 					$($code)*
 				}
@@ -201,6 +206,7 @@ enum Error {
 	AccountDoesNotExists,
 	IncorrectPhase,
 	AlreadySubmitted,
+	VersionMismatch,
 }
 
 impl From<sp_core::crypto::SecretStringError> for Error {
@@ -270,15 +276,15 @@ struct DryRunConfig {
 #[derive(Debug, Clone, StructOpt)]
 struct SharedConfig {
 	/// The `ws` node to connect to.
-	#[structopt(long, default_value = DEFAULT_URI)]
+	#[structopt(long, short, default_value = DEFAULT_URI, env = "URI")]
 	uri: String,
 
-	/// The file from which we read the account seed.
+	/// The seed of a funded account in hex.
 	///
-	/// WARNING: don't use an account with a large stash for this. Based on how the bot is
-	/// configured, it might re-try lose funds through transaction fees/deposits.
-	#[structopt(long)]
-	account_seed: std::path::PathBuf,
+	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
+	/// configured, it might re-try and lose funds through transaction fees/deposits.
+	#[structopt(long, short, env = "SEED")]
+	seed: String,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -291,35 +297,25 @@ struct Opt {
 	command: Command,
 }
 
-/// Build the `Ext` at `hash` with all the data of `ElectionProviderMultiPhase` and `Staking`
-/// stored.
+/// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
+/// pallets.
 async fn create_election_ext<T: EPM::Config, B: BlockT>(
 	uri: String,
 	at: Option<B::Hash>,
-	with_staking: bool,
+	additional: Vec<String>,
 ) -> Result<Ext, Error> {
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
 	use sp_core::hashing::twox_128;
 
+	let mut modules = vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
+		.expect("Pallet always has name; qed.")
+		.to_string()];
+	modules.extend(additional);
 	Builder::<B>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: uri.into(),
 			at,
-			modules: if with_staking {
-				vec![
-					<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
-						.expect("Pallet always has name; qed.")
-						.to_string(),
-					<T as frame_system::Config>::PalletInfo::name::<pallet_staking::Pallet<T>>()
-						.expect("Pallet always has name; qed.")
-						.to_string(),
-				]
-			} else {
-				vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
-					.expect("Pallet always has name; qed.")
-					.to_string()
-				]
-			},
+			modules,
 			..Default::default()
 		}))
 		.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
@@ -335,11 +331,14 @@ fn mine_unchecked<T: EPM::Config>(
 	ext: &mut Ext,
 	iterations: usize,
 	do_feasibility: bool,
-) -> Result<(EPM::RawSolution<EPM::CompactOf<T>>, u32), Error> {
+) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error> {
 	ext.execute_with(|| {
 		let (solution, _) = <EPM::Pallet<T>>::mine_solution(iterations)?;
 		if do_feasibility {
-			let _ = <EPM::Pallet<T>>::feasibility_check(solution.clone(), EPM::ElectionCompute::Signed)?;
+			let _ = <EPM::Pallet<T>>::feasibility_check(
+				solution.clone(),
+				EPM::ElectionCompute::Signed,
+			)?;
 		}
 		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
 		Ok((solution, witness as u32))
@@ -355,9 +354,9 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 		let desired_targets = EPM::DesiredTargets::<T>::get().unwrap();
 		let mut candidates_and_backing = BTreeMap::<T::AccountId, u128>::new();
 		voters.into_iter().for_each(|(who, stake, targets)| {
-			if targets.len() == 0 {
+			if targets.is_empty() {
 				println!("target = {:?}", (who, stake, targets));
-				return;
+				return
 			}
 			let share: u128 = (stake as u128) / (targets.len() as u128);
 			for target in targets {
@@ -384,9 +383,40 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 	})
 }
 
+pub(crate) async fn check_versions<T: frame_system::Config>(
+	client: &WsClient,
+	print: bool,
+) -> Result<(), Error> {
+	let linked_version = T::Version::get();
+	let on_chain_version = rpc_helpers::rpc::<sp_version::RuntimeVersion>(
+		client,
+		"state_getRuntimeVersion",
+		params! {},
+	)
+	.await
+	.expect("runtime version RPC should always work; qed");
+
+	if print {
+		log::info!(target: LOG_TARGET, "linked version {:?}", linked_version);
+		log::info!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
+	}
+	if linked_version != on_chain_version {
+		log::error!(
+			target: LOG_TARGET,
+			"VERSION MISMATCH: any transaction will fail with bad-proof"
+		);
+		Err(Error::VersionMismatch)
+	} else {
+		Ok(())
+	}
+}
+
 #[tokio::main]
 async fn main() {
-	env_logger::Builder::from_default_env().format_module_path(true).format_level(true).init();
+	env_logger::Builder::from_default_env()
+		.format_module_path(true)
+		.format_level(true)
+		.init();
 	let Opt { shared, command } = Opt::from_args();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", shared.uri);
 
@@ -405,7 +435,7 @@ async fn main() {
 					why
 				);
 				std::thread::sleep(std::time::Duration::from_millis(2500));
-			}
+			},
 		}
 	};
 
@@ -417,41 +447,51 @@ async fn main() {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
 			);
+			sub_tokens::dynamic::set_name("DOT");
+			sub_tokens::dynamic::set_decimal_points(10_000_000_000);
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
 				RUNTIME = AnyRuntime::Polkadot;
 			}
-		}
+		},
 		"kusama" | "kusama-dev" => {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::KusamaAccount,
 			);
+			sub_tokens::dynamic::set_name("KSM");
+			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
 				RUNTIME = AnyRuntime::Kusama;
 			}
-		}
+		},
 		"westend" => {
 			sp_core::crypto::set_default_ss58_version(
 				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
 			);
+			sub_tokens::dynamic::set_name("WND");
+			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
 			// safety: this program will always be single threaded, thus accessing global static is
 			// safe.
 			unsafe {
 				RUNTIME = AnyRuntime::Westend;
 			}
-		}
+		},
 		_ => {
 			eprintln!("unexpected chain: {:?}", chain);
-			return;
-		}
+			return
+		},
 	}
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
+	let _ = any_runtime! {
+		check_versions::<Runtime>(&client, true).await
+	};
+
 	let signer_account = any_runtime! {
-		signer::read_signer_uri::<_, Runtime>(&shared.account_seed, &client)
+		signer::signer_uri_from_string::<Runtime>(&shared.seed, &client)
 			.await
 			.expect("Provided account is invalid, terminating.")
 	};
@@ -459,7 +499,6 @@ async fn main() {
 	let outcome = any_runtime! {
 		match command.clone() {
 			Command::Monitor(c) => monitor_cmd(&client, shared, c, signer_account).await,
-			// --------------------^^ comes from the macro prelude, needs no generic.
 			Command::DryRun(c) => dry_run_cmd(&client, shared, c, signer_account).await,
 			Command::EmergencySolution => emergency_solution_cmd(shared.clone()).await,
 		}
@@ -472,7 +511,6 @@ mod tests {
 	use super::*;
 
 	fn get_version<T: frame_system::Config>() -> sp_version::RuntimeVersion {
-		use frame_support::traits::Get;
 		T::Version::get()
 	}
 

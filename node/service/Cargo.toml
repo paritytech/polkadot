@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.9.8"
+version = "0.9.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -19,9 +19,9 @@ sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", branch 
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-warp-sync = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -61,13 +61,13 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 
 # External Crates
 futures = "0.3.15"
-hex-literal = "0.3.1"
+hex-literal = "0.3.3"
 tracing = "0.1.26"
-serde = { version = "1.0.123", features = ["derive"] }
-thiserror = "1.0.23"
+serde = { version = "1.0.130", features = ["derive"] }
+thiserror = "1.0.26"
 kvdb = "0.10.0"
-kvdb-rocksdb = { version = "0.12.0", optional = true }
-async-trait = "0.1.42"
+kvdb-rocksdb = { version = "0.14.0", optional = true }
+async-trait = "0.1.51"
 
 # Polkadot
 polkadot-node-core-parachains-inherent = { path = "../core/parachains-inherent" }
@@ -80,6 +80,7 @@ polkadot-rpc = { path = "../../rpc" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
+polkadot-node-network-protocol = { path = "../network/protocol" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot" }
@@ -103,13 +104,19 @@ polkadot-node-core-backing = { path = "../core/backing", optional = true }
 polkadot-node-core-bitfield-signing = { path = "../core/bitfield-signing", optional = true }
 polkadot-node-core-candidate-validation = { path = "../core/candidate-validation", optional = true }
 polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
+polkadot-node-core-chain-selection = { path = "../core/chain-selection", optional = true }
+polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator", optional = true }
+polkadot-node-core-dispute-participation = { path = "../core/dispute-participation", optional = true }
 polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
 
 [dev-dependencies]
 polkadot-test-client = { path = "../test/client" }
-env_logger = "0.8.4"
+polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
+env_logger = "0.9.0"
+log = "0.4.14"
+assert_matches = "1.5.0"
 
 [features]
 default = ["db", "full-node"]
@@ -133,11 +140,13 @@ full-node = [
 	"polkadot-node-core-bitfield-signing",
 	"polkadot-node-core-candidate-validation",
 	"polkadot-node-core-chain-api",
+	"polkadot-node-core-chain-selection",
+	"polkadot-node-core-dispute-coordinator",
+	"polkadot-node-core-dispute-participation",
 	"polkadot-node-core-provisioner",
 	"polkadot-node-core-runtime-api",
 	"polkadot-statement-distribution",
 	"polkadot-approval-distribution",
-	"sc-finality-grandpa-warp-sync",
 	"kvdb-rocksdb"
 ]
 
@@ -163,3 +172,5 @@ try-runtime = [
 	"rococo-runtime/try-runtime",
 ]
 malus = ["full-node"]
+memory-stats = ["polkadot-overseer/memory-stats"]
+disputes = ["polkadot-node-core-dispute-coordinator/disputes"]

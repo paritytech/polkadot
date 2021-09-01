@@ -1,52 +1,31 @@
 // Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Cumulus.
+// This file is part of Polkadot.
 
-// Substrate is free software: you can redistribute it and/or modify
+// Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Substrate is distributed in the hope that it will be useful,
+// Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Cross-Consensus Message format data structures.
 
-use core::{result, convert::TryFrom};
-use alloc::vec::Vec;
+use super::MultiLocation;
+use crate::v1::{MultiAssetFilter, MultiAssets, WildMultiAsset};
+use alloc::{vec, vec::Vec};
+use core::{
+	convert::{TryFrom, TryInto},
+	result,
+};
+use parity_scale_codec::{self, Decode, Encode};
 
-use parity_scale_codec::{self, Encode, Decode};
-use super::{MultiLocation, VersionedMultiAsset};
-
-/// A general identifier for an instance of a non-fungible asset class.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
-pub enum AssetInstance {
-	/// Undefined - used if the NFA class has only one instance.
-	Undefined,
-
-	/// A compact index. Technically this could be greater than `u128`, but this implementation supports only
-	/// values up to `2**128 - 1`.
-	Index { #[codec(compact)] id: u128 },
-
-	/// A 4-byte fixed-length datum.
-	Array4([u8; 4]),
-
-	/// An 8-byte fixed-length datum.
-	Array8([u8; 8]),
-
-	/// A 16-byte fixed-length datum.
-	Array16([u8; 16]),
-
-	/// A 32-byte fixed-length datum.
-	Array32([u8; 32]),
-
-	/// An arbitrary piece of data. Use only when necessary.
-	Blob(Vec<u8>),
-}
+pub use crate::v1::AssetInstance;
 
 /// A single general identifier for an asset.
 ///
@@ -133,13 +112,21 @@ pub enum MultiAsset {
 	AllConcreteNonFungible { class: MultiLocation },
 
 	/// Some specific `amount` of the fungible asset identified by an abstract `id`.
-	AbstractFungible { id: Vec<u8>, #[codec(compact)] amount: u128 },
+	AbstractFungible {
+		id: Vec<u8>,
+		#[codec(compact)]
+		amount: u128,
+	},
 
 	/// Some specific `instance` of the non-fungible asset whose `class` is identified abstractly.
 	AbstractNonFungible { class: Vec<u8>, instance: AssetInstance },
 
 	/// Some specific `amount` of the fungible asset identified by an concrete `id`.
-	ConcreteFungible { id: MultiLocation, #[codec(compact)] amount: u128 },
+	ConcreteFungible {
+		id: MultiLocation,
+		#[codec(compact)]
+		amount: u128,
+	},
 
 	/// Some specific `instance` of the non-fungible asset whose `class` is identified concretely.
 	ConcreteNonFungible { class: MultiLocation, instance: AssetInstance },
@@ -151,30 +138,27 @@ impl MultiAsset {
 	/// Typically can also be inferred by the name starting with `All`.
 	pub fn is_wildcard(&self) -> bool {
 		match self {
-			MultiAsset::None
-			| MultiAsset::AbstractFungible {..}
-			| MultiAsset::AbstractNonFungible {..}
-			| MultiAsset::ConcreteFungible {..}
-			| MultiAsset::ConcreteNonFungible {..}
-			=> false,
+			MultiAsset::None |
+			MultiAsset::AbstractFungible { .. } |
+			MultiAsset::AbstractNonFungible { .. } |
+			MultiAsset::ConcreteFungible { .. } |
+			MultiAsset::ConcreteNonFungible { .. } => false,
 
-			MultiAsset::All
-			| MultiAsset::AllFungible
-			| MultiAsset::AllNonFungible
-			| MultiAsset::AllAbstractFungible {..}
-			| MultiAsset::AllConcreteFungible {..}
-			| MultiAsset::AllAbstractNonFungible {..}
-			| MultiAsset::AllConcreteNonFungible {..}
-			=> true,
+			MultiAsset::All |
+			MultiAsset::AllFungible |
+			MultiAsset::AllNonFungible |
+			MultiAsset::AllAbstractFungible { .. } |
+			MultiAsset::AllConcreteFungible { .. } |
+			MultiAsset::AllAbstractNonFungible { .. } |
+			MultiAsset::AllConcreteNonFungible { .. } => true,
 		}
 	}
 
 	fn is_none(&self) -> bool {
 		match self {
-			MultiAsset::None
-			| MultiAsset::AbstractFungible { amount: 0, .. }
-			| MultiAsset::ConcreteFungible { amount: 0, .. }
-			=> true,
+			MultiAsset::None |
+			MultiAsset::AbstractFungible { amount: 0, .. } |
+			MultiAsset::ConcreteFungible { amount: 0, .. } => true,
 
 			_ => false,
 		}
@@ -182,13 +166,12 @@ impl MultiAsset {
 
 	fn is_fungible(&self) -> bool {
 		match self {
-			MultiAsset::All
-			| MultiAsset::AllFungible
-			| MultiAsset::AllAbstractFungible {..}
-			| MultiAsset::AllConcreteFungible {..}
-			| MultiAsset::AbstractFungible {..}
-			| MultiAsset::ConcreteFungible {..}
-			=> true,
+			MultiAsset::All |
+			MultiAsset::AllFungible |
+			MultiAsset::AllAbstractFungible { .. } |
+			MultiAsset::AllConcreteFungible { .. } |
+			MultiAsset::AbstractFungible { .. } |
+			MultiAsset::ConcreteFungible { .. } => true,
 
 			_ => false,
 		}
@@ -196,13 +179,12 @@ impl MultiAsset {
 
 	fn is_non_fungible(&self) -> bool {
 		match self {
-			MultiAsset::All
-			| MultiAsset::AllNonFungible
-			| MultiAsset::AllAbstractNonFungible {..}
-			| MultiAsset::AllConcreteNonFungible {..}
-			| MultiAsset::AbstractNonFungible {..}
-			| MultiAsset::ConcreteNonFungible {..}
-			=> true,
+			MultiAsset::All |
+			MultiAsset::AllNonFungible |
+			MultiAsset::AllAbstractNonFungible { .. } |
+			MultiAsset::AllConcreteNonFungible { .. } |
+			MultiAsset::AbstractNonFungible { .. } |
+			MultiAsset::ConcreteNonFungible { .. } => true,
 
 			_ => false,
 		}
@@ -211,9 +193,8 @@ impl MultiAsset {
 	fn is_concrete_fungible(&self, id: &MultiLocation) -> bool {
 		match self {
 			MultiAsset::AllFungible => true,
-			MultiAsset::AllConcreteFungible { id: i }
-			| MultiAsset::ConcreteFungible { id: i, .. }
-			=> i == id,
+			MultiAsset::AllConcreteFungible { id: i } |
+			MultiAsset::ConcreteFungible { id: i, .. } => i == id,
 
 			_ => false,
 		}
@@ -222,9 +203,8 @@ impl MultiAsset {
 	fn is_abstract_fungible(&self, id: &[u8]) -> bool {
 		match self {
 			MultiAsset::AllFungible => true,
-			MultiAsset::AllAbstractFungible { id: i }
-			| MultiAsset::AbstractFungible { id: i, .. }
-			=> i == id,
+			MultiAsset::AllAbstractFungible { id: i } |
+			MultiAsset::AbstractFungible { id: i, .. } => i == id,
 			_ => false,
 		}
 	}
@@ -232,9 +212,8 @@ impl MultiAsset {
 	fn is_concrete_non_fungible(&self, class: &MultiLocation) -> bool {
 		match self {
 			MultiAsset::AllNonFungible => true,
-			MultiAsset::AllConcreteNonFungible { class: i }
-			| MultiAsset::ConcreteNonFungible { class: i, .. }
-			=> i == class,
+			MultiAsset::AllConcreteNonFungible { class: i } |
+			MultiAsset::ConcreteNonFungible { class: i, .. } => i == class,
 			_ => false,
 		}
 	}
@@ -242,14 +221,15 @@ impl MultiAsset {
 	fn is_abstract_non_fungible(&self, class: &[u8]) -> bool {
 		match self {
 			MultiAsset::AllNonFungible => true,
-			MultiAsset::AllAbstractNonFungible { class: i }
-			| MultiAsset::AbstractNonFungible { class: i, .. }
-			=> i == class,
+			MultiAsset::AllAbstractNonFungible { class: i } |
+			MultiAsset::AbstractNonFungible { class: i, .. } => i == class,
 			_ => false,
 		}
 	}
 
-	fn is_all(&self) -> bool { matches!(self, MultiAsset::All) }
+	fn is_all(&self) -> bool {
+		matches!(self, MultiAsset::All)
+	}
 
 	/// Returns true if `self` is a super-set of the given `inner`.
 	///
@@ -259,14 +239,22 @@ impl MultiAsset {
 		use MultiAsset::*;
 
 		// Inner cannot be wild
-		if inner.is_wildcard() { return false }
+		if inner.is_wildcard() {
+			return false
+		}
 		// Everything contains nothing.
-		if inner.is_none() { return true }
+		if inner.is_none() {
+			return true
+		}
 
 		// Everything contains anything.
-		if self.is_all() { return true }
+		if self.is_all() {
+			return true
+		}
 		// Nothing contains nothing.
-		if self.is_none() { return false }
+		if self.is_none() {
+			return false
+		}
 
 		match self {
 			// Anything fungible contains "all fungibles"
@@ -296,27 +284,74 @@ impl MultiAsset {
 	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		use MultiAsset::*;
 		match self {
-			AllConcreteFungible { ref mut id }
-			| AllConcreteNonFungible { class: ref mut id }
-			| ConcreteFungible { ref mut id, .. }
-			| ConcreteNonFungible { class: ref mut id, .. }
-			=> id.prepend_with(prepend.clone()).map_err(|_| ()),
+			AllConcreteFungible { ref mut id } |
+			AllConcreteNonFungible { class: ref mut id } |
+			ConcreteFungible { ref mut id, .. } |
+			ConcreteNonFungible { class: ref mut id, .. } =>
+				id.prepend_with(prepend.clone()).map_err(|_| ()),
 			_ => Ok(()),
 		}
 	}
 }
 
-impl From<MultiAsset> for VersionedMultiAsset {
-	fn from(x: MultiAsset) -> Self {
-		VersionedMultiAsset::V0(x)
+impl TryFrom<crate::v1::MultiAsset> for MultiAsset {
+	type Error = ();
+
+	fn try_from(m: crate::v1::MultiAsset) -> result::Result<MultiAsset, ()> {
+		use crate::v1::{AssetId::*, Fungibility::*};
+		use MultiAsset::*;
+		Ok(match (m.id, m.fun) {
+			(Concrete(id), Fungible(amount)) => ConcreteFungible { id: id.try_into()?, amount },
+			(Concrete(class), NonFungible(instance)) =>
+				ConcreteNonFungible { class: class.try_into()?, instance },
+			(Abstract(id), Fungible(amount)) => AbstractFungible { id, amount },
+			(Abstract(class), NonFungible(instance)) => AbstractNonFungible { class, instance },
+		})
 	}
 }
 
-impl TryFrom<VersionedMultiAsset> for MultiAsset {
+impl TryFrom<MultiAssets> for Vec<MultiAsset> {
 	type Error = ();
-	fn try_from(x: VersionedMultiAsset) -> result::Result<Self, ()> {
-		match x {
-			VersionedMultiAsset::V0(x) => Ok(x),
+
+	fn try_from(m: MultiAssets) -> result::Result<Vec<MultiAsset>, ()> {
+		m.drain().into_iter().map(MultiAsset::try_from).collect()
+	}
+}
+
+impl TryFrom<WildMultiAsset> for MultiAsset {
+	type Error = ();
+
+	fn try_from(m: WildMultiAsset) -> result::Result<MultiAsset, ()> {
+		use crate::v1::{AssetId::*, WildFungibility::*};
+		use MultiAsset::*;
+		Ok(match m {
+			WildMultiAsset::All => All,
+			WildMultiAsset::AllOf { id, fun } => match (id, fun) {
+				(Concrete(id), Fungible) => AllConcreteFungible { id: id.try_into()? },
+				(Concrete(class), NonFungible) =>
+					AllConcreteNonFungible { class: class.try_into()? },
+				(Abstract(id), Fungible) => AllAbstractFungible { id },
+				(Abstract(class), NonFungible) => AllAbstractNonFungible { class },
+			},
+		})
+	}
+}
+
+impl TryFrom<WildMultiAsset> for Vec<MultiAsset> {
+	type Error = ();
+
+	fn try_from(m: WildMultiAsset) -> result::Result<Vec<MultiAsset>, ()> {
+		Ok(vec![m.try_into()?])
+	}
+}
+
+impl TryFrom<MultiAssetFilter> for Vec<MultiAsset> {
+	type Error = ();
+
+	fn try_from(m: MultiAssetFilter) -> result::Result<Vec<MultiAsset>, ()> {
+		match m {
+			MultiAssetFilter::Definite(assets) => assets.try_into(),
+			MultiAssetFilter::Wild(wildcard) => wildcard.try_into(),
 		}
 	}
 }
@@ -345,35 +380,30 @@ mod tests {
 		assert!(!AllNonFungible.contains(&AllNonFungible));
 
 		// For fungibles, containing is basically equality, or equal id with higher amount.
-		assert!(
-			!AbstractFungible { id: vec![99u8], amount: 99 }
-			.contains(&AbstractFungible { id: vec![1u8], amount: 99 })
-		);
-		assert!(
-			AbstractFungible { id: vec![99u8], amount: 99 }
-			.contains(&AbstractFungible { id: vec![99u8], amount: 99 })
-		);
-		assert!(
-			AbstractFungible { id: vec![99u8], amount: 99 }
-			.contains(&AbstractFungible { id: vec![99u8], amount: 9 })
-		);
-		assert!(
-			!AbstractFungible { id: vec![99u8], amount: 99 }
-			.contains(&AbstractFungible { id: vec![99u8], amount: 100 })
-		);
+		assert!(!AbstractFungible { id: vec![99u8], amount: 99 }
+			.contains(&AbstractFungible { id: vec![1u8], amount: 99 }));
+		assert!(AbstractFungible { id: vec![99u8], amount: 99 }
+			.contains(&AbstractFungible { id: vec![99u8], amount: 99 }));
+		assert!(AbstractFungible { id: vec![99u8], amount: 99 }
+			.contains(&AbstractFungible { id: vec![99u8], amount: 9 }));
+		assert!(!AbstractFungible { id: vec![99u8], amount: 99 }
+			.contains(&AbstractFungible { id: vec![99u8], amount: 100 }));
 
 		// For non-fungibles, containing is equality.
-		assert!(
-			!AbstractNonFungible {class: vec![99u8], instance: AssetInstance::Index { id: 9 } }
-			.contains(&AbstractNonFungible { class: vec![98u8], instance: AssetInstance::Index { id: 9 } })
-		);
-		assert!(
-			!AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 8 } }
-			.contains(&AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 9 } })
-		);
-		assert!(
-			AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 9 } }
-			.contains(&AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index { id: 9 } })
-		);
+		assert!(!AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index(9) }
+			.contains(&AbstractNonFungible {
+				class: vec![98u8],
+				instance: AssetInstance::Index(9)
+			}));
+		assert!(!AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index(8) }
+			.contains(&AbstractNonFungible {
+				class: vec![99u8],
+				instance: AssetInstance::Index(9)
+			}));
+		assert!(AbstractNonFungible { class: vec![99u8], instance: AssetInstance::Index(9) }
+			.contains(&AbstractNonFungible {
+				class: vec![99u8],
+				instance: AssetInstance::Index(9)
+			}));
 	}
 }

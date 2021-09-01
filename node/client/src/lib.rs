@@ -19,52 +19,92 @@
 //! Provides the [`AbstractClient`] trait that is a super trait that combines all the traits the client implements.
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
 
-use std::sync::Arc;
-use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
-use sp_blockchain::HeaderBackend;
-use sp_runtime::{
-	Justifications, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
+use polkadot_primitives::v1::{
+	AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce, ParachainHost,
 };
-use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator, AuxStore, UsageProvider};
-use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
-use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance, Header, BlockNumber, Hash};
+use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
+use sc_executor::NativeElseWasmExecutor;
+use sp_api::{CallApiAt, NumberFor, ProvideRuntimeApi};
+use sp_blockchain::HeaderBackend;
 use sp_consensus::BlockStatus;
-use sc_executor::native_executor_instance;
+use sp_runtime::{
+	generic::{BlockId, SignedBlock},
+	traits::{BlakeTwo256, Block as BlockT},
+	Justifications,
+};
+use sp_storage::{ChildInfo, PrefixedStorageKey, StorageData, StorageKey};
+use std::sync::Arc;
 
 pub type FullBackend = sc_service::TFullBackend<Block>;
 
-pub type FullClient<RuntimeApi, Executor> = sc_service::TFullClient<Block, RuntimeApi, Executor>;
+pub type FullClient<RuntimeApi, ExecutorDispatch> =
+	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 
-native_executor_instance!(
-	pub PolkadotExecutor,
-	polkadot_runtime::api::dispatch,
-	polkadot_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+/// The native executor instance for Polkadot.
+pub struct PolkadotExecutorDispatch;
+
+impl sc_executor::NativeExecutionDispatch for PolkadotExecutorDispatch {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		polkadot_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		polkadot_runtime::native_version()
+	}
+}
 
 #[cfg(feature = "kusama")]
-native_executor_instance!(
-	pub KusamaExecutor,
-	kusama_runtime::api::dispatch,
-	kusama_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+/// The native executor instance for Kusama.
+pub struct KusamaExecutorDispatch;
+
+#[cfg(feature = "kusama")]
+impl sc_executor::NativeExecutionDispatch for KusamaExecutorDispatch {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		kusama_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		kusama_runtime::native_version()
+	}
+}
 
 #[cfg(feature = "westend")]
-native_executor_instance!(
-	pub WestendExecutor,
-	westend_runtime::api::dispatch,
-	westend_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+/// The native executor instance for Westend.
+pub struct WestendExecutorDispatch;
+
+#[cfg(feature = "westend")]
+impl sc_executor::NativeExecutionDispatch for WestendExecutorDispatch {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		westend_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		westend_runtime::native_version()
+	}
+}
 
 #[cfg(feature = "rococo")]
-native_executor_instance!(
-	pub RococoExecutor,
-	rococo_runtime::api::dispatch,
-	rococo_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+/// The native executor instance for Rococo.
+pub struct RococoExecutorDispatch;
+
+#[cfg(feature = "rococo")]
+impl sc_executor::NativeExecutionDispatch for RococoExecutorDispatch {
+	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
+
+	fn dispatch(method: &str, data: &[u8]) -> Option<Vec<u8>> {
+		rococo_runtime::api::dispatch(method, data)
+	}
+
+	fn native_version() -> sc_executor::NativeVersion {
+		rococo_runtime::native_version()
+	}
+}
 
 /// A set of APIs that polkadot-like runtimes must implement.
 pub trait RuntimeApiCollection:
@@ -84,7 +124,8 @@ pub trait RuntimeApiCollection:
 	+ beefy_primitives::BeefyApi<Block>
 where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{}
+{
+}
 
 impl<Api> RuntimeApiCollection for Api
 where
@@ -103,47 +144,47 @@ where
 		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
 		+ beefy_primitives::BeefyApi<Block>,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{}
+{
+}
 
 /// Trait that abstracts over all available client implementations.
 ///
 /// For a concrete type there exists [`Client`].
 pub trait AbstractClient<Block, Backend>:
-	BlockchainEvents<Block> + Sized + Send + Sync
+	BlockchainEvents<Block>
+	+ Sized
+	+ Send
+	+ Sync
 	+ ProvideRuntimeApi<Block>
 	+ HeaderBackend<Block>
-	+ CallApiAt<
-		Block,
-		StateBackend = Backend::State
-	>
+	+ CallApiAt<Block, StateBackend = Backend::State>
 	+ AuxStore
 	+ UsageProvider<Block>
-	where
-		Block: BlockT,
-		Backend: BackendT<Block>,
-		Backend::State: sp_api::StateBackend<BlakeTwo256>,
-		Self::Api: RuntimeApiCollection<StateBackend = Backend::State>,
-{}
+where
+	Block: BlockT,
+	Backend: BackendT<Block>,
+	Backend::State: sp_api::StateBackend<BlakeTwo256>,
+	Self::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+{
+}
 
 impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
-	where
-		Block: BlockT,
-		Backend: BackendT<Block>,
-		Backend::State: sp_api::StateBackend<BlakeTwo256>,
-		Client: BlockchainEvents<Block>
-			+ ProvideRuntimeApi<Block>
-			+ HeaderBackend<Block>
-			+ AuxStore
-			+ UsageProvider<Block>
-			+ Sized
-			+ Send
-			+ Sync
-			+ CallApiAt<
-				Block,
-				StateBackend = Backend::State
-			>,
-		Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
-{}
+where
+	Block: BlockT,
+	Backend: BackendT<Block>,
+	Backend::State: sp_api::StateBackend<BlakeTwo256>,
+	Client: BlockchainEvents<Block>
+		+ ProvideRuntimeApi<Block>
+		+ HeaderBackend<Block>
+		+ AuxStore
+		+ UsageProvider<Block>
+		+ Sized
+		+ Send
+		+ Sync
+		+ CallApiAt<Block, StateBackend = Backend::State>,
+	Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+{
+}
 
 /// Execute something with the client instance.
 ///
@@ -162,12 +203,12 @@ pub trait ExecuteWithClient {
 
 	/// Execute whatever should be executed with the given client instance.
 	fn execute_with_client<Client, Api, Backend>(self, client: Arc<Client>) -> Self::Output
-		where
-			<Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-			Backend: sc_client_api::Backend<Block> + 'static,
-			Backend::State: sp_api::StateBackend<BlakeTwo256>,
-			Api: crate::RuntimeApiCollection<StateBackend = Backend::State>,
-			Client: AbstractClient<Block, Backend, Api = Api> + 'static;
+	where
+		<Api as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+		Backend: sc_client_api::Backend<Block> + 'static,
+		Backend::State: sp_api::StateBackend<BlakeTwo256>,
+		Api: crate::RuntimeApiCollection<StateBackend = Backend::State>,
+		Client: AbstractClient<Block, Backend, Api = Api> + 'static;
 }
 
 /// A handle to a Polkadot client instance.
@@ -208,13 +249,13 @@ macro_rules! with_client {
 /// See [`ExecuteWithClient`] for more information.
 #[derive(Clone)]
 pub enum Client {
-	Polkadot(Arc<FullClient<polkadot_runtime::RuntimeApi, PolkadotExecutor>>),
+	Polkadot(Arc<FullClient<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>>),
 	#[cfg(feature = "westend")]
-	Westend(Arc<FullClient<westend_runtime::RuntimeApi, WestendExecutor>>),
+	Westend(Arc<FullClient<westend_runtime::RuntimeApi, WestendExecutorDispatch>>),
 	#[cfg(feature = "kusama")]
-	Kusama(Arc<FullClient<kusama_runtime::RuntimeApi, KusamaExecutor>>),
+	Kusama(Arc<FullClient<kusama_runtime::RuntimeApi, KusamaExecutorDispatch>>),
 	#[cfg(feature = "rococo")]
-	Rococo(Arc<FullClient<rococo_runtime::RuntimeApi, RococoExecutor>>),
+	Rococo(Arc<FullClient<rococo_runtime::RuntimeApi, RococoExecutorDispatch>>),
 }
 
 impl ClientHandle for Client {
@@ -244,7 +285,7 @@ impl UsageProvider<Block> for Client {
 impl sc_client_api::BlockBackend<Block> for Client {
 	fn block_body(
 		&self,
-		id: &BlockId<Block>
+		id: &BlockId<Block>,
 	) -> sp_blockchain::Result<Option<Vec<<Block as BlockT>::Extrinsic>>> {
 		with_client! {
 			self,
@@ -275,10 +316,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn justifications(
-		&self,
-		id: &BlockId<Block>
-	) -> sp_blockchain::Result<Option<Justifications>> {
+	fn justifications(&self, id: &BlockId<Block>) -> sp_blockchain::Result<Option<Justifications>> {
 		with_client! {
 			self,
 			client,
@@ -290,7 +328,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 
 	fn block_hash(
 		&self,
-		number: NumberFor<Block>
+		number: NumberFor<Block>,
 	) -> sp_blockchain::Result<Option<<Block as BlockT>::Hash>> {
 		with_client! {
 			self,
@@ -303,7 +341,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 
 	fn indexed_transaction(
 		&self,
-		id: &<Block as BlockT>::Hash
+		id: &<Block as BlockT>::Hash,
 	) -> sp_blockchain::Result<Option<Vec<u8>>> {
 		with_client! {
 			self,
@@ -316,7 +354,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 
 	fn block_indexed_body(
 		&self,
-		id: &BlockId<Block>
+		id: &BlockId<Block>,
 	) -> sp_blockchain::Result<Option<Vec<Vec<u8>>>> {
 		with_client! {
 			self,
@@ -390,7 +428,9 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 		id: &BlockId<Block>,
 		prefix: Option<&'a StorageKey>,
 		start_key: Option<&StorageKey>,
-	) -> sp_blockchain::Result<KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>> {
+	) -> sp_blockchain::Result<
+		KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+	> {
 		with_client! {
 			self,
 			client,
@@ -436,7 +476,9 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 		child_info: ChildInfo,
 		prefix: Option<&'a StorageKey>,
 		start_key: Option<&StorageKey>,
-	) -> sp_blockchain::Result<KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>> {
+	) -> sp_blockchain::Result<
+		KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+	> {
 		with_client! {
 			self,
 			client,

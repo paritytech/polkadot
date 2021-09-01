@@ -22,23 +22,23 @@
 
 #![deny(missing_docs)]
 
+use std::{convert::TryFrom, pin::Pin};
 
-use std::pin::Pin;
-
-use serde::{Serialize, Deserialize};
+use bounded_vec::BoundedVec;
 use futures::Future;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-pub use sp_core::traits::SpawnNamed;
 pub use sp_consensus_babe::{
-	Epoch as BabeEpoch, BabeEpochConfiguration, AllowedSlots as BabeAllowedSlots,
+	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 };
+pub use sp_core::traits::SpawnNamed;
 
 use polkadot_primitives::v1::{
 	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
 	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
-	PersistedValidationData, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
-	ValidatorIndex, SessionIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
+	ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
 };
 
 pub use polkadot_parachain::primitives::BlockData;
@@ -48,9 +48,16 @@ pub mod approval;
 /// Disputes related types.
 pub mod disputes;
 pub use disputes::{
-	SignedDisputeStatement, UncheckedDisputeMessage, DisputeMessage, CandidateVotes, InvalidDisputeVote, ValidDisputeVote,
-	DisputeMessageCheckError,
+	CandidateVotes, DisputeMessage, DisputeMessageCheckError, InvalidDisputeVote,
+	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
 };
+
+// For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node
+// plus some overhead:
+// header 1 + bitmap 2 + max partial_key 8 + children 16 * (32 + len 1) + value 32 + value len 1
+const MERKLE_NODE_MAX_SIZE: usize = 512 + 100;
+// 16-ary Merkle Prefix Trie for 32-bit ValidatorIndex has depth at most 8.
+const MERKLE_PROOF_MAX_DEPTH: usize = 8;
 
 /// The bomb limit for decompressing code blobs.
 pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
@@ -216,6 +223,17 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	pub hrmp_watermark: BlockNumber,
 }
 
+/// Signal that is being returned back when a collation was seconded by a validator.
+#[derive(Debug)]
+pub struct CollationSecondedSignal {
+	/// The hash of the relay chain block that was used as context to sign [`Self::statement`].
+	pub relay_parent: Hash,
+	/// The statement about seconding the collation.
+	///
+	/// Anything else than [`Statement::Seconded`](Statement::Seconded) is forbidden here.
+	pub statement: SignedFullStatement,
+}
+
 /// Result of the [`CollatorFn`] invocation.
 pub struct CollationResult {
 	/// The collation that was build.
@@ -225,12 +243,14 @@ pub struct CollationResult {
 	/// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
 	/// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
 	/// collation.
-	pub result_sender: Option<futures::channel::oneshot::Sender<SignedFullStatement>>,
+	pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
 }
 
 impl CollationResult {
 	/// Convert into the inner values.
-	pub fn into_inner(self) -> (Collation, Option<futures::channel::oneshot::Sender<SignedFullStatement>>) {
+	pub fn into_inner(
+		self,
+	) -> (Collation, Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>) {
 		(self.collation, self.result_sender)
 	}
 }
@@ -242,7 +262,10 @@ impl CollationResult {
 ///
 /// Returns an optional [`CollationResult`].
 pub type CollatorFn = Box<
-	dyn Fn(Hash, &PersistedValidationData) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
+	dyn Fn(
+			Hash,
+			&PersistedValidationData,
+		) -> Pin<Box<dyn Future<Output = Option<CollationResult>> + Send>>
 		+ Send
 		+ Sync,
 >;
@@ -272,6 +295,102 @@ pub struct AvailableData {
 	pub validation_data: PersistedValidationData,
 }
 
+/// This is a convenience type to allow the Erasure chunk proof to Decode into a nested BoundedVec
+#[derive(PartialEq, Eq, Clone, Debug, Hash)]
+pub struct Proof(BoundedVec<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, 1, MERKLE_PROOF_MAX_DEPTH>);
+
+impl Proof {
+	/// This function allows to convert back to the standard nested Vec format
+	pub fn as_vec(&self) -> Vec<Vec<u8>> {
+		self.0.as_vec().iter().map(|v| v.as_vec().clone()).collect()
+	}
+
+	/// Construct an invalid dummy proof
+	///
+	/// Useful for testing, should absolutely not be used in production.
+	pub fn dummy_proof() -> Proof {
+		Proof(BoundedVec::from_vec(vec![BoundedVec::from_vec(vec![0]).unwrap()]).unwrap())
+	}
+}
+
+#[derive(thiserror::Error, Debug)]
+///
+pub enum MerkleProofError {
+	#[error("Merkle max proof depth exceeded {0} > {} .", MERKLE_PROOF_MAX_DEPTH)]
+	/// This error signifies that the Proof length exceeds the trie's max depth
+	MerkleProofDepthExceeded(usize),
+
+	#[error("Merkle node max size exceeded {0} > {} .", MERKLE_NODE_MAX_SIZE)]
+	/// This error signifies that a Proof node exceeds the 16-ary max node size
+	MerkleProofNodeSizeExceeded(usize),
+}
+
+impl TryFrom<Vec<Vec<u8>>> for Proof {
+	type Error = MerkleProofError;
+
+	fn try_from(input: Vec<Vec<u8>>) -> Result<Self, Self::Error> {
+		if input.len() > MERKLE_PROOF_MAX_DEPTH {
+			return Err(Self::Error::MerkleProofDepthExceeded(input.len()))
+		}
+		let mut out = Vec::new();
+		for element in input.into_iter() {
+			let length = element.len();
+			let data: BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE> = BoundedVec::from_vec(element)
+				.map_err(|_| Self::Error::MerkleProofNodeSizeExceeded(length))?;
+			out.push(data);
+		}
+		Ok(Proof(BoundedVec::from_vec(out).expect("Buffer size is deterined above. qed")))
+	}
+}
+
+impl Decode for Proof {
+	fn decode<I: Input>(value: &mut I) -> Result<Self, CodecError> {
+		let temp: Vec<Vec<u8>> = Decode::decode(value)?;
+		let mut out = Vec::new();
+		for element in temp.into_iter() {
+			let bounded_temp: Result<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, CodecError> =
+				BoundedVec::from_vec(element)
+					.map_err(|_| "Inner node exceeds maximum node size.".into());
+			out.push(bounded_temp?);
+		}
+		BoundedVec::from_vec(out)
+			.map(Self)
+			.map_err(|_| "Merkle proof depth exceeds maximum trie depth".into())
+	}
+}
+
+impl Encode for Proof {
+	fn size_hint(&self) -> usize {
+		MERKLE_NODE_MAX_SIZE * MERKLE_PROOF_MAX_DEPTH
+	}
+
+	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+		let temp = self.as_vec();
+		temp.using_encoded(f)
+	}
+}
+
+impl Serialize for Proof {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: Serializer,
+	{
+		serializer.serialize_bytes(&self.encode())
+	}
+}
+
+impl<'de> Deserialize<'de> for Proof {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: Deserializer<'de>,
+	{
+		// Deserialize the string and get individual components
+		let s = Vec::<u8>::deserialize(deserializer)?;
+		let mut slice = s.as_slice();
+		Decode::decode(&mut slice).map_err(de::Error::custom)
+	}
+}
+
 /// A chunk of erasure-encoded block data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, Serialize, Deserialize, Debug, Hash)]
 pub struct ErasureChunk {
@@ -280,15 +399,21 @@ pub struct ErasureChunk {
 	/// The index of this erasure-encoded chunk of data.
 	pub index: ValidatorIndex,
 	/// Proof for this chunk's branch in the Merkle tree.
-	pub proof: Vec<Vec<u8>>,
+	pub proof: Proof,
+}
+
+impl ErasureChunk {
+	/// Convert bounded Vec Proof to regular Vec<Vec<u8>>
+	pub fn proof_as_vec(&self) -> Vec<Vec<u8>> {
+		self.proof.as_vec()
+	}
 }
 
 /// Compress a PoV, unless it exceeds the [`POV_BOMB_LIMIT`].
 #[cfg(not(target_os = "unknown"))]
 pub fn maybe_compress_pov(pov: PoV) -> PoV {
 	let PoV { block_data: BlockData(raw) } = pov;
-	let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT)
-		.unwrap_or(raw);
+	let raw = sp_maybe_compressed_blob::compress(&raw, POV_BOMB_LIMIT).unwrap_or(raw);
 
 	let pov = PoV { block_data: BlockData(raw) };
 	pov

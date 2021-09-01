@@ -16,10 +16,14 @@
 
 //! Various implementations for the `MatchesFungible` trait.
 
-use sp_std::{marker::PhantomData, convert::TryFrom};
-use sp_runtime::traits::CheckedConversion;
-use xcm::v0::{MultiAsset, MultiLocation};
 use frame_support::traits::Get;
+use sp_runtime::traits::CheckedConversion;
+use sp_std::{convert::TryFrom, marker::PhantomData};
+use xcm::latest::{
+	AssetId::{Abstract, Concrete},
+	Fungibility::Fungible,
+	MultiAsset, MultiLocation,
+};
 use xcm_executor::traits::MatchesFungible;
 
 /// Converts a `MultiAsset` into balance `B` if it is a concrete fungible with an id equal to that
@@ -28,17 +32,16 @@ use xcm_executor::traits::MatchesFungible;
 /// # Example
 ///
 /// ```
-/// use xcm::v0::{MultiAsset, MultiLocation, Junction};
+/// use xcm::latest::{MultiLocation, Parent};
 /// use xcm_builder::IsConcrete;
 /// use xcm_executor::traits::MatchesFungible;
 ///
 /// frame_support::parameter_types! {
-/// 	pub TargetLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
+/// 	pub TargetLocation: MultiLocation = Parent.into();
 /// }
 ///
 /// # fn main() {
-/// let id = MultiLocation::X1(Junction::Parent);
-/// let asset = MultiAsset::ConcreteFungible { id, amount: 999u128 };
+/// let asset = (Parent, 999).into();
 /// // match `asset` if it is a concrete asset in `TargetLocation`.
 /// assert_eq!(<IsConcrete<TargetLocation> as MatchesFungible<u128>>::matches_fungible(&asset), Some(999));
 /// # }
@@ -46,8 +49,8 @@ use xcm_executor::traits::MatchesFungible;
 pub struct IsConcrete<T>(PhantomData<T>);
 impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<T> {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
-		match a {
-			MultiAsset::ConcreteFungible { id, amount } if id == &T::get() =>
+		match (&a.id, &a.fun) {
+			(Concrete(ref id), Fungible(ref amount)) if id == &T::get() =>
 				CheckedConversion::checked_from(*amount),
 			_ => None,
 		}
@@ -59,7 +62,7 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 /// # Example
 ///
 /// ```
-/// use xcm::v0::{MultiAsset};
+/// use xcm::latest::prelude::*;
 /// use xcm_builder::IsAbstract;
 /// use xcm_executor::traits::MatchesFungible;
 ///
@@ -68,7 +71,7 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 /// }
 ///
 /// # fn main() {
-/// let asset = MultiAsset::AbstractFungible { id: vec![7u8], amount: 999u128 };
+/// let asset = (vec![7u8], 999).into();
 /// // match `asset` if it is a concrete asset in `TargetLocation`.
 /// assert_eq!(<IsAbstract<TargetLocation> as MatchesFungible<u128>>::matches_fungible(&asset), Some(999));
 /// # }
@@ -76,8 +79,8 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 pub struct IsAbstract<T>(PhantomData<T>);
 impl<T: Get<&'static [u8]>, B: TryFrom<u128>> MatchesFungible<B> for IsAbstract<T> {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
-		match a {
-			MultiAsset::AbstractFungible { id, amount } if &id[..] == T::get() =>
+		match (&a.id, &a.fun) {
+			(Abstract(ref id), Fungible(ref amount)) if id == &T::get() =>
 				CheckedConversion::checked_from(*amount),
 			_ => None,
 		}

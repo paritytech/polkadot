@@ -20,10 +20,14 @@
 //!
 //! These core Polkadot types are used by the relay chain and the Parachains.
 
-use sp_runtime::{generic, MultiSignature, traits::{Verify, IdentifyAccount}};
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "std")]
 use parity_util_mem::MallocSizeOf;
+use sp_runtime::{
+	generic,
+	traits::{IdentifyAccount, Verify},
+	MultiSignature,
+};
 
 pub use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
 
@@ -64,7 +68,7 @@ pub type Hash = sp_core::H256;
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct CandidateHash(pub Hash);
 
-#[cfg(feature="std")]
+#[cfg(feature = "std")]
 impl std::fmt::Display for CandidateHash {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		self.0.fmt(f)
@@ -116,7 +120,7 @@ pub type DownwardMessage = sp_std::vec::Vec<u8>;
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
-	/// The block number at which this messages was put into the downward message queue.
+	/// The block number at which these messages were put into the downward message queue.
 	pub sent_at: BlockNumber,
 	/// The actual downward message to processes.
 	pub msg: DownwardMessage,

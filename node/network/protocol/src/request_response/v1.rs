@@ -18,12 +18,14 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, ValidatorIndex};
-use polkadot_primitives::v1::Id as ParaId;
-use polkadot_node_primitives::{AvailableData, DisputeMessage, ErasureChunk, PoV, UncheckedDisputeMessage};
+use polkadot_node_primitives::{
+	AvailableData, DisputeMessage, ErasureChunk, PoV, Proof, UncheckedDisputeMessage,
+};
+use polkadot_primitives::v1::{
+	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, Hash, Id as ParaId, ValidatorIndex,
+};
 
-use super::request::IsRequest;
-use super::Protocol;
+use super::{IsRequest, Protocol};
 
 /// Request an availability chunk.
 #[derive(Debug, Copy, Clone, Encode, Decode)]
@@ -65,23 +67,19 @@ pub struct ChunkResponse {
 	/// The erasure-encoded chunk of data belonging to the candidate block.
 	pub chunk: Vec<u8>,
 	/// Proof for this chunk's branch in the Merkle tree.
-	pub proof: Vec<Vec<u8>>,
+	pub proof: Proof,
 }
 
 impl From<ErasureChunk> for ChunkResponse {
-	fn from(ErasureChunk {chunk, index: _, proof}: ErasureChunk) -> Self {
-		ChunkResponse {chunk, proof}
+	fn from(ErasureChunk { chunk, index: _, proof }: ErasureChunk) -> Self {
+		ChunkResponse { chunk, proof }
 	}
 }
 
 impl ChunkResponse {
 	/// Re-build an `ErasureChunk` from response and request.
 	pub fn recombine_into_chunk(self, req: &ChunkFetchingRequest) -> ErasureChunk {
-		ErasureChunk {
-			chunk: self.chunk,
-			proof: self.proof,
-			index: req.index,
-		}
+		ErasureChunk { chunk: self.chunk, proof: self.proof, index: req.index }
 	}
 }
 
@@ -210,7 +208,7 @@ impl From<DisputeMessage> for DisputeRequest {
 pub enum DisputeResponse {
 	/// Recipient successfully processed the dispute request.
 	#[codec(index = 0)]
-	Confirmed
+	Confirmed,
 }
 
 impl IsRequest for DisputeRequest {

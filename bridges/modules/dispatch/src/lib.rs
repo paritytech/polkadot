@@ -37,7 +37,7 @@ use frame_support::{
 	decl_event, decl_module, decl_storage,
 	dispatch::{Dispatchable, Parameter},
 	ensure,
-	traits::{Filter, Get},
+	traits::{Contains, Get},
 	weights::{extract_actual_weight, GetDispatchInfo},
 };
 use frame_system::RawOrigin;
@@ -73,7 +73,7 @@ pub trait Config<I = DefaultInstance>: frame_system::Config {
 	///
 	/// The pallet will filter all incoming calls right before they're dispatched. If this filter
 	/// rejects the call, special event (`Event::MessageCallRejected`) is emitted.
-	type CallFilter: Filter<<Self as Config<I>>::Call>;
+	type CallFilter: Contains<<Self as Config<I>>::Call>;
 	/// The type that is used to wrap the `Self::Call` when it is moved over bridge.
 	///
 	/// The idea behind this is to avoid `Call` conversion/decoding until we'll be sure
@@ -244,7 +244,7 @@ impl<T: Config<I>, I: Instance> MessageDispatch<T::AccountId, T::MessageId> for 
 		};
 
 		// filter the call
-		if !T::CallFilter::filter(&call) {
+		if !T::CallFilter::contains(&call) {
 			log::trace!(
 				target: "runtime::bridge-dispatch",
 				"Message {:?}/{:?}: the call ({:?}) is rejected by filter",
@@ -397,7 +397,7 @@ mod tests {
 	#![allow(clippy::from_over_into)]
 
 	use super::*;
-	use frame_support::{parameter_types, weights::Weight};
+	use frame_support::{dispatch::GetDispatchInfo, parameter_types, weights::Weight};
 	use frame_system::{EventRecord, Phase};
 	use sp_core::H256;
 	use sp_runtime::{
@@ -482,7 +482,7 @@ mod tests {
 		type AccountData = ();
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
-		type BaseCallFilter = frame_support::traits::AllowAll;
+		type BaseCallFilter = frame_support::traits::Everything;
 		type SystemWeightInfo = ();
 		type BlockWeights = ();
 		type BlockLength = ();
@@ -514,8 +514,8 @@ mod tests {
 
 	pub struct TestCallFilter;
 
-	impl Filter<Call> for TestCallFilter {
-		fn filter(call: &Call) -> bool {
+	impl Contains<Call> for TestCallFilter {
+		fn contains(call: &Call) -> bool {
 			!matches!(*call, Call::System(frame_system::Call::fill_block(_)))
 		}
 	}
@@ -599,9 +599,14 @@ mod tests {
 	fn should_fail_on_weight_mismatch() {
 		new_test_ext().execute_with(|| {
 			let id = [0; 4];
-			let mut message =
-				prepare_root_message(Call::System(<frame_system::Call<TestRuntime>>::remark(vec![1, 2, 3])));
+			let call = Call::System(<frame_system::Call<TestRuntime>>::remark(vec![1, 2, 3]));
+			let call_weight = call.get_dispatch_info().weight;
+			let mut message = prepare_root_message(call);
 			message.weight = 7;
+			assert!(
+				call_weight != 7,
+				"needed for test to actually trigger a weight mismatch"
+			);
 
 			System::set_block_number(1);
 			let result = Dispatch::dispatch(SOURCE_CHAIN_ID, TARGET_CHAIN_ID, id, Ok(message), |_, _| unreachable!());
@@ -615,7 +620,7 @@ mod tests {
 					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageWeightMismatch(
 						SOURCE_CHAIN_ID,
 						id,
-						1038000,
+						call_weight,
 						7,
 					)),
 					topics: vec![],
