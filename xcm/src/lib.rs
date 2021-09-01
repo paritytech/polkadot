@@ -44,12 +44,26 @@ pub use double_encoded::DoubleEncoded;
 /// Maximum nesting level for XCM decoding.
 pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 
+/// A version of XCM.
+pub type Version = u32;
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Unsupported {}
 impl Encode for Unsupported {}
 impl Decode for Unsupported {
 	fn decode<I: Input>(_: &mut I) -> Result<Self, CodecError> {
 		Err("Not decodable".into())
+	}
+}
+
+/// Attempt to convert `self` into a particular version of itself.
+pub trait IntoVersion: Sized {
+	/// Consume `self` and return same value expressed in some particular `version` of XCM.
+	fn into_version(self, version: Version) -> Result<Self, ()>;
+
+	/// Consume `self` and return same value expressed the latest version of XCM.
+	fn into_latest(self) -> Result<Self, ()> {
+		self.into_version(latest::VERSION)
 	}
 }
 
@@ -61,6 +75,16 @@ impl Decode for Unsupported {
 pub enum VersionedMultiLocation {
 	V0(v0::MultiLocation),
 	V1(v1::MultiLocation),
+}
+
+impl IntoVersion for VersionedMultiLocation {
+	fn into_version(self, n: Version) -> Result<Self, ()> {
+		Ok(match n {
+			0 => Self::V0(self.try_into()?),
+			1 => Self::V1(self.try_into()?),
+			_ => return Err(()),
+		})
+	}
 }
 
 impl From<v0::MultiLocation> for VersionedMultiLocation {
@@ -195,6 +219,16 @@ impl TryFrom<VersionedMultiAssets> for v1::MultiAssets {
 pub enum VersionedXcm<Call> {
 	V0(v0::Xcm<Call>),
 	V1(v1::Xcm<Call>),
+}
+
+impl<C> IntoVersion for VersionedXcm<C> {
+	fn into_version(self, n: Version) -> Result<Self, ()> {
+		Ok(match n {
+			0 => Self::V0(self.try_into()?),
+			1 => Self::V1(self.try_into()?),
+			_ => return Err(()),
+		})
+	}
 }
 
 impl<Call> From<v0::Xcm<Call>> for VersionedXcm<Call> {

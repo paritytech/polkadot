@@ -88,4 +88,5 @@ impl xcm_executor::Config for XcmConfig {
 	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call>;
 	type Trader = DummyWeightTrader;
 	type ResponseHandler = ();
+	type SubscriptionService = ();
 }

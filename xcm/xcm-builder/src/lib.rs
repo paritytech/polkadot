@@ -42,7 +42,7 @@ pub use origin_conversion::{
 mod barriers;
 pub use barriers::{
 	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	IsChildSystemParachain, TakeWeightCredit,
+	IsChildSystemParachain, TakeWeightCredit, AllowSubscriptionsFrom,
 };
 
 mod currency_adapter;

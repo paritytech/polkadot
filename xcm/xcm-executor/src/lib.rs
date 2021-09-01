@@ -30,7 +30,7 @@ use xcm::latest::{
 pub mod traits;
 use traits::{
 	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
-	WeightBounds, WeightTrader,
+	WeightBounds, WeightTrader, VersionChangeNotifier,
 };
 
 mod assets;
@@ -257,6 +257,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				)?;
 				total_surplus = total_surplus.saturating_add(surplus);
 				None
+			},
+			(origin, Xcm::SubscribeVersion { query_id, max_response_weight }) => {
+				// We don't allow derivative origins to subscribe since it would otherwise pose a
+				// DoS risk.
+				ensure!(top_level, XcmError::BadOrigin);
+				Config::SubscriptionService::start(&origin, query_id, max_response_weight)
+			},
+			(origin, Xcm::UnsubscribeVersion) => {
+				ensure!(top_level, XcmError::BadOrigin);
+				Config::SubscriptionService::stop(origin)
 			},
 			_ => Err(XcmError::UnhandledXcmMessage)?, // Unhandled XCM message.
 		};
