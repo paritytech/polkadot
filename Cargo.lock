@@ -6616,6 +6616,7 @@ version = "0.9.9"
 dependencies = [
  "bitvec 0.20.1",
  "frame-benchmarking",
+ "frame-election-provider-support",
  "frame-support",
  "frame-support-test",
  "frame-system",

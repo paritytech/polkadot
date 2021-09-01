@@ -55,3 +55,9 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfi
 	const MINER_MAXIMUM_VOTERS: u32 = 15_000;
 	const MAXIMUM_TARGETS: u32 = 2000;
 }
+
+/// The accuracy type used for genesis election provider;
+pub type OnOnChainAccuracy = sp_runtime::Perbill;
+
+/// The election provider of the genesis
+pub type GenesisElectionOf<T> = frame_election_provider_support::onchain::OnChainSequentialPhragmen<T>;
