@@ -245,3 +245,19 @@ fn tick_tack_metronome() {
 		)
 	});
 }
+
+#[test]
+fn macro_arbitrary_order() {
+	let mut vals = vec![Some(15_usize), None];
+	let (first, second) = arbitrary_order!(vals.pop().unwrap(); Some(fx) => fx; None => 0);
+	assert_eq!(first, 15_usize);
+	assert_eq!(second, 0_usize);
+}
+
+#[test]
+fn macro_arbitrary_order_swapped() {
+	let mut vals = vec![None, Some(11_usize)];
+	let (first, second) = arbitrary_order!(vals.pop().unwrap(); Some(fx) => fx; None => 0);
+	assert_eq!(first, 11_usize);
+	assert_eq!(second, 0);
+}

@@ -752,3 +752,33 @@ where
 		SpawnedSubsystem { name: Job::NAME.strip_suffix("Job").unwrap_or(Job::NAME), future }
 	}
 }
+
+/// Asserts that two patterns match, yet only one
+#[macro_export]
+macro_rules! arbitrary_order {
+	($rx:expr; $p1:pat => $e1:expr; $p2:pat => $e2:expr) => {
+		// If i.e. a enum has only two variants, `_` is unreachable.
+		match $rx {
+			$p1 => {
+				let __ret1 = { $e1 };
+				let __ret2 = match $rx {
+					$p2 => $e2,
+					#[allow(unreachable_patterns)]
+					_ => unreachable!("first pattern matched, second pattern did not"),
+				};
+				(__ret1, __ret2)
+			},
+			$p2 => {
+				let __ret2 = { $e2 };
+				let __ret1 = match $rx {
+					$p1 => $e1,
+					#[allow(unreachable_patterns)]
+					_ => unreachable!("second pattern matched, first pattern did not"),
+				};
+				(__ret1, __ret2)
+			},
+			#[allow(unreachable_patterns)]
+			_ => unreachable!("neither first nor second pattern matched"),
+		}
+	};
+}
