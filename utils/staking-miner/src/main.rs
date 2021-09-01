@@ -195,6 +195,8 @@ macro_rules! any_runtime {
 	}
 }
 
+/// Same as [`any_runtime`], but instead of returning a `Result`, this simply returns `()`. Useful
+/// for situations where the result is not useful and un-ergonomic to handle.
 #[macro_export]
 macro_rules! any_runtime_unit {
 	($($code:tt)*) => {
