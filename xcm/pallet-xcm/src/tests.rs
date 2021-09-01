@@ -16,7 +16,7 @@
 
 use crate::{
 	mock::*, AssetTraps, Error, LatestVersionedMultiLocation, Queries, QueryStatus,
-	VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets,
+	VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets, CurrentMigration,
 };
 use frame_support::{
 	assert_noop, assert_ok,
@@ -533,6 +533,7 @@ fn subscription_side_works() {
 
 		// A runtime upgrade which doesn't alter the version sends no notifications.
 		XcmPallet::on_runtime_upgrade();
+		XcmPallet::on_initialize(1);
 		assert_eq!(take_sent_xcm(), vec![]);
 
 		// New version.
@@ -540,6 +541,7 @@ fn subscription_side_works() {
 
 		// A runtime upgrade which alters the version does send notifications.
 		XcmPallet::on_runtime_upgrade();
+		XcmPallet::on_initialize(2);
 		let instr = QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(2) };
 		assert_eq!(take_sent_xcm(), vec![(remote.clone(), Xcm(vec![instr]))]);
 	});
@@ -564,6 +566,8 @@ fn subscription_side_upgrades_work_with_notify() {
 
 		// A runtime upgrade which alters the version does send notifications.
 		XcmPallet::on_runtime_upgrade();
+		XcmPallet::on_initialize(1);
+
 		let instr0 = QueryResponse { query_id: 69, max_weight: 0, response: Response::Version(2) };
 		let instr1 = QueryResponse { query_id: 70, max_weight: 0, response: Response::Version(2) };
 		let instr2 = QueryResponse { query_id: 71, max_weight: 0, response: Response::Version(2) };
@@ -608,6 +612,8 @@ fn subscription_side_upgrades_work_without_notify() {
 
 		// A runtime upgrade which alters the version does send notifications.
 		XcmPallet::on_runtime_upgrade();
+		XcmPallet::on_initialize(1);
+
 		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
 		contents.sort_by_key(|k| k.2);
 		assert_eq!(
@@ -737,4 +743,62 @@ fn auto_subscription_works() {
 		assert_eq!(XcmPallet::wrap_version(&remote1, v1_msg.clone()), Ok(VersionedXcm::V1(v1_msg)));
 		assert_eq!(XcmPallet::wrap_version(&remote1, v2_msg.clone()), Err(()));
 	})
+}
+
+#[test]
+fn subscription_side_upgrades_work_with_multistage_notify() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		AdvertisedXcmVersion::set(1);
+
+		// An entry from a previous runtime with v0 XCM.
+		let v0_location = xcm::v0::MultiLocation::X1(xcm::v0::Junction::Parachain(1000));
+		let v0_location = VersionedMultiLocation::from(v0_location);
+		VersionNotifyTargets::<Test>::insert(0, v0_location, (69, 0, 1));
+		let v1_location = Parachain(1001).into().versioned();
+		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 1));
+		let v2_location = Parachain(1002).into().versioned();
+		VersionNotifyTargets::<Test>::insert(2, v2_location, (71, 0, 1));
+
+		// New version.
+		AdvertisedXcmVersion::set(2);
+
+		// A runtime upgrade which alters the version does send notifications.
+		XcmPallet::on_runtime_upgrade();
+		let mut maybe_migration = CurrentMigration::<Test>::take();
+		let mut counter = 0;
+		while let Some(migration) = maybe_migration.take() {
+			counter += 1;
+			let (_, m) = XcmPallet::check_xcm_version_change(migration, 0);
+			maybe_migration = m;
+		}
+		assert_eq!(counter, 4);
+		
+		let instr0 = QueryResponse { query_id: 69, max_weight: 0, response: Response::Version(2) };
+		let instr1 = QueryResponse { query_id: 70, max_weight: 0, response: Response::Version(2) };
+		let instr2 = QueryResponse { query_id: 71, max_weight: 0, response: Response::Version(2) };
+		let mut sent = take_sent_xcm();
+		sent.sort_by_key(|k| match (k.1).0[0] {
+			QueryResponse { query_id: q, .. } => q,
+			_ => 0,
+		});
+		assert_eq!(
+			sent,
+			vec![
+				(Parachain(1000).into(), Xcm(vec![instr0])),
+				(Parachain(1001).into(), Xcm(vec![instr1])),
+				(Parachain(1002).into(), Xcm(vec![instr2])),
+			]
+		);
+
+		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
+		contents.sort_by_key(|k| k.2);
+		assert_eq!(
+			contents,
+			vec![
+				(2, Parachain(1000).into().versioned(), (69, 0, 2)),
+				(2, Parachain(1001).into().versioned(), (70, 0, 2)),
+				(2, Parachain(1002).into().versioned(), (71, 0, 2)),
+			]
+		);
+	});
 }

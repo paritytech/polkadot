@@ -290,6 +290,20 @@ pub mod pallet {
 		}
 	}
 
+	#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd)]
+	pub enum VersionMigrationStage {
+		MigratateSupportedVersion,
+		MigratateVersionNotifiers,
+		NotifyCurrentTargets,
+		MigrateAndNotifyOldTargets,
+	}
+
+	impl Default for VersionMigrationStage {
+		fn default() -> Self {
+			Self::MigratateSupportedVersion
+		}
+	}
+
 	/// The latest available query index.
 	#[pallet::storage]
 	pub(super) type QueryCounter<T: Config> = StorageValue<_, QueryId, ValueQuery>;
@@ -365,6 +379,10 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	/// The current migration's stage, if any.
+	#[pallet::storage]
+	pub(super) type CurrentMigration<T: Config> = StorageValue<_, VersionMigrationStage, OptionQuery>;
+
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		/// The default version to encode outgoing XCM messages with.
@@ -388,13 +406,27 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
+			let mut weight_used = 0;
+			if let Some(migration) = CurrentMigration::<T>::get() {
+				// Consume 10% of block at most
+				let max_weight = T::BlockWeights::get().max_block / 10;
+				let (w, maybe_migration) =
+					Self::check_xcm_version_change(migration, max_weight);
+				CurrentMigration::<T>::set(maybe_migration);
+				weight_used.saturating_accrue(w);
+			}
+
 			// Here we aim to get one successful version negotiation request sent per block, ordered
 			// by the destinations being most sent to.
 			let mut q = VersionDiscoveryQueue::<T>::take().into_inner();
+			// TODO: correct weights.
+			weight_used += T::DbWeight::get().read + T::DbWeight::get().write;
 			q.sort_by_key(|i| i.1);
 			while let Some((versioned_dest, _)) = q.pop() {
 				if let Ok(dest) = versioned_dest.try_into() {
 					if Self::request_version_notify(dest).is_ok() {
+						// TODO: correct weights.
+						weight_used += T::DbWeight::get().read + T::DbWeight::get().write;
 						break
 					}
 				}
@@ -404,11 +436,13 @@ pub mod pallet {
 			if let Ok(q) = BoundedVec::try_from(q) {
 				VersionDiscoveryQueue::<T>::put(q);
 			}
-			// TODO: correct weight.
-			0
+			weight_used
 		}
 		fn on_runtime_upgrade() -> Weight {
-			Self::check_xcm_version_change()
+			// Start a migration (this happens before on_initialize so it'll happen later in this
+			// block, which should be good enough)...
+			CurrentMigration::<T>::put(VersionMigrationStage::default());
+			T::DbWeight::get().write
 		}
 	}
 
@@ -689,84 +723,128 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		fn check_xcm_version_change() -> Weight {
-			// We assume that supported XCM version only ever increases, so just cycle through lower
-			// XCM versioned from the current.
-			for v in 0..XCM_VERSION {
-				for (old_key, value) in SupportedVersion::<T>::drain_prefix(v) {
-					if let Ok(new_key) = old_key.into_latest() {
-						SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
+		/// Will always make progress, and will do its best not to use much more than `weight_cutoff`
+		/// in doing so.
+		pub(crate) fn check_xcm_version_change(
+			mut stage: VersionMigrationStage,
+			weight_cutoff: Weight,
+		) -> (Weight, Option<VersionMigrationStage>) {
+			let mut weight_used = 0;
+
+			// TODO: Correct weights for the components of this:
+			let todo_sv_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
+			let todo_vn_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
+			let todo_vnt_already_notified_weight: Weight = T::DbWeight::get().read;
+			let todo_vnt_notify_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write * 3;
+			let todo_vnt_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
+			let todo_vnt_migrate_fail_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write;
+			let todo_vnt_notify_migrate_weight: Weight = T::DbWeight::get().read + T::DbWeight::get().write * 3;
+
+			use VersionMigrationStage::*;
+
+			if stage == MigratateSupportedVersion {
+				// We assume that supported XCM version only ever increases, so just cycle through lower
+				// XCM versioned from the current.
+				for v in 0..XCM_VERSION {
+					for (old_key, value) in SupportedVersion::<T>::drain_prefix(v) {
+						if let Ok(new_key) = old_key.into_latest() {
+							SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
+						}
+						weight_used.saturating_accrue(todo_sv_migrate_weight);
+						if weight_used >= weight_cutoff { return (weight_used, Some(stage)) }
 					}
 				}
-				for (old_key, value) in VersionNotifiers::<T>::drain_prefix(v) {
-					if let Ok(new_key) = old_key.into_latest() {
-						VersionNotifiers::<T>::insert(XCM_VERSION, new_key, value);
-					}
-				}
+				stage = MigratateVersionNotifiers;
 			}
+			if stage == MigratateVersionNotifiers {
+				for v in 0..XCM_VERSION {
+					for (old_key, value) in VersionNotifiers::<T>::drain_prefix(v) {
+						if let Ok(new_key) = old_key.into_latest() {
+							VersionNotifiers::<T>::insert(XCM_VERSION, new_key, value);
+						}
+						weight_used.saturating_accrue(todo_vn_migrate_weight);
+						if weight_used >= weight_cutoff { return (weight_used, Some(stage)) }
+					}
+				}
+				stage = NotifyCurrentTargets;
+			}
+
 			let xcm_version = T::AdvertisedXcmVersion::get();
 			let response = Response::Version(xcm_version);
-			for (key, mut value) in VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION) {
-				if value.2 == xcm_version {
-					continue
-				}
-				let new_key: MultiLocation = match key.clone().try_into() {
-					Ok(k) => k,
-					Err(_) => continue, // will never happen since it's the latest version already.
-				};
-				value.2 = xcm_version;
-				let message = Xcm(vec![QueryResponse {
-					query_id: value.0,
-					response: response.clone(),
-					max_weight: value.1,
-				}]);
-				match T::XcmRouter::send_xcm(new_key.clone(), message) {
-					Ok(()) => {
-						let versioned_key = LatestVersionedMultiLocation(&new_key);
-						VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
-						Self::deposit_event(Event::VersionChangeNotified(new_key, xcm_version));
-					},
-					Err(e) => {
-						Self::deposit_event(Event::NotifyTargetSendFail(
-							new_key,
-							value.0,
-							e.into(),
-						));
-					},
-				}
-			}
-			for v in 0..XCM_VERSION {
-				for (old_key, mut value) in VersionNotifyTargets::<T>::drain_prefix(v) {
-					let new_key = match MultiLocation::try_from(old_key.clone()) {
-						Ok(k) => k,
-						Err(()) => {
-							Self::deposit_event(Event::NotifyTargetMigrationFail(old_key, value.0));
-							return 0
+
+			if stage == NotifyCurrentTargets {
+				for (key, mut value) in VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION) {
+					let new_key: MultiLocation = match (value.2 == xcm_version, key.clone().try_into()) {
+						(false, Ok(k)) => k,
+						_ => {
+							// We don't early return here since we need to be certain that we make some
+							// progress.
+							weight_used.saturating_accrue(todo_vnt_already_notified_weight);
+							continue
 						},
 					};
-
-					if value.2 != xcm_version {
-						value.2 = xcm_version;
-						let instruction = QueryResponse {
-							query_id: value.0,
-							response: response.clone(),
-							max_weight: value.1,
-						};
-						match T::XcmRouter::send_xcm(new_key.clone(), Xcm(vec![instruction])) {
-							Ok(()) => (),
-							Err(e) => {
-								let event = Event::NotifyTargetSendFail(new_key, value.0, e.into());
-								Self::deposit_event(event);
+					value.2 = xcm_version;
+					let message = Xcm(vec![QueryResponse {
+						query_id: value.0,
+						response: response.clone(),
+						max_weight: value.1,
+					}]);
+					let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
+						Ok(()) => {
+							VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
+							Event::VersionChangeNotified(new_key, xcm_version)
+						},
+						Err(e) => {
+							VersionNotifyTargets::<T>::remove(XCM_VERSION, key);
+							Event::NotifyTargetSendFail(new_key, value.0, e.into())
+						},
+					};
+					Self::deposit_event(event);
+					weight_used.saturating_accrue(todo_vnt_notify_weight);
+					if weight_used >= weight_cutoff { return (weight_used, Some(stage)) }
+				}
+				stage = MigrateAndNotifyOldTargets;
+			}
+			if stage == MigrateAndNotifyOldTargets {
+				for v in 0..XCM_VERSION {
+					for (old_key, mut value) in VersionNotifyTargets::<T>::drain_prefix(v) {
+						let new_key = match MultiLocation::try_from(old_key.clone()) {
+							Ok(k) => k,
+							Err(()) => {
+								Self::deposit_event(Event::NotifyTargetMigrationFail(old_key, value.0));
+								weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
+								if weight_used >= weight_cutoff { return (weight_used, Some(stage)) }
 								continue
 							},
+						};
+
+						let versioned_key = LatestVersionedMultiLocation(&new_key);
+						if value.2 == xcm_version {
+							VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
+							weight_used.saturating_accrue(todo_vnt_migrate_weight);
+						} else {
+							// Need to notify target.
+							value.2 = xcm_version;
+							let message = Xcm(vec![QueryResponse {
+								query_id: value.0,
+								response: response.clone(),
+								max_weight: value.1,
+							}]);
+							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
+								Ok(()) => {
+									VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
+									Event::VersionChangeNotified(new_key, xcm_version)
+								},
+								Err(e) => Event::NotifyTargetSendFail(new_key, value.0, e.into()),
+							};
+							Self::deposit_event(event);
+							weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
 						}
+						if weight_used >= weight_cutoff { return (weight_used, Some(stage)) }
 					}
-					let versioned_key = LatestVersionedMultiLocation(&new_key);
-					VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
-					Self::deposit_event(Event::VersionChangeNotified(new_key, xcm_version));
 				}
 			}
-			0
+			(weight_used, None)
 		}
 
 		/// Request that `dest` informs us of its version.
