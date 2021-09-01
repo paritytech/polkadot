@@ -148,3 +148,6 @@ polkadot = { path = "/usr/bin/polkadot" }
 
 [package.metadata.spellcheck]
 config = "./scripts/gitlab/spellcheck.toml"
+
+[patch.crates-io]
+finality-grandpa = { git = "https://github.com/paritytech/finality-grandpa", branch = "aj-scale-info-1.0.0" }
