@@ -267,8 +267,7 @@ impl xcm_executor::Config for XcmConfig {
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;
 
 parameter_types! {
-	pub const VersionDiscoveryQueueSize: u32 = 100;
-	pub static AdvertizeXcmVersion: pallet_xcm::XcmVersion = 2;
+	pub static AdvertisedXcmVersion: pallet_xcm::XcmVersion = 2;
 }
 
 impl pallet_xcm::Config for Test {
@@ -284,8 +283,8 @@ impl pallet_xcm::Config for Test {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type Call = Call;
-	type VersionDiscoveryQueueSize = VersionDiscoveryQueueSize;
-	type AdvertizeXcmVersion = AdvertizeXcmVersion;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = AdvertisedXcmVersion;
 }
 
 impl origin::Config for Test {}

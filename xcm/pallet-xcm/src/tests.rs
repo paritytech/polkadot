@@ -520,7 +520,7 @@ fn unsubscribe_works() {
 #[test]
 fn subscription_side_works() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
-		AdvertizeXcmVersion::set(1);
+		AdvertisedXcmVersion::set(1);
 
 		let remote = Parachain(1000).into();
 		let weight = BaseXcmWeight::get();
@@ -536,7 +536,7 @@ fn subscription_side_works() {
 		assert_eq!(take_sent_xcm(), vec![]);
 
 		// New version.
-		AdvertizeXcmVersion::set(2);
+		AdvertisedXcmVersion::set(2);
 
 		// A runtime upgrade which alters the version does send notifications.
 		XcmPallet::on_runtime_upgrade();
@@ -548,7 +548,7 @@ fn subscription_side_works() {
 #[test]
 fn subscription_side_upgrades_work_with_notify() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
-		AdvertizeXcmVersion::set(1);
+		AdvertisedXcmVersion::set(1);
 
 		// An entry from a previous runtime with v0 XCM.
 		let v0_location = xcm::v0::MultiLocation::X1(xcm::v0::Junction::Parachain(1000));
@@ -560,7 +560,7 @@ fn subscription_side_upgrades_work_with_notify() {
 		VersionNotifyTargets::<Test>::insert(2, v2_location, (71, 0, 1));
 
 		// New version.
-		AdvertizeXcmVersion::set(2);
+		AdvertisedXcmVersion::set(2);
 
 		// A runtime upgrade which alters the version does send notifications.
 		XcmPallet::on_runtime_upgrade();

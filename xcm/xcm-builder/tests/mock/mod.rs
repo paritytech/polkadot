@@ -174,10 +174,6 @@ impl xcm_executor::Config for XcmConfig {
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;
 
-parameter_types! {
-	pub const VersionDiscoveryQueueSize: u32 = 100;
-}
-
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type LocationInverter = LocationInverter<Ancestry>;
@@ -192,8 +188,8 @@ impl pallet_xcm::Config for Runtime {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Call = Call;
 	type Origin = Origin;
-	type VersionDiscoveryQueueSize = VersionDiscoveryQueueSize;
-	type AdvertizeXcmVersion = pallet_xcm::CurrentXcmVersion;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 impl origin::Config for Runtime {}

@@ -117,12 +117,11 @@ pub mod pallet {
 			+ IsType<<Self as frame_system::Config>::Call>
 			+ Dispatchable<Origin = <Self as Config>::Origin, PostInfo = PostDispatchInfo>;
 
-		/// The maximum number of items that we can store in the version discovery queue.
-		type VersionDiscoveryQueueSize: Get<u32>;
+		const VERSION_DISCOVERY_QUEUE_SIZE: u32;
 
 		/// The latest supported version that we advertise. Generally just set it to
 		/// `pallet_xcm::CurrentXcmVersion`.
-		type AdvertizeXcmVersion: Get<XcmVersion>;
+		type AdvertisedXcmVersion: Get<XcmVersion>;
 	}
 
 	/// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
@@ -293,7 +292,7 @@ pub mod pallet {
 
 	/// The latest available query index.
 	#[pallet::storage]
-	pub(super) type QueryCount<T: Config> = StorageValue<_, QueryId, ValueQuery>;
+	pub(super) type QueryCounter<T: Config> = StorageValue<_, QueryId, ValueQuery>;
 
 	/// The ongoing queries.
 	#[pallet::storage]
@@ -351,12 +350,18 @@ pub mod pallet {
 		OptionQuery,
 	>;
 
-	/// Destinations whose latest XCM version we would like to know. Duplicates allowed. The block
-	/// number is the most recent block which pushed to it.
+	pub struct VersionDiscoveryQueueSize<T>(PhantomData<T>);
+	impl<T: Config> Get<u32> for VersionDiscoveryQueueSize<T> {
+		fn get() -> u32 { T::VERSION_DISCOVERY_QUEUE_SIZE }
+	}
+
+	/// Destinations whose latest XCM version we would like to know. Duplicates not allowed, and
+	/// the `u32` counter is the number of times that a send to the destination has been attempted,
+	/// which is used as a prioritisation.
 	#[pallet::storage]
 	pub(super) type VersionDiscoveryQueue<T: Config> = StorageValue<
 		_,
-		BoundedVec<(VersionedMultiLocation, u32), T::VersionDiscoveryQueueSize>,
+		BoundedVec<(VersionedMultiLocation, u32), VersionDiscoveryQueueSize<T>>,
 		ValueQuery,
 	>;
 
@@ -385,7 +390,7 @@ pub mod pallet {
 		fn on_initialize(_n: BlockNumberFor<T>) -> Weight {
 			// Here we aim to get one successful version negotiation request sent per block, ordered
 			// by the destinations being most sent to.
-			let mut q = VersionDiscoveryQueue::<T>::get().into_inner();
+			let mut q = VersionDiscoveryQueue::<T>::take().into_inner();
 			q.sort_by_key(|i| i.1);
 			while let Some((versioned_dest, _)) = q.pop() {
 				if let Ok(dest) = versioned_dest.try_into() {
@@ -699,7 +704,7 @@ pub mod pallet {
 					}
 				}
 			}
-			let xcm_version = T::AdvertizeXcmVersion::get();
+			let xcm_version = T::AdvertisedXcmVersion::get();
 			let response = Response::Version(xcm_version);
 			for (key, mut value) in VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION) {
 				if value.2 == xcm_version {
@@ -769,9 +774,9 @@ pub mod pallet {
 			let versioned_dest = VersionedMultiLocation::from(dest.clone());
 			let already = VersionNotifiers::<T>::contains_key(XCM_VERSION, &versioned_dest);
 			ensure!(!already, XcmError::InvalidLocation);
-			let query_id = QueryCount::<T>::mutate(|q| {
+			let query_id = QueryCounter::<T>::mutate(|q| {
 				let r = *q;
-				*q += 1;
+				q.saturating_inc();
 				r
 			});
 			// TODO #3735: Correct weight.
@@ -818,9 +823,9 @@ pub mod pallet {
 			maybe_notify: Option<(u8, u8)>,
 			timeout: T::BlockNumber,
 		) -> u64 {
-			QueryCount::<T>::mutate(|q| {
+			QueryCounter::<T>::mutate(|q| {
 				let r = *q;
-				*q += 1;
+				q.saturating_inc();
 				Queries::<T>::insert(
 					r,
 					QueryStatus::Pending { responder: responder.into(), maybe_notify, timeout },
@@ -967,7 +972,7 @@ pub mod pallet {
 			let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest);
 			ensure!(!already, XcmError::InvalidLocation);
 
-			let xcm_version = T::AdvertizeXcmVersion::get();
+			let xcm_version = T::AdvertisedXcmVersion::get();
 			let response = Response::Version(xcm_version);
 			let instruction = QueryResponse { query_id, response, max_weight };
 			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![instruction]))?;
@@ -977,13 +982,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Stop notifying `location` should the XCM change. Returns an error if there is no existing
-		/// notification set up.
+		/// Stop notifying `location` should the XCM change. This is a no-op if there was never a
+		/// subscription.
 		fn stop(dest: &MultiLocation) -> XcmResult {
-			let versioned_dest = LatestVersionedMultiLocation(dest);
-			let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest);
-			ensure!(already, XcmError::InvalidLocation);
-			VersionNotifyTargets::<T>::remove(XCM_VERSION, versioned_dest);
+			VersionNotifyTargets::<T>::remove(XCM_VERSION, LatestVersionedMultiLocation(dest));
 			Ok(())
 		}
 	}

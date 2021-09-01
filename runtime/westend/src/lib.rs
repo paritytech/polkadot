@@ -951,10 +951,6 @@ pub type LocalOriginToLocation = (
 	SignedToAccountId32<Origin, AccountId, WestendNetwork>,
 );
 
-parameter_types! {
-	pub const VersionDiscoveryQueueSize: u32 = 100;
-}
-
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
@@ -970,8 +966,8 @@ impl pallet_xcm::Config for Runtime {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type Call = Call;
-	type VersionDiscoveryQueueSize = VersionDiscoveryQueueSize;
-	type AdvertizeXcmVersion = pallet_xcm::CurrentXcmVersion;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 construct_runtime! {

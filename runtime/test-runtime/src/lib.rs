@@ -500,10 +500,6 @@ parameter_types! {
 
 pub type LocalOriginToLocation = xcm_builder::SignedToAccountId32<Origin, AccountId, AnyNetwork>;
 
-parameter_types! {
-	pub const VersionDiscoveryQueueSize: u32 = 100;
-}
-
 impl pallet_xcm::Config for Runtime {
 	// The config types here are entirely configurable, since the only one that is sorely needed
 	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
@@ -519,8 +515,8 @@ impl pallet_xcm::Config for Runtime {
 	type XcmReserveTransferFilter = Everything;
 	type Origin = Origin;
 	type Call = Call;
-	type VersionDiscoveryQueueSize = VersionDiscoveryQueueSize;
-	type AdvertizeXcmVersion = pallet_xcm::CurrentXcmVersion;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 impl parachains_hrmp::Config for Runtime {
