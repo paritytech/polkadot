@@ -214,7 +214,7 @@ build-malus:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   script:
-    - time cargo build --release --verbose -p polkadot-test-malus
+    - time cargo build --release --verbose -p polkadot-test-malus --features disputes
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
