@@ -645,10 +645,6 @@ pub mod pallet {
 		/// - `origin`: Must be Root.
 		/// - `location`: The destination that is being described.
 		/// - `xcm_version`: The latest version of XCM that `location` supports.
-		///
-		/// Errors:
-		/// - `BadLocation`: If the `location` cannot be expressed with the XCM version used by this
-		///   chain.
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_xcm_version(
 			origin: OriginFor<T>,
@@ -780,34 +776,31 @@ pub mod pallet {
 			}
 
 			let xcm_version = T::AdvertisedXcmVersion::get();
-			let response = Response::Version(xcm_version);
 
 			if stage == NotifyCurrentTargets {
-				for (key, mut value) in VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION) {
+				for (key, value) in VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION) {
+					let (query_id, max_weight, mut target_xcm_version) = value;
 					let new_key: MultiLocation =
-						match (value.2 == xcm_version, key.clone().try_into()) {
-							(false, Ok(k)) => k,
+						match key.clone().try_into() {
+							Ok(k) if target_xcm_version != xcm_version => k,
 							_ => {
-								// We don't early return here since we need to be certain that we make some
-								// progress.
+								// We don't early return here since we need to be certain that we
+								// make some progress.
 								weight_used.saturating_accrue(todo_vnt_already_notified_weight);
 								continue
 							},
 						};
-					value.2 = xcm_version;
-					let message = Xcm(vec![QueryResponse {
-						query_id: value.0,
-						response: response.clone(),
-						max_weight: value.1,
-					}]);
+					let response = Response::Version(xcm_version);
+					let message = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
 					let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
 						Ok(()) => {
+							let value = (query_id, max_weight, xcm_version);
 							VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
 							Event::VersionChangeNotified(new_key, xcm_version)
 						},
 						Err(e) => {
 							VersionNotifyTargets::<T>::remove(XCM_VERSION, key);
-							Event::NotifyTargetSendFail(new_key, value.0, e.into())
+							Event::NotifyTargetSendFail(new_key, query_id, e.into())
 						},
 					};
 					Self::deposit_event(event);
@@ -820,7 +813,8 @@ pub mod pallet {
 			}
 			if stage == MigrateAndNotifyOldTargets {
 				for v in 0..XCM_VERSION {
-					for (old_key, mut value) in VersionNotifyTargets::<T>::drain_prefix(v) {
+					for (old_key, value) in VersionNotifyTargets::<T>::drain_prefix(v) {
+						let (query_id, max_weight, mut target_xcm_version) = value;
 						let new_key = match MultiLocation::try_from(old_key.clone()) {
 							Ok(k) => k,
 							Err(()) => {
@@ -836,27 +830,23 @@ pub mod pallet {
 						};
 
 						let versioned_key = LatestVersionedMultiLocation(&new_key);
-						if value.2 == xcm_version {
+						if target_xcm_version == xcm_version {
 							VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
 							weight_used.saturating_accrue(todo_vnt_migrate_weight);
 						} else {
 							// Need to notify target.
-							value.2 = xcm_version;
-							let message = Xcm(vec![QueryResponse {
-								query_id: value.0,
-								response: response.clone(),
-								max_weight: value.1,
-							}]);
+							let response = Response::Version(xcm_version);
+							let message = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
 							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
 								Ok(()) => {
 									VersionNotifyTargets::<T>::insert(
 										XCM_VERSION,
 										versioned_key,
-										value,
+										(query_id, max_weight, xcm_version),
 									);
 									Event::VersionChangeNotified(new_key, xcm_version)
 								},
-								Err(e) => Event::NotifyTargetSendFail(new_key, value.0, e.into()),
+								Err(e) => Event::NotifyTargetSendFail(new_key, query_id, e.into()),
 							};
 							Self::deposit_event(event);
 							weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
@@ -1062,7 +1052,7 @@ pub mod pallet {
 	impl<T: Config> VersionChangeNotifier for Pallet<T> {
 		/// Start notifying `location` should the XCM version of this chain change.
 		///
-		/// When it does, this type should ensure an `QueryResponse` message is sent with the given
+		/// When it does, this type should ensure a `QueryResponse` message is sent with the given
 		/// `query_id` & `max_weight` and with a `response` of `Repsonse::Version`. This should happen
 		/// until/unless `stop` is called with the correct `query_id`.
 		///

@@ -47,7 +47,7 @@ impl OnResponse for () {
 pub trait VersionChangeNotifier {
 	/// Start notifying `location` should the XCM version of this chain change.
 	///
-	/// When it does, this type should ensure an `QueryResponse` message is sent with the given
+	/// When it does, this type should ensure a `QueryResponse` message is sent with the given
 	/// `query_id` & `max_weight` and with a `response` of `Repsonse::Version`. This should happen
 	/// until/unless `stop` is called with the correct `query_id`.
 	///
