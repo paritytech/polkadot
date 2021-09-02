@@ -14,22 +14,26 @@ extra-args = ["--alice"]
 validator = true
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
 command = "/usr/local/bin/malus"
-extra-args = ["back-garbage-candidate", "--bob"]
+subcommand = "back-garbage-candidate"
+extra-args = ["--bob"]
 
 [nodes.charlie]
 validator = true
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
 command = "/usr/local/bin/malus"
-extra-args = ["back-garbage-candidate", "--charlie"]
+subcommand = "back-garbage-candidate"
+extra-args = ["--charlie"]
 
 [nodes.david]
 validator = true
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
 command = "/usr/local/bin/malus"
-extra-args = ["back-garbage-candidate", "--dave"]
+subcommand = "back-garbage-candidate"
+extra-args = ["--dave"]
 
 [nodes.eve]
 validator = true
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
 command = "/usr/local/bin/malus"
-extra-args = ["suggest-garbage-candidate","--eve"]
+subcommand = "suggest-garbage-candidate"
+extra-args = ["--eve"]
