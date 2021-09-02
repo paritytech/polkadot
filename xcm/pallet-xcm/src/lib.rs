@@ -780,16 +780,15 @@ pub mod pallet {
 			if stage == NotifyCurrentTargets {
 				for (key, value) in VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION) {
 					let (query_id, max_weight, mut target_xcm_version) = value;
-					let new_key: MultiLocation =
-						match key.clone().try_into() {
-							Ok(k) if target_xcm_version != xcm_version => k,
-							_ => {
-								// We don't early return here since we need to be certain that we
-								// make some progress.
-								weight_used.saturating_accrue(todo_vnt_already_notified_weight);
-								continue
-							},
-						};
+					let new_key: MultiLocation = match key.clone().try_into() {
+						Ok(k) if target_xcm_version != xcm_version => k,
+						_ => {
+							// We don't early return here since we need to be certain that we
+							// make some progress.
+							weight_used.saturating_accrue(todo_vnt_already_notified_weight);
+							continue
+						},
+					};
 					let response = Response::Version(xcm_version);
 					let message = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
 					let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
@@ -836,7 +835,8 @@ pub mod pallet {
 						} else {
 							// Need to notify target.
 							let response = Response::Version(xcm_version);
-							let message = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+							let message =
+								Xcm(vec![QueryResponse { query_id, response, max_weight }]);
 							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
 								Ok(()) => {
 									VersionNotifyTargets::<T>::insert(
