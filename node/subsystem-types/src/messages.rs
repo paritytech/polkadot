@@ -189,7 +189,7 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 /// Messages received by the dispute coordinator subsystem.
 #[derive(Debug)]
 pub enum DisputeCoordinatorMessage {
-	/// Import a statement by a validator about a candidate.
+	/// Import statements by validators about a candidate.
 	///
 	/// The subsystem will silently discard ancient statements or sets of only dispute-specific statements for
 	/// candidates that are previously unknown to the subsystem. The former is simply because ancient
@@ -251,12 +251,12 @@ pub enum DisputeCoordinatorMessage {
 	/// is typically the number of the last finalized block but may be slightly higher. This block
 	/// is inevitably going to be finalized so it is not accounted for by this function.
 	DetermineUndisputedChain {
-		/// The number of the lowest possible block to vote on.
-		base_number: BlockNumber,
+		/// The lowest possible block to vote on.
+		base: (BlockNumber, Hash),
 		/// Descriptions of all the blocks counting upwards from the block after the base number
 		block_descriptions: Vec<BlockDescription>,
-		/// A response channel - `None` to vote on base, `Some` to vote higher.
-		tx: oneshot::Sender<Option<(BlockNumber, Hash)>>,
+		/// The block to vote on, might be base in case there is no better.
+		tx: oneshot::Sender<(BlockNumber, Hash)>,
 	},
 }
 
