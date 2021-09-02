@@ -152,7 +152,7 @@ impl Contains<Call> for BaseFilter {
 			Call::Bounties(_) |
 			Call::Tips(_) |
 			Call::ElectionProviderMultiPhase(_) |
-			Call::BagsList(_) => true, // TODO double check if this line should be added
+			Call::BagsList(_) => true,
 		}
 	}
 }
@@ -426,6 +426,7 @@ impl pallet_bags_list::Config for Runtime {
 	type BagThresholds = BagThresholds;
 }
 
+
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
 // re-built in case input parameters have changed. The `ideal_stake` should be determined by the
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
@@ -458,10 +459,6 @@ type SlashCancelOrigin = EnsureOneOf<
 	pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>,
 >;
 
-parameter_types! {
-	pub const VoterBagThresholds: &'static [u64] = &voter_bags::THRESHOLDS;
-}
-
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 =
 		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
@@ -486,7 +483,7 @@ impl pallet_staking::Config for Runtime {
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<
 			pallet_election_provider_multi_phase::OnChainConfig<Self>,
 		>;
-	type SortedListProvider = BagsList; // TODO do we want this or stub? If stub we should test that there are no issues
+	type SortedListProvider = BagsList;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -1497,7 +1494,6 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_treasury, Treasury);
 			list_benchmark!(list, extra, pallet_utility, Utility);
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
-			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1566,7 +1562,6 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_treasury, Treasury);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
-			add_benchmark!(params, batches, pallet_bags_list, BagsList);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

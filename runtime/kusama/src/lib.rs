@@ -497,10 +497,6 @@ type SlashCancelOrigin = EnsureOneOf<
 	pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>,
 >;
 
-parameter_types! {
-	pub const VoterBagThresholds: &'static [u64] = &voter_bags::THRESHOLDS;
-}
-
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 =
 		<NposCompactSolution24 as sp_npos_elections::NposSolution>::LIMIT as u32;
