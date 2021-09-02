@@ -290,11 +290,11 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd)]
+	#[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd)]
 	pub enum VersionMigrationStage {
 		MigrateSupportedVersion,
 		MigrateVersionNotifiers,
-		NotifyCurrentTargets,
+		NotifyCurrentTargets(Option<Vec<u8>>),
 		MigrateAndNotifyOldTargets,
 	}
 
@@ -772,14 +772,18 @@ pub mod pallet {
 						}
 					}
 				}
-				stage = NotifyCurrentTargets;
+				stage = NotifyCurrentTargets(None);
 			}
 
 			let xcm_version = T::AdvertisedXcmVersion::get();
 
-			if stage == NotifyCurrentTargets {
-				for (key, value) in VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION) {
-					let (query_id, max_weight, mut target_xcm_version) = value;
+			if let NotifyCurrentTargets(maybe_last_raw_key) = stage {
+				let mut iter = match maybe_last_raw_key {
+					Some(k) => VersionNotifyTargets::<T>::iter_prefix_from(XCM_VERSION, k),
+					None => VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION),
+				};
+				while let Some((key, value)) = iter.next() {
+					let (query_id, max_weight, target_xcm_version) = value;
 					let new_key: MultiLocation = match key.clone().try_into() {
 						Ok(k) if target_xcm_version != xcm_version => k,
 						_ => {
@@ -805,7 +809,8 @@ pub mod pallet {
 					Self::deposit_event(event);
 					weight_used.saturating_accrue(todo_vnt_notify_weight);
 					if weight_used >= weight_cutoff {
-						return (weight_used, Some(stage))
+						let last = Some(iter.last_raw_key().into());
+						return (weight_used, Some(NotifyCurrentTargets(last)));
 					}
 				}
 				stage = MigrateAndNotifyOldTargets;
@@ -813,7 +818,7 @@ pub mod pallet {
 			if stage == MigrateAndNotifyOldTargets {
 				for v in 0..XCM_VERSION {
 					for (old_key, value) in VersionNotifyTargets::<T>::drain_prefix(v) {
-						let (query_id, max_weight, mut target_xcm_version) = value;
+						let (query_id, max_weight, target_xcm_version) = value;
 						let new_key = match MultiLocation::try_from(old_key.clone()) {
 							Ok(k) => k,
 							Err(()) => {
