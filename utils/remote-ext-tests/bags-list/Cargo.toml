@@ -18,7 +18,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = { version = "1", feature="macros" }
+tokio = { version = "1", feature = ["macros"] }
 log = { version = "0.4.14" }
 
 [features]

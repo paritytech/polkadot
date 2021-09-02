@@ -3411,7 +3411,7 @@ dependencies = [
  "pallet-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-bounties 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-collective 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
@@ -7553,7 +7553,7 @@ dependencies = [
  "pallet-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-bounties 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-collective 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
@@ -12872,7 +12872,7 @@ version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f559b464de2e2bdabcac6a210d12e9b5a5973c251e102c44c585c71d51bd78e"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if 0.1.10",
  "rand 0.8.4",
  "static_assertions",
 ]
@@ -13464,7 +13464,7 @@ dependencies = [
  "pallet-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-collective 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-democracy 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
