@@ -16,8 +16,15 @@
 
 //! Remote tests.
 
-#[cfg(feature = "kusama")]
-mod kusama_runtime;
-#[cfg(feature = "polkadot")]
-mod polkadot_runtime;
 mod voter_bags;
+
+#[tokio::main]
+async fn main() {
+	if cfg!(feature = "polkadot") {
+		use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
+		voter_bags::test_voter_bags_migration::<Runtime, Block>(UNITS as u64).await;
+	} else {
+		use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
+		voter_bags::test_voter_bags_migration::<Runtime, Block>(UNITS as u64).await;
+	}
+}

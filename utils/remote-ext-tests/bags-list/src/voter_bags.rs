@@ -18,7 +18,7 @@
 
 use frame_election_provider_support::SortedListProvider;
 use frame_support::traits::Get;
-use pallet_staking::{MinNominatorBond, Nominators};
+use pallet_staking::{BalanceOf, MinNominatorBond, Nominators};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_runtime::traits::Block as BlockT;
 use sp_std::convert::TryInto;
@@ -75,7 +75,8 @@ pub(crate) async fn test_voter_bags_migration<
 		assert_eq!(pre_migrate_nominator_count, voter_list_len);
 		assert_eq!(pre_migrate_nominator_count, voter_list_count);
 
-		let min_nominator_bond = <MinNominatorBond<Runtime>>::get().unwrap();
+		let min_nominator_bond = <MinNominatorBond<Runtime>>::get();
+		log::info!(target: LOG_TARGET, "min nominator bond is {:?}", min_nominator_bond);
 
 		// go through every bag to track the total number of voters within bags
 		// and log some info about how voters are distributed within the bags.
@@ -95,9 +96,17 @@ pub(crate) async fn test_voter_bags_migration<
 
 			let voters_in_bag = bag.iter().count() as u32;
 
-			if vote_weight_thresh <= min_nominator_bond {
-				for id in bag.iter().map(|node| node.id()) {
-					log::info!("{} Account found below min bond: {:?}.", threshold, id);
+			// if this bag is below the min nominator bond print out all the members
+			let vote_weight_as_balance: BalanceOf<Runtime> =
+				(*vote_weight_thresh).try_into().map_err(|_| "should not fail").unwrap();
+			if vote_weight_as_balance <= min_nominator_bond {
+				for id in bag.iter().map(|node| node.id().clone()) {
+					log::warn!(
+						target: LOG_TARGET,
+						"{} Account found below min bond: {:?}.",
+						pretty_thresh,
+						id
+					);
 				}
 			}
 
