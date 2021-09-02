@@ -7688,6 +7688,7 @@ version = "0.9.9"
 dependencies = [
  "bitvec 0.20.1",
  "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "frame-support-test",
  "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
@@ -7697,6 +7698,7 @@ dependencies = [
  "log",
  "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-beefy-mmr",
  "pallet-election-provider-multi-phase 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",

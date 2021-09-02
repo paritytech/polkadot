@@ -482,7 +482,7 @@ impl pallet_staking::Config for Runtime {
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<
 			pallet_election_provider_multi_phase::OnChainConfig<Self>,
 		>;
-	type SortedListProvider = BagsList;
+	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
