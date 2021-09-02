@@ -14,13 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::mock::*;
-use crate::VersionNotifyTargets;
+use crate::{mock::*, VersionNotifyTargets};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use std::convert::TryInto;
+use xcm::{v1::prelude::*, VersionedMultiLocation, VersionedXcm};
 use xcm_executor::XcmExecutor;
-use xcm::{v1::prelude::*, VersionedXcm, VersionedMultiLocation};
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -220,9 +219,7 @@ fn subscriptions_work() {
 		contents.sort_by_key(|k| k.2);
 		assert_eq!(
 			contents,
-			vec![
-				(1, VersionedMultiLocation::from(Parachain(1000).into()), (69, 42, 1)),
-			]
+			vec![(1, VersionedMultiLocation::from(Parachain(1000).into()), (69, 42, 1)),]
 		);
 
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote, message, weight);

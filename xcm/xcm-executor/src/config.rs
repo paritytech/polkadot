@@ -16,7 +16,7 @@
 
 use crate::traits::{
 	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
-	WeightBounds, WeightTrader, VersionChangeNotifier,
+	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},

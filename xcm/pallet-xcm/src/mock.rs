@@ -24,7 +24,13 @@ use xcm::{
 	latest::prelude::*,
 	opaque::latest::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
 };
-use xcm_builder::{AccountId32Aliases, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit};
+use xcm_builder::{
+	AccountId32Aliases, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
+	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
+	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	TakeWeightCredit,
+};
 use xcm_executor::XcmExecutor;
 
 use crate as pallet_xcm;

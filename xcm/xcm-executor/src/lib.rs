@@ -30,7 +30,7 @@ use xcm::latest::{
 pub mod traits;
 use traits::{
 	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
-	WeightBounds, WeightTrader, VersionChangeNotifier,
+	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;

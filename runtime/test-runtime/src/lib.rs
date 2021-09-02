@@ -35,7 +35,10 @@ use polkadot_runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_support::{construct_runtime, parameter_types, traits::{KeyOwnerProofSystem, Everything}};
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{Everything, KeyOwnerProofSystem},
+};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;

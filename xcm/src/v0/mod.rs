@@ -380,7 +380,7 @@ impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
 				who: MultiLocation1 { interior: who, parents: 0 }.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
-			Xcm1::SubscribeVersion{..} | Xcm1::UnsubscribeVersion => return Err(()),
+			Xcm1::SubscribeVersion { .. } | Xcm1::UnsubscribeVersion => return Err(()),
 		})
 	}
 }

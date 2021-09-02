@@ -33,8 +33,10 @@ use sp_std::{
 	prelude::*,
 	vec,
 };
-use xcm::latest::prelude::*;
-use xcm::{VersionedMultiAssets, VersionedMultiLocation, VersionedXcm, Version as XcmVersion};
+use xcm::{
+	latest::prelude::*, Version as XcmVersion, VersionedMultiAssets, VersionedMultiLocation,
+	VersionedXcm,
+};
 use xcm_executor::traits::{ConvertOrigin, VersionChangeNotifier};
 
 use frame_support::PalletId;
@@ -392,7 +394,10 @@ pub mod pallet {
 		/// Stop notifying `location` should the XCM change. This is a no-op if there was never a
 		/// subscription.
 		fn stop(dest: &MultiLocation) -> XcmResult {
-			VersionNotifyTargets::<T>::remove(XCM_VERSION, VersionedMultiLocation::from(dest.clone()));
+			VersionNotifyTargets::<T>::remove(
+				XCM_VERSION,
+				VersionedMultiLocation::from(dest.clone()),
+			);
 			Ok(())
 		}
 	}
