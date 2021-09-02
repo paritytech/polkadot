@@ -35,12 +35,12 @@ use polkadot_node_subsystem::overseer::SubsystemSender;
 
 // Import extra types relevant to the particular
 // subsystem.
-use polkadot_node_core_backing::{CandidateBackingSubsystem, Metrics as CandidateBackingMetrics};
+use polkadot_node_core_backing::CandidateBackingSubsystem;
 use polkadot_node_subsystem::messages::{CandidateBackingMessage, DisputeCoordinatorMessage};
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v1::CandidateReceipt;
 use sp_keystore::SyncCryptoStorePtr;
-use util::{metered, metrics::Metrics as _};
+use util::metered;
 
 use futures_timer::Delay;
 use std::{sync::Arc, time::Duration};
@@ -111,7 +111,7 @@ impl OverseerGen for DisputeAncestor {
 
 		let coll = TrackCollations { sink };
 
-		let metrics = CandidateBackingMetrics::register(registry).unwrap();
+		let metrics = Default::default(); // FIXME: pass the real metrics
 
 		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
 

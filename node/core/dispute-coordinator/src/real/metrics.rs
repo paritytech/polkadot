@@ -18,7 +18,7 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 #[derive(Clone)]
 struct MetricsInner {
-	/// Rolling counter value of currently open disputes .
+	/// Rolling counter value of currently open disputes.
 	open: prometheus::Gauge<prometheus::U64>,
 	/// Votes of all disputes.
 	votes: prometheus::CounterVec<prometheus::U64>,
@@ -78,7 +78,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
 						"parachain_candidate_dispute_concluded",
-						"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
+						"Concluded dispute votes, sorted by candidate is `valid` and `invalid`.",
 					),
 					&["validity"],
 				)?,

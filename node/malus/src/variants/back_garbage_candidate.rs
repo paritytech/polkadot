@@ -29,12 +29,11 @@ use polkadot_cli::{
 
 // Import extra types relevant to the particular
 // subsystem.
-use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
+use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 use polkadot_node_subsystem::messages::{
 	AvailabilityRecoveryMessage, CandidateValidationMessage, ValidationFailed,
 };
 use polkadot_node_subsystem_util as util;
-use util::metrics::Metrics as _;
 
 // Filter wrapping related types.
 use crate::{interceptor::*, shared::*};
@@ -213,8 +212,8 @@ impl OverseerGen for BackGarbageCandidate {
 			FilteredSubsystem::new(
 				CandidateValidationSubsystem::with_config(
 					candidate_validation_config,
-					Metrics::register(registry)?,
-					polkadot_node_core_pvf::Metrics::register(registry)?,
+					Default::default(), // FIXME: pass the real metrics
+					Default::default(),
 				),
 				BribedPassage::<Spawner> {
 					inner: Arc::new(Mutex::new(BribedPassageInner {

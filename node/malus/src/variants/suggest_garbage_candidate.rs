@@ -32,7 +32,7 @@ use polkadot_cli::{
 
 // Import extra types relevant to the particular
 // subsystem.
-use polkadot_node_core_backing::{CandidateBackingSubsystem, Metrics};
+use polkadot_node_core_backing::CandidateBackingSubsystem;
 use polkadot_node_primitives::Statement;
 use polkadot_node_subsystem::{
 	messages::{CandidateBackingMessage, StatementDistributionMessage},
@@ -46,7 +46,7 @@ use polkadot_primitives::v1::{
 	Signed,
 };
 use sp_keystore::SyncCryptoStorePtr;
-use util::{metered, metrics::Metrics as _};
+use util::metered;
 
 use std::sync::Arc;
 
@@ -123,7 +123,7 @@ impl OverseerGen for SuggestGarbageCandidate {
 				CandidateBackingSubsystem::new(
 					spawner.clone(),
 					keystore.clone(),
-					Metrics::register(registry)?,
+					Default::default(), // FIXME: pass the real metrics
 				),
 				filter.clone(),
 			),
