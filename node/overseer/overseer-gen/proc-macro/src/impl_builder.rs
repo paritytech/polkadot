@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::Ident;
 
 use super::*;
@@ -29,6 +29,11 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let handle = Ident::new(&(overseer_name.to_string() + "Handle"), overseer_name.span());
 
 	let subsystem_name = &info.subsystem_names_without_wip();
+	let subsystem_name_init_with = &info
+		.subsystem_names_without_wip()
+		.iter()
+		.map(|subsystem_name| format_ident!("{}_with", subsystem_name))
+		.collect::<Vec<_>>();
 	let builder_generic_ty = &info.builder_generic_types();
 
 	let channel_name = &info.channel_names_without_wip("");
@@ -106,10 +111,29 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		/// Handle for an overseer.
 		pub type #handle = #support_crate ::metered::MeteredSender< #event >;
 
+		/// Convenience alias.
+		type SubsystemInitFn<T> = Box<dyn FnOnce(#handle) -> ::std::result::Result<T, #error_ty> >;
+
+		/// Init kind of a field of the overseer.
+		enum FieldInitMethod<T> {
+			/// Defer initialization to a point where the `handle` is available.
+			Fn(SubsystemInitFn<T>),
+			/// Directly initialize the subsystem with the given subsystem type `T`.
+			Value(T),
+			/// Subsystem field does not have value just yet.
+			Uninitialized
+		}
+
+		impl<T> ::std::default::Default for FieldInitMethod<T> {
+			fn default() -> Self {
+				Self::Uninitialized
+			}
+		}
+
 		#[allow(missing_docs)]
 		pub struct #builder #builder_generics {
 			#(
-				#subsystem_name : ::std::option::Option< #builder_generic_ty >,
+				#subsystem_name : FieldInitMethod< #builder_generic_ty >,
 			)*
 			#(
 				#baggage_name : ::std::option::Option< #baggage_ty >,
@@ -129,7 +153,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 				Self {
 				#(
-					#subsystem_name: None,
+					#subsystem_name: Default::default(),
 				)*
 				#(
 					#baggage_name: None,
@@ -152,7 +176,18 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			#(
 				/// Specify the particular subsystem implementation.
 				pub fn #subsystem_name (mut self, subsystem: #builder_generic_ty ) -> Self {
-					self. #subsystem_name = Some( subsystem );
+					self. #subsystem_name = FieldInitMethod::Value( subsystem );
+					self
+				}
+
+				/// Specify the particular subsystem by giving a init function.
+				pub fn #subsystem_name_init_with <'a, F> (mut self, subsystem_init_fn: F ) -> Self
+				where
+					F: 'static + FnOnce(#handle) -> ::std::result::Result<#builder_generic_ty, #error_ty>,
+				{
+					self. #subsystem_name = FieldInitMethod::Fn(
+						Box::new(subsystem_init_fn) as SubsystemInitFn<#builder_generic_ty>
+					);
 					self
 				}
 			)*
@@ -212,7 +247,12 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				#(
 					// TODO generate a builder pattern that ensures this
 					// TODO https://github.com/paritytech/polkadot/issues/3427
-					let #subsystem_name = self. #subsystem_name .expect("All subsystem must exist with the builder pattern.");
+					let #subsystem_name = match self. #subsystem_name {
+						 FieldInitMethod::Fn(func) => func(handle.clone())?,
+						FieldInitMethod::Value(val) => val,
+						FieldInitMethod::Uninitialized =>
+							panic!("All subsystems must exist with the builder pattern."),
+					};
 
 					let unbounded_meter = #channel_name_unbounded_rx.meter().clone();
 
