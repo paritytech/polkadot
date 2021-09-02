@@ -280,4 +280,5 @@ impl Config for TestConfig {
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
+	type SubscriptionService = (); // TODO: TestSubscriptionService
 }

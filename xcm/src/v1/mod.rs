@@ -45,6 +45,9 @@ pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 // These parts of XCM v0 have been unchanged in XCM v1, and are re-imported here.
 pub use super::v0::{BodyId, BodyPart, NetworkId, OriginKind};
 
+/// This module's XCM version.
+pub const VERSION: super::Version = 1;
+
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
@@ -73,6 +76,7 @@ pub mod prelude {
 		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
 		OriginKind, Response,
 		Xcm::{self, *},
+		VERSION as XCM_VERSION,
 	};
 }
 
@@ -81,6 +85,8 @@ pub mod prelude {
 pub enum Response {
 	/// Some assets.
 	Assets(MultiAssets),
+	/// An XCM version.
+	Version(super::Version),
 }
 
 /// Cross-Consensus Message: A message from one consensus system to another.
@@ -272,6 +278,25 @@ pub enum Xcm<Call> {
 	/// Errors:
 	#[codec(index = 10)]
 	RelayedFrom { who: Junctions, message: alloc::boxed::Box<Xcm<Call>> },
+
+	/// Ask the destination system to respond with the most recent version of XCM that they
+	/// support in a `QueryResponse` instruction. Any changes to this should also elicit similar
+	/// responses when they happen.
+	///
+	/// Kind: *Instruction*
+	#[codec(index = 11)]
+	SubscribeVersion {
+		#[codec(compact)]
+		query_id: u64,
+		#[codec(compact)]
+		max_response_weight: u64,
+	},
+
+	/// Cancel the effect of a previous `SubscribeVersion` instruction.
+	///
+	/// Kind: *Instruction*
+	#[codec(index = 12)]
+	UnsubscribeVersion,
 }
 
 impl<Call> Xcm<Call> {
@@ -304,6 +329,9 @@ impl<Call> Xcm<Call> {
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			RelayedFrom { who, message } =>
 				RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
+			SubscribeVersion { query_id, max_response_weight } =>
+				SubscribeVersion { query_id, max_response_weight },
+			UnsubscribeVersion => UnsubscribeVersion,
 		}
 	}
 }

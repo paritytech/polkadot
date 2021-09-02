@@ -667,6 +667,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = ();
+	type SubscriptionService = XcmPallet;
 }
 
 parameter_types! {

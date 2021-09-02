@@ -33,8 +33,11 @@ use sp_std::{
 	prelude::*,
 	vec,
 };
-use xcm::{latest::prelude::*, VersionedMultiAssets, VersionedMultiLocation, VersionedXcm};
-use xcm_executor::traits::ConvertOrigin;
+use xcm::{
+	latest::prelude::*, Version as XcmVersion, VersionedMultiAssets, VersionedMultiLocation,
+	VersionedXcm,
+};
+use xcm_executor::traits::{ConvertOrigin, VersionChangeNotifier};
 
 use frame_support::PalletId;
 pub use pallet::*;
@@ -117,6 +120,19 @@ pub mod pallet {
 		/// The version of the `Versioned` value used is not able to be interpreted.
 		BadVersion,
 	}
+
+	/// The target locations that are subscribed to our version changes, as well as the most recent
+	/// of our versions we informed them of.
+	#[pallet::storage]
+	pub(super) type VersionNotifyTargets<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		XcmVersion,
+		Blake2_128Concat,
+		VersionedMultiLocation,
+		(u64, u64, XcmVersion),
+		OptionQuery,
+	>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
@@ -348,6 +364,41 @@ pub mod pallet {
 		pub fn check_account() -> T::AccountId {
 			const ID: PalletId = PalletId(*b"py/xcmch");
 			AccountIdConversion::<T::AccountId>::into_account(&ID)
+		}
+	}
+
+	impl<T: Config> VersionChangeNotifier for Pallet<T> {
+		/// Start notifying `location` should the XCM version of this chain change.
+		///
+		/// When it does, this type should ensure an `QueryResponse` message is sent with the given
+		/// `query_id` & `max_weight` and with a `response` of `Repsonse::Version`. This should happen
+		/// until/unless `stop` is called with the correct `query_id`.
+		///
+		/// If the `location` has an ongoing notification and when this function is called, then an
+		/// error should be returned.
+		fn start(dest: &MultiLocation, query_id: u64, max_weight: u64) -> XcmResult {
+			let versioned_dest: VersionedMultiLocation = dest.clone().into();
+			let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, &versioned_dest);
+			ensure!(!already, XcmError::InvalidLocation);
+
+			let xcm_version = XCM_VERSION;
+			let response = Response::Version(xcm_version);
+			let message = QueryResponse { query_id, response };
+			T::XcmRouter::send_xcm(dest.clone(), message)?;
+
+			let value = (query_id, max_weight, xcm_version);
+			VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_dest, value);
+			Ok(())
+		}
+
+		/// Stop notifying `location` should the XCM change. This is a no-op if there was never a
+		/// subscription.
+		fn stop(dest: &MultiLocation) -> XcmResult {
+			VersionNotifyTargets::<T>::remove(
+				XCM_VERSION,
+				VersionedMultiLocation::from(dest.clone()),
+			);
+			Ok(())
 		}
 	}
 

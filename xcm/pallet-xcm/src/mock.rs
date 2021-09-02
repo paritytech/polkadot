@@ -25,8 +25,8 @@ use xcm::{
 	opaque::latest::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
 };
 use xcm_builder::{
-	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, ChildParachainAsNative,
-	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	AccountId32Aliases, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
+	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
 	TakeWeightCredit,
@@ -154,7 +154,11 @@ parameter_types! {
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 }
 
-pub type Barrier = (TakeWeightCredit, AllowTopLevelPaidExecutionFrom<Everything>);
+pub type Barrier = (
+	TakeWeightCredit,
+	AllowTopLevelPaidExecutionFrom<Everything>,
+	AllowSubscriptionsFrom<Everything>,
+);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -169,6 +173,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 	type Trader = FixedRateOfFungible<CurrencyPerSecond, ()>;
 	type ResponseHandler = ();
+	type SubscriptionService = XcmPallet;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;

@@ -41,7 +41,7 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
-/// Weight functions for pallet_bounties.
+/// Weight functions for `pallet_bounties`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_bounties::WeightInfo for WeightInfo<T> {
 	// Storage: Treasury BountyCount (r:1 w:1)

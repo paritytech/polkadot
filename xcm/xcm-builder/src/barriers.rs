@@ -117,3 +117,23 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 		}
 	}
 }
+
+/// Allows execution from `origin` if it is just a straight `SubscribeVerison` or
+/// `UnsubscribeVersion` instruction.
+pub struct AllowSubscriptionsFrom<T>(PhantomData<T>);
+impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		top_level: bool,
+		message: &Xcm<Call>,
+		_max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> Result<(), ()> {
+		ensure!(T::contains(origin), ());
+		ensure!(top_level, ());
+		match message {
+			Xcm::SubscribeVersion { .. } | Xcm::UnsubscribeVersion => Ok(()),
+			_ => Err(()),
+		}
+	}
+}

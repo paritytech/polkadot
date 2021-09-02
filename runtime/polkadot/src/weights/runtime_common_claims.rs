@@ -41,7 +41,7 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
-/// Weight functions for runtime_common::claims.
+/// Weight functions for `runtime_common::claims`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_common::claims::WeightInfo for WeightInfo<T> {
 	// Storage: Claims Claims (r:1 w:1)

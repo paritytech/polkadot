@@ -91,6 +91,8 @@ pub enum Error {
 	DestinationUnsupported,
 	/// `execute_xcm` has been called too many times recursively.
 	RecursionLimitReached,
+	/// Location given cannot be used as required for the operation.
+	InvalidLocation,
 }
 
 impl From<()> for Error {

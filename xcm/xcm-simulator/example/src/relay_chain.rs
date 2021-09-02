@@ -128,6 +128,7 @@ impl Config for XcmConfig {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
+	type SubscriptionService = XcmPallet;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;

@@ -142,6 +142,7 @@ impl Config for XcmConfig {
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
+	type SubscriptionService = PolkadotXcm;
 }
 
 #[frame_support::pallet]

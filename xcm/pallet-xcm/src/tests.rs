@@ -14,11 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::mock::*;
+use crate::{mock::*, VersionNotifyTargets};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use std::convert::TryInto;
-use xcm::{v1::prelude::*, VersionedXcm};
+use xcm::{v1::prelude::*, VersionedMultiLocation, VersionedXcm};
+use xcm_executor::XcmExecutor;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -199,5 +200,29 @@ fn execute_withdraw_to_deposit_works() {
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
 		);
+	});
+}
+
+#[test]
+fn subscriptions_work() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		let weight = BaseXcmWeight::get();
+		let message = SubscribeVersion { query_id: 69, max_response_weight: 42 };
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message.clone(), weight);
+		assert_eq!(r, Outcome::Complete(weight));
+
+		let reply = QueryResponse { query_id: 69, response: Response::Version(1) };
+		assert_eq!(sent_xcm(), vec![(remote.clone(), reply)]);
+
+		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
+		contents.sort_by_key(|k| k.2);
+		assert_eq!(
+			contents,
+			vec![(1, VersionedMultiLocation::from(Parachain(1000).into()), (69, 42, 1)),]
+		);
+
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote, message, weight);
+		assert_eq!(r, Outcome::Incomplete(weight, XcmError::InvalidLocation));
 	});
 }

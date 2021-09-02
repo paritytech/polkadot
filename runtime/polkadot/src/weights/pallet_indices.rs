@@ -41,7 +41,7 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
-/// Weight functions for pallet_indices.
+/// Weight functions for `pallet_indices`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_indices::WeightInfo for WeightInfo<T> {
 	// Storage: Indices Accounts (r:1 w:1)
