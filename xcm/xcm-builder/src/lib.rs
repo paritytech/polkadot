@@ -41,8 +41,9 @@ pub use origin_conversion::{
 
 mod barriers;
 pub use barriers::{
-	AllowBenchmarks, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, IsChildSystemParachain, TakeWeightCredit,
+	AllowBenchmarks, AllowKnownQueryResponses, AllowSubscriptionsFrom,
+	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, IsChildSystemParachain,
+	TakeWeightCredit,
 };
 
 mod currency_adapter;

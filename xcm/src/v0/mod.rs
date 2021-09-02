@@ -295,7 +295,7 @@ impl<Call> Xcm<Call> {
 			},
 			TeleportAsset { assets, effects } =>
 				TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
-			QueryResponse { query_id: u64, response } => QueryResponse { query_id: u64, response },
+			QueryResponse { query_id, response } => QueryResponse { query_id, response },
 			TransferAsset { assets, dest } => TransferAsset { assets, dest },
 			TransferReserveAsset { assets, dest, effects } =>
 				TransferReserveAsset { assets, dest, effects },
@@ -334,6 +334,7 @@ impl TryFrom<Response1> for Response {
 	fn try_from(new_response: Response1) -> result::Result<Self, ()> {
 		Ok(match new_response {
 			Response1::Assets(assets) => Self::Assets(assets.try_into()?),
+			Response1::Version(..) => return Err(()),
 		})
 	}
 }
@@ -364,8 +365,8 @@ impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			Xcm1::QueryResponse { query_id: u64, response } =>
-				QueryResponse { query_id: u64, response: response.try_into()? },
+			Xcm1::QueryResponse { query_id, response } =>
+				QueryResponse { query_id, response: response.try_into()? },
 			Xcm1::TransferAsset { assets, beneficiary } =>
 				TransferAsset { assets: assets.try_into()?, dest: beneficiary.try_into()? },
 			Xcm1::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
@@ -387,6 +388,7 @@ impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
 				who: MultiLocation1 { interior: who, parents: 0 }.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
+			Xcm1::SubscribeVersion { .. } | Xcm1::UnsubscribeVersion => return Err(()),
 		})
 	}
 }
