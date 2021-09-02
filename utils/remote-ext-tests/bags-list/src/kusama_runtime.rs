@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Remote tests for the kusama runtime.
+//! Remote bags-list tests for the kusama runtime.
 
 use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
+
 #[tokio::test]
 async fn test_voter_bags_migration() {
 	crate::voter_bags::test_voter_bags_migration::<Runtime, Block>(UNITS as u64).await;

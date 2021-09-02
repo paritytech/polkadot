@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Remote tests for the polkadot runtime.
+//! Remote bags-list tests for the polkadot runtime.
+
+use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
 
 #[tokio::test]
 async fn test_voter_bags_migration() {
-	use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
 	crate::voter_bags::test_voter_bags_migration::<Runtime, Block>(UNITS as u64).await;
 }
