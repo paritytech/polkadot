@@ -810,7 +810,7 @@ pub mod pallet {
 					weight_used.saturating_accrue(todo_vnt_notify_weight);
 					if weight_used >= weight_cutoff {
 						let last = Some(iter.last_raw_key().into());
-						return (weight_used, Some(NotifyCurrentTargets(last)));
+						return (weight_used, Some(NotifyCurrentTargets(last)))
 					}
 				}
 				stage = MigrateAndNotifyOldTargets;
