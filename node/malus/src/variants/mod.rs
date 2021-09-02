@@ -18,11 +18,11 @@
 
 mod back_garbage_candidate;
 mod dispute_ancestor;
-mod suggest_garbage_candidate;
 mod dispute_unavailable_block;
+mod suggest_garbage_candidate;
 
 pub(crate) use self::{
 	back_garbage_candidate::BackGarbageCandidate, dispute_ancestor::DisputeAncestor,
-	suggest_garbage_candidate::SuggestGarbageCandidate,
 	dispute_unavailable_block::DisputeUnavailable,
+	suggest_garbage_candidate::SuggestGarbageCandidate,
 };
