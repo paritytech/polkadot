@@ -35,6 +35,7 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::prelude::*;
+use xcm_executor::traits::{ClaimAssets, DropAssets};
 pub use xcm_executor::{
 	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
 	Assets, Config,
@@ -269,6 +270,37 @@ pub type TestBarrier = (
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,
 );
 
+parameter_types! {
+	pub static TrappedAssets: Vec<(MultiLocation, MultiAssets)> = vec![];
+}
+
+pub struct TestAssetTrap;
+
+impl DropAssets for TestAssetTrap {
+	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
+		t.push((origin.clone(), assets.into()));
+		TrappedAssets::set(t);
+		5
+	}
+}
+
+impl ClaimAssets for TestAssetTrap {
+	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool {
+		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
+		if let (0, X1(GeneralIndex(i))) = (ticket.parents, &ticket.interior) {
+			if let Some((l, a)) = t.get(*i as usize) {
+				if l == origin && a == what {
+					t.swap_remove(*i as usize);
+					TrappedAssets::set(t);
+					return true
+				}
+			}
+		}
+		false
+	}
+}
+
 pub struct TestConfig;
 impl Config for TestConfig {
 	type Call = TestCall;
@@ -282,4 +314,6 @@ impl Config for TestConfig {
 	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
+	type AssetTrap = TestAssetTrap;
+	type AssetClaims = TestAssetTrap;
 }

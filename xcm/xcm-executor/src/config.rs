@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::traits::{
-	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
-	WeightBounds, WeightTrader,
+	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
+	ShouldExecute, TransactAsset, WeightBounds, WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
@@ -58,4 +58,11 @@ pub trait Config {
 
 	/// What to do when a response of a query is found.
 	type ResponseHandler: OnResponse;
+
+	/// The general asset trap - handler for when assets are left in the Holding Register at the
+	/// end of execution.
+	type AssetTrap: DropAssets;
+
+	/// The handler for when there is an instruction to claim assets.
+	type AssetClaims: ClaimAssets;
 }

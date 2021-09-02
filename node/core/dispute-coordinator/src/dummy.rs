@@ -244,13 +244,14 @@ async fn handle_incoming(
 		},
 		DisputeCoordinatorMessage::IssueLocalStatement(_, _, _, _) => {},
 		DisputeCoordinatorMessage::DetermineUndisputedChain {
-			base_number,
+			base: (base_number, base_hash),
 			block_descriptions,
 			tx,
 		} => {
 			let undisputed_chain = block_descriptions
 				.last()
-				.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash));
+				.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash))
+				.unwrap_or((base_number, base_hash));
 
 			let _ = tx.send(undisputed_chain);
 		},
