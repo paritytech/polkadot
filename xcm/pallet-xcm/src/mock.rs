@@ -22,11 +22,11 @@ use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 pub use sp_std::{cell::RefCell, fmt::Debug, marker::PhantomData};
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, Case,
-	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
-	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit,
+	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
+	AllowTopLevelPaidExecutionFrom, Case, ChildParachainAsNative, ChildParachainConvertsVia,
+	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible,
+	FixedWeightBounds, IsConcrete, LocationInverter, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 };
 use xcm_executor::XcmExecutor;
 
@@ -133,8 +133,15 @@ construct_runtime!(
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, Xcm<()>)>> = RefCell::new(Vec::new());
 }
-pub fn sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
+pub(crate) fn sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
+}
+pub(crate) fn take_sent_xcm() -> Vec<(MultiLocation, Xcm<()>)> {
+	SENT_XCM.with(|q| {
+		let mut r = Vec::new();
+		std::mem::swap(&mut r, &mut *q.borrow_mut());
+		r
+	})
 }
 /// Sender that never returns error, always sends
 pub struct TestSendXcm;
@@ -236,6 +243,7 @@ pub type Barrier = (
 	TakeWeightCredit,
 	AllowTopLevelPaidExecutionFrom<Everything>,
 	AllowKnownQueryResponses<XcmPallet>,
+	AllowSubscriptionsFrom<Everything>,
 );
 
 pub struct XcmConfig;
@@ -253,9 +261,14 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
+	type SubscriptionService = XcmPallet;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;
+
+parameter_types! {
+	pub static AdvertisedXcmVersion: pallet_xcm::XcmVersion = 2;
+}
 
 impl pallet_xcm::Config for Test {
 	type Event = Event;
@@ -270,6 +283,8 @@ impl pallet_xcm::Config for Test {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type Call = Call;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = AdvertisedXcmVersion;
 }
 
 impl origin::Config for Test {}

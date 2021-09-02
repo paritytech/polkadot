@@ -645,13 +645,14 @@ fn finality_votes_ignore_disputed_candidates() {
 			{
 				let (tx, rx) = oneshot::channel();
 
+				let base_block = Hash::repeat_byte(0x0f);
 				let block_hash_a = Hash::repeat_byte(0x0a);
 				let block_hash_b = Hash::repeat_byte(0x0b);
 
 				virtual_overseer
 					.send(FromOverseer::Communication {
 						msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
-							base_number: 10,
+							base: (10, base_block),
 							block_descriptions: vec![BlockDescription {
 								block_hash: block_hash_a,
 								session,
@@ -662,13 +663,13 @@ fn finality_votes_ignore_disputed_candidates() {
 					})
 					.await;
 
-				assert!(rx.await.unwrap().is_none());
+				assert_eq!(rx.await.unwrap(), (10, base_block));
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
 					.send(FromOverseer::Communication {
 						msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
-							base_number: 10,
+							base: (10, base_block),
 							block_descriptions: vec![
 								BlockDescription {
 									block_hash: block_hash_a,
@@ -686,7 +687,7 @@ fn finality_votes_ignore_disputed_candidates() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), Some((11, block_hash_a)));
+				assert_eq!(rx.await.unwrap(), (11, block_hash_a));
 			}
 
 			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
@@ -777,13 +778,14 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			{
 				let (tx, rx) = oneshot::channel();
 
+				let base_hash = Hash::repeat_byte(0x0f);
 				let block_hash_a = Hash::repeat_byte(0x0a);
 				let block_hash_b = Hash::repeat_byte(0x0b);
 
 				virtual_overseer
 					.send(FromOverseer::Communication {
 						msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
-							base_number: 10,
+							base: (10, base_hash),
 							block_descriptions: vec![BlockDescription {
 								block_hash: block_hash_a,
 								session,
@@ -794,13 +796,13 @@ fn supermajority_valid_dispute_may_be_finalized() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), Some((11, block_hash_a)));
+				assert_eq!(rx.await.unwrap(), (11, block_hash_a));
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
 					.send(FromOverseer::Communication {
 						msg: DisputeCoordinatorMessage::DetermineUndisputedChain {
-							base_number: 10,
+							base: (10, base_hash),
 							block_descriptions: vec![
 								BlockDescription {
 									block_hash: block_hash_a,
@@ -818,7 +820,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), Some((12, block_hash_b)));
+				assert_eq!(rx.await.unwrap(), (12, block_hash_b));
 			}
 
 			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;

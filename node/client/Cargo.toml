@@ -40,6 +40,6 @@ rococo-runtime = { path = "../../runtime/rococo", optional = true }
 polkadot-primitives = { path = "../../primitives" }
 
 [features]
-kusama = [ "kusama-runtime" ]
-rococo = [ "rococo-runtime" ]
-westend = [ "westend-runtime" ]
+kusama = ["kusama-runtime"]
+rococo = ["rococo-runtime"]
+westend = ["westend-runtime"]
