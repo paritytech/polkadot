@@ -425,10 +425,6 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 }
 
-parameter_types! {
-	pub const VoterBagThresholds: &'static [u64] = &voter_bags::THRESHOLDS;
-}
-
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 =
 		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
@@ -1456,7 +1452,6 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_timestamp, Timestamp);
 			list_benchmark!(list, extra, pallet_utility, Utility);
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
-			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1521,7 +1516,6 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
-			add_benchmark!(params, batches, pallet_bags_list, BagsList);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
