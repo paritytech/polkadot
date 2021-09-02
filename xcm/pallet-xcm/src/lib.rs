@@ -292,15 +292,15 @@ pub mod pallet {
 
 	#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd)]
 	pub enum VersionMigrationStage {
-		MigratateSupportedVersion,
-		MigratateVersionNotifiers,
+		MigrateSupportedVersion,
+		MigrateVersionNotifiers,
 		NotifyCurrentTargets,
 		MigrateAndNotifyOldTargets,
 	}
 
 	impl Default for VersionMigrationStage {
 		fn default() -> Self {
-			Self::MigratateSupportedVersion
+			Self::MigrateSupportedVersion
 		}
 	}
 
@@ -748,7 +748,7 @@ pub mod pallet {
 
 			use VersionMigrationStage::*;
 
-			if stage == MigratateSupportedVersion {
+			if stage == MigrateSupportedVersion {
 				// We assume that supported XCM version only ever increases, so just cycle through lower
 				// XCM versioned from the current.
 				for v in 0..XCM_VERSION {
@@ -762,9 +762,9 @@ pub mod pallet {
 						}
 					}
 				}
-				stage = MigratateVersionNotifiers;
+				stage = MigrateVersionNotifiers;
 			}
-			if stage == MigratateVersionNotifiers {
+			if stage == MigrateVersionNotifiers {
 				for v in 0..XCM_VERSION {
 					for (old_key, value) in VersionNotifiers::<T>::drain_prefix(v) {
 						if let Ok(new_key) = old_key.into_latest() {
