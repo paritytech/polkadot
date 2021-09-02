@@ -100,7 +100,7 @@ impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
 }
 
 /// A single `Response` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
