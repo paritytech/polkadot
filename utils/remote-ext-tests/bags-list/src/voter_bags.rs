@@ -18,7 +18,7 @@
 
 use frame_election_provider_support::SortedListProvider;
 use frame_support::traits::Get;
-use pallet_staking::Nominators;
+use pallet_staking::{MinNominatorBond, Nominators};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_runtime::traits::Block as BlockT;
 use sp_std::convert::TryInto;
@@ -75,6 +75,8 @@ pub(crate) async fn test_voter_bags_migration<
 		assert_eq!(pre_migrate_nominator_count, voter_list_len);
 		assert_eq!(pre_migrate_nominator_count, voter_list_count);
 
+		let min_nominator_bond = <MinNominatorBond<Runtime>>::get().unwrap();
+
 		// go through every bag to track the total number of voters within bags
 		// and log some info about how voters are distributed within the bags.
 		let mut seen_in_bags = 0;
@@ -92,6 +94,12 @@ pub(crate) async fn test_voter_bags_migration<
 			};
 
 			let voters_in_bag = bag.iter().count() as u32;
+
+			if vote_weight_thresh <= min_nominator_bond {
+				for id in bag.iter().map(|node| node.id()) {
+					log::info!("{} Account found below min bond: {:?}.", threshold, id);
+				}
+			}
 
 			// update our overall counter
 			seen_in_bags += voters_in_bag;

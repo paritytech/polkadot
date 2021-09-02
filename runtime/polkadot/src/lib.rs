@@ -422,10 +422,9 @@ parameter_types! {
 impl pallet_bags_list::Config for Runtime {
 	type Event = Event;
 	type VoteWeightProvider = Staking;
-	type WeightInfo = (); // TODO
+	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
 	type BagThresholds = BagThresholds;
 }
-
 
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
 // re-built in case input parameters have changed. The `ideal_stake` should be determined by the

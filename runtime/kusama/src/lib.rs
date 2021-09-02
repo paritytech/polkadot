@@ -415,7 +415,7 @@ parameter_types! {
 impl pallet_bags_list::Config for Runtime {
 	type Event = Event;
 	type VoteWeightProvider = Staking;
-	type WeightInfo = (); // TODO
+	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
 	type BagThresholds = BagThresholds;
 }
 
