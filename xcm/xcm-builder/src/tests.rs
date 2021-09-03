@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies query_id: (), max_response_weight: ()  query_id: (), max_response_weight: ()  (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -57,23 +57,11 @@ fn take_weight_credit_barrier_should_work() {
 	let mut message =
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 	let mut weight_credit = 10;
-	let r = TakeWeightCredit::should_execute(
-		&Parent.into(),
-		true,
-		&mut message,
-		10,
-		&mut weight_credit,
-	);
+	let r = TakeWeightCredit::should_execute(&Parent.into(), &mut message, 10, &mut weight_credit);
 	assert_eq!(r, Ok(()));
 	assert_eq!(weight_credit, 0);
 
-	let r = TakeWeightCredit::should_execute(
-		&Parent.into(),
-		true,
-		&mut message,
-		10,
-		&mut weight_credit,
-	);
+	let r = TakeWeightCredit::should_execute(&Parent.into(), &mut message, 10, &mut weight_credit);
 	assert_eq!(r, Err(()));
 	assert_eq!(weight_credit, 0);
 }
@@ -87,7 +75,6 @@ fn allow_unpaid_should_work() {
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&Parachain(1).into(),
-		true,
 		&mut message,
 		10,
 		&mut 0,
@@ -96,7 +83,6 @@ fn allow_unpaid_should_work() {
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
 		&Parent.into(),
-		true,
 		&mut message,
 		10,
 		&mut 0,
@@ -113,7 +99,6 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parachain(1).into(),
-		true,
 		&mut message,
 		10,
 		&mut 0,
@@ -129,7 +114,6 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
-		true,
 		&mut underpaying_message,
 		30,
 		&mut 0,
@@ -145,7 +129,6 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parachain(1).into(),
-		true,
 		&mut paying_message,
 		30,
 		&mut 0,
@@ -154,7 +137,6 @@ fn allow_paid_should_work() {
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
 		&Parent.into(),
-		true,
 		&mut paying_message,
 		30,
 		&mut 0,
@@ -478,6 +460,120 @@ fn reserve_transfer_should_work() {
 			]),
 		)]
 	);
+}
+
+#[test]
+fn simple_version_subscriptions_should_work() {
+	AllowSubsFrom::set(vec![Parent.into()]);
+
+	let origin = Parachain(1000).into();
+	let message = Xcm::<TestCall>(vec![
+		SetAppendix(Xcm(vec![])),
+		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
+	]);
+	let weight_limit = 20;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Outcome::Error(XcmError::Barrier));
+
+	let origin = Parachain(1000).into();
+	let message =
+		Xcm::<TestCall>(vec![SubscribeVersion { query_id: 42, max_response_weight: 5000 }]);
+	let weight_limit = 10;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), weight_limit);
+	assert_eq!(r, Outcome::Error(XcmError::Barrier));
+
+	let origin = Parent.into();
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(10));
+
+	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), Some((42, 5000)))]);
+}
+
+#[test]
+fn version_subscription_instruction_should_work() {
+	let origin = Parachain(1000).into();
+	let message = Xcm::<TestCall>(vec![
+		DescendOrigin(X1(AccountIndex64 { index: 1, network: Any })),
+		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
+	]);
+	let weight_limit = 20;
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin.clone(),
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
+	assert_eq!(r, Outcome::Incomplete(20, XcmError::BadOrigin));
+
+	let message = Xcm::<TestCall>(vec![
+		SetAppendix(Xcm(vec![])),
+		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
+	]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin,
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
+	assert_eq!(r, Outcome::Complete(20));
+
+	assert_eq!(SubscriptionRequests::get(), vec![(Parachain(1000).into(), Some((42, 5000)))]);
+}
+
+#[test]
+fn simple_version_unsubscriptions_should_work() {
+	AllowSubsFrom::set(vec![Parent.into()]);
+
+	let origin = Parachain(1000).into();
+	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
+	let weight_limit = 20;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Outcome::Error(XcmError::Barrier));
+
+	let origin = Parachain(1000).into();
+	let message = Xcm::<TestCall>(vec![UnsubscribeVersion]);
+	let weight_limit = 10;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), weight_limit);
+	assert_eq!(r, Outcome::Error(XcmError::Barrier));
+
+	let origin = Parent.into();
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(10));
+
+	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), None)]);
+	assert_eq!(sent_xcm(), vec![]);
+}
+
+#[test]
+fn version_unsubscription_instruction_should_work() {
+	let origin = Parachain(1000).into();
+
+	// Not allowed to do it when origin has been changed.
+	let message = Xcm::<TestCall>(vec![
+		DescendOrigin(X1(AccountIndex64 { index: 1, network: Any })),
+		UnsubscribeVersion,
+	]);
+	let weight_limit = 20;
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin.clone(),
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
+	assert_eq!(r, Outcome::Incomplete(20, XcmError::BadOrigin));
+
+	// Fine to do it when origin is untouched.
+	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin,
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
+	assert_eq!(r, Outcome::Complete(20));
+
+	assert_eq!(SubscriptionRequests::get(), vec![(Parachain(1000).into(), None)]);
+	assert_eq!(sent_xcm(), vec![]);
 }
 
 #[test]

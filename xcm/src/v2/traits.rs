@@ -99,6 +99,8 @@ pub enum Error {
 	Trap(u64),
 	/// The given claim could not be recognized/found.
 	UnknownClaim,
+	/// The location given was invalid for some reason specific to the operation at hand.
+	InvalidLocation,
 }
 
 impl From<()> for Error {

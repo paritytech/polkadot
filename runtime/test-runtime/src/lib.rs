@@ -519,6 +519,8 @@ impl pallet_xcm::Config for Runtime {
 	type XcmReserveTransferFilter = Everything;
 	type Origin = Origin;
 	type Call = Call;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 impl parachains_hrmp::Config for Runtime {
@@ -541,7 +543,7 @@ impl pallet_test_notifier::Config for Runtime {
 pub mod pallet_test_notifier {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
-	use pallet_xcm::{ensure_response, QueryId};
+	use pallet_xcm::ensure_response;
 	use sp_runtime::DispatchResult;
 	use xcm::latest::prelude::*;
 
