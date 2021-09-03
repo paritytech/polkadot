@@ -88,7 +88,7 @@ impl OverseerGen for BehaveMaleficient {
 		// modify the subsystem(s) as needed:
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem
-			|orig| {
+			|orig: CandidateValidationSubsystem| {
 				Ok(FilteredSubsystem::new(
 					CandidateValidationSubsystem::with_config(
 						candidate_validation_config,
