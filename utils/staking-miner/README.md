@@ -44,11 +44,12 @@ docker build -t staking-miner -f scripts/docker/staking-miner/staking_miner-buil
 
 ### Running
 
-A Docker container, especially one holding one of your `SEED` should be kept as secure as possible. It is recommended running this container in `read-only` mode:
+A Docker container, especially one holding one of your `SEED` should be kept as secure as possible.
+While it won't prevent a malicious actor to read your `SEED` if they gain access to your container, it is nonetheless recommended running this container in `read-only` mode:
 
 ```
 # The following line starts with an extra space on purpose:
- SEED=0x1234
+ SEED=0x1234...
 
 docker run --rm -it \
     --name staking-miner \
