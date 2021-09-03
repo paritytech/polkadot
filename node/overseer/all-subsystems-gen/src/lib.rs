@@ -156,7 +156,8 @@ fn impl_subsystems_gen(item: TokenStream) -> Result<proc_macro2::TokenStream> {
 					impl #orig_generics #strukt_ty #orig_generics {
 						#[doc = #msg]
 						pub fn #fname < NEW, F > (self, gen_replacement_fn: F) -> #strukt_ty #modified_generics
-							where F: FnOnce(#replacable_item_ty) -> NEW,
+							where
+								F: FnOnce(#replacable_item_ty) -> NEW,
 						{
 							let Self {
 								// To be replaced field:

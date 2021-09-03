@@ -34,9 +34,8 @@ use polkadot_cli::{
 
 // Import extra types relevant to the particular
 // subsystem.
-use polkadot_node_core_candidate_validation::{CandidateValidationSubsystem, Metrics};
+use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 use polkadot_node_subsystem::messages::CandidateValidationMessage;
-use polkadot_node_subsystem_util::metrics::Metrics as _;
 
 // Filter wrapping related types.
 use malus::*;
@@ -89,14 +88,14 @@ impl OverseerGen for BehaveMaleficient {
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem
 			|orig: CandidateValidationSubsystem| {
-				Ok(FilteredSubsystem::new(
+				FilteredSubsystem::new(
 					CandidateValidationSubsystem::with_config(
 						candidate_validation_config,
-						Metrics::register(registry)?,
 						orig.metrics,
+						orig.pvf_metrics,
 					),
 					Skippy::default(),
-				))
+				)
 			},
 		);
 

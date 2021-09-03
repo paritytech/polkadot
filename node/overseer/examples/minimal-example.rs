@@ -170,8 +170,8 @@ fn main() {
 		});
 
 		let all_subsystems = AllSubsystems::<()>::dummy()
-			.replace_candidate_validation(|_| Subsystem2)
-			.replace_candidate_backing(|orig| orig);
+			.replace_candidate_validation(|_| Ok(Subsystem2))
+			.replace_candidate_backing(|orig| Ok(orig));
 
 		let (overseer, _handle) =
 			Overseer::new(vec![], all_subsystems, None, AlwaysSupportsParachains, spawner).unwrap();
