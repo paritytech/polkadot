@@ -35,22 +35,26 @@ docker build -t staking-miner -f scripts/docker/staking-miner/staking_miner-inje
 
 ### Building the multi-stage image
 
-Unlike the inject image that requires a Linux pre-built binary, this option does not requires a Linux host, nor Rust to be installed.
-You may build the multi-stage image the root of the Polkadot repository:
+Unlike the injected image that requires a Linux pre-built binary, this option does not requires a Linux host, nor Rust to be installed.
+The trade-off however is that it takes a little longer to build and this option is less ideal for CI tasks.
+You may build the multi-stage image the root of the Polkadot repository with:
 ```
 docker build -t staking-miner -f scripts/docker/staking-miner/staking_miner-builder.Dockerfile .
 ```
 
 ### Running
 
-A Docker container, especially one holding one of your `SEED` should be kept secure. It is recommended running this container in `read-only` mode:
+A Docker container, especially one holding one of your `SEED` should be kept as secure as possible. It is recommended running this container in `read-only` mode:
 
 ```
+# The following line starts with an extra space on purpose:
+ SEED=0x1234
+
 docker run --rm -it \
     --name staking-miner \
     --read-only \
     -e RUST_LOG=info \
-    -e SEED=0x1234... \
+    -e SEED=$SEED \
     -e URI=wss://your-node:9944 \
     staking-miner dry-run
 ```
