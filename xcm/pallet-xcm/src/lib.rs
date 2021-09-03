@@ -291,7 +291,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd)]
+	#[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, TypeInfo)]
 	pub enum VersionMigrationStage {
 		MigrateSupportedVersion,
 		MigrateVersionNotifiers,
