@@ -86,7 +86,7 @@ pub(crate) async fn test_voter_bags_migration<
 			let vote_weight_thresh_as_unit = *vote_weight_thresh as f64 / currency_unit as f64;
 			let pretty_thresh = format!("Threshold: {}.", vote_weight_thresh_as_unit);
 
-			let bag = match pallet_bags_list::ListBags::<Runtime>::get(*vote_weight_thresh) {
+			let bag = match pallet_bags_list::Pallet::<Runtime>::list_bags_get(*vote_weight_thresh) {
 				Some(bag) => bag,
 				None => {
 					log::info!(target: LOG_TARGET, "{} NO VOTERS.", pretty_thresh);
