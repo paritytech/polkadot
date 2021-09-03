@@ -88,14 +88,16 @@ impl OverseerGen for BehaveMaleficient {
 		// modify the subsystem(s) as needed:
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem
-			FilteredSubsystem::new(
-				CandidateValidationSubsystem::with_config(
-					candidate_validation_config,
-					Metrics::register(registry)?,
-					polkadot_node_core_pvf::Metrics::register(registry)?,
-				),
-				Skippy::default(),
-			),
+			|orig| {
+				Ok(FilteredSubsystem::new(
+					CandidateValidationSubsystem::with_config(
+						candidate_validation_config,
+						Metrics::register(registry)?,
+						orig.metrics,
+					),
+					Skippy::default(),
+				))
+			},
 		);
 
 		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
