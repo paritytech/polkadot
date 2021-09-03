@@ -27,6 +27,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let overseer_name = info.overseer_name.clone();
 	let builder = Ident::new(&(overseer_name.to_string() + "Builder"), overseer_name.span());
 	let handle = Ident::new(&(overseer_name.to_string() + "Handle"), overseer_name.span());
+	let connector = Ident::new(&(overseer_name.to_string() + "Connector"), overseer_name.span());
 
 	let subsystem_name = &info.subsystem_names_without_wip();
 	let subsystem_name_init_with = &info
@@ -110,6 +111,42 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 		/// Handle for an overseer.
 		pub type #handle = #support_crate ::metered::MeteredSender< #event >;
+
+		/// External connector.
+		pub struct #connector {
+			/// Publicly accessible handle, to be used for setting up
+			/// components that are _not_ subsystems but access is needed
+			/// due to other limitations.
+			///
+			/// For subsystems, use the `_with` variants of the builder.
+			handle: #handle,
+			/// The side consumed by the `spawned` side of the overseer pattern.
+			consumer: #support_crate ::metered::MeteredReceiver < #event >,
+		}
+
+		impl #connector {
+			/// Obtain access to the overseer handle.
+			pub fn as_handle_mut(&mut self) -> &mut #handle {
+				&mut self.handle
+			}
+			/// Obtain access to the overseer handle.
+			pub fn as_handle(&mut self) -> &#handle {
+				&self.handle
+			}
+		}
+
+		impl ::std::default::Default for #connector {
+			fn default() -> Self {
+				let (events_tx, events_rx) = #support_crate ::metered::channel::<
+					#event
+					>(SIGNAL_CHANNEL_CAPACITY);
+
+				Self {
+					handle: events_tx,
+					consumer: events_rx,
+				}
+			}
+		}
 
 		/// Convenience alias.
 		type SubsystemInitFn<T> = Box<dyn FnOnce(#handle) -> ::std::result::Result<T, #error_ty> >;
@@ -201,13 +238,20 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			)*
 
 			/// Complete the construction and create the overseer type.
-			pub fn build(mut self) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty>
-			{
-				let (events_tx, events_rx) = #support_crate ::metered::channel::<
-					#event
-				>(SIGNAL_CHANNEL_CAPACITY);
+			pub fn build(mut self) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty> {
+				let connector = #connector ::default();
+				self.build_with_connector(connector)
+			}
 
-				let handle: #handle = events_tx.clone();
+			/// Complete the construction and create the overseer type based on an existing `connector`.
+			pub fn build_with_connector(mut self, connector: #connector) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty>
+			{
+				let #connector {
+					handle: events_tx,
+					consumer: events_rx,
+				} = connector;
+
+				let handle = events_tx.clone();
 
 				let (to_overseer_tx, to_overseer_rx) = #support_crate ::metered::unbounded::<
 					ToOverseer
