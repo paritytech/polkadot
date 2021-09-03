@@ -1957,20 +1957,20 @@ dependencies = [
 [[package]]
 name = "frame-benchmarking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "linregress",
  "log",
  "parity-scale-codec",
  "paste 1.0.5",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -2015,19 +2015,6 @@ dependencies = [
 [[package]]
 name = "frame-election-provider-support"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "parity-scale-codec",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-npos-elections 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
-]
-
-[[package]]
-name = "frame-election-provider-support"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
@@ -2056,16 +2043,16 @@ dependencies = [
 [[package]]
 name = "frame-executive"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -2077,17 +2064,6 @@ dependencies = [
  "serde",
  "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
-]
-
-[[package]]
-name = "frame-metadata"
-version = "14.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
 ]
 
 [[package]]
@@ -2125,32 +2101,6 @@ dependencies = [
  "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
-]
-
-[[package]]
-name = "frame-support"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "bitflags",
- "frame-metadata 14.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support-procedural 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "impl-trait-for-tuples",
- "log",
- "once_cell",
- "parity-scale-codec",
- "paste 1.0.5",
- "serde",
- "smallvec",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
 ]
 
 [[package]]
@@ -2194,18 +2144,6 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "Inflector",
- "frame-support-procedural-tools 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "Inflector",
@@ -2230,18 +2168,6 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "proc-macro-crate 1.0.0",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural-tools"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
@@ -2255,16 +2181,6 @@ dependencies = [
 name = "frame-support-procedural-tools-derive"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#6d0c04d58fc614f61072f6dde1a1716fb8072a44"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural-tools-derive"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2331,22 +2247,6 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "log",
- "parity-scale-codec",
- "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
-]
-
-[[package]]
-name = "frame-system"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
@@ -2386,10 +2286,10 @@ dependencies = [
 [[package]]
 name = "frame-system-rpc-runtime-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -2406,12 +2306,12 @@ dependencies = [
 [[package]]
 name = "frame-try-runtime"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -2625,17 +2525,17 @@ checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
 [[package]]
 name = "generate-bags"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "chrono",
- "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "git2",
  "node-runtime",
  "num-format",
- "pallet-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "structopt",
 ]
 
@@ -3442,7 +3342,7 @@ dependencies = [
  "pallet-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-bags-list",
  "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-bounties 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-collective 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
@@ -4654,89 +4554,89 @@ dependencies = [
 [[package]]
 name = "node-primitives"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
 name = "node-runtime"
 version = "3.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-executive 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system-rpc-runtime-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-try-runtime 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-executive 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system-rpc-runtime-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-try-runtime 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "node-primitives",
  "pallet-assets",
- "pallet-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-bounties 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-collective 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-bags-list",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-bounties 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-collective 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "pallet-contracts",
  "pallet-contracts-primitives",
  "pallet-contracts-rpc-runtime-api",
- "pallet-democracy 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-election-provider-multi-phase 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-elections-phragmen 5.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-gilt 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-grandpa 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-identity 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-im-online 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-indices 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-democracy 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-election-provider-multi-phase 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-elections-phragmen 5.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-gilt 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-grandpa 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-identity 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-im-online 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-indices 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "pallet-lottery",
- "pallet-membership 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-mmr 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-multisig 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-offences 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-proxy 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-membership 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-mmr 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-multisig 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-offences 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-proxy 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "pallet-randomness-collective-flip",
- "pallet-recovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-scheduler 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-society 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-staking-reward-curve 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-sudo 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-tips 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-transaction-payment 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-transaction-payment-rpc-runtime-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-recovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-scheduler 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-society 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-staking-reward-curve 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-sudo 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-tips 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-transaction-payment 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-transaction-payment-rpc-runtime-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "pallet-transaction-storage",
- "pallet-treasury 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-treasury 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "pallet-uniques",
- "pallet-utility 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-vesting 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-utility 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-vesting 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-block-builder 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-consensus-babe 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-keyring 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-npos-elections 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-offchain 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-transaction-pool 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-block-builder 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-consensus-babe 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-keyring 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-npos-elections 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-offchain 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-transaction-pool 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "static_assertions",
- "substrate-wasm-builder 5.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "substrate-wasm-builder 5.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -4934,14 +4834,14 @@ checksum = "13370dae44474229701bb69b90b4f4dca6404cb0357a2d50d635f1171dc3aa7b"
 [[package]]
 name = "pallet-assets"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -4962,16 +4862,16 @@ dependencies = [
 [[package]]
 name = "pallet-authority-discovery"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -4991,15 +4891,15 @@ dependencies = [
 [[package]]
 name = "pallet-authorship"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5028,38 +4928,24 @@ dependencies = [
 [[package]]
 name = "pallet-babe"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
- "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-consensus-babe 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-consensus-vrf 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
-]
-
-[[package]]
-name = "pallet-bags-list"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "log",
- "parity-scale-codec",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-consensus-babe 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-consensus-vrf 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5093,15 +4979,15 @@ dependencies = [
 [[package]]
 name = "pallet-balances"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "parity-scale-codec",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5162,14 +5048,14 @@ dependencies = [
 [[package]]
 name = "pallet-bounties"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-treasury 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-treasury 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5255,58 +5141,60 @@ dependencies = [
 [[package]]
 name = "pallet-collective"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
 name = "pallet-contracts"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "bitflags",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "pallet-contracts-primitives",
  "pallet-contracts-proc-macro",
  "parity-scale-codec",
  "pwasm-utils",
+ "rand 0.8.4",
  "serde",
  "smallvec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "sp-sandbox",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "wasmi-validation",
 ]
 
 [[package]]
 name = "pallet-contracts-primitives"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "bitflags",
  "parity-scale-codec",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
 name = "pallet-contracts-proc-macro"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5316,13 +5204,13 @@ dependencies = [
 [[package]]
 name = "pallet-contracts-rpc-runtime-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "pallet-contracts-primitives",
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5343,16 +5231,16 @@ dependencies = [
 [[package]]
 name = "pallet-democracy"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
  "serde",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5381,19 +5269,19 @@ dependencies = [
 [[package]]
 name = "pallet-election-provider-multi-phase"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "parity-scale-codec",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-npos-elections 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-npos-elections 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "static_assertions",
 ]
 
@@ -5417,17 +5305,17 @@ dependencies = [
 [[package]]
 name = "pallet-elections-phragmen"
 version = "5.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-npos-elections 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-npos-elections 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5447,15 +5335,15 @@ dependencies = [
 [[package]]
 name = "pallet-gilt"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5483,23 +5371,23 @@ dependencies = [
 [[package]]
 name = "pallet-grandpa"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
- "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-finality-grandpa 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-finality-grandpa 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5520,16 +5408,16 @@ dependencies = [
 [[package]]
 name = "pallet-identity"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "enumflags2",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5554,19 +5442,19 @@ dependencies = [
 [[package]]
 name = "pallet-im-online"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
- "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5588,28 +5476,28 @@ dependencies = [
 [[package]]
 name = "pallet-indices"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-keyring 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-keyring 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
 name = "pallet-lottery"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5630,16 +5518,16 @@ dependencies = [
 [[package]]
 name = "pallet-membership"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "parity-scale-codec",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5662,18 +5550,18 @@ dependencies = [
 [[package]]
 name = "pallet-mmr"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "ckb-merkle-mountain-range",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5695,17 +5583,17 @@ dependencies = [
 [[package]]
 name = "pallet-mmr-primitives"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "parity-scale-codec",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5742,14 +5630,14 @@ dependencies = [
 [[package]]
 name = "pallet-multisig"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5784,17 +5672,17 @@ dependencies = [
 [[package]]
 name = "pallet-offences"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
- "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
  "serde",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5836,27 +5724,27 @@ dependencies = [
 [[package]]
 name = "pallet-proxy"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
 name = "pallet-randomness-collective-flip"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
  "safe-mix",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5875,14 +5763,14 @@ dependencies = [
 [[package]]
 name = "pallet-recovery"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5903,16 +5791,16 @@ dependencies = [
 [[package]]
 name = "pallet-scheduler"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "parity-scale-codec",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5938,21 +5826,21 @@ dependencies = [
 [[package]]
 name = "pallet-session"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "impl-trait-for-tuples",
  "log",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -5987,14 +5875,14 @@ dependencies = [
 [[package]]
 name = "pallet-society"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -6022,21 +5910,21 @@ dependencies = [
 [[package]]
 name = "pallet-staking"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
- "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -6053,7 +5941,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking-reward-curve"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
@@ -6086,14 +5974,14 @@ dependencies = [
 [[package]]
 name = "pallet-sudo"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -6116,17 +6004,17 @@ dependencies = [
 [[package]]
 name = "pallet-timestamp"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "parity-scale-codec",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -6147,15 +6035,15 @@ dependencies = [
 [[package]]
 name = "pallet-tips"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-treasury 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-treasury 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
  "serde",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -6177,17 +6065,17 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
  "serde",
  "smallvec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -6221,29 +6109,29 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "pallet-transaction-payment 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-transaction-payment 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
 name = "pallet-transaction-storage"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
  "serde",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-transaction-storage-proof 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-transaction-storage-proof 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -6265,29 +6153,29 @@ dependencies = [
 [[package]]
 name = "pallet-treasury"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "impl-trait-for-tuples",
- "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
  "serde",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
 name = "pallet-uniques"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -6308,15 +6196,15 @@ dependencies = [
 [[package]]
 name = "pallet-utility"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -6336,14 +6224,14 @@ dependencies = [
 [[package]]
 name = "pallet-vesting"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
  "parity-scale-codec",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -7620,7 +7508,7 @@ dependencies = [
  "pallet-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-bags-list",
  "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-bounties 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-collective 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
@@ -7698,7 +7586,7 @@ dependencies = [
  "log",
  "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-bags-list",
  "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-beefy-mmr",
  "pallet-election-provider-multi-phase 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
@@ -8795,7 +8683,7 @@ dependencies = [
  "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "kusama-runtime",
  "log",
- "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-bags-list",
  "pallet-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "polkadot-runtime",
  "remote-externalities",
@@ -10471,17 +10359,17 @@ dependencies = [
 [[package]]
 name = "sp-api"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "hash-db",
  "log",
  "parity-scale-codec",
- "sp-api-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "thiserror",
 ]
 
@@ -10500,7 +10388,7 @@ dependencies = [
 [[package]]
 name = "sp-api-proc-macro"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "blake2-rfc",
  "proc-macro-crate 1.0.0",
@@ -10519,18 +10407,6 @@ dependencies = [
  "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
-]
-
-[[package]]
-name = "sp-application-crypto"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
 ]
 
 [[package]]
@@ -10556,20 +10432,6 @@ dependencies = [
  "serde",
  "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "static_assertions",
-]
-
-[[package]]
-name = "sp-arithmetic"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "integer-sqrt",
- "num-traits",
- "parity-scale-codec",
- "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
  "static_assertions",
 ]
 
@@ -10602,13 +10464,13 @@ dependencies = [
 [[package]]
 name = "sp-authority-discovery"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -10626,13 +10488,13 @@ dependencies = [
 [[package]]
 name = "sp-authorship"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -10650,13 +10512,13 @@ dependencies = [
 [[package]]
 name = "sp-block-builder"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -10699,19 +10561,19 @@ dependencies = [
 [[package]]
 name = "sp-consensus"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "async-trait",
  "futures 0.3.16",
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "thiserror",
 ]
 
@@ -10740,23 +10602,23 @@ dependencies = [
 [[package]]
 name = "sp-consensus-babe"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "async-trait",
  "merlin",
  "parity-scale-codec",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-consensus-slots 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-consensus-vrf 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-consensus-slots 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-consensus-vrf 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -10772,11 +10634,11 @@ dependencies = [
 [[package]]
 name = "sp-consensus-slots"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "parity-scale-codec",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -10794,13 +10656,13 @@ dependencies = [
 [[package]]
 name = "sp-consensus-vrf"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -10838,50 +10700,6 @@ dependencies = [
  "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "substrate-bip39",
- "thiserror",
- "tiny-bip39",
- "tiny-keccak",
- "twox-hash",
- "wasmi",
- "zeroize",
-]
-
-[[package]]
-name = "sp-core"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "base58",
- "blake2-rfc",
- "byteorder",
- "dyn-clonable",
- "ed25519-dalek",
- "futures 0.3.16",
- "hash-db",
- "hash256-std-hasher",
- "hex",
- "impl-serde",
- "lazy_static",
- "libsecp256k1 0.6.0",
- "log",
- "merlin",
- "num-traits",
- "parity-scale-codec",
- "parity-util-mem",
- "parking_lot 0.11.1",
- "primitive-types",
- "rand 0.7.3",
- "regex",
- "schnorrkel",
- "secrecy",
- "serde",
- "sha2 0.9.2",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
  "substrate-bip39",
  "thiserror",
  "tiny-bip39",
@@ -10957,16 +10775,6 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "sp-debug-derive"
-version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "proc-macro2",
@@ -10983,17 +10791,6 @@ dependencies = [
  "parity-scale-codec",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
-]
-
-[[package]]
-name = "sp-externalities"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "environmental",
- "parity-scale-codec",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
 ]
 
 [[package]]
@@ -11027,18 +10824,18 @@ dependencies = [
 [[package]]
 name = "sp-finality-grandpa"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "finality-grandpa",
  "log",
  "parity-scale-codec",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -11052,20 +10849,6 @@ dependencies = [
  "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "thiserror",
-]
-
-[[package]]
-name = "sp-inherents"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "async-trait",
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
  "thiserror",
 ]
 
@@ -11111,31 +10894,6 @@ dependencies = [
 [[package]]
 name = "sp-io"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "futures 0.3.16",
- "hash-db",
- "libsecp256k1 0.6.0",
- "log",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "tracing",
- "tracing-core",
-]
-
-[[package]]
-name = "sp-io"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "futures 0.3.16",
@@ -11172,11 +10930,11 @@ dependencies = [
 [[package]]
 name = "sp-keyring"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "lazy_static",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "strum 0.20.0",
 ]
 
@@ -11195,22 +10953,6 @@ dependencies = [
  "serde",
  "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
-]
-
-[[package]]
-name = "sp-keystore"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "async-trait",
- "derive_more",
- "futures 0.3.16",
- "merlin",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "schnorrkel",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
 ]
 
 [[package]]
@@ -11241,15 +10983,6 @@ dependencies = [
 [[package]]
 name = "sp-maybe-compressed-blob"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "ruzstd",
- "zstd",
-]
-
-[[package]]
-name = "sp-maybe-compressed-blob"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "ruzstd",
@@ -11272,19 +11005,6 @@ dependencies = [
 [[package]]
 name = "sp-npos-elections"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-npos-elections-solution-type 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
-]
-
-[[package]]
-name = "sp-npos-elections"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "parity-scale-codec",
@@ -11299,17 +11019,6 @@ dependencies = [
 name = "sp-npos-elections-solution-type"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#6d0c04d58fc614f61072f6dde1a1716fb8072a44"
-dependencies = [
- "proc-macro-crate 1.0.0",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "sp-npos-elections-solution-type"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
 dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
@@ -11341,25 +11050,17 @@ dependencies = [
 [[package]]
 name = "sp-offchain"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
 name = "sp-panic-handler"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#6d0c04d58fc614f61072f6dde1a1716fb8072a44"
-dependencies = [
- "backtrace",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
 dependencies = [
  "backtrace",
 ]
@@ -11406,27 +11107,6 @@ dependencies = [
 [[package]]
 name = "sp-runtime"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "either",
- "hash256-std-hasher",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "parity-util-mem",
- "paste 1.0.5",
- "rand 0.7.3",
- "serde",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
-]
-
-[[package]]
-name = "sp-runtime"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "either",
@@ -11465,23 +11145,6 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "primitive-types",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime-interface-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "static_assertions",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "impl-trait-for-tuples",
@@ -11511,18 +11174,6 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "Inflector",
- "proc-macro-crate 1.0.0",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "sp-runtime-interface-proc-macro"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "Inflector",
@@ -11535,13 +11186,14 @@ dependencies = [
 [[package]]
 name = "sp-sandbox"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
+ "log",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "wasmi",
 ]
 
@@ -11570,14 +11222,14 @@ dependencies = [
 [[package]]
 name = "sp-session"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -11588,16 +11240,6 @@ dependencies = [
  "parity-scale-codec",
  "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
-]
-
-[[package]]
-name = "sp-staking"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "parity-scale-codec",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
 ]
 
 [[package]]
@@ -11636,29 +11278,6 @@ dependencies = [
 [[package]]
 name = "sp-state-machine"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "hash-db",
- "log",
- "num-traits",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "rand 0.7.3",
- "smallvec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "thiserror",
- "tracing",
- "trie-db",
- "trie-root",
-]
-
-[[package]]
-name = "sp-state-machine"
-version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "hash-db",
@@ -11687,11 +11306,6 @@ source = "git+https://github.com/paritytech/substrate?branch=master#6d0c04d58fc6
 [[package]]
 name = "sp-std"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-
-[[package]]
-name = "sp-std"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 
 [[package]]
@@ -11705,19 +11319,6 @@ dependencies = [
  "serde",
  "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
-]
-
-[[package]]
-name = "sp-storage"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "ref-cast",
- "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
 ]
 
 [[package]]
@@ -11765,16 +11366,16 @@ dependencies = [
 [[package]]
 name = "sp-timestamp"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "async-trait",
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "thiserror",
 ]
 
@@ -11791,24 +11392,6 @@ dependencies = [
  "serde_json",
  "slog",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "tracing",
- "tracing-core",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "sp-tracing"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "erased-serde",
- "log",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "serde",
- "serde_json",
- "slog",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -11844,10 +11427,10 @@ dependencies = [
 [[package]]
 name = "sp-transaction-pool"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -11868,12 +11451,12 @@ dependencies = [
 [[package]]
 name = "sp-transaction-storage-proof"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "parity-scale-codec",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -11886,20 +11469,6 @@ dependencies = [
  "parity-scale-codec",
  "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "trie-db",
- "trie-root",
-]
-
-[[package]]
-name = "sp-trie"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "hash-db",
- "memory-db",
- "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
  "trie-db",
  "trie-root",
 ]
@@ -11947,21 +11516,6 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "parity-wasm 0.42.2",
- "serde",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "sp-version-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
- "thiserror",
-]
-
-[[package]]
-name = "sp-version"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "impl-serde",
@@ -11988,17 +11542,6 @@ dependencies = [
 [[package]]
 name = "sp-version-proc-macro"
 version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "parity-scale-codec",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "sp-version-proc-macro"
-version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#0b5de63de0767d72dbe6a0514ce2b32b1263b745"
 dependencies = [
  "parity-scale-codec",
@@ -12015,17 +11558,6 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "wasmi",
-]
-
-[[package]]
-name = "sp-wasm-interface"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
  "wasmi",
 ]
 
@@ -12333,12 +11865,12 @@ dependencies = [
 [[package]]
 name = "substrate-wasm-builder"
 version = "5.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks#41a50dbef79fa00449fd0106c16529268a7db5fe"
+source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#b83afc337e98114d7acc1759068efb9e3a5a86de"
 dependencies = [
  "ansi_term 0.12.1",
  "build-helper",
  "cargo_metadata",
- "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-bags-list-staking-benchmarks)",
+ "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "tempfile",
  "toml",
  "walkdir",
@@ -13262,6 +12794,7 @@ checksum = "d2ee05bba3d1d994652079893941a2ef9324d2b58a63c31b40678fb7eddd7a5a"
 dependencies = [
  "downcast-rs",
  "libc",
+ "libm",
  "memory_units",
  "num-rational 0.2.4",
  "num-traits",
@@ -13530,7 +13063,7 @@ dependencies = [
  "pallet-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "pallet-bags-list",
  "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-collective 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-democracy 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",

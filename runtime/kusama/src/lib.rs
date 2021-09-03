@@ -1465,7 +1465,7 @@ construct_runtime! {
 		// Gilts pallet.
 		Gilt: pallet_gilt::{Pallet, Call, Storage, Event<T>, Config} = 38,
 
-		// Only works with staking, but placed here to maintain indices.
+		// Provides a semi-sorted list of nominators for staking.
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 39,
 
 		// Parachains pallets. Start indices at 50 to leave room.

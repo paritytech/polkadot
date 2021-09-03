@@ -94,13 +94,13 @@ pub(crate) async fn test_voter_bags_migration<
 				},
 			};
 
-			let voters_in_bag = bag.iter().count() as u32;
+			let voters_in_bag = bag.std_iter().count() as u32;
 
 			// if this bag is below the min nominator bond print out all the members
 			let vote_weight_as_balance: BalanceOf<Runtime> =
 				(*vote_weight_thresh).try_into().map_err(|_| "should not fail").unwrap();
 			if vote_weight_as_balance <= min_nominator_bond {
-				for id in bag.iter().map(|node| node.id().clone()) {
+				for id in bag.std_iter().map(|node| node.std_id().clone()) {
 					log::warn!(
 						target: LOG_TARGET,
 						"{} Account found below min bond: {:?}.",

@@ -1115,7 +1115,7 @@ construct_runtime! {
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
 
-		// Only works with staking, but placed here to maintain indices.
+		// Provides a semi-sorted list of nominators for staking.
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
 	}
 }
