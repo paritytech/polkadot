@@ -243,18 +243,18 @@ construct_runtime! {
 		// It might seem strange that we add both sides of the bridge to the same runtime. We do this because this
 		// runtime as shared by both the Rococo and Wococo chains. When running as Rococo we only use
 		// `BridgeWococoGrandpa`, and vice versa.
-		BridgeRococoGrandpa: pallet_bridge_grandpa::{Pallet, Call, Storage, Config<T>} = 40,
-		BridgeWococoGrandpa: pallet_bridge_grandpa::<Instance1>::{Pallet, Call, Storage, Config<T>} = 41,
+		// BridgeRococoGrandpa: pallet_bridge_grandpa::{Pallet, Call, Storage, Config<T>} = 40,
+		// BridgeWococoGrandpa: pallet_bridge_grandpa::<Instance1>::{Pallet, Call, Storage, Config<T>} = 41,
 
 		// Validator Manager pallet.
 		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>},
 
 		// Bridge messages support. The same story as with the bridge grandpa pallet above ^^^ - when we're
 		// running as Rococo we only use `BridgeWococoMessages`/`BridgeWococoMessagesDispatch`, and vice versa.
-		BridgeRococoMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>} = 43,
-		BridgeWococoMessages: pallet_bridge_messages::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 44,
-		BridgeRococoMessagesDispatch: pallet_bridge_dispatch::{Pallet, Event<T>} = 45,
-		BridgeWococoMessagesDispatch: pallet_bridge_dispatch::<Instance1>::{Pallet, Event<T>} = 46,
+		// BridgeRococoMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>} = 43,
+		// BridgeWococoMessages: pallet_bridge_messages::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 44,
+		// BridgeRococoMessagesDispatch: pallet_bridge_dispatch::{Pallet, Event<T>} = 45,
+		// BridgeWococoMessagesDispatch: pallet_bridge_dispatch::<Instance1>::{Pallet, Event<T>} = 46,
 
 		// A "council"
 		Collective: pallet_collective::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 80,
