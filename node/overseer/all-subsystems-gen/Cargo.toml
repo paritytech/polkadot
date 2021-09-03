@@ -9,7 +9,7 @@ description = "Small proc macro to create mocking level iface type helpers"
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.60", features = ["full", "extra-traits"] }
+syn = { version = "1.0.75", features = ["full", "extra-traits"] }
 quote = "1.0.9"
 proc-macro2 = "1.0.24"
 
