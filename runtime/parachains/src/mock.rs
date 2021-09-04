@@ -16,15 +16,22 @@
 
 //! Mocks for all the traits.
 
-use crate::{configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler, session_info, shared, ump::{self, MessageId, UmpSink}, ParaId};
+use crate::{
+	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
+	session_info, shared,
+	ump::{self, MessageId, UmpSink},
+	ParaId,
+};
 use frame_support::{parameter_types, traits::GenesisBuild, weights::Weight};
 use frame_support_test::TestRandomness;
-use primitives::v1::{AuthorityDiscoveryId, Balance, BlockNumber, Header, SessionIndex, UpwardMessage, ValidatorIndex};
+use parity_scale_codec::Decode;
+use primitives::v1::{
+	AuthorityDiscoveryId, Balance, BlockNumber, Header, SessionIndex, UpwardMessage, ValidatorIndex,
+};
 use sp_core::H256;
 use sp_io::TestExternalities;
 use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 use std::{cell::RefCell, collections::HashMap};
-use parity_scale_codec::Decode;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -244,7 +251,7 @@ pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
 }
 
 /// An implementation of a UMP sink that just records which messages were processed.
-/// 
+///
 /// A message's weight is defined by the first 4 bytes of its data, which we decode into a
 /// `u32`.
 pub struct TestUmpSink;

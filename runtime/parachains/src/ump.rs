@@ -601,12 +601,12 @@ impl NeedsDispatchCursor {
 }
 
 #[cfg(test)]
-pub (crate) mod tests {
+pub(crate) mod tests {
 	use super::*;
-	use crate::mock::{new_test_ext, Configuration, MockGenesisConfig, Ump, take_processed};
-	use std::collections::HashSet;
+	use crate::mock::{new_test_ext, take_processed, Configuration, MockGenesisConfig, Ump};
 	use frame_support::weights::Weight;
-	
+	use std::collections::HashSet;
+
 	struct GenesisConfigBuilder {
 		max_upward_message_size: u32,
 		max_upward_message_num_per_candidate: u32,
