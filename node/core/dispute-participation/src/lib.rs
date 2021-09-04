@@ -39,6 +39,7 @@ use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash
 mod tests;
 
 const LOG_TARGET: &str = "parachain::dispute-participation";
+const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-dispute-participation";
 
 struct State {
 	recent_block: Option<(BlockNumber, Hash)>,
@@ -103,7 +104,7 @@ impl Error {
 				tracing::debug!(target: LOG_TARGET, err = ?self)
 			},
 			// it's worth reporting otherwise
-			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
+			_ => tracing::debug!(target: LOG_TARGET, err = ?self),
 		}
 	}
 }
@@ -119,7 +120,7 @@ where
 		match ctx.recv().await {
 			Err(_) => return,
 			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => {
-				tracing::info!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
+				tracing::debug!(target: LOG_TARGET, "Received `Conclude` signal, exiting");
 				return
 			},
 			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _))) => {},
@@ -160,6 +161,12 @@ async fn handle_incoming(
 			report_availability,
 		} =>
 			if let Some((_, block_hash)) = state.recent_block {
+				tracing::debug!(
+					target: DEBUG_LOG_TARGET,
+					"Recent block is set. Participating for SessionIndex {:?} CandidateHash {:?}.",
+					session,
+					candidate_hash,
+				);
 				participate(
 					ctx,
 					block_hash,
@@ -171,6 +178,12 @@ async fn handle_incoming(
 				)
 				.await
 			} else {
+				tracing::debug!(
+					target: DEBUG_LOG_TARGET,
+					"Missing recent block state. Not Participating for SessionIndex {:?} CandidateHash {:?}.",
+					session,
+					candidate_hash,
+				);
 				return Err(ParticipationError::MissingRecentBlockState.into())
 			},
 	}
@@ -202,10 +215,22 @@ async fn participate(
 
 	let available_data = match recover_available_data_rx.await? {
 		Ok(data) => {
+			tracing::debug!(
+				target: DEBUG_LOG_TARGET,
+				"Data is available for SessionIndex {:?} CandidateHash {:?}.",
+				session,
+				candidate_hash,
+			);
 			report_availability.send(true).map_err(|_| Error::OneshotSendFailed)?;
 			data
 		},
 		Err(RecoveryError::Invalid) => {
+			tracing::debug!(
+				target: DEBUG_LOG_TARGET,
+				"Data is not available for SessionIndex {:?} CandidateHash {:?} due to Invalid RecoveryError.",
+				session,
+				candidate_hash,
+			);
 			report_availability.send(true).map_err(|_| Error::OneshotSendFailed)?;
 
 			// the available data was recovered but it is invalid, therefore we'll
@@ -214,6 +239,12 @@ async fn participate(
 			return Ok(())
 		},
 		Err(RecoveryError::Unavailable) => {
+			tracing::debug!(
+				target: DEBUG_LOG_TARGET,
+				"Data is not available for SessionIndex {:?} CandidateHash {:?} due to Unavailable RecoveryError.",
+				session,
+				candidate_hash,
+			);
 			report_availability.send(false).map_err(|_| Error::OneshotSendFailed)?;
 
 			return Err(ParticipationError::MissingAvailableData(candidate_hash).into())
@@ -232,9 +263,23 @@ async fn participate(
 	.await;
 
 	let validation_code = match code_rx.await?? {
-		Some(code) => code,
+		Some(code) => {
+			tracing::debug!(
+				target: DEBUG_LOG_TARGET,
+				"Code is available for SessionIndex {:?} CandidateHash {:?} due to Unavailable RecoveryError.",
+				session,
+				candidate_hash,
+			);
+			code
+		},
 		None => {
-			tracing::warn!(
+			tracing::debug!(
+				target: DEBUG_LOG_TARGET,
+				"Code is not available for SessionIndex {:?} CandidateHash {:?} due to Unavailable RecoveryError.",
+				session,
+				candidate_hash,
+			);
+			tracing::debug!(
 				target: LOG_TARGET,
 				"Validation code unavailable for code hash {:?} in the state of block {:?}",
 				candidate_receipt.descriptor.validation_code_hash,
@@ -259,13 +304,20 @@ async fn participate(
 
 	match store_available_data_rx.await? {
 		Err(_) => {
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				"Failed to store available data for candidate {:?}",
 				candidate_hash,
 			);
 		},
-		Ok(()) => {},
+		Ok(()) => {
+			tracing::debug!(
+				target: DEBUG_LOG_TARGET,
+				"Available data successfully stored for SessionIndex {:?} CandidateHash {:?}.",
+				session,
+				candidate_hash,
+			);
+		},
 	}
 
 	// we issue a request to validate the candidate with the provided exhaustive
@@ -283,7 +335,7 @@ async fn participate(
 	// the validation and if valid, whether the commitments hash matches
 	match validation_rx.await? {
 		Err(err) => {
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				"Candidate {:?} validation failed with: {:?}",
 				candidate_receipt.hash(),
@@ -293,7 +345,7 @@ async fn participate(
 			cast_invalid_vote(ctx, candidate_hash, candidate_receipt, session).await;
 		},
 		Ok(ValidationResult::Invalid(invalid)) => {
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				"Candidate {:?} considered invalid: {:?}",
 				candidate_hash,
@@ -304,7 +356,7 @@ async fn participate(
 		},
 		Ok(ValidationResult::Valid(commitments, _)) => {
 			if commitments.hash() != candidate_receipt.commitments_hash {
-				tracing::warn!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					expected = ?candidate_receipt.commitments_hash,
 					got = ?commitments.hash(),
@@ -327,7 +379,7 @@ async fn cast_valid_vote(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 ) {
-	tracing::info!(
+	tracing::debug!(
 		target: LOG_TARGET,
 		"Casting valid vote in dispute for candidate {:?}",
 		candidate_hash,
@@ -342,7 +394,7 @@ async fn cast_invalid_vote(
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
 ) {
-	tracing::info!(
+	tracing::debug!(
 		target: LOG_TARGET,
 		"Casting invalid vote in dispute for candidate {:?}",
 		candidate_hash,

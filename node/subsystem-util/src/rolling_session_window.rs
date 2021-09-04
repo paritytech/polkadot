@@ -28,6 +28,8 @@ use polkadot_node_subsystem::{
 	overseer, SubsystemContext,
 };
 
+const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-rolling-sesison-window";
+
 /// Sessions unavailable in state to cache.
 #[derive(Debug)]
 pub enum SessionsUnavailableKind {
@@ -144,6 +146,7 @@ impl RollingSessionWindow {
 		block_header: &Header,
 	) -> Result<SessionWindowUpdate, SessionsUnavailable> {
 		if self.window_size == 0 {
+			tracing::debug!(target: DEBUG_LOG_TARGET, "Rolling Window Session Window Size is 0",);
 			return Ok(SessionWindowUpdate::Unchanged)
 		}
 
@@ -160,17 +163,32 @@ impl RollingSessionWindow {
 			.await;
 
 			match s_rx.await {
-				Ok(Ok(s)) => s,
-				Ok(Err(e)) =>
+				Ok(Ok(s)) => {
+					tracing::debug!(target: DEBUG_LOG_TARGET, "Session Index for Child is Ok.",);
+					s
+				},
+				Ok(Err(e)) => {
+					tracing::debug!(
+						target: DEBUG_LOG_TARGET,
+						"Session Index for Child is Ok(Err({:?}))",
+						e,
+					);
 					return Err(SessionsUnavailable {
 						kind: SessionsUnavailableKind::RuntimeApi(e),
 						info: None,
-					}),
-				Err(e) =>
+					})
+				},
+				Err(e) => {
+					tracing::debug!(
+						target: DEBUG_LOG_TARGET,
+						"Session Index for Child is Err({:?})",
+						e,
+					);
 					return Err(SessionsUnavailable {
 						kind: SessionsUnavailableKind::RuntimeApiUnavailable(e),
 						info: None,
-					}),
+					})
+				},
 			}
 		};
 
@@ -179,16 +197,24 @@ impl RollingSessionWindow {
 				// First block processed on start-up.
 
 				let window_start = session_index.saturating_sub(self.window_size - 1);
+				tracing::debug!(target: DEBUG_LOG_TARGET, "Window Start is {:?}", window_start,);
 
 				match load_all_sessions(ctx, block_hash, window_start, session_index).await {
-					Err(kind) => Err(SessionsUnavailable {
-						kind,
-						info: Some(SessionsUnavailableInfo {
-							window_start,
-							window_end: session_index,
-							block_hash,
-						}),
-					}),
+					Err(kind) => {
+						tracing::debug!(
+							target: DEBUG_LOG_TARGET,
+							"Load all sessions failed for {:?}",
+							kind,
+						);
+						Err(SessionsUnavailable {
+							kind,
+							info: Some(SessionsUnavailableInfo {
+								window_start,
+								window_end: session_index,
+								block_hash,
+							}),
+						})
+					},
 					Ok(s) => {
 						let update = SessionWindowUpdate::Initialized {
 							window_start,
@@ -196,8 +222,16 @@ impl RollingSessionWindow {
 						};
 
 						self.earliest_session = Some(window_start);
-						self.session_info = s;
+						self.session_info = s.clone();
 
+						tracing::debug!(
+							target: DEBUG_LOG_TARGET,
+							"Session Window update succeeded to SessionInfo {:?} in range {:?} - {:?} for SessionInfo {:?}.",
+							s,
+							window_start,
+							session_index,
+							s,
+						);
 						Ok(update)
 					},
 				}
@@ -208,6 +242,12 @@ impl RollingSessionWindow {
 
 				// Either cached or ancient.
 				if session_index <= latest {
+					tracing::debug!(
+						target: DEBUG_LOG_TARGET,
+						"SessionIndex is less than latest, i.e. {:?} <= {:?}",
+						session_index,
+						latest,
+					);
 					return Ok(SessionWindowUpdate::Unchanged)
 				}
 
@@ -221,14 +261,21 @@ impl RollingSessionWindow {
 				let fresh_start = if latest < window_start { window_start } else { latest + 1 };
 
 				match load_all_sessions(ctx, block_hash, fresh_start, session_index).await {
-					Err(kind) => Err(SessionsUnavailable {
-						kind,
-						info: Some(SessionsUnavailableInfo {
-							window_start: fresh_start,
-							window_end: session_index,
-							block_hash,
-						}),
-					}),
+					Err(kind) => {
+						tracing::debug!(
+							target: DEBUG_LOG_TARGET,
+							"Load All sessions return error {:?}",
+							kind,
+						);
+						Err(SessionsUnavailable {
+							kind,
+							info: Some(SessionsUnavailableInfo {
+								window_start: fresh_start,
+								window_end: session_index,
+								block_hash,
+							}),
+						})
+					},
 					Ok(s) => {
 						let update = SessionWindowUpdate::Advanced {
 							prev_window_start: old_window_start,
@@ -247,6 +294,7 @@ impl RollingSessionWindow {
 						let new_earliest = std::cmp::max(window_start, old_window_start);
 						self.earliest_session = Some(new_earliest);
 
+						tracing::debug!(target: DEBUG_LOG_TARGET, "Submitting update {:?}", update,);
 						Ok(update)
 					},
 				}
@@ -271,10 +319,22 @@ async fn load_all_sessions(
 		.await;
 
 		let session_info = match rx.await {
-			Ok(Ok(Some(s))) => s,
-			Ok(Ok(None)) => return Err(SessionsUnavailableKind::Missing),
-			Ok(Err(e)) => return Err(SessionsUnavailableKind::RuntimeApi(e)),
-			Err(canceled) => return Err(SessionsUnavailableKind::RuntimeApiUnavailable(canceled)),
+			Ok(Ok(Some(s))) => {
+				tracing::debug!(target: DEBUG_LOG_TARGET, "SessionInfo is available {:?}", s,);
+				s
+			},
+			Ok(Ok(None)) => {
+				tracing::debug!(target: DEBUG_LOG_TARGET, "SessionInfo is None",);
+				return Err(SessionsUnavailableKind::Missing)
+			},
+			Ok(Err(e)) => {
+				tracing::debug!(target: DEBUG_LOG_TARGET, "Inner return is Ok(Err({:?}))", e,);
+				return Err(SessionsUnavailableKind::RuntimeApi(e))
+			},
+			Err(canceled) => {
+				tracing::debug!(target: DEBUG_LOG_TARGET, "Outer return is Err({:?})", canceled,);
+				return Err(SessionsUnavailableKind::RuntimeApiUnavailable(canceled))
+			},
 		};
 
 		v.push(session_info);

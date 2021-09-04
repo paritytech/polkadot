@@ -66,6 +66,7 @@ mod db;
 mod tests;
 
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
+const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-dispute-coordinator";
 
 // The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
 // is not worth considering anymore. Changing this value has little to no bearing on consensus,
@@ -335,6 +336,7 @@ where
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+				tracing::debug!(target: DEBUG_LOG_TARGET, "Active Leaves update.");
 				handle_new_activations(
 					ctx,
 					&mut overlay_db,
@@ -469,14 +471,35 @@ async fn handle_new_activations(
 	new_activations: impl IntoIterator<Item = Hash>,
 ) -> Result<(), Error> {
 	for new_leaf in new_activations {
+		tracing::debug!(target: DEBUG_LOG_TARGET, "New Leaf {:?}.", new_leaf,);
 		let block_header = {
 			let (tx, rx) = oneshot::channel();
 
 			ctx.send_message(ChainApiMessage::BlockHeader(new_leaf, tx)).await;
 
-			match rx.await?? {
-				None => continue,
-				Some(header) => header,
+			let outer_result = rx.await;
+			if outer_result.is_err() {
+				tracing::debug!(target: DEBUG_LOG_TARGET, "Chain API outer receive is err.");
+			}
+
+			let inner_result = outer_result?;
+			if inner_result.is_err() {
+				tracing::debug!(target: DEBUG_LOG_TARGET, "Chain API inner receive is err.");
+			}
+
+			match inner_result? {
+				None => {
+					tracing::debug!(target: DEBUG_LOG_TARGET, "Chain API receive is None");
+					continue
+				},
+				Some(header) => {
+					tracing::debug!(
+						target: DEBUG_LOG_TARGET,
+						"Chain API receive is Some({:?})",
+						header
+					);
+					header
+				},
 			}
 		};
 
@@ -496,9 +519,10 @@ async fn handle_new_activations(
 			},
 			Ok(SessionWindowUpdate::Initialized { window_end, .. }) |
 			Ok(SessionWindowUpdate::Advanced { new_window_end: window_end, .. }) => {
+				tracing::debug!(target: DEBUG_LOG_TARGET, "Window End is {:?}.", window_end,);
 				let session = window_end;
 				if state.highest_session.map_or(true, |s| s < session) {
-					tracing::trace!(target: LOG_TARGET, session, "Observed new session. Pruning");
+					tracing::debug!(target: LOG_TARGET, session, "Observed new session. Pruning");
 
 					state.highest_session = Some(session);
 
@@ -527,6 +551,11 @@ async fn handle_incoming(
 			statements,
 			pending_confirmation,
 		} => {
+			tracing::debug!(
+				target: DEBUG_LOG_TARGET,
+				"Handling import statement for candidate hash {:?}.",
+				candidate_hash,
+			);
 			handle_import_statements(
 				ctx,
 				overlay_db,
@@ -542,16 +571,25 @@ async fn handle_incoming(
 		},
 		DisputeCoordinatorMessage::RecentDisputes(rx) => {
 			let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
+			tracing::debug!(target: DEBUG_LOG_TARGET, "Recent Disputes {:?}.", recent_disputes,);
 			let _ = rx.send(recent_disputes.keys().cloned().collect());
 		},
 		DisputeCoordinatorMessage::ActiveDisputes(rx) => {
+			// TODO (ladi): Shouldn''t this load active disputes?
 			let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
+			tracing::debug!(target: DEBUG_LOG_TARGET, "Active Disputes {:?}.", recent_disputes,);
 			let _ = rx.send(collect_active(recent_disputes, now));
 		},
 		DisputeCoordinatorMessage::QueryCandidateVotes(query, rx) => {
 			let mut query_output = Vec::new();
 			for (session_index, candidate_hash) in query.into_iter() {
 				if let Some(v) = overlay_db.load_candidate_votes(session_index, &candidate_hash)? {
+					tracing::debug!(
+						target: DEBUG_LOG_TARGET,
+						"Found candidate vote for SessionIndex {:?} and candidate hash {:?}.",
+						session_index,
+						candidate_hash,
+					);
 					query_output.push((session_index, candidate_hash, v.into()));
 				} else {
 					tracing::debug!(
@@ -569,6 +607,12 @@ async fn handle_incoming(
 			candidate_receipt,
 			valid,
 		) => {
+			tracing::debug!(
+				target: DEBUG_LOG_TARGET,
+				"Issuing Local Statement for SessionIndex {:?} CandidateHash {:?}.",
+				session,
+				candidate_hash,
+			);
 			issue_local_statement(
 				ctx,
 				overlay_db,
@@ -587,8 +631,12 @@ async fn handle_incoming(
 			tx,
 		} => {
 			let undisputed_chain =
-				determine_undisputed_chain(overlay_db, base_number, base_hash, block_descriptions)?;
+				determine_undisputed_chain(overlay_db, base_number, base_hash, block_descriptions.clone())?;
 
+			tracing::debug!(
+				target: DEBUG_LOG_TARGET,
+				"Undisputed Chain {:?} = determine_undisputed_chain(db, base_number={:?}, base_hash={:?}, block_descriptions.len()={:?}.", undisputed_chain, base_number, base_hash, block_descriptions.len(),
+			);
 			let _ = tx.send(undisputed_chain);
 		},
 	}
@@ -638,6 +686,12 @@ async fn handle_import_statements(
 ) -> Result<(), Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
 		// It is not valid to participate in an ancient dispute (spam?).
+		tracing::debug!(
+			target: DEBUG_LOG_TARGET,
+			"It is not valid to participate in an ancient dispute SessionIndex {:?} CandidateHash {:?}.",
+			session,
+			candidate_hash,
+		);
 		pending_confirmation
 			.send(ImportStatementsResult::InvalidImport)
 			.map_err(|_| Error::OneshotSend)?;
@@ -647,10 +701,11 @@ async fn handle_import_statements(
 
 	let validators = match state.rolling_session_window.session_info(session) {
 		None => {
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				session,
-				"Missing info for session which has an active dispute",
+				"Missing info for session which has an active dispute candidate_hash={:?}",
+				candidate_hash,
 			);
 
 			pending_confirmation
@@ -659,7 +714,15 @@ async fn handle_import_statements(
 
 			return Ok(())
 		},
-		Some(info) => info.validators.clone(),
+		Some(info) => {
+			tracing::debug!(
+				target: DEBUG_LOG_TARGET,
+				"SessionInfo received for SessionIndex {:?} CandidateHash {:?}.",
+				session,
+				candidate_hash,
+			);
+			info.validators.clone()
+		},
 	};
 
 	let n_validators = validators.len();

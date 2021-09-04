@@ -142,7 +142,7 @@ test-build-linux-stable:
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
-    - time cargo build --release --verbose --bin polkadot
+    - time cargo build --release --verbose --bin polkadot --features disputes
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
