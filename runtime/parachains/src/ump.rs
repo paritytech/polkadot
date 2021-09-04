@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+
 use crate::{
 	configuration::{self, HostConfiguration},
 	initializer,
@@ -21,7 +22,7 @@ use crate::{
 use frame_support::pallet_prelude::*;
 use primitives::v1::{Id as ParaId, UpwardMessage};
 use sp_std::{
-	collections::{btree_map::BTreeMap, vec_deque::VecDeque},
+	collections::{btree_map::{BTreeMap, Entry}, vec_deque::VecDeque},
 	convert::TryFrom,
 	fmt,
 	marker::PhantomData,
@@ -417,9 +418,10 @@ impl<T: Config> Pallet<T> {
 				) {
 					Ok(used) => weight_used += used,
 					Err((id, required)) => {
-						// we process messages in order and don't drop them if we run out of weight, so need to break
-						// here.
+						// we process messages in order and don't drop them if we run out of weight,
+						// so need to break here and requeue the message we took off the queue.
 						Self::deposit_event(Event::WeightExhausted(id, max_weight, required));
+						queue_cache.requeue::<T>(dispatchee, upward_message);
 						break
 					},
 				}
@@ -460,6 +462,7 @@ impl<T: Config> Pallet<T> {
 /// This struct is not supposed to be dropped but rather to be consumed by [`flush`].
 struct QueueCache(BTreeMap<ParaId, QueueCacheEntry>);
 
+#[derive(Default)]
 struct QueueCacheEntry {
 	queue: VecDeque<UpwardMessage>,
 	count: u32,
@@ -491,6 +494,22 @@ impl QueueCache {
 
 		let became_empty = cache_entry.queue.is_empty();
 		(upward_message, became_empty)
+	}
+
+	/// Places a message back on to a given parachain's UMP queue.
+	/// 
+	/// - `para`: The ID of the parachain.
+	/// - `message`: The message to put back on the front of the queue.
+	fn requeue<T: Config>(&mut self, para: ParaId, message: UpwardMessage) {
+		match self.0.entry(para) {
+			Entry::Occupied(entry) => {
+				let cache_entry = entry.into_mut();
+				cache_entry.count += 1;
+				cache_entry.total_size += message.len() as u32;
+				cache_entry.queue.push_front(message);
+			},
+			_ => (),
+		}
 	}
 
 	/// Flushes the updated queues into the storage.
