@@ -417,12 +417,14 @@ impl<T: Config> Pallet<T> {
 					},
 					Err((id, required)) => {
 						// we process messages in order and don't drop them if we run out of weight,
-						// so need to break here and requeue the message we took off the queue.
+						// so need to break here without calling `consume_front`.
 						Self::deposit_event(Event::WeightExhausted(id, max_weight, required));
 						break
 					},
 				}
 			} else {
+				// this should never happen, since the cursor should never point to an empty queue.
+				// it is resolved harmlessly here anyway.
 				true
 			};
 
@@ -443,8 +445,8 @@ impl<T: Config> Pallet<T> {
 
 /// To avoid constant fetching, deserializing and serialization the queues are cached.
 ///
-/// After an item dequeued from a queue for the first time, the queue is stored in this struct rather
-/// than being serialized and persisted.
+/// After an item dequeued from a queue for the first time, the queue is stored in this struct
+/// rather than being serialized and persisted.
 ///
 /// This implementation works best when:
 ///
@@ -475,8 +477,8 @@ impl QueueCache {
 
 	fn ensure_cached<T: Config>(&mut self, para: ParaId) -> &mut QueueCacheEntry {
 		self.0.entry(para).or_insert_with(|| {
-			let queue = <Pallet<T> as Store>::RelayDispatchQueues::get(&para);
-			let (_, total_size) = <Pallet<T> as Store>::RelayDispatchQueueSize::get(&para);
+			let queue = RelayDispatchQueues::<T>::get(&para);
+			let (_, total_size) = RelayDispatchQueueSize::<T>::get(&para);
 			QueueCacheEntry { queue, total_size, consumed_count: 0, consumed_size: 0 }
 		})
 	}
@@ -511,15 +513,17 @@ impl QueueCache {
 		// is not necessary as well.
 		for (para, e) in self.0 {
 			let QueueCacheEntry { queue, total_size, consumed_count, consumed_size } = e;
-			if consumed_count >= queue.len() {
-				// remove the entries altogether.
-				<Pallet<T> as Store>::RelayDispatchQueues::remove(&para);
-				<Pallet<T> as Store>::RelayDispatchQueueSize::remove(&para);
-			} else {
-				<Pallet<T> as Store>::RelayDispatchQueues::insert(&para, &queue[consumed_count..]);
-				let count = (queue.len() - consumed_count) as u32;
-				let size = (total_size as usize - consumed_size) as u32;
-				<Pallet<T> as Store>::RelayDispatchQueueSize::insert(&para, (count, size));
+			if consumed_count > 0 {
+				if consumed_count >= queue.len() {
+					// remove the entries altogether.
+					RelayDispatchQueues::<T>::remove(&para);
+					RelayDispatchQueueSize::<T>::remove(&para);
+				} else {
+					RelayDispatchQueues::<T>::insert(&para, &queue[consumed_count..]);
+					let count = (queue.len() - consumed_count) as u32;
+					let size = (total_size as usize - consumed_size) as u32;
+					RelayDispatchQueueSize::<T>::insert(&para, (count, size));
+				}
 			}
 		}
 	}
