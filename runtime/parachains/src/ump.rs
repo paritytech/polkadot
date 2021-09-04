@@ -404,13 +404,17 @@ impl<T: Config> Pallet<T> {
 			};
 
 			// dequeue the next message from the queue of the dispatchee
-			if let Some(upward_message) = queue_cache.peek_front::<T>(dispatchee) {
+			let maybe_next = queue_cache.peek_front::<T>(dispatchee);
+			let became_empty = if let Some(upward_message) = maybe_next {
 				match T::UmpSink::process_upward_message(
 					dispatchee,
 					&upward_message[..],
 					max_weight,
 				) {
-					Ok(used) => weight_used += used,
+					Ok(used) => {
+						weight_used += used;
+						queue_cache.consume_front::<T>(dispatchee)
+					},
 					Err((id, required)) => {
 						// we process messages in order and don't drop them if we run out of weight,
 						// so need to break here and requeue the message we took off the queue.
@@ -418,8 +422,9 @@ impl<T: Config> Pallet<T> {
 						break
 					},
 				}
-			}
-			let became_empty = queue_cache.consume_front::<T>(dispatchee);
+			} else {
+				true
+			};
 
 			if became_empty {
 				// the queue is empty now - this para doesn't need attention anymore.
@@ -484,8 +489,10 @@ impl QueueCache {
 		entry.queue.get(entry.consumed_count)
 	}
 
-	/// Removes one message from the front of `para`'s queue. Returns `true` iff there are no more
-	/// messages in the queue.
+	/// Attempts to remove one message from the front of `para`'s queue. If the queue is empty, then
+	/// does nothing.
+	///
+	/// Returns `true` iff there are no more messages in the queue after the removal attempt.
 	fn consume_front<T: Config>(&mut self, para: ParaId) -> bool {
 		let cache_entry = self.ensure_cached::<T>(para);
 		let upward_message = cache_entry.queue.get(cache_entry.consumed_count);
