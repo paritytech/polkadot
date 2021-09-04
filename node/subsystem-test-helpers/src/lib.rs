@@ -384,7 +384,7 @@ mod tests {
 		let spawner = sp_core::testing::TaskExecutor::new();
 		let (tx, rx) = mpsc::channel(2);
 		let all_subsystems =
-			AllSubsystems::<()>::dummy().replace_collator_protocol(ForwardSubsystem(tx));
+			AllSubsystems::<()>::dummy().replace_collator_protocol(|_| ForwardSubsystem(tx));
 		let (overseer, handle) = Overseer::new(
 			Vec::new(),
 			all_subsystems,
