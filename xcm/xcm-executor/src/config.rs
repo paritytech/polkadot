@@ -16,7 +16,7 @@
 
 use crate::traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, WeightBounds, WeightTrader,
+	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
@@ -65,4 +65,7 @@ pub trait Config {
 
 	/// The handler for when there is an instruction to claim assets.
 	type AssetClaims: ClaimAssets;
+
+	/// How we handle version subscription requests.
+	type SubscriptionService: VersionChangeNotifier;
 }

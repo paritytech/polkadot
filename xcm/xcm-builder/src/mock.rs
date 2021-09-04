@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::barriers::AllowSubscriptionsFrom;
 pub use crate::{
 	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
@@ -35,7 +36,7 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::prelude::*;
-use xcm_executor::traits::{ClaimAssets, DropAssets};
+use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
 	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
 	Assets, Config,
@@ -258,6 +259,7 @@ parameter_types! {
 	// Nothing is allowed to be paid/unpaid by default.
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
+	pub static AllowSubsFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
 	pub static WeightPrice: (AssetId, u128) = (From::from(Here), 1_000_000_000_000);
 	pub static MaxInstructions: u32 = 100;
@@ -268,6 +270,7 @@ pub type TestBarrier = (
 	AllowKnownQueryResponses<TestResponseHandler>,
 	AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,
+	AllowSubscriptionsFrom<IsInVec<AllowSubsFrom>>,
 );
 
 parameter_types! {
@@ -301,6 +304,26 @@ impl ClaimAssets for TestAssetTrap {
 	}
 }
 
+parameter_types! {
+	pub static SubscriptionRequests: Vec<(MultiLocation, Option<(QueryId, u64)>)> = vec![];
+}
+pub struct TestSubscriptionService;
+
+impl VersionChangeNotifier for TestSubscriptionService {
+	fn start(location: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult {
+		let mut r = SubscriptionRequests::get();
+		r.push((location.clone(), Some((query_id, max_weight))));
+		SubscriptionRequests::set(r);
+		Ok(())
+	}
+	fn stop(location: &MultiLocation) -> XcmResult {
+		let mut r = SubscriptionRequests::get();
+		r.push((location.clone(), None));
+		SubscriptionRequests::set(r);
+		Ok(())
+	}
+}
+
 pub struct TestConfig;
 impl Config for TestConfig {
 	type Call = TestCall;
@@ -316,4 +339,5 @@ impl Config for TestConfig {
 	type ResponseHandler = TestResponseHandler;
 	type AssetTrap = TestAssetTrap;
 	type AssetClaims = TestAssetTrap;
+	type SubscriptionService = TestSubscriptionService;
 }
