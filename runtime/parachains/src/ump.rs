@@ -511,19 +511,16 @@ impl QueueCache {
 		// NOTE we use an explicit method here instead of Drop impl because it has unwanted semantics
 		// within runtime. It is dangerous to use because of double-panics and flushing on a panic
 		// is not necessary as well.
-		for (para, e) in self.0 {
-			let QueueCacheEntry { queue, total_size, consumed_count, consumed_size } = e;
-			if consumed_count > 0 {
-				if consumed_count >= queue.len() {
-					// remove the entries altogether.
-					RelayDispatchQueues::<T>::remove(&para);
-					RelayDispatchQueueSize::<T>::remove(&para);
-				} else {
-					RelayDispatchQueues::<T>::insert(&para, &queue[consumed_count..]);
-					let count = (queue.len() - consumed_count) as u32;
-					let size = (total_size as usize - consumed_size) as u32;
-					RelayDispatchQueueSize::<T>::insert(&para, (count, size));
-				}
+		for (para, entry) in self.0 {
+			if entry.consumed_count >= entry.queue.len() {
+				// remove the entries altogether.
+				RelayDispatchQueues::<T>::remove(&para);
+				RelayDispatchQueueSize::<T>::remove(&para);
+			} else if entry.consumed_count > 0 {
+				RelayDispatchQueues::<T>::insert(&para, &entry.queue[entry.consumed_count..]);
+				let count = (entry.queue.len() - entry.consumed_count) as u32;
+				let size = (entry.total_size as usize - entry.consumed_size) as u32;
+				RelayDispatchQueueSize::<T>::insert(&para, (count, size));
 			}
 		}
 	}
@@ -604,71 +601,12 @@ impl NeedsDispatchCursor {
 }
 
 #[cfg(test)]
-pub(crate) mod mock_sink {
-	//! An implementation of a mock UMP sink that allows attaching a probe for mocking the weights
-	//! and checking the sent messages.
-	//!
-	//! A default behavior of the UMP sink is to ignore an incoming message and return 0 weight.
-	//!
-	//! A probe can be attached to the mock UMP sink. When attached, the mock sink would consult the
-	//! probe to check whether the received message was expected and what weight it should return.
-	//!
-	//! There are two rules on how to use a probe:
-	//!
-	//! 1. There can be only one active probe at a time. Creation of another probe while there is
-	//!    already an active one leads to a panic. The probe is scoped to a thread where it was created.
-	//!
-	//! 2. All messages expected by the probe must be received by the time of dropping it. Unreceived
-	//!    messages will lead to a panic while dropping a probe.
-
-	use super::{MessageId, ParaId, UmpSink, UpwardMessage};
-	use frame_support::weights::Weight;
-	use parity_scale_codec::Decode;
-	use std::cell::RefCell;
-
-	std::thread_local! {
-		// `Some` here indicates that there is an active probe.
-		static PROCESSED: RefCell<Vec<(ParaId, UpwardMessage)>> = RefCell::new(vec![]);
-	}
-
-	pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
-		PROCESSED.with(|opt_hook| {
-			let mut r = vec![];
-			let mut processed = opt_hook.borrow_mut();
-			std::mem::swap(processed.as_mut(), &mut r);
-			r
-		})
-	}
-
-	pub struct MockUmpSink;
-	impl UmpSink for MockUmpSink {
-		fn process_upward_message(
-			actual_origin: ParaId,
-			actual_msg: &[u8],
-			max_weight: Weight,
-		) -> Result<Weight, (MessageId, Weight)> {
-			let weight = match u32::decode(&mut &actual_msg[..]) {
-				Ok(w) => w as Weight,
-				Err(_) => return Ok(0), // same as the real `UmpSink`
-			};
-			if weight > max_weight {
-				let id = sp_io::hashing::blake2_256(actual_msg);
-				return Err((id, weight))
-			}
-			PROCESSED.with(|opt_hook| {
-				opt_hook.borrow_mut().push((actual_origin, actual_msg.to_owned()));
-			});
-			Ok(weight)
-		}
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::{mock_sink::take_processed, *};
-	use crate::mock::{new_test_ext, Configuration, MockGenesisConfig, Ump};
+pub (crate) mod tests {
+	use super::*;
+	use crate::mock::{new_test_ext, Configuration, MockGenesisConfig, Ump, take_processed};
 	use std::collections::HashSet;
-
+	use frame_support::weights::Weight;
+	
 	struct GenesisConfigBuilder {
 		max_upward_message_size: u32,
 		max_upward_message_num_per_candidate: u32,
