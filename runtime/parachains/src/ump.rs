@@ -623,18 +623,21 @@ pub(crate) mod mock_sink {
 
 	use super::{MessageId, ParaId, UmpSink, UpwardMessage};
 	use frame_support::weights::Weight;
-	use std::{cell::RefCell, vec::Vec};
-
-	#[derive(Debug)]
-	struct UmpExpectation {
-		expected_origin: ParaId,
-		expected_msg: UpwardMessage,
-		mock_weight: Weight,
-	}
+	use std::cell::RefCell;
+	use parity_scale_codec::Decode;
 
 	std::thread_local! {
 		// `Some` here indicates that there is an active probe.
-		static HOOK: RefCell<Option<Vec<UmpExpectation>>> = RefCell::new(None);
+		static PROCESSED: RefCell<Vec<(ParaId, UpwardMessage)>> = RefCell::new(vec![]);
+	}
+
+	pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
+		PROCESSED.with(|opt_hook| {
+			let mut r = vec![];
+			let mut processed = opt_hook.borrow_mut();
+			std::mem::swap(processed.as_mut(), &mut r);
+			r
+		})
 	}
 
 	pub struct MockUmpSink;
@@ -642,98 +645,27 @@ pub(crate) mod mock_sink {
 		fn process_upward_message(
 			actual_origin: ParaId,
 			actual_msg: &[u8],
-			_max_weight: Weight,
+			max_weight: Weight,
 		) -> Result<Weight, (MessageId, Weight)> {
-			Ok(HOOK
-				.with(|opt_hook| {
-					opt_hook.borrow_mut().as_mut().map(|hook| {
-						let UmpExpectation { expected_origin, expected_msg, mock_weight } =
-							match hook.is_empty() {
-								false => hook.remove(0),
-								true => {
-									panic!(
-							"The probe is active but didn't expect the message:\n\n\t{:?}.",
-							actual_msg,
-						);
-								},
-							};
-						assert_eq!(expected_origin, actual_origin);
-						assert_eq!(expected_msg, &actual_msg[..]);
-						mock_weight
-					})
-				})
-				.unwrap_or(0))
-		}
-	}
-
-	pub struct Probe {
-		_private: (),
-	}
-
-	impl Probe {
-		pub fn new() -> Self {
-			HOOK.with(|opt_hook| {
-				let prev = opt_hook.borrow_mut().replace(Vec::default());
-
-				// that can trigger if there were two probes were created during one session which
-				// is may be a bit strict, but may save time figuring out what's wrong.
-				// if you land here and you do need the two probes in one session consider
-				// dropping the the existing probe explicitly.
-				assert!(prev.is_none());
+			let weight = match u32::decode(&mut &actual_msg[..]) {
+				Ok(w) => w as Weight,
+				Err(_) => return Ok(0),	// same as the real `UmpSink`
+			};
+			if weight > max_weight {
+				let id = sp_io::hashing::blake2_256(actual_msg);
+				return Err((id, weight))
+			}
+			PROCESSED.with(|opt_hook| {
+				opt_hook.borrow_mut().push((actual_origin, actual_msg.to_owned()));
 			});
-			Self { _private: () }
-		}
-
-		/// Add an expected message.
-		///
-		/// The enqueued messages are processed in FIFO order.
-		pub fn assert_msg(
-			&mut self,
-			expected_origin: ParaId,
-			expected_msg: UpwardMessage,
-			mock_weight: Weight,
-		) {
-			HOOK.with(|opt_hook| {
-				opt_hook.borrow_mut().as_mut().unwrap().push(UmpExpectation {
-					expected_origin,
-					expected_msg,
-					mock_weight,
-				})
-			});
-		}
-	}
-
-	impl Drop for Probe {
-		fn drop(&mut self) {
-			let _ = HOOK.try_with(|opt_hook| {
-				let prev = opt_hook.borrow_mut().take().expect(
-					"this probe was created and hasn't been yet destroyed;
-					the probe cannot be replaced;
-					there is only one probe at a time allowed;
-					thus it cannot be `None`;
-					qed",
-				);
-
-				if !prev.is_empty() {
-					// some messages are left unchecked. We should notify the developer about this.
-					// however, we do so only if the thread doesn't panic already. Otherwise, the
-					// developer would get a SIGILL or SIGABRT without a meaningful error message.
-					if !std::thread::panicking() {
-						panic!(
-							"the probe is dropped and not all expected messages arrived: {:?}",
-							prev
-						);
-					}
-				}
-			});
-			// an `Err` here signals here that the thread local was already destroyed.
+			Ok(weight)
 		}
 	}
 }
 
 #[cfg(test)]
 mod tests {
-	use super::{mock_sink::Probe, *};
+	use super::{mock_sink::take_processed, *};
 	use crate::mock::{new_test_ext, Configuration, MockGenesisConfig, Ump};
 	use std::collections::HashSet;
 
@@ -844,15 +776,12 @@ mod tests {
 	#[test]
 	fn dispatch_single_message() {
 		let a = ParaId::from(228);
-		let msg = vec![1, 2, 3];
+		let msg = 1000u32.encode();
 
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-			let mut probe = Probe::new();
-
-			probe.assert_msg(a, msg.clone(), 0);
-			queue_upward_msg(a, msg);
-
+			queue_upward_msg(a, msg.clone());
 			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, msg)]);
 
 			assert_storage_consistency_exhaustive();
 		});
@@ -864,11 +793,11 @@ mod tests {
 		let c = ParaId::from(228);
 		let q = ParaId::from(911);
 
-		let a_msg_1 = vec![1, 2, 3];
-		let a_msg_2 = vec![3, 2, 1];
-		let c_msg_1 = vec![4, 5, 6];
-		let c_msg_2 = vec![9, 8, 7];
-		let q_msg = b"we are Q".to_vec();
+		let a_msg_1 = (200u32, "a_msg_1").encode();
+		let a_msg_2 = (100u32, "a_msg_2").encode();
+		let c_msg_1 = (300u32, "c_msg_1").encode();
+		let c_msg_2 = (100u32, "c_msg_2").encode();
+		let q_msg = (500u32, "q_msg").encode();
 
 		new_test_ext(
 			GenesisConfigBuilder { ump_service_total_weight: 500, ..Default::default() }.build(),
@@ -882,52 +811,60 @@ mod tests {
 			assert_storage_consistency_exhaustive();
 
 			// we expect only two first messages to fit in the first iteration.
-			{
-				let mut probe = Probe::new();
-
-				probe.assert_msg(a, a_msg_1.clone(), 300);
-				probe.assert_msg(c, c_msg_1.clone(), 300);
-				Ump::process_pending_upward_messages();
-				assert_storage_consistency_exhaustive();
-
-				drop(probe);
-			}
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, a_msg_1), (c, c_msg_1)]);
+			assert_storage_consistency_exhaustive();
 
 			queue_upward_msg(c, c_msg_2.clone());
 			assert_storage_consistency_exhaustive();
 
 			// second iteration should process the second message.
-			{
-				let mut probe = Probe::new();
-
-				probe.assert_msg(q, q_msg.clone(), 500);
-				Ump::process_pending_upward_messages();
-				assert_storage_consistency_exhaustive();
-
-				drop(probe);
-			}
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(q, q_msg)]);
+			assert_storage_consistency_exhaustive();
 
 			// 3rd iteration.
-			{
-				let mut probe = Probe::new();
-
-				probe.assert_msg(a, a_msg_2.clone(), 100);
-				probe.assert_msg(c, c_msg_2.clone(), 100);
-				Ump::process_pending_upward_messages();
-				assert_storage_consistency_exhaustive();
-
-				drop(probe);
-			}
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, a_msg_2), (c, c_msg_2)]);
+			assert_storage_consistency_exhaustive();
 
 			// finally, make sure that the queue is empty.
-			{
-				let probe = Probe::new();
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![]);
+			assert_storage_consistency_exhaustive();
+		});
+	}
 
-				Ump::process_pending_upward_messages();
-				assert_storage_consistency_exhaustive();
+	#[test]
+	fn dispatch_keeps_message_after_weight_exhausted() {
+		let a = ParaId::from(128);
 
-				drop(probe);
-			}
+		let a_msg_1 = (300u32, "a_msg_1").encode();
+		let a_msg_2 = (300u32, "a_msg_2").encode();
+
+		new_test_ext(
+			GenesisConfigBuilder { ump_service_total_weight: 500, ..Default::default() }.build(),
+		)
+		.execute_with(|| {
+			queue_upward_msg(a, a_msg_1.clone());
+			queue_upward_msg(a, a_msg_2.clone());
+
+			assert_storage_consistency_exhaustive();
+
+			// we expect only one message to fit in the first iteration.
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, a_msg_1)]);
+			assert_storage_consistency_exhaustive();
+
+			// second iteration should process the remaining message.
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, a_msg_2)]);
+			assert_storage_consistency_exhaustive();
+
+			// finally, make sure that the queue is empty.
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![]);
+			assert_storage_consistency_exhaustive();
 		});
 	}
 
@@ -936,9 +873,9 @@ mod tests {
 		let a = ParaId::from(1991);
 		let b = ParaId::from(1999);
 
-		let a_msg_1 = vec![1, 2, 3];
-		let a_msg_2 = vec![3, 2, 1];
-		let b_msg_1 = vec![4, 5, 6];
+		let a_msg_1 = (300u32, "a_msg_1").encode();
+		let a_msg_2 = (300u32, "a_msg_2").encode();
+		let b_msg_1 = (300u32, "b_msg_1").encode();
 
 		new_test_ext(
 			GenesisConfigBuilder { ump_service_total_weight: 900, ..Default::default() }.build(),
@@ -953,18 +890,8 @@ mod tests {
 			queue_upward_msg(a, a_msg_1.clone());
 			queue_upward_msg(a, a_msg_2.clone());
 			queue_upward_msg(b, b_msg_1.clone());
-
-			{
-				let mut probe = Probe::new();
-
-				probe.assert_msg(a, a_msg_1.clone(), 300);
-				probe.assert_msg(b, b_msg_1.clone(), 300);
-				probe.assert_msg(a, a_msg_2.clone(), 300);
-
-				Ump::process_pending_upward_messages();
-
-				drop(probe);
-			}
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, a_msg_1), (b, b_msg_1), (a, a_msg_2)]);
 		});
 	}
 
