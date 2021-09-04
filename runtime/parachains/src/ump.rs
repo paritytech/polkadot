@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-
 use crate::{
 	configuration::{self, HostConfiguration},
 	initializer,
@@ -22,11 +21,7 @@ use crate::{
 use frame_support::pallet_prelude::*;
 use primitives::v1::{Id as ParaId, UpwardMessage};
 use sp_std::{
-	collections::btree_map::BTreeMap,
-	convert::TryFrom,
-	fmt,
-	marker::PhantomData,
-	prelude::*,
+	collections::btree_map::BTreeMap, convert::TryFrom, fmt, marker::PhantomData, prelude::*,
 };
 use xcm::latest::Outcome;
 
@@ -482,7 +477,7 @@ impl QueueCache {
 	}
 
 	/// Returns the message at the front of `para`'s queue, or `None` if the queue is empty.
-	/// 
+	///
 	/// Does not mutate the queue.
 	fn peek_front<T: Config>(&mut self, para: ParaId) -> Option<&UpwardMessage> {
 		let entry = self.ensure_cached::<T>(para);
