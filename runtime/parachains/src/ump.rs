@@ -22,7 +22,7 @@ use crate::{
 use frame_support::pallet_prelude::*;
 use primitives::v1::{Id as ParaId, UpwardMessage};
 use sp_std::{
-	collections::{btree_map::{BTreeMap, Entry}, vec_deque::VecDeque},
+	collections::btree_map::BTreeMap,
 	convert::TryFrom,
 	fmt,
 	marker::PhantomData,
@@ -212,7 +212,7 @@ pub mod pallet {
 	/// The messages are processed in FIFO order.
 	#[pallet::storage]
 	pub type RelayDispatchQueues<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, VecDeque<UpwardMessage>, ValueQuery>;
+		StorageMap<_, Twox64Concat, ParaId, Vec<UpwardMessage>, ValueQuery>;
 
 	/// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 	///
@@ -409,8 +409,7 @@ impl<T: Config> Pallet<T> {
 			};
 
 			// dequeue the next message from the queue of the dispatchee
-			let (upward_message, became_empty) = queue_cache.dequeue::<T>(dispatchee);
-			if let Some(upward_message) = upward_message {
+			if let Some(upward_message) = queue_cache.peek_front::<T>(dispatchee) {
 				match T::UmpSink::process_upward_message(
 					dispatchee,
 					&upward_message[..],
@@ -421,11 +420,11 @@ impl<T: Config> Pallet<T> {
 						// we process messages in order and don't drop them if we run out of weight,
 						// so need to break here and requeue the message we took off the queue.
 						Self::deposit_event(Event::WeightExhausted(id, max_weight, required));
-						queue_cache.requeue::<T>(dispatchee, upward_message);
 						break
 					},
 				}
 			}
+			let became_empty = queue_cache.consume_front::<T>(dispatchee);
 
 			if became_empty {
 				// the queue is empty now - this para doesn't need attention anymore.
@@ -462,11 +461,11 @@ impl<T: Config> Pallet<T> {
 /// This struct is not supposed to be dropped but rather to be consumed by [`flush`].
 struct QueueCache(BTreeMap<ParaId, QueueCacheEntry>);
 
-#[derive(Default)]
 struct QueueCacheEntry {
-	queue: VecDeque<UpwardMessage>,
-	count: u32,
+	queue: Vec<UpwardMessage>,
 	total_size: u32,
+	consumed_count: usize,
+	consumed_size: usize,
 }
 
 impl QueueCache {
@@ -474,42 +473,33 @@ impl QueueCache {
 		Self(BTreeMap::new())
 	}
 
-	/// Dequeues one item from the upward message queue of the given para.
-	///
-	/// Returns `(upward_message, became_empty)`, where
-	///
-	/// - `upward_message` a dequeued message or `None` if the queue _was_ empty.
-	/// - `became_empty` is true if the queue _became_ empty.
-	fn dequeue<T: Config>(&mut self, para: ParaId) -> (Option<UpwardMessage>, bool) {
-		let cache_entry = self.0.entry(para).or_insert_with(|| {
+	fn ensure_cached<T: Config>(&mut self, para: ParaId) -> &mut QueueCacheEntry {
+		self.0.entry(para).or_insert_with(|| {
 			let queue = <Pallet<T> as Store>::RelayDispatchQueues::get(&para);
-			let (count, total_size) = <Pallet<T> as Store>::RelayDispatchQueueSize::get(&para);
-			QueueCacheEntry { queue, count, total_size }
-		});
-		let upward_message = cache_entry.queue.pop_front();
-		if let Some(ref msg) = upward_message {
-			cache_entry.count -= 1;
-			cache_entry.total_size -= msg.len() as u32;
-		}
-
-		let became_empty = cache_entry.queue.is_empty();
-		(upward_message, became_empty)
+			let (_, total_size) = <Pallet<T> as Store>::RelayDispatchQueueSize::get(&para);
+			QueueCacheEntry { queue, total_size, consumed_count: 0, consumed_size: 0 }
+		})
 	}
 
-	/// Places a message back on to a given parachain's UMP queue.
+	/// Returns the message at the front of `para`'s queue, or `None` if the queue is empty.
 	/// 
-	/// - `para`: The ID of the parachain.
-	/// - `message`: The message to put back on the front of the queue.
-	fn requeue<T: Config>(&mut self, para: ParaId, message: UpwardMessage) {
-		match self.0.entry(para) {
-			Entry::Occupied(entry) => {
-				let cache_entry = entry.into_mut();
-				cache_entry.count += 1;
-				cache_entry.total_size += message.len() as u32;
-				cache_entry.queue.push_front(message);
-			},
-			_ => (),
+	/// Does not mutate the queue.
+	fn peek_front<T: Config>(&mut self, para: ParaId) -> Option<&UpwardMessage> {
+		let entry = self.ensure_cached::<T>(para);
+		entry.queue.get(entry.consumed_count)
+	}
+
+	/// Removes one message from the front of `para`'s queue. Returns `true` iff there are no more
+	/// messages in the queue.
+	fn consume_front<T: Config>(&mut self, para: ParaId) -> bool {
+		let cache_entry = self.ensure_cached::<T>(para);
+		let upward_message = cache_entry.queue.get(cache_entry.consumed_count);
+		if let Some(msg) = upward_message {
+			cache_entry.consumed_count += 1;
+			cache_entry.consumed_size += msg.len();
 		}
+
+		cache_entry.consumed_count >= cache_entry.queue.len()
 	}
 
 	/// Flushes the updated queues into the storage.
@@ -517,14 +507,17 @@ impl QueueCache {
 		// NOTE we use an explicit method here instead of Drop impl because it has unwanted semantics
 		// within runtime. It is dangerous to use because of double-panics and flushing on a panic
 		// is not necessary as well.
-		for (para, QueueCacheEntry { queue, count, total_size }) in self.0 {
-			if queue.is_empty() {
+		for (para, e) in self.0 {
+			let QueueCacheEntry { queue, total_size, consumed_count, consumed_size } = e;
+			if consumed_count >= queue.len() {
 				// remove the entries altogether.
 				<Pallet<T> as Store>::RelayDispatchQueues::remove(&para);
 				<Pallet<T> as Store>::RelayDispatchQueueSize::remove(&para);
 			} else {
-				<Pallet<T> as Store>::RelayDispatchQueues::insert(&para, queue);
-				<Pallet<T> as Store>::RelayDispatchQueueSize::insert(&para, (count, total_size));
+				<Pallet<T> as Store>::RelayDispatchQueues::insert(&para, &queue[consumed_count..]);
+				let count = (queue.len() - consumed_count) as u32;
+				let size = (total_size as usize - consumed_size) as u32;
+				<Pallet<T> as Store>::RelayDispatchQueueSize::insert(&para, (count, size));
 			}
 		}
 	}
@@ -624,7 +617,7 @@ pub(crate) mod mock_sink {
 
 	use super::{MessageId, ParaId, UmpSink, UpwardMessage};
 	use frame_support::weights::Weight;
-	use std::{cell::RefCell, collections::vec_deque::VecDeque};
+	use std::{cell::RefCell, vec::Vec};
 
 	#[derive(Debug)]
 	struct UmpExpectation {
@@ -635,7 +628,7 @@ pub(crate) mod mock_sink {
 
 	std::thread_local! {
 		// `Some` here indicates that there is an active probe.
-		static HOOK: RefCell<Option<VecDeque<UmpExpectation>>> = RefCell::new(None);
+		static HOOK: RefCell<Option<Vec<UmpExpectation>>> = RefCell::new(None);
 	}
 
 	pub struct MockUmpSink;
@@ -649,9 +642,9 @@ pub(crate) mod mock_sink {
 				.with(|opt_hook| {
 					opt_hook.borrow_mut().as_mut().map(|hook| {
 						let UmpExpectation { expected_origin, expected_msg, mock_weight } =
-							match hook.pop_front() {
-								Some(expectation) => expectation,
-								None => {
+							match hook.is_empty() {
+								false => hook.remove(0),
+								true => {
 									panic!(
 							"The probe is active but didn't expect the message:\n\n\t{:?}.",
 							actual_msg,
@@ -674,7 +667,7 @@ pub(crate) mod mock_sink {
 	impl Probe {
 		pub fn new() -> Self {
 			HOOK.with(|opt_hook| {
-				let prev = opt_hook.borrow_mut().replace(VecDeque::default());
+				let prev = opt_hook.borrow_mut().replace(Vec::default());
 
 				// that can trigger if there were two probes were created during one session which
 				// is may be a bit strict, but may save time figuring out what's wrong.
@@ -695,7 +688,7 @@ pub(crate) mod mock_sink {
 			mock_weight: Weight,
 		) {
 			HOOK.with(|opt_hook| {
-				opt_hook.borrow_mut().as_mut().unwrap().push_back(UmpExpectation {
+				opt_hook.borrow_mut().as_mut().unwrap().push(UmpExpectation {
 					expected_origin,
 					expected_msg,
 					mock_weight,
