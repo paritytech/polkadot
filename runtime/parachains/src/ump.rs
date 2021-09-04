@@ -623,8 +623,8 @@ pub(crate) mod mock_sink {
 
 	use super::{MessageId, ParaId, UmpSink, UpwardMessage};
 	use frame_support::weights::Weight;
-	use std::cell::RefCell;
 	use parity_scale_codec::Decode;
+	use std::cell::RefCell;
 
 	std::thread_local! {
 		// `Some` here indicates that there is an active probe.
@@ -649,7 +649,7 @@ pub(crate) mod mock_sink {
 		) -> Result<Weight, (MessageId, Weight)> {
 			let weight = match u32::decode(&mut &actual_msg[..]) {
 				Ok(w) => w as Weight,
-				Err(_) => return Ok(0),	// same as the real `UmpSink`
+				Err(_) => return Ok(0), // same as the real `UmpSink`
 			};
 			if weight > max_weight {
 				let id = sp_io::hashing::blake2_256(actual_msg);
