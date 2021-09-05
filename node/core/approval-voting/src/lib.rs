@@ -99,7 +99,8 @@ const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const LOG_TARGET: &str = "parachain::approval-voting";
-const MALICIOUS_FREQUENCY: usize = 5;
+const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-approval-voting";
+const MALICIOUS_FREQUENCY: usize = 50_000;
 
 /// Configuration for the approval voting subsystem
 #[derive(Debug, Clone)]
@@ -2234,10 +2235,10 @@ async fn launch_approval(
 					let mut rng = rand::thread_rng();
 					let val: usize = rng.gen_range(0..MALICIOUS_FREQUENCY);
 					if val > 0 {
-						tracing::debug!(target: LOG_TARGET, "ladi-debug-approval APPROVED {:?}", candidate_hash);
+						tracing::debug!(target: DEBUG_LOG_TARGET, "ladi-debug-approval APPROVED {:?}", candidate_hash);
 						return ApprovalState::approved(validator_index, candidate_hash)
 					} else {
-						tracing::debug!(target: LOG_TARGET, "ladi-debug-approval FAILED {:?}", candidate_hash);
+						tracing::debug!(target: DEBUG_LOG_TARGET, "ladi-debug-approval FAILED {:?}", candidate_hash);
 						return ApprovalState::failed(validator_index, candidate_hash)
 					}
 				} else {
