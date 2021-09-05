@@ -534,6 +534,9 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
+		registrar: westend_runtime::RegistrarConfig {
+			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
+		},
 	}
 }
 
@@ -1459,6 +1462,9 @@ pub fn westend_testnet_genesis(
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
+		registrar: westend_runtime::RegistrarConfig {
+			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
+		},
 	}
 }
 
