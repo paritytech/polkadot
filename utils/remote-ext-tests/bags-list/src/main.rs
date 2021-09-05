@@ -23,7 +23,7 @@ async fn main() {
 	if cfg!(feature = "polkadot") {
 		use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
 		voter_bags::test_voter_bags_migration::<Runtime, Block>(UNITS as u64).await;
-	} else {
+	} else if cfg!(feature = "kusama") {
 		use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
 		voter_bags::test_voter_bags_migration::<Runtime, Block>(UNITS as u64).await;
 	}
