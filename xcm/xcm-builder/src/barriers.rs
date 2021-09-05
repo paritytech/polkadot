@@ -131,8 +131,7 @@ pub struct AllowBenchmarks;
 impl ShouldExecute for AllowBenchmarks {
 	fn should_execute<Call>(
 		_: &MultiLocation,
-		_: bool,
-		_: &xcm::latest::Xcm<Call>,
+		_: &mut xcm::latest::Xcm<Call>,
 		_: Weight,
 		_: &mut Weight,
 	) -> Result<(), ()> {
