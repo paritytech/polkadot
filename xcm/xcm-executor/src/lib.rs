@@ -129,7 +129,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	fn new(origin: MultiLocation) -> Self {
+	pub fn new(origin: MultiLocation) -> Self {
 		Self {
 			holding: Assets::new(),
 			origin: Some(origin.clone()),
@@ -148,7 +148,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 	/// Execute the XCM program fragment and report back the error and which instruction caused it,
 	/// or `Ok` if there was no error.
-	fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), (u32, XcmError, u64)> {
+	pub fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), (u32, XcmError, u64)> {
 		log::trace!(
 			target: "xcm::execute",
 			"origin: {:?}, total_surplus/refunded: {:?}/{:?}, error_handler_weight: {:?}",
@@ -444,13 +444,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		Ok(assets.into_assets_iter().collect::<Vec<_>>().into())
 	}
 
-	#[cfg(feature = "runtime-benchmarks")]
-	pub fn do_execute_orders(
-		origin: &MultiLocation,
-		holding: &mut Assets,
-		order: Order<Config::Call>,
-	) -> Result<Weight, XcmError> {
-		let mut trader = Config::Trader::new();
-		Self::execute_orders(origin, holding, order, &mut trader, 0)
+	/// Set the holding registrar of the executor. Only used for tests and benchmarking.
+	#[cfg(any(test, feature = "runtime-benchmarks", feature = "std"))]
+	pub fn set_holding(&mut self, assets: Assets) {
+		self.holding = assets;
 	}
 }

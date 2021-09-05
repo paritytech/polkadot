@@ -32,8 +32,8 @@ use sp_std::prelude::*;
 use xcm::latest::prelude::*;
 use xcm_executor::{traits::Convert, Assets};
 
-pub mod fungible;
-pub mod fungibles;
+// pub mod fungible;
+// pub mod fungibles;
 pub mod xcm_generic;
 
 #[cfg(test)]
@@ -96,20 +96,27 @@ pub fn asset_instance_from(x: u32) -> AssetInstance {
 	AssetInstance::Array4(instance)
 }
 
-/// wrapper to execute single order. Can be any hack, for now we just do a noop-xcm with a single
-/// order.
-pub fn execute_order<T: Config>(
-	origin: MultiLocation,
-	mut holding: Assets,
-	order: Order<XcmCallOf<T>>,
-) -> Result<Weight, XcmError> {
-	ExecutorOf::<T>::do_execute_orders(&origin, &mut holding, order)
-}
-
 /// Execute an xcm.
-pub fn execute_xcm<T: Config>(origin: MultiLocation, xcm: Xcm<XcmCallOf<T>>) -> Outcome {
+/// TODO: This skips all the barriers and traders, etc... maybe need to add back.
+pub fn execute_xcm<T: Config>(
+	origin: MultiLocation,
+	holding: Assets,
+	xcm: Xcm<XcmCallOf<T>>,
+) -> sp_runtime::DispatchResult {
 	// TODO: very large weight to ensure all benchmarks execute, sensible?
-	ExecutorOf::<T>::execute_xcm(origin, xcm, MAX_WEIGHT)
+	let mut executor = ExecutorOf::<T>::new(origin);
+	executor.set_holding(holding);
+	let result = executor.execute(xcm);
+
+	match result {
+		Ok(()) => Ok(()),
+		// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
+		// the error which didn't end up being executed.
+		Err((index, error, weight)) => {
+			println!("XCM ERROR :: Index: {:?}, Error: {:?}, Weight: {:?}", index, error, weight);
+			Err(sp_runtime::DispatchError::Other("execute xcm error"))
+		},
+	}
 }
 
 // TODO probably delete and use converter

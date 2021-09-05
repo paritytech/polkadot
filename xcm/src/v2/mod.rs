@@ -613,6 +613,12 @@ pub enum Instruction<Call> {
 	UnsubscribeVersion,
 }
 
+impl<Call> From<Instruction<Call>> for Xcm<Call> {
+	fn from(instruction: Instruction<Call>) -> Self {
+		Self(vec![instruction])
+	}
+}
+
 impl<Call> Xcm<Call> {
 	pub fn into<C>(self) -> Xcm<C> {
 		Xcm::from(self)

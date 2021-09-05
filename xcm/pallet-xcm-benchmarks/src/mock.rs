@@ -21,7 +21,7 @@ use xcm_executor::traits::FilterAssetLocation;
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
 impl xcm::opaque::latest::SendXcm for DevNull {
-	fn send_xcm(_: MultiLocation, _: Xcm<()>) -> XcmResult {
+	fn send_xcm(_: MultiLocation, _: Xcm<()>) -> SendResult {
 		Ok(())
 	}
 }
@@ -30,7 +30,7 @@ impl xcm_executor::traits::OnResponse for DevNull {
 	fn expecting_response(_: &MultiLocation, _: u64) -> bool {
 		false
 	}
-	fn on_response(_: MultiLocation, _: u64, _: Response) -> Weight {
+	fn on_response(_: &MultiLocation, _: u64, _: Response, _: Weight) -> Weight {
 		0
 	}
 }

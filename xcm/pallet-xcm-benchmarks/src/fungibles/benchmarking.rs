@@ -16,8 +16,7 @@
 
 use super::*;
 use crate::{
-	account, account_id_junction, execute_order, execute_xcm, worst_case_holding,
-	AssetTransactorOf, XcmCallOf,
+	account, account_id_junction, execute_xcm, worst_case_holding, AssetTransactorOf, XcmCallOf,
 };
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_support::{
@@ -50,11 +49,11 @@ benchmarks! {
 
 	// orders.
 	order_noop {
-		let order = Order::<XcmCallOf<T>>::Noop;
 		let origin: MultiLocation = account_id_junction::<T>(1).into();
 		let holding = Assets::default();
+		let xcm = Xcm::<XcmCallOf<T>>::new();
 	}: {
-		assert_ok!(execute_order::<T>(origin, holding, order));
+		assert_ok!(execute_xcm::<T>(origin, holding, xcm).ensure_complete());
 	}
 
 	order_deposit_asset_per_asset {
@@ -63,18 +62,19 @@ benchmarks! {
 		let origin: MultiLocation = account_id_junction::<T>(1).into();
 
 		let asset =  T::get_multi_asset(asset_id);
-		let order = Order::<XcmCallOf<T>>::DepositAsset {
+		let instruction = Instruction::<XcmCallOf<T>>::DepositAsset {
 			assets: asset.clone().into(),
 			max_assets: 1,
 			beneficiary: account_id_junction::<T>(2).into(),
 		};
+		let xcm = Xcm(vec![instruction]);
 
 		let amount: u128 = T::TransactAsset::minimum_balance(asset_id.into()).try_into().unwrap();
 		let mut holding: Assets = worst_case_holding();
 		holding.subsume(asset);
 		assert!(T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
 	}: {
-		assert_ok!(execute_order::<T>(origin, holding, order));
+		assert_ok!(execute_xcm::<T>(origin, holding, xcm).ensure_complete());
 	} verify {
 		assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero())
 	}
@@ -100,7 +100,8 @@ benchmarks! {
 		.collect::<Vec<_>>().into();
 		// check just one of the asset ids, namely 1.
 		assert!(!T::TransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
-		let xcm = Xcm::WithdrawAsset::<XcmCallOf<T>> { assets, effects: vec![] };
+		let instruction = Instruction::<XcmCallOf<T>>::WithdrawAsset(assets);
+		let xcm = instruction.into();
 	}: {
 		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
 	} verify {
@@ -131,7 +132,8 @@ benchmarks! {
 		})
 		.collect::<Vec<_>>().into();
 
-		let xcm = Xcm::TransferAsset { assets, beneficiary };
+		let instruction = Instruction::TransferAsset { assets, beneficiary };
+		let xcm = instruction.into();
 	}: {
 		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
 	} verify {

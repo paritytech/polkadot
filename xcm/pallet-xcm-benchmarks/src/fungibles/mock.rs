@@ -161,6 +161,10 @@ pub type AssetTransactor = xcm_builder::FungiblesAdapter<
 	CheckedAccount,
 >;
 
+parameter_types! {
+	pub const MaxInstructions: u32 = 100;
+}
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -171,7 +175,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = (); // no one can teleport.
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
-	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
+	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 }
