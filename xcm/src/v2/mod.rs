@@ -129,7 +129,7 @@ pub mod prelude {
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
-			VERSION as XCM_VERSION,
+			XcmWeightInfo, VERSION as XCM_VERSION,
 		};
 	}
 	pub use super::{Instruction, Xcm};

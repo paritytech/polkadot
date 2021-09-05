@@ -97,104 +97,18 @@ impl<W, C> WeightBounds<C> for FinalXcmWeight<W, C>
 where
 	W: XcmWeightInfo<C>,
 	C: Decode + GetDispatchInfo,
-	Xcm<C>: GetWeight<W>,
-	Order<C>: GetWeight<W>,
+	Instruction<C>: xcm::GetWeight<W>,
 {
-	fn shallow(message: &mut Xcm<C>) -> Result<Weight, ()> {
-		let weight = match message {
-			Xcm::RelayedFrom { ref mut message, .. } => {
-				let relay_message_weight = Self::shallow(message.as_mut())?;
-				message.weight().saturating_add(relay_message_weight)
-			},
-			// These XCM
-			Xcm::WithdrawAsset { effects, .. } |
-			Xcm::ReserveAssetDeposited { effects, .. } |
-			Xcm::ReceiveTeleportedAsset { effects, .. } => {
-				let mut extra = 0;
-				for order in effects.iter_mut() {
-					extra.saturating_accrue(Self::shallow_order(order)?);
-				}
-				extra.saturating_accrue(message.weight());
-				extra
-			},
-			// The shallow weight of `Transact` is the full weight of the message, thus there is no
-			// deeper weight.
-			Xcm::Transact { call, .. } => {
-				let call_weight = call.ensure_decoded()?.get_dispatch_info().weight;
-				message.weight().saturating_add(call_weight)
-			},
-			// These
-			Xcm::QueryResponse { .. } |
-			Xcm::TransferAsset { .. } |
-			Xcm::TransferReserveAsset { .. } |
-			Xcm::HrmpNewChannelOpenRequest { .. } |
-			Xcm::HrmpChannelAccepted { .. } |
-			Xcm::HrmpChannelClosing { .. } => message.weight(),
-		};
-
+	fn weight(message: &mut Xcm<C>) -> Result<Weight, ()> {
+		let mut weight: Weight = 0;
+		for m in message.0.iter() {
+			weight.saturating_accrue(Self::instr_weight(m)?);
+		}
 		Ok(weight)
 	}
 
-	fn deep(message: &mut Xcm<C>) -> Result<Weight, ()> {
-		let weight = match message {
-			// `RelayFrom` needs to account for the deep weight of the internal message.
-			Xcm::RelayedFrom { ref mut message, .. } => Self::deep(message.as_mut())?,
-			// These XCM have internal effects which are not accounted for in the `shallow` weight.
-			Xcm::WithdrawAsset { effects, .. } |
-			Xcm::ReserveAssetDeposited { effects, .. } |
-			Xcm::ReceiveTeleportedAsset { effects, .. } => {
-				let mut extra: Weight = 0;
-				for order in effects.iter_mut() {
-					extra.saturating_accrue(Self::deep_order(order)?);
-				}
-				extra
-			},
-			// These XCM do not have any deeper weight.
-			Xcm::Transact { .. } |
-			Xcm::QueryResponse { .. } |
-			Xcm::TransferAsset { .. } |
-			Xcm::TransferReserveAsset { .. } |
-			Xcm::HrmpNewChannelOpenRequest { .. } |
-			Xcm::HrmpChannelAccepted { .. } |
-			Xcm::HrmpChannelClosing { .. } => 0,
-		};
-
-		Ok(weight)
-	}
-}
-
-impl<W, C> FinalXcmWeight<W, C>
-where
-	W: XcmWeightInfo<C>,
-	C: Decode + GetDispatchInfo,
-	Xcm<C>: GetWeight<W>,
-	Order<C>: GetWeight<W>,
-{
-	fn shallow_order(order: &mut Order<C>) -> Result<Weight, ()> {
-		Ok(match order {
-			Order::BuyExecution { fees, weight, debt, halt_on_error, instructions } => {
-				// On success, execution of this will result in more weight being consumed but
-				// we don't count it here since this is only the *shallow*, non-negotiable weight
-				// spend and doesn't count weight placed behind a `BuyExecution` since it will not
-				// be definitely consumed from any existing weight credit if execution of the message
-				// is attempted.
-				W::order_buy_execution(fees, weight, debt, halt_on_error, instructions)
-			},
-			_ => 0, // TODO check
-		})
-	}
-	fn deep_order(order: &mut Order<C>) -> Result<Weight, ()> {
-		Ok(match order {
-			Order::BuyExecution { instructions, .. } => {
-				let mut extra = 0;
-				for instruction in instructions.iter_mut() {
-					extra.saturating_accrue(
-						Self::shallow(instruction)?.saturating_add(Self::deep(instruction)?),
-					);
-				}
-				extra
-			},
-			_ => 0,
-		})
+	fn instr_weight(message: &Instruction<C>) -> Result<Weight, ()> {
+		use xcm::GetWeight;
+		Ok(message.weight())
 	}
 }
