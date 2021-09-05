@@ -474,3 +474,8 @@ pub mod opaque {
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
 	pub type VersionedXcm = super::VersionedXcm<()>;
 }
+
+// A simple trait to get the weight of some object.
+pub trait GetWeight<W> {
+	fn weight(&self) -> latest::Weight;
+}
