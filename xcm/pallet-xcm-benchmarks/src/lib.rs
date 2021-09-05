@@ -33,7 +33,7 @@ use xcm::latest::prelude::*;
 use xcm_executor::{traits::Convert, Assets};
 
 pub mod fungible;
-// pub mod fungibles;
+pub mod fungibles;
 pub mod xcm_generic;
 
 #[cfg(test)]

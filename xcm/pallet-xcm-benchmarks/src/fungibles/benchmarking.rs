@@ -48,15 +48,15 @@ benchmarks! {
 	send_xcm {}: {}
 
 	// orders.
-	order_noop {
+	noop {
 		let origin: MultiLocation = account_id_junction::<T>(1).into();
 		let holding = Assets::default();
 		let xcm = Xcm::<XcmCallOf<T>>::new();
 	}: {
-		assert_ok!(execute_xcm::<T>(origin, holding, xcm).ensure_complete());
+		execute_xcm::<T>(origin, holding, xcm)?;
 	}
 
-	order_deposit_asset_per_asset {
+	deposit_asset_per_asset {
 		// create one asset with our desired id.
 		let asset_id = 9;
 		let origin: MultiLocation = account_id_junction::<T>(1).into();
@@ -74,19 +74,19 @@ benchmarks! {
 		holding.subsume(asset);
 		assert!(T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
 	}: {
-		assert_ok!(execute_xcm::<T>(origin, holding, xcm).ensure_complete());
+		execute_xcm::<T>(origin, holding, xcm)?;
 	} verify {
 		assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero())
 	}
 
-	order_deposit_reserve_asset {}: {} verify {}
-	order_exchange_asset {}: {} verify {}
-	order_initiate_reserve_withdraw {}: {} verify {}
-	order_initiate_teleport {}: {} verify {}
-	order_query_holding {}: {} verify {}
-	order_buy_execution {}: {} verify {}
+	deposit_reserve_asset {}: {} verify {}
+	exchange_asset {}: {} verify {}
+	initiate_reserve_withdraw {}: {} verify {}
+	initiate_teleport {}: {} verify {}
+	query_holding {}: {} verify {}
+	buy_execution {}: {} verify {}
 
-	xcm_withdraw_asset_per_asset {
+	withdraw_asset_per_asset {
 		// number of fungible assets.
 		let a in 1..MAX_ASSETS+1;
 
@@ -101,16 +101,16 @@ benchmarks! {
 		// check just one of the asset ids, namely 1.
 		assert!(!T::TransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
 		let instruction = Instruction::<XcmCallOf<T>>::WithdrawAsset(assets);
-		let xcm = instruction.into();
+		let xcm = Xcm(vec![instruction]);
 	}: {
-		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		execute_xcm::<T>(origin, Default::default(), xcm)?;
 	} verify {
 		// check one of the assets of origin. All assets must have been withdrawn.
 		assert!(T::TransactAsset::balance(1u32.into(), &account::<T>(1)).is_zero());
 	}
-	xcm_reserve_asset_deposit {}: {} verify {}
-	xcm_receive_teleported_asset {}: {} verify {}
-	xcm_transfer_asset_per_asset {
+	reserve_asset_deposit {}: {} verify {}
+	receive_teleported_asset {}: {} verify {}
+	transfer_asset_per_asset {
 		let a in 1..MAX_ASSETS+1;
 
 		let origin: MultiLocation = (account_id_junction::<T>(1)).into();
@@ -133,15 +133,15 @@ benchmarks! {
 		.collect::<Vec<_>>().into();
 
 		let instruction = Instruction::TransferAsset { assets, beneficiary };
-		let xcm = instruction.into();
+		let xcm = Xcm(vec![instruction]);
 	}: {
-		assert_ok!(execute_xcm::<T>(origin, xcm).ensure_complete());
+		execute_xcm::<T>(origin, Default::default(), xcm)?;
 	} verify {
 		for asset_id in 1..a {
 			assert!(!T::TransactAsset::balance(asset_id.into(), &account::<T>(2)).is_zero());
 		}
 	}
-	xcm_transfer_reserve_asset {}: {} verify {}
+	transfer_reserve_asset {}: {} verify {}
 }
 
 impl_benchmark_test_suite!(
