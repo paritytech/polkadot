@@ -118,6 +118,12 @@ pub type AssetTransactor = xcm_builder::CurrencyAdapter<
 	CheckedAccount,
 >;
 
+parameter_types! {
+	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
+	/// calculations getting too crazy.
+	pub const MaxInstructions: u32 = 100;
+}
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -128,9 +134,12 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
-	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call>;
+	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
+	type AssetTrap = ();
+	type AssetClaims = ();
+	type SubscriptionService = ();
 }
 
 impl crate::Config for Test {

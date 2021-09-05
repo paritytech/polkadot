@@ -93,7 +93,7 @@ benchmarks! {
 		let instruction = Instruction::QueryResponse { query_id, response, max_weight };
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		execute_xcm::<T>(sender_location, Default::default(), xcm);
+		execute_xcm::<T>(sender_location, Default::default(), xcm)?;
 	} verify {
 		// The assert above is enough to show this XCM succeeded
 	}
