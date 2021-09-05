@@ -105,7 +105,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1.7"),
 	authoring_version: 0,
-	spec_version: 9101,
+	spec_version: 9102,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -585,7 +585,7 @@ impl runtime_parachains::inclusion::RewardValidators for RewardValidators {
 
 impl parachains_inclusion::Config for Runtime {
 	type Event = Event;
-	type DisputesHandler = ();
+	type DisputesHandler = ParasDisputes;
 	type RewardValidators = RewardValidators;
 }
 
