@@ -570,9 +570,7 @@ fn load_all_blocks_works() {
 fn load_all_candidates_works() {
 	let (mut db, store) = make_db();
 
-	let block_hash = Hash::repeat_byte(1);
-
-	let make_candidate = |para_id: u32| {
+	fn make_candidate_entry(para_id: ParaId) -> CandidateEntry {
 		let mut candidate = CandidateReceipt::<Hash>::default();
 		candidate.descriptor.para_id = para_id.into();
 
@@ -580,7 +578,7 @@ fn load_all_candidates_works() {
 			candidate,
 			session: 5,
 			block_assignments: vec![(
-				block_hash,
+				Hash::repeat_byte(1),
 				ApprovalEntry {
 					tranches: Vec::new(),
 					backing_group: GroupIndex(1),
@@ -594,9 +592,13 @@ fn load_all_candidates_works() {
 			.collect(),
 			approvals: Default::default(),
 		}
-	};
+	}
 
-	let candidates = vec![make_candidate(1), make_candidate(2), make_candidate(3)];
+	let candidates = vec![
+		make_candidate_entry(ParaId::from(1)),
+		make_candidate_entry(ParaId::from(2)),
+		make_candidate_entry(ParaId::from(3)),
+	];
 	let candidate_hashes: HashSet<_> = candidates.iter().map(|c| c.candidate.hash()).collect();
 
 	let mut overlay_db = OverlayedBackend::new(&db);

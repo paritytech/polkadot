@@ -791,8 +791,8 @@ impl RecoveryState {
 }
 
 // Determines the set of assigned but unapproved candidates that require resumption of the
-// approval process by the local node. For each such, this method generates a LaunchApproval
-// action so that the approvals can continue to make progress after a restar.
+// approval process by the local node. For each such, this method generates a `LaunchApproval`
+// action so that the approvals can continue to make progress after a restart.
 async fn handle_startup(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	state: &mut State,
@@ -803,7 +803,7 @@ async fn handle_startup(
 	})?;
 
 	let mut actions = Vec::new();
-	for candidate in all_candidates.into_iter() {
+	for candidate in all_candidates {
 		let mut assigned_but_unapproved_candidates = Vec::new();
 		let session = candidate.session;
 		let info = match state.session_info(session) {
@@ -834,14 +834,13 @@ async fn handle_startup(
 			.assignment_keys
 			.iter()
 			.enumerate()
-			.filter(|(_, assigner)| {
+			.filter_map(|(index, assigner)| {
 				state
 					.keystore
 					.key_pair::<AssignmentPair>(assigner)
 					.ok()
-					.map_or(false, |v| v.is_some())
+					.map(|_| ValidatorIndex(index as _))
 			})
-			.map(|(index, _)| ValidatorIndex(index as _))
 			.collect();
 
 		let is_session_validator = !local_validators.is_empty();
@@ -868,8 +867,7 @@ async fn handle_startup(
 					})
 					.map(|(block_hash, approval_entry)| {
 						(candidate_receipt.clone(), block_hash, approval_entry)
-					})
-					.collect::<Vec<_>>(),
+					}),
 			);
 		}
 
@@ -878,12 +876,16 @@ async fn handle_startup(
 			assigned_but_unapproved_candidates.into_iter()
 		{
 			// Skip any candidates for which we don't have our assignment triggered.
-			let (cert, assignment_tranche, validator) = match approval_entry.our_assignment() {
-				Some(our) => (our.cert().clone(), our.tranche(), our.validator_index()),
+			let our = match approval_entry.our_assignment() {
+				Some(our) => our,
 				None => continue,
 			};
 
-			let indirect_cert = IndirectAssignmentCert { block_hash, validator, cert };
+			let indirect_cert = IndirectAssignmentCert {
+				block_hash,
+				validator: our.validator_index(),
+				cert: our.cert().clone(),
+			};
 
 			let block_entry = match overlay_db.load_block_entry(&block_hash)? {
 				Some(block_entry) => block_entry,
@@ -905,9 +907,17 @@ async fn handle_startup(
 					candidate: candidate_receipt,
 					candidate_index: candidate_index as _,
 					indirect_cert,
-					assignment_tranche,
+					assignment_tranche: our.tranche(),
 					backing_group: approval_entry.backing_group(),
 				});
+			} else {
+				tracing::trace!(
+					target: LOG_TARGET,
+					tranche = our.tranche(),
+					?candidate_hash,
+					?block_hash,
+					"Candidate Hash has unknown Index.",
+				);
 			}
 		}
 	}
