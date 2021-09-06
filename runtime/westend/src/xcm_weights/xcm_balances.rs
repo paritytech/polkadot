@@ -43,7 +43,7 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: System Account (r:1 w:1)
-	pub(crate) fn order_deposit_asset() -> Weight {
+	pub(crate) fn deposit_asset() -> Weight {
 		(40_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
@@ -52,7 +52,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
-	pub(crate) fn order_deposit_reserve_asset() -> Weight {
+	pub(crate) fn deposit_reserve_asset() -> Weight {
 		(52_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(4 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
@@ -61,7 +61,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
-	pub(crate) fn order_initiate_reserve_withdraw() -> Weight {
+	pub(crate) fn initiate_reserve_withdraw() -> Weight {
 		(51_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(4 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
@@ -70,22 +70,22 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
-	pub(crate) fn order_initiate_teleport() -> Weight {
+	pub(crate) fn initiate_teleport() -> Weight {
 		(49_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(4 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	// Storage: System Account (r:1 w:1)
-	pub(crate) fn xcm_withdraw_asset() -> Weight {
+	pub(crate) fn withdraw_asset() -> Weight {
 		(21_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	pub(crate) fn xcm_receive_teleported_asset() -> Weight {
+	pub(crate) fn receive_teleported_asset() -> Weight {
 		(0 as Weight)
 	}
 	// Storage: System Account (r:2 w:2)
-	pub(crate) fn xcm_transfer_asset() -> Weight {
+	pub(crate) fn transfer_asset() -> Weight {
 		(29_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
@@ -94,7 +94,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	// Storage: System Account (r:2 w:2)
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
-	pub(crate) fn xcm_transfer_reserve_asset() -> Weight {
+	pub(crate) fn transfer_reserve_asset() -> Weight {
 		(42_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))

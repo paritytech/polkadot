@@ -19,8 +19,9 @@ use crate::{
 	account_and_location, account_id_junction, execute_xcm, worst_case_holding, XcmCallOf,
 };
 use codec::Encode;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, BenchmarkError, BenchmarkResult};
 use frame_support::{dispatch::GetDispatchInfo, pallet_prelude::Get};
+use sp_std::vec;
 use xcm::{latest::prelude::*, DoubleEncoded};
 
 benchmarks! {
@@ -38,7 +39,7 @@ benchmarks! {
 
 		let instruction = Instruction::<XcmCallOf<T>>::QueryHolding {
 			query_id: Default::default(),
-			dest: T::ValidDestination::get(),
+			dest: T::valid_destination()?,
 			assets: Wild(WildMultiAsset::All), // TODO is worst case filter?
 			max_response_weight: u64::MAX,
 		};
@@ -46,7 +47,12 @@ benchmarks! {
 		let xcm = Xcm(vec![instruction]);
 
 	} : {
-		execute_xcm::<T>(origin, holding, xcm)?;
+		execute_xcm::<T>(origin, holding, xcm)
+			.map_err(|_|
+				BenchmarkError::Override(
+					BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
+				)
+			)?;
 	} verify {
 		// The assert above is enough to validate this is completed.
 		// todo maybe XCM sender peek

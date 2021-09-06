@@ -653,11 +653,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let location = *location;
-			SupportedVersion::<T>::insert(
-				XCM_VERSION,
-				LatestVersionedMultiLocation(&location),
-				xcm_version,
-			);
+			Self::set_xcm_version(&location, xcm_version);
 			Self::deposit_event(Event::SupportedVersionChanged(location, xcm_version));
 			Ok(())
 		}
@@ -1036,6 +1032,15 @@ pub mod pallet {
 					let _ = q.try_push((versioned_dest, 1));
 				}
 			});
+		}
+
+		/// Set the xcm version for a specific multi-location.
+		pub fn set_xcm_version(location: &MultiLocation, xcm_version: XcmVersion) {
+			SupportedVersion::<T>::insert(
+				XCM_VERSION,
+				LatestVersionedMultiLocation(&location),
+				xcm_version,
+			);
 		}
 	}
 

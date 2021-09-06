@@ -16,6 +16,7 @@ sp-std = { version = "4.0.0-dev", default-features = false, branch = "master", g
 xcm-executor = { path = "../xcm-executor", default-features = false, features = ["runtime-benchmarks"] }
 frame-benchmarking = { version = "4.0.0-dev", default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 xcm = { path = "..", default-features = false, features = ["runtime-benchmarks"] }
+log = "0.4.0"
 
 [dev-dependencies]
 pallet-balances = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
@@ -25,7 +26,6 @@ sp-io = { version = "4.0.0-dev", branch = "master", git = "https://github.com/pa
 sp-tracing = { version = "4.0.0-dev", branch = "master", git = "https://github.com/paritytech/substrate" }
 xcm-builder = { path = "../xcm-builder" }
 xcm = { path = ".." }
-log = "0.4.0"
 # temp
 pallet-xcm = { path = "../pallet-xcm" }
 polkadot-runtime-common = { path = "../../runtime/common" }

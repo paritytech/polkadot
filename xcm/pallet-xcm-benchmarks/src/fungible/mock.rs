@@ -145,15 +145,16 @@ impl xcm_executor::Config for XcmConfig {
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 	type AccountIdConverter = AccountIdConverter;
-	type ValidDestination = ValidDestination;
+	fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+		let valid_destination: MultiLocation =
+			X1(AccountId32 { network: NetworkId::Any, id: [0u8; 32] }).into();
+
+		Ok(valid_destination)
+	}
 }
 
 parameter_types! {
 	pub const CheckedAccount: Option<u64> = Some(100);
-	pub const ValidDestination: MultiLocation = X1(AccountId32 {
-		network: NetworkId::Any,
-		id: [0u8; 32],
-	}).into();
 }
 
 impl xcm_balances_benchmark::Config for Test {

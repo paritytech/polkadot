@@ -422,7 +422,7 @@ impl WrapVersion for AlwaysV1 {
 	}
 }
 
-/// `WrapVersion` implementation which attempts to always convert the XCM to version 1 before wrapping it.
+/// `WrapVersion` implementation which attempts to always convert the XCM to version 2 before wrapping it.
 pub struct AlwaysV2;
 impl WrapVersion for AlwaysV2 {
 	fn wrap_version<Call>(

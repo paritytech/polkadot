@@ -146,10 +146,6 @@ impl xcm_executor::traits::MatchesFungibles<u32, u64> for MatchAnyFungibles {
 
 parameter_types! {
 	pub const CheckedAccount: u64 = 100;
-	pub const ValidDestination: MultiLocation = Junction::AccountId32 {
-		network: NetworkId::Any,
-		id: [0u8; 32],
-	}.into();
 }
 
 pub type AssetTransactor = xcm_builder::FungiblesAdapter<
@@ -186,7 +182,12 @@ impl xcm_executor::Config for XcmConfig {
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 	type AccountIdConverter = AccountIdConverter;
-	type ValidDestination = ValidDestination;
+	fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+		let valid_destination: MultiLocation =
+			Junction::AccountId32 { network: NetworkId::Any, id: [0u8; 32] }.into();
+
+		Ok(valid_destination)
+	}
 }
 
 impl xcm_assets_benchmarks::Config for Test {

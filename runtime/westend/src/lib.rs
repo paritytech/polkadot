@@ -1476,7 +1476,11 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::Config for Runtime {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = LocationConverter;
-				type ValidDestination = Westmint;
+				fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+					let valid_destination = Westmint::get();
+					XcmPallet::set_xcm_version(&valid_destination, xcm::latest::VERSION);
+					Ok(valid_destination)
+				}
 			}
 
 			impl pallet_xcm_benchmarks::xcm_generic::Config for Runtime {

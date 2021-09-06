@@ -49,7 +49,7 @@ benchmarks_instance_pallet! {
 		// .. and the specific asset that we want to take out.
 		holding.subsume(asset.clone());
 		// our dest must have no balance initially.
-		let ben_location = T::ValidDestination::get();
+		let ben_location = T::valid_destination()?;
 		let ben_account = T::AccountIdConverter::convert(ben_location.clone()).unwrap();
 		assert!(T::TransactAsset::balance(&ben_account).is_zero());
 
@@ -77,7 +77,7 @@ benchmarks_instance_pallet! {
 		// .. and the specific asset that we want to take out.
 		holding.subsume(asset.clone());
 		// our dest must have no balance initially.
-		let dest_location = T::ValidDestination::get();
+		let dest_location = T::valid_destination()?;
 		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
@@ -107,7 +107,7 @@ benchmarks_instance_pallet! {
 		let instruction = Instruction::<XcmCallOf<T>>::DepositReserveAsset {
 			assets: asset.into(),
 			max_assets: 1,
-			dest: T::ValidDestination::get(),
+			dest: T::valid_destination()?,
 			xcm: Xcm::new(),
 		};
 		let xcm = Xcm(vec![instruction]);
@@ -129,7 +129,7 @@ benchmarks_instance_pallet! {
 
 		let instruction = Instruction::<XcmCallOf<T>>::InitiateTeleport {
 			assets: asset.into(),
-			dest: T::ValidDestination::get(),
+			dest: T::valid_destination()?,
 			xcm: Xcm::new(),
 		};
 		let xcm = Xcm(vec![instruction]);
@@ -181,7 +181,7 @@ benchmarks_instance_pallet! {
 
 	transfer_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let ben_location = T::ValidDestination::get();
+		let ben_location = T::valid_destination()?;
 		let ben_account = T::AccountIdConverter::convert(ben_location.clone()).unwrap();
 
 		let asset = T::get_multi_asset();
@@ -199,7 +199,7 @@ benchmarks_instance_pallet! {
 
 	transfer_reserve_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let dest_location = T::ValidDestination::get();
+		let dest_location = T::valid_destination()?;
 		let dest_account = T::AccountIdConverter::convert(dest_location.clone()).unwrap();
 
 		let asset = T::get_multi_asset();

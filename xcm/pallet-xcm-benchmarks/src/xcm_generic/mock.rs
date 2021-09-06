@@ -107,17 +107,15 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = ();
 }
 
-parameter_types! {
-	pub const ValidDestination: MultiLocation = Junction::AccountId32 {
-		network: NetworkId::Any,
-		id: [0u8; 32],
-	}.into();
-}
-
 impl crate::Config for Test {
 	type XcmConfig = XcmConfig;
 	type AccountIdConverter = AccountIdConverter;
-	type ValidDestination = ValidDestination;
+	fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
+		let valid_destination: MultiLocation =
+			Junction::AccountId32 { network: NetworkId::Any, id: [0u8; 32] }.into();
+
+		Ok(valid_destination)
+	}
 }
 
 impl xcm_generic_benchmarks::Config for Test {

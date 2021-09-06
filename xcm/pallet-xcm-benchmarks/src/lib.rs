@@ -19,14 +19,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::Encode;
-use frame_support::{
-	dispatch::Weight,
-	pallet_prelude::Get,
-	traits::{
-		fungible::Inspect as FungibleInspect,
-		fungibles::Inspect as FungiblesInspect,
-		tokens::{DepositConsequence, WithdrawConsequence},
-	},
+use frame_support::traits::{
+	fungible::Inspect as FungibleInspect,
+	fungibles::Inspect as FungiblesInspect,
+	tokens::{DepositConsequence, WithdrawConsequence},
 };
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
@@ -50,12 +46,12 @@ pub trait Config: frame_system::Config {
 	// temp?
 	type AccountIdConverter: Convert<MultiLocation, Self::AccountId>;
 
-	/// A valid destination location which can be used in benchmarks.
-	type ValidDestination: Get<MultiLocation>;
+	/// Does any necessary setup to create a valid destination for XCM messages.
+	/// Returns that destination's multi-location to be used in benchmarks.
+	fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError>;
 }
 
 const SEED: u32 = 0;
-const MAX_WEIGHT: Weight = 999_999_999_999;
 
 /// The xcm executor to use for doing stuff.
 pub type ExecutorOf<T> = xcm_executor::XcmExecutor<<T as Config>::XcmConfig>;
@@ -113,8 +109,13 @@ pub fn execute_xcm<T: Config>(
 		// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
 		// the error which didn't end up being executed.
 		Err((index, error, weight)) => {
-			println!("XCM ERROR :: Index: {:?}, Error: {:?}, Weight: {:?}", index, error, weight);
-			Err(sp_runtime::DispatchError::Other("execute xcm error"))
+			log::error!(
+				"XCM ERROR >> Index: {:?}, Error: {:?}, Weight: {:?}",
+				index,
+				error,
+				weight
+			);
+			Err(sp_runtime::DispatchError::Other("execute xcm error: see error logs"))
 		},
 	}
 }
