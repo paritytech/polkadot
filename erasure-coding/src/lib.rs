@@ -415,7 +415,7 @@ mod tests {
 
 		let available_data = AvailableData { pov_block, omitted_validation: Default::default() };
 
-		let chunks = obtain_chunks_v0(magnitude as usize, &available_data).unwrap();
+		let chunks = obtain_chunks(magnitude as usize, &available_data).unwrap();
 
 		assert_eq!(chunks.len() as u32, magnitude);
 
