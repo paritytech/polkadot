@@ -293,7 +293,7 @@ fn jaeger_launch_collector_with_agent(
 }
 
 #[cfg(feature = "full-node")]
-type FullSelectChain = relay_chain_selection::SelectRelayChainWithFallback<FullBackend>;
+type FullSelectChain = relay_chain_selection::SelectRelayChain<FullBackend>;
 #[cfg(feature = "full-node")]
 type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch> = grandpa::GrandpaBlockImport<
 	FullBackend,
@@ -391,8 +391,17 @@ where
 
 	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
 
-	let select_chain = relay_chain_selection::SelectRelayChainWithFallback::new(
+	// we should remove this check before we deploy parachains on polkadot
+	// TODO: https://github.com/paritytech/polkadot/issues/3326
+	let chain_spec = config.chain_spec.as_ref();
+	let is_relay_chain = chain_spec.is_kusama() ||
+		chain_spec.is_westend() ||
+		chain_spec.is_rococo() ||
+		chain_spec.is_wococo();
+
+	let select_chain = relay_chain_selection::SelectRelayChain::new(
 		backend.clone(),
+		is_relay_chain,
 		Handle::new_disconnected(),
 		polkadot_node_subsystem_util::metrics::Metrics::register(config.prometheus_registry())?,
 	);
@@ -891,12 +900,12 @@ where
 		);
 		// we should remove this check before we deploy parachains on polkadot
 		// TODO: https://github.com/paritytech/polkadot/issues/3326
-		let should_connect_overseer = chain_spec.is_kusama() ||
+		let is_relay_chain = chain_spec.is_kusama() ||
 			chain_spec.is_westend() ||
 			chain_spec.is_rococo() ||
 			chain_spec.is_wococo();
 
-		if should_connect_overseer {
+		if is_relay_chain {
 			select_chain.connect_to_overseer(overseer_handle.clone());
 		} else {
 			tracing::info!("Overseer is running in the disconnected state");
