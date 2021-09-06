@@ -143,8 +143,7 @@ benchmarks! {
 	} verify {}
 
 	refund_surplus {
-		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let mut executor = new_executor::<T>(sender_location);
+		let mut executor = new_executor::<T>(Default::default());
 		executor.total_surplus = 1337;
 		executor.total_refunded = 0;
 
@@ -152,18 +151,36 @@ benchmarks! {
 		let xcm = Xcm(vec![instruction]);
 	} : {
 		let result = executor.execute(xcm)?;
-
-		println!("result {:?}", result);
 	} verify {
 		assert_eq!(executor.total_surplus, 1337);
 		assert_eq!(executor.total_refunded, 1337);
 	}
 
-	set_error_handler {} : {} verify {}
+	set_error_handler {
+		let mut executor = new_executor::<T>(Default::default());
+		let instruction = Instruction::<XcmCallOf<T>>::SetErrorHandler(Xcm(vec![]));
+		let xcm = Xcm(vec![instruction]);
+	} : {
+		executor.execute(xcm)?;
+	} verify {
+		assert_eq!(executor.error_handler, Xcm(vec![]));
+	}
 
-	set_appendix {} : {} verify {}
+	set_appendix {
+	} : {
 
-	clear_error {} : {} verify {}
+	} verify {}
+
+	clear_error {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.error = Some((5u32, XcmError::Undefined));
+		let instruction = Instruction::<XcmCallOf<T>>::ClearError;
+		let xcm = Xcm(vec![instruction]);
+	} : {
+		executor.execute(xcm)?;
+	} verify {
+		assert!(executor.error.is_none())
+	}
 
 	claim_asset {} : {} verify {}
 
