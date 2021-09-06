@@ -169,6 +169,7 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
+	type SubscriptionService = XcmPallet;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;
@@ -187,6 +188,8 @@ impl pallet_xcm::Config for Runtime {
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Call = Call;
 	type Origin = Origin;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 impl origin::Config for Runtime {}

@@ -111,18 +111,15 @@ impl OverseerGen for DisputeAncestor {
 
 		let coll = TrackCollations { sink };
 
-		let metrics = Default::default(); // FIXME: pass the real metrics
-
 		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
 
 		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.replace_candidate_backing(
+		let all_subsystems = create_default_subsystems(args)?.replace_candidate_backing(|cb|
 			// create the filtered subsystem
 			FilteredSubsystem::new(
-				CandidateBackingSubsystem::new(spawner.clone(), crypto_store_ptr, metrics),
+				CandidateBackingSubsystem::new(spawner.clone(), crypto_store_ptr, cb.params.metrics),
 				coll,
-			),
-		);
+			));
 
 		let (overseer, handle) =
 			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner.clone())?;

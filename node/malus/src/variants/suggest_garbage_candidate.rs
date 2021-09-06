@@ -117,17 +117,16 @@ impl OverseerGen for SuggestGarbageCandidate {
 
 		let filter = ReplacePoVBytes { keystore: keystore.clone(), queue: sink };
 		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.replace_candidate_backing(
+		let all_subsystems = create_default_subsystems(args)?.replace_candidate_backing(|cb|
 			// create the filtered subsystem
 			FilteredSubsystem::new(
 				CandidateBackingSubsystem::new(
 					spawner.clone(),
 					keystore.clone(),
-					Default::default(), // FIXME: pass the real metrics
+					cb.params.metrics,
 				),
 				filter.clone(),
-			),
-		);
+			));
 
 		let (overseer, handle) =
 			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner.clone())?;

@@ -207,13 +207,13 @@ impl OverseerGen for BackGarbageCandidate {
 		let candidate_validation_config = args.candidate_validation_config.clone();
 
 		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
+		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(|cv|
 			// create the filtered subsystem
 			FilteredSubsystem::new(
 				CandidateValidationSubsystem::with_config(
 					candidate_validation_config,
-					Default::default(), // FIXME: pass the real metrics
-					Default::default(),
+					cv.metrics,
+					cv.pvf_metrics,
 				),
 				BribedPassage::<Spawner> {
 					inner: Arc::new(Mutex::new(BribedPassageInner {
@@ -221,8 +221,7 @@ impl OverseerGen for BackGarbageCandidate {
 						cache: Default::default(),
 					})),
 				},
-			),
-		);
+			));
 
 		let (overseer, handle) =
 			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)?;
