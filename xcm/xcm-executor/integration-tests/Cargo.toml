@@ -6,20 +6,20 @@ description = "Integration tests for the XCM Executor"
 version = "0.9.9"
 
 [dependencies]
-frame-support = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.9", default-features = false }
-frame-system = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.9" }
+frame-support = { git = "https://github.com/paritytech/substrate" , default-features = false , branch = "polkadot-v0.9.10" }
+frame-system = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.10" }
 futures = "0.3.15"
 pallet-xcm = { path = "../../pallet-xcm" }
 polkadot-test-client = { path = "../../../node/test/client" }
 polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
 polkadot-test-service = { path = "../../../node/test/service" }
-sp-consensus = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.9" }
-sp-keyring = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.9" }
-sp-runtime = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.9", default-features = false }
-sp-state-machine = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.9" }
+sp-consensus = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.10" }
+sp-keyring = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.10" }
+sp-runtime = { git = "https://github.com/paritytech/substrate" , default-features = false , branch = "polkadot-v0.9.10" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.10" }
 xcm = { path = "../..", default-features = false }
 xcm-executor = { path = ".." }
-sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.9" }
+sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.10" }
 
 [features]
 default = ["std"]

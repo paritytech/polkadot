@@ -9,7 +9,7 @@ async-trait = "0.1.42"
 futures = "0.3.15"
 tracing = "0.1.26"
 
-sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
 
 polkadot-primitives = { path = "../../../primitives" }
@@ -22,8 +22,8 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-core-pvf = { path = "../pvf" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 futures = { version = "0.3.15", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
