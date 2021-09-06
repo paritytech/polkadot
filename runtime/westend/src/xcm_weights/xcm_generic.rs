@@ -26,13 +26,9 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	pub fn relayed_from() -> Weight {
 		10
 	}
-	pub fn query_response() -> Weight {
-		10
-	}
 	pub fn refund_surplus() -> Weight {
 		10
 	}
-
 	pub fn set_error_handler() -> Weight {
 		10
 	}

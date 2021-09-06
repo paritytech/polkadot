@@ -11633,6 +11633,7 @@ dependencies = [
 name = "xcm-executor"
 version = "0.9.9"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "impl-trait-for-tuples",
  "log",

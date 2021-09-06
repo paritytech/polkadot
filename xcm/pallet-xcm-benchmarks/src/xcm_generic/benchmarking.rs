@@ -16,7 +16,8 @@
 
 use super::*;
 use crate::{
-	account_and_location, account_id_junction, execute_xcm, worst_case_holding, XcmCallOf,
+	account_and_location, account_id_junction, execute_xcm, new_executor, worst_case_holding,
+	XcmCallOf,
 };
 use codec::Encode;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, BenchmarkError, BenchmarkResult};
@@ -25,14 +26,6 @@ use sp_std::vec;
 use xcm::{latest::prelude::*, DoubleEncoded};
 
 benchmarks! {
-	noop {
-		let xcm = Xcm::<XcmCallOf<T>>::new();
-		let origin: MultiLocation = account_id_junction::<T>(1).into();
-		let holding = worst_case_holding();
-	}: {
-		execute_xcm::<T>(origin, holding, xcm)?;
-	}
-
 	query_holding {
 		let origin: MultiLocation = account_id_junction::<T>(1).into();
 		let holding = worst_case_holding();
@@ -148,6 +141,41 @@ benchmarks! {
 	hrmp_channel_closing {}: {
 				// currently unhandled
 	} verify {}
+
+	refund_surplus {
+		let (sender_account, sender_location) = account_and_location::<T>(1);
+		let mut executor = new_executor::<T>(sender_location);
+		executor.total_surplus = 1337;
+		executor.total_refunded = 0;
+
+		let instruction = Instruction::<XcmCallOf<T>>::RefundSurplus;
+		let xcm = Xcm(vec![instruction]);
+	} : {
+		let result = executor.execute(xcm)?;
+
+		println!("result {:?}", result);
+	} verify {
+		assert_eq!(executor.total_surplus, 1337);
+		assert_eq!(executor.total_refunded, 1337);
+	}
+
+	set_error_handler {} : {} verify {}
+
+	set_appendix {} : {} verify {}
+
+	clear_error {} : {} verify {}
+
+	claim_asset {} : {} verify {}
+
+	trap {} : {} verify {}
+
+	subscribe_version {} : {} verify {}
+
+	unsubscribe_version {} : {} verify {}
+
+	clear_origin {} : {} verify {}
+
+	descend_origin {} : {} verify {}
 
 }
 

@@ -98,26 +98,16 @@ pub fn execute_xcm<T: Config>(
 	origin: MultiLocation,
 	holding: Assets,
 	xcm: Xcm<XcmCallOf<T>>,
-) -> sp_runtime::DispatchResult {
+) -> Result<(), frame_benchmarking::BenchmarkError> {
 	// TODO: very large weight to ensure all benchmarks execute, sensible?
 	let mut executor = ExecutorOf::<T>::new(origin);
-	executor.set_holding(holding);
-	let result = executor.execute(xcm);
+	executor.holding = holding;
+	executor.execute(xcm)?;
+	Ok(())
+}
 
-	match result {
-		Ok(()) => Ok(()),
-		// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
-		// the error which didn't end up being executed.
-		Err((index, error, weight)) => {
-			log::error!(
-				"XCM ERROR >> Index: {:?}, Error: {:?}, Weight: {:?}",
-				index,
-				error,
-				weight
-			);
-			Err(sp_runtime::DispatchError::Other("execute xcm error: see error logs"))
-		},
-	}
+pub fn new_executor<T: Config>(origin: MultiLocation) -> ExecutorOf<T> {
+	ExecutorOf::<T>::new(origin)
 }
 
 // TODO probably delete and use converter
