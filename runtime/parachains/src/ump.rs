@@ -406,11 +406,7 @@ impl<T: Config> Pallet<T> {
 			// dequeue the next message from the queue of the dispatchee
 			let maybe_next = queue_cache.peek_front::<T>(dispatchee);
 			let became_empty = if let Some(upward_message) = maybe_next {
-				match T::UmpSink::process_upward_message(
-					dispatchee,
-					&upward_message[..],
-					max_weight,
-				) {
+				match T::UmpSink::process_upward_message(dispatchee, upward_message, max_weight) {
 					Ok(used) => {
 						weight_used += used;
 						queue_cache.consume_front::<T>(dispatchee)
