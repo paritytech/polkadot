@@ -100,7 +100,7 @@ const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const LOG_TARGET: &str = "parachain::approval-voting";
 const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-approval-voting";
-const MALICIOUS_FREQUENCY: usize = 50_000;
+const MALICIOUS_FREQUENCY: usize = 5_000;
 
 /// Configuration for the approval voting subsystem
 #[derive(Debug, Clone)]
