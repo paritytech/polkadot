@@ -624,13 +624,13 @@ where
 }
 
 /// Parameters to a job subsystem.
-struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
+pub struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
 	/// A spawner for sub-tasks.
 	spawner: Spawner,
 	/// Arguments to each job.
 	run_args: RunArgs,
 	/// Metrics for the subsystem.
-	metrics: Metrics,
+	pub metrics: Metrics,
 }
 
 /// A subsystem which wraps jobs.
@@ -642,7 +642,8 @@ struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
 ///   include a hash, then they're forwarded to the appropriate individual job.
 /// - On outgoing messages from the jobs, it forwards them to the overseer.
 pub struct JobSubsystem<Job: JobTrait, Spawner> {
-	params: JobSubsystemParams<Spawner, Job::RunArgs, Job::Metrics>,
+	#[allow(missing_docs)]
+	pub params: JobSubsystemParams<Spawner, Job::RunArgs, Job::Metrics>,
 	_marker: std::marker::PhantomData<Job>,
 }
 
