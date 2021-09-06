@@ -499,8 +499,7 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	if linked_version != on_chain_version {
 		log::error!(
 			target: LOG_TARGET,
-			"VERSION MISMATCH: any transaction will fail with bad-proof. (linked_version = {}, on_chain_version = {}).",
-			linked_version, on_chain_version
+			"VERSION MISMATCH: any transaction will fail with bad-proof"
 		);
 		Err(Error::VersionMismatch)
 	} else {
