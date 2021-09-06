@@ -1385,6 +1385,15 @@ async fn handle_approved_ancestor(
 				// ancestry is moving backwards.
 				all_approved_max = Some((block_hash, target_number - i as BlockNumber));
 			}
+			block_descriptions.push(BlockDescription {
+				block_hash,
+				session: entry.session(),
+				candidates: entry
+					.candidates()
+					.iter()
+					.map(|(_idx, candidate_hash)| *candidate_hash)
+					.collect(),
+			});
 		} else if bits.len() <= ABNORMAL_DEPTH_THRESHOLD {
 			all_approved_max = None;
 			block_descriptions.clear();
@@ -1467,15 +1476,6 @@ async fn handle_approved_ancestor(
 				}
 			}
 		}
-		block_descriptions.push(BlockDescription {
-			block_hash,
-			session: entry.session(),
-			candidates: entry
-				.candidates()
-				.iter()
-				.map(|(_idx, candidate_hash)| *candidate_hash)
-				.collect(),
-		});
 	}
 
 	tracing::trace!(

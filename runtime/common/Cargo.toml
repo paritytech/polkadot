@@ -52,7 +52,7 @@ frame-support-test = { git = "https://github.com/paritytech/substrate", branch =
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-serde_json = "1.0.66"
+serde_json = "1.0.67"
 libsecp256k1 = "0.6.0"
 
 [features]

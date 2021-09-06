@@ -12,5 +12,5 @@ fn main() {
 		a: 0_u16,
 		b: 1_u16,
 	};
-	let _all = all.replace_a(77u8);
+	let _all = all.replace_a(|_| 77u8);
 }

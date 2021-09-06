@@ -60,7 +60,7 @@ frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate"
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # External Crates
-futures = "0.3.15"
+futures = "0.3.17"
 hex-literal = "0.3.3"
 tracing = "0.1.26"
 serde = { version = "1.0.130", features = ["derive"] }
