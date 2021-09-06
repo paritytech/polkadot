@@ -236,7 +236,6 @@ pub fn availability_rewards() -> HashMap<ValidatorIndex, usize> {
 }
 
 std::thread_local! {
-	// `Some` here indicates that there is an active probe.
 	static PROCESSED: RefCell<Vec<(ParaId, UpwardMessage)>> = RefCell::new(vec![]);
 }
 
