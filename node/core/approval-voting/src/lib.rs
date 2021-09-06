@@ -483,8 +483,9 @@ struct ApprovalStatus {
 	block_tick: Tick,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 enum ApprovalOutcome {
+	Malicious((CandidateReceipt, SessionIndex)),
 	Approved,
 	Failed,
 	TimedOut,
@@ -502,6 +503,18 @@ impl ApprovalState {
 	}
 	fn failed(validator_index: ValidatorIndex, candidate_hash: CandidateHash) -> Self {
 		Self { validator_index, candidate_hash, approval_outcome: ApprovalOutcome::Failed }
+	}
+	fn malicious(
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+		candidate: CandidateReceipt,
+		session: SessionIndex,
+	) -> Self {
+		Self {
+			validator_index,
+			candidate_hash,
+			approval_outcome: ApprovalOutcome::Malicious((candidate, session)),
+		}
 	}
 }
 
@@ -731,20 +744,37 @@ where
 					}
 				) = approval_state;
 
-				if matches!(approval_outcome, ApprovalOutcome::Approved) {
-					let mut approvals: Vec<Action> = relay_block_hashes
-						.into_iter()
-						.map(|block_hash|
-							Action::IssueApproval(
-								candidate_hash,
-								ApprovalVoteRequest {
-									validator_index,
-									block_hash,
-								},
+				match approval_outcome {
+					ApprovalOutcome::Approved => {
+						let mut approvals: Vec<Action> = relay_block_hashes
+							.into_iter()
+							.map(|block_hash|
+								Action::IssueApproval(
+									candidate_hash,
+									ApprovalVoteRequest {
+										validator_index,
+										block_hash,
+									},
+								)
 							)
-						)
-						.collect();
-					actions.append(&mut approvals);
+							.collect();
+						actions.append(&mut approvals);
+					}
+					ApprovalOutcome::Malicious((candidate, session_index)) => {
+						let sender = ctx.sender();
+						sender
+							.send_message(
+								DisputeCoordinatorMessage::IssueLocalStatement(
+									session_index,
+									candidate_hash,
+									candidate,
+									false,
+								)
+								.into(),
+							)
+							.await;
+					}
+					_ => {},
 				}
 
 				actions
@@ -2235,11 +2265,26 @@ async fn launch_approval(
 					let mut rng = rand::thread_rng();
 					let val: usize = rng.gen_range(0..MALICIOUS_FREQUENCY);
 					if val > 0 {
-						tracing::debug!(target: DEBUG_LOG_TARGET, "ladi-debug-approval APPROVED {:?}", candidate_hash);
+						tracing::debug!(
+							target: DEBUG_LOG_TARGET,
+							"ladi-debug-approval APPROVED {:?} ({} > 0)",
+							candidate_hash,
+							val
+						);
 						return ApprovalState::approved(validator_index, candidate_hash)
 					} else {
-						tracing::debug!(target: DEBUG_LOG_TARGET, "ladi-debug-approval FAILED {:?}", candidate_hash);
-						return ApprovalState::failed(validator_index, candidate_hash)
+						tracing::debug!(
+							target: DEBUG_LOG_TARGET,
+							"ladi-debug-approval FAILED {:?}",
+							candidate_hash
+						);
+
+						return ApprovalState::malicious(
+							validator_index,
+							candidate_hash,
+							candidate.clone(),
+							session_index,
+						)
 					}
 				} else {
 					// Commitments mismatch - issue a dispute.

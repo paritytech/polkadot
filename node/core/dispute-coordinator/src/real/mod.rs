@@ -630,8 +630,12 @@ async fn handle_incoming(
 			block_descriptions,
 			tx,
 		} => {
-			let undisputed_chain =
-				determine_undisputed_chain(overlay_db, base_number, base_hash, block_descriptions.clone())?;
+			let undisputed_chain = determine_undisputed_chain(
+				overlay_db,
+				base_number,
+				base_hash,
+				block_descriptions.clone(),
+			)?;
 
 			tracing::debug!(
 				target: DEBUG_LOG_TARGET,
