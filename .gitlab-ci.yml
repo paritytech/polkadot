@@ -582,7 +582,8 @@ simnet-tests-malus-dispute-valid:
     # FIXME: use the master after the merge of the malus pr
     # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/simnet_tests'
     # FIXME: copy config of tests in simnet_test and use proper values
-    NETWORK_CONFIG:                'simnet_tests/configs/simple_rococo_testnet.toml'
+    NETWORK_CONFIG:                'node/malus/integrationtests/0001-dispute-valid-block.toml '
+    FEATURES:                      'node/malus/integrationtests/0001-dispute-valid-block.feature'
   # `malus.env` brings here `$MALUS_IMAGE_NAME` and `$MALUS_IMAGE_TAG`
   # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
   # For local tests with docker `$MALUS_IMAGE_TAG` can be replaced with `master` tag.
@@ -594,12 +595,14 @@ simnet-tests-malus-dispute-valid:
         ${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}
         ${GH_DIR}
         ${NETWORK_CONFIG}
+        ${FEATURES}
         "
   script:
     - /home/nonroot/simnet/scripts/run-test-environment-manager.sh
         --github-remote-dir="${GH_DIR}"
         --config="${NETWORK_CONFIG}"
         --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        --features="${FEATURES}"
         -e "SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
         -e "MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}"
   allow_failure:                   true
