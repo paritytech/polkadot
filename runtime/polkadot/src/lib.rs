@@ -88,6 +88,9 @@ pub use sp_runtime::BuildStorage;
 /// Constant values used within the runtime.
 use polkadot_runtime_constants::{currency::*, fee::*, time::*};
 
+// Messaging with Kusama support.
+mod kusama_messages;
+
 // Weights used in the runtime.
 mod weights;
 
@@ -179,7 +182,8 @@ impl Contains<Call> for BaseFilter {
 			Call::Crowdloan(_) |
 			Call::BagsList(_) |
 			Call::XcmPallet(_) |
-			Call::BridgeKusamaGrandpa(_) => true,
+			Call::BridgeKusamaGrandpa(_) |
+			Call::BridgeKusamaMessages(_) => true,
 		}
 	}
 }
@@ -1369,6 +1373,66 @@ impl pallet_bridge_grandpa::Config for Runtime {
 	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>; // TODO
 }
 
+parameter_types! {
+	pub const MaxMessagesToPruneAtOnce: bp_messages::MessageNonce = 8;
+	pub const MaxUnrewardedRelayerEntriesAtInboundLane: bp_messages::MessageNonce =
+		bp_polkadot::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE;
+	pub const MaxUnconfirmedMessagesAtInboundLane: bp_messages::MessageNonce =
+		bp_polkadot::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE;
+	pub const RootAccountForPayments: Option<AccountId> = None;
+	pub const KusamaChainId: bp_runtime::ChainId = bp_runtime::KUSAMA_CHAIN_ID;
+}
+
+/// Instance of the messages pallet used to relay messages to/from Kusama chain.
+pub type KusamaMessagesInstance = ();
+
+impl pallet_bridge_messages::Config<KusamaMessagesInstance> for Runtime {
+	type Event = Event;
+	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>; // TODO
+	type Parameter = kusama_messages::WithKusamaMessageBridgeParameter;
+	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
+	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
+	type MaxUnconfirmedMessagesAtInboundLane = MaxUnconfirmedMessagesAtInboundLane;
+
+	type OutboundPayload = kusama_messages::ToKusamaMessagePayload;
+	type OutboundMessageFee = Balance;
+
+	type InboundPayload = kusama_messages::FromKusamaMessagePayload;
+	type InboundMessageFee = bp_kusama::Balance;
+	type InboundRelayer = bp_kusama::AccountId;
+
+	type AccountIdConverter = bp_polkadot::AccountIdConverter;
+
+	type TargetHeaderChain = kusama_messages::Kusama;
+	type LaneMessageVerifier = kusama_messages::ToKusamaMessageVerifier;
+	type MessageDeliveryAndDispatchPayment = pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
+		Runtime,
+		pallet_balances::Pallet<Runtime>,
+		kusama_messages::GetDeliveryConfirmationTransactionFee,
+		RootAccountForPayments,
+	>;
+	type OnDeliveryConfirmed = ();
+
+	type SourceHeaderChain = kusama_messages::Kusama;
+	type MessageDispatch = kusama_messages::FromKusamaMessageDispatch;
+	type BridgedChainId = KusamaChainId;
+}
+
+/// Instance of the dispatch pallet used to dispatch incoming Kusama messages.
+pub type KusamaMessagesDispatchInstance = ();
+
+impl pallet_bridge_dispatch::Config<KusamaMessagesDispatchInstance> for Runtime {
+	type Event = Event;
+	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
+	type Call = Call;
+	type CallFilter = frame_support::traits::Everything;
+	type EncodedCall = kusama_messages::FromKusamaEncodedCall;
+	type SourceChainAccountId = bp_kusama::AccountId;
+	type TargetChainAccountPublic = sp_runtime::MultiSigner;
+	type TargetChainSignature = sp_runtime::MultiSignature;
+	type AccountIdConverter = bp_polkadot::AccountIdConverter;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1464,8 +1528,8 @@ construct_runtime! {
 
 		// Bridge pallets to bridge with Kusama.
 		BridgeKusamaGrandpa: pallet_bridge_grandpa::{Pallet, Call, Storage, Config<T>} = 110,
-		//BridgeKusamaMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>} = 111,
-		//BridgeKusamaMessagesDispatch: pallet_bridge_dispatch::{Pallet, Event<T>} = 112,
+		BridgeKusamaMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>} = 111,
+		BridgeKusamaMessagesDispatch: pallet_bridge_dispatch::{Pallet, Event<T>} = 112,
 	}
 }
 

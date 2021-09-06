@@ -86,6 +86,9 @@ pub use sp_runtime::BuildStorage;
 /// Constant values used within the runtime.
 use kusama_runtime_constants::{currency::*, fee::*, time::*};
 
+// Messaging with Polkadot support.
+mod polkadot_messages;
+
 // Weights used in the runtime.
 mod weights;
 
@@ -1403,6 +1406,65 @@ impl pallet_bridge_grandpa::Config for Runtime {
 	type WeightInfo = pallet_bridge_grandpa::weights::RialtoWeight<Runtime>; // TODO
 }
 
+parameter_types! {
+	pub const MaxMessagesToPruneAtOnce: bp_messages::MessageNonce = 8;
+	pub const MaxUnrewardedRelayerEntriesAtInboundLane: bp_messages::MessageNonce =
+		bp_kusama::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE;
+	pub const MaxUnconfirmedMessagesAtInboundLane: bp_messages::MessageNonce =
+		bp_kusama::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE;
+	pub const RootAccountForPayments: Option<AccountId> = None;
+	pub const PolkadotChainId: bp_runtime::ChainId = bp_runtime::POLKADOT_CHAIN_ID;
+}
+
+/// Instance of the messages pallet used to relay messages to/from Polkadot chain.
+pub type PolkadotMessagesInstance = ();
+
+impl pallet_bridge_messages::Config<PolkadotMessagesInstance> for Runtime {
+	type Event = Event;
+	type WeightInfo = pallet_bridge_messages::weights::RialtoWeight<Runtime>; // TODO
+	type Parameter = polkadot_messages::WithPolkadotMessageBridgeParameter;
+	type MaxMessagesToPruneAtOnce = MaxMessagesToPruneAtOnce;
+	type MaxUnrewardedRelayerEntriesAtInboundLane = MaxUnrewardedRelayerEntriesAtInboundLane;
+	type MaxUnconfirmedMessagesAtInboundLane = MaxUnconfirmedMessagesAtInboundLane;
+
+	type OutboundPayload = polkadot_messages::ToPolkadotMessagePayload;
+	type OutboundMessageFee = Balance;
+
+	type InboundPayload = polkadot_messages::FromPolkadotMessagePayload;
+	type InboundMessageFee = bp_polkadot::Balance;
+	type InboundRelayer = bp_polkadot::AccountId;
+
+	type AccountIdConverter = bp_kusama::AccountIdConverter;
+
+	type TargetHeaderChain = polkadot_messages::Polkadot;
+	type LaneMessageVerifier = polkadot_messages::ToPolkadotMessageVerifier;
+	type MessageDeliveryAndDispatchPayment = pallet_bridge_messages::instant_payments::InstantCurrencyPayments<
+		Runtime,
+		pallet_balances::Pallet<Runtime>,
+		polkadot_messages::GetDeliveryConfirmationTransactionFee,
+		RootAccountForPayments,
+	>;
+	type OnDeliveryConfirmed = ();
+
+	type SourceHeaderChain = polkadot_messages::Polkadot;
+	type MessageDispatch = polkadot_messages::FromPolkadotMessageDispatch;
+	type BridgedChainId = PolkadotChainId;
+}
+
+/// Instance of the dispatch pallet used to dispatch incoming Polkadot messages.
+pub type PolkadotMessagesDispatchInstance = ();
+
+impl pallet_bridge_dispatch::Config<PolkadotMessagesDispatchInstance> for Runtime {
+	type Event = Event;
+	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
+	type Call = Call;
+	type CallFilter = frame_support::traits::Everything;
+	type EncodedCall = polkadot_messages::FromPolkadotEncodedCall;
+	type SourceChainAccountId = bp_polkadot::AccountId;
+	type TargetChainAccountPublic = sp_runtime::MultiSigner;
+	type TargetChainSignature = sp_runtime::MultiSignature;
+	type AccountIdConverter = bp_kusama::AccountIdConverter;
+}
 
 construct_runtime! {
 	pub enum Runtime where
@@ -1514,8 +1576,8 @@ construct_runtime! {
 
 		// Bridge pallets to bridge with Polkadot.
 		BridgePolkadotGrandpa: pallet_bridge_grandpa::{Pallet, Call, Storage, Config<T>} = 110,
-		//BridgePolkadotMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>} = 111,
-		//BridgePolkadotMessagesDispatch: pallet_bridge_dispatch::{Pallet, Event<T>} = 112,
+		BridgePolkadotMessages: pallet_bridge_messages::{Pallet, Call, Storage, Event<T>, Config<T>} = 111,
+		BridgePolkadotMessagesDispatch: pallet_bridge_dispatch::{Pallet, Event<T>} = 112,
 	}
 }
 
