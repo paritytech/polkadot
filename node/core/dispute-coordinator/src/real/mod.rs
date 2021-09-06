@@ -743,9 +743,21 @@ async fn handle_import_statements(
 	};
 
 	if status != prev_status {
+		let validators = match state.rolling_session_window.session_info(session) {
+			None => return Ok(()),
+			Some(info) => info.validators.clone(),
+		};
+
 		// This branch is only hit when the candidate is freshly disputed -
 		// status was previously `None`, and now is not.
-		if prev_status.is_none() {
+		if !statements.iter().any(|(_, validator_index)| {
+			validators
+				.get(validator_index)
+				.map(|validator| state.keystore.key_pair::<ValidatorPair>(validator).ok())
+				.flatten()
+				.is_some()
+		}) && prev_status.is_none()
+		{
 			// No matter what, if the dispute is new, we participate.
 			//
 			// We also block the coordinator while awaiting our determination
