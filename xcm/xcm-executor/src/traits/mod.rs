@@ -18,6 +18,8 @@
 
 mod conversion;
 pub use conversion::{Convert, ConvertOrigin, Decoded, Encoded, Identity, InvertLocation, JustTry};
+mod drop_assets;
+pub use drop_assets::{ClaimAssets, DropAssets};
 mod filter_asset_location;
 pub use filter_asset_location::FilterAssetLocation;
 mod matches_fungible;
@@ -25,7 +27,7 @@ pub use matches_fungible::MatchesFungible;
 mod matches_fungibles;
 pub use matches_fungibles::{Error, MatchesFungibles};
 mod on_response;
-pub use on_response::OnResponse;
+pub use on_response::{OnResponse, VersionChangeNotifier};
 mod should_execute;
 pub use should_execute::ShouldExecute;
 mod transact_asset;

@@ -148,7 +148,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					TransactionStatus::Ready | TransactionStatus::Broadcast(_) | TransactionStatus::Future => continue,
 					TransactionStatus::InBlock(hash) => {
 						log::info!(target: LOG_TARGET, "included at {:?}", hash);
-						let key = sp_core::storage::StorageKey(frame_system::Events::<Runtime>::hashed_key().to_vec());
+						let key = frame_support::storage::storage_prefix(b"System", b"Events");
 						let events =get_storage::<
 							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>
 						>(client, params!{ key, hash }).await?.unwrap_or_default();
