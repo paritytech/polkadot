@@ -575,6 +575,7 @@ simnet-tests-malus-dispute-valid:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
+    - job:                         publish-polkadot-image
     - job:                         publish-malus-image
 
   variables:
