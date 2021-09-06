@@ -241,12 +241,7 @@ std::thread_local! {
 
 /// Return which messages have been processed by `pocess_upward_message` and clear the buffer.
 pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
-	PROCESSED.with(|opt_hook| {
-		let mut r = vec![];
-		let mut processed = opt_hook.borrow_mut();
-		std::mem::swap(processed.as_mut(), &mut r);
-		r
-	})
+	PROCESSED.with(|opt_hook| std::mem::take(&mut *opt_hook.borrow_mut()))
 }
 
 /// An implementation of a UMP sink that just records which messages were processed.
