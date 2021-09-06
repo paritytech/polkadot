@@ -25,7 +25,7 @@ use polkadot_test_runtime::{constants::currency::DOTS, BABE_GENESIS_EPOCH_CONFIG
 use sc_chain_spec::{ChainSpec, ChainType};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_core::sr25519;
-use sp_runtime::Perbill;
+use sp_runtime::{Perbill, StateVersion};
 
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
@@ -45,6 +45,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	)
 }
 

@@ -70,20 +70,23 @@ pub enum Error {
 pub fn craft_valid_storage_proof() -> (sp_core::H256, StorageProof) {
 	use sp_state_machine::{backend::Backend, prove_read, InMemoryBackend};
 
+	let state_version = sp_runtime::StateVersion::V0;
+
 	// construct storage proof
-	let backend = <InMemoryBackend<sp_core::Blake2Hasher>>::from(vec![
+	let backend = <InMemoryBackend<sp_core::Blake2Hasher>>::from((vec![
 		(None, vec![(b"key1".to_vec(), Some(b"value1".to_vec()))]),
 		(None, vec![(b"key2".to_vec(), Some(b"value2".to_vec()))]),
 		(None, vec![(b"key3".to_vec(), Some(b"value3".to_vec()))]),
 		// Value is too big to fit in a branch node
 		(None, vec![(b"key11".to_vec(), Some(vec![0u8; 32]))]),
-	]);
+	], state_version));
 	let root = backend.storage_root(std::iter::empty()).0;
 	let proof = StorageProof::new(
 		prove_read(backend, &[&b"key1"[..], &b"key2"[..], &b"key22"[..]])
 			.unwrap()
 			.iter_nodes()
 			.collect(),
+		state_version,
 	);
 
 	(root, proof)

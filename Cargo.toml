@@ -184,14 +184,11 @@ pallet-grandpa = { git="https://github.com/cheme/substrate", branch="state-updat
 frame-executive = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-elections-phragmen = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-election-provider-multi-phase = { git="https://github.com/cheme/substrate", branch="state-update4" }
-frame-election-provider-support = { git="https://github.com/cheme/substrate", branch="state-update4" }
 frame-metadata = { git="https://github.com/cheme/substrate", branch="state-update4" }
 frame-support-test = { git="https://github.com/cheme/substrate", branch="state-update4" }
 remote-externalities = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sc-informant = { git="https://github.com/cheme/substrate", branch="state-update4" }
-sc-finality-grandpa-warp-sync = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-database = { git="https://github.com/cheme/substrate", branch="state-update4" }
-substrate-browser-utils = { git="https://github.com/cheme/substrate", branch="state-update4" }
 try-runtime-cli = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-democracy = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-collective = { git="https://github.com/cheme/substrate", branch="state-update4" }
@@ -200,6 +197,7 @@ pallet-transaction-payment-rpc-runtime-api = { git="https://github.com/cheme/sub
 pallet-transaction-payment = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-authority-discovery = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-transaction-pool = { git="https://github.com/cheme/substrate", branch="state-update4" }
+sc-transaction-pool-api = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-version = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-session = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-offchain = { git="https://github.com/cheme/substrate", branch="state-update4" }
@@ -221,6 +219,7 @@ sc-network-gossip = { git="https://github.com/cheme/substrate", branch="state-up
 sp-state-machine = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-externalities = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-runtime-interface = { git="https://github.com/cheme/substrate", branch="state-update4" }
+sp-runtime-interface-proc-macro = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-application-crypto = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-serializer = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sc-rpc = { git="https://github.com/cheme/substrate", branch="state-update4" }
@@ -252,6 +251,7 @@ sc-consensus-babe = { git="https://github.com/cheme/substrate", branch="state-up
 sc-consensus-babe-rpc = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sc-consensus-epochs = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sc-consensus-slots = { git="https://github.com/cheme/substrate", branch="state-update4" }
+sc-consensus-manual-seal = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-consensus-vrf = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-consensus-aura = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-wasm-interface = { git="https://github.com/cheme/substrate", branch="state-update4" }
@@ -267,9 +267,8 @@ substrate-test-client = { git="https://github.com/cheme/substrate", branch="stat
 substrate-test-runtime = { git="https://github.com/cheme/substrate", branch="state-update4" }
 substrate-test-runtime-client = { git="https://github.com/cheme/substrate", branch="state-update4" }
 substrate-test-utils = { git="https://github.com/cheme/substrate", branch="state-update4" }
+substrate-test-utils-derive = { git="https://github.com/cheme/substrate", branch="state-update4" }
 substrate-wasm-builder = { git="https://github.com/cheme/substrate", branch="state-update4" }
-sp-npos-elections = { git="https://github.com/cheme/substrate", branch="state-update4" }
-sp-npos-elections-compact = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-offences-benchmarking = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-session-benchmarking = { git="https://github.com/cheme/substrate", branch="state-update4" }
 pallet-gilt = { git="https://github.com/cheme/substrate", branch="state-update4" }
@@ -283,13 +282,22 @@ sc-executor-common = { git="https://github.com/cheme/substrate", branch="state-u
 sc-executor-wasmtime = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sc-consensus-uncles = { git="https://github.com/cheme/substrate", branch="state-update4" }
 sp-authorship = { git="https://github.com/cheme/substrate", branch="state-update4" }
-sp-utils = { git="https://github.com/cheme/substrate", branch="state-update4" }
-max-encoded-len = { git="https://github.com/cheme/substrate", branch="state-update4" }
-max-encoded-len-derive = { git="https://github.com/cheme/substrate", branch="state-update4" }
+sc-utils = { git="https://github.com/cheme/substrate", branch="state-update4" }
+frame-election-provider-support = { git="https://github.com/cheme/substrate", branch="state-update4" }
+frame-support-procedural = { git="https://github.com/cheme/substrate", branch="state-update4" }
+frame-support-procedural-tools = { git="https://github.com/cheme/substrate", branch="state-update4" }
+frame-support-procedural-tools-derive = { git="https://github.com/cheme/substrate", branch="state-update4" }
+test-runner = { git="https://github.com/cheme/substrate", branch="state-update4" }
+sp-transaction-storage-proof = { git="https://github.com/cheme/substrate", branch="state-update4" }
+sp-version-proc-macro = { git="https://github.com/cheme/substrate", branch="state-update4" }
+sp-panic-handler = { git="https://github.com/cheme/substrate", branch="state-update4" }
+sp-npos-elections = { git="https://github.com/cheme/substrate", branch="state-update4" }
+sp-npos-elections-solution-type = { git="https://github.com/cheme/substrate", branch="state-update4" }
+
 
 [patch.crates-io]
-hash-db = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4" }
-memory-db = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4" }
-trie-db = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4" }
-trie-root = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4" }
-trie-bench = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4" }
+hash-db = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4-new" }
+memory-db = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4-new" }
+trie-db = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4-new" }
+trie-root = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4-new" }
+trie-bench = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4-new" }

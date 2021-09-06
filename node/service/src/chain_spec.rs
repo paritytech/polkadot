@@ -37,7 +37,7 @@ use rococo_runtime::constants::currency::UNITS as ROC;
 use sc_chain_spec::{ChainSpecExtension, ChainType};
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
-use sp_runtime::{traits::IdentifyAccount, Perbill};
+use sp_runtime::{traits::IdentifyAccount, Perbill, StateVersion};
 use telemetry::TelemetryEndpoints;
 #[cfg(feature = "westend-native")]
 use westend_runtime as westend;
@@ -121,6 +121,10 @@ impl sp_runtime::BuildStorage for RococoGenesisExt {
 			}
 		});
 		self.runtime_genesis_config.assimilate_storage(storage)
+	}
+
+	fn state_version(&self) -> StateVersion {
+		StateVersion::V0
 	}
 }
 
@@ -1027,22 +1031,22 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		configuration: rococo_runtime::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
-		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
-		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
-		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
-		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
+		// bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
+		// 	owner: Some(endowed_accounts[0].clone()),
+		// 	..Default::default()
+		// },
+		// bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
+		// 	owner: Some(endowed_accounts[0].clone()),
+		// 	..Default::default()
+		// },
+		// bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
+		// 	owner: Some(endowed_accounts[0].clone()),
+		// 	..Default::default()
+		// },
+		// bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
+		// 	owner: Some(endowed_accounts[0].clone()),
+		// 	..Default::default()
+		// },
 	}
 }
 
@@ -1064,6 +1068,7 @@ pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1086,6 +1091,7 @@ pub fn kusama_staging_testnet_config() -> Result<KusamaChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1108,6 +1114,7 @@ pub fn westend_staging_testnet_config() -> Result<WestendChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1133,6 +1140,7 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1526,22 +1534,22 @@ pub fn rococo_testnet_genesis(
 		},
 		hrmp: Default::default(),
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
-		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
-		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
-		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
-		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
+		// bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
+		// 	owner: Some(root_key.clone()),
+		// 	..Default::default()
+		// },
+		// bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
+		// 	owner: Some(root_key.clone()),
+		// 	..Default::default()
+		// },
+		// bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
+		// 	owner: Some(root_key.clone()),
+		// 	..Default::default()
+		// },
+		// bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
+		// 	owner: Some(root_key.clone()),
+		// 	..Default::default()
+		// },
 	}
 }
 
@@ -1598,6 +1606,7 @@ pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1616,6 +1625,7 @@ pub fn kusama_development_config() -> Result<KusamaChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1634,6 +1644,7 @@ pub fn westend_development_config() -> Result<WestendChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1656,6 +1667,7 @@ pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1679,6 +1691,7 @@ pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
 		Some(WOCOCO_DEV_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1708,6 +1721,7 @@ pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1739,6 +1753,7 @@ pub fn kusama_local_testnet_config() -> Result<KusamaChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1770,6 +1785,7 @@ pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1802,6 +1818,7 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }
 
@@ -1835,5 +1852,6 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
+		StateVersion::V0,
 	))
 }

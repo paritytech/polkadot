@@ -30,8 +30,7 @@ use xcm_executor::traits::{OnResponse, ShouldExecute};
 pub struct TakeWeightCredit;
 impl ShouldExecute for TakeWeightCredit {
 	fn should_execute<Call>(
-		_origin: &Option<MultiLocation>,
-		_top_level: bool,
+		_origin: &MultiLocation,
 		_message: &mut Xcm<Call>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
@@ -44,24 +43,24 @@ impl ShouldExecute for TakeWeightCredit {
 /// Allows execution from `origin` if it is contained in `T` (i.e. `T::Contains(origin)`) taking
 /// payments into account.
 ///
-/// Only allows for `TeleportAsset`, `WithdrawAsset` and `ReserveAssetDeposit` XCMs because they are
-/// the only ones that place assets in the Holding Register to pay for execution.
+/// Only allows for `TeleportAsset`, `WithdrawAsset`, `ClaimAsset` and `ReserveAssetDeposit` XCMs
+/// because they are the only ones that place assets in the Holding Register to pay for execution.
 pub struct AllowTopLevelPaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFrom<T> {
 	fn should_execute<Call>(
-		origin: &Option<MultiLocation>,
-		top_level: bool,
+		origin: &MultiLocation,
 		message: &mut Xcm<Call>,
 		max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		let origin = origin.as_ref().ok_or(())?;
 		ensure!(T::contains(origin), ());
-		ensure!(top_level, ());
 		let mut iter = message.0.iter_mut();
 		let i = iter.next().ok_or(())?;
 		match i {
-			ReceiveTeleportedAsset(..) | WithdrawAsset(..) | ReserveAssetDeposited(..) => (),
+			ReceiveTeleportedAsset(..) |
+			WithdrawAsset(..) |
+			ReserveAssetDeposited(..) |
+			ClaimAsset { .. } => (),
 			_ => return Err(()),
 		}
 		let mut i = iter.next().ok_or(())?;
@@ -87,13 +86,11 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 pub struct AllowUnpaidExecutionFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowUnpaidExecutionFrom<T> {
 	fn should_execute<Call>(
-		origin: &Option<MultiLocation>,
-		_top_level: bool,
+		origin: &MultiLocation,
 		_message: &mut Xcm<Call>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		let origin = origin.as_ref().ok_or(())?;
 		ensure!(T::contains(origin), ());
 		Ok(())
 	}
@@ -115,17 +112,33 @@ impl<ParaId: IsSystem + From<u32>> Contains<MultiLocation> for IsChildSystemPara
 pub struct AllowKnownQueryResponses<ResponseHandler>(PhantomData<ResponseHandler>);
 impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<ResponseHandler> {
 	fn should_execute<Call>(
-		origin: &Option<MultiLocation>,
-		_top_level: bool,
+		origin: &MultiLocation,
 		message: &mut Xcm<Call>,
 		_max_weight: Weight,
 		_weight_credit: &mut Weight,
 	) -> Result<(), ()> {
-		let origin = origin.as_ref().ok_or(())?;
 		match message.0.first() {
 			Some(QueryResponse { query_id, .. })
 				if ResponseHandler::expecting_response(origin, *query_id) =>
 				Ok(()),
+			_ => Err(()),
+		}
+	}
+}
+
+/// Allows execution from `origin` if it is just a straight `SubscribeVerison` or
+/// `UnsubscribeVersion` instruction.
+pub struct AllowSubscriptionsFrom<T>(PhantomData<T>);
+impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		message: &mut Xcm<Call>,
+		_max_weight: Weight,
+		_weight_credit: &mut Weight,
+	) -> Result<(), ()> {
+		ensure!(T::contains(origin), ());
+		match (message.0.len(), message.0.first()) {
+			(1, Some(SubscribeVersion { .. })) | (1, Some(UnsubscribeVersion)) => Ok(()),
 			_ => Err(()),
 		}
 	}
