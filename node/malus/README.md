@@ -25,6 +25,12 @@ tera based templating.
 To launch a test case in the development cluster use (e.g. for the  ./node/malus/integrationtests/0001-dispute-valid-block.toml):
 
 ```sh
+# declare the containers pulled in by gurke test definitions
+export SYNTHIMAGE=paritypr/synth-wave:3639-0.9.9-7edc6602-ed5fb773
+export COLIMAGE=paritypr/colander:3639-7edc6602
+export MALUSIMAGE=paritypr/malus:3639-7edc6602
+export SCRIPTSIMAGE=paritytech/simnet:v9
+
 # login chore, once, with the values as provided in the above guide
 gcloud auth login
 gcloud config set project "parity-simnet"
