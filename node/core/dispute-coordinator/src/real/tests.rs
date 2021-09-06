@@ -1523,3 +1523,6 @@ fn resume_dispute_with_local_statement_without_local_key() {
 			})
 		});
 }
+
+
+// TODO [now]: issue_local_statements does not cause duplicate participation.
