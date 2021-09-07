@@ -1504,21 +1504,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(MigratePalletVersionToStorageVersion, MigrateTipsPalletPrefix),
+	MigrateTipsPalletPrefix,
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// Migrate from `PalletVersion` to the new `StorageVersion`
-pub struct MigratePalletVersionToStorageVersion;
-
-impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
-			AllPalletsWithSystem,
-		>(&RocksDbWeight::get())
-	}
-}
 
 /// Migrate pallet-tips from `Treasury` to the new pallet prefix `Tips`
 pub struct MigrateTipsPalletPrefix;
