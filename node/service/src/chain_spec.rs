@@ -388,6 +388,14 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		},
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		bridge_kusama_grandpa: polkadot_runtime::BridgeKusamaGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_kusama_messages: polkadot_runtime::BridgeKusamaMessagesConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
 	}
 }
 
@@ -768,6 +776,14 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		gilt: Default::default(),
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		bridge_polkadot_grandpa: kusama_runtime::BridgePolkadotGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_polkadot_messages: kusama_runtime::BridgePolkadotMessagesConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
 	}
 }
 
@@ -1338,6 +1354,14 @@ pub fn polkadot_testnet_genesis(
 		},
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
+		bridge_kusama_grandpa: polkadot_runtime::BridgeKusamaGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_kusama_messages: polkadot_runtime::BridgeKusamaMessagesConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
 	}
 }
 
@@ -1423,8 +1447,16 @@ pub fn kusama_testnet_genesis(
 			config: default_parachains_host_configuration(),
 		},
 		gilt: Default::default(),
-		paras: Default::default(),
+		paras: Default::default()
 		xcm_pallet: Default::default(),
+		bridge_polkadot_grandpa: kusama_runtime::BridgePolkadotGrandpaConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
+		bridge_polkadot_messages: kusama_runtime::BridgePolkadotMessagesConfig {
+			owner: Some(endowed_accounts[0].clone()),
+			..Default::default()
+		},
 	}
 }
 

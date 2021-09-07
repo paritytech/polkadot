@@ -821,6 +821,7 @@ impl pallet_bridge_messages::Config<AtWococoWithRococoMessagesInstance> for Runt
 
 	type SourceHeaderChain = crate::bridge_messages::RococoAtWococo;
 	type MessageDispatch = crate::bridge_messages::FromRococoMessageDispatch;
+	type BridgedChainId = RococoChainId;
 }
 
 // Instance that is "deployed" at Rococo chain. Responsible for sending Rococo -> Wococo messages
@@ -858,6 +859,7 @@ impl pallet_bridge_messages::Config<AtRococoWithWococoMessagesInstance> for Runt
 
 	type SourceHeaderChain = crate::bridge_messages::WococoAtRococo;
 	type MessageDispatch = crate::bridge_messages::FromWococoMessageDispatch;
+	type BridgedChainId = WococoChainId;
 }
 
 parameter_types! {
