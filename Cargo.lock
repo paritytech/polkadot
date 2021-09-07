@@ -459,9 +459,9 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
 name = "beef"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6736e2428df2ca2848d846c43e88745121a6654696e349ce0054a420815a7409"
+checksum = "bed554bd50246729a1ec158d08aa3235d1b69d94ad120ebe187e28894787e736"
 dependencies = [
  "serde",
 ]
@@ -3091,6 +3091,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonrpsee-types"
+version = "0.3.0"
+source = "git+https://github.com/paritytech/jsonrpsee?branch=na-ws-subscription-capacity-usage-log#a45600c6824c5499a8b32531756c5bb28b1ac543"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "beef",
+ "futures-channel",
+ "futures-util",
+ "hyper",
+ "log",
+ "serde",
+ "serde_json",
+ "soketto 0.6.0",
+ "thiserror",
+]
+
+[[package]]
 name = "jsonrpsee-ws-client"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3099,7 +3117,30 @@ dependencies = [
  "async-trait",
  "fnv",
  "futures 0.3.17",
- "jsonrpsee-types",
+ "jsonrpsee-types 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log",
+ "pin-project 1.0.8",
+ "rustls",
+ "rustls-native-certs",
+ "serde",
+ "serde_json",
+ "soketto 0.6.0",
+ "thiserror",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
+ "url 2.2.0",
+]
+
+[[package]]
+name = "jsonrpsee-ws-client"
+version = "0.3.0"
+source = "git+https://github.com/paritytech/jsonrpsee?branch=na-ws-subscription-capacity-usage-log#a45600c6824c5499a8b32531756c5bb28b1ac543"
+dependencies = [
+ "async-trait",
+ "fnv",
+ "futures 0.3.17",
+ "jsonrpsee-types 0.3.0 (git+https://github.com/paritytech/jsonrpsee?branch=na-ws-subscription-capacity-usage-log)",
  "log",
  "pin-project 1.0.8",
  "rustls",
@@ -7650,7 +7691,7 @@ source = "git+https://github.com/paritytech/substrate?branch=master#6e15de9703bf
 dependencies = [
  "env_logger 0.9.0",
  "jsonrpsee-proc-macros",
- "jsonrpsee-ws-client",
+ "jsonrpsee-ws-client 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log",
  "parity-scale-codec",
  "serde",
@@ -9944,7 +9985,7 @@ dependencies = [
  "env_logger 0.9.0",
  "frame-support",
  "frame-system",
- "jsonrpsee-ws-client",
+ "jsonrpsee-ws-client 0.3.0 (git+https://github.com/paritytech/jsonrpsee?branch=na-ws-subscription-capacity-usage-log)",
  "kusama-runtime",
  "log",
  "pallet-balances",
