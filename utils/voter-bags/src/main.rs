@@ -63,10 +63,18 @@ struct Opt {
 
 	/// Where to write the output.
 	output: PathBuf,
+
+	/// The total issuance of the native currency.
+	#[structopt(short, long)]
+	total_issuance: u128,
+
+	/// The minimum account balance (i.e. existential deposit) for the native currency.
+	#[structopt(short, long)]
+	minimum_balance: u128,
 }
 
 fn main() -> Result<(), std::io::Error> {
-	let Opt { n_bags, output, runtime } = Opt::from_args();
-	let mut ext = sp_io::TestExternalities::new_empty();
-	ext.execute_with(|| runtime.generate_thresholds()(n_bags, &output))
+	let Opt { n_bags, output, runtime, total_issuance, minimum_balance } = Opt::from_args();
+
+	runtime.generate_thresholds()(n_bags, &output, total_issuance, minimum_balance))
 }
