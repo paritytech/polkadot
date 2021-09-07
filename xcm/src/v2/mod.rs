@@ -37,6 +37,12 @@ pub use super::v1::{
 	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WildFungibility, WildMultiAsset,
 };
 
+/// This module's XCM version.
+pub const VERSION: super::Version = 2;
+
+/// An identifier for a query.
+pub type QueryId = u64;
+
 #[derive(Derivative, Default, Encode, Decode)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
@@ -116,11 +122,12 @@ pub mod prelude {
 			MultiAssetFilter::{self, *},
 			MultiAssets, MultiLocation,
 			NetworkId::{self, *},
-			OriginKind, Outcome, Parent, ParentThen, Response, Result as XcmResult, SendError,
-			SendResult, SendXcm,
+			OriginKind, Outcome, Parent, ParentThen, QueryId, Response, Result as XcmResult,
+			SendError, SendResult, SendXcm,
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
+			VERSION as XCM_VERSION,
 		};
 	}
 	pub use super::{Instruction, Xcm};
@@ -142,6 +149,8 @@ pub enum Response {
 	Assets(MultiAssets),
 	/// The outcome of an XCM instruction.
 	ExecutionResult(result::Result<(), (u32, Error)>),
+	/// An XCM version.
+	Version(super::Version),
 }
 
 impl Default for Response {
@@ -239,7 +248,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	QueryResponse {
 		#[codec(compact)]
-		query_id: u64,
+		query_id: QueryId,
 		response: Response,
 		#[codec(compact)]
 		max_weight: u64,
@@ -291,7 +300,12 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
+	Transact {
+		origin_type: OriginKind,
+		#[codec(compact)]
+		require_weight_at_most: u64,
+		call: DoubleEncoded<Call>,
+	},
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.
@@ -377,7 +391,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	ReportError {
 		#[codec(compact)]
-		query_id: u64,
+		query_id: QueryId,
 		dest: MultiLocation,
 		#[codec(compact)]
 		max_response_weight: u64,
@@ -392,8 +406,15 @@ pub enum Instruction<Call> {
 	///   prioritized under standard asset ordering. Any others will remain in holding.
 	/// - `beneficiary`: The new owner for the assets.
 	///
+	/// Kind: *Instruction*
+	///
 	/// Errors:
-	DepositAsset { assets: MultiAssetFilter, max_assets: u32, beneficiary: MultiLocation },
+	DepositAsset {
+		assets: MultiAssetFilter,
+		#[codec(compact)]
+		max_assets: u32,
+		beneficiary: MultiLocation,
+	},
 
 	/// Remove the asset(s) (`assets`) from the Holding Register and place equivalent assets under
 	/// the ownership of `dest` within this consensus system (i.e. deposit them into its sovereign
@@ -411,9 +432,12 @@ pub enum Instruction<Call> {
 	/// - `xcm`: The orders that should follow the `ReserveAssetDeposited` instruction
 	///   which is sent onwards to `dest`.
 	///
+	/// Kind: *Instruction*
+	///
 	/// Errors:
 	DepositReserveAsset {
 		assets: MultiAssetFilter,
+		#[codec(compact)]
 		max_assets: u32,
 		dest: MultiLocation,
 		xcm: Xcm<()>,
@@ -427,6 +451,8 @@ pub enum Instruction<Call> {
 	///
 	/// - `give`: The asset(s) to remove from holding.
 	/// - `receive`: The minimum amount of assets(s) which `give` should be exchanged for.
+	///
+	/// Kind: *Instruction*
 	///
 	/// Errors:
 	ExchangeAsset { give: MultiAssetFilter, receive: MultiAssets },
@@ -442,6 +468,8 @@ pub enum Instruction<Call> {
 	/// - `xcm`: The instructions to execute on the assets once withdrawn *on the reserve
 	///   location*.
 	///
+	/// Kind: *Instruction*
+	///
 	/// Errors:
 	InitiateReserveWithdraw { assets: MultiAssetFilter, reserve: MultiLocation, xcm: Xcm<()> },
 
@@ -455,6 +483,8 @@ pub enum Instruction<Call> {
 	///
 	/// NOTE: The `dest` location *MUST* respect this origin as a valid teleportation origin for all
 	/// `assets`. If it does not, then the assets may be lost.
+	///
+	/// Kind: *Instruction*
 	///
 	/// Errors:
 	InitiateTeleport { assets: MultiAssetFilter, dest: MultiLocation, xcm: Xcm<()> },
@@ -472,10 +502,12 @@ pub enum Instruction<Call> {
 	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
 	///   response may not execute at all.
 	///
+	/// Kind: *Instruction*
+	///
 	/// Errors:
 	QueryHolding {
 		#[codec(compact)]
-		query_id: u64,
+		query_id: QueryId,
 		dest: MultiLocation,
 		assets: MultiAssetFilter,
 		#[codec(compact)]
@@ -490,13 +522,20 @@ pub enum Instruction<Call> {
 	///   expected maximum weight of the total XCM to be executed for the
 	///   `AllowTopLevelPaidExecutionFrom` barrier to allow the XCM be executed.
 	///
+	/// Kind: *Instruction*
+	///
 	/// Errors:
 	BuyExecution { fees: MultiAsset, weight_limit: WeightLimit },
 
 	/// Refund any surplus weight previously bought with `BuyExecution`.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: None.
 	RefundSurplus,
 
-	/// Set code that should be called in the case of an error happening.
+	/// Set the Error Handler Register. This is code that should be called in the case of an error
+	/// happening.
 	///
 	/// An error occurring within execution of this code will _NOT_ result in the error register
 	/// being set, nor will an error handler be called due to it. The error handler and appendix
@@ -505,10 +544,15 @@ pub enum Instruction<Call> {
 	/// The apparent weight of this instruction is inclusive of the inner `Xcm`; the executing
 	/// weight however includes only the difference between the previous handler and the new
 	/// handler, which can reasonably be negative, which would result in a surplus.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: None.
 	SetErrorHandler(Xcm<Call>),
 
-	/// Set code that should be called after code execution (including the error handler if any)
-	/// is finished. This will be called regardless of whether an error occurred.
+	/// Set the Appendix Register. This is code that should be called after code execution
+	/// (including the error handler if any) is finished. This will be called regardless of whether
+	/// an error occurred.
 	///
 	/// Any error occurring due to execution of this code will result in the error register being
 	/// set, and the error handler (if set) firing.
@@ -516,10 +560,55 @@ pub enum Instruction<Call> {
 	/// The apparent weight of this instruction is inclusive of the inner `Xcm`; the executing
 	/// weight however includes only the difference between the previous appendix and the new
 	/// appendix, which can reasonably be negative, which would result in a surplus.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: None.
 	SetAppendix(Xcm<Call>),
 
-	/// Clear the error register.
+	/// Clear the Error Register.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: None.
 	ClearError,
+
+	/// Create some assets which are being held on behalf of the origin.
+	///
+	/// - `assets`: The assets which are to be claimed. This must match exactly with the assets
+	///   claimable by the origin of the ticket.
+	/// - `ticket`: The ticket of the asset; this is an abstract identifier to help locate the
+	///   asset.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
+	ClaimAsset { assets: MultiAssets, ticket: MultiLocation },
+
+	/// Always throws an error of type `Trap`.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
+	/// - `Trap`: All circumstances, whose inner value is the same as this item's inner value.
+	Trap(#[codec(compact)] u64),
+
+	/// Ask the destination system to respond with the most recent version of XCM that they
+	/// support in a `QueryResponse` instruction. Any changes to this should also elicit similar
+	/// responses when they happen.
+	///
+	/// Kind: *Instruction*
+	SubscribeVersion {
+		#[codec(compact)]
+		query_id: QueryId,
+		#[codec(compact)]
+		max_response_weight: u64,
+	},
+
+	/// Cancel the effect of a previous `SubscribeVersion` instruction.
+	///
+	/// Kind: *Instruction*
+	UnsubscribeVersion,
 }
 
 impl<Call> Xcm<Call> {
@@ -572,6 +661,11 @@ impl<Call> Instruction<Call> {
 			SetErrorHandler(xcm) => SetErrorHandler(xcm.into()),
 			SetAppendix(xcm) => SetAppendix(xcm.into()),
 			ClearError => ClearError,
+			ClaimAsset { assets, ticket } => ClaimAsset { assets, ticket },
+			Trap(code) => Trap(code),
+			SubscribeVersion { query_id, max_response_weight } =>
+				SubscribeVersion { query_id, max_response_weight },
+			UnsubscribeVersion => UnsubscribeVersion,
 		}
 	}
 }
@@ -592,6 +686,7 @@ impl TryFrom<OldResponse> for Response {
 	fn try_from(old_response: OldResponse) -> result::Result<Self, ()> {
 		match old_response {
 			OldResponse::Assets(assets) => Ok(Self::Assets(assets)),
+			OldResponse::Version(version) => Ok(Self::Version(version)),
 		}
 	}
 }
@@ -641,6 +736,9 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 				vec![Transact { origin_type, require_weight_at_most, call }],
 			// We don't handle this one at all due to nested XCM.
 			OldXcm::RelayedFrom { .. } => return Err(()),
+			OldXcm::SubscribeVersion { query_id, max_response_weight } =>
+				vec![SubscribeVersion { query_id, max_response_weight }],
+			OldXcm::UnsubscribeVersion => vec![UnsubscribeVersion],
 		}))
 	}
 }

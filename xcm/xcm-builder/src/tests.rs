@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies query_id: (), max_response_weight: ()  query_id: (), max_response_weight: ()  (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -57,23 +57,11 @@ fn take_weight_credit_barrier_should_work() {
 	let mut message =
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 	let mut weight_credit = 10;
-	let r = TakeWeightCredit::should_execute(
-		&Some(Parent.into()),
-		true,
-		&mut message,
-		10,
-		&mut weight_credit,
-	);
+	let r = TakeWeightCredit::should_execute(&Parent.into(), &mut message, 10, &mut weight_credit);
 	assert_eq!(r, Ok(()));
 	assert_eq!(weight_credit, 0);
 
-	let r = TakeWeightCredit::should_execute(
-		&Some(Parent.into()),
-		true,
-		&mut message,
-		10,
-		&mut weight_credit,
-	);
+	let r = TakeWeightCredit::should_execute(&Parent.into(), &mut message, 10, &mut weight_credit);
 	assert_eq!(r, Err(()));
 	assert_eq!(weight_credit, 0);
 }
@@ -86,8 +74,7 @@ fn allow_unpaid_should_work() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
-		&Some(Parachain(1).into()),
-		true,
+		&Parachain(1).into(),
 		&mut message,
 		10,
 		&mut 0,
@@ -95,8 +82,7 @@ fn allow_unpaid_should_work() {
 	assert_eq!(r, Err(()));
 
 	let r = AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>::should_execute(
-		&Some(Parent.into()),
-		true,
+		&Parent.into(),
 		&mut message,
 		10,
 		&mut 0,
@@ -112,8 +98,7 @@ fn allow_paid_should_work() {
 		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Some(Parachain(1).into()),
-		true,
+		&Parachain(1).into(),
 		&mut message,
 		10,
 		&mut 0,
@@ -128,8 +113,7 @@ fn allow_paid_should_work() {
 	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Some(Parent.into()),
-		true,
+		&Parent.into(),
 		&mut underpaying_message,
 		30,
 		&mut 0,
@@ -144,8 +128,7 @@ fn allow_paid_should_work() {
 	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Some(Parachain(1).into()),
-		true,
+		&Parachain(1).into(),
 		&mut paying_message,
 		30,
 		&mut 0,
@@ -153,8 +136,7 @@ fn allow_paid_should_work() {
 	assert_eq!(r, Err(()));
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
-		&Some(Parent.into()),
-		true,
+		&Parent.into(),
 		&mut paying_message,
 		30,
 		&mut 0,
@@ -200,6 +182,119 @@ fn transfer_should_work() {
 	assert_eq!(assets(3), vec![(Here, 100).into()]);
 	assert_eq!(assets(1001), vec![(Here, 900).into()]);
 	assert_eq!(sent_xcm(), vec![]);
+}
+
+#[test]
+fn basic_asset_trap_should_work() {
+	// we'll let them have message execution for free.
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into(), X1(Parachain(2)).into()]);
+
+	// Child parachain #1 owns 1000 tokens held by us in reserve.
+	add_asset(1001, (Here, 1000));
+	// They want to transfer 100 of them to their sibling parachain #2 but have a problem
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1).into(),
+		Xcm(vec![
+			WithdrawAsset((Here, 100).into()),
+			DepositAsset {
+				assets: Wild(All),
+				max_assets: 0, //< Whoops!
+				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Complete(25));
+	assert_eq!(assets(1001), vec![(Here, 900).into()]);
+	assert_eq!(assets(3), vec![]);
+
+	// Incorrect ticket doesn't work.
+	let old_trapped_assets = TrappedAssets::get();
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1).into(),
+		Xcm(vec![
+			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(1).into() },
+			DepositAsset {
+				assets: Wild(All),
+				max_assets: 1,
+				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
+	assert_eq!(assets(1001), vec![(Here, 900).into()]);
+	assert_eq!(assets(3), vec![]);
+	assert_eq!(old_trapped_assets, TrappedAssets::get());
+
+	// Incorrect origin doesn't work.
+	let old_trapped_assets = TrappedAssets::get();
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(2).into(),
+		Xcm(vec![
+			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
+			DepositAsset {
+				assets: Wild(All),
+				max_assets: 1,
+				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
+	assert_eq!(assets(1001), vec![(Here, 900).into()]);
+	assert_eq!(assets(3), vec![]);
+	assert_eq!(old_trapped_assets, TrappedAssets::get());
+
+	// Incorrect assets doesn't work.
+	let old_trapped_assets = TrappedAssets::get();
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1).into(),
+		Xcm(vec![
+			ClaimAsset { assets: (Here, 101).into(), ticket: GeneralIndex(0).into() },
+			DepositAsset {
+				assets: Wild(All),
+				max_assets: 1,
+				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
+	assert_eq!(assets(1001), vec![(Here, 900).into()]);
+	assert_eq!(assets(3), vec![]);
+	assert_eq!(old_trapped_assets, TrappedAssets::get());
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1).into(),
+		Xcm(vec![
+			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
+			DepositAsset {
+				assets: Wild(All),
+				max_assets: 1,
+				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Complete(20));
+	assert_eq!(assets(1001), vec![(Here, 900).into()]);
+	assert_eq!(assets(3), vec![(Here, 100).into()]);
+
+	// Same again doesn't work :-)
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1).into(),
+		Xcm(vec![
+			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
+			DepositAsset {
+				assets: Wild(All),
+				max_assets: 1,
+				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+			},
+		]),
+		20,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::UnknownClaim));
 }
 
 #[test]
@@ -365,6 +460,120 @@ fn reserve_transfer_should_work() {
 			]),
 		)]
 	);
+}
+
+#[test]
+fn simple_version_subscriptions_should_work() {
+	AllowSubsFrom::set(vec![Parent.into()]);
+
+	let origin = Parachain(1000).into();
+	let message = Xcm::<TestCall>(vec![
+		SetAppendix(Xcm(vec![])),
+		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
+	]);
+	let weight_limit = 20;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Outcome::Error(XcmError::Barrier));
+
+	let origin = Parachain(1000).into();
+	let message =
+		Xcm::<TestCall>(vec![SubscribeVersion { query_id: 42, max_response_weight: 5000 }]);
+	let weight_limit = 10;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), weight_limit);
+	assert_eq!(r, Outcome::Error(XcmError::Barrier));
+
+	let origin = Parent.into();
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(10));
+
+	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), Some((42, 5000)))]);
+}
+
+#[test]
+fn version_subscription_instruction_should_work() {
+	let origin = Parachain(1000).into();
+	let message = Xcm::<TestCall>(vec![
+		DescendOrigin(X1(AccountIndex64 { index: 1, network: Any })),
+		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
+	]);
+	let weight_limit = 20;
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin.clone(),
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
+	assert_eq!(r, Outcome::Incomplete(20, XcmError::BadOrigin));
+
+	let message = Xcm::<TestCall>(vec![
+		SetAppendix(Xcm(vec![])),
+		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
+	]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin,
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
+	assert_eq!(r, Outcome::Complete(20));
+
+	assert_eq!(SubscriptionRequests::get(), vec![(Parachain(1000).into(), Some((42, 5000)))]);
+}
+
+#[test]
+fn simple_version_unsubscriptions_should_work() {
+	AllowSubsFrom::set(vec![Parent.into()]);
+
+	let origin = Parachain(1000).into();
+	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
+	let weight_limit = 20;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Outcome::Error(XcmError::Barrier));
+
+	let origin = Parachain(1000).into();
+	let message = Xcm::<TestCall>(vec![UnsubscribeVersion]);
+	let weight_limit = 10;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message.clone(), weight_limit);
+	assert_eq!(r, Outcome::Error(XcmError::Barrier));
+
+	let origin = Parent.into();
+	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(10));
+
+	assert_eq!(SubscriptionRequests::get(), vec![(Parent.into(), None)]);
+	assert_eq!(sent_xcm(), vec![]);
+}
+
+#[test]
+fn version_unsubscription_instruction_should_work() {
+	let origin = Parachain(1000).into();
+
+	// Not allowed to do it when origin has been changed.
+	let message = Xcm::<TestCall>(vec![
+		DescendOrigin(X1(AccountIndex64 { index: 1, network: Any })),
+		UnsubscribeVersion,
+	]);
+	let weight_limit = 20;
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin.clone(),
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
+	assert_eq!(r, Outcome::Incomplete(20, XcmError::BadOrigin));
+
+	// Fine to do it when origin is untouched.
+	let message = Xcm::<TestCall>(vec![SetAppendix(Xcm(vec![])), UnsubscribeVersion]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm_in_credit(
+		origin,
+		message.clone(),
+		weight_limit,
+		weight_limit,
+	);
+	assert_eq!(r, Outcome::Complete(20));
+
+	assert_eq!(SubscriptionRequests::get(), vec![(Parachain(1000).into(), None)]);
+	assert_eq!(sent_xcm(), vec![]);
 }
 
 #[test]

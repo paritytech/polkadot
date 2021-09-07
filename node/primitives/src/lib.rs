@@ -301,8 +301,15 @@ pub struct Proof(BoundedVec<BoundedVec<u8, 1, MERKLE_NODE_MAX_SIZE>, 1, MERKLE_P
 
 impl Proof {
 	/// This function allows to convert back to the standard nested Vec format
-	pub fn as_vec(&self) -> Vec<Vec<u8>> {
-		self.0.as_vec().iter().map(|v| v.as_vec().clone()).collect()
+	pub fn iter(&self) -> impl Iterator<Item = &[u8]> {
+		self.0.iter().map(|v| v.as_slice())
+	}
+
+	/// Construct an invalid dummy proof
+	///
+	/// Useful for testing, should absolutely not be used in production.
+	pub fn dummy_proof() -> Proof {
+		Proof(BoundedVec::from_vec(vec![BoundedVec::from_vec(vec![0]).unwrap()]).unwrap())
 	}
 }
 
@@ -358,7 +365,7 @@ impl Encode for Proof {
 	}
 
 	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
-		let temp = self.as_vec();
+		let temp = self.0.iter().map(|v| v.as_vec()).collect::<Vec<_>>();
 		temp.using_encoded(f)
 	}
 }
@@ -397,8 +404,8 @@ pub struct ErasureChunk {
 
 impl ErasureChunk {
 	/// Convert bounded Vec Proof to regular Vec<Vec<u8>>
-	pub fn proof_as_vec(&self) -> Vec<Vec<u8>> {
-		self.proof.as_vec()
+	pub fn proof(&self) -> &Proof {
+		&self.proof
 	}
 }
 
