@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 };
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, Hash, SessionIndex,
-	SessionInfo, ValidatorIndex, ValidatorPair, ValidatorSignature, ValidatorId,
+	SessionInfo, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 
 use futures::{channel::oneshot, prelude::*};
@@ -746,10 +746,8 @@ async fn handle_import_statements(
 		// This branch is only hit when the candidate is freshly disputed -
 		// status was previously `None`, and now is not.
 		if prev_status.is_none() && {
-			let controlled_indices = find_controlled_validator_indices(
-				&state.keystore,
-				&validators,
-			);
+			let controlled_indices =
+				find_controlled_validator_indices(&state.keystore, &validators);
 			let voted_indices = votes.voted_indices();
 
 			!controlled_indices.iter().all(|val_index| voted_indices.contains(&val_index))
