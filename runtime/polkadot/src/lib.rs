@@ -1133,19 +1133,48 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	MigratePalletVersionToStorageVersion,
+	TechnicalMembershipStoragePrefixMigration,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-/// Migrate from `PalletVersion` to the new `StorageVersion`
-pub struct MigratePalletVersionToStorageVersion;
+const TECHNICAL_MEMBERSHIP_OLD_PREFIX: &str = "Instance1Membership";
+/// Migrate from `Instance1Membership` to the new pallet prefix `TechnicalMembership`
+pub struct TechnicalMembershipStoragePrefixMigration;
 
-impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
+impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
-			AllPalletsWithSystem,
-		>(&RocksDbWeight::get())
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
+			.expect("TechnialMembership is part of runtime, so it has a name; qed");
+		pallet_membership::migrations::v4::migrate::<Runtime, TechnicalMembership, _>(
+			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
+			name,
+		)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
+			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
+		pallet_membership::migrations::v4::pre_migrate::<TechnicalMembership, _>(
+			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
+			name,
+		);
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
+			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
+		pallet_membership::migrations::v4::post_migrate::<TechnicalMembership, _>(
+			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
+			name,
+		);
+		Ok(())
 	}
 }
 
