@@ -469,7 +469,8 @@ impl<T: Config> Pallet<T> {
 				);
 
 				ensure!(
-					candidate.descriptor().para_head == candidate.candidate.commitments.head_data.hash(),
+					candidate.descriptor().para_head ==
+						candidate.candidate.commitments.head_data.hash(),
 					Error::<T>::ParaHeadMismatch,
 				);
 
