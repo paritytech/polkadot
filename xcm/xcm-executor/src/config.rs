@@ -14,18 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcm::v0::SendXcm;
-use frame_support::dispatch::{Dispatchable, Parameter};
-use frame_support::weights::{PostDispatchInfo, GetDispatchInfo};
 use crate::traits::{
-	TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation, ShouldExecute, WeightTrader, WeightBounds,
-	OnResponse,
+	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
+	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
+use frame_support::{
+	dispatch::{Dispatchable, Parameter},
+	weights::{GetDispatchInfo, PostDispatchInfo},
+};
+use xcm::latest::SendXcm;
 
 /// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
 	/// The outer call dispatch type.
-	type Call: Parameter + Dispatchable<PostInfo=PostDispatchInfo> + GetDispatchInfo;
+	type Call: Parameter + Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo;
 
 	/// How to send an onward XCM message.
 	type XcmSender: SendXcm;
@@ -36,10 +38,10 @@ pub trait Config {
 	/// How to get a call origin from a `OriginKind` value.
 	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
 
-	/// Combinations of (Location, Asset) pairs which we unilateral trust as reserves.
+	/// Combinations of (Location, Asset) pairs which we trust as reserves.
 	type IsReserve: FilterAssetLocation;
 
-	/// Combinations of (Location, Asset) pairs which we bilateral trust as teleporters.
+	/// Combinations of (Location, Asset) pairs which we trust as teleporters.
 	type IsTeleporter: FilterAssetLocation;
 
 	/// Means of inverting a location.
@@ -56,4 +58,14 @@ pub trait Config {
 
 	/// What to do when a response of a query is found.
 	type ResponseHandler: OnResponse;
+
+	/// The general asset trap - handler for when assets are left in the Holding Register at the
+	/// end of execution.
+	type AssetTrap: DropAssets;
+
+	/// The handler for when there is an instruction to claim assets.
+	type AssetClaims: ClaimAssets;
+
+	/// How we handle version subscription requests.
+	type SubscriptionService: VersionChangeNotifier;
 }

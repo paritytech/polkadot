@@ -1,12 +1,12 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.8"
+version = "0.9.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2018"
 
 [package.metadata.wasm-pack.profile.release]
-# `wasm-opt` has some problems on linux, see
+# `wasm-opt` has some problems on Linux, see
 # https://github.com/rustwasm/wasm-pack/issues/781 etc.
 wasm-opt = false
 
@@ -15,11 +15,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 log = "0.4.13"
-thiserror = "1.0.23"
-structopt = { version = "0.3.21", optional = true }
-wasm-bindgen = { version = "0.2.70", optional = true }
-wasm-bindgen-futures = { version = "0.4.23", optional = true }
-futures = "0.3.15"
+thiserror = "1.0.26"
+structopt = { version = "0.3.23", optional = true }
+futures = "0.3.17"
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
@@ -29,7 +27,6 @@ frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", bran
 try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
@@ -49,12 +46,13 @@ cli = [
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
 	"polkadot-node-core-pvf",
-]
-browser = [
-	"wasm-bindgen",
-	"wasm-bindgen-futures",
-	"browser-utils",
-	"service/light-node",
+# memory stats require jemalloc, which we know is enabled for Linux
+# but not present on wasm or windows
+# https://github.com/paritytech/parity-common/blob/master/parity-util-mem/src/allocators.rs#L9-L34
+# Once
+# https://github.com/rust-lang/cargo/issues/1197
+# is resolved.
+	"service/memory-stats",
 ]
 runtime-benchmarks = [ "service/runtime-benchmarks" ]
 trie-memory-tracker = [ "sp-trie/memory-tracker" ]
@@ -69,3 +67,4 @@ westend-native = [ "service/westend-native" ]
 rococo-native = [ "service/rococo-native" ]
 
 malus = [ "full-node", "service/malus" ]
+disputes = [ "service/disputes" ]

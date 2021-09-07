@@ -14,9 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::result::Result;
-use xcm::v0::{Xcm, MultiLocation};
 use frame_support::weights::Weight;
+use sp_std::result::Result;
+use xcm::latest::{MultiLocation, Xcm};
 
 /// Trait to determine whether the execution engine should actually execute a given XCM.
 ///
@@ -26,19 +26,15 @@ pub trait ShouldExecute {
 	/// Returns `true` if the given `message` may be executed.
 	///
 	/// - `origin`: The origin (sender) of the message.
-	/// - `top_level`: `true` indicates the initial XCM coming from the `origin`, `false` indicates an embedded XCM
-	///   executed internally as part of another message or an `Order`.
 	/// - `message`: The message itself.
-	/// - `shallow_weight`: The weight of the non-negotiable execution of the message. This does not include any
-	///   embedded XCMs sat behind mechanisms like `BuyExecution` which would need to answer for their own weight.
-	/// - `weight_credit`: The pre-established amount of weight that the system has determined this message may utilize
-	///   in its execution. Typically non-zero only because of prior fee payment, but could in principle be due to other
-	///   factors.
+	/// - `max_weight`: The (possibly over-) estimation of the weight of execution of the message.
+	/// - `weight_credit`: The pre-established amount of weight that the system has determined this
+	///   message may utilize in its execution. Typically non-zero only because of prior fee
+	///   payment, but could in principle be due to other factors.
 	fn should_execute<Call>(
 		origin: &MultiLocation,
-		top_level: bool,
-		message: &Xcm<Call>,
-		shallow_weight: Weight,
+		message: &mut Xcm<Call>,
+		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()>;
 }
@@ -47,24 +43,22 @@ pub trait ShouldExecute {
 impl ShouldExecute for Tuple {
 	fn should_execute<Call>(
 		origin: &MultiLocation,
-		top_level: bool,
-		message: &Xcm<Call>,
-		shallow_weight: Weight,
+		message: &mut Xcm<Call>,
+		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {
 		for_tuples!( #(
-			match Tuple::should_execute(origin, top_level, message, shallow_weight, weight_credit) {
+			match Tuple::should_execute(origin, message, max_weight, weight_credit) {
 				Ok(()) => return Ok(()),
 				_ => (),
 			}
 		)* );
 		log::trace!(
 			target: "xcm::should_execute",
-			"did not pass barrier: origin: {:?}, top_level: {:?}, message: {:?}, shallow_weight: {:?}, weight_credit: {:?}",
+			"did not pass barrier: origin: {:?}, message: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin,
-			top_level,
 			message,
-			shallow_weight,
+			max_weight,
 			weight_credit,
 		);
 		Err(())

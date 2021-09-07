@@ -17,27 +17,32 @@
 //! XCM sender for relay chain.
 
 use parity_scale_codec::Encode;
-use sp_std::marker::PhantomData;
-use xcm::opaque::{VersionedXcm, v0::{SendXcm, MultiLocation, Junction, Xcm, Result, Error}};
 use runtime_parachains::{configuration, dmp};
+use sp_std::marker::PhantomData;
+use xcm::latest::prelude::*;
 
 /// XCM sender for relay chain. It only sends downward message.
-pub struct ChildParachainRouter<T>(PhantomData<T>);
+pub struct ChildParachainRouter<T, W>(PhantomData<(T, W)>);
 
-impl<T: configuration::Config + dmp::Config> SendXcm for ChildParachainRouter<T> {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result {
+impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion> SendXcm
+	for ChildParachainRouter<T, W>
+{
+	fn send_xcm(dest: MultiLocation, msg: Xcm<()>) -> SendResult {
 		match dest {
-			MultiLocation::X1(Junction::Parachain(id)) => {
+			MultiLocation { parents: 0, interior: X1(Parachain(id)) } => {
 				// Downward message passing.
-				let config = <configuration::Module<T>>::config();
+				let versioned_xcm =
+					W::wrap_version(&dest, msg).map_err(|()| SendError::DestinationUnsupported)?;
+				let config = <configuration::Pallet<T>>::config();
 				<dmp::Pallet<T>>::queue_downward_message(
 					&config,
 					id.into(),
-					VersionedXcm::from(msg).encode(),
-				).map_err(Into::<Error>::into)?;
+					versioned_xcm.encode(),
+				)
+				.map_err(Into::<SendError>::into)?;
 				Ok(())
-			}
-			d => Err(Error::CannotReachDestination(d, msg)),
+			},
+			dest => Err(SendError::CannotReachDestination(dest, msg)),
 		}
 	}
 }

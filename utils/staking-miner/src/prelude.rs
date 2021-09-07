@@ -34,9 +34,9 @@ pub type Hash = core_primitives::Hash;
 pub use sp_runtime::traits::{Block as BlockT, Header as HeaderT};
 
 /// Default URI to connect to.
-pub const DEFAULT_URI: &'static str = "wss://rpc.polkadot.io";
+pub const DEFAULT_URI: &str = "wss://rpc.polkadot.io";
 /// The logging target.
-pub const LOG_TARGET: &'static str = "staking-miner";
+pub const LOG_TARGET: &str = "staking-miner";
 
 /// The election provider pallet.
 pub use pallet_election_provider_multi_phase as EPM;
@@ -46,3 +46,6 @@ pub type Ext = sp_io::TestExternalities;
 
 /// The key pair type being used. We "strongly" assume sr25519 for simplicity.
 pub type Pair = sp_core::sr25519::Pair;
+
+/// A dynamic token type used to represent account balances.
+pub type Token = sub_tokens::dynamic::DynamicToken;

@@ -22,14 +22,21 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
-
-use futures::channel::{mpsc, oneshot};
+use futures::channel::oneshot;
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
-use polkadot_node_network_protocol::{PeerId, UnifiedReputationChange, peer_set::PeerSet, request_response::{request::IncomingRequest, v1 as req_res_v1, Requests}, v1 as protocol_v1};
-use polkadot_node_primitives::{AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement, SignedFullStatement, ValidationResult, approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote}};
+use polkadot_node_network_protocol::{
+	peer_set::PeerSet, request_response::Requests, v1 as protocol_v1, PeerId,
+	UnifiedReputationChange,
+};
+use polkadot_node_primitives::{
+	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
+	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
+	CollationSecondedSignal, DisputeMessage, ErasureChunk, PoV, SignedDisputeStatement,
+	SignedFullStatement, ValidationResult,
+};
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
 	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
@@ -150,15 +157,13 @@ pub enum CollatorProtocolMessage {
 	///
 	/// The result sender should be informed when at least one parachain validator seconded the collation. It is also
 	/// completely okay to just drop the sender.
-	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<SignedFullStatement>>),
+	DistributeCollation(CandidateReceipt, PoV, Option<oneshot::Sender<CollationSecondedSignal>>),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),
 	/// Get a network bridge update.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
-	/// Incoming network request for a collation.
-	CollationFetchingRequest(IncomingRequest<req_res_v1::CollationFetchingRequest>),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	///
 	/// The hash is the relay parent.
@@ -184,7 +189,7 @@ impl BoundToRelayParent for CollatorProtocolMessage {
 /// Messages received by the dispute coordinator subsystem.
 #[derive(Debug)]
 pub enum DisputeCoordinatorMessage {
-	/// Import a statement by a validator about a candidate.
+	/// Import statements by validators about a candidate.
 	///
 	/// The subsystem will silently discard ancient statements or sets of only dispute-specific statements for
 	/// candidates that are previously unknown to the subsystem. The former is simply because ancient
@@ -222,7 +227,7 @@ pub enum DisputeCoordinatorMessage {
 		///		- or other explicit votes on that candidate already recorded
 		///		- or recovered availability for the candidate
 		///		- or the imported statements are backing/approval votes, which are always accepted.
-		pending_confirmation: oneshot::Sender<ImportStatementsResult>
+		pending_confirmation: oneshot::Sender<ImportStatementsResult>,
 	},
 	/// Fetch a list of all recent disputes the co-ordinator is aware of.
 	/// These are disputes which have occurred any time in recent sessions,
@@ -246,13 +251,13 @@ pub enum DisputeCoordinatorMessage {
 	/// is typically the number of the last finalized block but may be slightly higher. This block
 	/// is inevitably going to be finalized so it is not accounted for by this function.
 	DetermineUndisputedChain {
-		/// The number of the lowest possible block to vote on.
-		base_number: BlockNumber,
+		/// The lowest possible block to vote on.
+		base: (BlockNumber, Hash),
 		/// Descriptions of all the blocks counting upwards from the block after the base number
 		block_descriptions: Vec<BlockDescription>,
-		/// A response channel - `None` to vote on base, `Some` to vote higher.
-		tx: oneshot::Sender<Option<(BlockNumber, Hash)>>,
-	}
+		/// The block to vote on, might be base in case there is no better.
+		tx: oneshot::Sender<(BlockNumber, Hash)>,
+	},
 }
 
 /// The result of `DisputeCoordinatorMessage::ImportStatements`.
@@ -261,7 +266,7 @@ pub enum ImportStatementsResult {
 	/// Import was invalid (candidate was not available)  and the sending peer should get banned.
 	InvalidImport,
 	/// Import was valid and can be confirmed to peer.
-	ValidImport
+	ValidImport,
 }
 
 /// Messages received by the dispute participation subsystem.
@@ -286,13 +291,9 @@ pub enum DisputeParticipationMessage {
 /// Messages going to the dispute distribution subsystem.
 #[derive(Debug)]
 pub enum DisputeDistributionMessage {
-
 	/// Tell dispute distribution to distribute an explicit dispute statement to
 	/// validators.
 	SendDispute(DisputeMessage),
-
-	/// Get receiver for receiving incoming network requests for dispute sending.
-	DisputeSendingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// Messages received by the network bridge subsystem.
@@ -350,7 +351,7 @@ pub enum NetworkBridgeMessage {
 		/// Ids of our neighbors in the new gossip topology.
 		/// We're not necessarily connected to all of them, but we should.
 		our_neighbors: HashSet<AuthorityDiscoveryId>,
-	}
+	},
 }
 
 impl NetworkBridgeMessage {
@@ -373,10 +374,6 @@ impl NetworkBridgeMessage {
 /// Availability Distribution Message.
 #[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
-	/// Incoming network request for an availability chunk.
-	ChunkFetchingRequest(IncomingRequest<req_res_v1::ChunkFetchingRequest>),
-	/// Incoming network request for a seconded PoV.
-	PoVFetchingRequest(IncomingRequest<req_res_v1::PoVFetchingRequest>),
 	/// Instruct availability distribution to fetch a remote PoV.
 	///
 	/// NOTE: The result of this fetch is not yet locally validated and could be bogus.
@@ -406,9 +403,6 @@ pub enum AvailabilityRecoveryMessage {
 		Option<GroupIndex>, // Optional backing group to request from first.
 		oneshot::Sender<Result<AvailableData, crate::errors::RecoveryError>>,
 	),
-	/// Incoming network request for available data.
-	#[from]
-	AvailableDataFetchingRequest(IncomingRequest<req_res_v1::AvailableDataFetchingRequest>),
 }
 
 /// Bitfield distribution message.
@@ -486,7 +480,13 @@ pub enum AvailabilityStoreMessage {
 	/// If `ValidatorIndex` is present store corresponding chunk also.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
+	StoreAvailableData(
+		CandidateHash,
+		Option<ValidatorIndex>,
+		u32,
+		AvailableData,
+		oneshot::Sender<Result<(), ()>>,
+	),
 }
 
 impl AvailabilityStoreMessage {
@@ -605,11 +605,7 @@ pub enum RuntimeApiRequest {
 	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which
 	/// will inform on how the validation data should be computed if the para currently
 	/// occupies a core.
-	ValidationCode(
-		ParaId,
-		OccupiedCoreAssumption,
-		RuntimeApiSender<Option<ValidationCode>>,
-	),
+	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
 	/// Get validation code by its hash, either past, current or future code can be returned, as long as state is still
 	/// available.
 	ValidationCodeByHash(ValidationCodeHash, RuntimeApiSender<Option<ValidationCode>>),
@@ -621,10 +617,7 @@ pub enum RuntimeApiRequest {
 	/// Get the session info for the given session, if stored.
 	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.
-	DmqContents(
-		ParaId,
-		RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>,
-	),
+	DmqContents(ParaId, RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>),
 	/// Get the contents of all channels addressed to the given recipient. Channels that have no
 	/// messages in them are also included.
 	InboundHrmpChannelsContents(
@@ -660,8 +653,6 @@ pub enum StatementDistributionMessage {
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
-	/// Get receiver for receiving incoming network requests for statement fetching.
-	StatementFetchingReceiver(mpsc::Receiver<sc_network::config::IncomingRequest>),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -764,7 +755,7 @@ pub enum ApprovalCheckResult {
 	/// The vote was accepted and should be propagated onwards.
 	Accepted,
 	/// The vote was bad and should be ignored, reporting the peer who propagated it.
-	Bad(ApprovalCheckError)
+	Bad(ApprovalCheckError),
 }
 
 /// The error result type of [`ApprovalVotingMessage::CheckAndImportApproval`] request.
@@ -788,7 +779,6 @@ pub enum ApprovalCheckError {
 	#[error("Internal state mismatch: {0:?}, {1:?}")]
 	Internal(Hash, CandidateHash),
 }
-
 
 /// Describes a relay-chain block by the para-chain candidates
 /// it includes.
@@ -830,10 +820,7 @@ pub enum ApprovalVotingMessage {
 	/// protocol.
 	///
 	/// Should not be sent unless the block hash within the indirect vote is known.
-	CheckAndImportApproval(
-		IndirectSignedApprovalVote,
-		oneshot::Sender<ApprovalCheckResult>,
-	),
+	CheckAndImportApproval(IndirectSignedApprovalVote, oneshot::Sender<ApprovalCheckResult>),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
 	/// acceptable to vote on finality for.
 	/// The `BlockNumber` provided is the number of the block's ancestor which is the
@@ -864,21 +851,4 @@ pub enum ApprovalDistributionMessage {
 
 /// Message to the Gossip Support subsystem.
 #[derive(Debug)]
-pub enum GossipSupportMessage {
-}
-
-impl From<IncomingRequest<req_res_v1::PoVFetchingRequest>> for AvailabilityDistributionMessage {
-	fn from(req: IncomingRequest<req_res_v1::PoVFetchingRequest>) -> Self {
-		Self::PoVFetchingRequest(req)
-	}
-}
-impl From<IncomingRequest<req_res_v1::ChunkFetchingRequest>> for AvailabilityDistributionMessage {
-	fn from(req: IncomingRequest<req_res_v1::ChunkFetchingRequest>) -> Self {
-		Self::ChunkFetchingRequest(req)
-	}
-}
-impl From<IncomingRequest<req_res_v1::CollationFetchingRequest>> for CollatorProtocolMessage {
-	fn from(req: IncomingRequest<req_res_v1::CollationFetchingRequest>) -> Self {
-		Self::CollationFetchingRequest(req)
-	}
-}
+pub enum GossipSupportMessage {}

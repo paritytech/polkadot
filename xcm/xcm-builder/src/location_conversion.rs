@@ -14,19 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{marker::PhantomData, borrow::Borrow};
-use sp_io::hashing::blake2_256;
-use sp_runtime::traits::AccountIdConversion;
 use frame_support::traits::Get;
 use parity_scale_codec::Encode;
-use xcm::v0::{MultiLocation, NetworkId, Junction};
-use xcm_executor::traits::{InvertLocation, Convert};
+use sp_io::hashing::blake2_256;
+use sp_runtime::traits::AccountIdConversion;
+use sp_std::{borrow::Borrow, marker::PhantomData};
+use xcm::latest::{Junction::*, Junctions::*, MultiLocation, NetworkId, Parent};
+use xcm_executor::traits::{Convert, InvertLocation};
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
-impl<
-	Network: Get<NetworkId>,
-	AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone,
-> Convert<MultiLocation, AccountId> for Account32Hash<Network, AccountId> {
+impl<Network: Get<NetworkId>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
+	Convert<MultiLocation, AccountId> for Account32Hash<Network, AccountId>
+{
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		Ok(("multiloc", location.borrow()).using_encoded(blake2_256).into())
 	}
@@ -39,11 +38,11 @@ impl<
 /// A [`MultiLocation`] consisting of a single `Parent` [`Junction`] will be converted to the
 /// default value of `AccountId` (e.g. all zeros for `AccountId32`).
 pub struct ParentIsDefault<AccountId>(PhantomData<AccountId>);
-impl<
-	AccountId: Default + Eq + Clone,
-> Convert<MultiLocation, AccountId> for ParentIsDefault<AccountId> {
+impl<AccountId: Default + Eq + Clone> Convert<MultiLocation, AccountId>
+	for ParentIsDefault<AccountId>
+{
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		if let &MultiLocation::X1(Junction::Parent) = location.borrow() {
+		if location.borrow().contains_parents_only(1) {
 			Ok(AccountId::default())
 		} else {
 			Err(())
@@ -52,7 +51,7 @@ impl<
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if who.borrow() == &AccountId::default() {
-			Ok(Junction::Parent.into())
+			Ok(Parent.into())
 		} else {
 			Err(())
 		}
@@ -60,21 +59,20 @@ impl<
 }
 
 pub struct ChildParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
-impl<
-	ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>,
-	AccountId: Clone,
-> Convert<MultiLocation, AccountId> for ChildParachainConvertsVia<ParaId, AccountId> {
+impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: Clone>
+	Convert<MultiLocation, AccountId> for ChildParachainConvertsVia<ParaId, AccountId>
+{
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		if let &MultiLocation::X1(Junction::Parachain(id)) = location.borrow() {
-			Ok(ParaId::from(id).into_account())
-		} else {
-			Err(())
+		match location.borrow() {
+			MultiLocation { parents: 0, interior: X1(Parachain(id)) } =>
+				Ok(ParaId::from(*id).into_account()),
+			_ => Err(()),
 		}
 	}
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if let Some(id) = ParaId::try_from_account(who.borrow()) {
-			Ok(Junction::Parachain(id.into()).into())
+			Ok(Parachain(id.into()).into())
 		} else {
 			Err(())
 		}
@@ -82,21 +80,20 @@ impl<
 }
 
 pub struct SiblingParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
-impl<
-	ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>,
-	AccountId: Clone,
-> Convert<MultiLocation, AccountId> for SiblingParachainConvertsVia<ParaId, AccountId> {
+impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: Clone>
+	Convert<MultiLocation, AccountId> for SiblingParachainConvertsVia<ParaId, AccountId>
+{
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		if let &MultiLocation::X2(Junction::Parent, Junction::Parachain(id)) = location.borrow() {
-			Ok(ParaId::from(id).into_account())
-		} else {
-			Err(())
+		match location.borrow() {
+			MultiLocation { parents: 1, interior: X1(Parachain(id)) } =>
+				Ok(ParaId::from(*id).into_account()),
+			_ => Err(()),
 		}
 	}
 
 	fn reverse_ref(who: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
 		if let Some(id) = ParaId::try_from_account(who.borrow()) {
-			Ok([Junction::Parent, Junction::Parachain(id.into())].into())
+			Ok(MultiLocation::new(1, X1(Parachain(id.into()))))
 		} else {
 			Err(())
 		}
@@ -105,40 +102,48 @@ impl<
 
 /// Extracts the `AccountId32` from the passed `location` if the network matches.
 pub struct AccountId32Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
-impl<
-	Network: Get<NetworkId>,
-	AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone,
-> Convert<MultiLocation, AccountId> for AccountId32Aliases<Network, AccountId> {
+impl<Network: Get<NetworkId>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
+	Convert<MultiLocation, AccountId> for AccountId32Aliases<Network, AccountId>
+{
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let id = match location {
-			MultiLocation::X1(Junction::AccountId32 { id, network: NetworkId::Any }) => id,
-			MultiLocation::X1(Junction::AccountId32 { id, network }) if &network == &Network::get() => id,
-			l => return Err(l),
+			MultiLocation {
+				parents: 0,
+				interior: X1(AccountId32 { id, network: NetworkId::Any }),
+			} => id,
+			MultiLocation { parents: 0, interior: X1(AccountId32 { id, network }) }
+				if network == Network::get() =>
+				id,
+			_ => return Err(location),
 		};
 		Ok(id.into())
 	}
 
 	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
-		Ok(Junction::AccountId32 { id: who.into(), network: Network::get() }.into())
+		Ok(AccountId32 { id: who.into(), network: Network::get() }.into())
 	}
 }
 
 pub struct AccountKey20Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
-impl<
-	Network: Get<NetworkId>,
-	AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone,
-> Convert<MultiLocation, AccountId> for AccountKey20Aliases<Network, AccountId> {
+impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone>
+	Convert<MultiLocation, AccountId> for AccountKey20Aliases<Network, AccountId>
+{
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let key = match location {
-			MultiLocation::X1(Junction::AccountKey20 { key, network: NetworkId::Any }) => key,
-			MultiLocation::X1(Junction::AccountKey20 { key, network }) if &network == &Network::get() => key,
-			l => return Err(l),
+			MultiLocation {
+				parents: 0,
+				interior: X1(AccountKey20 { key, network: NetworkId::Any }),
+			} => key,
+			MultiLocation { parents: 0, interior: X1(AccountKey20 { key, network }) }
+				if network == Network::get() =>
+				key,
+			_ => return Err(location),
 		};
 		Ok(key.into())
 	}
 
 	fn reverse(who: AccountId) -> Result<MultiLocation, AccountId> {
-		let j = Junction::AccountKey20 { key: who.into(), network: Network::get() };
+		let j = AccountKey20 { key: who.into(), network: Network::get() };
 		Ok(j.into())
 	}
 }
@@ -156,7 +161,7 @@ impl<
 /// ```
 /// ```rust
 /// # use frame_support::parameter_types;
-/// # use xcm::v0::{MultiLocation::{self, *}, Junction::*, NetworkId::Any};
+/// # use xcm::latest::{MultiLocation, Junction::*, Junctions::{self, *}, NetworkId::Any};
 /// # use xcm_builder::LocationInverter;
 /// # use xcm_executor::traits::InvertLocation;
 /// # fn main() {
@@ -164,34 +169,29 @@ impl<
 ///     pub Ancestry: MultiLocation = X2(
 ///         Parachain(1),
 ///         AccountKey20 { network: Any, key: Default::default() },
-///     );
+///     ).into();
 /// }
 ///
-/// let input = X4(Parent, Parent, Parachain(2), AccountId32 { network: Any, id: Default::default() });
+/// let input = MultiLocation::new(2, X2(Parachain(2), AccountId32 { network: Any, id: Default::default() }));
 /// let inverted = LocationInverter::<Ancestry>::invert_location(&input);
-/// assert_eq!(inverted, X4(
-///     Parent,
-///     Parent,
-///     Parachain(1),
-///     AccountKey20 { network: Any, key: Default::default() },
-/// ));
+/// assert_eq!(inverted, Ok(MultiLocation::new(
+///     2,
+///     X2(Parachain(1), AccountKey20 { network: Any, key: Default::default() }),
+/// )));
 /// # }
 /// ```
 pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
 impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry> {
-	fn invert_location(location: &MultiLocation) -> MultiLocation {
+	fn invert_location(location: &MultiLocation) -> Result<MultiLocation, ()> {
 		let mut ancestry = Ancestry::get();
-		let mut result = location.clone();
-		for (i, j) in location.iter_rev()
-			.map(|j| match j {
-				Junction::Parent => ancestry.take_first().unwrap_or(Junction::OnlyChild),
-				_ => Junction::Parent,
-			})
-			.enumerate()
-		{
-			*result.at_mut(i).expect("location and result begin equal; same size; qed") = j;
+		let mut junctions = Here;
+		for _ in 0..location.parent_count() {
+			junctions = junctions
+				.pushed_with(ancestry.take_first_interior().unwrap_or(OnlyChild))
+				.map_err(|_| ())?;
 		}
-		result
+		let parents = location.interior().len() as u8;
+		Ok(MultiLocation::new(parents, junctions))
 	}
 }
 
@@ -200,7 +200,7 @@ mod tests {
 	use super::*;
 
 	use frame_support::parameter_types;
-	use xcm::v0::{MultiLocation::*, Junction::*, NetworkId::Any};
+	use xcm::latest::{Junction, NetworkId::Any};
 
 	fn account20() -> Junction {
 		AccountKey20 { network: Any, key: Default::default() }
@@ -224,13 +224,13 @@ mod tests {
 	// output (target to source): ../../para_1/account20_default/account20_default
 	#[test]
 	fn inverter_works_in_tree() {
-		parameter_types!{
-			pub Ancestry: MultiLocation = X3(Parachain(1), account20(), account20());
+		parameter_types! {
+			pub Ancestry: MultiLocation = X3(Parachain(1), account20(), account20()).into();
 		}
 
-		let input = X5(Parent, Parent, Parent, Parachain(2), account32());
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
-		assert_eq!(inverted, X5(Parent, Parent, Parachain(1), account20(), account20()));
+		let input = MultiLocation::new(3, X2(Parachain(2), account32()));
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
+		assert_eq!(inverted, MultiLocation::new(2, X3(Parachain(1), account20(), account20())));
 	}
 
 	// Network Topology
@@ -239,13 +239,13 @@ mod tests {
 	//          ^ Target
 	#[test]
 	fn inverter_uses_ancestry_as_inverted_location() {
-		parameter_types!{
-			pub Ancestry: MultiLocation = X2(account20(), account20());
+		parameter_types! {
+			pub Ancestry: MultiLocation = X2(account20(), account20()).into();
 		}
 
-		let input = X2(Parent, Parent);
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
-		assert_eq!(inverted, X2(account20(), account20()));
+		let input = MultiLocation::grandparent();
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
+		assert_eq!(inverted, X2(account20(), account20()).into());
 	}
 
 	// Network Topology
@@ -254,12 +254,23 @@ mod tests {
 	//          ^ Target
 	#[test]
 	fn inverter_uses_only_child_on_missing_ancestry() {
-		parameter_types!{
-			pub Ancestry: MultiLocation = X1(PalletInstance(5));
+		parameter_types! {
+			pub Ancestry: MultiLocation = X1(PalletInstance(5)).into();
 		}
 
-		let input = X2(Parent, Parent);
+		let input = MultiLocation::grandparent();
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
+		assert_eq!(inverted, X2(PalletInstance(5), OnlyChild).into());
+	}
+
+	#[test]
+	fn inverter_errors_when_location_is_too_large() {
+		parameter_types! {
+			pub Ancestry: MultiLocation = Here.into();
+		}
+
+		let input = MultiLocation { parents: 99, interior: X1(Parachain(88)) };
 		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
-		assert_eq!(inverted, X2(PalletInstance(5), OnlyChild));
+		assert_eq!(inverted, Err(()));
 	}
 }

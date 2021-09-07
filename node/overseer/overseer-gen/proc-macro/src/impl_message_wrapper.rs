@@ -15,8 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use quote::quote;
-use syn::Result;
-use syn::spanned::Spanned;
+use syn::{spanned::Spanned, Result};
 
 use super::*;
 
@@ -30,21 +29,24 @@ pub(crate) fn impl_message_wrapper_enum(info: &OverseerInfo) -> Result<proc_macr
 	let message_wrapper = &info.message_wrapper;
 
 	let (outgoing_from_impl, outgoing_decl) = if let Some(outgoing) = outgoing {
-		let outgoing_variant = outgoing
-			.get_ident()
-			.ok_or_else(||{
-				syn::Error::new(outgoing.span(), "Missing identifier to use as enum variant for outgoing.")
-			})?;
-		(quote! {
-			impl ::std::convert::From< #outgoing > for #message_wrapper {
-				fn from(message: #outgoing) -> Self {
-					#message_wrapper :: #outgoing_variant ( message )
+		let outgoing_variant = outgoing.get_ident().ok_or_else(|| {
+			syn::Error::new(
+				outgoing.span(),
+				"Missing identifier to use as enum variant for outgoing.",
+			)
+		})?;
+		(
+			quote! {
+				impl ::std::convert::From< #outgoing > for #message_wrapper {
+					fn from(message: #outgoing) -> Self {
+						#message_wrapper :: #outgoing_variant ( message )
+					}
 				}
-			}
-		},
-		quote! {
-			#outgoing_variant ( #outgoing ) ,
-		})
+			},
+			quote! {
+				#outgoing_variant ( #outgoing ) ,
+			},
+		)
 	} else {
 		(TokenStream::new(), TokenStream::new())
 	};
