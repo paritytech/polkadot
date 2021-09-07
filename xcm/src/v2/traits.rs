@@ -19,8 +19,6 @@
 use core::result;
 use parity_scale_codec::{Decode, Encode};
 
-use crate::latest::InteriorMultiLocation;
-
 use super::*;
 
 #[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug)]
@@ -316,8 +314,8 @@ impl SendXcm for Tuple {
 	}
 }
 
-// TODO: Macro to generate this
-// The info needed to weight an XCM.
+/// The info needed to weight an XCM.
+// TODO: Automate Generation
 pub trait XcmWeightInfo<Call> {
 	fn withdraw_asset(assets: &MultiAssets) -> Weight;
 	fn reserve_asset_deposited(assets: &MultiAssets) -> Weight;
@@ -367,8 +365,8 @@ pub trait XcmWeightInfo<Call> {
 	) -> Weight;
 	fn buy_execution(fees: &MultiAsset, weight_limit: &WeightLimit) -> Weight;
 	fn refund_surplus() -> Weight;
-	fn set_error_handler(xcm: &Xcm<()>) -> Weight;
-	fn set_appendix(xcm: &Xcm<()>) -> Weight;
+	fn set_error_handler(xcm: &Xcm<Call>) -> Weight;
+	fn set_appendix(xcm: &Xcm<Call>) -> Weight;
 	fn clear_error() -> Weight;
 	fn claim_asset(assets: &MultiAssets, ticket: &MultiLocation) -> Weight;
 	fn trap(code: &u64) -> Weight;

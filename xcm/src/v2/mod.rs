@@ -678,7 +678,8 @@ impl<Call> Instruction<Call> {
 	}
 }
 
-impl<W: XcmWeightInfo<()>> GetWeight<W> for Instruction<()> {
+// TODO: Automate Generation
+impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 	fn weight(&self) -> Weight {
 		use Instruction::*;
 		match self {

@@ -29,6 +29,7 @@ polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 [features]
 default = ["std"]
 std = [
+	"log/std",
 	"parity-scale-codec/std",
 	"xcm/std",
 	"log/std",
