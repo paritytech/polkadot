@@ -1155,7 +1155,7 @@ impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
 		use frame_support::traits::PalletInfo;
 		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
 			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
-		pallet_membership::migrations::v4::pre_migration::<Runtime, TechnicalMembership, _>(
+		pallet_membership::migrations::v4::pre_migrate::<TechnicalMembership, _>(
 			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
 			name,
 		);
@@ -1164,8 +1164,12 @@ impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_membership::migrations::v4::post_migration::<TechnicalMembership, _>(
+		use frame_support::traits::PalletInfo;
+		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
+			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
+		pallet_membership::migrations::v4::post_migrate::<TechnicalMembership, _>(
 			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
+			name,
 		);
 		Ok(())
 	}
