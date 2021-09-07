@@ -222,10 +222,10 @@ polkadot --chain=polkadot-local --alice -d /tmp/alice
 And in the other, run:
 
 ```bash
-polkadot --chain=polkadot-local --bob -d /tmp/bob --port 30334 --bootnodes '/ip4/127.0.0.1/tcp/30333/p2p/ALICE_BOOTNODE_ID_HERE'
+polkadot --chain=polkadot-local --bob -d /tmp/bob --port 30334 --bootnodes '/ip4/127.0.0.1/tcp/30333/p2p/ALICE_BOOTNODE_ID_HERE' --ws-port 9945
 ```
 
-Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of the first terminal.
+Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of the first terminal and specify a unique `ws-port`.
 
 ### Using Docker
 [Using Docker](doc/docker.md)
