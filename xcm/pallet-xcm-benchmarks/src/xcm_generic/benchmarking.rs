@@ -16,12 +16,12 @@
 
 use super::*;
 use crate::{
-	account_and_location, account_id_junction, execute_xcm, new_executor, worst_case_holding,
-	XcmCallOf,
+	account_and_location, account_id_junction, execute_xcm, execute_xcm_override_error,
+	new_executor, worst_case_holding, XcmCallOf,
 };
 use codec::Encode;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, BenchmarkError, BenchmarkResult};
-use frame_support::{dispatch::GetDispatchInfo, pallet_prelude::Get};
+use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
 use xcm::{latest::prelude::*, DoubleEncoded};
 
@@ -40,12 +40,7 @@ benchmarks! {
 		let xcm = Xcm(vec![instruction]);
 
 	} : {
-		execute_xcm::<T>(origin, holding, xcm)
-			.map_err(|_|
-				BenchmarkError::Override(
-					BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
-				)
-			)?;
+		execute_xcm_override_error::<T>(origin, holding, xcm)?;
 	} verify {
 		// The assert above is enough to validate this is completed.
 		// todo maybe XCM sender peek
@@ -80,7 +75,7 @@ benchmarks! {
 		let instruction = Instruction::ReserveAssetDeposited(assets);
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		execute_xcm::<T>(sender_location, Default::default(), xcm)?;
+		execute_xcm_override_error::<T>(sender_location, Default::default(), xcm)?;
 	} verify {
 		// The assert above is enough to show this XCM succeeded
 	}
@@ -123,24 +118,48 @@ benchmarks! {
 
 	hrmp_new_channel_open_request {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
-		// Inputs here should not matter to weight.
-		// let instruction = Instruction::HrmpNewChannelOpenRequest {
-		// 	sender: Default::default(),
-		// 	max_message_size: Default::default(),
-		// 	max_capacity: Default::default(),
-		// };
-	}: {
-		// assert_ok!(execute_xcm::<T>(sender_location, Default::default(), xcm).ensure_complete());
-		// currently unhandled
-	} verify {
+		let instruction = Instruction::HrmpNewChannelOpenRequest {
+			sender: 1,
+			max_message_size: 100,
+			max_capacity: 100
+		};
 
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		execute_xcm_override_error::<T>(sender_location, Default::default(), xcm)?;
+	} verify {
+		// TODO: query pallet
 	}
-	hrmp_channel_accepted {}: {
-				// currently unhandled
-	} verify {}
-	hrmp_channel_closing {}: {
-				// currently unhandled
-	} verify {}
+
+	hrmp_channel_accepted {
+		let (sender_account, sender_location) = account_and_location::<T>(1);
+		// TODO open channel request first.
+
+		let instruction = Instruction::HrmpChannelAccepted {
+			recipient: 1,
+		};
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		execute_xcm_override_error::<T>(sender_location, Default::default(), xcm)?;
+	} verify {
+		// TODO: query pallet
+	}
+
+	hrmp_channel_closing {
+		let (sender_account, sender_location) = account_and_location::<T>(1);
+		// TODO open channel first.
+
+		let instruction = Instruction::HrmpChannelClosing {
+			initiator: 1,
+			sender: 1,
+			recipient: 2,
+		};
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		execute_xcm_override_error::<T>(sender_location, Default::default(), xcm)?;
+	} verify {
+		// TODO: query pallet
+	}
 
 	refund_surplus {
 		let mut executor = new_executor::<T>(Default::default());
@@ -167,6 +186,7 @@ benchmarks! {
 	}
 
 	set_appendix {
+
 	} : {
 
 	} verify {}
@@ -182,17 +202,42 @@ benchmarks! {
 		assert!(executor.error.is_none())
 	}
 
-	claim_asset {} : {} verify {}
+	descend_origin {
+		let mut executor = new_executor::<T>(Default::default());
+		let who = X2(OnlyChild, OnlyChild);
+		let instruction = Instruction::DescendOrigin(who.clone());
+		let xcm = Xcm(vec![instruction]);
+	} : {
+		executor.execute(xcm)?;
+	} verify {
+		assert_eq!(
+			executor.origin,
+			Some(MultiLocation {
+				parents: 0,
+				interior: who,
+			}),
+		);
+	}
+
+	clear_origin {
+		let mut executor = new_executor::<T>(Default::default());
+		let instruction = Instruction::ClearOrigin;
+		let xcm = Xcm(vec![instruction]);
+	} : {
+		executor.execute(xcm)?;
+	} verify {
+		assert_eq!(executor.origin, None);
+	}
+
+	claim_asset {
+
+	} : {} verify {}
 
 	trap {} : {} verify {}
 
 	subscribe_version {} : {} verify {}
 
 	unsubscribe_version {} : {} verify {}
-
-	clear_origin {} : {} verify {}
-
-	descend_origin {} : {} verify {}
 
 }
 

@@ -19,10 +19,14 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::Encode;
-use frame_support::traits::{
-	fungible::Inspect as FungibleInspect,
-	fungibles::Inspect as FungiblesInspect,
-	tokens::{DepositConsequence, WithdrawConsequence},
+use frame_benchmarking::{BenchmarkError, BenchmarkResult};
+use frame_support::{
+	traits::{
+		fungible::Inspect as FungibleInspect,
+		fungibles::Inspect as FungiblesInspect,
+		tokens::{DepositConsequence, WithdrawConsequence},
+	},
+	weights::Weight,
 };
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
@@ -98,12 +102,21 @@ pub fn execute_xcm<T: Config>(
 	origin: MultiLocation,
 	holding: Assets,
 	xcm: Xcm<XcmCallOf<T>>,
-) -> Result<(), frame_benchmarking::BenchmarkError> {
+) -> Result<(), BenchmarkError> {
 	// TODO: very large weight to ensure all benchmarks execute, sensible?
 	let mut executor = ExecutorOf::<T>::new(origin);
 	executor.holding = holding;
 	executor.execute(xcm)?;
 	Ok(())
+}
+
+pub fn execute_xcm_override_error<T: Config>(
+	origin: MultiLocation,
+	holding: Assets,
+	xcm: Xcm<XcmCallOf<T>>,
+) -> Result<(), BenchmarkError> {
+	execute_xcm::<T>(origin, holding, xcm)
+		.map_err(|_| BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))
 }
 
 pub fn new_executor<T: Config>(origin: MultiLocation) -> ExecutorOf<T> {
