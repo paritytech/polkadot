@@ -39,7 +39,7 @@ use super::{HeaderProvider, HeaderProviderProvider};
 use consensus_common::{Error as ConsensusError, SelectChain};
 use futures::channel::oneshot;
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_overseer::{AllMessages, Handle, OverseerHandle};
+use polkadot_overseer::{AllMessages, Handle};
 use polkadot_primitives::v1::{
 	Block as PolkadotBlock, BlockNumber, Hash, Header as PolkadotHeader,
 };
