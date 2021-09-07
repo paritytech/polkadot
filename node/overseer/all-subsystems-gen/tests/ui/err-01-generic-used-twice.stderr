@@ -4,7 +4,7 @@ error: Generic type parameters may only be used for exactly one field, but is us
 6 |     a: X,
   |        ^
 
-error[E0599]: no method named `replace_a` found for struct `AllSubsystems<u16>` in the current scope
+error[E0599]: no method named `replace_a` found for struct `AllSubsystems` in the current scope
   --> $DIR/err-01-generic-used-twice.rs:15:17
    |
 5  | struct AllSubsystems<X> {
