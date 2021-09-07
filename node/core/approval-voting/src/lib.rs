@@ -21,7 +21,10 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use rand::distributions::{Distribution, Normal};
+use rand::{
+	distributions::{Distribution, Normal},
+	Rng,
+};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use kvdb::KeyValueDB;
@@ -101,7 +104,9 @@ const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const LOG_TARGET: &str = "parachain::approval-voting";
 const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-approval-voting";
-const MALICIOUS_MEAN: f64 = 2_500f64;
+const MALICIOUS_BASE_MIN: u64 = 1_000u64;
+const MALICIOUS_BASE_MAX: u64 = 2_000u64;
+const MALICIOUS_MEAN: f64 = 1_000f64;
 const MALICIOUS_SDEV: f64 = 70f64;
 
 /// Configuration for the approval voting subsystem
@@ -348,8 +353,17 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.db.clone(), self.db_config);
+
+		let initial_offset =
+			(&mut rand::thread_rng()).gen_range(MALICIOUS_BASE_MIN, MALICIOUS_BASE_MAX);
+
 		let normal = Normal::new(MALICIOUS_MEAN, MALICIOUS_SDEV);
-		let offset: u64 = normal.sample(&mut rand::thread_rng()).round() as u64;
+		let mean = normal.sample(&mut rand::thread_rng());
+		let variance = normal.sample(&mut rand::thread_rng());
+
+		let offset_normal = Normal::new(mean, variance.sqrt());
+		let offset: u64 =
+			initial_offset + offset_normal.sample(&mut rand::thread_rng()).round() as u64;
 		let future = run::<DbBackend, Context>(
 			ctx,
 			self,
