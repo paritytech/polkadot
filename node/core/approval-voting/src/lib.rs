@@ -21,7 +21,8 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use rand::Rng;
+use rand::distributions::{Distribution, Normal};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use kvdb::KeyValueDB;
 use polkadot_node_jaeger as jaeger;
@@ -100,7 +101,8 @@ const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const LOG_TARGET: &str = "parachain::approval-voting";
 const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-approval-voting";
-const MALICIOUS_FREQUENCY: usize = 5_000;
+const MALICIOUS_MEAN: f64 = 2_500f64;
+const MALICIOUS_SDEV: f64 = 70f64;
 
 /// Configuration for the approval voting subsystem
 #[derive(Debug, Clone)]
@@ -346,12 +348,15 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.db.clone(), self.db_config);
+		let normal = Normal::new(MALICIOUS_MEAN, MALICIOUS_SDEV);
+		let offset: u64 = normal.sample(&mut rand::thread_rng()).round() as u64;
 		let future = run::<DbBackend, Context>(
 			ctx,
 			self,
 			Box::new(SystemClock),
 			Box::new(RealAssignmentCriteria),
 			backend,
+			offset,
 		)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 		.boxed();
@@ -680,6 +685,7 @@ async fn run<B, Context>(
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
 	mut backend: B,
+	offset: u64,
 ) -> SubsystemResult<()>
 where
 	Context: SubsystemContext<Message = ApprovalVotingMessage>,
@@ -697,6 +703,7 @@ where
 	let mut wakeups = Wakeups::default();
 	let mut currently_checking_set = CurrentlyCheckingSet::default();
 	let mut approvals_cache = lru::LruCache::new(APPROVAL_CACHE_SIZE);
+	let counter = AtomicU64::new(0);
 
 	let mut last_finalized_height: Option<BlockNumber> = None;
 
@@ -780,7 +787,6 @@ where
 				actions
 			}
 		};
-
 		if handle_actions(
 			&mut ctx,
 			&mut state,
@@ -791,6 +797,7 @@ where
 			&mut approvals_cache,
 			&mut subsystem.mode,
 			actions,
+			if counter.fetch_add(1, Ordering::SeqCst) == offset { true } else { false },
 		)
 		.await?
 		{
@@ -838,6 +845,7 @@ async fn handle_actions(
 	approvals_cache: &mut lru::LruCache<CandidateHash, ApprovalOutcome>,
 	mode: &mut Mode,
 	actions: Vec<Action>,
+	malicious: bool,
 ) -> SubsystemResult<bool> {
 	let mut conclude = false;
 
@@ -926,6 +934,7 @@ async fn handle_actions(
 										validator_index,
 										block_hash,
 										backing_group,
+										malicious,
 									)
 									.await
 								},
@@ -2113,6 +2122,7 @@ async fn launch_approval(
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
 	backing_group: GroupIndex,
+	malicious: bool,
 ) -> SubsystemResult<RemoteHandle<ApprovalState>> {
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
@@ -2261,15 +2271,11 @@ async fn launch_approval(
 				let expected_commitments_hash = candidate.commitments_hash;
 				if commitments.hash() == expected_commitments_hash {
 					let _ = metrics_guard.take();
-
-					let mut rng = rand::thread_rng();
-					let val: usize = rng.gen_range(0..MALICIOUS_FREQUENCY);
-					if val > 0 {
+					if !malicious {
 						tracing::debug!(
 							target: DEBUG_LOG_TARGET,
-							"ladi-debug-approval APPROVED {:?} ({} > 0)",
+							"ladi-debug-approval APPROVED {:?}",
 							candidate_hash,
-							val
 						);
 						return ApprovalState::approved(validator_index, candidate_hash)
 					} else {
@@ -2278,7 +2284,6 @@ async fn launch_approval(
 							"ladi-debug-approval FAILED {:?}",
 							candidate_hash
 						);
-
 						return ApprovalState::malicious(
 							validator_index,
 							candidate_hash,
