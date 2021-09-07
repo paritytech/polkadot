@@ -9,19 +9,19 @@ codec = { package = "parity-scale-codec", version = "2.0.0", default-features = 
 serde = { version = "1.0.130", optional = true, features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "grandpa_finality_logs" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "grandpa_finality_logs" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "grandpa_finality_logs" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "grandpa_finality_logs" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "grandpa_finality_logs" }
 
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
 xcm-builder = { path = "../xcm-builder" }
 polkadot-parachain = { path = "../../parachain" }
 
