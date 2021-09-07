@@ -938,7 +938,7 @@ where
 			)?;
 
 		{
-			let handle = overseer_connector.as_handle().clone();
+			let handle = handle.clone();
 			task_manager.spawn_essential_handle().spawn_blocking(
 				"overseer",
 				Box::pin(async move {

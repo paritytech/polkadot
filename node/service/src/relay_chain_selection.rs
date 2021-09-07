@@ -172,7 +172,7 @@ where
 		let longest_chain_best =
 			self.longest_chain.finality_target(target_hash, maybe_max_number).await?;
 
-		if self.is_relay_chain {
+		if !self.is_relay_chain {
 			return Ok(longest_chain_best)
 		}
 		self.selection
