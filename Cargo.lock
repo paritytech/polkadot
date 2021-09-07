@@ -11577,6 +11577,7 @@ version = "0.9.9"
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "pallet-balances",
  "pallet-transaction-payment",
  "pallet-xcm",
