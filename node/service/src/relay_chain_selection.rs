@@ -121,7 +121,11 @@ where
 	SelectRelayChainInner<B, Handle>: Clone,
 {
 	fn clone(&self) -> Self {
-		Self { longest_chain: self.longest_chain.clone(), selection: self.selection.clone() }
+		Self {
+			is_relay_chain: self.is_relay_chain,
+			longest_chain: self.longest_chain.clone(),
+			selection: self.selection.clone(),
+		}
 	}
 }
 

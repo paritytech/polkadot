@@ -54,7 +54,7 @@ use {
 pub use sp_core::traits::SpawnNamed;
 #[cfg(feature = "full-node")]
 pub use {
-	polkadot_overseer::{Handle, Overseer, OverseerHandle},
+	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
 	polkadot_primitives::v1::ParachainHost,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
@@ -312,6 +312,7 @@ type LightClient<RuntimeApi, ExecutorDispatch> =
 #[cfg(feature = "full-node")]
 fn new_partial<RuntimeApi, ExecutorDispatch>(
 	config: &mut Configuration,
+	handle: &Handle,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 ) -> Result<
@@ -393,7 +394,8 @@ where
 
 	// we should remove this check before we deploy parachains on polkadot
 	// TODO: https://github.com/paritytech/polkadot/issues/3326
-	let chain_spec = config.chain_spec.as_ref();
+	let chain_spec = &config.chain_spec as &dyn IdentifyVariant;
+
 	let is_relay_chain = chain_spec.is_kusama() ||
 		chain_spec.is_westend() ||
 		chain_spec.is_rococo() ||
@@ -402,7 +404,7 @@ where
 	let select_chain = relay_chain_selection::SelectRelayChain::new(
 		backend.clone(),
 		is_relay_chain,
-		Handle::new_disconnected(),
+		handle.clone(),
 		polkadot_node_subsystem_util::metrics::Metrics::register(config.prometheus_registry())?,
 	);
 
@@ -674,6 +676,9 @@ where
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
+	let overseer_connector = OverseerConnector::default();
+
+	let handle = Handle(overseer_connector.as_handle().clone());
 	let service::PartialComponents {
 		client,
 		backend,
@@ -685,6 +690,7 @@ where
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry),
 	} = new_partial::<RuntimeApi, ExecutorDispatch>(
 		&mut config,
+		&handle,
 		jaeger_agent,
 		telemetry_worker_handle,
 	)?;
@@ -852,6 +858,7 @@ where
 	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
 		let (overseer, overseer_handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
+				overseer_connector,
 				OverseerGenArgs {
 					leaves: active_leaves,
 					keystore,
@@ -875,7 +882,7 @@ where
 					dispute_coordinator_config,
 				},
 			)?;
-		let handle = Handle::Connected(overseer_handle.clone());
+
 		let handle_clone = handle.clone();
 
 		task_manager.spawn_essential_handle().spawn_blocking(
@@ -898,6 +905,7 @@ where
 				}
 			}),
 		);
+
 		// we should remove this check before we deploy parachains on polkadot
 		// TODO: https://github.com/paritytech/polkadot/issues/3326
 		let is_relay_chain = chain_spec.is_kusama() ||
@@ -905,11 +913,6 @@ where
 			chain_spec.is_rococo() ||
 			chain_spec.is_wococo();
 
-		if is_relay_chain {
-			select_chain.connect_to_overseer(overseer_handle.clone());
-		} else {
-			tracing::info!("Overseer is running in the disconnected state");
-		}
 		Some(handle)
 	} else {
 		None
@@ -1244,11 +1247,16 @@ pub fn new_chain_ops(
 > {
 	config.keystore = service::config::KeystoreConfig::InMemory;
 
+	// FIXME never used
+	let overseer_connector = OverseerConnector::default();
+	let handle = Handle(overseer_connector.as_handle().clone());
+	let handle = &handle;
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
 			new_partial::<rococo_runtime::RuntimeApi, RococoExecutorDispatch>(
 				config,
+				handle,
 				jaeger_agent,
 				None,
 			)?;
@@ -1260,6 +1268,7 @@ pub fn new_chain_ops(
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
 			new_partial::<kusama_runtime::RuntimeApi, KusamaExecutorDispatch>(
 				config,
+				handle,
 				jaeger_agent,
 				None,
 			)?;
@@ -1271,6 +1280,7 @@ pub fn new_chain_ops(
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
 			new_partial::<westend_runtime::RuntimeApi, WestendExecutorDispatch>(
 				config,
+				handle,
 				jaeger_agent,
 				None,
 			)?;
@@ -1280,6 +1290,7 @@ pub fn new_chain_ops(
 	let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
 		new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(
 			config,
+			handle,
 			jaeger_agent,
 			None,
 		)?;
