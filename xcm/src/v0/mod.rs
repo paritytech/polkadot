@@ -326,6 +326,7 @@ impl TryFrom<Response1> for Response {
 	fn try_from(new_response: Response1) -> result::Result<Self, ()> {
 		Ok(match new_response {
 			Response1::Assets(assets) => Self::Assets(assets.try_into()?),
+			Response1::Version(..) => return Err(()),
 		})
 	}
 }
@@ -379,6 +380,7 @@ impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
 				who: MultiLocation1 { interior: who, parents: 0 }.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
+			Xcm1::SubscribeVersion { .. } | Xcm1::UnsubscribeVersion => return Err(()),
 		})
 	}
 }
