@@ -20,10 +20,12 @@ use crate::{
 	new_executor, worst_case_holding, XcmCallOf,
 };
 use codec::Encode;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
 use xcm::{latest::prelude::*, DoubleEncoded};
+
+const MAX_ASSETS: u32 = 100;
 
 benchmarks! {
 	query_holding {
@@ -69,15 +71,21 @@ benchmarks! {
 	// Worst case scenario for this benchmark is a large number of assets to
 	// filter through the reserve.
 	reserve_asset_deposited {
-		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let assets: MultiAssets = (Concrete(Here.into()), 100).into();// TODO worst case
+		let mut executor = new_executor::<T>(Default::default());
+		// TODO real max assets
+		let assets = (0..MAX_ASSETS).map(|i| MultiAsset {
+			id: Abstract(i.encode()),
+			fun: Fungible(i as u128),
 
-		let instruction = Instruction::ReserveAssetDeposited(assets);
+		}).collect::<Vec<_>>();
+		let multiassets: MultiAssets = assets.into();
+
+		let instruction = Instruction::ReserveAssetDeposited(multiassets.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		execute_xcm_override_error::<T>(sender_location, Default::default(), xcm)?;
+		executor.execute(xcm)?;
 	} verify {
-		// The assert above is enough to show this XCM succeeded
+		assert_eq!(executor.holding, multiassets.into());
 	}
 
 	query_response {
@@ -233,7 +241,20 @@ benchmarks! {
 
 	} : {} verify {}
 
-	trap {} : {} verify {}
+	trap {
+		let mut executor = new_executor::<T>(Default::default());
+		let instruction = Instruction::Trap(10);
+		let xcm = Xcm(vec![instruction]);
+	} : {
+		match executor.execute(xcm) {
+			Err(error) if error.xcm_error == XcmError::Trap(10) => {
+				// This is the success condition
+			},
+			_ => return Err(BenchmarkError::Stop("xcm trap did not return the expected error"))
+		};
+	} verify {
+		// Verification is done above.
+	}
 
 	subscribe_version {} : {} verify {}
 
