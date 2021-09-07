@@ -45,7 +45,7 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> 
 		let mut r = 0;
 		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
 		for m in message.0.iter() {
-			r += Self::instr_weight_with_limit(m, instrs_limit)?;
+			r.saturating_accrue(Self::instr_weight_with_limit(m, instrs_limit)?);
 		}
 		Ok(r)
 	}
