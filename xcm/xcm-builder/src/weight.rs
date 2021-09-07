@@ -42,10 +42,10 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M: Get<u32>> WeightBounds<C>
 
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> {
 	fn weight_with_limit(message: &Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
-		let mut r = 0;
+		let mut r: Weight = 0;
 		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
 		for m in message.0.iter() {
-			r.saturating_accrue(Self::instr_weight_with_limit(m, instrs_limit)?);
+			r = r.checked_add(Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
 		}
 		Ok(r)
 	}
@@ -53,11 +53,14 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> 
 		instruction: &Instruction<C>,
 		instrs_limit: &mut u32,
 	) -> Result<Weight, ()> {
-		Ok(T::get().saturating_add(match instruction {
-			Transact { require_weight_at_most, .. } => *require_weight_at_most,
-			SetErrorHandler(xcm) | SetAppendix(xcm) => Self::weight_with_limit(xcm, instrs_limit)?,
-			_ => 0,
-		}))
+		T::get()
+			.checked_add(match instruction {
+				Transact { require_weight_at_most, .. } => *require_weight_at_most,
+				SetErrorHandler(xcm) | SetAppendix(xcm) =>
+					Self::weight_with_limit(xcm, instrs_limit)?,
+				_ => 0,
+			})
+			.ok_or(())
 	}
 }
 
@@ -86,10 +89,10 @@ where
 	Instruction<C>: xcm::GetWeight<W>,
 {
 	fn weight_with_limit(message: &Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
-		let mut r = 0;
+		let mut r: Weight = 0;
 		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
 		for m in message.0.iter() {
-			r.saturating_accrue(Self::instr_weight_with_limit(m, instrs_limit)?);
+			r = r.checked_add(Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
 		}
 		Ok(r)
 	}
@@ -98,15 +101,15 @@ where
 		instrs_limit: &mut u32,
 	) -> Result<Weight, ()> {
 		use xcm::GetWeight;
-		Ok(match instruction {
-			Transact { require_weight_at_most, .. } =>
-				instruction.weight().checked_add(*require_weight_at_most).ok_or(())?,
-			SetErrorHandler(xcm) | SetAppendix(xcm) => {
-				let weight = Self::weight_with_limit(xcm, instrs_limit)?;
-				weight.checked_add(instruction.weight()).ok_or(())?
-			},
-			_ => instruction.weight(),
-		})
+		instruction
+			.weight()
+			.checked_add(match instruction {
+				Transact { require_weight_at_most, .. } => *require_weight_at_most,
+				SetErrorHandler(xcm) | SetAppendix(xcm) =>
+					Self::weight_with_limit(xcm, instrs_limit)?,
+				_ => 0,
+			})
+			.ok_or(())
 	}
 }
 
