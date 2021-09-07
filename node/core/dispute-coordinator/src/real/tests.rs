@@ -1525,4 +1525,122 @@ fn resume_dispute_with_local_statement_without_local_key() {
 }
 
 
-// TODO [now]: issue_local_statements does not cause duplicate participation.
+#[test]
+fn issue_valid_local_statement_does_cause_distribution_but_not_duplicate_participation() {
+	issue_local_statement_does_cause_distribution_but_not_duplicate_participation(true);
+}
+
+#[test]
+fn issue_invalid_local_statement_does_cause_distribution_but_not_duplicate_participation() {
+	issue_local_statement_does_cause_distribution_but_not_duplicate_participation(false);
+}
+
+fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation(validity: bool) {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = CandidateReceipt::default();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+
+			let other_vote =
+				test_state.issue_statement_with_index(1, candidate_hash, session, !validity).await;
+
+			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(other_vote, ValidatorIndex(1)),
+						],
+						pending_confirmation,
+					},
+				})
+				.await;
+
+			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
+
+			// Initiate dispute locally:
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::IssueLocalStatement(
+						session,
+						candidate_hash,
+						candidate_receipt.clone(),
+						validity,
+					),
+				})
+				.await;
+
+			// Dispute distribution should get notified now:
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::DisputeDistribution(
+					DisputeDistributionMessage::SendDispute(msg)
+				) => {
+					assert_eq!(msg.session_index(), session);
+					assert_eq!(msg.candidate_receipt(), &candidate_receipt);
+				}
+			);
+
+			// Make sure we don't get a `DisputeParticiationMessage`.
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
+fn negative_issue_local_statement_only_triggers_import() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = CandidateReceipt::default();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			tracing::debug!("AFTER activbate_leaf");
+
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::IssueLocalStatement(
+						session,
+						candidate_hash,
+						candidate_receipt.clone(),
+						false,
+					),
+				})
+				.await;
+			tracing::debug!("AFTER Issue local statement");
+
+			let backend = DbBackend::new(test_state.db.clone(), test_state.config.column_config());
+
+			let votes = backend.load_candidate_votes(session, &candidate_hash).unwrap().unwrap();
+			assert_eq!(votes.invalid.len(), 1);
+			assert_eq!(votes.valid.len(), 0);
+
+			let disputes = backend.load_recent_disputes().unwrap();
+			tracing::debug!("AFTER load recent disputes");
+			assert_eq!(disputes, None);
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			// Make sure we don't get a `DisputeParticiationMessage`.
+			assert!(virtual_overseer.try_recv().await.is_none());
+			tracing::debug!("AFTER try_recv");
+
+			test_state
+		})
+	});
+}
