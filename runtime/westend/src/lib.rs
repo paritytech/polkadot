@@ -58,7 +58,9 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, Everything, InstanceFilter, KeyOwnerProofSystem, OnRuntimeUpgrade},
+	traits::{
+		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
+	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -112,7 +114,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9090,
+	spec_version: 9100,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -443,6 +445,7 @@ parameter_types! {
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 10 * MILLICENTS;
 	pub const InstantAllowed: bool = true;
+	pub const MaxAuthorities: u32 = 100_000;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -451,7 +454,9 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
-impl pallet_authority_discovery::Config for Runtime {}
+impl pallet_authority_discovery::Config for Runtime {
+	type MaxAuthorities = MaxAuthorities;
+}
 
 parameter_types! {
 	pub const NposSolutionPriority: TransactionPriority = TransactionPriority::max_value() / 2;
@@ -627,6 +632,7 @@ impl pallet_vesting::Config for Runtime {
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
 	type WeightInfo = weights::pallet_vesting::WeightInfo<Runtime>;
+	const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -656,6 +662,7 @@ pub enum ProxyType {
 	SudoBalances,
 	IdentityJudgement,
 	CancelProxy,
+	Auction,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -722,6 +729,10 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..)))
 			},
+			ProxyType::Auction => matches!(
+				c,
+				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -909,6 +920,7 @@ pub type XcmRouter = (
 parameter_types! {
 	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Parachain(1000).into());
+	pub const MaxInstructions: u32 = 100;
 }
 pub type TrustedTeleporters = (xcm_builder::Case<WestendForWestmint>,);
 
@@ -932,9 +944,12 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Trader = UsingComponents<WeightToFee, WndLocation, AccountId, Balances, ToAuthor<Runtime>>;
-	type ResponseHandler = ();
+	type ResponseHandler = XcmPallet;
+	type AssetTrap = XcmPallet;
+	type AssetClaims = XcmPallet;
+	type SubscriptionService = XcmPallet;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
@@ -951,12 +966,16 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects everything.
-	type XcmExecuteFilter = ();
+	type XcmExecuteFilter = Nothing;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
+	type Origin = Origin;
+	type Call = Call;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 construct_runtime! {
@@ -1028,7 +1047,7 @@ construct_runtime! {
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 52,
 
 		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
-		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 60,
+		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		Slots: slots::{Pallet, Call, Storage, Event<T>} = 61,
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 62,
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 63,

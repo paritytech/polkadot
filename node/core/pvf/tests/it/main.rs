@@ -17,7 +17,7 @@
 use async_std::sync::Mutex;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
-	start, Config, InvalidCandidate, Pvf, ValidationError, ValidationHost,
+	start, Config, InvalidCandidate, Metrics, Pvf, ValidationError, ValidationHost,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
 
@@ -44,7 +44,7 @@ impl TestHost {
 		let program_path = std::path::PathBuf::from(PUPPET_EXE);
 		let mut config = Config::new(cache_dir.path().to_owned(), program_path);
 		f(&mut config);
-		let (host, task) = start(config);
+		let (host, task) = start(config, Metrics::default());
 		let _ = async_std::task::spawn(task);
 		Self { _cache_dir: cache_dir, host: Mutex::new(host) }
 	}

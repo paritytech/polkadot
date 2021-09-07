@@ -118,10 +118,11 @@ fn impl_subsystems_gen(item: TokenStream) -> Result<proc_macro2::TokenStream> {
 
 			// generate an impl of `fn replace_#name`
 			for NameTyTup { field: replacable_item, ty: replacable_item_ty } in replacable_items {
-				let keeper = all_fields
+				let keeper = &all_fields
 					.iter()
 					.filter(|ntt| ntt.field != replacable_item)
-					.map(|ntt| ntt.field.clone());
+					.map(|ntt| ntt.field.clone())
+					.collect::<Vec<_>>();
 				let strukt_ty = strukt_ty.clone();
 				let fname = Ident::new(&format!("replace_{}", replacable_item), span);
 				// adjust the generics such that the appropriate member type is replaced
@@ -154,11 +155,27 @@ fn impl_subsystems_gen(item: TokenStream) -> Result<proc_macro2::TokenStream> {
 				additive.extend(quote! {
 					impl #orig_generics #strukt_ty #orig_generics {
 						#[doc = #msg]
-						pub fn #fname < NEW > (self, replacement: NEW) -> #strukt_ty #modified_generics {
+						pub fn #fname < NEW, F > (self, gen_replacement_fn: F) -> #strukt_ty #modified_generics
+							where
+								F: FnOnce(#replacable_item_ty) -> NEW,
+						{
+							let Self {
+								// To be replaced field:
+								#replacable_item,
+								// Fields to keep:
+								#(
+									#keeper,
+								)*
+							} = self;
+
+							// Some cases require that parts of the original are copied
+							// over, since they include a one time initialization.
+							let replacement = gen_replacement_fn(#replacable_item);
+
 							#strukt_ty :: #modified_generics {
 								#replacable_item: replacement,
 								#(
-									#keeper: self.#keeper,
+									#keeper,
 								)*
 							}
 						}

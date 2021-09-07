@@ -120,7 +120,7 @@ pub type DownwardMessage = sp_std::vec::Vec<u8>;
 #[derive(Encode, Decode, Clone, sp_runtime::RuntimeDebug, PartialEq)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
-	/// The block number at which this messages was put into the downward message queue.
+	/// The block number at which these messages were put into the downward message queue.
 	pub sent_at: BlockNumber,
 	/// The actual downward message to processes.
 	pub msg: DownwardMessage,

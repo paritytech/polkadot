@@ -50,7 +50,8 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade,
+		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, Nothing,
+		OnRuntimeUpgrade,
 	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
@@ -114,7 +115,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9090,
+	spec_version: 9100,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -525,6 +526,7 @@ impl pallet_democracy::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type EnactmentPeriod = EnactmentPeriod;
+	type VoteLockingPeriod = EnactmentPeriod;
 	type LaunchPeriod = LaunchPeriod;
 	type VotingPeriod = VotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
@@ -589,7 +591,7 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type MaxProposals = CouncilMaxProposals;
 	type MaxMembers = CouncilMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
-	type WeightInfo = weights::pallet_collective::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_collective_council::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -641,7 +643,7 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type MaxProposals = TechnicalMaxProposals;
 	type MaxMembers = TechnicalMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
-	type WeightInfo = weights::pallet_collective::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
 }
 
 impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
@@ -675,6 +677,7 @@ parameter_types! {
 	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
 	pub const BountyValueMinimum: Balance = 200 * CENTS;
 	pub const MaxApprovals: u32 = 100;
+	pub const MaxAuthorities: u32 = 100_000;
 }
 
 type ApproveOrigin = EnsureOneOf<
@@ -729,7 +732,9 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
-impl pallet_authority_discovery::Config for Runtime {}
+impl pallet_authority_discovery::Config for Runtime {
+	type MaxAuthorities = MaxAuthorities;
+}
 
 parameter_types! {
 	pub NposSolutionPriority: TransactionPriority =
@@ -950,6 +955,7 @@ impl pallet_vesting::Config for Runtime {
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
 	type WeightInfo = weights::pallet_vesting::WeightInfo<Runtime>;
+	const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
 parameter_types! {
@@ -974,6 +980,7 @@ pub enum ProxyType {
 	Staking,
 	IdentityJudgement,
 	CancelProxy,
+	Auction,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -1051,6 +1058,10 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..)))
 			},
+			ProxyType::Auction => matches!(
+				c,
+				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -1253,6 +1264,9 @@ type LocalOriginConverter = (
 parameter_types! {
 	/// The amount of weight an XCM operation takes. This is a safe overestimate.
 	pub const BaseXcmWeight: Weight = 1_000_000_000;
+	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
+	/// calculations getting too crazy.
+	pub const MaxInstructions: u32 = 100;
 }
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
@@ -1288,10 +1302,13 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
 	type Trader = UsingComponents<WeightToFee, KsmLocation, AccountId, Balances, ToAuthor<Runtime>>;
-	type ResponseHandler = ();
+	type ResponseHandler = XcmPallet;
+	type AssetTrap = XcmPallet;
+	type AssetClaims = XcmPallet;
+	type SubscriptionService = XcmPallet;
 }
 
 parameter_types! {
@@ -1311,7 +1328,6 @@ pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<Origin, AccountId, KusamaNetwork>,
 );
-
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
@@ -1319,12 +1335,16 @@ impl pallet_xcm::Config for Runtime {
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
 	// ...but they must match our filter, which rejects all.
-	type XcmExecuteFilter = ();
+	type XcmExecuteFilter = Nothing;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
+	type Origin = Origin;
+	type Call = Call;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 parameter_types! {
@@ -1899,6 +1919,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_bounties, Bounties);
 			list_benchmark!(list, extra, pallet_collective, Council);
+			list_benchmark!(list, extra, pallet_collective, TechnicalCommittee);
 			list_benchmark!(list, extra, pallet_democracy, Democracy);
 			list_benchmark!(list, extra, pallet_elections_phragmen, PhragmenElection);
 			list_benchmark!(list, extra, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
@@ -1971,6 +1992,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
 			add_benchmark!(params, batches, pallet_collective, Council);
+			add_benchmark!(params, batches, pallet_collective, TechnicalCommittee);
 			add_benchmark!(params, batches, pallet_democracy, Democracy);
 			add_benchmark!(params, batches, pallet_elections_phragmen, PhragmenElection);
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);

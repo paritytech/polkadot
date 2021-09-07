@@ -502,6 +502,8 @@ impl ApprovalState {
 }
 
 struct CurrentlyCheckingSet {
+	/// Invariant: The contained `Vec` needs to stay sorted as we are using `binary_search_by_key`
+	/// on it.
 	candidate_hash_map: HashMap<CandidateHash, Vec<Hash>>,
 	currently_checking: FuturesUnordered<BoxFuture<'static, ApprovalState>>,
 }
@@ -918,7 +920,7 @@ async fn handle_actions(
 
 				match confirmation_rx.await {
 					Err(oneshot::Canceled) => {
-						tracing::warn!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
+						tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
 					},
 					Ok(ImportStatementsResult::ValidImport) => {},
 					Ok(ImportStatementsResult::InvalidImport) => tracing::warn!(
@@ -1237,6 +1239,15 @@ async fn handle_approved_ancestor(
 				// ancestry is moving backwards.
 				all_approved_max = Some((block_hash, target_number - i as BlockNumber));
 			}
+			block_descriptions.push(BlockDescription {
+				block_hash,
+				session: entry.session(),
+				candidates: entry
+					.candidates()
+					.iter()
+					.map(|(_idx, candidate_hash)| *candidate_hash)
+					.collect(),
+			});
 		} else if bits.len() <= ABNORMAL_DEPTH_THRESHOLD {
 			all_approved_max = None;
 			block_descriptions.clear();
@@ -1319,15 +1330,6 @@ async fn handle_approved_ancestor(
 				}
 			}
 		}
-		block_descriptions.push(BlockDescription {
-			block_hash,
-			session: entry.session(),
-			candidates: entry
-				.candidates()
-				.iter()
-				.map(|(_idx, candidate_hash)| *candidate_hash)
-				.collect(),
-		});
 	}
 
 	tracing::trace!(
