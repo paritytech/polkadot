@@ -89,12 +89,12 @@ where
 	Instruction<C>: xcm::GetWeight<W>,
 {
 	fn weight_with_limit(message: &Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
+		let mut r: Weight = 0;
 		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
-		message.0.iter().try_fold(0, |acc, x| 
-			Self::instr_weight_with_limit(m, instrs_limit).and_then(|inst_weight| {
-				acc.checked_add(x)
-			})
-		).ok_or(())
+		for m in message.0.iter() {
+			r = r.checked_add(Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
+		}
+		Ok(r)
 	}
 	fn instr_weight_with_limit(
 		instruction: &Instruction<C>,
