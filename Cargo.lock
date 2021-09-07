@@ -6320,6 +6320,7 @@ dependencies = [
  "bounded-vec",
  "futures 0.3.17",
  "parity-scale-codec",
+ "polkadot-erasure-coding",
  "polkadot-parachain",
  "polkadot-primitives",
  "schnorrkel",
