@@ -293,7 +293,123 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	}
 }
 
-/// The `Overseer` itself.
+/// Create a new instance of the [`Overseer`] with a fixed set of [`Subsystem`]s.
+///
+/// This returns the overseer along with an [`OverseerHandle`] which can
+/// be used to send messages from external parts of the codebase.
+///
+/// The [`OverseerHandle`] returned from this function is connected to
+/// the returned [`Overseer`].
+///
+/// ```text
+///                  +------------------------------------+
+///                  |            Overseer                |
+///                  +------------------------------------+
+///                    /            |             |      \
+///      ................. subsystems...................................
+///      . +-----------+    +-----------+   +----------+   +---------+ .
+///      . |           |    |           |   |          |   |         | .
+///      . +-----------+    +-----------+   +----------+   +---------+ .
+///      ...............................................................
+///                              |
+///                        probably `spawn`
+///                            a `job`
+///                              |
+///                              V
+///                         +-----------+
+///                         |           |
+///                         +-----------+
+///
+/// ```
+///
+/// [`Subsystem`]: trait.Subsystem.html
+///
+/// # Example
+///
+/// The [`Subsystems`] may be any type as long as they implement an expected interface.
+/// Here, we create a mock validation subsystem and a few dummy ones and start the `Overseer` with them.
+/// For the sake of simplicity the termination of the example is done with a timeout.
+/// ```
+/// # use std::time::Duration;
+/// # use futures::{executor, pin_mut, select, FutureExt};
+/// # use futures_timer::Delay;
+/// # use polkadot_primitives::v1::Hash;
+/// # use polkadot_overseer::{
+/// # 	self as overseer,
+/// #   OverseerSignal,
+/// # 	SubsystemSender as _,
+/// # 	AllMessages,
+/// # 	HeadSupportsParachains,
+/// # 	Overseer,
+/// # 	SubsystemError,
+/// # 	gen::{
+/// # 		SubsystemContext,
+/// # 		FromOverseer,
+/// # 		SpawnedSubsystem,
+/// # 	},
+/// # };
+/// # use polkadot_node_subsystem_types::messages::{
+/// # 	CandidateValidationMessage, CandidateBackingMessage,
+/// # 	NetworkBridgeMessage,
+/// # };
+///
+/// struct ValidationSubsystem;
+///
+/// impl<Ctx> overseer::Subsystem<Ctx, SubsystemError> for ValidationSubsystem
+/// where
+///     Ctx: overseer::SubsystemContext<
+///				Message=CandidateValidationMessage,
+///				AllMessages=AllMessages,
+///				Signal=OverseerSignal,
+///				Error=SubsystemError,
+///			>,
+/// {
+///     fn start(
+///         self,
+///         mut ctx: Ctx,
+///     ) -> SpawnedSubsystem<SubsystemError> {
+///         SpawnedSubsystem {
+///             name: "validation-subsystem",
+///             future: Box::pin(async move {
+///                 loop {
+///                     Delay::new(Duration::from_secs(1)).await;
+///                 }
+///             }),
+///         }
+///     }
+/// }
+///
+/// # fn main() { executor::block_on(async move {
+///
+/// struct AlwaysSupportsParachains;
+/// impl HeadSupportsParachains for AlwaysSupportsParachains {
+///      fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
+/// }
+/// let spawner = sp_core::testing::TaskExecutor::new();
+/// let all_subsystems = AllSubsystems::<()>::dummy()
+///		.replace_candidate_validation(|_| ValidationSubsystem);
+/// let (overseer, _handle) = Overseer::new(
+///     vec![],
+///     all_subsystems,
+///     None,
+///     AlwaysSupportsParachains,
+///     spawner,
+/// ).unwrap();
+///
+/// let timer = Delay::new(Duration::from_millis(50)).fuse();
+///
+/// let overseer_fut = overseer.run().fuse();
+/// pin_mut!(timer);
+/// pin_mut!(overseer_fut);
+///
+/// select! {
+///     _ = overseer_fut => (),
+///     _ = timer => (),
+/// }
+/// #
+/// # 	});
+/// # }
+/// ```
 #[overlord(
 	gen=AllMessages,
 	event=Event,
@@ -448,126 +564,8 @@ where
 	SupportsParachains: HeadSupportsParachains,
 	S: SpawnNamed,
 {
-	/// Create a new instance of the [`Overseer`] with a fixed set of [`Subsystem`]s.
-	///
-	/// This returns the overseer along with an [`OverseerHandle`] which can
-	/// be used to send messages from external parts of the codebase.
-	///
-	/// The [`OverseerHandle`] returned from this function is connected to
-	/// the returned [`Overseer`].
-	///
-	/// ```text
-	///                  +------------------------------------+
-	///                  |            Overseer                |
-	///                  +------------------------------------+
-	///                    /            |             |      \
-	///      ................. subsystems...................................
-	///      . +-----------+    +-----------+   +----------+   +---------+ .
-	///      . |           |    |           |   |          |   |         | .
-	///      . +-----------+    +-----------+   +----------+   +---------+ .
-	///      ...............................................................
-	///                              |
-	///                        probably `spawn`
-	///                            a `job`
-	///                              |
-	///                              V
-	///                         +-----------+
-	///                         |           |
-	///                         +-----------+
-	///
-	/// ```
-	///
-	/// [`Subsystem`]: trait.Subsystem.html
-	///
-	/// # Example
-	///
-	/// The [`Subsystems`] may be any type as long as they implement an expected interface.
-	/// Here, we create a mock validation subsystem and a few dummy ones and start the `Overseer` with them.
-	/// For the sake of simplicity the termination of the example is done with a timeout.
-	/// ```
-	/// # use std::time::Duration;
-	/// # use futures::{executor, pin_mut, select, FutureExt};
-	/// # use futures_timer::Delay;
-	/// # use polkadot_primitives::v1::Hash;
-	/// # use polkadot_overseer::{
-	/// # 	self as overseer,
-	/// # 	Overseer,
-	/// #   OverseerSignal,
-	/// # 	OverseerConnector,
-	/// # 	SubsystemSender as _,
-	/// # 	AllMessages,
-	/// # 	AllSubsystems,
-	/// # 	HeadSupportsParachains,
-	/// # 	SubsystemError,
-	/// # 	gen::{
-	/// # 		SubsystemContext,
-	/// # 		FromOverseer,
-	/// # 		SpawnedSubsystem,
-	/// # 	},
-	/// # };
-	/// # use polkadot_node_subsystem_types::messages::{
-	/// # 	CandidateValidationMessage, CandidateBackingMessage,
-	/// # 	NetworkBridgeMessage,
-	/// # };
-	///
-	/// struct ValidationSubsystem;
-	///
-	/// impl<Ctx> overseer::Subsystem<Ctx, SubsystemError> for ValidationSubsystem
-	/// where
-	///     Ctx: overseer::SubsystemContext<
-	///				Message=CandidateValidationMessage,
-	///				AllMessages=AllMessages,
-	///				Signal=OverseerSignal,
-	///				Error=SubsystemError,
-	///			>,
-	/// {
-	///     fn start(
-	///         self,
-	///         mut ctx: Ctx,
-	///     ) -> SpawnedSubsystem<SubsystemError> {
-	///         SpawnedSubsystem {
-	///             name: "validation-subsystem",
-	///             future: Box::pin(async move {
-	///                 loop {
-	///                     Delay::new(Duration::from_secs(1)).await;
-	///                 }
-	///             }),
-	///         }
-	///     }
-	/// }
-	///
-	/// # fn main() { executor::block_on(async move {
-	///
-	/// struct AlwaysSupportsParachains;
-	/// impl HeadSupportsParachains for AlwaysSupportsParachains {
-	///      fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
-	/// }
-	/// let spawner = sp_core::testing::TaskExecutor::new();
-	/// let all_subsystems = AllSubsystems::<()>::dummy()
-	///		.replace_candidate_validation(|_| ValidationSubsystem);
-	/// let (overseer, _handle) = Overseer::new(
-	///     vec![],
-	///     all_subsystems,
-	///     None,
-	///     AlwaysSupportsParachains,
-	///     spawner,
-	///     OverseerConnector::default(),
-	/// ).unwrap();
-	///
-	/// let timer = Delay::new(Duration::from_millis(50)).fuse();
-	///
-	/// let overseer_fut = overseer.run().fuse();
-	/// pin_mut!(timer);
-	/// pin_mut!(overseer_fut);
-	///
-	/// select! {
-	///     _ = overseer_fut => (),
-	///     _ = timer => (),
-	/// }
-	/// #
-	/// # 	});
-	/// # }
-	/// ```
+	/// Create a new [`Overseer`].
+	#[deprecated(note = "Use the `OverseerBuilder`-pattern instead.")]
 	pub fn new<
 		CV,
 		CB,
