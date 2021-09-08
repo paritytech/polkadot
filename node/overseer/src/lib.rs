@@ -543,7 +543,7 @@ where
 	/// }
 	/// let spawner = sp_core::testing::TaskExecutor::new();
 	/// let all_subsystems = AllSubsystems::<()>::dummy()
-	///		.replace_candidate_validation(ValidationSubsystem);
+	///		.replace_candidate_validation(|_| ValidationSubsystem);
 	/// let (overseer, _handle) = Overseer::new(
 	///     vec![],
 	///     all_subsystems,

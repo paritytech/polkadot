@@ -54,21 +54,26 @@ pub struct MultiLocation {
 	pub interior: Junctions,
 }
 
+impl Default for MultiLocation {
+	fn default() -> Self {
+		Self { parents: 0, interior: Junctions::Here }
+	}
+}
+
 /// A relative location which is constrained to be an interior location of the context.
 ///
 /// See also `MultiLocation`.
 pub type InteriorMultiLocation = Junctions;
 
-impl Default for MultiLocation {
-	fn default() -> Self {
-		Self::here()
-	}
-}
-
 impl MultiLocation {
 	/// Creates a new `MultiLocation` with the given number of parents and interior junctions.
 	pub fn new(parents: u8, junctions: Junctions) -> MultiLocation {
 		MultiLocation { parents, interior: junctions }
+	}
+
+	/// Consume `self` and return the equivalent `VersionedMultiLocation` value.
+	pub fn versioned(self) -> crate::VersionedMultiLocation {
+		self.into()
 	}
 
 	/// Creates a new `MultiLocation` with 0 parents and a `Here` interior.
