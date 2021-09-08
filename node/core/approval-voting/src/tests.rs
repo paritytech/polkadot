@@ -806,26 +806,7 @@ async fn import_block(
 		}
 	});
 
-	overseer_send(
-		overseer,
-		FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
-			ActivatedLeaf {
-				hash: *new_head,
-				number,
-				status: LeafStatus::Fresh,
-				span: Arc::new(jaeger::Span::Disabled),
-			},
-		))),
-	)
-	.await;
-
-	assert_matches!(
-		overseer_recv(overseer).await,
-		AllMessages::ChainApi(ChainApiMessage::BlockHeader(head, h_tx)) => {
-			assert_eq!(*new_head, head);
-			h_tx.send(Ok(Some(new_header.clone()))).unwrap();
-		}
-	);
+	send_active_leaves(overseer, *new_head, number, &new_header).await;
 
 	assert_matches!(
 		overseer_recv(overseer).await,
@@ -2545,7 +2526,16 @@ fn subsystem_assignment_not_triggered_if_at_maximum_but_clock_is_before_with_dri
 }
 
 #[test]
-fn resume_approvals_on_restart() {
+fn resume_approvals_on_restart_after_delay() {
+	resume_approvals_on_restart(true);
+}
+
+#[test]
+fn finalize_block_before_resuming_approvals_on_restart() {
+	resume_approvals_on_restart(false);
+}
+
+fn resume_approvals_on_restart(should_launch_approval: bool) {
 	let block_hash = Hash::repeat_byte(0x01);
 	let slot = Slot::from(1);
 	let number = 1;
@@ -2660,29 +2650,9 @@ fn resume_approvals_on_restart() {
 		(test_harness, virtual_overseer)
 	})
 	.resume(|test_harness, mut virtual_overseer| async {
-		// Send ActiveLeaves as first message to trigger restart logic.
-		overseer_send(
-			&mut virtual_overseer,
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
-				ActivatedLeaf {
-					hash: block_hash,
-					number,
-					status: LeafStatus::Fresh,
-					span: Arc::new(jaeger::Span::Disabled),
-				},
-			))),
-		)
-		.await;
-
-		// Handle queries to restore session window.
+		// Send ActiveLeaves as first message to emulate system startup
 		let header = ChainBuilder::make_header(ChainBuilder::GENESIS_HASH, slot, number);
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::ChainApi(ChainApiMessage::BlockHeader(b_hash, tx_h)) => {
-				assert_eq!(b_hash, block_hash);
-				tx_h.send(Ok(Some(header.clone()))).unwrap();
-			}
-		);
+		send_active_leaves(&mut virtual_overseer, block_hash, number, &header).await;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -2725,170 +2695,236 @@ fn resume_approvals_on_restart() {
 			}
 		);
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::ApprovalDistribution(
-				ApprovalDistributionMessage::NewBlocks(approval_vec)
-			) => {
-				assert_eq!(approval_vec.len(), 1);
-				let metadata = approval_vec.get(0).unwrap();
-				assert_eq!(metadata.hash, block_hash);
-				assert_eq!(metadata.parent_hash, ChainBuilder::GENESIS_HASH);
-				assert_eq!(metadata.slot, slot);
-			}
-		);
+		// If we should not launch approvals work for this block, we must finalize it before
+		// the startup delay is up
+		if !should_launch_approval {
+			overseer_send(
+				&mut virtual_overseer,
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(block_hash, number))
+			).await;
 
-		// Handle LaunchApproval messages.
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(cert, c_idx)) => {
-				assert_eq!(cert.block_hash, block_hash);
-				assert_eq!(candidate_index, c_idx);
-			}
-		);
-
-		let rx = check_and_import_approval(
-			&mut virtual_overseer,
-			block_hash,
-			candidate_index,
-			ValidatorIndex(validator_index),
-			candidate_hash,
-			1,
-			false,
-			false,
-			None,
-		)
-		.await;
-		assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(cert, c_idx)) => {
-				assert_eq!(cert.block_hash, block_hash);
-				assert_eq!(candidate_index, c_idx);
-			}
-		);
-
-		let pov = Arc::new(PoV {
-			block_data: BlockData(Vec::new()),
-		});
-		let validation_data = PersistedValidationData {
-			parent_head: HeadData(Vec::new()),
-			relay_parent_number: number,
-			relay_parent_storage_root: header.state_root,
-			max_pov_size: u32::MAX,
-		};
-
-		let available_data = AvailableData {
-			pov: pov.clone(),
-			validation_data: validation_data.clone(),
-		};
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::AvailabilityRecovery(AvailabilityRecoveryMessage::RecoverAvailableData(
-				candidate,
-				session,
-				Some(_backing_group),
-				a_tx,
-			)) => {
-				assert_eq!(session, 1);
-				assert_eq!(candidate, candidate_receipt);
-				a_tx.send(Ok(available_data)).unwrap();
-			}
-		);
-
-		let validation_code = ValidationCode(Vec::new());
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				b_hash, RuntimeApiRequest::ValidationCodeByHash(_, code_tx),
-			)) => {
-				assert_eq!(b_hash, block_hash);
-				code_tx.send(Ok(Some(validation_code.clone()))).unwrap();
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::ChainSelection(ChainSelectionMessage::Approved(b_hash)) => {
-				assert_eq!(b_hash, block_hash);
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash: c_hash,
-				pending_confirmation,
-				..
-			}) => {
-				assert_eq!(c_hash, candidate_hash);
-				let _ = pending_confirmation.send(ImportStatementsResult::ValidImport);
-			}
-		);
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::CandidateValidation(CandidateValidationMessage::ValidateFromExhaustive(
-				v_data,
-				v_code,
-				candidate_descriptor,
-				proof_of_validity,
-				val_tx,
-			)) => {
-				assert_eq!(v_data, validation_data);
-				assert_eq!(proof_of_validity, pov);
-				assert_eq!(v_code, validation_code);
-				assert_eq!(candidate_descriptor, candidate_receipt.descriptor);
-
-				let validation_result = ValidationResult::Valid(commitments, validation_data);
-				val_tx.send(Ok(validation_result)).unwrap();
-			}
-		);
-
-		// Issue approval.
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(
-				IndirectSignedApprovalVote {
-					block_hash: b_hash,
-					candidate_index: c_index,
-					validator,
-					..
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::ApprovalDistribution(
+					ApprovalDistributionMessage::NewBlocks(approval_vec)
+				) => {
+					assert_eq!(approval_vec.len(), 1);
+					let metadata = approval_vec.get(0).unwrap();
+					assert_eq!(metadata.hash, block_hash);
+					assert_eq!(metadata.parent_hash, ChainBuilder::GENESIS_HASH);
+					assert_eq!(metadata.slot, slot);
 				}
-			)) => {
-				assert_eq!(b_hash, block_hash);
-				assert_eq!(c_index, candidate_index);
-				assert_eq!(validator, ValidatorIndex(validator_index));
-			}
-		);
+			);
 
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash: c_hash,
-				candidate_receipt: c_receipt,
-				session,
-				statements,
-				pending_confirmation,
-			}) => {
-				assert_eq!(session, 1);
-				assert_eq!(c_hash, candidate_hash);
-				assert_eq!(c_receipt, candidate_receipt);
-				assert_eq!(1, statements.len());
-				let (signed_dispute_statement, validator) = &statements[0];
-				assert_eq!(validator, &ValidatorIndex(validator_index));
-				assert_eq!(
-					signed_dispute_statement.statement(),
-					&DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking,
-				));
-				pending_confirmation.send(ImportStatementsResult::ValidImport).unwrap();
-			}
-		);
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(cert, c_idx)) => {
+					assert_eq!(cert.block_hash, block_hash);
+					assert_eq!(candidate_index, c_idx);
+				}
+			);
+		}
+
+		futures_timer::Delay::new(2*STARTUP_WAIT_DURATION).await;
+		if !should_launch_approval {
+			// Since the block was just finalized, we do not expect to see any approvals work
+			assert!(overseer_recv(&mut virtual_overseer).timeout(TIMEOUT).await.is_none());
+		} else {
+			// The block was not finalized, so we should expect to launch approvals work for it
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::ApprovalDistribution(
+					ApprovalDistributionMessage::NewBlocks(approval_vec)
+				) => {
+					assert_eq!(approval_vec.len(), 1);
+					let metadata = approval_vec.get(0).unwrap();
+					assert_eq!(metadata.hash, block_hash);
+					assert_eq!(metadata.parent_hash, ChainBuilder::GENESIS_HASH);
+					assert_eq!(metadata.slot, slot);
+				}
+			);
+
+			// Handle LaunchApproval messages.
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(cert, c_idx)) => {
+					assert_eq!(cert.block_hash, block_hash);
+					assert_eq!(candidate_index, c_idx);
+				}
+			);
+
+			let rx = check_and_import_approval(
+				&mut virtual_overseer,
+				block_hash,
+				candidate_index,
+				ValidatorIndex(validator_index),
+				candidate_hash,
+				1,
+				false,
+				false,
+				None,
+			)
+			.await;
+			assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(cert, c_idx)) => {
+					assert_eq!(cert.block_hash, block_hash);
+					assert_eq!(candidate_index, c_idx);
+				}
+			);
+
+			let pov = Arc::new(PoV {
+				block_data: BlockData(Vec::new()),
+			});
+			let validation_data = PersistedValidationData {
+				parent_head: HeadData(Vec::new()),
+				relay_parent_number: number,
+				relay_parent_storage_root: header.state_root,
+				max_pov_size: u32::MAX,
+			};
+
+			let available_data = AvailableData {
+				pov: pov.clone(),
+				validation_data: validation_data.clone(),
+			};
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::AvailabilityRecovery(AvailabilityRecoveryMessage::RecoverAvailableData(
+					candidate,
+					session,
+					Some(_backing_group),
+					a_tx,
+				)) => {
+					assert_eq!(session, 1);
+					assert_eq!(candidate, candidate_receipt);
+					a_tx.send(Ok(available_data)).unwrap();
+				}
+			);
+
+			let validation_code = ValidationCode(Vec::new());
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					b_hash, RuntimeApiRequest::ValidationCodeByHash(_, code_tx),
+				)) => {
+					assert_eq!(b_hash, block_hash);
+					code_tx.send(Ok(Some(validation_code.clone()))).unwrap();
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::ChainSelection(ChainSelectionMessage::Approved(b_hash)) => {
+					assert_eq!(b_hash, block_hash);
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ImportStatements {
+					candidate_hash: c_hash,
+					pending_confirmation,
+					..
+				}) => {
+					assert_eq!(c_hash, candidate_hash);
+					let _ = pending_confirmation.send(ImportStatementsResult::ValidImport);
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::CandidateValidation(CandidateValidationMessage::ValidateFromExhaustive(
+					v_data,
+					v_code,
+					candidate_descriptor,
+					proof_of_validity,
+					val_tx,
+				)) => {
+					assert_eq!(v_data, validation_data);
+					assert_eq!(proof_of_validity, pov);
+					assert_eq!(v_code, validation_code);
+					assert_eq!(candidate_descriptor, candidate_receipt.descriptor);
+
+					let validation_result = ValidationResult::Valid(commitments, validation_data);
+					val_tx.send(Ok(validation_result)).unwrap();
+				}
+			);
+
+			// Issue approval.
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(
+					IndirectSignedApprovalVote {
+						block_hash: b_hash,
+						candidate_index: c_index,
+						validator,
+						..
+					}
+				)) => {
+					assert_eq!(b_hash, block_hash);
+					assert_eq!(c_index, candidate_index);
+					assert_eq!(validator, ValidatorIndex(validator_index));
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ImportStatements {
+					candidate_hash: c_hash,
+					candidate_receipt: c_receipt,
+					session,
+					statements,
+					pending_confirmation,
+				}) => {
+					assert_eq!(session, 1);
+					assert_eq!(c_hash, candidate_hash);
+					assert_eq!(c_receipt, candidate_receipt);
+					assert_eq!(1, statements.len());
+					let (signed_dispute_statement, validator) = &statements[0];
+					assert_eq!(validator, &ValidatorIndex(validator_index));
+					assert_eq!(
+						signed_dispute_statement.statement(),
+						&DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking,
+					));
+					pending_confirmation.send(ImportStatementsResult::ValidImport).unwrap();
+				}
+			);
+		}
 
 		(test_harness, virtual_overseer)
 	});
+}
+
+async fn send_active_leaves(
+	overseer: &mut VirtualOverseer,
+	block_hash: Hash,
+	number: u32,
+	header: &Header,
+) {
+	overseer_send(
+		overseer,
+		FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+			ActivatedLeaf {
+				hash: block_hash,
+				number,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			},
+		))),
+	)
+	.await;
+
+	// Handle queries to restore session window.
+	assert_matches!(
+		overseer_recv(overseer).await,
+		AllMessages::ChainApi(ChainApiMessage::BlockHeader(b_hash, tx_h)) => {
+			assert_eq!(b_hash, block_hash);
+			tx_h.send(Ok(Some(header.clone()))).unwrap();
+		}
+	);
 }

@@ -98,6 +98,11 @@ const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const LOG_TARGET: &str = "parachain::approval-voting";
 
+#[cfg(not(test))]
+const STARTUP_WAIT_DURATION: Duration = Duration::from_secs(12);
+#[cfg(test)]
+const STARTUP_WAIT_DURATION: Duration = Duration::from_secs(2);
+
 /// Configuration for the approval voting subsystem
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -685,9 +690,21 @@ where
 
 	let mut last_finalized_height: Option<BlockNumber> = None;
 
+	let startup_delay =
+		|| async move { future::pending::<()>().timeout(STARTUP_WAIT_DURATION).await };
+
 	loop {
 		let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
+			_res = startup_delay().fuse() => {
+				if !state.recovery_state.complete() {
+					let height = last_finalized_height.unwrap_or_default();
+					let actions = handle_startup(&mut overlayed_db, &mut state).await?;
+					actions.into_iter().filter_map(|(candidate_height, a)| if candidate_height > height { Some(a) } else { None }).collect()
+				} else {
+					Vec::new()
+				}
+			},
 			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
 				subsystem.metrics.on_wakeup();
 				process_wakeup(
@@ -783,8 +800,12 @@ enum RecoveryState {
 }
 
 impl RecoveryState {
+	fn peek(&self) -> bool {
+		*self == RecoveryState::Complete
+	}
+
 	fn complete(&mut self) -> bool {
-		let complete = *self == RecoveryState::Complete;
+		let complete = self.peek();
 		*self = RecoveryState::Complete;
 		complete
 	}
@@ -796,7 +817,7 @@ impl RecoveryState {
 async fn handle_startup(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	state: &mut State,
-) -> SubsystemResult<Vec<Action>> {
+) -> SubsystemResult<Vec<(BlockNumber, Action)>> {
 	let all_candidates = overlay_db.load_all_candidates().map_err(|e| {
 		tracing::error!(target: LOG_TARGET, "Failed initial load of active candidates: {:?}", e);
 		e
@@ -900,16 +921,19 @@ async fn handle_startup(
 				block_entry.candidates().iter().position(|(_, h)| &candidate_hash == h);
 
 			if let Some(candidate_index) = candidate_index {
-				actions.push(Action::LaunchApproval {
-					candidate_hash,
-					session,
-					relay_block_hash: block_hash,
-					candidate: candidate_receipt,
-					candidate_index: candidate_index as _,
-					indirect_cert,
-					assignment_tranche: our.tranche(),
-					backing_group: approval_entry.backing_group(),
-				});
+				actions.push((
+					block_entry.block_number(),
+					Action::LaunchApproval {
+						candidate_hash,
+						session,
+						relay_block_hash: block_hash,
+						candidate: candidate_receipt,
+						candidate_index: candidate_index as _,
+						indirect_cert,
+						assignment_tranche: our.tranche(),
+						backing_group: approval_entry.backing_group(),
+					},
+				));
 			} else {
 				tracing::trace!(
 					target: LOG_TARGET,
@@ -1253,11 +1277,6 @@ async fn handle_from_overseer(
 						}
 					},
 				}
-			}
-
-			if !state.recovery_state.complete() {
-				let startup_launch_approvals = handle_startup(db, state).await?;
-				actions.extend(startup_launch_approvals);
 			}
 
 			actions
