@@ -6574,6 +6574,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-runtime-common",
+ "polkadot-runtime-parachains",
  "rustc-hex",
  "separator",
  "serde",
