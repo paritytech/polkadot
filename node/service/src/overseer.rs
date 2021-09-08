@@ -26,10 +26,9 @@ use polkadot_node_network_protocol::request_response::{v1 as request_v1, Incomin
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::dummy::DummySubsystem;
 pub use polkadot_overseer::{
-	metrics::Metrics, AllSubsystems, BlockInfo, HeadSupportsParachains, MetricsTrait, Overseer,
+	metrics::Metrics, BlockInfo, HeadSupportsParachains, MetricsTrait, Overseer,
 	OverseerBuilder, OverseerConnector, OverseerHandle,
 };
-
 use polkadot_primitives::v1::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
@@ -110,6 +109,8 @@ where
 ///
 /// A convenience for usage with malus, to avoid
 /// repetitive code across multiple behavior strain implementations.
+#[deprecated(note = "Use the `OverseerBuilder`-pattern instead.")]
+#[allow(dead_code)]
 pub fn create_default_subsystems<'a, Spawner, RuntimeClient>(
 	OverseerGenArgs {
 		keystore,

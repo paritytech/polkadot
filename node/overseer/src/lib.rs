@@ -101,6 +101,7 @@ pub use self::subsystems::AllSubsystems;
 
 pub mod metrics;
 
+use self::metrics::{Metrics as OverseerMetrics};
 pub use polkadot_node_metrics::{
 	metrics::{prometheus, Metrics as MetricsTrait},
 	Metronome,
@@ -385,7 +386,61 @@ pub struct Overseer<SupportsParachains> {
 	pub known_leaves: LruCache<Hash, ()>,
 
 	/// Various Prometheus metrics.
-	pub metrics: crate::metrics::Metrics,
+	pub metrics: OverseerMetrics,
+}
+
+/// Spawn the metrics metronome task.
+pub fn spawn_metronome_metrics<S, SupportsParachains>(
+	overseer: &mut Overseer<S, SupportsParachains>,
+	metronome_metrics: OverseerMetrics,
+) -> Result<(), SubsystemError>
+where
+	S: SpawnNamed,
+	SupportsParachains: HeadSupportsParachains,
+{
+	struct ExtractNameAndMeters;
+
+	impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
+		type Output = Option<(&'static str, SubsystemMeters)>;
+
+		fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
+			subsystem
+				.instance
+				.as_ref()
+				.map(|instance| (instance.name, instance.meters.clone()))
+		}
+	}
+	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
+
+	#[cfg(feature = "memory-stats")]
+	let memory_stats = MemoryAllocationTracker::new().expect("Jemalloc is the default allocator. qed");
+
+	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
+		#[cfg(feature = "memory-stats")]
+		match memory_stats.snapshot() {
+			Ok(memory_stats_snapshot) => {
+				tracing::trace!(target: LOG_TARGET, "memory_stats: {:?}", &memory_stats_snapshot);
+				metronome_metrics.memory_stats_snapshot(memory_stats_snapshot);
+			},
+
+			Err(e) => tracing::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
+		}
+
+		// We combine the amount of messages from subsystems to the overseer
+		// as well as the amount of messages from external sources to the overseer
+		// into one `to_overseer` value.
+		metronome_metrics.channel_fill_level_snapshot(
+			subsystem_meters
+				.iter()
+				.cloned()
+				.filter_map(|x| x)
+				.map(|(name, ref meters)| (name, meters.read())),
+		);
+
+		async move { () }
+	});
+	overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
+	Ok(())
 }
 
 impl<S, SupportsParachains> Overseer<S, SupportsParachains>
@@ -592,7 +647,7 @@ where
 		CS: Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError> + Send,
 		S: SpawnNamed,
 	{
-		let metrics = <crate::metrics::Metrics as MetricsTrait>::register(prometheus_registry)?;
+		let metrics = <OverseerMetrics as MetricsTrait>::register(prometheus_registry)?;
 
 		let (mut overseer, handle) = Self::builder()
 			.candidate_validation(all_subsystems.candidate_validation)
@@ -630,72 +685,7 @@ where
 			.spawner(s)
 			.build_with_connector(connector)?;
 
-		// spawn the metrics metronome task
-		{
-			struct ExtractNameAndMeters;
-
-			impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
-				type Output = Option<(&'static str, SubsystemMeters)>;
-
-				fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
-					subsystem
-						.instance
-						.as_ref()
-						.map(|instance| (instance.name, instance.meters.clone()))
-				}
-			}
-			let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
-
-			let memory_stats = match MemoryAllocationTracker::new() {
-				Ok(memory_stats) => Some(memory_stats),
-				Err(error) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						"Failed to initialize memory allocation tracker: {:?}",
-						error
-					);
-
-					None
-				},
-			};
-
-			let metronome_metrics = metrics.clone();
-			let metronome =
-				Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
-					if let Some(ref memory_stats) = memory_stats {
-						match memory_stats.snapshot() {
-							Ok(memory_stats_snapshot) => {
-								tracing::trace!(
-									target: LOG_TARGET,
-									"memory_stats: {:?}",
-									&memory_stats_snapshot
-								);
-								metronome_metrics.memory_stats_snapshot(memory_stats_snapshot);
-							},
-
-							Err(e) => tracing::debug!(
-								target: LOG_TARGET,
-								"Failed to obtain memory stats: {:?}",
-								e
-							),
-						}
-					}
-
-					// We combine the amount of messages from subsystems to the overseer
-					// as well as the amount of messages from external sources to the overseer
-					// into one `to_overseer` value.
-					metronome_metrics.channel_fill_level_snapshot(
-						subsystem_meters
-							.iter()
-							.cloned()
-							.filter_map(|x| x)
-							.map(|(name, ref meters)| (name, meters.read())),
-					);
-
-					async move { () }
-				});
-			overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
-		}
+		spawn_metronome_metrics(&mut overseer, metrics)?;
 
 		Ok((overseer, handle))
 	}

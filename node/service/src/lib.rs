@@ -27,9 +27,7 @@ mod relay_chain_selection;
 mod overseer;
 
 #[cfg(feature = "full-node")]
-pub use self::overseer::{
-	create_default_subsystems, OverseerGen, OverseerGenArgs, RealOverseerGen,
-};
+pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
 
 #[cfg(all(test, feature = "disputes"))]
 mod tests;
