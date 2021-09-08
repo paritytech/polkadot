@@ -3,7 +3,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 name = "xcm-executor-integration-tests"
 description = "Integration tests for the XCM Executor"
-version = "0.9.9"
+version = "0.9.10"
 
 [dependencies]
 frame-support = { git = "https://github.com/paritytech/substrate" , default-features = false , branch = "polkadot-v0.9.10" }
