@@ -172,14 +172,10 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pal
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{
-		configuration::HostConfiguration,
-		initializer::SessionChangeNotification,
-		mock::{
+	use crate::{configuration::HostConfiguration, initializer::SessionChangeNotification, mock::{
 			new_test_ext, Configuration, MockGenesisConfig, Origin, ParasShared, SessionInfo,
 			System, Test,
-		},
-	};
+		}, util::take_active_subset};
 	use keyring::Sr25519Keyring;
 	use primitives::v1::{BlockNumber, ValidatorId, ValidatorIndex};
 
