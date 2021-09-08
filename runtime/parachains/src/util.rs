@@ -46,7 +46,9 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 /// First item in pair will be all items in set have indeces found in the `active` indices set (in
 /// the order of the `active` vec, the second item will contain the rest, in the original order.
 ///
-/// split_active_subset(active.into_iter().collect(), all).0 == take_active_subset(active, all)
+/// ```ignore
+///		split_active_subset(active.into_iter().collect(), all).0 == take_active_subset(active, all)
+/// ```
 pub fn split_active_subset<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> (Vec<T>, Vec<T>) {
 	let active_set: BTreeSet<_> = active.iter().cloned().collect();
 	// active result has ordering of active set.
