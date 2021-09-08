@@ -238,7 +238,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			)*
 
 			/// Complete the construction and create the overseer type.
-			pub fn build(mut self) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty> {
+			pub fn build(self) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty> {
 				let connector = #connector ::default();
 				self.build_with_connector(connector)
 			}
@@ -317,7 +317,6 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 							#channel_name_tx,
 							signal_tx,
 							unbounded_meter,
-							channels_out.clone(),
 							ctx,
 							#subsystem_name,
 							&mut running_subsystems,
@@ -365,9 +364,6 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let support_crate = info.support_crate_name();
 
 	let ts = quote! {
-
-		use #support_crate ::FutureExt as _;
-
 		/// Task kind to launch.
 		pub trait TaskKind {
 			/// Spawn a task, it depends on the implementer if this is blocking or not.
@@ -397,8 +393,6 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			signal_tx: #support_crate ::metered::MeteredSender< #signal >,
 			// meter for the unbounded channel
 			unbounded_meter: #support_crate ::metered::Meter,
-			// connection to the subsystems
-			channels_out: ChannelsOut,
 			ctx: Ctx,
 			s: SubSys,
 			futures: &mut #support_crate ::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,

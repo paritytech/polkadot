@@ -94,8 +94,6 @@ pub(crate) fn impl_channels_out_struct(info: &OverseerInfo) -> Result<proc_macro
 				signals_received: usize,
 				message: #message_wrapper,
 			) {
-				use ::std::sync::mpsc::TrySendError;
-
 				let res: ::std::result::Result<_, _> = match message {
 				#(
 					#message_wrapper :: #consumes_variant (inner) => {
