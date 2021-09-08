@@ -365,7 +365,7 @@ mod tests {
 			);
 			assert_eq!(
 				session.assignment_keys,
-				take_active_subset_and_inactive(&active_set, &unscrambled_assignment),
+				take_active_subset(&active_set, &unscrambled_assignment),
 			);
 		})
 	}
