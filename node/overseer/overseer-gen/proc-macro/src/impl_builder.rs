@@ -415,7 +415,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		.zip(consumes.iter())
 	{
 		let replace1 = quote! {
-			/// Replace a subsystem by another impl.
+			/// Replace a subsystem by another implementation for the
+			/// consumable message type.
 			pub fn #subsystem_name_replace_with < NEW, E, F >
 			(self, gen_replacement_fn: F) -> #builder #modified_generics
 			where
