@@ -24,7 +24,7 @@
 
 use color_eyre::eyre;
 use polkadot_cli::{
-	create_default_subsystems,
+	prepared_overseer_builder,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
 		OverseerGen, OverseerGenArgs, ParachainHost, ProvideRuntimeApi, SpawnNamed,
@@ -94,16 +94,11 @@ impl OverseerGen for BehaveMaleficient {
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
-		let spawner = args.spawner.clone();
-		let leaves = args.leaves.clone();
-		let runtime_client = args.runtime_client.clone();
-		let registry = args.registry.clone();
 		let candidate_validation_config = args.candidate_validation_config.clone();
-		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
-			// create the filtered subsystem
-			|orig: CandidateValidationSubsystem| {
-				InterceptedSubsystem::new(
+
+		prepared_overseer_builder(args)?
+			.replace_candidate_validation(|orig: CandidateValidationSubsystem| {
+				FilteredSubsystem::new(
 					CandidateValidationSubsystem::with_config(
 						candidate_validation_config,
 						orig.metrics,
@@ -111,10 +106,8 @@ impl OverseerGen for BehaveMaleficient {
 					),
 					Skippy::default(),
 				)
-			},
-		);
-
-		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner, connector)
+			})?
+			.build()
 			.map_err(|e| e.into())
 	}
 }

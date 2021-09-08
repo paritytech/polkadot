@@ -71,7 +71,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let subsystem_name_replace_with = &info
 		.subsystem_names_without_wip()
 		.iter()
-		.map(|subsystem_name| format_ident!("replace_{}_with", subsystem_name))
+		.map(|subsystem_name| format_ident!("replace_{}", subsystem_name))
 		.collect::<Vec<_>>();
 
 	let builder_generic_ty = &info.builder_generic_types();

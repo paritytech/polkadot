@@ -32,7 +32,9 @@ use polkadot_primitives::v1::{
 	ValidatorIndex,
 };
 
-use crate::{self as overseer, gen::Delay, HeadSupportsParachains, Overseer, OverseerConnector};
+use crate::{
+	self as overseer, dummy::dummy_overseer_builder, gen::Delay, HeadSupportsParachains, Overseer,
+};
 use metered_channel as metered;
 
 use assert_matches::assert_matches;
@@ -159,9 +161,10 @@ fn overseer_works() {
 
 		let mut s1_rx = s1_rx.fuse();
 		let mut s2_rx = s2_rx.fuse();
-
-		let all_subsystems = AllSubsystems::<()>::dummy()
+		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
+			.unwrap()
 			.replace_candidate_validation(move |_| TestSubsystem1(s1_tx))
+<<<<<<< HEAD
 			.replace_candidate_backing(move |_| TestSubsystem2(s2_tx));
 
 		let (overseer, handle) = Overseer::new(
@@ -173,6 +176,11 @@ fn overseer_works() {
 			OverseerConnector::default(),
 		)
 		.unwrap();
+=======
+			.replace_candidate_backing(move |_| TestSubsystem2(s2_tx))
+			.build()
+			.unwrap();
+>>>>>>> 9295e7885f (adjust tests, minor fixes)
 		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run().fuse();
 
@@ -226,17 +234,15 @@ fn overseer_metrics_work() {
 		let third_block =
 			BlockInfo { hash: third_block_hash, parent_hash: second_block_hash, number: 3 };
 
-		let all_subsystems = AllSubsystems::<()>::dummy();
 		let registry = prometheus::Registry::new();
-		let (overseer, handle) = Overseer::new(
-			vec![first_block],
-			all_subsystems,
-			Some(&registry),
-			MockSupportsParachains,
-			spawner,
-			OverseerConnector::default(),
-		)
-		.unwrap();
+		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, Some(registry))
+			.unwrap()
+			.active_leaves(Default::default())
+			.leaves(vec![first_block])
+			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+			.build()
+			.unwrap();
+
 		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run().fuse();
 
@@ -286,17 +292,14 @@ fn overseer_ends_on_subsystem_exit() {
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	executor::block_on(async move {
-		let all_subsystems =
-			AllSubsystems::<()>::dummy().replace_candidate_backing(|_| ReturnOnStart);
-		let (overseer, _handle) = Overseer::new(
-			vec![],
-			all_subsystems,
-			None,
-			MockSupportsParachains,
-			spawner,
-			OverseerConnector::default(),
-		)
-		.unwrap();
+		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
+			.unwrap()
+			.replace_candidate_backing(|_| ReturnOnStart)
+			.active_leaves(Default::default())
+			.leaves(vec![])
+			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+			.build()
+			.unwrap();
 
 		overseer.run().await.unwrap();
 	})
@@ -394,8 +397,11 @@ fn overseer_start_stop_works() {
 
 		let (tx_5, mut rx_5) = metered::channel(64);
 		let (tx_6, mut rx_6) = metered::channel(64);
-		let all_subsystems = AllSubsystems::<()>::dummy()
+
+		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
+			.unwrap()
 			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
+<<<<<<< HEAD
 			.replace_candidate_backing(move |_| TestSubsystem6(tx_6));
 		let (overseer, handle) = Overseer::new(
 			vec![first_block],
@@ -406,6 +412,14 @@ fn overseer_start_stop_works() {
 			OverseerConnector::default(),
 		)
 		.unwrap();
+=======
+			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
+			.active_leaves(Default::default())
+			.leaves(vec![first_block])
+			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+			.build()
+			.unwrap();
+>>>>>>> 9295e7885f (adjust tests, minor fixes)
 		let mut handle = Handle::new(handle);
 
 		let overseer_fut = overseer.run().fuse();
@@ -496,20 +510,17 @@ fn overseer_finalize_works() {
 		let (tx_5, mut rx_5) = metered::channel(64);
 		let (tx_6, mut rx_6) = metered::channel(64);
 
-		let all_subsystems = AllSubsystems::<()>::dummy()
-			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
-			.replace_candidate_backing(move |_| TestSubsystem6(tx_6));
-
 		// start with two forks of different height.
-		let (overseer, handle) = Overseer::new(
-			vec![first_block, second_block],
-			all_subsystems,
-			None,
-			MockSupportsParachains,
-			spawner,
-			OverseerConnector::default(),
-		)
-		.unwrap();
+
+		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
+			.unwrap()
+			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
+			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
+			.active_leaves(Default::default())
+			.leaves(vec![first_block, second_block])
+			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+			.build()
+			.unwrap();
 		let mut handle = Handle::new(handle);
 
 		let overseer_fut = overseer.run().fuse();
@@ -592,9 +603,15 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 
 		let (tx_5, mut rx_5) = metered::channel(64);
 
-		let all_subsystems =
-			AllSubsystems::<()>::dummy().replace_candidate_backing(move |_| TestSubsystem6(tx_5));
+		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
+			.unwrap()
+			.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
+			.active_leaves(vec![imported_block, finalized_block])
+			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+			.build()
+			.unwrap();
 
+<<<<<<< HEAD
 		let (overseer, handle) = Overseer::new(
 			Vec::new(),
 			all_subsystems,
@@ -604,6 +621,8 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 			OverseerConnector::default(),
 		)
 		.unwrap();
+=======
+>>>>>>> 9295e7885f (adjust tests, minor fixes)
 		let mut handle = Handle::new(handle);
 
 		let overseer_fut = overseer.run().fuse();
@@ -854,6 +873,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			msgs_received.clone(),
 		);
 
+<<<<<<< HEAD
 		let all_subsystems = AllSubsystems {
 			candidate_validation: subsystem.clone(),
 			candidate_backing: subsystem.clone(),
@@ -887,6 +907,39 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			OverseerConnector::default(),
 		)
 		.unwrap();
+=======
+		let (overseer, handle) = Overseer::builder()
+			.candidate_validation(subsystem.clone())
+			.candidate_backing(subsystem.clone())
+			.collation_generation(subsystem.clone())
+			.collator_protocol(subsystem.clone())
+			.statement_distribution(subsystem.clone())
+			.availability_distribution(subsystem.clone())
+			.availability_recovery(subsystem.clone())
+			.bitfield_signing(subsystem.clone())
+			.bitfield_distribution(subsystem.clone())
+			.provisioner(subsystem.clone())
+			.runtime_api(subsystem.clone())
+			.availability_store(subsystem.clone())
+			.network_bridge(subsystem.clone())
+			.chain_api(subsystem.clone())
+			.approval_distribution(subsystem.clone())
+			.approval_voting(subsystem.clone())
+			.gossip_support(subsystem.clone())
+			.dispute_coordinator(subsystem.clone())
+			.dispute_participation(subsystem.clone())
+			.dispute_distribution(subsystem.clone())
+			.chain_selection(subsystem.clone())
+			.leaves(Default::default())
+			.active_leaves(Default::default())
+			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+			.supports_parachains(MockSupportsParachains)
+			.spawner(spawner)
+			.metrics(Metrics::default())
+			.build()
+			.unwrap();
+
+>>>>>>> 9295e7885f (adjust tests, minor fixes)
 		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run().fuse();
 

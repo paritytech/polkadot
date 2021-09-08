@@ -62,7 +62,6 @@
 use std::{
 	collections::{hash_map, HashMap},
 	fmt::{self, Debug},
-	iter::FromIterator,
 	pin::Pin,
 	sync::Arc,
 	time::Duration,
@@ -90,18 +89,13 @@ pub use polkadot_node_subsystem_types::{
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
 };
 
-/// Test helper supplements.
+pub mod metrics;
+pub use self::metrics::{Metrics as OverseerMetrics};
+
+/// A dummy subsystem, mostly useful for placeholders and tests.
 pub mod dummy;
 pub use self::dummy::DummySubsystem;
 
-// TODO legacy, to be deleted, left for easier integration
-// TODO https://github.com/paritytech/polkadot/issues/3427
-mod subsystems;
-pub use self::subsystems::AllSubsystems;
-
-pub mod metrics;
-
-use self::metrics::{Metrics as OverseerMetrics};
 pub use polkadot_node_metrics::{
 	metrics::{prometheus, Metrics as MetricsTrait},
 	Metronome,
@@ -528,11 +522,9 @@ where
 	}
 	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
-	#[cfg(feature = "memory-stats")]
 	let memory_stats = MemoryAllocationTracker::new().expect("Jemalloc is the default allocator. qed");
 
 	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
-		#[cfg(feature = "memory-stats")]
 		match memory_stats.snapshot() {
 			Ok(memory_stats_snapshot) => {
 				tracing::trace!(target: LOG_TARGET, "memory_stats: {:?}", &memory_stats_snapshot);
@@ -564,130 +556,6 @@ where
 	SupportsParachains: HeadSupportsParachains,
 	S: SpawnNamed,
 {
-	/// Create a new [`Overseer`].
-	#[deprecated(note = "Use the `OverseerBuilder`-pattern instead.")]
-	pub fn new<
-		CV,
-		CB,
-		SD,
-		AD,
-		AR,
-		BS,
-		BD,
-		P,
-		RA,
-		AS,
-		NB,
-		CA,
-		CG,
-		CP,
-		ApD,
-		ApV,
-		GS,
-		DC,
-		DP,
-		DD,
-		CS,
-	>(
-		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<
-			CV,
-			CB,
-			SD,
-			AD,
-			AR,
-			BS,
-			BD,
-			P,
-			RA,
-			AS,
-			NB,
-			CA,
-			CG,
-			CP,
-			ApD,
-			ApV,
-			GS,
-			DC,
-			DP,
-			DD,
-			CS,
-		>,
-		prometheus_registry: Option<&prometheus::Registry>,
-		supports_parachains: SupportsParachains,
-		s: S,
-		connector: OverseerConnector,
-	) -> SubsystemResult<(Self, OverseerHandle)>
-	where
-		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
-		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, SubsystemError> + Send,
-		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, SubsystemError>
-			+ Send,
-		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>, SubsystemError>
-			+ Send,
-		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>, SubsystemError> + Send,
-		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>, SubsystemError> + Send,
-		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>, SubsystemError> + Send,
-		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>, SubsystemError> + Send,
-		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, SubsystemError> + Send,
-		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>, SubsystemError> + Send,
-		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>, SubsystemError> + Send,
-		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>, SubsystemError> + Send,
-		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>, SubsystemError> + Send,
-		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, SubsystemError> + Send,
-		ApD:
-			Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>, SubsystemError> + Send,
-		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, SubsystemError> + Send,
-		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError> + Send,
-		DC: Subsystem<OverseerSubsystemContext<DisputeCoordinatorMessage>, SubsystemError> + Send,
-		DP: Subsystem<OverseerSubsystemContext<DisputeParticipationMessage>, SubsystemError> + Send,
-		DD: Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError> + Send,
-		CS: Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError> + Send,
-		S: SpawnNamed,
-	{
-		let metrics = <OverseerMetrics as MetricsTrait>::register(prometheus_registry)?;
-
-		let (mut overseer, handle) = Self::builder()
-			.candidate_validation(all_subsystems.candidate_validation)
-			.candidate_backing(all_subsystems.candidate_backing)
-			.statement_distribution(all_subsystems.statement_distribution)
-			.availability_distribution(all_subsystems.availability_distribution)
-			.availability_recovery(all_subsystems.availability_recovery)
-			.bitfield_signing(all_subsystems.bitfield_signing)
-			.bitfield_distribution(all_subsystems.bitfield_distribution)
-			.provisioner(all_subsystems.provisioner)
-			.runtime_api(all_subsystems.runtime_api)
-			.availability_store(all_subsystems.availability_store)
-			.network_bridge(all_subsystems.network_bridge)
-			.chain_api(all_subsystems.chain_api)
-			.collation_generation(all_subsystems.collation_generation)
-			.collator_protocol(all_subsystems.collator_protocol)
-			.approval_distribution(all_subsystems.approval_distribution)
-			.approval_voting(all_subsystems.approval_voting)
-			.gossip_support(all_subsystems.gossip_support)
-			.dispute_coordinator(all_subsystems.dispute_coordinator)
-			.dispute_participation(all_subsystems.dispute_participation)
-			.dispute_distribution(all_subsystems.dispute_distribution)
-			.chain_selection(all_subsystems.chain_selection)
-			.leaves(Vec::from_iter(
-				leaves
-					.into_iter()
-					.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number)),
-			))
-			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
-			.active_leaves(Default::default())
-			.span_per_active_leaf(Default::default())
-			.activation_external_listeners(Default::default())
-			.supports_parachains(supports_parachains)
-			.metrics(metrics.clone())
-			.spawner(s)
-			.build_with_connector(connector)?;
-
-		spawn_metronome_metrics(&mut overseer, metrics)?;
-
-		Ok((overseer, handle))
-	}
-
 	/// Stop the overseer.
 	async fn stop(mut self) {
 		let _ = self.wait_terminate(OverseerSignal::Conclude, Duration::from_secs(1_u64)).await;
@@ -695,6 +563,9 @@ where
 
 	/// Run the `Overseer`.
 	pub async fn run(mut self) -> SubsystemResult<()> {
+		let metrics = self.metrics.clone();
+		spawn_metronome_metrics(&mut self, metrics)?;
+
 		// Notify about active leaves on startup before starting the loop
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
