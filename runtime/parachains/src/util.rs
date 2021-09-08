@@ -43,7 +43,7 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 
 /// Take an active subset of a set containing all validators.
 ///
-/// First item in pair will be all items in set have indeces found in the `activer` indices set (in
+/// First item in pair will be all items in set have indeces found in the `active` indices set (in
 /// the order of the `active` vec, the second item will contain the rest, in the original order.
 ///
 /// split_active_subset(active.into_iter().collect(), all).0 == take_active_subset(active, all)
