@@ -403,7 +403,8 @@ impl<T: Config> Pallet<T> {
 				config.ump_service_total_weight - weight_used
 			};
 
-			// dequeue the next message from the queue of the dispatchee
+			// attempt to process the next message from the queue of the dispatchee; if not beyond
+			// our remaining weight limit, then consume it.
 			let maybe_next = queue_cache.peek_front::<T>(dispatchee);
 			let became_empty = if let Some(upward_message) = maybe_next {
 				match T::UmpSink::process_upward_message(dispatchee, upward_message, max_weight) {
@@ -515,7 +516,7 @@ impl QueueCache {
 			} else if entry.consumed_count > 0 {
 				RelayDispatchQueues::<T>::insert(&para, &entry.queue[entry.consumed_count..]);
 				let count = (entry.queue.len() - entry.consumed_count) as u32;
-				let size = (entry.total_size as usize - entry.consumed_size) as u32;
+				let size = entry.total_size.saturating_sub(entry.consumed_size as u32);
 				RelayDispatchQueueSize::<T>::insert(&para, (count, size));
 			}
 		}
