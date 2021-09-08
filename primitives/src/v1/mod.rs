@@ -907,8 +907,11 @@ pub struct SessionInfo {
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment keys for validators.
 	///
-	/// NOTE: For assignment keys the same rule applies as for discovery keys. (First
-	/// `validators.len()` keys, will correspond to validators in `validators`.
+	/// NOTE: There might be more authorities in the current session, than validators participating
+	/// in parachain consensus. See
+	/// [max_validators](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
+	///
+	/// Therefore: assignment_keys.len() == validators.len() && validators.len() <= discovery_keys.len().
 	pub assignment_keys: Vec<AssignmentId>,
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by

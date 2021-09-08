@@ -21,7 +21,7 @@
 
 use crate::{
 	configuration, paras, scheduler, shared,
-	util::take_active_subset_and_inactive,
+	util::{take_active_subset, take_active_subset_and_inactive},
 };
 use frame_support::{pallet_prelude::*, traits::OneSessionHandler};
 use primitives::v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
@@ -124,7 +124,7 @@ impl<T: Config> Pallet<T> {
 		let new_session_info = SessionInfo {
 			validators, // these are from the notification and are thus already correct.
 			discovery_keys: take_active_subset_and_inactive(&active_set, &discovery_keys),
-			assignment_keys: take_active_subset_and_inactive(&active_set, &assignment_keys),
+			assignment_keys: take_active_subset(&active_set, &assignment_keys),
 			validator_groups,
 			n_cores,
 			zeroth_delay_tranche_width,
@@ -172,10 +172,15 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pal
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{configuration::HostConfiguration, initializer::SessionChangeNotification, mock::{
+	use crate::{
+		configuration::HostConfiguration,
+		initializer::SessionChangeNotification,
+		mock::{
 			new_test_ext, Configuration, MockGenesisConfig, Origin, ParasShared, SessionInfo,
 			System, Test,
-		}, util::take_active_subset};
+		},
+		util::take_active_subset,
+	};
 	use keyring::Sr25519Keyring;
 	use primitives::v1::{BlockNumber, ValidatorId, ValidatorIndex};
 
