@@ -17,7 +17,7 @@
 //! Version 1 of the Cross-Consensus Message format data structures.
 
 use super::v1::{Order as OldOrder, Response as OldResponse, Xcm as OldXcm};
-use crate::DoubleEncoded;
+use crate::{DoubleEncoded, GetWeight};
 use alloc::{vec, vec::Vec};
 use core::{
 	convert::{TryFrom, TryInto},
@@ -29,7 +29,9 @@ use parity_scale_codec::{self, Decode, Encode};
 
 mod traits;
 
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm};
+pub use traits::{
+	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
+};
 // These parts of XCM v1 have been unchanged in XCM v2, and are re-imported here.
 pub use super::v1::{
 	Ancestor, AncestorThen, AssetId, AssetInstance, BodyId, BodyPart, Fungibility,
@@ -127,7 +129,7 @@ pub mod prelude {
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
-			VERSION as XCM_VERSION,
+			XcmWeightInfo, VERSION as XCM_VERSION,
 		};
 	}
 	pub use super::{Instruction, Xcm};
@@ -666,6 +668,54 @@ impl<Call> Instruction<Call> {
 			SubscribeVersion { query_id, max_response_weight } =>
 				SubscribeVersion { query_id, max_response_weight },
 			UnsubscribeVersion => UnsubscribeVersion,
+		}
+	}
+}
+
+// TODO: Automate Generation
+impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
+	fn weight(&self) -> Weight {
+		use Instruction::*;
+		match self {
+			WithdrawAsset(assets) => W::withdraw_asset(assets),
+			ReserveAssetDeposited(assets) => W::reserve_asset_deposited(assets),
+			ReceiveTeleportedAsset(assets) => W::receive_teleported_asset(assets),
+			QueryResponse { query_id, response, max_weight } =>
+				W::query_response(query_id, response, max_weight),
+			TransferAsset { assets, beneficiary } => W::transfer_asset(assets, beneficiary),
+			TransferReserveAsset { assets, dest, xcm } =>
+				W::transfer_reserve_asset(&assets, dest, xcm),
+			Transact { origin_type, require_weight_at_most, call } =>
+				W::transact(origin_type, require_weight_at_most, call),
+			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				W::hrmp_new_channel_open_request(sender, max_message_size, max_capacity),
+			HrmpChannelAccepted { recipient } => W::hrmp_channel_accepted(recipient),
+			HrmpChannelClosing { initiator, sender, recipient } =>
+				W::hrmp_channel_closing(initiator, sender, recipient),
+			ClearOrigin => W::clear_origin(),
+			DescendOrigin(who) => W::descend_origin(who),
+			ReportError { query_id, dest, max_response_weight } =>
+				W::report_error(query_id, dest, max_response_weight),
+			DepositAsset { assets, max_assets, beneficiary } =>
+				W::deposit_asset(assets, max_assets, beneficiary),
+			DepositReserveAsset { assets, max_assets, dest, xcm } =>
+				W::deposit_reserve_asset(assets, max_assets, dest, xcm),
+			ExchangeAsset { give, receive } => W::exchange_asset(give, receive),
+			InitiateReserveWithdraw { assets, reserve, xcm } =>
+				W::initiate_reserve_withdraw(assets, reserve, xcm),
+			InitiateTeleport { assets, dest, xcm } => W::initiate_teleport(assets, dest, xcm),
+			QueryHolding { query_id, dest, assets, max_response_weight } =>
+				W::query_holding(query_id, dest, assets, max_response_weight),
+			BuyExecution { fees, weight_limit } => W::buy_execution(fees, weight_limit),
+			RefundSurplus => W::refund_surplus(),
+			SetErrorHandler(xcm) => W::set_error_handler(xcm),
+			SetAppendix(xcm) => W::set_appendix(xcm),
+			ClearError => W::clear_error(),
+			ClaimAsset { assets, ticket } => W::claim_asset(assets, ticket),
+			Trap(code) => W::trap(code),
+			SubscribeVersion { query_id, max_response_weight } =>
+				W::subscribe_version(query_id, max_response_weight),
+			UnsubscribeVersion => W::unsubscribe_version(),
 		}
 	}
 }
