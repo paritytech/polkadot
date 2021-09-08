@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{AllMessages, OverseerSignal};
+use crate::{prometheus::Registry, AllMessages, MetricsTrait, OverseerSignal};
 use polkadot_node_subsystem_types::errors::SubsystemError;
 use polkadot_overseer_gen::{FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext};
 
@@ -51,4 +51,80 @@ where
 
 		SpawnedSubsystem { name: "dummy-subsystem", future }
 	}
+}
+
+use super::*;
+
+/// Create an overseer with all subsystem being `DummySubsystem`.
+///
+/// Preferred way of initializing a dummy overseer for subsystem tests.
+#[allow(dead_code)]
+pub fn dummy_overseer_builder<
+	'a,
+	Spawner: SpawnNamed + Send + Sync + 'static,
+	SupportsParachains: HeadSupportsParachains,
+>(
+	spawner: Spawner,
+	supports_parachains: SupportsParachains,
+	registry: Option<&'a Registry>,
+) -> Result<
+	OverseerBuilder<
+		Spawner,
+		SupportsParachains,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+	>,
+	SubsystemError,
+> {
+	let metrics: Metrics = <Metrics as MetricsTrait>::register(registry)?;
+
+	let builder = Overseer::builder()
+		.availability_distribution(DummySubsystem)
+		.availability_recovery(DummySubsystem)
+		.availability_store(DummySubsystem)
+		.bitfield_distribution(DummySubsystem)
+		.bitfield_signing(DummySubsystem)
+		.candidate_backing(DummySubsystem)
+		.candidate_validation(DummySubsystem)
+		.chain_api(DummySubsystem)
+		.collation_generation(DummySubsystem)
+		.collator_protocol(DummySubsystem)
+		.network_bridge(DummySubsystem)
+		.provisioner(DummySubsystem)
+		.runtime_api(DummySubsystem)
+		.statement_distribution(DummySubsystem)
+		.approval_distribution(DummySubsystem)
+		.approval_voting(DummySubsystem)
+		.gossip_support(DummySubsystem)
+		.dispute_coordinator(DummySubsystem)
+		.dispute_participation(DummySubsystem)
+		.dispute_distribution(DummySubsystem)
+		.chain_selection(DummySubsystem)
+		.activation_external_listeners(Default::default())
+		.span_per_active_leaf(Default::default())
+		.active_leaves(Default::default())
+		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+		.spawner(spawner)
+		.metrics(metrics)
+		.supports_parachains(supports_parachains);
+	Ok(builder)
 }
