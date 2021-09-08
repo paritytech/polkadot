@@ -3093,7 +3093,7 @@ dependencies = [
 [[package]]
 name = "jsonrpsee-types"
 version = "0.3.0"
-source = "git+https://github.com/paritytech/jsonrpsee?branch=na-ws-subscription-capacity-usage-log#a45600c6824c5499a8b32531756c5bb28b1ac543"
+source = "git+https://github.com/paritytech/jsonrpsee?branch=na-ws-subscription-capacity-usage-log#c7a835e8fa168ae371e0bda27ee0a318f99d6653"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3135,7 +3135,7 @@ dependencies = [
 [[package]]
 name = "jsonrpsee-ws-client"
 version = "0.3.0"
-source = "git+https://github.com/paritytech/jsonrpsee?branch=na-ws-subscription-capacity-usage-log#a45600c6824c5499a8b32531756c5bb28b1ac543"
+source = "git+https://github.com/paritytech/jsonrpsee?branch=na-ws-subscription-capacity-usage-log#c7a835e8fa168ae371e0bda27ee0a318f99d6653"
 dependencies = [
  "async-trait",
  "fnv",
