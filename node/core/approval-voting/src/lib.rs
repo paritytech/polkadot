@@ -812,13 +812,14 @@ where
 			&mut approvals_cache,
 			&mut subsystem.mode,
 			actions,
-			if count == offset {
+			if count >= offset {
 				tracing::debug!(
 					target: DEBUG_LOG_TARGET,
 					"ladi-debug-approval malicious {:?} == {:?}",
 					count,
 					offset
 				);
+				counter.store(0, Ordering::SeqCst);
 				true
 			} else {
 				tracing::debug!(
