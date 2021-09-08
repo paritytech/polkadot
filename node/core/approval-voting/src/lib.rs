@@ -783,6 +783,7 @@ where
 						actions.append(&mut approvals);
 					}
 					ApprovalOutcome::Malicious((candidate, session_index)) => {
+						counter.store(0, Ordering::SeqCst);
 						let sender = ctx.sender();
 						sender
 							.send_message(
@@ -820,7 +821,6 @@ where
 					count,
 					offset
 				);
-				counter.store(0, Ordering::SeqCst);
 				true
 			} else {
 				tracing::debug!(
