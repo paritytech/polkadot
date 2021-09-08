@@ -72,7 +72,6 @@ members = [
 	"node/overseer",
 	"node/overseer/overseer-gen",
 	"node/overseer/overseer-gen/proc-macro",
-	"node/overseer/all-subsystems-gen",
 	"node/malus",
 	"node/primitives",
 	"node/service",
