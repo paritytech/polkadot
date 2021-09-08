@@ -166,7 +166,7 @@ fn overseer_works() {
 
 		let (overseer, handle) =
 			Overseer::new(vec![], all_subsystems, None, MockSupportsParachains, spawner).unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run().fuse();
 
 		pin_mut!(overseer_fut);
@@ -229,7 +229,7 @@ fn overseer_metrics_work() {
 			spawner,
 		)
 		.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run().fuse();
 
 		pin_mut!(overseer_fut);
@@ -385,7 +385,7 @@ fn overseer_start_stop_works() {
 		let (overseer, handle) =
 			Overseer::new(vec![first_block], all_subsystems, None, MockSupportsParachains, spawner)
 				.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle::new(handle);
 
 		let overseer_fut = overseer.run().fuse();
 		pin_mut!(overseer_fut);
@@ -488,7 +488,7 @@ fn overseer_finalize_works() {
 			spawner,
 		)
 		.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle::new(handle);
 
 		let overseer_fut = overseer.run().fuse();
 		pin_mut!(overseer_fut);
@@ -576,7 +576,7 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 		let (overseer, handle) =
 			Overseer::new(Vec::new(), all_subsystems, None, MockSupportsParachains, spawner)
 				.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle::new(handle);
 
 		let overseer_fut = overseer.run().fuse();
 		pin_mut!(overseer_fut);
@@ -851,7 +851,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 		};
 		let (overseer, handle) =
 			Overseer::new(vec![], all_subsystems, None, MockSupportsParachains, spawner).unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run().fuse();
 
 		pin_mut!(overseer_fut);

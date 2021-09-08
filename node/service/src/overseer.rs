@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{AuthorityDiscoveryApi, Block, Error, Hash, IsCollator, Registry, SpawnNamed};
+use lru::LruCache;
 use polkadot_availability_distribution::IncomingRequestReceivers;
 use polkadot_node_core_approval_voting::Config as ApprovalVotingConfig;
 use polkadot_node_core_av_store::Config as AvailabilityConfig;
@@ -22,7 +23,9 @@ use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig
 use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
-use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerConnector, OverseerHandle};
+use polkadot_overseer::{
+	AllSubsystems, BlockInfo, MetricsTrait, Overseer, OverseerConnector, OverseerHandle,
+};
 use polkadot_primitives::v1::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
@@ -103,6 +106,8 @@ where
 ///
 /// A convenience for usage with malus, to avoid
 /// repetitive code across multiple behavior strain implementations.
+#[deprecated(note = "Use the `OverseerBuilder`-pattern instead.")]
+#[allow(dead_code)]
 pub fn create_default_subsystems<'a, Spawner, RuntimeClient>(
 	OverseerGenArgs {
 		keystore,
@@ -278,6 +283,8 @@ pub trait OverseerGen {
 	// as consequence make this rather annoying to implement and use.
 }
 
+use polkadot_overseer::KNOWN_LEAVES_CACHE_SIZE;
+
 /// The regular set of subsystems.
 pub struct RealOverseerGen;
 
@@ -317,6 +324,9 @@ impl OverseerGen for RealOverseerGen {
 			chain_selection_config,
 			dispute_coordinator_config,
 		} = args;
+
+		let metrics: polkadot_overseer::Metrics =
+			<polkadot_overseer::Metrics as MetricsTrait>::register(registry)?;
 
 		Overseer::builder()
 			.availability_distribution(AvailabilityDistributionSubsystem::new(
@@ -415,6 +425,12 @@ impl OverseerGen for RealOverseerGen {
 					.into_iter()
 					.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number)),
 			))
+			.activation_external_listeners(Default::default())
+			.span_per_active_leaf(Default::default())
+			.active_leaves(Default::default())
+			.supports_parachains(runtime_client)
+			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+			.metrics(metrics)
 			.spawner(spawner)
 			.build_with_connector(connector)
 			.map_err(|e| e.into())

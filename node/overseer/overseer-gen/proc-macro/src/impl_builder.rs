@@ -244,7 +244,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 
 			/// Complete the construction and create the overseer type based on an existing `connector`.
-			pub fn build_with_connector(mut self, connector: #connector) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty>
+			pub fn build_with_connector(self, connector: #connector) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty>
 			{
 				let #connector {
 					handle: events_tx,
