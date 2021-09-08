@@ -90,6 +90,12 @@ default:
 #### Vault secrets
 .vault-secrets:                    &vault-secrets
   secrets:
+    AWS_ACCESS_KEY_ID:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_ACCESS_KEY_ID@kv
+      file:                        false
+    AWS_SECRET_ACCESS_KEY:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_SECRET_ACCESS_KEY@kv
+      file:                        false
     DOCKER_HUB_USER:
       vault:                       cicd/gitlab/parity/DOCKER_HUB_USER@kv
       file:                        false
@@ -432,17 +438,11 @@ publish-s3-release:                &publish-s3
     - job:                         test-build-linux-stable
       artifacts:                   true
   <<:                              *kubernetes-env
+  <<:                              *vault-secrets
   image:                           paritytech/awscli:latest
   variables:
     GIT_STRATEGY:                  none
     PREFIX:                        "builds/polkadot/${ARCH}-${DOCKER_OS}"
-  secrets:
-    AWS_ACCESS_KEY_ID:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_ACCESS_KEY_ID@kv
-      file:                        false
-    AWS_SECRET_ACCESS_KEY:
-      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_SECRET_ACCESS_KEY@kv
-      file:                        false
   rules:
     # publishing binaries nightly
     - if: $CI_PIPELINE_SOURCE == "schedule"
