@@ -369,7 +369,7 @@ mod tests {
 	use super::*;
 	use futures::executor::block_on;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
-	use polkadot_overseer::{AllSubsystems, Handle, HeadSupportsParachains, Overseer};
+	use polkadot_overseer::{Handle, HeadSupportsParachains, Overseer};
 	use polkadot_primitives::v1::Hash;
 
 	struct AlwaysSupportsParachains;
@@ -383,16 +383,12 @@ mod tests {
 	fn forward_subsystem_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
 		let (tx, rx) = mpsc::channel(2);
-		let all_subsystems =
-			AllSubsystems::<()>::dummy().replace_collator_protocol(|_| ForwardSubsystem(tx));
-		let (overseer, handle) = Overseer::new(
-			Vec::new(),
-			all_subsystems,
-			None,
-			AlwaysSupportsParachains,
-			spawner.clone(),
-		)
-		.unwrap();
+		let (overseer, handle) =
+			dummy::dummy_overseer_builder(spawner.clone(), AlwaysSupportsParachains, None)
+				.unwrap()
+				.replace_collator_protocol(|_| ForwardSubsystem(tx))
+				.unwrap();
+
 		let mut handle = Handle(handle);
 
 		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());

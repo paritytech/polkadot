@@ -16,6 +16,8 @@
 
 #![deny(unused_crate_dependencies)]
 
+use std::io::Write;
+
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{parse2, Result};
@@ -97,6 +99,23 @@ pub(crate) fn impl_overseer_gen(
 
 	additive.extend(impl_message_wrapper_enum(&info)?);
 	additive.extend(impl_dispatch(&info));
+
+	let cwd = std::env::current_dir().unwrap();
+	let path: std::path::PathBuf = cwd.join("node/overseer/src/expanded.rs");
+	let mut f = std::fs::OpenOptions::new()
+		.write(true)
+		.create(true)
+		.truncate(true)
+		.open(&path)
+		.unwrap();
+	f.write_all(&mut format!("// {:?} \n{}", std::time::SystemTime::now(), additive).as_bytes())
+		.unwrap();
+	std::process::Command::new("rustfmt")
+		.arg("--edition=2018")
+		.arg(&path)
+		.current_dir(cwd)
+		.spawn()
+		.unwrap();
 
 	Ok(additive)
 }
