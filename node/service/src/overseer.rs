@@ -24,12 +24,15 @@ use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
 #[cfg(any(feature = "malus", test))]
-pub use polkadot_overseer::dummy::DummySubsystem;
 pub use polkadot_overseer::{
-	metrics::Metrics as OverseerMetrics,
-	BlockInfo, MetricsTrait, Overseer,
-	OverseerBuilder, OverseerConnector, OverseerHandle,
+	dummy::{dummy_overseer_builder, DummySubsystem},
+	HeadSupportsParachains,
 };
+use polkadot_overseer::{
+	metrics::{Metrics as OverseerMetrics},
+	BlockInfo, MetricsTrait, Overseer, OverseerBuilder, OverseerConnector, OverseerHandle,
+};
+
 use polkadot_primitives::v1::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;

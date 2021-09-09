@@ -401,9 +401,11 @@ mod tests {
 		let mut handle = Handle::new(handle);
 =======
 		let (overseer, handle) =
-			dummy::dummy_overseer_builder(spawner.clone(), AlwaysSupportsParachains, None)
+			dummy_overseer_builder(spawner.clone(), AlwaysSupportsParachains, None)
 				.unwrap()
 				.replace_collator_protocol(|_| ForwardSubsystem(tx))
+				.leaves(vec![])
+				.build()
 				.unwrap();
 
 		let mut handle = Handle(handle);
