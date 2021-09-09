@@ -16,9 +16,13 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 log = { version = "0.4.14", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
 
 [features]
 default = ["std"]
+runtime-benchmarks = [
+	"frame-benchmarking",
+]
 std = [
 	"parity-scale-codec/std",
 	"xcm/std",
