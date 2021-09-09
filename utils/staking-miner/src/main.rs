@@ -328,14 +328,7 @@ frame_support::parameter_types! {
 	/// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI
 	/// config.
 	pub static BalanceIterations: u32 = 10;
-}
-
-/// Balancing configuration for for the solution algorithm. See [`Solvers`] for config options.
-struct Balancing;
-impl Get<Option<(usize, ExtendedBalance)>> for Balancing {
-	fn get() -> Option<(usize, ExtendedBalance)> {
-		Some((BalanceIterations::get() as usize, 0))
-	}
+	pub static Balacing: (usize, ExtendedBalance) = (BalanceIterations::get(), 0);
 }
 
 #[derive(Debug, Clone, StructOpt)]
