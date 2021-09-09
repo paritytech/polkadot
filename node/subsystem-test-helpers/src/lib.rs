@@ -369,7 +369,7 @@ mod tests {
 	use super::*;
 	use futures::executor::block_on;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
-	use polkadot_overseer::{Handle, HeadSupportsParachains, Overseer};
+	use polkadot_overseer::{dummy::dummy_overseer_builder, Handle, HeadSupportsParachains};
 	use polkadot_primitives::v1::Hash;
 
 	struct AlwaysSupportsParachains;
@@ -384,9 +384,11 @@ mod tests {
 		let spawner = sp_core::testing::TaskExecutor::new();
 		let (tx, rx) = mpsc::channel(2);
 		let (overseer, handle) =
-			dummy::dummy_overseer_builder(spawner.clone(), AlwaysSupportsParachains, None)
+			dummy_overseer_builder(spawner.clone(), AlwaysSupportsParachains, None)
 				.unwrap()
 				.replace_collator_protocol(|_| ForwardSubsystem(tx))
+				.leaves(vec![])
+				.build()
 				.unwrap();
 
 		let mut handle = Handle(handle);

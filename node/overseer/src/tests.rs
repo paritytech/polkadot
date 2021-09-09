@@ -42,6 +42,15 @@ use sp_core::crypto::Pair as _;
 
 use super::*;
 
+fn block_info_to_pair(blocks: impl IntoIterator<Item = BlockInfo>) -> Vec<(Hash, BlockNumber)> {
+	use std::iter::FromIterator;
+	Vec::from_iter(
+		blocks
+			.into_iter()
+			.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number)),
+	)
+}
+
 type SpawnedSubsystem = crate::gen::SpawnedSubsystem<SubsystemError>;
 
 struct TestSubsystem1(metered::MeteredSender<usize>);
@@ -221,13 +230,12 @@ fn overseer_metrics_work() {
 			BlockInfo { hash: third_block_hash, parent_hash: second_block_hash, number: 3 };
 
 		let registry = prometheus::Registry::new();
-		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
-			.unwrap()
-			.active_leaves(Default::default())
-			.leaves(vec![first_block])
-			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
-			.build()
-			.unwrap();
+		let (overseer, handle) =
+			dummy_overseer_builder(spawner, MockSupportsParachains, Some(&registry))
+				.unwrap()
+				.leaves(block_info_to_pair(vec![first_block]))
+				.build()
+				.unwrap();
 
 		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run().fuse();
@@ -256,13 +264,20 @@ fn overseer_metrics_work() {
 
 fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64> {
 	let gather = registry.gather();
-	let gather = &gather[2..];
-	assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
-	assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
-	assert_eq!(gather[2].get_name(), "parachain_messages_relayed_total");
-	let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
-	let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
-	let relayed = gather[2].get_metric()[0].get_counter().get_value() as u64;
+	assert!(!gather.is_empty(), "Gathered metrics are not empty. qed");
+	let extract = |name: &str| -> u64 {
+		gather
+			.iter()
+			.find(|&mf| dbg!(mf.get_name()) == dbg!(name))
+			.expect(&format!("Must contain `{}` metric", name))
+			.get_metric()[0]
+			.get_counter()
+			.get_value() as u64
+	};
+
+	let activated = extract("parachain_activated_heads_total");
+	let deactivated = extract("parachain_deactivated_heads_total");
+	let relayed = extract("parachain_messages_relayed_total");
 	let mut result = HashMap::new();
 	result.insert("activated", activated);
 	result.insert("deactivated", deactivated);
@@ -278,12 +293,9 @@ fn overseer_ends_on_subsystem_exit() {
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	executor::block_on(async move {
-		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
+		let (overseer, _handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
 			.unwrap()
 			.replace_candidate_backing(|_| ReturnOnStart)
-			.active_leaves(Default::default())
-			.leaves(vec![])
-			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 			.build()
 			.unwrap();
 
@@ -388,9 +400,7 @@ fn overseer_start_stop_works() {
 			.unwrap()
 			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
 			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
-			.active_leaves(Default::default())
-			.leaves(vec![first_block])
-			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+			.leaves(block_info_to_pair(vec![first_block]))
 			.build()
 			.unwrap();
 		let mut handle = Handle::new(handle);
@@ -489,9 +499,7 @@ fn overseer_finalize_works() {
 			.unwrap()
 			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
 			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
-			.active_leaves(Default::default())
-			.leaves(vec![first_block, second_block])
-			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+			.leaves(block_info_to_pair(vec![first_block, second_block]))
 			.build()
 			.unwrap();
 		let mut handle = Handle::new(handle);
@@ -579,8 +587,6 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
 			.unwrap()
 			.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
-			.active_leaves(vec![imported_block, finalized_block])
-			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 			.build()
 			.unwrap();
 
@@ -857,7 +863,9 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			.dispute_distribution(subsystem.clone())
 			.chain_selection(subsystem.clone())
 			.leaves(Default::default())
+			.span_per_active_leaf(Default::default())
 			.active_leaves(Default::default())
+			.activation_external_listeners(Default::default())
 			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 			.supports_parachains(MockSupportsParachains)
 			.spawner(spawner)

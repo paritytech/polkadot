@@ -380,15 +380,11 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 ///      fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
 /// }
 /// let spawner = sp_core::testing::TaskExecutor::new();
-/// let all_subsystems = AllSubsystems::<()>::dummy()
-///		.replace_candidate_validation(|_| ValidationSubsystem);
-/// let (overseer, _handle) = Overseer::new(
-///     vec![],
-///     all_subsystems,
-///     None,
-///     AlwaysSupportsParachains,
-///     spawner,
-/// ).unwrap();
+/// let (overseer, _handle) = dummy_overseer_builder(spawner, AlwaysSupportsParachains, None)
+///		.unwrap()
+///		.replace_candidate_validation(|_| ValidationSubsystem)
+///		.build()
+///		.unwrap();
 ///
 /// let timer = Delay::new(Duration::from_millis(50)).fuse();
 ///

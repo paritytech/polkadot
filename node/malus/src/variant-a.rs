@@ -27,7 +27,8 @@ use polkadot_cli::{
 	prepared_overseer_builder,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
+		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
+		ProvideRuntimeApi, SpawnNamed,
 	},
 	Cli,
 };
@@ -72,6 +73,7 @@ struct BehaveMaleficient;
 impl OverseerGen for BehaveMaleficient {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
+		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
@@ -91,8 +93,8 @@ impl OverseerGen for BehaveMaleficient {
 					),
 					Skippy::default(),
 				)
-			})?
-			.build()
+			})
+			.build_with_connector(connector)
 			.map_err(|e| e.into())
 	}
 }

@@ -366,9 +366,9 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 				#(
 					let #baggage_name = self. #baggage_name .expect(
-						&format!("Baggage variable `{1}` of `{0}` ",
-							stringify!(#overseer_name),
-							stringify!( #baggage_name )
+						&format!("Baggage variable `{0}` of `{1}` must be set by the user!",
+							stringify!(#baggage_name),
+							stringify!(#overseer_name)
 						)
 					);
 				)*
@@ -417,7 +417,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		let replace1 = quote! {
 			/// Replace a subsystem by another implementation for the
 			/// consumable message type.
-			pub fn #subsystem_name_replace_with < NEW, E, F >
+			pub fn #subsystem_name_replace_with < NEW, F >
 			(self, gen_replacement_fn: F) -> #builder #modified_generics
 			where
 				#to_be_replaced_ty: 'static,

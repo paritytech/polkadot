@@ -28,7 +28,7 @@ pub use service::{
 };
 
 #[cfg(feature = "malus")]
-pub use service::create_default_subsystems;
+pub use service::overseer::{dummy_overseer_builder, prepared_overseer_builder};
 
 #[cfg(feature = "cli")]
 pub use cli::*;
