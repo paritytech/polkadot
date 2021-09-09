@@ -45,6 +45,7 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
+use bridge_runtime_common::messages::{source::estimate_message_dispatch_and_delivery_fee, MessageBridge};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -1885,6 +1886,52 @@ sp_api::impl_runtime_apis! {
 
 		fn is_known_header(hash: bp_polkadot::Hash) -> bool {
 			BridgePolkadotGrandpa::is_known_header(hash)
+		}
+	}
+
+	impl bp_polkadot::ToPolkadotOutboundLaneApi<Block, Balance, polkadot_messages::ToPolkadotMessagePayload> for Runtime {
+		fn estimate_message_delivery_and_dispatch_fee(
+			_lane_id: bp_messages::LaneId,
+			payload: polkadot_messages::ToPolkadotMessagePayload,
+		) -> Option<Balance> {
+			estimate_message_dispatch_and_delivery_fee::<polkadot_messages::WithPolkadotMessageBridge>(
+				&payload,
+				polkadot_messages::WithPolkadotMessageBridge::RELAYER_FEE_PERCENT,
+			).ok()
+		}
+
+		fn message_details(
+			lane: bp_messages::LaneId,
+			begin: bp_messages::MessageNonce,
+			end: bp_messages::MessageNonce,
+		) -> Vec<bp_messages::MessageDetails<Balance>> {
+			bridge_runtime_common::messages_api::outbound_message_details::<
+				Runtime,
+				PolkadotMessagesInstance,
+				polkadot_messages::WithPolkadotMessageBridge,
+			>(lane, begin, end)
+		}
+
+		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgePolkadotMessages::outbound_latest_received_nonce(lane)
+		}
+
+		fn latest_generated_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgePolkadotMessages::outbound_latest_generated_nonce(lane)
+		}
+	}
+
+	impl bp_polkadot::FromPolkadotInboundLaneApi<Block> for Runtime {
+		fn latest_received_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgePolkadotMessages::inbound_latest_received_nonce(lane)
+		}
+
+		fn latest_confirmed_nonce(lane: bp_messages::LaneId) -> bp_messages::MessageNonce {
+			BridgePolkadotMessages::inbound_latest_confirmed_nonce(lane)
+		}
+
+		fn unrewarded_relayers_state(lane: bp_messages::LaneId) -> bp_messages::UnrewardedRelayersState {
+			BridgePolkadotMessages::inbound_unrewarded_relayers_state(lane)
 		}
 	}
 
