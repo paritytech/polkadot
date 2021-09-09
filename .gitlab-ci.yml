@@ -545,13 +545,13 @@ simnet-tests-parachains-smoketest:
   # For local tests with docker `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG`
   # can be replaced with `master` tag.
   before_script:
-    - echo "Simnet Tests Config
-        ${SIMNET_IMAGE_NAME} ${SIMNET_IMAGE_TAG}
-        ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
-        ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}
-        ${GH_DIR}
-        ${NETWORK_CONFIG}
-        "
+    - echo "Simnet Tests Config"
+    - echo "${SIMNET_IMAGE_NAME}"
+    - echo "${SIMNET_IMAGE_TAG}"
+    - echo "${PARACHAINS_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - echo "${NETWORK_CONFIG}"
   script:
     - /home/nonroot/simnet/scripts/run-test-environment-manager.sh
         --github-remote-dir="${GH_DIR}"
@@ -577,6 +577,7 @@ simnet-tests-malus-dispute-valid:
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-malus-image
+    - job:                         publish-adder-collator-image
 
   variables:
     GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx/node/malus/integrationtests'
@@ -590,14 +591,17 @@ simnet-tests-malus-dispute-valid:
   # For local tests with docker `$MALUS_IMAGE_TAG` can be replaced with `master` tag.
 
   before_script:
-    - echo "Simnet Tests Config
-        ${SIMNET_IMAGE_NAME} ${SIMNET_IMAGE_TAG}
-        ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
-        ${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}
-        ${GH_DIR}
-        ${NETWORK_CONFIG}
-        ${FEATURES}
-        "
+    - echo "Simnet Tests Config"
+    - echo "${SIMNET_IMAGE_NAME}"
+    - echo "${SIMNET_IMAGE_TAG}"
+    - echo "${PARACHAINS_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_TAG}"
+    - echo "${MALUS_IMAGE_NAME}"
+    - echo "${MALUS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - echo "${NETWORK_CONFIG}"
+    - echo "${FEATURES}"
+        
   script:
     - /home/nonroot/simnet/scripts/run-test-environment-manager.sh
         --github-remote-dir="${GH_DIR}"
@@ -606,6 +610,8 @@ simnet-tests-malus-dispute-valid:
         --features="${FEATURES}"
         -e "SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
         -e "MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}"
+        -e "SCRIPTSIMAGE=${SIMNET_IMAGE_NAME}:${SIMNET_IMAGE_TAG}"
+        -e "COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
   allow_failure:                   true
   retry: 2
   tags:
