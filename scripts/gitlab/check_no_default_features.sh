@@ -2,5 +2,5 @@
 
 set -e
 
-time cargo check --no-default-features -p polkadot-service
-time cargo check --no-default-features -p polkadot-cli
+pushd node/service && cargo check --no-default-features && popd
+pushd cli && cargo check --no-default-features --features "service" && popd

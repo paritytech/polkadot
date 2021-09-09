@@ -72,7 +72,7 @@ async-trait = "0.1.51"
 # Polkadot
 polkadot-node-core-parachains-inherent = { path = "../core/parachains-inherent" }
 polkadot-overseer = { path = "../overseer" }
-polkadot-client = { path = "../client", default-features = false }
+polkadot-client = { path = "../client", default-features = false, optional = true }
 polkadot-parachain = { path = "../../parachain" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
@@ -131,6 +131,7 @@ full-node = [
 	"polkadot-availability-bitfield-distribution",
 	"polkadot-availability-distribution",
 	"polkadot-availability-recovery",
+	"polkadot-client",
 	"polkadot-collator-protocol",
 	"polkadot-dispute-distribution",
 	"polkadot-gossip-support",

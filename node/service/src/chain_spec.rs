@@ -77,6 +77,13 @@ pub struct Extensions {
 #[cfg(feature = "polkadot-native")]
 pub type PolkadotChainSpec = service::GenericChainSpec<polkadot::GenesisConfig, Extensions>;
 
+// Dummy chain spec, in case when we don't have the native runtime.
+pub type DummyChainSpec = service::GenericChainSpec<(), Extensions>;
+
+// Dummy chain spec, but that is fine when we don't have the native runtime.
+#[cfg(not(feature = "polkadot-native"))]
+pub type PolkadotChainSpec = DummyChainSpec;
+
 /// The `ChainSpec` parameterized for the kusama runtime.
 #[cfg(feature = "kusama-native")]
 pub type KusamaChainSpec = service::GenericChainSpec<kusama::GenesisConfig, Extensions>;
@@ -84,7 +91,7 @@ pub type KusamaChainSpec = service::GenericChainSpec<kusama::GenesisConfig, Exte
 /// The `ChainSpec` parameterized for the kusama runtime.
 // This actually uses the polkadot chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "kusama-native"))]
-pub type KusamaChainSpec = PolkadotChainSpec;
+pub type KusamaChainSpec = DummyChainSpec;
 
 /// The `ChainSpec` parameterized for the westend runtime.
 #[cfg(feature = "westend-native")]
@@ -93,7 +100,7 @@ pub type WestendChainSpec = service::GenericChainSpec<westend::GenesisConfig, Ex
 /// The `ChainSpec` parameterized for the westend runtime.
 // This actually uses the polkadot chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "westend-native"))]
-pub type WestendChainSpec = PolkadotChainSpec;
+pub type WestendChainSpec = DummyChainSpec;
 
 /// The `ChainSpec` parameterized for the rococo runtime.
 #[cfg(feature = "rococo-native")]
@@ -102,7 +109,7 @@ pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extension
 /// The `ChainSpec` parameterized for the rococo runtime.
 // This actually uses the polkadot chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "rococo-native"))]
-pub type RococoChainSpec = PolkadotChainSpec;
+pub type RococoChainSpec = DummyChainSpec;
 
 /// Extension for the Rococo genesis config to support a custom changes to the genesis state.
 #[derive(serde::Serialize, serde::Deserialize)]
