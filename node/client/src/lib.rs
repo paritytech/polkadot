@@ -40,6 +40,14 @@ pub type FullBackend = sc_service::TFullBackend<Block>;
 pub type FullClient<RuntimeApi, ExecutorDispatch> =
 	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 
+#[cfg(not(any(
+	feature = "rococo",
+	feature = "kusama",
+	feature = "westend",
+	feature = "polkadot"
+)))]
+compile_error!("at least one runtime feature must be enabled");
+
 /// The native executor instance for Polkadot.
 #[cfg(feature = "polkadot")]
 pub struct PolkadotExecutorDispatch;
