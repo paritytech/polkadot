@@ -15,10 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{
-	account_and_location, execute_xcm, new_executor, worst_case_holding, AssetTransactorOf,
-	XcmCallOf,
-};
+use crate::{account_and_location, new_executor, worst_case_holding, AssetTransactorOf, XcmCallOf};
 use frame_benchmarking::{
 	benchmarks_instance_pallet, impl_benchmark_test_suite, BenchmarkError, BenchmarkResult,
 };
@@ -52,7 +49,6 @@ benchmarks_instance_pallet! {
 
 		let mut executor = new_executor::<T>(sender_location);
 		executor.holding = worst_case_holding;
-
 		let instruction = Instruction::<XcmCallOf<T>>::WithdrawAsset(vec![asset.clone()].into());
 		let xcm = Xcm(vec![instruction]);
 	}: {
@@ -75,10 +71,11 @@ benchmarks_instance_pallet! {
 		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
 		assert!(T::TransactAsset::balance(&dest_account).is_zero());
 
+		let mut executor = new_executor::<T>(sender_location);
 		let instruction = Instruction::TransferAsset { assets, beneficiary: dest_location };
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		execute_xcm::<T>(sender_location, Default::default(), xcm)?;
+		executor.execute(xcm)?;
 	} verify {
 		assert!(T::TransactAsset::balance(&sender_account).is_zero());
 		assert!(!T::TransactAsset::balance(&dest_account).is_zero());

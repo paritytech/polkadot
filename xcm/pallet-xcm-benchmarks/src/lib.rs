@@ -19,15 +19,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::Encode;
-use frame_benchmarking::{BenchmarkError, BenchmarkResult};
-use frame_support::{
-	traits::{
-		fungible::Inspect as FungibleInspect,
-		fungibles::Inspect as FungiblesInspect,
-		tokens::{DepositConsequence, WithdrawConsequence},
-	},
-	weights::Weight,
-};
+use frame_benchmarking::account;
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
 use xcm_executor::{traits::Convert, Assets};
@@ -100,7 +92,7 @@ pub fn new_executor<T: Config>(origin: MultiLocation) -> ExecutorOf<T> {
 
 /// Build a multi-location from an account id.
 fn account_id_junction<T: frame_system::Config>(index: u32) -> Junction {
-	let account = account::<T>(index);
+	let account: T::AccountId = account("account", index, SEED);
 	let mut encoded = account.encode();
 	encoded.resize(32, 0u8);
 	let mut id = [0u8; 32];
