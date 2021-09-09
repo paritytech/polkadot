@@ -1310,7 +1310,9 @@ pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), 
 	}
 
 	#[cfg(feature = "polkadot-native")]
-	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(config)
+	{
+		return new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(config)
+	}
 
 	#[cfg(not(feature = "polkadot-native"))]
 	Err(Error::NoRuntime)
@@ -1372,17 +1374,19 @@ pub fn build_full(
 	}
 
 	#[cfg(feature = "polkadot-native")]
-	new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch, _>(
-		config,
-		is_collator,
-		grandpa_pause,
-		disable_beefy,
-		jaeger_agent,
-		telemetry_worker_handle,
-		None,
-		overseer_gen,
-	)
-	.map(|full| full.with_client(Client::Polkadot))
+	{
+		return new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch, _>(
+			config,
+			is_collator,
+			grandpa_pause,
+			disable_beefy,
+			jaeger_agent,
+			telemetry_worker_handle,
+			None,
+			overseer_gen,
+		)
+		.map(|full| full.with_client(Client::Polkadot))
+	}
 
 	#[cfg(not(feature = "polkadot-native"))]
 	Err(Error::NoRuntime)
