@@ -99,7 +99,7 @@ impl MultiLocation {
 		MultiLocation { parents, interior: Junctions::Here }
 	}
 
-	/// Whether or not the `MultiLocation` has no parents and has a `Here` interior.
+	/// Whether the `MultiLocation` has no parents and has a `Here` interior.
 	pub const fn is_here(&self) -> bool {
 		self.parents == 0 && self.interior.len() == 0
 	}
@@ -119,7 +119,7 @@ impl MultiLocation {
 		self.parents
 	}
 
-	/// Returns boolean indicating whether or not `self` contains only the specified amount of
+	/// Returns boolean indicating whether `self` contains only the specified amount of
 	/// parents and no interior junctions.
 	pub const fn contains_parents_only(&self, count: u8) -> bool {
 		matches!(self.interior, Junctions::Here) && self.parents == count
