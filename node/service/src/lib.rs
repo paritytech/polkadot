@@ -1290,6 +1290,7 @@ where
 	Ok((task_manager, rpc_handlers))
 }
 
+#[cfg(feature = "full-node")]
 macro_rules! chain_ops {
 	($config:expr, $jaeger_agent:expr, $telemetry_worker_handle:expr; $scope:ident, $executor:ident, $variant:ident) => {{
 		let telemetry_worker_handle = $telemetry_worker_handle;
