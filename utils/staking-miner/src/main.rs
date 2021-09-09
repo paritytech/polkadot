@@ -283,11 +283,11 @@ enum Command {
 enum Solvers {
 	SeqPhragmen {
 		#[structopt(long, default_value = "10")]
-		iterations: u32,
+		iterations: usize,
 	},
 	PhragMMS {
 		#[structopt(long, default_value = "10")]
-		iterations: u32,
+		iterations: usize,
 	},
 }
 
@@ -327,8 +327,8 @@ where
 frame_support::parameter_types! {
 	/// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI
 	/// config.
-	pub static BalanceIterations: u32 = 10;
-	pub static Balacing: (usize, ExtendedBalance) = (BalanceIterations::get(), 0);
+	pub static BalanceIterations: usize = 10;
+	pub static Balancing: Option<(usize, ExtendedBalance)> = Some((BalanceIterations::get(), 0));
 }
 
 #[derive(Debug, Clone, StructOpt)]
