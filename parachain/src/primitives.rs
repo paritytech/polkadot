@@ -329,7 +329,8 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 /// unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
 /// that we use the first item tuple for the sender and the second for the recipient. Only one channel
 /// is allowed between two participants in one direction, i.e. there cannot be 2 different channels
-/// identified by `(A, B)`.
+/// identified by `(A, B)`. A channel with the same para id in sender and recipient is invalid. That
+/// is, however, not enforced.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct HrmpChannelId {
@@ -337,6 +338,13 @@ pub struct HrmpChannelId {
 	pub sender: Id,
 	/// The para that acts as the recipient in this channel.
 	pub recipient: Id,
+}
+
+impl HrmpChannelId {
+	/// Returns true if the given id corresponds to either the sender or the recipient.
+	pub fn is_participant(&self, id: Id) -> bool {
+		id == self.sender || id == self.recipient
+	}
 }
 
 /// A message from a parachain to its Relay Chain.

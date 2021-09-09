@@ -91,8 +91,10 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
 	pub hrmp_max_parathread_outbound_channels: u32,
-	/// Number of sessions after which an HRMP open channel request expires.
-	pub hrmp_open_request_ttl: u32,
+	/// NOTE: this field is deprecated. Channel open requests became non-expiring. Changing this value
+	/// doesn't have any effect. This field doesn't have a `deprecated` attribute because that would
+	/// trigger warnings coming from macros.
+	pub _hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
 	pub hrmp_sender_deposit: Balance,
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
@@ -202,7 +204,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			ump_service_total_weight: Default::default(),
 			max_upward_message_size: Default::default(),
 			max_upward_message_num_per_candidate: Default::default(),
-			hrmp_open_request_ttl: Default::default(),
+			_hrmp_open_request_ttl: Default::default(),
 			hrmp_sender_deposit: Default::default(),
 			hrmp_recipient_deposit: Default::default(),
 			hrmp_channel_max_capacity: Default::default(),
@@ -641,12 +643,10 @@ pub mod pallet {
 
 		/// Sets the number of sessions after which an HRMP open channel request expires.
 		#[pallet::weight((1_000, DispatchClass::Operational))]
-		pub fn set_hrmp_open_request_ttl(origin: OriginFor<T>, new: u32) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.hrmp_open_request_ttl, new) != new
-			});
-			Ok(())
+		// Deprecated, but is not marked as such, because that would trigger warnings coming from
+		// the macro.
+		pub fn set_hrmp_open_request_ttl(_origin: OriginFor<T>, _new: u32) -> DispatchResult {
+			Err("this doesn't have any effect".into())
 		}
 
 		/// Sets the amount of funds that the sender should provide for opening an HRMP channel.
@@ -888,7 +888,7 @@ mod tests {
 				ump_service_total_weight: 20000,
 				max_upward_message_size: 448,
 				max_upward_message_num_per_candidate: 5,
-				hrmp_open_request_ttl: 1312,
+				_hrmp_open_request_ttl: 0,
 				hrmp_sender_deposit: 22,
 				hrmp_recipient_deposit: 4905,
 				hrmp_channel_max_capacity: 3921,
@@ -1011,11 +1011,6 @@ mod tests {
 			Configuration::set_max_upward_message_num_per_candidate(
 				Origin::root(),
 				new_config.max_upward_message_num_per_candidate,
-			)
-			.unwrap();
-			Configuration::set_hrmp_open_request_ttl(
-				Origin::root(),
-				new_config.hrmp_open_request_ttl,
 			)
 			.unwrap();
 			Configuration::set_hrmp_sender_deposit(Origin::root(), new_config.hrmp_sender_deposit)
