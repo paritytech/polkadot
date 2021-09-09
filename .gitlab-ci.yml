@@ -644,7 +644,7 @@ simnet-tests-malus-dispute-valid:
     # FIXME: use the master after the merge of the malus pr
     # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/simnet_tests'
     # FIXME: copy config of tests in simnet_test and use proper values
-    NETWORK_CONFIG:                'node/malus/integrationtests/0001-dispute-valid-block.toml '
+    NETWORK_CONFIG:                'node/malus/integrationtests/0001-dispute-valid-block.toml'
     FEATURES:                      'node/malus/integrationtests/0001-dispute-valid-block.feature'
   # `malus.env` brings here `$MALUS_IMAGE_NAME` and `$MALUS_IMAGE_TAG`
   # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
