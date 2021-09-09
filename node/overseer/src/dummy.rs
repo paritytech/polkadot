@@ -58,12 +58,9 @@ where
 	}
 }
 
-use super::*;
-
 /// Create an overseer with all subsystem being `DummySubsystem`.
 ///
 /// Preferred way of initializing a dummy overseer for subsystem tests.
-#[allow(dead_code)]
 pub fn dummy_overseer_builder<
 	'a,
 	Spawner: SpawnNamed + Send + Sync + 'static,
