@@ -8,27 +8,47 @@ Helper structs:
 
 ```rust
 struct SessionInfo {
-    // validators in canonical ordering. These are the public keys used for backing,
-    // dispute participation, and approvals.
+    /// Validators in canonical ordering.
+    ///
+    /// NOTE: There might be more authorities in the current session, than `validators` participating
+    /// in parachain consensus. See
+    /// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
+    ///
+    /// `SessionInfo::validators` will be limited to to `max_validators` when set.
     validators: Vec<ValidatorId>,
-    // validators' authority discovery keys for the session in canonical ordering.
-    discovery_keys: Vec<DiscoveryId>,
-    // The assignment keys for validators.
+    /// Validators' authority discovery keys for the session in canonical ordering.
+    ///
+    /// NOTE: The first `validators.len()` entries will match the corresponding validators in
+    /// `validators`, afterwards any remaining authorities can be found. This is any authorities not
+    /// participating in parachain consensus - see
+    /// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148)
+    #[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
+    discovery_keys: Vec<AuthorityDiscoveryId>,
+    /// The assignment keys for validators.
+    ///
+    /// NOTE: There might be more authorities in the current session, than validators participating
+    /// in parachain consensus. See
+    /// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
+    ///
+    /// Therefore:
+    /// ```ignore
+    ///		assignment_keys.len() == validators.len() && validators.len() <= discovery_keys.len()
+    ///	```
     assignment_keys: Vec<AssignmentId>,
-    // validators in shuffled ordering - these are the validator groups as produced
-    // by the `Scheduler` module for the session and are typically referred to by
-    // `GroupIndex`.
+    /// Validators in shuffled ordering - these are the validator groups as produced
+    /// by the `Scheduler` module for the session and are typically referred to by
+    /// `GroupIndex`.
     validator_groups: Vec<Vec<ValidatorIndex>>,
-    // The number of availability cores used by the protocol during this session.
+    /// The number of availability cores used by the protocol during this session.
     n_cores: u32,
-    // the zeroth delay tranche width.
+    /// The zeroth delay tranche width.
     zeroth_delay_tranche_width: u32,
-    // The number of samples we do of relay_vrf_modulo.
+    /// The number of samples we do of `relay_vrf_modulo`.
     relay_vrf_modulo_samples: u32,
-    // The number of delay tranches in total.
+    /// The number of delay tranches in total.
     n_delay_tranches: u32,
-    // How many slots (BABE / SASSAFRAS) must pass before an assignment is considered a
-    // no-show.
+    /// How many slots (BABE / SASSAFRAS) must pass before an assignment is considered a
+    /// no-show.
     no_show_slots: u32,
     /// The number of validators needed to approve a block.
     needed_approvals: u32,
