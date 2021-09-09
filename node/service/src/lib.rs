@@ -1279,12 +1279,12 @@ pub fn new_chain_ops(
 	#[cfg(feature = "polkadot-native")]
 	{
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
-		new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(
-			config,
-			jaeger_agent,
-			None,
-		)?;
-		return Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager));
+			new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(
+				config,
+				jaeger_agent,
+				None,
+			)?;
+		return Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager))
 	}
 
 	#[cfg(not(feature = "polkadot-native"))]

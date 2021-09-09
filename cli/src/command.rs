@@ -181,7 +181,9 @@ impl SubstrateCli for Cli {
 		let _ = spec;
 
 		#[cfg(feature = "polkadot-native")]
-		&service::polkadot_runtime::VERSION
+		{
+			return &service::polkadot_runtime::VERSION
+		}
 
 		#[cfg(not(feature = "polkadot-native"))]
 		panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
@@ -402,12 +404,14 @@ pub fn run() -> Result<()> {
 
 			// else we assume it is polkadot.
 			#[cfg(feature = "polkadot-native")]
-			Ok(runner.sync_run(|config| {
-				cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
-					config,
-				)
-				.map_err(|e| Error::SubstrateCli(e))
-			})?)
+			{
+				return Ok(runner.sync_run(|config| {
+					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
+						config,
+					)
+					.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			}
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
@@ -453,15 +457,17 @@ pub fn run() -> Result<()> {
 			}
 			// else we assume it is polkadot.
 			#[cfg(feature = "polkadot-native")]
-			runner.async_run(|config| {
-				Ok((
-					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
-						config,
-					)
-					.map_err(Error::SubstrateCli),
-					task_manager,
-				))
-			})
+			{
+				return runner.async_run(|config| {
+					Ok((
+						cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
+							config,
+						)
+						.map_err(Error::SubstrateCli),
+						task_manager,
+					))
+				})
+			}
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
