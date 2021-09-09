@@ -275,7 +275,7 @@ pub mod pallet {
 		FirstPeriodTooFarInFuture,
 		/// Last lease period must be greater than first lease period.
 		LastPeriodBeforeFirstPeriod,
-		/// The last lease period cannot be more then 3 periods after the first period.
+		/// The last lease period cannot be more than 3 periods after the first period.
 		LastPeriodTooFarInFuture,
 		/// The campaign ends before the current block number. The end must be in the future.
 		CannotEndInPast,

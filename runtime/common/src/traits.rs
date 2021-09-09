@@ -127,7 +127,7 @@ pub trait Leaser {
 	) -> Result<(), LeaseError>;
 
 	/// Return the amount of balance currently held in reserve on `leaser`'s account for leasing `para`. This won't
-	/// go down outside of a lease period.
+	/// go down outside a lease period.
 	fn deposit_held(
 		para: ParaId,
 		leaser: &Self::AccountId,

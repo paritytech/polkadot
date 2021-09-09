@@ -150,7 +150,7 @@ impl Artifacts {
 
 	/// Inform the table about the artifact with the given ID. The state will be set to "preparing".
 	///
-	/// This function must be used only for brand new artifacts and should never be used for
+	/// This function must be used only for brand-new artifacts and should never be used for
 	/// replacing existing ones.
 	pub fn insert_preparing(&mut self, artifact_id: ArtifactId) {
 		// See the precondition.
@@ -159,7 +159,7 @@ impl Artifacts {
 
 	/// Insert an artifact with the given ID as "prepared".
 	///
-	/// This function must be used only for brand new artifacts and should never be used for
+	/// This function must be used only for brand-new artifacts and should never be used for
 	/// replacing existing ones.
 	#[cfg(test)]
 	pub fn insert_prepared(&mut self, artifact_id: ArtifactId, last_time_needed: SystemTime) {

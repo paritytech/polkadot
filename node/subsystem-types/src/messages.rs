@@ -513,7 +513,7 @@ pub enum ChainApiMessage {
 	/// Get the cumulative weight of the given block, by hash.
 	/// If the block or weight is unknown, this returns `None`.
 	///
-	/// Note: this the weight within the low-level fork-choice rule,
+	/// Note: this is the weight within the low-level fork-choice rule,
 	/// not the high-level one implemented in the chain-selection subsystem.
 	///
 	/// Weight is used for comparing blocks in a fork-choice rule.

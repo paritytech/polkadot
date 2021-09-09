@@ -39,7 +39,7 @@ pub type FatalResult<T> = std::result::Result<T, Fatal>;
 pub enum Error {
 	/// Fatal errors of dispute distribution.
 	Fatal(Fatal),
-	/// Non fatal errors of dispute distribution.
+	/// Non-fatal errors of dispute distribution.
 	NonFatal(NonFatal),
 }
 
