@@ -55,7 +55,6 @@ mod v0 {
 		pub ump_service_total_weight: Weight,
 		pub hrmp_max_parachain_outbound_channels: u32,
 		pub hrmp_max_parathread_outbound_channels: u32,
-		pub hrmp_open_request_ttl: u32,
 		pub hrmp_sender_deposit: Balance,
 		pub hrmp_recipient_deposit: Balance,
 		pub hrmp_channel_max_capacity: u32,
@@ -115,7 +114,6 @@ mod v0 {
 				ump_service_total_weight: Default::default(),
 				max_upward_message_size: Default::default(),
 				max_upward_message_num_per_candidate: Default::default(),
-				hrmp_open_request_ttl: Default::default(),
 				hrmp_sender_deposit: Default::default(),
 				hrmp_recipient_deposit: Default::default(),
 				hrmp_channel_max_capacity: Default::default(),
@@ -156,7 +154,6 @@ max_downward_message_size                : pre.max_downward_message_size,
 ump_service_total_weight                 : pre.ump_service_total_weight,
 hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
 hrmp_max_parathread_outbound_channels    : pre.hrmp_max_parathread_outbound_channels,
-hrmp_open_request_ttl                    : pre.hrmp_open_request_ttl,
 hrmp_sender_deposit                      : pre.hrmp_sender_deposit,
 hrmp_recipient_deposit                   : pre.hrmp_recipient_deposit,
 hrmp_channel_max_capacity                : pre.hrmp_channel_max_capacity,
@@ -254,7 +251,6 @@ mod tests {
 				assert_eq!(v0.ump_service_total_weight                 , v1.ump_service_total_weight);
 				assert_eq!(v0.hrmp_max_parachain_outbound_channels     , v1.hrmp_max_parachain_outbound_channels);
 				assert_eq!(v0.hrmp_max_parathread_outbound_channels    , v1.hrmp_max_parathread_outbound_channels);
-				assert_eq!(v0.hrmp_open_request_ttl                    , v1.hrmp_open_request_ttl);
 				assert_eq!(v0.hrmp_sender_deposit                      , v1.hrmp_sender_deposit);
 				assert_eq!(v0.hrmp_recipient_deposit                   , v1.hrmp_recipient_deposit);
 				assert_eq!(v0.hrmp_channel_max_capacity                , v1.hrmp_channel_max_capacity);

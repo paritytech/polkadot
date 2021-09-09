@@ -95,10 +95,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
 	pub hrmp_max_parathread_outbound_channels: u32,
-	/// NOTE: this field is deprecated. Channel open requests became non-expiring. Changing this value
-	/// doesn't have any effect. This field doesn't have a `deprecated` attribute because that would
-	/// trigger warnings coming from macros.
-	pub _hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
 	pub hrmp_sender_deposit: Balance,
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
@@ -211,7 +207,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			ump_service_total_weight: Default::default(),
 			max_upward_message_size: Default::default(),
 			max_upward_message_num_per_candidate: Default::default(),
-			_hrmp_open_request_ttl: Default::default(),
 			hrmp_sender_deposit: Default::default(),
 			hrmp_recipient_deposit: Default::default(),
 			hrmp_channel_max_capacity: Default::default(),
@@ -911,7 +906,6 @@ mod tests {
 				ump_service_total_weight: 20000,
 				max_upward_message_size: 448,
 				max_upward_message_num_per_candidate: 5,
-				_hrmp_open_request_ttl: 0,
 				hrmp_sender_deposit: 22,
 				hrmp_recipient_deposit: 4905,
 				hrmp_channel_max_capacity: 3921,
