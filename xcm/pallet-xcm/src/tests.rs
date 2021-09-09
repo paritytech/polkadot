@@ -14,13 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{mock::*, AssetTraps, QueryStatus};
-use frame_support::{assert_noop, assert_ok, traits::Currency};
+use crate::{
+	mock::*, AssetTraps, CurrentMigration, Error, LatestVersionedMultiLocation, Queries,
+	QueryStatus, VersionDiscoveryQueue, VersionNotifiers, VersionNotifyTargets,
+};
+use frame_support::{
+	assert_noop, assert_ok,
+	traits::{Currency, Hooks},
+};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use sp_runtime::traits::{BlakeTwo256, Hash};
 use std::convert::TryInto;
-use xcm::{latest::prelude::*, VersionedMultiAssets, VersionedXcm};
-use xcm_executor::XcmExecutor;
+use xcm::prelude::*;
+use xcm_builder::AllowKnownQueryResponses;
+use xcm_executor::{traits::ShouldExecute, XcmExecutor};
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -372,6 +379,426 @@ fn trapped_assets_can_be_claimed() {
 				BaseXcmWeight::get(),
 				XcmError::UnknownClaim
 			)))
+		);
+	});
+}
+
+#[test]
+fn fake_latest_versioned_multilocation_works() {
+	use codec::Encode;
+	let remote = Parachain(1000).into();
+	let versioned_remote = LatestVersionedMultiLocation(&remote);
+	assert_eq!(versioned_remote.encode(), VersionedMultiLocation::from(remote.clone()).encode());
+}
+
+#[test]
+fn basic_subscription_works() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into()),
+		));
+
+		assert_eq!(
+			Queries::<Test>::iter().collect::<Vec<_>>(),
+			vec![(
+				0,
+				QueryStatus::VersionNotifier { origin: remote.clone().into(), is_active: false }
+			)]
+		);
+		assert_eq!(
+			VersionNotifiers::<Test>::iter().collect::<Vec<_>>(),
+			vec![(2, remote.clone().into(), 0)]
+		);
+
+		assert_eq!(
+			take_sent_xcm(),
+			vec![(
+				remote.clone(),
+				Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
+			),]
+		);
+
+		let weight = BaseXcmWeight::get();
+		let mut message = Xcm::<()>(vec![
+			// Remote supports XCM v1
+			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(1) },
+		]);
+		assert_ok!(AllowKnownQueryResponses::<XcmPallet>::should_execute(
+			&remote,
+			&mut message,
+			weight,
+			&mut 0
+		));
+	});
+}
+
+#[test]
+fn subscriptions_increment_id() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into()),
+		));
+
+		let remote2 = Parachain(1001).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote2.clone().into()),
+		));
+
+		assert_eq!(
+			take_sent_xcm(),
+			vec![
+				(
+					remote.clone(),
+					Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
+				),
+				(
+					remote2.clone(),
+					Xcm(vec![SubscribeVersion { query_id: 1, max_response_weight: 0 }]),
+				),
+			]
+		);
+	});
+}
+
+#[test]
+fn double_subscription_fails() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into()),
+		));
+		assert_noop!(
+			XcmPallet::force_subscribe_version_notify(
+				Origin::root(),
+				Box::new(remote.clone().into())
+			),
+			Error::<Test>::AlreadySubscribed,
+		);
+	})
+}
+
+#[test]
+fn unsubscribe_works() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into()),
+		));
+		assert_ok!(XcmPallet::force_unsubscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into())
+		));
+		assert_noop!(
+			XcmPallet::force_unsubscribe_version_notify(
+				Origin::root(),
+				Box::new(remote.clone().into())
+			),
+			Error::<Test>::NoSubscription,
+		);
+
+		assert_eq!(
+			take_sent_xcm(),
+			vec![
+				(
+					remote.clone(),
+					Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
+				),
+				(remote.clone(), Xcm(vec![UnsubscribeVersion]),),
+			]
+		);
+	});
+}
+
+/// Parachain 1000 is asking us for a version subscription.
+#[test]
+fn subscription_side_works() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		AdvertisedXcmVersion::set(1);
+
+		let remote = Parachain(1000).into();
+		let weight = BaseXcmWeight::get();
+		let message = Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
+		assert_eq!(r, Outcome::Complete(weight));
+
+		let instr = QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(1) };
+		assert_eq!(take_sent_xcm(), vec![(remote.clone(), Xcm(vec![instr]))]);
+
+		// A runtime upgrade which doesn't alter the version sends no notifications.
+		XcmPallet::on_runtime_upgrade();
+		XcmPallet::on_initialize(1);
+		assert_eq!(take_sent_xcm(), vec![]);
+
+		// New version.
+		AdvertisedXcmVersion::set(2);
+
+		// A runtime upgrade which alters the version does send notifications.
+		XcmPallet::on_runtime_upgrade();
+		XcmPallet::on_initialize(2);
+		let instr = QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(2) };
+		assert_eq!(take_sent_xcm(), vec![(remote.clone(), Xcm(vec![instr]))]);
+	});
+}
+
+#[test]
+fn subscription_side_upgrades_work_with_notify() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		AdvertisedXcmVersion::set(1);
+
+		// An entry from a previous runtime with v0 XCM.
+		let v0_location = xcm::v0::MultiLocation::X1(xcm::v0::Junction::Parachain(1000));
+		let v0_location = VersionedMultiLocation::from(v0_location);
+		VersionNotifyTargets::<Test>::insert(0, v0_location, (69, 0, 1));
+		let v1_location = Parachain(1001).into().versioned();
+		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 1));
+		let v2_location = Parachain(1002).into().versioned();
+		VersionNotifyTargets::<Test>::insert(2, v2_location, (71, 0, 1));
+
+		// New version.
+		AdvertisedXcmVersion::set(2);
+
+		// A runtime upgrade which alters the version does send notifications.
+		XcmPallet::on_runtime_upgrade();
+		XcmPallet::on_initialize(1);
+
+		let instr0 = QueryResponse { query_id: 69, max_weight: 0, response: Response::Version(2) };
+		let instr1 = QueryResponse { query_id: 70, max_weight: 0, response: Response::Version(2) };
+		let instr2 = QueryResponse { query_id: 71, max_weight: 0, response: Response::Version(2) };
+		let mut sent = take_sent_xcm();
+		sent.sort_by_key(|k| match (k.1).0[0] {
+			QueryResponse { query_id: q, .. } => q,
+			_ => 0,
+		});
+		assert_eq!(
+			sent,
+			vec![
+				(Parachain(1000).into(), Xcm(vec![instr0])),
+				(Parachain(1001).into(), Xcm(vec![instr1])),
+				(Parachain(1002).into(), Xcm(vec![instr2])),
+			]
+		);
+
+		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
+		contents.sort_by_key(|k| k.2);
+		assert_eq!(
+			contents,
+			vec![
+				(2, Parachain(1000).into().versioned(), (69, 0, 2)),
+				(2, Parachain(1001).into().versioned(), (70, 0, 2)),
+				(2, Parachain(1002).into().versioned(), (71, 0, 2)),
+			]
+		);
+	});
+}
+
+#[test]
+fn subscription_side_upgrades_work_without_notify() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		// An entry from a previous runtime with v0 XCM.
+		let v0_location = xcm::v0::MultiLocation::X1(xcm::v0::Junction::Parachain(1000));
+		let v0_location = VersionedMultiLocation::from(v0_location);
+		VersionNotifyTargets::<Test>::insert(0, v0_location, (69, 0, 2));
+		let v1_location = Parachain(1001).into().versioned();
+		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 2));
+		let v2_location = Parachain(1002).into().versioned();
+		VersionNotifyTargets::<Test>::insert(2, v2_location, (71, 0, 2));
+
+		// A runtime upgrade which alters the version does send notifications.
+		XcmPallet::on_runtime_upgrade();
+		XcmPallet::on_initialize(1);
+
+		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
+		contents.sort_by_key(|k| k.2);
+		assert_eq!(
+			contents,
+			vec![
+				(2, Parachain(1000).into().versioned(), (69, 0, 2)),
+				(2, Parachain(1001).into().versioned(), (70, 0, 2)),
+				(2, Parachain(1002).into().versioned(), (71, 0, 2)),
+			]
+		);
+	});
+}
+
+#[test]
+fn subscriber_side_subscription_works() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		assert_ok!(XcmPallet::force_subscribe_version_notify(
+			Origin::root(),
+			Box::new(remote.clone().into()),
+		));
+		take_sent_xcm();
+
+		// Assume subscription target is working ok.
+
+		let weight = BaseXcmWeight::get();
+		let message = Xcm(vec![
+			// Remote supports XCM v1
+			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(1) },
+		]);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
+		assert_eq!(r, Outcome::Complete(weight));
+		assert_eq!(take_sent_xcm(), vec![]);
+
+		// This message cannot be sent to a v1 remote.
+		let v2_msg = Xcm::<()>(vec![Trap(0)]);
+		assert_eq!(XcmPallet::wrap_version(&remote, v2_msg.clone()), Err(()));
+
+		let message = Xcm(vec![
+			// Remote upgraded to XCM v2
+			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(2) },
+		]);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message, weight);
+		assert_eq!(r, Outcome::Complete(weight));
+
+		// This message can now be sent to remote as it's v2.
+		assert_eq!(
+			XcmPallet::wrap_version(&remote, v2_msg.clone()),
+			Ok(VersionedXcm::from(v2_msg))
+		);
+	});
+}
+
+/// We should autosubscribe when we don't know the remote's version.
+#[test]
+fn auto_subscription_works() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote0 = Parachain(1000).into();
+		let remote1 = Parachain(1001).into();
+
+		assert_ok!(XcmPallet::force_default_xcm_version(Origin::root(), Some(1)));
+
+		// Wrapping a version for a destination we don't know elicits a subscription.
+		let v1_msg = xcm::v1::Xcm::<()>::QueryResponse {
+			query_id: 1,
+			response: xcm::v1::Response::Assets(vec![].into()),
+		};
+		let v2_msg = Xcm::<()>(vec![Trap(0)]);
+		assert_eq!(
+			XcmPallet::wrap_version(&remote0, v1_msg.clone()),
+			Ok(VersionedXcm::from(v1_msg.clone())),
+		);
+		assert_eq!(XcmPallet::wrap_version(&remote0, v2_msg.clone()), Err(()));
+		let expected = vec![(remote0.clone().into(), 2)];
+		assert_eq!(VersionDiscoveryQueue::<Test>::get().into_inner(), expected);
+
+		assert_eq!(XcmPallet::wrap_version(&remote0, v2_msg.clone()), Err(()));
+		assert_eq!(XcmPallet::wrap_version(&remote1, v2_msg.clone()), Err(()));
+		let expected = vec![(remote0.clone().into(), 3), (remote1.clone().into(), 1)];
+		assert_eq!(VersionDiscoveryQueue::<Test>::get().into_inner(), expected);
+
+		XcmPallet::on_initialize(1);
+		assert_eq!(
+			take_sent_xcm(),
+			vec![(
+				remote0.clone(),
+				Xcm(vec![SubscribeVersion { query_id: 0, max_response_weight: 0 }]),
+			)]
+		);
+
+		// Assume remote0 is working ok and XCM version 2.
+
+		let weight = BaseXcmWeight::get();
+		let message = Xcm(vec![
+			// Remote supports XCM v2
+			QueryResponse { query_id: 0, max_weight: 0, response: Response::Version(2) },
+		]);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote0.clone(), message, weight);
+		assert_eq!(r, Outcome::Complete(weight));
+
+		// This message can now be sent to remote0 as it's v2.
+		assert_eq!(
+			XcmPallet::wrap_version(&remote0, v2_msg.clone()),
+			Ok(VersionedXcm::from(v2_msg.clone()))
+		);
+
+		XcmPallet::on_initialize(2);
+		assert_eq!(
+			take_sent_xcm(),
+			vec![(
+				remote1.clone(),
+				Xcm(vec![SubscribeVersion { query_id: 1, max_response_weight: 0 }]),
+			)]
+		);
+
+		// Assume remote1 is working ok and XCM version 1.
+
+		let weight = BaseXcmWeight::get();
+		let message = Xcm(vec![
+			// Remote supports XCM v1
+			QueryResponse { query_id: 1, max_weight: 0, response: Response::Version(1) },
+		]);
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote1.clone(), message, weight);
+		assert_eq!(r, Outcome::Complete(weight));
+
+		// v2 messages cannot be sent to remote1...
+		assert_eq!(XcmPallet::wrap_version(&remote1, v1_msg.clone()), Ok(VersionedXcm::V1(v1_msg)));
+		assert_eq!(XcmPallet::wrap_version(&remote1, v2_msg.clone()), Err(()));
+	})
+}
+
+#[test]
+fn subscription_side_upgrades_work_with_multistage_notify() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		AdvertisedXcmVersion::set(1);
+
+		// An entry from a previous runtime with v0 XCM.
+		let v0_location = xcm::v0::MultiLocation::X1(xcm::v0::Junction::Parachain(1000));
+		let v0_location = VersionedMultiLocation::from(v0_location);
+		VersionNotifyTargets::<Test>::insert(0, v0_location, (69, 0, 1));
+		let v1_location = Parachain(1001).into().versioned();
+		VersionNotifyTargets::<Test>::insert(1, v1_location, (70, 0, 1));
+		let v2_location = Parachain(1002).into().versioned();
+		VersionNotifyTargets::<Test>::insert(2, v2_location, (71, 0, 1));
+
+		// New version.
+		AdvertisedXcmVersion::set(2);
+
+		// A runtime upgrade which alters the version does send notifications.
+		XcmPallet::on_runtime_upgrade();
+		let mut maybe_migration = CurrentMigration::<Test>::take();
+		let mut counter = 0;
+		while let Some(migration) = maybe_migration.take() {
+			counter += 1;
+			let (_, m) = XcmPallet::check_xcm_version_change(migration, 0);
+			maybe_migration = m;
+		}
+		assert_eq!(counter, 4);
+
+		let instr0 = QueryResponse { query_id: 69, max_weight: 0, response: Response::Version(2) };
+		let instr1 = QueryResponse { query_id: 70, max_weight: 0, response: Response::Version(2) };
+		let instr2 = QueryResponse { query_id: 71, max_weight: 0, response: Response::Version(2) };
+		let mut sent = take_sent_xcm();
+		sent.sort_by_key(|k| match (k.1).0[0] {
+			QueryResponse { query_id: q, .. } => q,
+			_ => 0,
+		});
+		assert_eq!(
+			sent,
+			vec![
+				(Parachain(1000).into(), Xcm(vec![instr0])),
+				(Parachain(1001).into(), Xcm(vec![instr1])),
+				(Parachain(1002).into(), Xcm(vec![instr2])),
+			]
+		);
+
+		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
+		contents.sort_by_key(|k| k.2);
+		assert_eq!(
+			contents,
+			vec![
+				(2, Parachain(1000).into().versioned(), (69, 0, 2)),
+				(2, Parachain(1001).into().versioned(), (70, 0, 2)),
+				(2, Parachain(1002).into().versioned(), (71, 0, 2)),
+			]
 		);
 	});
 }

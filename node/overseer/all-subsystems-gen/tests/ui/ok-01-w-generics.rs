@@ -13,5 +13,5 @@ fn main() {
 		a: 0u8,
 		b: 1u16,
 	};
-	let _all: AllSubsystems<_,_> = all.replace_a::<u32>(777_777u32);
+	let _all: AllSubsystems<_,_> = all.replace_a::<u32,_>(|_| 777_777u32);
 }
