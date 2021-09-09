@@ -59,15 +59,8 @@ impl InitPolkadotBlockBuilder for Client {
 		let last_timestamp =
 			self.runtime_api().get_last_timestamp(&at).expect("Get last timestamp");
 
-		let parent_header = self
-			.header(at)
-			.expect("Get the parent block header")
-			.expect("The target block header must exist");
-
-		let at_number = sp_api::HeaderT::number(&parent_header).clone();
-		let state_version = self.state_versions().state_version_at(at_number);
 		// `MinimumPeriod` is a storage parameter type that requires externalities to access the value.
-		let minimum_period = BasicExternalities::new_empty(state_version)
+		let minimum_period = BasicExternalities::new_empty()
 			.execute_with(|| polkadot_test_runtime::MinimumPeriod::get());
 
 		let timestamp = if last_timestamp == 0 {
@@ -80,7 +73,7 @@ impl InitPolkadotBlockBuilder for Client {
 		};
 
 		// `SlotDuration` is a storage parameter type that requires externalities to access the value.
-		let slot_duration = BasicExternalities::new_empty(state_version)
+		let slot_duration = BasicExternalities::new_empty()
 			.execute_with(|| polkadot_test_runtime::SlotDuration::get());
 
 		let slot = (timestamp / slot_duration).into();

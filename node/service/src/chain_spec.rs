@@ -37,7 +37,7 @@ use rococo_runtime::constants::currency::UNITS as ROC;
 use sc_chain_spec::{ChainSpecExtension, ChainType};
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
-use sp_runtime::{traits::IdentifyAccount, Perbill, StateVersion};
+use sp_runtime::{traits::IdentifyAccount, Perbill};
 use telemetry::TelemetryEndpoints;
 #[cfg(feature = "westend-native")]
 use westend_runtime as westend;
@@ -121,10 +121,6 @@ impl sp_runtime::BuildStorage for RococoGenesisExt {
 			}
 		});
 		self.runtime_genesis_config.assimilate_storage(storage)
-	}
-
-	fn state_version(&self) -> StateVersion {
-		StateVersion::V0
 	}
 }
 
@@ -1068,7 +1064,6 @@ pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1091,7 +1086,6 @@ pub fn kusama_staging_testnet_config() -> Result<KusamaChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1114,7 +1108,6 @@ pub fn westend_staging_testnet_config() -> Result<WestendChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1140,7 +1133,6 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1606,7 +1598,6 @@ pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1625,7 +1616,6 @@ pub fn kusama_development_config() -> Result<KusamaChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1644,7 +1634,6 @@ pub fn westend_development_config() -> Result<WestendChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1667,7 +1656,6 @@ pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1691,7 +1679,6 @@ pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
 		Some(WOCOCO_DEV_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1721,7 +1708,6 @@ pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1753,7 +1739,6 @@ pub fn kusama_local_testnet_config() -> Result<KusamaChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1785,7 +1770,6 @@ pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1818,7 +1802,6 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }
 
@@ -1852,6 +1835,5 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-		StateVersion::V0,
 	))
 }

@@ -955,7 +955,7 @@ mod tests {
 			assert_noop!(
 				Pallet::<TestRuntime>::parse_finalized_storage_proof(
 					Default::default(),
-					sp_trie::StorageProof::new(vec![], sp_runtime::StateVersion::V0),
+					sp_trie::StorageProof::new(vec![]),
 					|_| (),
 				),
 				Error::<TestRuntime>::UnknownHeader,

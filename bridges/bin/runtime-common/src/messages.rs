@@ -39,7 +39,7 @@ use frame_support::{
 use hash_db::Hasher;
 use sp_runtime::{
 	traits::{AtLeast32BitUnsigned, CheckedAdd, CheckedDiv, CheckedMul},
-	FixedPointNumber, FixedPointOperand, FixedU128, StateVersion,
+	FixedPointNumber, FixedPointOperand, FixedU128,
 };
 use sp_std::{cmp::PartialOrd, convert::TryFrom, fmt::Debug, marker::PhantomData, ops::RangeInclusive, vec::Vec};
 use sp_trie::StorageProof;
@@ -379,8 +379,6 @@ pub mod source {
 		HashOf<BridgedChain<B>>:
 			Into<bp_runtime::HashOf<<ThisRuntime as pallet_bridge_grandpa::Config<GrandpaInstance>>::BridgedChain>>,
 	{
-		let state_version = StateVersion::V0; // TODO check with bridge devs if they can retrieve chain version from chain spec or headers.
-		// probably need to add field state_version to FromBridgedChainMessagesDeliveryProof
 		let FromBridgedChainMessagesDeliveryProof {
 			bridged_header_hash,
 			storage_proof,
@@ -388,7 +386,7 @@ pub mod source {
 		} = proof;
 		pallet_bridge_grandpa::Pallet::<ThisRuntime, GrandpaInstance>::parse_finalized_storage_proof(
 			bridged_header_hash.into(),
-			StorageProof::new(storage_proof, state_version),
+			StorageProof::new(storage_proof),
 			|storage| {
 				// Messages delivery proof is just proof of single storage key read => any error
 				// is fatal.
@@ -564,14 +562,13 @@ pub mod target {
 		HashOf<BridgedChain<B>>:
 			Into<bp_runtime::HashOf<<ThisRuntime as pallet_bridge_grandpa::Config<GrandpaInstance>>::BridgedChain>>,
 	{
-		let state_version = StateVersion::V0;
 		verify_messages_proof_with_parser::<B, _, _>(
 			proof,
 			messages_count,
 			|bridged_header_hash, bridged_storage_proof| {
 				pallet_bridge_grandpa::Pallet::<ThisRuntime, GrandpaInstance>::parse_finalized_storage_proof(
 					bridged_header_hash.into(),
-					StorageProof::new(bridged_storage_proof, state_version),
+					StorageProof::new(bridged_storage_proof),
 					|storage_adapter| storage_adapter,
 				)
 				.map(|storage| StorageProofCheckerAdapter::<_, B> {
