@@ -45,7 +45,7 @@ pub trait Config: frame_system::Config {
 	/// `TransactAsset` is implemented.
 	type XcmConfig: xcm_executor::Config;
 
-	// temp?
+	/// A converter between a multi-location to a sovereign account.
 	type AccountIdConverter: Convert<MultiLocation, Self::AccountId>;
 
 	/// Does any necessary setup to create a valid destination for XCM messages.
@@ -94,36 +94,8 @@ pub fn asset_instance_from(x: u32) -> AssetInstance {
 	AssetInstance::Array4(instance)
 }
 
-/// Execute an xcm.
-/// TODO: This skips all the barriers and traders, etc... maybe need to add back.
-pub fn execute_xcm<T: Config>(
-	origin: MultiLocation,
-	holding: Assets,
-	xcm: Xcm<XcmCallOf<T>>,
-) -> Result<(), BenchmarkError> {
-	// TODO: very large weight to ensure all benchmarks execute, sensible?
-	let mut executor = ExecutorOf::<T>::new(origin);
-	executor.holding = holding;
-	executor.execute(xcm)?;
-	Ok(())
-}
-
-pub fn execute_xcm_override_error<T: Config>(
-	origin: MultiLocation,
-	holding: Assets,
-	xcm: Xcm<XcmCallOf<T>>,
-) -> Result<(), BenchmarkError> {
-	execute_xcm::<T>(origin, holding, xcm)
-		.map_err(|_| BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))
-}
-
 pub fn new_executor<T: Config>(origin: MultiLocation) -> ExecutorOf<T> {
 	ExecutorOf::<T>::new(origin)
-}
-
-// TODO probably delete and use converter
-pub fn account<T: frame_system::Config>(index: u32) -> T::AccountId {
-	frame_benchmarking::account::<T::AccountId>("account", index, SEED)
 }
 
 /// Build a multi-location from an account id.
@@ -141,42 +113,4 @@ pub fn account_and_location<T: Config>(index: u32) -> (T::AccountId, MultiLocati
 	let account = T::AccountIdConverter::convert(location.clone()).unwrap();
 
 	(account, location)
-}
-
-/// Helper struct that converts a `Fungible` to `Fungibles`
-///
-/// TODO: might not be needed anymore.
-pub struct AsFungibles<AccountId, AssetId, B>(sp_std::marker::PhantomData<(AccountId, AssetId, B)>);
-impl<
-		AccountId: sp_runtime::traits::Member + frame_support::dispatch::Parameter,
-		AssetId: sp_runtime::traits::Member + frame_support::dispatch::Parameter + Copy,
-		B: FungibleInspect<AccountId>,
-	> FungiblesInspect<AccountId> for AsFungibles<AccountId, AssetId, B>
-{
-	type AssetId = AssetId;
-	type Balance = B::Balance;
-
-	fn total_issuance(_: Self::AssetId) -> Self::Balance {
-		B::total_issuance()
-	}
-	fn minimum_balance(_: Self::AssetId) -> Self::Balance {
-		B::minimum_balance()
-	}
-	fn balance(_: Self::AssetId, who: &AccountId) -> Self::Balance {
-		B::balance(who)
-	}
-	fn reducible_balance(_: Self::AssetId, who: &AccountId, keep_alive: bool) -> Self::Balance {
-		B::reducible_balance(who, keep_alive)
-	}
-	fn can_deposit(_: Self::AssetId, who: &AccountId, amount: Self::Balance) -> DepositConsequence {
-		B::can_deposit(who, amount)
-	}
-
-	fn can_withdraw(
-		_: Self::AssetId,
-		who: &AccountId,
-		amount: Self::Balance,
-	) -> WithdrawConsequence<Self::Balance> {
-		B::can_withdraw(who, amount)
-	}
 }
