@@ -41,8 +41,10 @@ pub type FullClient<RuntimeApi, ExecutorDispatch> =
 	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 
 /// The native executor instance for Polkadot.
+#[cfg(feature = "polkadot")]
 pub struct PolkadotExecutorDispatch;
 
+#[cfg(feature = "polkadot")]
 impl sc_executor::NativeExecutionDispatch for PolkadotExecutorDispatch {
 	type ExtendHostFunctions = frame_benchmarking::benchmarking::HostFunctions;
 
@@ -233,6 +235,7 @@ macro_rules! with_client {
 		}
 	} => {
 		match $self {
+			#[cfg(feature = "polkadot")]
 			Self::Polkadot($client) => { $( $code )* },
 			#[cfg(feature = "westend")]
 			Self::Westend($client) => { $( $code )* },
@@ -249,6 +252,7 @@ macro_rules! with_client {
 /// See [`ExecuteWithClient`] for more information.
 #[derive(Clone)]
 pub enum Client {
+	#[cfg(feature = "polkadot")]
 	Polkadot(Arc<FullClient<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>>),
 	#[cfg(feature = "westend")]
 	Westend(Arc<FullClient<westend_runtime::RuntimeApi, WestendExecutorDispatch>>),

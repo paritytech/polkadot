@@ -24,8 +24,10 @@ use kusama_runtime as kusama;
 use kusama_runtime::constants::currency::UNITS as KSM;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
+#[cfg(feature = "polkadot-native")]
 use polkadot::constants::currency::UNITS as DOT;
 use polkadot_primitives::v1::{AccountId, AccountPublic, AssignmentId, ValidatorId};
+#[cfg(feature = "polkadot-native")]
 use polkadot_runtime as polkadot;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
@@ -44,6 +46,7 @@ use westend_runtime as westend;
 #[cfg(feature = "westend-native")]
 use westend_runtime::constants::currency::UNITS as WND;
 
+#[cfg(feature = "polkadot-native")]
 const POLKADOT_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "kusama-native")]
 const KUSAMA_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -71,6 +74,7 @@ pub struct Extensions {
 }
 
 /// The `ChainSpec` parameterized for the polkadot runtime.
+#[cfg(feature = "polkadot-native")]
 pub type PolkadotChainSpec = service::GenericChainSpec<polkadot::GenesisConfig, Extensions>;
 
 /// The `ChainSpec` parameterized for the kusama runtime.
@@ -195,6 +199,7 @@ fn default_parachains_host_configuration(
 	}
 }
 
+#[cfg(feature = "polkadot-native")]
 fn polkadot_session_keys(
 	babe: BabeId,
 	grandpa: GrandpaId,
@@ -272,6 +277,7 @@ fn rococo_session_keys(
 	}
 }
 
+#[cfg(feature = "polkadot-native")]
 fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
 	// subkey inspect "$SECRET"
 	let endowed_accounts = vec![];
@@ -1053,6 +1059,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 }
 
 /// Polkadot staging testnet config.
+#[cfg(feature = "polkadot-native")]
 pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
 	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
 	let boot_nodes = vec![];
@@ -1218,6 +1225,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 }
 
 /// Helper function to create polkadot `GenesisConfig` for testing
+#[cfg(feature = "polkadot-native")]
 pub fn polkadot_testnet_genesis(
 	wasm_binary: &[u8],
 	initial_authorities: Vec<(
@@ -1557,6 +1565,7 @@ pub fn rococo_testnet_genesis(
 	}
 }
 
+#[cfg(feature = "polkadot-native")]
 fn polkadot_development_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
 	polkadot_testnet_genesis(
 		wasm_binary,
@@ -1597,6 +1606,7 @@ fn rococo_development_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::Gene
 }
 
 /// Polkadot development config (single validator Alice)
+#[cfg(feature = "polkadot-native")]
 pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
 	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
 
@@ -1694,6 +1704,7 @@ pub fn wococo_development_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
+#[cfg(feature = "polkadot-native")]
 fn polkadot_local_testnet_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
 	polkadot_testnet_genesis(
 		wasm_binary,
@@ -1707,6 +1718,7 @@ fn polkadot_local_testnet_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig
 }
 
 /// Polkadot local testnet config (multivalidator Alice + Bob)
+#[cfg(feature = "polkadot-native")]
 pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
 	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
 

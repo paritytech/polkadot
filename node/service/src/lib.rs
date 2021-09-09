@@ -82,11 +82,14 @@ pub use polkadot_client::WestendExecutorDispatch;
 #[cfg(feature = "kusama-native")]
 pub use polkadot_client::KusamaExecutorDispatch;
 
+#[cfg(feature = "polkadot-native")]
+pub use polkadot_client::PolkadotExecutorDispatch;
+
 pub use chain_spec::{KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, WestendChainSpec};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
 pub use polkadot_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
-	PolkadotExecutorDispatch, RuntimeApiCollection,
+	RuntimeApiCollection,
 };
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
@@ -110,6 +113,7 @@ pub use sp_runtime::{
 
 #[cfg(feature = "kusama-native")]
 pub use kusama_runtime;
+#[cfg(feature = "polkadot-native")]
 pub use polkadot_runtime;
 #[cfg(feature = "rococo-native")]
 pub use rococo_runtime;
@@ -226,6 +230,10 @@ pub enum Error {
 	#[cfg(feature = "full-node")]
 	#[error("Creating a custom database is required for validators")]
 	DatabasePathRequired,
+
+	#[cfg(feature = "full-node")]
+	#[error("Expected at least one of polkadot, kusama, westend or rococo runtime feature")]
+	NoRuntime,
 }
 
 /// Can be called for a `Configuration` to identify which network the configuration targets.
@@ -1268,13 +1276,19 @@ pub fn new_chain_ops(
 		return Ok((Arc::new(Client::Westend(client)), backend, import_queue, task_manager))
 	}
 
-	let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
+	#[cfg(feature = "polkadot-native")]
+	{
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
 		new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(
 			config,
 			jaeger_agent,
 			None,
 		)?;
-	Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager))
+		return Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager));
+	}
+
+	#[cfg(not(feature = "polkadot-native"))]
+	Err(Error::NoRuntime)
 }
 
 /// Build a new light node.
@@ -1295,7 +1309,11 @@ pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), 
 		return new_light::<westend_runtime::RuntimeApi, WestendExecutorDispatch>(config)
 	}
 
+	#[cfg(feature = "polkadot-native")]
 	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(config)
+
+	#[cfg(not(feature = "polkadot-native"))]
+	Err(Error::NoRuntime)
 }
 
 #[cfg(feature = "full-node")]
@@ -1353,6 +1371,7 @@ pub fn build_full(
 		.map(|full| full.with_client(Client::Westend))
 	}
 
+	#[cfg(feature = "polkadot-native")]
 	new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch, _>(
 		config,
 		is_collator,
@@ -1364,4 +1383,7 @@ pub fn build_full(
 		overseer_gen,
 	)
 	.map(|full| full.with_client(Client::Polkadot))
+
+	#[cfg(not(feature = "polkadot-native"))]
+	Err(Error::NoRuntime)
 }
