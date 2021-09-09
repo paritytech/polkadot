@@ -479,23 +479,25 @@ impl<T: Config> Pallet<T> {
 			// attempt to process the next message from the queue of the dispatchee; if not beyond
 			// our remaining weight limit, then consume it.
 			let maybe_next = queue_cache.peek_front::<T>(dispatchee);
-			let became_empty = if let Some(upward_message) = maybe_next {
+			if let Some(upward_message) = maybe_next {
 				match T::UmpSink::process_upward_message(dispatchee, upward_message, max_weight) {
 					Ok(used) => {
 						weight_used += used;
-						queue_cache.consume_front::<T>(dispatchee).end_of_queue
+						let _ = queue_cache.consume_front::<T>(dispatchee);
 					},
 					Err((id, required)) => {
 						if required > config.ump_max_individual_weight {
 							// overweight - add to overweight queue and continue with message
 							// execution consuming the message.
-							let consume_result = queue_cache.consume_front::<T>(dispatchee);
-							let index = Self::stash_overweight(dispatchee, consume_result.upward_message
-									.expect("`consume_front` should return the same msg as `peek_front`; if we get into this branch then `peek_front` returned `Some`; thus `upward_message` cannot be `None`; qed"));
+							let upward_message = queue_cache.consume_front::<T>(dispatchee).expect(
+								"`consume_front` should return the same msg as `peek_front`;\
+								if we get into this branch then `peek_front` returned `Some`;\
+								thus `upward_message` cannot be `None`; qed",
+							);
+							let index = Self::stash_overweight(dispatchee, upward_message);
 							Self::deposit_event(Event::OverweightEnqueued(
 								dispatchee, id, index, required,
 							));
-							consume_result.end_of_queue
 						} else {
 							// we process messages in order and don't drop them if we run out of weight,
 							// so need to break here without calling `consume_front`.
@@ -504,13 +506,9 @@ impl<T: Config> Pallet<T> {
 						}
 					},
 				}
-			} else {
-				// this should never happen, since the cursor should never point to an empty queue.
-				// it is resolved harmlessly here anyway.
-				true
-			};
+			}
 
-			if became_empty {
+			if queue_cache.is_empty::<T>(dispatchee) {
 				// the queue is empty now - this para doesn't need attention anymore.
 				cursor.remove();
 			} else {
@@ -565,11 +563,6 @@ struct QueueCacheEntry {
 	consumed_size: usize,
 }
 
-struct ConsumeFrontResult {
-	end_of_queue: bool,
-	upward_message: Option<UpwardMessage>,
-}
-
 impl QueueCache {
 	fn new() -> Self {
 		Self(BTreeMap::new())
@@ -583,6 +576,9 @@ impl QueueCache {
 		})
 	}
 
+	/// Returns the message at the front of `para`'s queue, or `None` if the queue is empty.
+	///
+	/// Does not mutate the queue.
 	fn peek_front<T: Config>(&mut self, para: ParaId) -> Option<&UpwardMessage> {
 		let entry = self.ensure_cached::<T>(para);
 		entry.queue.get(entry.consumed_count)
@@ -590,23 +586,28 @@ impl QueueCache {
 
 	/// Attempts to remove one message from the front of `para`'s queue. If the queue is empty, then
 	/// does nothing.
-	///
-	/// Returns `Some` if the queue is not empty.
-	fn consume_front<T: Config>(&mut self, para: ParaId) -> ConsumeFrontResult {
+	fn consume_front<T: Config>(&mut self, para: ParaId) -> Option<UpwardMessage> {
 		let cache_entry = self.ensure_cached::<T>(para);
 
-		let upward_message = cache_entry.queue.get_mut(cache_entry.consumed_count);
-		if let Some(msg) = upward_message {
-			cache_entry.consumed_count += 1;
-			cache_entry.consumed_size += msg.len();
+		match cache_entry.queue.get_mut(cache_entry.consumed_count) {
+			Some(msg) => {
+				cache_entry.consumed_count += 1;
+				cache_entry.consumed_size += msg.len();
 
-			ConsumeFrontResult {
-				upward_message: Some(mem::take(msg)),
-				end_of_queue: cache_entry.consumed_count >= cache_entry.queue.len(),
-			}
-		} else {
-			ConsumeFrontResult { upward_message: None, end_of_queue: true }
+				Some(mem::take(msg))
+			},
+			None => None,
 		}
+	}
+
+	/// Returns if the queue for the given para is empty.
+	///
+	/// That is, if returned `true` then next call to [`peek_front`] will return `None`.
+	///
+	/// Does not mutate the queue.
+	fn is_empty<T: Config>(&mut self, para: ParaId) -> bool {
+		let cache_entry = self.ensure_cached::<T>(para);
+		cache_entry.consumed_count >= cache_entry.queue.len()
 	}
 
 	/// Flushes the updated queues into the storage.
