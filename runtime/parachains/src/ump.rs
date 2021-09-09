@@ -22,7 +22,7 @@ use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
 use primitives::v1::{Id as ParaId, UpwardMessage};
 use sp_std::{
-	collections::btree_map::BTreeMap, convert::TryFrom, fmt, marker::PhantomData, prelude::*, mem,
+	collections::btree_map::BTreeMap, convert::TryFrom, fmt, marker::PhantomData, mem, prelude::*,
 };
 use xcm::latest::Outcome;
 
@@ -605,10 +605,7 @@ impl QueueCache {
 				end_of_queue: cache_entry.consumed_count >= cache_entry.queue.len(),
 			}
 		} else {
-			ConsumeFrontResult {
-				upward_message: None,
-				end_of_queue: true,
-			}
+			ConsumeFrontResult { upward_message: None, end_of_queue: true }
 		}
 	}
 
@@ -709,7 +706,10 @@ impl NeedsDispatchCursor {
 #[cfg(test)]
 pub(crate) mod tests {
 	use super::*;
-	use crate::mock::{new_test_ext, take_processed, assert_last_event, Configuration, System, MockGenesisConfig, Ump, Test, Origin};
+	use crate::mock::{
+		assert_last_event, new_test_ext, take_processed, Configuration, MockGenesisConfig, Origin,
+		System, Test, Ump,
+	};
 	use frame_support::{assert_noop, assert_ok, weights::Weight};
 	use std::collections::HashSet;
 
@@ -890,7 +890,12 @@ pub(crate) mod tests {
 		let a_msg_2 = (300u32, "a_msg_2").encode();
 
 		new_test_ext(
-			GenesisConfigBuilder { ump_service_total_weight: 500, ump_max_individual_weight: 300, ..Default::default() }.build(),
+			GenesisConfigBuilder {
+				ump_service_total_weight: 500,
+				ump_max_individual_weight: 300,
+				..Default::default()
+			}
+			.build(),
 		)
 		.execute_with(|| {
 			queue_upward_msg(a, a_msg_1.clone());
@@ -1002,7 +1007,6 @@ pub(crate) mod tests {
 			// emitted during the genesis block they will be implicitly wiped.
 			System::set_block_number(1);
 
-
 			// This one is overweight. However, the weight is plenty and we can afford to execute
 			// this message, thus expect it.
 			queue_upward_msg(para_a, a_msg_1.clone());
@@ -1014,8 +1018,7 @@ pub(crate) mod tests {
 			queue_upward_msg(para_a, a_msg_3.clone());
 			Ump::process_pending_upward_messages();
 			assert_last_event(
-				Event::OverweightEnqueued(para_a, upward_message_id(&a_msg_3[..]), 0, 500)
-					.into(),
+				Event::OverweightEnqueued(para_a, upward_message_id(&a_msg_3[..]), 0, 500).into(),
 			);
 
 			// Now verify that if we wanted to service this overweight message with less than enough
