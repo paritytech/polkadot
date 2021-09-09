@@ -577,7 +577,6 @@ struct State {
 	slot_duration_millis: u64,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
-	recovery_state: RecoveryState,
 }
 
 impl State {
@@ -681,7 +680,6 @@ where
 		slot_duration_millis: subsystem.slot_duration_millis,
 		clock,
 		assignment_criteria,
-		recovery_state: RecoveryState::Pending,
 	};
 
 	let mut wakeups = Wakeups::default();
@@ -690,20 +688,16 @@ where
 
 	let mut last_finalized_height: Option<BlockNumber> = None;
 
-	let startup_delay =
-		|| async move { future::pending::<()>().timeout(STARTUP_WAIT_DURATION).await };
+	let mut startup_delay =
+		stream::once(futures_timer::Delay::new(STARTUP_WAIT_DURATION)).chain(stream::empty());
 
 	loop {
 		let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
-			_res = startup_delay().fuse() => {
-				if !state.recovery_state.complete() {
-					let height = last_finalized_height.unwrap_or_default();
-					let actions = handle_startup(&mut overlayed_db, &mut state).await?;
-					actions.into_iter().filter_map(|(candidate_height, a)| if candidate_height > height { Some(a) } else { None }).collect()
-				} else {
-					Vec::new()
-				}
+			_res = (&mut startup_delay).next() => {
+				let height = last_finalized_height.unwrap_or_default();
+				let actions = handle_startup(&mut overlayed_db, &mut state).await?;
+				actions.into_iter().filter_map(|(candidate_height, a)| if candidate_height > height { Some(a) } else { None }).collect()
 			},
 			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
 				subsystem.metrics.on_wakeup();
@@ -791,24 +785,6 @@ where
 	}
 
 	Ok(())
-}
-
-#[derive(Eq, PartialEq)]
-enum RecoveryState {
-	Pending,
-	Complete,
-}
-
-impl RecoveryState {
-	fn peek(&self) -> bool {
-		*self == RecoveryState::Complete
-	}
-
-	fn complete(&mut self) -> bool {
-		let complete = self.peek();
-		*self = RecoveryState::Complete;
-		complete
-	}
 }
 
 // Determines the set of assigned but unapproved candidates that require resumption of the
@@ -1034,7 +1010,6 @@ async fn handle_actions(
 				metrics.on_assignment_produced(assignment_tranche);
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
-
 				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 					indirect_cert,
 					candidate_index,

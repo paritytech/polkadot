@@ -2818,6 +2818,14 @@ fn resume_approvals_on_restart(should_launch_approval: bool) {
 
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(cert, c_idx)) => {
+					assert_eq!(cert.block_hash, block_hash);
+					assert_eq!(candidate_index, c_idx);
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::ChainSelection(ChainSelectionMessage::Approved(b_hash)) => {
 					assert_eq!(b_hash, block_hash);
 				}

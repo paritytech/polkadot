@@ -586,8 +586,7 @@ pub(crate) mod tests {
 	use std::{pin::Pin, sync::Arc};
 
 	use crate::{
-		approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry, RecoveryState,
-		APPROVAL_SESSIONS,
+		approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry, APPROVAL_SESSIONS,
 	};
 
 	const DATA_COL: u32 = 0;
@@ -614,7 +613,6 @@ pub(crate) mod tests {
 			slot_duration_millis: 6_000,
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
-			recovery_state: RecoveryState::Pending,
 		}
 	}
 
