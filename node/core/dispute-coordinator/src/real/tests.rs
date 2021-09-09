@@ -107,6 +107,7 @@ impl Default for TestState {
 			Sr25519Keyring::Dave,
 			Sr25519Keyring::Eve,
 			Sr25519Keyring::One,
+			Sr25519Keyring::Ferdie,
 		];
 
 		let validator_public = validators.iter().map(|k| ValidatorId::from(k.public())).collect();
@@ -114,7 +115,7 @@ impl Default for TestState {
 		let validator_groups = vec![
 			vec![ValidatorIndex(0), ValidatorIndex(1)],
 			vec![ValidatorIndex(2), ValidatorIndex(3)],
-			vec![ValidatorIndex(4), ValidatorIndex(5)],
+			vec![ValidatorIndex(4), ValidatorIndex(5), ValidatorIndex(6)],
 		];
 
 		let master_keystore = make_keystore(&validators).into();
@@ -317,7 +318,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote =
-				test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
+				test_state.issue_statement_with_index(3, candidate_hash, session, true).await;
 
 			let invalid_vote =
 				test_state.issue_statement_with_index(1, candidate_hash, session, false).await;
@@ -333,7 +334,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
-							(valid_vote, ValidatorIndex(0)),
+							(valid_vote, ValidatorIndex(3)),
 							(invalid_vote, ValidatorIndex(1)),
 						],
 						pending_confirmation,
@@ -435,7 +436,7 @@ fn positive_votes_dont_trigger_participation() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote =
-				test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
+				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
 
 			let valid_vote_2 =
 				test_state.issue_statement_with_index(1, candidate_hash, session, true).await;
@@ -447,7 +448,7 @@ fn positive_votes_dont_trigger_participation() {
 						candidate_hash,
 						candidate_receipt: candidate_receipt.clone(),
 						session,
-						statements: vec![(valid_vote, ValidatorIndex(0))],
+						statements: vec![(valid_vote, ValidatorIndex(2))],
 						pending_confirmation,
 					},
 				})
@@ -540,7 +541,7 @@ fn wrong_validator_index_is_ignored() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote =
-				test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
+				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
 
 			let invalid_vote =
 				test_state.issue_statement_with_index(1, candidate_hash, session, false).await;
@@ -554,7 +555,7 @@ fn wrong_validator_index_is_ignored() {
 						session,
 						statements: vec![
 							(valid_vote, ValidatorIndex(1)),
-							(invalid_vote, ValidatorIndex(0)),
+							(invalid_vote, ValidatorIndex(2)),
 						],
 						pending_confirmation,
 					},
@@ -610,7 +611,7 @@ fn finality_votes_ignore_disputed_candidates() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote =
-				test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
+				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
 
 			let invalid_vote =
 				test_state.issue_statement_with_index(1, candidate_hash, session, false).await;
@@ -623,7 +624,7 @@ fn finality_votes_ignore_disputed_candidates() {
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
-							(valid_vote, ValidatorIndex(0)),
+							(valid_vote, ValidatorIndex(2)),
 							(invalid_vote, ValidatorIndex(1)),
 						],
 						pending_confirmation,
@@ -716,7 +717,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote =
-				test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
+				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
 
 			let invalid_vote =
 				test_state.issue_statement_with_index(1, candidate_hash, session, false).await;
@@ -729,7 +730,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
-							(valid_vote, ValidatorIndex(0)),
+							(valid_vote, ValidatorIndex(2)),
 							(invalid_vote, ValidatorIndex(1)),
 						],
 						pending_confirmation,
@@ -756,7 +757,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 			);
 
 			let mut statements = Vec::new();
-			for i in (0..supermajority_threshold - 1).map(|i| i + 2) {
+			for i in (0..supermajority_threshold - 1).map(|i| i + 3) {
 				let vote =
 					test_state.issue_statement_with_index(i, candidate_hash, session, true).await;
 
@@ -849,7 +850,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote =
-				test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
+				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
 
 			let invalid_vote =
 				test_state.issue_statement_with_index(1, candidate_hash, session, false).await;
@@ -862,7 +863,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
-							(valid_vote, ValidatorIndex(0)),
+							(valid_vote, ValidatorIndex(2)),
 							(invalid_vote, ValidatorIndex(1)),
 						],
 						pending_confirmation,
@@ -883,7 +884,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 			);
 
 			let mut statements = Vec::new();
-			for i in (0..supermajority_threshold - 1).map(|i| i + 2) {
+			for i in (0..supermajority_threshold - 1).map(|i| i + 3) {
 				let vote =
 					test_state.issue_statement_with_index(i, candidate_hash, session, true).await;
 
@@ -952,7 +953,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 				polkadot_primitives::v1::supermajority_threshold(test_state.validators.len());
 
 			let valid_vote =
-				test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
+				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
 
 			let invalid_vote =
 				test_state.issue_statement_with_index(1, candidate_hash, session, false).await;
@@ -965,7 +966,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
-							(valid_vote, ValidatorIndex(0)),
+							(valid_vote, ValidatorIndex(2)),
 							(invalid_vote, ValidatorIndex(1)),
 						],
 						pending_confirmation,
@@ -986,7 +987,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 			);
 
 			let mut statements = Vec::new();
-			for i in (0..supermajority_threshold - 1).map(|i| i + 2) {
+			for i in (0..supermajority_threshold - 1).map(|i| i + 3) {
 				let vote =
 					test_state.issue_statement_with_index(i, candidate_hash, session, false).await;
 
@@ -1052,7 +1053,7 @@ fn fresh_dispute_ignored_if_unavailable() {
 			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
 			let valid_vote =
-				test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
+				test_state.issue_statement_with_index(2, candidate_hash, session, true).await;
 
 			let invalid_vote =
 				test_state.issue_statement_with_index(1, candidate_hash, session, false).await;
@@ -1065,7 +1066,7 @@ fn fresh_dispute_ignored_if_unavailable() {
 						candidate_receipt: candidate_receipt.clone(),
 						session,
 						statements: vec![
-							(valid_vote, ValidatorIndex(0)),
+							(valid_vote, ValidatorIndex(2)),
 							(invalid_vote, ValidatorIndex(1)),
 						],
 						pending_confirmation,
@@ -1299,18 +1300,6 @@ fn resume_dispute_with_local_statement() {
 				})
 				.await;
 
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::DisputeParticipation(
-					DisputeParticipationMessage::Participate {
-						report_availability,
-						..
-					}
-				) => {
-					report_availability.send(true).unwrap();
-				}
-			);
-
 			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
 			{
@@ -1331,7 +1320,7 @@ fn resume_dispute_with_local_statement() {
 			test_state
 		})
 	})
-	// Alice should send a DisputeParticiationMessage::Participate on restart since she has no
+	// Alice should not send a DisputeParticiationMessage::Participate on restart since she has a
 	// local statement for the active dispute.
 	.resume(|test_state, mut virtual_overseer| {
 		Box::pin(async move {
@@ -1385,18 +1374,6 @@ fn resume_dispute_without_local_statement_or_local_key() {
 					})
 					.await;
 
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::DisputeParticipation(
-						DisputeParticipationMessage::Participate {
-							report_availability,
-							..
-						}
-					) => {
-						report_availability.send(true).unwrap();
-					}
-				);
-
 				assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
 				{
@@ -1417,8 +1394,8 @@ fn resume_dispute_without_local_statement_or_local_key() {
 				test_state
 			})
 		})
-		// Alice should send a DisputeParticiationMessage::Participate on restart since she has no
-		// local statement for the active dispute.
+		// Two should not send a DisputeParticiationMessage::Participate on restart since she is no
+		// validator in that dispute.
 		.resume(|test_state, mut virtual_overseer| {
 			Box::pin(async move {
 				test_state.handle_resume_sync(&mut virtual_overseer, session).await;
@@ -1438,89 +1415,197 @@ fn resume_dispute_without_local_statement_or_local_key() {
 fn resume_dispute_with_local_statement_without_local_key() {
 	let session = 1;
 
-	let mut test_state = TestState::default();
-	test_state.subsystem_keystore = make_keystore(&[Sr25519Keyring::Two]).into();
-	test_state
-		.resume(|mut test_state, mut virtual_overseer| {
-			Box::pin(async move {
-				test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+	let test_state = TestState::default();
+	let mut test_state = test_state.resume(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
-				let candidate_receipt = CandidateReceipt::default();
-				let candidate_hash = candidate_receipt.hash();
+			let candidate_receipt = CandidateReceipt::default();
+			let candidate_hash = candidate_receipt.hash();
 
-				test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
 
-				let local_valid_vote =
-					test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
+			let local_valid_vote =
+				test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
 
-				let valid_vote =
-					test_state.issue_statement_with_index(1, candidate_hash, session, true).await;
+			let valid_vote =
+				test_state.issue_statement_with_index(1, candidate_hash, session, true).await;
 
-				let invalid_vote =
-					test_state.issue_statement_with_index(2, candidate_hash, session, false).await;
+			let invalid_vote =
+				test_state.issue_statement_with_index(2, candidate_hash, session, false).await;
 
-				let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(local_valid_vote, ValidatorIndex(0)),
+							(valid_vote, ValidatorIndex(1)),
+							(invalid_vote, ValidatorIndex(2)),
+						],
+						pending_confirmation,
+					},
+				})
+				.await;
+
+			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
+
+			{
+				let (tx, rx) = oneshot::channel();
+
 				virtual_overseer
 					.send(FromOverseer::Communication {
-						msg: DisputeCoordinatorMessage::ImportStatements {
-							candidate_hash,
-							candidate_receipt: candidate_receipt.clone(),
-							session,
-							statements: vec![
-								(local_valid_vote, ValidatorIndex(0)),
-								(valid_vote, ValidatorIndex(1)),
-								(invalid_vote, ValidatorIndex(2)),
-							],
-							pending_confirmation,
-						},
+						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
 					})
 					.await;
 
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::DisputeParticipation(
-						DisputeParticipationMessage::Participate {
-							report_availability,
-							..
-						}
-					) => {
-						report_availability.send(true).unwrap();
-					}
-				);
+				assert_eq!(rx.await.unwrap().len(), 1);
+			}
 
-				assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
 
-				{
-					let (tx, rx) = oneshot::channel();
-
-					virtual_overseer
-						.send(FromOverseer::Communication {
-							msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
-						})
-						.await;
-
-					assert_eq!(rx.await.unwrap().len(), 1);
-				}
-
-				virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
-				assert!(virtual_overseer.try_recv().await.is_none());
-
-				test_state
-			})
+			test_state
 		})
-		// Alice should send a DisputeParticiationMessage::Participate on restart since she has no
-		// local statement for the active dispute.
-		.resume(|test_state, mut virtual_overseer| {
-			Box::pin(async move {
-				test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+	});
+	// No keys:
+	test_state.subsystem_keystore = make_keystore(&[Sr25519Keyring::Two]).into();
+	// Two should not send a DisputeParticiationMessage::Participate on restart since we gave
+	// her a non existing key.
+	test_state.resume(|test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
-				// Assert that subsystem is not sending Participation messages because we issued a local statement
-				assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
+			// Assert that subsystem is not sending Participation messages because we don't
+			// have a key.
+			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
 
-				virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
-				assert!(virtual_overseer.try_recv().await.is_none());
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
 
-				test_state
-			})
-		});
+			test_state
+		})
+	});
+}
+
+#[test]
+fn issue_valid_local_statement_does_cause_distribution_but_not_duplicate_participation() {
+	issue_local_statement_does_cause_distribution_but_not_duplicate_participation(true);
+}
+
+#[test]
+fn issue_invalid_local_statement_does_cause_distribution_but_not_duplicate_participation() {
+	issue_local_statement_does_cause_distribution_but_not_duplicate_participation(false);
+}
+
+fn issue_local_statement_does_cause_distribution_but_not_duplicate_participation(validity: bool) {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = CandidateReceipt::default();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+
+			let other_vote = test_state
+				.issue_statement_with_index(1, candidate_hash, session, !validity)
+				.await;
+
+			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_hash,
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![(other_vote, ValidatorIndex(1))],
+						pending_confirmation,
+					},
+				})
+				.await;
+
+			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
+
+			// Initiate dispute locally:
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::IssueLocalStatement(
+						session,
+						candidate_hash,
+						candidate_receipt.clone(),
+						validity,
+					),
+				})
+				.await;
+
+			// Dispute distribution should get notified now:
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::DisputeDistribution(
+					DisputeDistributionMessage::SendDispute(msg)
+				) => {
+					assert_eq!(msg.session_index(), session);
+					assert_eq!(msg.candidate_receipt(), &candidate_receipt);
+				}
+			);
+
+			// Make sure we don't get a `DisputeParticiationMessage`.
+			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
+fn negative_issue_local_statement_only_triggers_import() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = CandidateReceipt::default();
+			let candidate_hash = candidate_receipt.hash();
+
+			test_state.activate_leaf_at_session(&mut virtual_overseer, session, 1).await;
+
+			virtual_overseer
+				.send(FromOverseer::Communication {
+					msg: DisputeCoordinatorMessage::IssueLocalStatement(
+						session,
+						candidate_hash,
+						candidate_receipt.clone(),
+						false,
+					),
+				})
+				.await;
+
+			let backend = DbBackend::new(test_state.db.clone(), test_state.config.column_config());
+
+			let votes = backend.load_candidate_votes(session, &candidate_hash).unwrap().unwrap();
+			assert_eq!(votes.invalid.len(), 1);
+			assert_eq!(votes.valid.len(), 0);
+
+			let disputes = backend.load_recent_disputes().unwrap();
+			assert_eq!(disputes, None);
+
+			// Assert that subsystem is not sending Participation messages:
+			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
 }
