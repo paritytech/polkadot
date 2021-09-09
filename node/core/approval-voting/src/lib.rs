@@ -800,6 +800,8 @@ async fn handle_startup(
 	})?;
 
 	let mut actions = Vec::new();
+	let mut sessions: HashMap<SessionIndex, (Vec<ValidatorIndex>, Vec<ValidatorIndex>)> =
+		HashMap::new();
 	for candidate in all_candidates {
 		let mut assigned_but_unapproved_candidates = Vec::new();
 		let session = candidate.session;
@@ -812,36 +814,34 @@ async fn handle_startup(
 		};
 
 		// Compute the local validator indexes, if any, for this session.
-		let local_validators: Vec<_> = info
-			.validators
-			.iter()
-			.enumerate()
-			.filter(|(_, validator)| {
-				state
-					.keystore
-					.key_pair::<ValidatorPair>(validator)
-					.ok()
-					.map_or(false, |v| v.is_some())
-			})
-			.map(|(index, _)| ValidatorIndex(index as _))
-			.collect();
+		let local = sessions.entry(session).or_insert((
+			info.validators
+				.iter()
+				.enumerate()
+				.filter(|(_, validator)| {
+					state
+						.keystore
+						.key_pair::<ValidatorPair>(validator)
+						.ok()
+						.map_or(false, |v| v.is_some())
+				})
+				.map(|(index, _)| ValidatorIndex(index as _))
+				.collect(),
+			info.assignment_keys
+				.iter()
+				.enumerate()
+				.filter_map(|(index, assigner)| {
+					state
+						.keystore
+						.key_pair::<AssignmentPair>(assigner)
+						.ok()
+						.map(|_| ValidatorIndex(index as _))
+				})
+				.collect(),
+		));
 
-		// Compute the local assignment indexes, if any, for this session.
-		let local_assigners: Vec<_> = info
-			.assignment_keys
-			.iter()
-			.enumerate()
-			.filter_map(|(index, assigner)| {
-				state
-					.keystore
-					.key_pair::<AssignmentPair>(assigner)
-					.ok()
-					.map(|_| ValidatorIndex(index as _))
-			})
-			.collect();
-
-		let is_session_validator = !local_validators.is_empty();
-		let is_session_assigner = !local_assigners.is_empty();
+		let is_session_validator = !local.0.is_empty();
+		let is_session_assigner = !local.1.is_empty();
 
 		// Determine whether or not the local node controls session validation and assignment. If
 		// not, skip all candidates in this session.
@@ -850,8 +850,9 @@ async fn handle_startup(
 			continue
 		}
 
-		// Determine the candidates in this session that need to have their approvals resumed.
-		if !local_validators.iter().all(|index| candidate.has_approved(*index)) {
+		// Find all the locally-controlled validators on this specific candidate that need to
+		// have their approval resumed.
+		if !local.0.iter().all(|index| candidate.has_approved(*index)) {
 			let candidate_receipt = candidate.candidate.clone();
 			assigned_but_unapproved_candidates.extend(
 				candidate
@@ -860,7 +861,7 @@ async fn handle_startup(
 					// Retain any candidates that have our assignment indexes in the assignments
 					// bitfield.
 					.filter(|(_, approval_entry)| {
-						local_assigners.iter().any(|index| approval_entry.is_assigned(*index))
+						local.1.iter().any(|index| approval_entry.is_assigned(*index))
 					})
 					.map(|(block_hash, approval_entry)| {
 						(candidate_receipt.clone(), block_hash, approval_entry)
@@ -868,7 +869,7 @@ async fn handle_startup(
 			);
 		}
 
-		// Construct the LaunchApproval action for each candidate.
+		// Construct the LaunchApproval action for each block containing an instance of this candidate
 		for (candidate_receipt, block_hash, approval_entry) in
 			assigned_but_unapproved_candidates.into_iter()
 		{
