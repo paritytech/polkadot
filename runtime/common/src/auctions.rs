@@ -605,7 +605,7 @@ impl<T: Config> Pallet<T> {
 					.map(|(_, _, amount)| *amount * (range.len() as u32).into())
 			};
 			for i in 0..SlotRange::LEASE_PERIODS_PER_SLOT {
-				let r = SlotRange::new_bounded(0, 0, i as u32).expect("`i < 4`; qed");
+				let r = SlotRange::new_bounded(0, 0, i as u32).expect("`i < LPPS`; qed");
 				if let Some(bid) = best_bid(r) {
 					best_winners_ending_at[i] = (vec![r], bid);
 				}
