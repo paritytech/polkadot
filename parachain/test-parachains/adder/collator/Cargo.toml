@@ -44,4 +44,4 @@ substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 
-tokio = { version = "1.10", features = ["macros"] }
+tokio = { version = "1.11", features = ["macros"] }

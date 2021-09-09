@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 };
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, Hash, SessionIndex,
-	SessionInfo, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	SessionInfo, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 
 use futures::{channel::oneshot, prelude::*};
@@ -812,8 +812,15 @@ async fn handle_import_statements(
 	if status != prev_status {
 		// This branch is only hit when the candidate is freshly disputed -
 		// status was previously `None`, and now is not.
-		if prev_status.is_none() {
-			// No matter what, if the dispute is new, we participate.
+		if prev_status.is_none() && {
+			let controlled_indices =
+				find_controlled_validator_indices(&state.keystore, &validators);
+			let voted_indices = votes.voted_indices();
+
+			!controlled_indices.iter().all(|val_index| voted_indices.contains(&val_index))
+		} {
+			// If the dispute is new, we participate UNLESS all our controlled
+			// keys have already participated.
 			//
 			// We also block the coordinator while awaiting our determination
 			// of whether the vote is available.
@@ -859,6 +866,22 @@ async fn handle_import_statements(
 	Ok(())
 }
 
+fn find_controlled_validator_indices(
+	keystore: &LocalKeystore,
+	validators: &[ValidatorId],
+) -> HashSet<ValidatorIndex> {
+	let mut controlled = HashSet::new();
+	for (index, validator) in validators.iter().enumerate() {
+		if keystore.key_pair::<ValidatorPair>(validator).ok().flatten().is_none() {
+			continue
+		}
+
+		controlled.insert(ValidatorIndex(index as _));
+	}
+
+	controlled
+}
+
 async fn issue_local_statement(
 	ctx: &mut impl SubsystemContext,
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
@@ -900,12 +923,10 @@ async fn issue_local_statement(
 	let mut statements = Vec::new();
 
 	let voted_indices: HashSet<_> = voted_indices.into_iter().collect();
-	for (index, validator) in validators.iter().enumerate() {
-		let index = ValidatorIndex(index as _);
+	let controlled_indices = find_controlled_validator_indices(&state.keystore, &validators[..]);
+
+	for index in controlled_indices {
 		if voted_indices.contains(&index) {
-			continue
-		}
-		if state.keystore.key_pair::<ValidatorPair>(validator).ok().flatten().is_none() {
 			continue
 		}
 
@@ -915,7 +936,7 @@ async fn issue_local_statement(
 			valid,
 			candidate_hash,
 			session,
-			validator.clone(),
+			validators[index.0 as usize].clone(),
 		)
 		.await;
 
