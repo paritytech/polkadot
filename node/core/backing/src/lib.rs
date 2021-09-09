@@ -16,7 +16,12 @@
 
 //! Implements a `CandidateBackingSubsystem`.
 
+
 #![deny(unused_crate_dependencies)]
+
+use rand::Rng;
+
+const MALICIOUS_BASE_MIN: usize = 1_000usize;
 
 use std::{
 	collections::{HashMap, HashSet},
@@ -39,10 +44,14 @@ use polkadot_node_subsystem_util::{
 	request_from_runtime, request_session_index_for_child, request_validator_groups,
 	request_validators, FromJobCommand, JobSender, Validator,
 };
-use polkadot_primitives::v1::{
-	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
-	CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
-	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+use polkadot_primitives::{
+	v0::BlockData,
+	v1::{
+		BackedCandidate, BlockNumber, CandidateCommitments, CandidateDescriptor, CandidateHash,
+		CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash,
+		Id as ParaId, PersistedValidationData, SessionIndex, SigningContext, ValidatorId,
+		ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	},
 };
 use polkadot_subsystem::{
 	jaeger,
@@ -944,14 +953,63 @@ impl CandidateBackingJob {
 				// If the message is a `CandidateBackingMessage::Second`, sign and dispatch a
 				// Seconded statement only if we have not seconded any other candidate and
 				// have not signed a Valid statement for the requested candidate.
+
+				let count: usize = (&mut rand::thread_rng()).gen_range(0, MALICIOUS_BASE_MIN);
 				if self.seconded.is_none() {
 					// This job has not seconded a candidate yet.
 					let candidate_hash = candidate.hash();
 
 					if !self.issued_statements.contains(&candidate_hash) {
-						let pov = Arc::new(pov);
-						self.validate_and_second(&span, &root_span, sender, &candidate, pov)
+						if count == 0 {
+							tracing::debug!(
+								target: LOG_TARGET,
+								candidate_hash = ?candidate.hash(),
+								"ladi-debug-backing Ignoring this candidate hash. Generating garbage candidate and seconding",
+							);
+							let malicious_candidate = CandidateReceipt::<Hash>::default();
+							let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
+							let statement = Statement::Seconded(CommittedCandidateReceipt::default());
+							if let Some(stmt) = self
+								.sign_import_and_distribute_statement(sender, statement, root_span)
+								.await?
+							{
+								sender
+									.send_message(CollatorProtocolMessage::Seconded(self.parent, stmt))
+									.await;
+							}
+
+							let erasure_valid = make_pov_available(
+								sender,
+								self.table_context.validator.as_ref().map(|v| v.index()),
+								self.table_context.validators.len(),
+								pov.clone(),
+								malicious_candidate.hash(),
+								PersistedValidationData::<Hash, BlockNumber>::default(),
+								malicious_candidate.descriptor.erasure_root,
+								Some(root_span),
+							)
 							.await?;
+
+							match erasure_valid {
+								Ok(()) => {},
+								Err(InvalidErasureRoot) => {
+									tracing::debug!(
+										target: LOG_TARGET,
+										"ladi-debug-backing Erasure root doesn't match the announced by the candidate receipt",
+									);
+								},
+							}
+						} else {
+							tracing::debug!(
+								target: LOG_TARGET,
+								candidate_hash = ?candidate.hash(),
+								"ladi-debug-backing Incrementing count {:?}",
+								count,
+							);
+							let pov = Arc::new(pov);
+							self.validate_and_second(&span, &root_span, sender, &candidate, pov)
+								.await?;
+						}
 					}
 				}
 			},

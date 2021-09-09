@@ -5967,6 +5967,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "polkadot-statement-table",
+ "rand 0.5.6",
  "sc-keystore",
  "sp-application-crypto",
  "sp-core",
