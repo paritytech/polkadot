@@ -1148,27 +1148,18 @@ pub struct CouncilStoragePrefixMigration;
 
 impl OnRuntimeUpgrade for CouncilStoragePrefixMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Council>()
-			.expect("Council is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_collective::migrations::v4::migrate::<Runtime, Council, _>(COUNCIL_OLD_PREFIX, name)
+		pallet_collective::migrations::v4::migrate::<Runtime, Council, _>(COUNCIL_OLD_PREFIX)
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Council>()
-			.expect("Council is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_collective::migrations::v4::pre_migrate::<Council, _>(COUNCIL_OLD_PREFIX, name);
+		pallet_collective::migrations::v4::pre_migrate::<Council, _>(COUNCIL_OLD_PREFIX);
 		Ok(())
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Council>()
-			.expect("Council is part of pallets in construct_runtime, so it has a name; qed");
-		pallet_collective::migrations::v4::post_migrate::<Council, _>(COUNCIL_OLD_PREFIX, name);
+		pallet_collective::migrations::v4::post_migrate::<Council, _>(COUNCIL_OLD_PREFIX);
 		Ok(())
 	}
 }
@@ -1179,41 +1170,23 @@ pub struct TechnicalCommitteeStoragePrefixMigration;
 
 impl OnRuntimeUpgrade for TechnicalCommitteeStoragePrefixMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalCommittee>()
-			.expect(
-				"TechnicalCommittee is part of pallets in construct_runtime, so it has a name; qed",
-			);
 		pallet_collective::migrations::v4::migrate::<Runtime, TechnicalCommittee, _>(
 			TECHNICAL_COMMITTEE_OLD_PREFIX,
-			name,
 		)
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalCommittee>()
-			.expect(
-				"TechnicalCommittee is part of pallets in construct_runtime, so it has a name; qed",
-			);
 		pallet_collective::migrations::v4::pre_migrate::<TechnicalCommittee, _>(
 			TECHNICAL_COMMITTEE_OLD_PREFIX,
-			name,
 		);
 		Ok(())
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalCommittee>()
-			.expect(
-				"TechnicalCommittee is part of pallets in construct_runtime, so it has a name; qed",
-			);
 		pallet_collective::migrations::v4::post_migrate::<TechnicalCommittee, _>(
 			TECHNICAL_COMMITTEE_OLD_PREFIX,
-			name,
 		);
 		Ok(())
 	}
