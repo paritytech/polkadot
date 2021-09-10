@@ -22,6 +22,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -90,6 +91,7 @@ std = [
 	"libsecp256k1/std",
 	"runtime-parachains/std",
 	"xcm/std",
+	"sp-npos-elections/std",
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
