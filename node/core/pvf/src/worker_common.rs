@@ -47,14 +47,38 @@ pub async fn spawn_with_program_path(
 	with_transient_socket_path(debug_id, |socket_path| {
 		let socket_path = socket_path.to_owned();
 		async move {
-			let listener = UnixListener::bind(&socket_path).await.map_err(|_| SpawnErr::Bind)?;
+			let listener = UnixListener::bind(&socket_path).await.map_err(|err| {
+				tracing::warn!(
+					target: LOG_TARGET,
+					%debug_id,
+					"cannot bind unix socket: {:?}",
+					err,
+				);
+				SpawnErr::Bind
+			})?;
 
-			let handle = WorkerHandle::spawn(program_path, extra_args, socket_path)
-				.map_err(|_| SpawnErr::ProcessSpawn)?;
+			let handle =
+				WorkerHandle::spawn(program_path, extra_args, socket_path).map_err(|err| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						%debug_id,
+						"cannot spawn a worker: {:?}",
+						err,
+					);
+					SpawnErr::ProcessSpawn
+				})?;
 
 			futures::select! {
 				accept_result = listener.accept().fuse() => {
-					let (stream, _) = accept_result.map_err(|_| SpawnErr::Accept)?;
+					let (stream, _) = accept_result.map_err(|err| {
+						tracing::warn!(
+							target: LOG_TARGET,
+							%debug_id,
+							"cannot accept a worker: {:?}",
+							err,
+						);
+						SpawnErr::Accept
+					})?;
 					Ok((IdleWorker { stream, pid: handle.id() }, handle))
 				}
 				_ = Delay::new(spawn_timeout).fuse() => {
