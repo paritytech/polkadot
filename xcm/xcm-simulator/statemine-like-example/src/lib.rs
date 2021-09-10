@@ -175,7 +175,7 @@ mod tests {
 	use super::*;
 
 	use frame_support::{assert_ok, weights::Weight};
-	use xcm::latest::prelude::*;
+	use xcm::v1::prelude::*;
 	use xcm_simulator::TestExt;
 	use polkadot_parachain::primitives::Sibling;
 	use xcm_builder::SiblingParachainConvertsVia;
@@ -224,10 +224,12 @@ mod tests {
 					},
 				],
 			};
+			use std::convert::TryFrom;
+			let xcm = xcm::v2::Xcm::try_from(message.clone()).expect("xcm conversion should not fail");
 			assert_ok!(KaruraPalletXcm::send_xcm(
 				Here,
 				MultiLocation::parent(),
-				message.clone(),
+				xcm,
 			));
 		});
 
@@ -280,30 +282,28 @@ mod tests {
 
 		KaruraLike::execute_with(|| {
 			let weight = 3 * statemine_like::UnitWeightCost::get();
-			let message = Xcm::WithdrawAsset {
-				assets: vec![(MultiLocation::parent(), ksm_amount).into()].into(),
-				effects: vec![
-					Order::BuyExecution {
+			use xcm::v2::Xcm as XcmV2;
+			use xcm::v2::Instruction;
+			let message = XcmV2(vec![
+				Instruction::WithdrawAsset(vec![(MultiLocation::parent(), ksm_amount).into()].into()),
+				Instruction::BuyExecution {
 						fees: (MultiLocation::parent(), ksm_amount).into(),
-						weight,
-						debt: weight,
-						halt_on_error: false,
-						instructions: vec![Xcm::TransferReserveAsset {
-							assets: vec![(GeneralIndex(asset_id.into()), amount).into()].into(),
-							dest: MultiLocation::new(1, X1(Parachain(MOONRIVER_ID))),
-							effects: vec![Order::DepositAsset {
-								assets: All.into(),
-								max_assets: 2,
-								beneficiary: Here.into(),
-							}],
-						}],
-					},
-				]
-			};
+						weight_limit: Some(weight).into()
+				},
+				Instruction::TransferReserveAsset {
+					assets: vec![(GeneralIndex(asset_id.into()), amount).into()].into(),
+					dest: MultiLocation::new(1, X1(Parachain(MOONRIVER_ID))),
+					xcm: XcmV2(vec![Instruction::DepositAsset {
+						assets: All.into(),
+						max_assets: 2,
+						beneficiary: Here.into(),
+					}]),
+				}
+			]);
 			assert_ok!(KaruraPalletXcm::send_xcm(
 				Here,
 				MultiLocation::new(1, X1(Parachain(STATEMINE_ID))),
-				message.clone(),
+				message,
 			));
 		});
 
