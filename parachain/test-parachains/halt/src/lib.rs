@@ -46,7 +46,7 @@ pub fn panic(_info: &core::panic::PanicInfo) -> ! {
 #[alloc_error_handler]
 #[no_mangle]
 pub fn oom(_: core::alloc::Layout) -> ! {
-    core::intrinsics::abort();
+	core::intrinsics::abort();
 }
 
 #[cfg(not(feature = "std"))]
