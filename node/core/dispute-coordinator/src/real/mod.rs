@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 };
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, Hash, SessionIndex,
-	SessionInfo, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	SessionInfo, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 
 use futures::{channel::oneshot, prelude::*};
@@ -582,12 +582,12 @@ async fn handle_incoming(
 			.await?;
 		},
 		DisputeCoordinatorMessage::DetermineUndisputedChain {
-			base_number,
+			base: (base_number, base_hash),
 			block_descriptions,
 			tx,
 		} => {
 			let undisputed_chain =
-				determine_undisputed_chain(overlay_db, base_number, block_descriptions)?;
+				determine_undisputed_chain(overlay_db, base_number, base_hash, block_descriptions)?;
 
 			let _ = tx.send(undisputed_chain);
 		},
@@ -745,8 +745,15 @@ async fn handle_import_statements(
 	if status != prev_status {
 		// This branch is only hit when the candidate is freshly disputed -
 		// status was previously `None`, and now is not.
-		if prev_status.is_none() {
-			// No matter what, if the dispute is new, we participate.
+		if prev_status.is_none() && {
+			let controlled_indices =
+				find_controlled_validator_indices(&state.keystore, &validators);
+			let voted_indices = votes.voted_indices();
+
+			!controlled_indices.iter().all(|val_index| voted_indices.contains(&val_index))
+		} {
+			// If the dispute is new, we participate UNLESS all our controlled
+			// keys have already participated.
 			//
 			// We also block the coordinator while awaiting our determination
 			// of whether the vote is available.
@@ -792,6 +799,22 @@ async fn handle_import_statements(
 	Ok(())
 }
 
+fn find_controlled_validator_indices(
+	keystore: &LocalKeystore,
+	validators: &[ValidatorId],
+) -> HashSet<ValidatorIndex> {
+	let mut controlled = HashSet::new();
+	for (index, validator) in validators.iter().enumerate() {
+		if keystore.key_pair::<ValidatorPair>(validator).ok().flatten().is_none() {
+			continue
+		}
+
+		controlled.insert(ValidatorIndex(index as _));
+	}
+
+	controlled
+}
+
 async fn issue_local_statement(
 	ctx: &mut impl SubsystemContext,
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
@@ -833,12 +856,10 @@ async fn issue_local_statement(
 	let mut statements = Vec::new();
 
 	let voted_indices: HashSet<_> = voted_indices.into_iter().collect();
-	for (index, validator) in validators.iter().enumerate() {
-		let index = ValidatorIndex(index as _);
+	let controlled_indices = find_controlled_validator_indices(&state.keystore, &validators[..]);
+
+	for index in controlled_indices {
 		if voted_indices.contains(&index) {
-			continue
-		}
-		if state.keystore.key_pair::<ValidatorPair>(validator).ok().flatten().is_none() {
 			continue
 		}
 
@@ -848,7 +869,7 @@ async fn issue_local_statement(
 			valid,
 			candidate_hash,
 			session,
-			validator.clone(),
+			validators[index.0 as usize].clone(),
 		)
 		.await;
 
@@ -882,7 +903,7 @@ async fn issue_local_statement(
 
 	// Do import
 	if !statements.is_empty() {
-		let (pending_confirmation, _rx) = oneshot::channel();
+		let (pending_confirmation, rx) = oneshot::channel();
 		handle_import_statements(
 			ctx,
 			overlay_db,
@@ -895,6 +916,32 @@ async fn issue_local_statement(
 			pending_confirmation,
 		)
 		.await?;
+		match rx.await {
+			Err(_) => {
+				tracing::error!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"pending confirmation receiver got dropped by `handle_import_statements` for our own votes!"
+				);
+			},
+			Ok(ImportStatementsResult::InvalidImport) => {
+				tracing::error!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"handle_import_statements` considers our own votes invalid!"
+				);
+			},
+			Ok(ImportStatementsResult::ValidImport) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"handle_import_statements` successfully imported our vote!"
+				);
+			},
+		}
 	}
 
 	Ok(())
@@ -970,11 +1017,13 @@ fn make_dispute_message(
 fn determine_undisputed_chain(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	base_number: BlockNumber,
+	base_hash: Hash,
 	block_descriptions: Vec<BlockDescription>,
-) -> Result<Option<(BlockNumber, Hash)>, Error> {
+) -> Result<(BlockNumber, Hash), Error> {
 	let last = block_descriptions
 		.last()
-		.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash));
+		.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash))
+		.unwrap_or((base_number, base_hash));
 
 	// Fast path for no disputes.
 	let recent_disputes = match overlay_db.load_recent_disputes()? {
@@ -992,12 +1041,9 @@ fn determine_undisputed_chain(
 	for (i, BlockDescription { session, candidates, .. }) in block_descriptions.iter().enumerate() {
 		if candidates.iter().any(|c| is_possibly_invalid(*session, *c)) {
 			if i == 0 {
-				return Ok(None)
+				return Ok((base_number, base_hash))
 			} else {
-				return Ok(Some((
-					base_number + i as BlockNumber,
-					block_descriptions[i - 1].block_hash,
-				)))
+				return Ok((base_number + i as BlockNumber, block_descriptions[i - 1].block_hash))
 			}
 		}
 	}

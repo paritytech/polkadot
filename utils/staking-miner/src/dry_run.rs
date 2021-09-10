@@ -23,7 +23,7 @@ use codec::Encode;
 use frame_support::traits::Currency;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
-fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
+fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 	ext.execute_with(|| {
 		if <EPM::Snapshot<T>>::exists() {
 			log::info!(target: LOG_TARGET, "snapshot already exists.");
@@ -112,7 +112,7 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		shared: SharedConfig,
 		config: DryRunConfig,
 		signer: Signer,
-	) -> Result<(), Error> {
+	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
 		let mut ext = crate::create_election_ext::<Runtime, Block>(
 			shared.uri.clone(),
@@ -121,7 +121,8 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		).await?;
 		force_create_snapshot::<Runtime>(&mut ext)?;
 
-		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, config.iterations, false)?;
+		let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext)?;
+
 		let nonce = crate::get_account_info::<Runtime>(client, &signer.account, config.at)
 			.await?
 			.map(|i| i.nonce)
@@ -148,7 +149,9 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		});
 		log::info!(target: LOG_TARGET, "dispatch result is {:?}", dispatch_result);
 
-		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(client, "system_dryRun", params!{ bytes }).await?;
+		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(client, "system_dryRun", params!{ bytes })
+			.await
+			.map_err::<Error<Runtime>, _>(Into::into)?;
 		log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);
 		Ok(())
 	}

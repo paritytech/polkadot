@@ -34,11 +34,11 @@ pub(crate) struct Signer {
 	pub(crate) pair: Pair,
 }
 
-pub(crate) async fn get_account_info<T: frame_system::Config>(
+pub(crate) async fn get_account_info<T: frame_system::Config + EPM::Config>(
 	client: &WsClient,
 	who: &T::AccountId,
 	maybe_at: Option<T::Hash>,
-) -> Result<Option<frame_system::AccountInfo<Index, T::AccountData>>, Error> {
+) -> Result<Option<frame_system::AccountInfo<Index, T::AccountData>>, Error<T>> {
 	rpc_helpers::get_storage::<frame_system::AccountInfo<Index, T::AccountData>>(
 		client,
 		crate::params! {
@@ -47,26 +47,27 @@ pub(crate) async fn get_account_info<T: frame_system::Config>(
 		},
 	)
 	.await
+	.map_err(Into::into)
 }
 
 /// Read the signer account's URI
 pub(crate) async fn signer_uri_from_string<
 	T: frame_system::Config<
-		AccountId = AccountId,
-		Index = Index,
-		AccountData = pallet_balances::AccountData<Balance>,
-	>,
+			AccountId = AccountId,
+			Index = Index,
+			AccountData = pallet_balances::AccountData<Balance>,
+		> + EPM::Config,
 >(
 	seed: &str,
 	client: &WsClient,
-) -> Result<Signer, Error> {
+) -> Result<Signer, Error<T>> {
 	let seed = seed.trim();
 
 	let pair = Pair::from_string(seed, None)?;
 	let account = T::AccountId::from(pair.public());
 	let _info = get_account_info::<T>(client, &account, None)
 		.await?
-		.ok_or(Error::AccountDoesNotExists)?;
+		.ok_or(Error::<T>::AccountDoesNotExists)?;
 	log::info!(
 		target: LOG_TARGET,
 		"loaded account {:?}, free: {:?}, info: {:?}",

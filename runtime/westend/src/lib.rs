@@ -58,9 +58,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{
-		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
-	},
+	traits::{Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -340,7 +338,6 @@ parameter_types! {
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// miner configs
-	pub const MinerMaxIterations: u32 = 10;
 	pub OffchainRepeat: BlockNumber = 5;
 }
 
@@ -368,7 +365,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
-	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
 	type MinerMaxLength = OffchainSolutionLengthLimit;
 	type OffchainRepeat = OffchainRepeat;
@@ -376,9 +372,14 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Solution = NposCompactSolution16;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
+	type Solver = frame_election_provider_support::SequentialPhragmen<
+		AccountId,
+		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
+		runtime_common::elections::OffchainRandomBalancing,
+	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
 }
 
 pallet_staking_reward_curve::build! {
@@ -946,6 +947,7 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
+	type SubscriptionService = XcmPallet;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
@@ -970,6 +972,8 @@ impl pallet_xcm::Config for Runtime {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type Call = Call;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 construct_runtime! {
@@ -1041,7 +1045,7 @@ construct_runtime! {
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 52,
 
 		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
-		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 60,
+		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		Slots: slots::{Pallet, Call, Storage, Event<T>} = 61,
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 62,
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 63,
@@ -1081,21 +1085,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	MigratePalletVersionToStorageVersion,
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// Migrate from `PalletVersion` to the new `StorageVersion`
-pub struct MigratePalletVersionToStorageVersion;
-
-impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
-			AllPalletsWithSystem,
-		>(&RocksDbWeight::get())
-	}
-}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
