@@ -155,6 +155,7 @@ natively
 NFA
 NFT/SM
 nonces
+NPoS
 no_std
 NTB
 offboard/DMSG
@@ -291,3 +292,6 @@ WND/S
 Wococo
 XCM/S
 XCMP/M
+decrement
+DM
+ParaId

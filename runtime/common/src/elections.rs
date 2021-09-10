@@ -55,3 +55,30 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfi
 	const MINER_MAXIMUM_VOTERS: u32 = 15_000;
 	const MAXIMUM_TARGETS: u32 = 2000;
 }
+
+/// Maximum number of iterations for balancing that will be executed in the embedded miner of
+/// pallet-election-provider-multi-phase.
+pub const MINER_MAX_ITERATIONS: u32 = 10;
+
+/// A source of random balance for the NPoS Solver, which is meant to be run by the OCW election
+/// miner.
+pub struct OffchainRandomBalancing;
+impl frame_support::pallet_prelude::Get<Option<(usize, sp_npos_elections::ExtendedBalance)>>
+	for OffchainRandomBalancing
+{
+	fn get() -> Option<(usize, sp_npos_elections::ExtendedBalance)> {
+		use sp_runtime::{codec::Decode, traits::TrailingZeroInput};
+		let iters = match MINER_MAX_ITERATIONS {
+			0 => 0,
+			max @ _ => {
+				let seed = sp_io::offchain::random_seed();
+				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
+					.expect("input is padded with zeroes; qed") %
+					max.saturating_add(1);
+				random as usize
+			},
+		};
+
+		Some((iters, 0))
+	}
+}
