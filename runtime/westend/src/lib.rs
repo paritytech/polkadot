@@ -58,9 +58,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{
-		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
-	},
+	traits::{Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -344,7 +342,6 @@ parameter_types! {
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// miner configs
-	pub const MinerMaxIterations: u32 = 10;
 	pub OffchainRepeat: BlockNumber = 5;
 }
 
@@ -372,7 +369,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
-	type MinerMaxIterations = MinerMaxIterations;
 	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
 	type MinerMaxLength = OffchainSolutionLengthLimit;
 	type OffchainRepeat = OffchainRepeat;
@@ -381,6 +377,11 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OnChainAccuracy = Perbill;
 	type Solution = NposCompactSolution16;
 	type Fallback = Fallback;
+	type Solver = frame_election_provider_support::SequentialPhragmen<
+		AccountId,
+		pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
+		runtime_common::elections::OffchainRandomBalancing,
+	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Runtime>;
@@ -1087,21 +1088,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	MigratePalletVersionToStorageVersion,
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-/// Migrate from `PalletVersion` to the new `StorageVersion`
-pub struct MigratePalletVersionToStorageVersion;
-
-impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
-			AllPalletsWithSystem,
-		>(&RocksDbWeight::get())
-	}
-}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {

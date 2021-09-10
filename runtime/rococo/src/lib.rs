@@ -24,9 +24,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::{crypto::AuthorityId as BeefyId, mmr::MmrLeafVersion};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{
-		Contains, Everything, IsInVec, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade, Randomness,
-	},
+	traits::{Contains, Everything, IsInVec, KeyOwnerProofSystem, Nothing, Randomness},
 	weights::Weight,
 	PalletId,
 };
@@ -148,17 +146,6 @@ pub type SignedExtra = (
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 
-/// Migrate from `PalletVersion` to the new `StorageVersion`
-pub struct MigratePalletVersionToStorageVersion;
-
-impl OnRuntimeUpgrade for MigratePalletVersionToStorageVersion {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		frame_support::migrations::migrate_from_pallet_version_to_storage_version::<
-			AllPalletsWithSystem,
-		>(&RocksDbWeight::get())
-	}
-}
-
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
@@ -168,7 +155,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	MigratePalletVersionToStorageVersion,
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
