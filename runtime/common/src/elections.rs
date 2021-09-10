@@ -60,7 +60,7 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfi
 /// pallet-election-provider-multi-phase.
 pub const MINER_MAX_ITERATIONS: u32 = 10;
 
-/// A source of random balance for the NPoS Solver, which is meant to be run by the OCW election
+/// A source of random balance for the NPoS Solver, which is meant to be run by the off-chain worker election
 /// miner.
 pub struct OffchainRandomBalancing;
 impl frame_support::pallet_prelude::Get<Option<(usize, sp_npos_elections::ExtendedBalance)>>
