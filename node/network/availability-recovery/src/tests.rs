@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{sync::Arc, time::Duration};
+use std::{convert::TryFrom, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use futures::{executor, future};
@@ -28,7 +28,7 @@ use super::*;
 use sc_network::config::RequestResponseConfig;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
-use polkadot_node_primitives::{BlockData, PoV};
+use polkadot_node_primitives::{BlockData, PoV, Proof};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
 use polkadot_subsystem::{
@@ -53,7 +53,8 @@ fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseCo
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
-	let subsystem = AvailabilityRecoverySubsystem::with_fast_path(collation_req_receiver);
+	let subsystem =
+		AvailabilityRecoverySubsystem::with_fast_path(collation_req_receiver, Metrics::new_dummy());
 	let subsystem = async {
 		subsystem.run(context).await.unwrap();
 	};
@@ -86,7 +87,10 @@ fn test_harness_chunks_only<T: Future<Output = (VirtualOverseer, RequestResponse
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
-	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only(collation_req_receiver);
+	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only(
+		collation_req_receiver,
+		Metrics::new_dummy(),
+	);
 	let subsystem = subsystem.run(context);
 
 	let test_fut = test(virtual_overseer, req_cfg);
@@ -105,7 +109,7 @@ fn test_harness_chunks_only<T: Future<Output = (VirtualOverseer, RequestResponse
 	.unwrap();
 }
 
-const TIMEOUT: Duration = Duration::from_millis(100);
+const TIMEOUT: Duration = Duration::from_millis(300);
 
 macro_rules! delay {
 	($delay:expr) => {
@@ -153,6 +157,11 @@ enum Has {
 	No,
 	Yes,
 	NetworkError(sc_network::RequestFailure),
+	/// Make request not return at all, instead the sender is returned from the function.
+	///
+	/// Note, if you use `DoesNotReturn` you have to keep the returned senders alive, otherwise the
+	/// subsystem will receive a cancel event and the request actually does return.
+	DoesNotReturn,
 }
 
 impl Has {
@@ -255,42 +264,50 @@ impl TestState {
 		virtual_overseer: &mut VirtualOverseer,
 		n: usize,
 		who_has: impl Fn(usize) -> Has,
-	) {
+	) -> Vec<oneshot::Sender<std::result::Result<Vec<u8>, RequestFailure>>> {
 		// arbitrary order.
-		for _ in 0..n {
+		let mut i = 0;
+		let mut senders = Vec::new();
+		while i < n {
 			// Receive a request for a chunk.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
 				AllMessages::NetworkBridge(
 					NetworkBridgeMessage::SendRequests(
-						mut requests,
+						requests,
 						IfDisconnected::TryConnect,
 					)
 				) => {
-					assert_eq!(requests.len(), 1);
+					for req in requests {
+						i += 1;
+						assert_matches!(
+							req,
+							Requests::ChunkFetching(req) => {
+								assert_eq!(req.payload.candidate_hash, candidate_hash);
 
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::ChunkFetching(req) => {
-							assert_eq!(req.payload.candidate_hash, candidate_hash);
+								let validator_index = req.payload.index.0 as usize;
+								let available_data = match who_has(validator_index) {
+									Has::No => Ok(None),
+									Has::Yes => Ok(Some(self.chunks[validator_index].clone().into())),
+									Has::NetworkError(e) => Err(e),
+									Has::DoesNotReturn => {
+										senders.push(req.pending_response);
+										continue
+									}
+								};
 
-							let validator_index = req.payload.index.0 as usize;
-							let available_data = match who_has(validator_index) {
-								Has::No => Ok(None),
-								Has::Yes => Ok(Some(self.chunks[validator_index].clone().into())),
-								Has::NetworkError(e) => Err(e),
-							};
-
-							let _ = req.pending_response.send(
-								available_data.map(|r|
-									req_res::v1::ChunkFetchingResponse::from(r).encode()
-								)
-							);
-						}
-					)
+								let _ = req.pending_response.send(
+									available_data.map(|r|
+										req_res::v1::ChunkFetchingResponse::from(r).encode()
+									)
+								);
+							}
+						)
+					}
 				}
 			);
 		}
+		senders
 	}
 
 	async fn test_full_data_requests(
@@ -298,7 +315,8 @@ impl TestState {
 		candidate_hash: CandidateHash,
 		virtual_overseer: &mut VirtualOverseer,
 		who_has: impl Fn(usize) -> Has,
-	) {
+	) -> Vec<oneshot::Sender<std::result::Result<Vec<u8>, sc_network::RequestFailure>>> {
+		let mut senders = Vec::new();
 		for _ in 0..self.validators.len() {
 			// Receive a request for a chunk.
 			assert_matches!(
@@ -324,6 +342,10 @@ impl TestState {
 								Has::No => Ok(None),
 								Has::Yes => Ok(Some(self.available_data.clone())),
 								Has::NetworkError(e) => Err(e),
+								Has::DoesNotReturn => {
+									senders.push(req.pending_response);
+									continue
+								}
 							};
 
 							let done = available_data.as_ref().ok().map_or(false, |x| x.is_some());
@@ -340,6 +362,7 @@ impl TestState {
 				}
 			);
 		}
+		senders
 	}
 }
 
@@ -371,7 +394,7 @@ fn derive_erasure_chunks_with_proofs_and_root(
 		.map(|(index, (proof, chunk))| ErasureChunk {
 			chunk: chunk.to_vec(),
 			index: ValidatorIndex(index as _),
-			proof,
+			proof: Proof::try_from(proof).unwrap(),
 		})
 		.collect::<Vec<ErasureChunk>>();
 
@@ -980,13 +1003,12 @@ fn chunks_retry_until_all_nodes_respond() {
 			.test_chunk_requests(
 				candidate_hash,
 				&mut virtual_overseer,
-				test_state.validators.len(),
+				test_state.validators.len() - test_state.threshold(),
 				|_| Has::timeout(),
 			)
 			.await;
 
 		// we get to go another round!
-
 		test_state
 			.test_chunk_requests(
 				candidate_hash,
@@ -998,6 +1020,155 @@ fn chunks_retry_until_all_nodes_respond() {
 
 		// Recovered data should match the original one.
 		assert_eq!(rx.await.unwrap().unwrap_err(), RecoveryError::Unavailable);
+		(virtual_overseer, req_cfg)
+	});
+}
+
+#[test]
+fn not_returning_requests_wont_stall_retrieval() {
+	let test_state = TestState::default();
+
+	test_harness_chunks_only(|mut virtual_overseer, req_cfg| async move {
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
+		)
+		.await;
+
+		let (tx, rx) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				test_state.candidate.clone(),
+				test_state.session_index,
+				Some(GroupIndex(0)),
+				tx,
+			),
+		)
+		.await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+
+		let candidate_hash = test_state.candidate.hash();
+
+		test_state.respond_to_available_data_query(&mut virtual_overseer, false).await;
+		test_state.respond_to_query_all_request(&mut virtual_overseer, |_| false).await;
+
+		// How many validators should not respond at all:
+		let not_returning_count = 1;
+
+		// Not returning senders won't cause the retrieval to stall:
+		let _senders = test_state
+			.test_chunk_requests(candidate_hash, &mut virtual_overseer, not_returning_count, |_| {
+				Has::DoesNotReturn
+			})
+			.await;
+
+		test_state
+			.test_chunk_requests(
+				candidate_hash,
+				&mut virtual_overseer,
+				// Should start over:
+				test_state.validators.len() + 3,
+				|_| Has::timeout(),
+			)
+			.await;
+
+		// we get to go another round!
+		test_state
+			.test_chunk_requests(
+				candidate_hash,
+				&mut virtual_overseer,
+				test_state.threshold(),
+				|_| Has::Yes,
+			)
+			.await;
+
+		// Recovered data should match the original one:
+		assert_eq!(rx.await.unwrap().unwrap(), test_state.available_data);
+		(virtual_overseer, req_cfg)
+	});
+}
+
+#[test]
+fn all_not_returning_requests_still_recovers_on_return() {
+	let test_state = TestState::default();
+
+	test_harness_chunks_only(|mut virtual_overseer, req_cfg| async move {
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
+		)
+		.await;
+
+		let (tx, rx) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				test_state.candidate.clone(),
+				test_state.session_index,
+				Some(GroupIndex(0)),
+				tx,
+			),
+		)
+		.await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+
+		let candidate_hash = test_state.candidate.hash();
+
+		test_state.respond_to_available_data_query(&mut virtual_overseer, false).await;
+		test_state.respond_to_query_all_request(&mut virtual_overseer, |_| false).await;
+
+		let senders = test_state
+			.test_chunk_requests(
+				candidate_hash,
+				&mut virtual_overseer,
+				test_state.validators.len(),
+				|_| Has::DoesNotReturn,
+			)
+			.await;
+
+		future::join(
+			async {
+				Delay::new(Duration::from_millis(10)).await;
+				// Now retrieval should be able to recover.
+				std::mem::drop(senders);
+			},
+			test_state.test_chunk_requests(
+				candidate_hash,
+				&mut virtual_overseer,
+				// Should start over:
+				test_state.validators.len() + 3,
+				|_| Has::timeout(),
+			),
+		)
+		.await;
+
+		// we get to go another round!
+		test_state
+			.test_chunk_requests(
+				candidate_hash,
+				&mut virtual_overseer,
+				test_state.threshold(),
+				|_| Has::Yes,
+			)
+			.await;
+
+		// Recovered data should match the original one:
+		assert_eq!(rx.await.unwrap().unwrap(), test_state.available_data);
 		(virtual_overseer, req_cfg)
 	});
 }
@@ -1096,4 +1267,35 @@ fn does_not_query_local_validator() {
 		assert_eq!(rx.await.unwrap().unwrap(), test_state.available_data);
 		(virtual_overseer, req_cfg)
 	});
+}
+
+#[test]
+fn parallel_request_calculation_works_as_expected() {
+	let num_validators = 100;
+	let threshold = recovery_threshold(num_validators).unwrap();
+	let mut phase = RequestChunksPhase::new(100);
+	assert_eq!(phase.get_desired_request_count(threshold), threshold);
+	phase.error_count = 1;
+	phase.total_received_responses = 1;
+	// We saturate at threshold (34):
+	assert_eq!(phase.get_desired_request_count(threshold), threshold);
+
+	let dummy_chunk =
+		ErasureChunk { chunk: Vec::new(), index: ValidatorIndex(0), proof: Proof::dummy_proof() };
+	phase.received_chunks.insert(ValidatorIndex(0), dummy_chunk.clone());
+	phase.total_received_responses = 2;
+	// With given error rate - still saturating:
+	assert_eq!(phase.get_desired_request_count(threshold), threshold);
+	for i in 1..9 {
+		phase.received_chunks.insert(ValidatorIndex(i), dummy_chunk.clone());
+	}
+	phase.total_received_responses += 8;
+	// error rate: 1/10
+	// remaining chunks needed: threshold (34) - 9
+	// expected: 24 * (1+ 1/10) = (next greater integer) = 27
+	assert_eq!(phase.get_desired_request_count(threshold), 27);
+	phase.received_chunks.insert(ValidatorIndex(9), dummy_chunk.clone());
+	phase.error_count = 0;
+	// With error count zero - we should fetch exactly as needed:
+	assert_eq!(phase.get_desired_request_count(threshold), threshold - phase.received_chunks.len());
 }

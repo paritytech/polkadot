@@ -174,7 +174,7 @@ fn default_parachains_host_configuration(
 		ump_service_total_weight: 4 * 1_000_000_000,
 		max_upward_message_size: 1024 * 1024,
 		max_upward_message_num_per_candidate: 5,
-		hrmp_open_request_ttl: 5,
+		_hrmp_open_request_ttl: 5,
 		hrmp_sender_deposit: 0,
 		hrmp_recipient_deposit: 0,
 		hrmp_channel_max_capacity: 8,
@@ -534,6 +534,9 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
+		registrar: westend_runtime::RegistrarConfig {
+			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
+		},
 	}
 }
 
@@ -1027,22 +1030,25 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		configuration: rococo_runtime::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
-		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
+		registrar: rococo_runtime::RegistrarConfig {
+			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
 		},
-		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
-		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
-		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
-			owner: Some(endowed_accounts[0].clone()),
-			..Default::default()
-		},
+		// bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
+		// 	owner: Some(endowed_accounts[0].clone()),
+		// 	..Default::default()
+		// },
+		// bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
+		// 	owner: Some(endowed_accounts[0].clone()),
+		// 	..Default::default()
+		// },
+		// bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
+		// 	owner: Some(endowed_accounts[0].clone()),
+		// 	..Default::default()
+		// },
+		// bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
+		// 	owner: Some(endowed_accounts[0].clone()),
+		// 	..Default::default()
+		// },
 	}
 }
 
@@ -1456,6 +1462,9 @@ pub fn westend_testnet_genesis(
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
+		registrar: westend_runtime::RegistrarConfig {
+			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
+		},
 	}
 }
 
@@ -1526,22 +1535,25 @@ pub fn rococo_testnet_genesis(
 		},
 		hrmp: Default::default(),
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
-		bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
+		registrar: rococo_runtime::RegistrarConfig {
+			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
 		},
-		bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
-		bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
-		bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
-			owner: Some(root_key.clone()),
-			..Default::default()
-		},
+		// bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
+		// 	owner: Some(root_key.clone()),
+		// 	..Default::default()
+		// },
+		// bridge_wococo_grandpa: rococo_runtime::BridgeWococoGrandpaConfig {
+		// 	owner: Some(root_key.clone()),
+		// 	..Default::default()
+		// },
+		// bridge_rococo_messages: rococo_runtime::BridgeRococoMessagesConfig {
+		// 	owner: Some(root_key.clone()),
+		// 	..Default::default()
+		// },
+		// bridge_wococo_messages: rococo_runtime::BridgeWococoMessagesConfig {
+		// 	owner: Some(root_key.clone()),
+		// 	..Default::default()
+		// },
 	}
 }
 

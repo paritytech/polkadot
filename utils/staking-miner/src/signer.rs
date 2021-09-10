@@ -18,9 +18,8 @@
 
 use crate::{prelude::*, rpc_helpers, AccountId, Error, Index, Pair, WsClient, LOG_TARGET};
 use sp_core::crypto::Pair as _;
-use std::path::Path;
 
-pub(crate) const SIGNER_ACCOUNT_WILL_EXIST: &'static str =
+pub(crate) const SIGNER_ACCOUNT_WILL_EXIST: &str =
 	"signer account is checked to exist upon startup; it can only die if it transfers funds out \
 	 of it, or get slashed. If it does not exist at this point, it is likely due to a bug, or the \
 	 signer got slashed. Terminating.";
@@ -30,17 +29,16 @@ pub(crate) const SIGNER_ACCOUNT_WILL_EXIST: &'static str =
 pub(crate) struct Signer {
 	/// The account id.
 	pub(crate) account: AccountId,
+
 	/// The full crypto key-pair.
 	pub(crate) pair: Pair,
-	/// The raw URI read from file.
-	pub(crate) uri: String,
 }
 
-pub(crate) async fn get_account_info<T: frame_system::Config>(
+pub(crate) async fn get_account_info<T: frame_system::Config + EPM::Config>(
 	client: &WsClient,
 	who: &T::AccountId,
 	maybe_at: Option<T::Hash>,
-) -> Result<Option<frame_system::AccountInfo<Index, T::AccountData>>, Error> {
+) -> Result<Option<frame_system::AccountInfo<Index, T::AccountData>>, Error<T>> {
 	rpc_helpers::get_storage::<frame_system::AccountInfo<Index, T::AccountData>>(
 		client,
 		crate::params! {
@@ -49,30 +47,27 @@ pub(crate) async fn get_account_info<T: frame_system::Config>(
 		},
 	)
 	.await
+	.map_err(Into::into)
 }
 
-/// Read the signer account's URI from the given `path`.
-pub(crate) async fn read_signer_uri<
-	P: AsRef<Path>,
+/// Read the signer account's URI
+pub(crate) async fn signer_uri_from_string<
 	T: frame_system::Config<
-		AccountId = AccountId,
-		Index = Index,
-		AccountData = pallet_balances::AccountData<Balance>,
-	>,
+			AccountId = AccountId,
+			Index = Index,
+			AccountData = pallet_balances::AccountData<Balance>,
+		> + EPM::Config,
 >(
-	path: P,
+	seed: &str,
 	client: &WsClient,
-) -> Result<Signer, Error> {
-	let uri = std::fs::read_to_string(path)?;
+) -> Result<Signer, Error<T>> {
+	let seed = seed.trim();
 
-	// trim any trailing garbage.
-	let uri = uri.trim_end();
-
-	let pair = Pair::from_string(&uri, None)?;
+	let pair = Pair::from_string(seed, None)?;
 	let account = T::AccountId::from(pair.public());
-	let _info = get_account_info::<T>(&client, &account, None)
+	let _info = get_account_info::<T>(client, &account, None)
 		.await?
-		.ok_or(Error::AccountDoesNotExists)?;
+		.ok_or(Error::<T>::AccountDoesNotExists)?;
 	log::info!(
 		target: LOG_TARGET,
 		"loaded account {:?}, free: {:?}, info: {:?}",
@@ -80,5 +75,5 @@ pub(crate) async fn read_signer_uri<
 		Token::from(_info.data.free),
 		_info
 	);
-	Ok(Signer { account, pair, uri: uri.to_string() })
+	Ok(Signer { account, pair })
 }

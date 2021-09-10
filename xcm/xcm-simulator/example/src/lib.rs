@@ -106,19 +106,13 @@ mod tests {
 	use super::*;
 
 	use codec::Encode;
-	use frame_support::{assert_ok, weights::Weight};
+	use frame_support::assert_ok;
 	use xcm::latest::prelude::*;
 	use xcm_simulator::TestExt;
 
 	// Helper function for forming buy execution message
-	fn buy_execution<C>(fees: impl Into<MultiAsset>, debt: Weight) -> Order<C> {
-		Order::BuyExecution {
-			fees: fees.into(),
-			weight: 0,
-			debt,
-			halt_on_error: false,
-			instructions: vec![],
-		}
+	fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {
+		BuyExecution { fees: fees.into(), weight_limit: Unlimited }
 	}
 
 	#[test]
@@ -132,11 +126,11 @@ mod tests {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
 				Here,
 				Parachain(1).into(),
-				Transact {
+				Xcm(vec![Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
-				},
+				}]),
 			));
 		});
 
@@ -159,11 +153,11 @@ mod tests {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,
 				Parent.into(),
-				Transact {
+				Xcm(vec![Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
-				},
+				}]),
 			));
 		});
 
@@ -186,11 +180,11 @@ mod tests {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,
 				MultiLocation::new(1, X1(Parachain(2))),
-				Transact {
+				Xcm(vec![Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
-				},
+				}]),
 			));
 		});
 
@@ -211,16 +205,14 @@ mod tests {
 		MockNet::reset();
 
 		let withdraw_amount = 123;
-		let max_weight_for_execution = 3;
 
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::reserve_transfer_assets(
 				relay_chain::Origin::signed(ALICE),
-				Box::new(X1(Parachain(1)).into()),
-				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() }).into()),
-				(Here, withdraw_amount).into(),
+				Box::new(X1(Parachain(1)).into().into()),
+				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() }).into().into()),
+				Box::new((Here, withdraw_amount).into()),
 				0,
-				max_weight_for_execution,
 			));
 			assert_eq!(
 				parachain::Balances::free_balance(&para_account_id(1)),
@@ -265,20 +257,17 @@ mod tests {
 		MockNet::reset();
 
 		let send_amount = 10;
-		let weight_for_execution = 3 * relay_chain::BaseXcmWeight::get();
 
 		ParaA::execute_with(|| {
-			let message = WithdrawAsset {
-				assets: (Here, send_amount).into(),
-				effects: vec![
-					buy_execution((Here, send_amount), weight_for_execution),
-					Order::DepositAsset {
-						assets: All.into(),
-						max_assets: 1,
-						beneficiary: Parachain(2).into(),
-					},
-				],
-			};
+			let message = Xcm(vec![
+				WithdrawAsset((Here, send_amount).into()),
+				buy_execution((Here, send_amount)),
+				DepositAsset {
+					assets: All.into(),
+					max_assets: 1,
+					beneficiary: Parachain(2).into(),
+				},
+			]);
 			// Send withdraw and deposit
 			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent.into(), message.clone()));
 		});
@@ -302,27 +291,25 @@ mod tests {
 		MockNet::reset();
 
 		let send_amount = 10;
-		let weight_for_execution = 3 * relay_chain::BaseXcmWeight::get();
 		let query_id_set = 1234;
 
 		// Send a message which fully succeeds on the relay chain
 		ParaA::execute_with(|| {
-			let message = WithdrawAsset {
-				assets: (Here, send_amount).into(),
-				effects: vec![
-					buy_execution((Here, send_amount), weight_for_execution),
-					Order::DepositAsset {
-						assets: All.into(),
-						max_assets: 1,
-						beneficiary: Parachain(2).into(),
-					},
-					Order::QueryHolding {
-						query_id: query_id_set,
-						dest: Parachain(1).into(),
-						assets: All.into(),
-					},
-				],
-			};
+			let message = Xcm(vec![
+				WithdrawAsset((Here, send_amount).into()),
+				buy_execution((Here, send_amount)),
+				DepositAsset {
+					assets: All.into(),
+					max_assets: 1,
+					beneficiary: Parachain(2).into(),
+				},
+				QueryHolding {
+					query_id: query_id_set,
+					dest: Parachain(1).into(),
+					assets: All.into(),
+					max_response_weight: 1_000_000_000,
+				},
+			]);
 			// Send withdraw and deposit with query holding
 			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent.into(), message.clone(),));
 		});
@@ -342,10 +329,11 @@ mod tests {
 		ParaA::execute_with(|| {
 			assert_eq!(
 				parachain::MsgQueue::received_dmp(),
-				vec![QueryResponse {
+				vec![Xcm(vec![QueryResponse {
 					query_id: query_id_set,
-					response: Response::Assets(MultiAssets::new())
-				}]
+					response: Response::Assets(MultiAssets::new()),
+					max_weight: 1_000_000_000,
+				}])],
 			);
 		});
 	}
