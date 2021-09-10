@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A mock runtime for xcm benchmarking.
+//! A mock runtime for XCM benchmarking.
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
 use frame_support::{parameter_types, traits::Everything};

@@ -47,7 +47,7 @@ pub trait Config: frame_system::Config {
 
 const SEED: u32 = 0;
 
-/// The xcm executor to use for doing stuff.
+/// The XCM executor to use for doing stuff.
 pub type ExecutorOf<T> = xcm_executor::XcmExecutor<<T as Config>::XcmConfig>;
 /// The overarching call type.
 pub type OverArchingCallOf<T> = <T as frame_system::Config>::Call;
