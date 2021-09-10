@@ -15,7 +15,9 @@ stages:
   - publish
   - deploy
 
-image:                             paritytech/ci-linux:production
+# FIXME: revert me
+# image:                             paritytech/ci-linux:production
+image:                             paritytech/ci-linux:staging-1.54.0
 
 workflow:
   rules:
