@@ -110,6 +110,7 @@ impl Metrics {
 
 /// A chain-selection implementation which provides safety for relay chains.
 pub struct SelectRelayChain<B: sc_client_api::Backend<PolkadotBlock>> {
+	/// If `false`, will only use the `longest_chain` selection.
 	is_relay_chain: bool,
 	longest_chain: sc_consensus::LongestChain<B, PolkadotBlock>,
 	selection: SelectRelayChainInner<B, Handle>,
@@ -181,8 +182,11 @@ where
 	}
 }
 
-/// A chain-selection implementation which provides safety for relay chains
-/// but does not handle situations where the overseer is not yet connected.
+/// A chain-selection implementation which provides safety for relay chains.
+///
+/// The chain selection algorithm is aware of ongoing disputes and avoids
+/// finalizing those chains, but as consequence requires access to
+/// a running [`Overseer`].
 pub struct SelectRelayChainInner<B, OH> {
 	backend: Arc<B>,
 	overseer: OH,
