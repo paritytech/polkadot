@@ -10,7 +10,7 @@ RUN cargo build --$PROFILE
 
 # ===== SECOND STAGE ======
 
-FROM debian:buster-slim
+FROM ubuntu:20.04
 LABEL description="This is the 2nd stage: a very small image where we copy the Polkadot binary."
 ARG PROFILE=release
 COPY --from=builder /polkadot/target/$PROFILE/polkadot /usr/local/bin
