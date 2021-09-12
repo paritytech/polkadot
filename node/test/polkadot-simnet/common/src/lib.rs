@@ -33,8 +33,7 @@ use sp_runtime::{app_crypto::sp_core::H256, generic::Era, AccountId32};
 use std::{error::Error, future::Future, str::FromStr};
 use support::{weights::Weight, StorageValue};
 use test_runner::{
-	build_runtime, client_parts, ChainInfo, ConfigOrChainSpec, Node,
-	SignatureVerificationOverride,
+	build_runtime, client_parts, ChainInfo, ConfigOrChainSpec, Node, SignatureVerificationOverride,
 };
 
 type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B, C, SC>>;

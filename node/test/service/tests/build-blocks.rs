@@ -24,8 +24,13 @@ async fn ensure_test_service_build_blocks() {
 	builder.with_colors(false);
 	builder.init().expect("Sets up logger");
 
-	let mut alice =
-		run_validator_node(tokio::runtime::Handle::current(), Sr25519Keyring::Alice, || {}, Vec::new(), None);
+	let mut alice = run_validator_node(
+		tokio::runtime::Handle::current(),
+		Sr25519Keyring::Alice,
+		|| {},
+		Vec::new(),
+		None,
+	);
 	let mut bob = run_validator_node(
 		tokio::runtime::Handle::current(),
 		Sr25519Keyring::Bob,

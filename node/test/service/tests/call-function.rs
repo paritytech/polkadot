@@ -19,7 +19,8 @@ use sp_keyring::Sr25519Keyring::{Alice, Bob};
 
 #[substrate_test_utils::test]
 async fn call_function_actually_work() {
-	let alice = run_validator_node(tokio::runtime::Handle::current(), Alice, || {}, Vec::new(), None);
+	let alice =
+		run_validator_node(tokio::runtime::Handle::current(), Alice, || {}, Vec::new(), None);
 
 	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer(
 		Default::default(),

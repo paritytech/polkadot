@@ -410,9 +410,8 @@ pub fn run() -> Result<()> {
 
 			use sc_service::TaskManager;
 			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
-			let task_manager =
-				TaskManager::new(runner.config().tokio_handle.clone(), *registry)
-					.map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
+			let task_manager = TaskManager::new(runner.config().tokio_handle.clone(), *registry)
+				.map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
 
 			ensure_dev(chain_spec).map_err(Error::Other)?;
 
