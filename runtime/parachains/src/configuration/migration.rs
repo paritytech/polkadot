@@ -24,7 +24,7 @@ use frame_system::pallet_prelude::BlockNumberFor;
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 /// Call this during an next runtime upgrade for this module.
-pub fn on_runtime_upgrade<T: Config>() -> Weight {
+pub fn migrate_to_latest<T: Config>() -> Weight {
 	let mut weight = 0;
 
 	if StorageVersion::get::<Pallet<T>>() == 0 {
