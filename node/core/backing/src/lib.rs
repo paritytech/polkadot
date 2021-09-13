@@ -39,6 +39,7 @@ use polkadot_node_subsystem_util::{
 	request_from_runtime, request_session_index_for_child, request_validator_groups,
 	request_validators, FromJobCommand, JobSender, Validator,
 };
+use polkadot_primitives::v0::BlockData;
 use polkadot_primitives::v1::{
 	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
 	CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
@@ -98,6 +99,7 @@ pub enum Error {
 }
 
 /// PoV data to validate.
+#[allow(dead_code)]
 enum PoVData {
 	/// Already available (from candidate selection).
 	Ready(Arc<PoV>),
@@ -109,6 +111,7 @@ enum PoVData {
 	},
 }
 
+#[allow(dead_code)]
 enum ValidatedCandidateCommand {
 	// We were instructed to second the candidate that has been already validated.
 	Second(BackgroundValidationResult),
@@ -674,6 +677,7 @@ impl CandidateBackingJob {
 	}
 
 	/// Kick off background validation with intent to second.
+	#[allow(dead_code)]
 	async fn validate_and_second(
 		&mut self,
 		parent_span: &jaeger::Span,
@@ -929,7 +933,7 @@ impl CandidateBackingJob {
 			CandidateBackingMessage::Second(relay_parent, candidate, pov) => {
 				let _timer = self.metrics.time_process_second();
 
-				let span = root_span
+				let _span = root_span
 					.child("second")
 					.with_stage(jaeger::Stage::CandidateBacking)
 					.with_pov(&pov)
@@ -945,13 +949,42 @@ impl CandidateBackingJob {
 				// Seconded statement only if we have not seconded any other candidate and
 				// have not signed a Valid statement for the requested candidate.
 				if self.seconded.is_none() {
-					// This job has not seconded a candidate yet.
-					let candidate_hash = candidate.hash();
+					tracing::warn!(
+						target: LOG_TARGET,
+						"😈 Seconding a garbage candidate",
+					);
+					let garbage_candidate = CandidateReceipt::<Hash>::default();
+					let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
+					let statement = Statement::Seconded(Default::default());
+					if let Some(stmt) = self
+						.sign_import_and_distribute_statement(sender, statement, root_span)
+						.await?
+					{
+						sender
+							.send_message(CollatorProtocolMessage::Seconded(self.parent, stmt))
+							.await;
+					}
 
-					if !self.issued_statements.contains(&candidate_hash) {
-						let pov = Arc::new(pov);
-						self.validate_and_second(&span, &root_span, sender, &candidate, pov)
-							.await?;
+					let erasure_valid = make_pov_available(
+						sender,
+						self.table_context.validator.as_ref().map(|v| v.index()),
+						self.table_context.validators.len(),
+						pov.clone(),
+						garbage_candidate.hash(),
+						Default::default(),
+						garbage_candidate.descriptor.erasure_root,
+						Some(root_span),
+					)
+					.await?;
+
+					match erasure_valid {
+						Ok(()) => {},
+						Err(InvalidErasureRoot) => {
+							tracing::warn!(
+								target: LOG_TARGET,
+								"😈 Erasure root doesn't match the announced by the candidate receipt",
+							);
+						},
 					}
 				}
 			},
