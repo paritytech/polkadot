@@ -186,9 +186,9 @@ ump_max_individual_weight: <configuration::HostConfiguration<BlockNumberFor<T>>>
 
 	if let Err(_) = <Pallet<T> as Store>::ActiveConfig::translate(|pre| pre.map(translate)) {
 		// `Err` is returned when the pre-migration type cannot be deserialized. This
-		// cannot happen if the migration run correctly, i.e. against the expected version.
+		// cannot happen if the migration runs correctly, i.e. against the expected version.
 		//
-		// This happening almost sure will lead to a panic somewhere else. Corruption seems
+		// This happening almost surely will lead to a panic somewhere else. Corruption seems
 		// to be unlikely to be caused by this. So we just log. Maybe it'll work out still?
 		log::error!(
 			target: configuration::LOG_TARGET,
