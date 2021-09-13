@@ -14,7 +14,7 @@ RUN cargo build --locked --$PROFILE --package staking-miner
 
 # ===== SECOND STAGE ======
 
-FROM ubuntu:20.04
+FROM docker.io/library/ubuntu:20.04
 LABEL description="This is the 2nd stage: a very small image where we copy the binary."
 LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
