@@ -602,7 +602,7 @@ impl QueueCache {
 
 	/// Returns if the queue for the given para is empty.
 	///
-	/// That is, if returned `true` then next call to [`peek_front`] will return `None`.
+	/// That is, if this returns `true` then the next call to [`peek_front`] will return `None`.
 	///
 	/// Does not mutate the queue.
 	fn is_empty<T: Config>(&mut self, para: ParaId) -> bool {
