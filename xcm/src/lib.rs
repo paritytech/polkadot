@@ -422,7 +422,7 @@ impl WrapVersion for AlwaysV1 {
 	}
 }
 
-/// `WrapVersion` implementation which attempts to always convert the XCM to version 1 before wrapping it.
+/// `WrapVersion` implementation which attempts to always convert the XCM to version 2 before wrapping it.
 pub struct AlwaysV2;
 impl WrapVersion for AlwaysV2 {
 	fn wrap_version<Call>(
@@ -473,4 +473,9 @@ pub mod opaque {
 
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
 	pub type VersionedXcm = super::VersionedXcm<()>;
+}
+
+// A simple trait to get the weight of some object.
+pub trait GetWeight<W> {
+	fn weight(&self) -> latest::Weight;
 }
