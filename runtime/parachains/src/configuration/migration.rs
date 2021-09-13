@@ -131,6 +131,11 @@ mod v0 {
 	}
 }
 
+/// Migrates the `HostConfiguration` from v0 (with deprecated `hrmp_open_request_ttl` and without
+/// `ump_max_individual_weight`) to v1 (without hrmp ttl and with max individual weight).
+/// Uses the `Default` implementation of `HostConfiguration` to choose a value for `ump_max_individual_weight`.
+///
+/// NOTE: Only use this function if you know what you are doing. Default to using `migrate_to_latest`.
 fn migrate_to_v1<T: Config>() -> Weight {
 	// Unusual formatting is justified:
 	// - make it easier to verify that fields assign what they supposed to assign.
