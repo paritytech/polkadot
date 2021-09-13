@@ -212,8 +212,31 @@ mod tests {
 	use crate::mock::{new_test_ext, Test};
 
 	#[test]
+	fn v0_deserialized_from_actual_data() {
+		// Fetched at Kusama 9,207,703 (0xbfe5227324c08b3ab67e0473a360acbce43efbd7b42041d0033adaf9ff2c5330)
+		//
+		// This exceeds the maximal line width length, but that's fine, since this is not code and
+		// doesn't need to be read and also leaving it as one line allows to easily copy it.
+		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a00000040380000580200000000500000c8000000e87648170000000a0000000000000048000000c09e5d9a2f3d00000000000000000000c09e5d9a2f3d00000000000000000000e8030000009001000a00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c8000000060000005802000002000000580200000200000059000000000000001e00000028000000"];
+
+		let v0 = v0::HostConfiguration::<primitives::v1::BlockNumber>::decode(&mut &raw_config[..])
+			.unwrap();
+
+		// We check only a sample of the values here. If we missed any fields or messed up data types
+		// that would skew all the fields coming after.
+		assert_eq!(v0.max_code_size, 10_485_760);
+		assert_eq!(v0.validation_upgrade_frequency, 14_400);
+		assert_eq!(v0.max_pov_size, 5_242_880);
+		assert_eq!(v0._hrmp_open_request_ttl, 72);
+		assert_eq!(v0.hrmp_channel_max_message_size, 102_400);
+		assert_eq!(v0.dispute_max_spam_slots, 2);
+		assert_eq!(v0.n_delay_tranches, 89);
+		assert_eq!(v0.relay_vrf_modulo_samples, 40);
+	}
+
+	#[test]
 	fn test_migrate_to_v1() {
-		// Host configuration has lots of fields. However, in this migration we only add a single
+		// Host configuration has lots of fields. However, in this migration we add one and remove one
 		// field. The most important part to check are a couple of the last fields. We also pick
 		// extra fields to check arbitrarily, e.g. depending on their position (i.e. the middle) and
 		// also their type.
