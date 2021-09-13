@@ -130,9 +130,9 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 
 #[derive(Debug)]
 pub struct ExecutorError {
-	index: u32,
-	xcm_error: XcmError,
-	weight: u64,
+	pub index: u32,
+	pub xcm_error: XcmError,
+	pub weight: u64,
 }
 
 #[cfg(feature = "runtime-benchmarks")]

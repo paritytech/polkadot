@@ -155,6 +155,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -627,6 +628,7 @@ parameter_types! {
 	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(110).into());
 	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(120).into());
 	pub const RococoForStatemint: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1001).into());
+	pub const RococoForCanvas: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1002).into());
 	pub const MaxInstructions: u32 = 100;
 }
 pub type TrustedTeleporters = (
@@ -634,6 +636,7 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTrick>,
 	xcm_builder::Case<RococoForTrack>,
 	xcm_builder::Case<RococoForStatemint>,
+	xcm_builder::Case<RococoForCanvas>,
 );
 
 parameter_types! {
@@ -643,6 +646,7 @@ parameter_types! {
 			Parachain(110).into(),
 			Parachain(120).into(),
 			Parachain(1001).into(),
+			Parachain(1002).into(),
 		];
 }
 
