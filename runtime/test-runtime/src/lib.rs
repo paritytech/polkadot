@@ -314,9 +314,7 @@ parameter_types! {
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
-	type AccountId = <Self as frame_system::Config>::AccountId;
-	type BlockNumber = <Self as frame_system::Config>::BlockNumber;
-	type Accuracy = sp_runtime::Perbill;
+	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
 	type DataProvider = Staking;
 }
 
