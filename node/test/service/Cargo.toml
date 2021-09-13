@@ -11,6 +11,7 @@ hex = "0.4.3"
 tracing = "0.1.26"
 rand = "0.8.3"
 tempfile = "3.2.0"
+tokio = "1.10.0"
 
 # Polkadot dependencies
 polkadot-overseer = { path = "../../overseer" }

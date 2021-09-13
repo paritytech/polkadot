@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM docker.io/library/ubuntu:20.04
 
 # metadata
 ARG VCS_REF
@@ -22,6 +22,7 @@ RUN apt-get update && \
 	DEBIAN_FRONTEND=noninteractive apt-get install -y \
 		libssl1.1 \
 		ca-certificates && \
+# apt cleanup
 	apt-get autoremove -y && \
 	apt-get clean && \
 	find /var/lib/apt/lists/ -type f -not -name lock -delete; \

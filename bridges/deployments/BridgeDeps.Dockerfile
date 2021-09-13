@@ -2,7 +2,7 @@
 #
 # This image is meant to be used as a building block when building images for
 # the various components in the bridge repo, such as nodes and relayers.
-FROM ubuntu:20.04
+FROM docker.io/library/ubuntu:20.04
 
 ENV LAST_DEPS_UPDATE 2021-04-01
 ENV DEBIAN_FRONTEND=noninteractive
