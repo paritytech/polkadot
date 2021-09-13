@@ -23,7 +23,7 @@ use frame_system::pallet_prelude::BlockNumberFor;
 /// The current storage version.
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
-/// Call this during an next runtime upgrade for this module.
+/// Migrates the pallet storage to the most recent version, checking and setting the `StorageVersion`.
 pub fn migrate_to_latest<T: Config>() -> Weight {
 	let mut weight = 0;
 
