@@ -446,10 +446,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider =
-		frame_election_provider_support::onchain::OnChainSequentialPhragmen<
-			pallet_election_provider_multi_phase::OnChainConfig<Self>,
-		>;
+	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
 	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
