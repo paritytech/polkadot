@@ -25,7 +25,7 @@ use xcm::{
 	opaque::latest::{Error as XcmError, MultiAsset, Result as XcmResult, SendXcm, Xcm},
 };
 use xcm_builder::{
-	AccountId32Aliases, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
+	AccountId32Aliases, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, Case,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedRateOfFungible, FixedWeightBounds, IsConcrete,
 	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
