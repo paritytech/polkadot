@@ -136,7 +136,7 @@ mod v0 {
 /// Uses the `Default` implementation of `HostConfiguration` to choose a value for `ump_max_individual_weight`.
 ///
 /// NOTE: Only use this function if you know what you are doing. Default to using `migrate_to_latest`.
-fn migrate_to_v1<T: Config>() -> Weight {
+pub fn migrate_to_v1<T: Config>() -> Weight {
 	// Unusual formatting is justified:
 	// - make it easier to verify that fields assign what they supposed to assign.
 	// - this code is transient and will be removed after all migrations are done.

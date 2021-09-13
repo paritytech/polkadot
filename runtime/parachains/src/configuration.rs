@@ -28,7 +28,7 @@ use sp_std::prelude::*;
 
 pub use pallet::*;
 
-mod migration;
+pub mod migration;
 
 const LOG_TARGET: &str = "runtime::configuration";
 
