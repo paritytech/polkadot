@@ -1,4 +1,4 @@
-FROM ruby:alpine
+FROM docker.io/library/ruby:alpine
 
 RUN apk add --no-cache git
 
