@@ -89,7 +89,7 @@ pub type PolkadotChainSpec = DummyChainSpec;
 pub type KusamaChainSpec = service::GenericChainSpec<kusama::GenesisConfig, Extensions>;
 
 /// The `ChainSpec` parameterized for the kusama runtime.
-// This actually uses the polkadot chain spec, but that is fine when we don't have the native runtime.
+// Dummy chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "kusama-native"))]
 pub type KusamaChainSpec = DummyChainSpec;
 
@@ -98,7 +98,7 @@ pub type KusamaChainSpec = DummyChainSpec;
 pub type WestendChainSpec = service::GenericChainSpec<westend::GenesisConfig, Extensions>;
 
 /// The `ChainSpec` parameterized for the westend runtime.
-// This actually uses the polkadot chain spec, but that is fine when we don't have the native runtime.
+// Dummy chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "westend-native"))]
 pub type WestendChainSpec = DummyChainSpec;
 
@@ -107,7 +107,7 @@ pub type WestendChainSpec = DummyChainSpec;
 pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extensions>;
 
 /// The `ChainSpec` parameterized for the rococo runtime.
-// This actually uses the polkadot chain spec, but that is fine when we don't have the native runtime.
+// Dummy chain spec, but that is fine when we don't have the native runtime.
 #[cfg(not(feature = "rococo-native"))]
 pub type RococoChainSpec = DummyChainSpec;
 
