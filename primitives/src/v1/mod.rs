@@ -892,11 +892,31 @@ pub enum CandidateEvent<H = Hash> {
 #[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
 pub struct SessionInfo {
 	/// Validators in canonical ordering.
+	///
+	/// NOTE: There might be more authorities in the current session, than `validators` participating
+	/// in parachain consensus. See
+	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
+	///
+	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
 	pub validators: Vec<ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
+	///
+	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
+	/// `validators`, afterwards any remaining authorities can be found. This is any authorities not
+	/// participating in parachain consensus - see
+	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148)
 	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment keys for validators.
+	///
+	/// NOTE: There might be more authorities in the current session, than validators participating
+	/// in parachain consensus. See
+	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
+	///
+	/// Therefore:
+	/// ```ignore
+	///		assignment_keys.len() == validators.len() && validators.len() <= discovery_keys.len()
+	///	```
 	pub assignment_keys: Vec<AssignmentId>,
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
