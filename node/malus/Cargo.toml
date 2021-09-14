@@ -32,3 +32,4 @@ async-trait = "0.1.51"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.17"
+futures-timer = "3.0.2"

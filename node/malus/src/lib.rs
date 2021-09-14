@@ -24,6 +24,9 @@ use polkadot_node_subsystem::*;
 pub use polkadot_node_subsystem::{messages::AllMessages, overseer, FromOverseer};
 use std::{future::Future, pin::Pin};
 
+#[cfg(test)]
+mod tests;
+
 /// Filter incoming and outgoing messages.
 pub trait MessageInterceptor<Sender>: Send + Sync + Clone + 'static
 where
@@ -217,53 +220,5 @@ where
 			self.subsystem,
 			ctx,
 		)
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	use polkadot_node_subsystem_test_helpers::*;
-
-	use polkadot_node_subsystem::{
-		messages::{AllMessages, AvailabilityStoreMessage},
-		DummySubsystem,
-	};
-
-	#[derive(Clone, Debug)]
-	struct BlackHole;
-
-	impl<Sender> MessageInterceptor<Sender> for BlackHole {
-		type Message = AvailabilityStoreMessage;
-		fn intercept_incoming(
-			&self,
-			_sender: &mut Sender,
-			msg: FromOverseer<Self::Message>,
-		) -> Option<FromOverseer<Self::Message>> {
-			None
-		}
-	}
-
-	#[test]
-	fn test_name() {
-		let pool = sp_core::testing::TaskExecutor::new();
-		let (context, mut virtual_overseer) = make_subsystem_context(pool);
-
-		let sub = DummySubsystem::default();
-
-		let subi = InterceptedSubsystem::new(sub, BlackHole);
-
-		use overseer::channel;
-
-		let (tx, rx) = channel::oneshot();
-
-		pool.spawn(async move {
-			virtual_overseer
-				.send(AvailabilityStoreMessage::QueryChunk(Default::default(), 0.into(), tx))
-				.await;
-		});
-
-		let _ = rx.await.unwrap();
 	}
 }

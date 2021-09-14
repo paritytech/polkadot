@@ -27,7 +27,7 @@ use polkadot_cli::{
 	create_default_subsystems,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
+		OverseerGen, OverseerGenArgs, ParachainHost, ProvideRuntimeApi, SpawnNamed,
 	},
 	Cli,
 };
@@ -35,11 +35,11 @@ use polkadot_cli::{
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-use polkadot_node_subsystem::{messages::CandidateValidationMessage, SubsystemSender};
+use polkadot_node_subsystem::{FromOverseer, messages::{AllMessages, CandidateValidationMessage}, overseer::{self, OverseerHandle,}};
 
-// Filter wrapping related types.
 use malus::*;
 
+// Filter wrapping related types.
 use std::sync::{
 	atomic::{AtomicUsize, Ordering},
 	Arc,
@@ -53,7 +53,7 @@ struct Skippy(Arc<AtomicUsize>);
 
 impl<Sender> MessageInterceptor<Sender> for Skippy
 where
-	Sender: SubsystemSender<AllMessages> + SubsystemSender<Self::Message> + Clone + 'static,
+	Sender: overseer::SubsystemSender<AllMessages> + overseer::SubsystemSender<CandidateValidationMessage> + Clone + 'static,
 {
 	type Message = CandidateValidationMessage;
 
