@@ -18,8 +18,12 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 #[derive(Clone)]
 struct MetricsInner {
-	votes: prometheus::Gauge<prometheus::U64>,
-	concluded: prometheus::Gauge<prometheus::U64>,
+	/// Absolute number of open disputes.
+	open: prometheus::Counter<prometheus::U64>,
+	/// Votes of all disputes.
+	votes: prometheus::CounterVec<prometheus::U64>,
+	/// Conclusion across all disputes.
+	concluded: prometheus::CounterVec<prometheus::U64>,
 }
 
 /// Candidate validation metrics.
@@ -27,63 +31,67 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
-    fn on_vote_valid(&self) {
-        if let Some(metrics) = self.0 {
-            metrics.votes.with_label_values(&["valid"]).inc();
-        }
-    }
+	pub(crate) fn on_open(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.open.inc()
+		}
+	}
 
-    fn on_vote_invalid(&self) {
-        if let Some(metrics) = self.0 {
-            metrics.votes.with_label_values(&["invalid"]).inc();
-        }
-    }
+	pub(crate) fn on_valid_vote(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.votes.with_label_values(&["valid"]).inc();
+		}
+	}
 
-	fn on_concluded_valid(&self) {
-		if let Some(metrics) = self.0 {
+	pub(crate) fn on_invalid_vote(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.votes.with_label_values(&["invalid"]).inc();
+		}
+	}
+
+	pub(crate) fn on_concluded_valid(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.open.dec();
 			metrics.concluded.with_label_values(&["valid"]).inc();
 		}
 	}
 
-    fn on_concluded_invalid(&self) {
-        if let Some(metrics) = self.0 {
-            metrics.concluded.with_label_values(&["invalid"]).inc();
-        }
+	pub(crate) fn on_concluded_invalid(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.open.dec();
+			metrics.concluded.with_label_values(&["invalid"]).inc();
+		}
 	}
 }
 
 impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
-			validation_requests: prometheus::register(
+			open: prometheus::register(
+				prometheus::Gauge::with_opts(prometheus::Opts::new(
+					"parachain_candidate_open_disputes",
+					"Count of currently unconcluded disputes.",
+				))?,
+				registry,
+			)?,
+			concluded: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_validation_requests_total",
-						"Number of validation requests served.",
+						"parachain_candidate_dispute_concluded",
+						"Concluded dispute votes, sorted by candidate is `valid` and `invalid`.",
 					),
 					&["validity"],
 				)?,
 				registry,
 			)?,
-			validate_from_chain_state: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_validation_validate_from_chain_state",
-					"Time spent within `candidate_validation::validate_from_chain_state`",
-				))?,
-				registry,
-			)?,
-			validate_from_exhaustive: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_validation_validate_from_exhaustive",
-					"Time spent within `candidate_validation::validate_from_exhaustive`",
-				))?,
-				registry,
-			)?,
-			validate_candidate_exhaustive: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_candidate_validation_validate_candidate_exhaustive",
-					"Time spent within `candidate_validation::validate_candidate_exhaustive`",
-				))?,
+			votes: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_candidate_dispute_votes",
+						"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
+					),
+					&["validity"],
+				)?,
 				registry,
 			)?,
 		};
