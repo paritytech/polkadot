@@ -117,6 +117,7 @@ jaeger/MS
 js
 keccak256/M
 keypair/MS
+KeyPair
 keystore/MS
 Kovan
 KSM/S
