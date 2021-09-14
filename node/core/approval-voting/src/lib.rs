@@ -694,6 +694,7 @@ where
 					woken_block,
 					woken_candidate,
 					tick,
+					&subsystem.metrics,
 				)?
 			}
 			next_msg = ctx.recv().fuse() => {
@@ -1710,14 +1711,14 @@ fn check_and_import_approval<T>(
 		None
 	};
 
-	let mut actions = import_checked_approval(
+	let mut actions = advance_approval_state(
 		state,
 		db,
 		&metrics,
 		block_entry,
 		approved_candidate_hash,
 		candidate_entry,
-		ApprovalSource::Remote(approval.validator),
+		ApprovalStateTransition::RemoteApproval(approval.validator),
 	);
 
 	actions.extend(inform_disputes_action);
@@ -1725,41 +1726,54 @@ fn check_and_import_approval<T>(
 	Ok((actions, t))
 }
 
-enum ApprovalSource {
-	Remote(ValidatorIndex),
-	Local(ValidatorIndex, ValidatorSignature),
+enum ApprovalStateTransition {
+	RemoteApproval(ValidatorIndex),
+	LocalApproval(ValidatorIndex, ValidatorSignature),
+	WakeupProcessed,
 }
 
-impl ApprovalSource {
-	fn validator_index(&self) -> ValidatorIndex {
+impl ApprovalStateTransition {
+	fn validator_index(&self) -> Option<ValidatorIndex> {
 		match *self {
-			ApprovalSource::Remote(v) | ApprovalSource::Local(v, _) => v,
+			ApprovalStateTransition::RemoteApproval(v)
+				| ApprovalStateTransition::LocalApproval(v, _) => Some(v),
+			ApprovalStateTransition::WakeupProcessed => None,
 		}
 	}
 
-	fn is_remote(&self) -> bool {
+	fn is_remote_approval(&self) -> bool {
 		match *self {
-			ApprovalSource::Remote(_) => true,
-			ApprovalSource::Local(_, _) => false,
+			ApprovalStateTransition::RemoteApproval(_) => true,
+			ApprovalStateTransition::LocalApproval(_, _) => false,
+			ApprovalStateTransition::WakeupProcessed => false,
+		}
+	}
+
+	fn is_local_approval(&self) -> bool {
+		match *self {
+			ApprovalStateTransition::RemoteApproval(_) => false,
+			ApprovalStateTransition::LocalApproval(_, _) => true,
+			ApprovalStateTransition::WakeupProcessed => false,
 		}
 	}
 }
 
-// Import an approval vote which is already checked to be valid and corresponding to an assigned
-// validator on the candidate and block. This updates the block entry and candidate entry as
+// Advance the approval state, either by importing an approval vote which is already checked to be valid and corresponding to an assigned
+// validator on the candidate and block, or by noting that there are no further wakeups or tranches needed. This updates the block entry and candidate entry as
 // necessary and schedules any further wakeups.
-fn import_checked_approval(
+fn advance_approval_state(
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
 	mut block_entry: BlockEntry,
 	candidate_hash: CandidateHash,
 	mut candidate_entry: CandidateEntry,
-	source: ApprovalSource,
+	transition: ApprovalStateTransition,
 ) -> Vec<Action> {
-	let validator_index = source.validator_index();
+	let validator_index = transition.validator_index();
 
-	let already_approved_by = candidate_entry.mark_approval(validator_index);
+	let already_approved_by = validator_index.as_ref()
+		.map(|v| candidate_entry.mark_approval(*v));
 	let candidate_approved_in_block = block_entry.is_candidate_approved(&candidate_hash);
 
 	// Check for early exits.
@@ -1771,17 +1785,13 @@ fn import_checked_approval(
 	// If the block was approved, but the validator hadn't approved it yet, we should still hold
 	// onto the approval vote on-disk in case we restart and rebroadcast votes. Otherwise, our
 	// assignment might manifest as a no-show.
-	match source {
-		ApprovalSource::Remote(_) => {
-			// We don't store remote votes, so we can early exit as long at the candidate is
-			// already concluded under the block i.e. we don't need more approvals.
-			if candidate_approved_in_block {
-				return Vec::new()
-			}
-		},
-		ApprovalSource::Local(_, _) => {
-			// We never early return on the local validator.
-		},
+	if !transition.is_local_approval() {
+		// We don't store remote votes and there's nothing to store for processed wakeups,
+		// so we can early exit as long at the candidate is already concluded under the
+		// block i.e. we don't need more approvals.
+		if candidate_approved_in_block {
+			return Vec::new()
+		}
 	}
 
 	let mut actions = Vec::new();
@@ -1852,7 +1862,7 @@ fn import_checked_approval(
 			approval_entry.mark_approved();
 		}
 
-		if let ApprovalSource::Local(_, ref sig) = source {
+		if let ApprovalStateTransition::LocalApproval(_, ref sig) = transition {
 			approval_entry.import_approval_sig(sig.clone());
 		}
 
@@ -1867,11 +1877,11 @@ fn import_checked_approval(
 
 		// We have no need to write the candidate entry if
 		//
-		// 1. The source is remote, as we don't store anything new in the approval entry.
+		// 1. The approver is remote, as we don't store anything new in the approval entry.
 		// 2. The candidate is not newly approved, as we haven't altered the approval entry's
 		//	  approved flag with `mark_approved` above.
-		// 3. The source had already approved the candidate, as we haven't altered the bitfield.
-		if !source.is_remote() || newly_approved || !already_approved_by {
+		// 3. The approver, if any, had already approved the candidate, as we haven't altered the bitfield.
+		if !transition.is_remote_approval() || newly_approved || already_approved_by.unwrap_or(false) {
 			// In all other cases, we need to write the candidate entry.
 			db.write_candidate_entry(candidate_entry);
 		}
@@ -1918,6 +1928,7 @@ fn process_wakeup(
 	relay_block: Hash,
 	candidate_hash: CandidateHash,
 	expected_tick: Tick,
+	metrics: &Metrics,
 ) -> SubsystemResult<Vec<Action>> {
 	let _span = jaeger::Span::from_encodable(
 		(relay_block, candidate_hash, expected_tick),
@@ -2040,28 +2051,20 @@ fn process_wakeup(
 		}
 	}
 
-	let approval_entry = candidate_entry
-		.approval_entry(&relay_block)
-		.expect("this function returned earlier if not available; qed");
-
-	// Although we ran this earlier in the function, we need to run again because we might have
-	// imported our own assignment, which could change things.
-	let tranches_to_approve = approval_checking::tranches_to_approve(
-		&approval_entry,
-		candidate_entry.approvals(),
-		tranche_now,
-		block_tick,
-		no_show_duration,
-		session_info.needed_approvals as _,
-	);
-
-	actions.extend(schedule_wakeup_action(
-		&approval_entry,
-		relay_block,
-		block_entry.block_number(),
+	// Although we checked approval earlier in this function,
+	// this wakeup might have advanced the state to approved via
+	// a no-show that was immediately covered and therefore
+	// we need to check for that and advance the state on-disk.
+	//
+	// Note that this function also schedules a wakeup as necessary.
+	actions.extend(advance_approval_state(
+		state,
+		db,
+		metrics,
+		block_entry,
 		candidate_hash,
-		block_tick,
-		tranches_to_approve,
+		candidate_entry,
+		ApprovalStateTransition::WakeupProcessed,
 	));
 
 	Ok(actions)
@@ -2436,14 +2439,14 @@ async fn issue_approval(
 		None
 	};
 
-	let mut actions = import_checked_approval(
+	let mut actions = advance_approval_state(
 		state,
 		db,
 		metrics,
 		block_entry,
 		candidate_hash,
 		candidate_entry,
-		ApprovalSource::Local(validator_index as _, sig.clone()),
+		ApprovalStateTransition::LocalApproval(validator_index as _, sig.clone()),
 	);
 
 	metrics.on_approval_produced();
