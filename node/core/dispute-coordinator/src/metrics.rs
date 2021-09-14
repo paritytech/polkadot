@@ -66,9 +66,9 @@ impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			open: prometheus::register(
-				prometheus::Gauge::with_opts(prometheus::Opts::new(
-					"parachain_candidate_open_disputes",
-					"Count of currently unconcluded disputes.",
+				prometheus::Counter::new(prometheus::Opts::new(
+					"parachain_candidate_disputes_total",
+					"Total number of raised disputes.",
 				))?,
 				registry,
 			)?,
