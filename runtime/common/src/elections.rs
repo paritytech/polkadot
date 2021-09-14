@@ -60,14 +60,15 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfi
 pub type OnOnChainAccuracy = sp_runtime::Perbill;
 
 /// The election provider of the genesis
-pub type GenesisElectionOf<T> = frame_election_provider_support::onchain::OnChainSequentialPhragmen<T>;
+pub type GenesisElectionOf<T> =
+	frame_election_provider_support::onchain::OnChainSequentialPhragmen<T>;
 
 /// Maximum number of iterations for balancing that will be executed in the embedded miner of
 /// pallet-election-provider-multi-phase.
 pub const MINER_MAX_ITERATIONS: u32 = 10;
 
-/// A source of random balance for the NPoS Solver, which is meant to be run by the OCW election
-/// miner.
+/// A source of random balance for the NPoS Solver, which is meant to be run by the offchain worker
+/// election miner.
 pub struct OffchainRandomBalancing;
 impl frame_support::pallet_prelude::Get<Option<(usize, sp_npos_elections::ExtendedBalance)>>
 	for OffchainRandomBalancing
