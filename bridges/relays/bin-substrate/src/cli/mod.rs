@@ -72,7 +72,7 @@ pub enum Command {
 	/// The message is being sent to the source chain, delivered to the target chain and dispatched
 	/// there.
 	SendMessage(send_message::SendMessage),
-	/// Generate SCALE-encoded `Call` for choosen network.
+	/// Generate SCALE-encoded `Call` for the chosen network.
 	///
 	/// The call can be used either as message payload or can be wrapped into a transaction
 	/// and executed on the chain directly.
@@ -235,7 +235,7 @@ pub trait CliChain: relay_substrate_client::Chain {
 
 	/// Bridge Message Payload type.
 	///
-	/// TODO [#854] This should be removed in favour of target-specifc types.
+	/// TODO [#854] This should be removed in favor of target-specifc types.
 	type MessagePayload;
 
 	/// Numeric value of SS58 format.
@@ -354,7 +354,7 @@ where
 }
 
 /// Create chain-specific set of configuration objects: connection parameters,
-/// signing parameters and bridge initialisation parameters.
+/// signing parameters and bridge initialization parameters.
 #[macro_export]
 macro_rules! declare_chain_options {
 	($chain:ident, $chain_prefix:ident) => {
