@@ -816,6 +816,22 @@ async fn handle_import_statements(
 	Ok(())
 }
 
+fn find_controlled_validator_indices(
+	keystore: &LocalKeystore,
+	validators: &[ValidatorId],
+) -> HashSet<ValidatorIndex> {
+	let mut controlled = HashSet::new();
+	for (index, validator) in validators.iter().enumerate() {
+		if keystore.key_pair::<ValidatorPair>(validator).ok().flatten().is_none() {
+			continue
+		}
+
+		controlled.insert(ValidatorIndex(index as _));
+	}
+
+	controlled
+}
+
 async fn issue_local_statement(
 	ctx: &mut impl SubsystemContext,
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
@@ -858,7 +874,8 @@ async fn issue_local_statement(
 	let mut statements = Vec::new();
 
 	let voted_indices: HashSet<_> = voted_indices.into_iter().collect();
-	for (index, validator) in validators.iter().enumerate() {
+	let controlled_indices = find_controlled_validator_indices(&state.keystore, &validators[..]);
+	for index in controlled_indices {
 		let index = ValidatorIndex(index as _);
 		if voted_indices.contains(&index) {
 			continue
@@ -873,7 +890,7 @@ async fn issue_local_statement(
 			valid,
 			candidate_hash,
 			session,
-			validator.clone(),
+			validators[index.0 as usize].clone(),
 		)
 		.await;
 
