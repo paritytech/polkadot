@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 };
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, Hash, SessionIndex,
-	SessionInfo, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	SessionInfo, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 
 use futures::{channel::oneshot, prelude::*};
@@ -876,11 +876,7 @@ async fn issue_local_statement(
 	let voted_indices: HashSet<_> = voted_indices.into_iter().collect();
 	let controlled_indices = find_controlled_validator_indices(&state.keystore, &validators[..]);
 	for index in controlled_indices {
-		let index = ValidatorIndex(index as _);
 		if voted_indices.contains(&index) {
-			continue
-		}
-		if state.keystore.key_pair::<ValidatorPair>(validator).ok().flatten().is_none() {
 			continue
 		}
 

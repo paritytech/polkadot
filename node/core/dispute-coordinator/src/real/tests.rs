@@ -286,6 +286,7 @@ impl TestState {
 			self.db.clone(),
 			self.config.clone(),
 			self.subsystem_keystore.clone(),
+			Metrics::default(),
 		);
 		let backend = DbBackend::new(self.db.clone(), self.config.column_config());
 		let subsystem_task = run(subsystem, ctx, backend, Box::new(self.clock.clone()));
