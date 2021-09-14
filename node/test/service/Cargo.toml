@@ -11,6 +11,7 @@ hex = "0.4.3"
 tracing = "0.1.26"
 rand = "0.8.3"
 tempfile = "3.2.0"
+tokio = "1.10.0"
 
 # Polkadot dependencies
 polkadot-overseer = { path = "../../overseer" }
@@ -59,4 +60,4 @@ substrate-test-client = { git = "https://github.com/paritytech/substrate", branc
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 serde_json = "1.0.67"
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = { version = "1.10", features = ["macros"] }
+tokio = { version = "1.11", features = ["macros"] }
