@@ -468,7 +468,7 @@ pub(crate) async fn handle_new_head(
 					}
 				}
 				if result.any() {
-					tracing::trace!(
+					tracing::debug!(
 						target: LOG_TARGET,
 						block_hash = ?block_hash,
 						"Insta-approving {}/{} candidates as the number of validators is too low",
