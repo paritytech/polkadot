@@ -68,7 +68,7 @@ where
 			None
 		}
 	}
-	fn intercept_outgoing(&self, _sender: &mut Sender, msg: AllMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
@@ -95,7 +95,7 @@ impl OverseerGen for BehaveMaleficient {
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem
 			|orig: CandidateValidationSubsystem| {
-				FilteredSubsystem::new(
+				InterceptedSubsystem::new(
 					CandidateValidationSubsystem::with_config(
 						candidate_validation_config,
 						orig.metrics,
