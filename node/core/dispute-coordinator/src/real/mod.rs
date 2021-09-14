@@ -58,11 +58,10 @@ use sc_keystore::LocalKeystore;
 
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
-use metrics::Metrics;
+use crate::metrics::Metrics;
 
 mod backend;
 mod db;
-mod metrics;
 
 #[cfg(test)]
 mod tests;
