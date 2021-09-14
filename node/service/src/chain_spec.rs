@@ -171,6 +171,7 @@ fn default_parachains_host_configuration(
 		max_code_size: MAX_CODE_SIZE,
 		max_pov_size: MAX_POV_SIZE,
 		max_head_data_size: 32 * 1024,
+        max_validators_per_core: Some(3),
 		group_rotation_frequency: 20,
 		chain_availability_period: 4,
 		thread_availability_period: 4,

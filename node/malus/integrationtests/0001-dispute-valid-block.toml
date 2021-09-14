@@ -64,3 +64,15 @@ validator = true
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
 command = "/usr/local/bin/malus"
 extra-args = ["--dave","-lparachain=debug"]
+
+[nodes.eve]
+validator = true
+image = "{{get_env(name="SYNTHIMAGE") | safe }}"
+command = "polkadot"
+extra-args = ["--eve", "-lparachain=debug"]
+
+[nodes.ferdie]
+validator = true
+image = "{{get_env(name="SYNTHIMAGE") | safe }}"
+command = "polkadot"
+extra-args = ["--ferdie", "-lparachain=debug"]
