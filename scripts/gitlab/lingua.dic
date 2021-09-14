@@ -215,6 +215,7 @@ shareable
 Simnet/MS
 spawn/SR
 spawner
+SS58
 sr25519
 startup/MS
 stateful
@@ -225,6 +226,7 @@ substream
 subsystem/MS
 subsystems'
 supermajority
+SURI
 systemwide
 taskmanager/MS
 TCP
