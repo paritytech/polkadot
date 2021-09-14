@@ -56,9 +56,9 @@ use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use sc_keystore::LocalKeystore;
 
+use crate::metrics::Metrics;
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
-use crate::metrics::Metrics;
 
 mod backend;
 mod db;
