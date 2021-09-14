@@ -60,7 +60,8 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfi
 pub type OnOnChainAccuracy = sp_runtime::Perbill;
 
 /// The election provider of the genesis
-pub type GenesisElectionOf<T> = frame_election_provider_support::onchain::OnChainSequentialPhragmen<T>;
+pub type GenesisElectionOf<T> =
+	frame_election_provider_support::onchain::OnChainSequentialPhragmen<T>;
 
 /// Maximum number of iterations for balancing that will be executed in the embedded miner of
 /// pallet-election-provider-multi-phase.
