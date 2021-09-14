@@ -8566,6 +8566,7 @@ dependencies = [
  "kusama-runtime",
  "log",
  "pallet-bags-list",
+ "pallet-election-provider-multi-phase 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "polkadot-runtime",
  "remote-externalities",
@@ -8574,6 +8575,7 @@ dependencies = [
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "structopt",
  "tokio",
 ]
 

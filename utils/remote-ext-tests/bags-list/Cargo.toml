@@ -5,10 +5,11 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-polkadot-runtime = { version = "0.9.8", path = "../../../runtime/polkadot", optional = true }
-kusama-runtime = { version = "0.9.8", path = "../../../runtime/kusama", optional = true }
+polkadot-runtime = { version = "0.9.8", path = "../../../runtime/polkadot" }
+kusama-runtime = { version = "0.9.8", path = "../../../runtime/kusama" }
 
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "zeke-voter-bags-module" }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -20,8 +21,4 @@ frame-support = { git = "https://github.com/paritytech/substrate", branch = "mas
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 tokio = { version = "1", features = ["macros"] }
 log = { version = "0.4.14" }
-
-[features]
-default = ["kusama"]
-polkadot = ["polkadot-runtime"]
-kusama = ["kusama-runtime"]
+structopt = {version = "0.3.23" }

@@ -18,6 +18,7 @@
 
 use frame_election_provider_support::SortedListProvider;
 use frame_support::traits::Get;
+use pallet_election_provider_multi_phase as EPM;
 use pallet_staking::{BalanceOf, MinNominatorBond, Nominators};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_runtime::traits::Block as BlockT;
@@ -29,17 +30,13 @@ const LOG_TARGET: &'static str = "remote-ext-tests::bags-list";
 /// Test voter bags migration. `currency_unit` is the number of planks per the
 /// the runtimes `UNITS` (i.e. number of decimal places per DOT, KSM etc)
 pub(crate) async fn test_voter_bags_migration<
-	Runtime: pallet_staking::Config + pallet_bags_list::Config,
+	Runtime: pallet_staking::Config + pallet_bags_list::Config + EPM::Config,
 	Block: BlockT,
 >(
 	currency_unit: u64,
+	ws_url: String,
 ) {
 	sp_tracing::try_init_simple();
-
-	let ws_url = match std::env::var("WS_RPC") {
-		Ok(ws_url) => ws_url,
-		Err(_) => panic!("Must set env var `WS_RPC=<ws-url>`"),
-	};
 
 	let mut ext = Builder::<Block>::new()
 		.mode(Mode::Online(OnlineConfig {
@@ -86,12 +83,13 @@ pub(crate) async fn test_voter_bags_migration<
 			let vote_weight_thresh_as_unit = *vote_weight_thresh as f64 / currency_unit as f64;
 			let pretty_thresh = format!("Threshold: {}.", vote_weight_thresh_as_unit);
 
-			let bag = match pallet_bags_list::Pallet::<Runtime>::list_bags_get(*vote_weight_thresh) {
+			let bag = match pallet_bags_list::Pallet::<Runtime>::list_bags_get(*vote_weight_thresh)
+			{
 				Some(bag) => bag,
 				None => {
 					log::info!(target: LOG_TARGET, "{} NO VOTERS.", pretty_thresh);
-					continue
-				},
+					continue;
+				}
 			};
 
 			let voters_in_bag = bag.std_iter().count() as u32;
@@ -101,7 +99,7 @@ pub(crate) async fn test_voter_bags_migration<
 				(*vote_weight_thresh).try_into().map_err(|_| "should not fail").unwrap();
 			if vote_weight_as_balance <= min_nominator_bond {
 				for id in bag.std_iter().map(|node| node.std_id().clone()) {
-					log::warn!(
+					log::trace!(
 						target: LOG_TARGET,
 						"{} Account found below min bond: {:?}.",
 						pretty_thresh,
@@ -125,7 +123,23 @@ pub(crate) async fn test_voter_bags_migration<
 			);
 		}
 
-		assert_eq!(seen_in_bags, voter_list_count);
+		if seen_in_bags != voter_list_count {
+			log::error!(
+				target: LOG_TARGET,
+				"bags list population ({}) not on par whoever is voter_list ({})",
+				seen_in_bags,
+				voter_list_count,
+			)
+		}
+
+		// now let's test the process of a snapshot being created..
+		EPM::Pallet::<Runtime>::create_snapshot().unwrap();
+
+		log::info!(
+			target: LOG_TARGET,
+			"a snapshot has been created using the new runtime and data, with metadata {:?}",
+			EPM::Pallet::<Runtime>::snapshot_metadata(),
+		);
 	});
 }
 

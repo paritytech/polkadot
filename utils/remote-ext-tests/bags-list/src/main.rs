@@ -16,15 +16,54 @@
 
 //! Remote tests.
 
+use structopt::StructOpt;
+
 mod voter_bags;
+
+#[derive(StructOpt)]
+enum Runtime {
+	Polkadot,
+	Kusama,
+}
+
+impl std::str::FromStr for Runtime {
+	type Err = &'static str;
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		match s.to_lowercase().as_str() {
+			"polkadot" => Ok(Runtime::Polkadot),
+			"kusama" => Ok(Runtime::Kusama),
+			_ => Err("wrong Runtime: can be 'polkadot' or 'kusama'."),
+		}
+	}
+}
+
+#[derive(StructOpt)]
+struct Cli {
+	#[structopt(long, default_value = "wss://rpc.polkadot.io")]
+	uri: String,
+	#[structopt(long, short, default_value = "polkadot")]
+	runtime: Runtime,
+}
 
 #[tokio::main]
 async fn main() {
-	if cfg!(feature = "polkadot") {
-		use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
-		voter_bags::test_voter_bags_migration::<Runtime, Block>(UNITS as u64).await;
-	} else if cfg!(feature = "kusama") {
-		use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
-		voter_bags::test_voter_bags_migration::<Runtime, Block>(UNITS as u64).await;
+	let options = Cli::from_args();
+	match options.runtime {
+		Runtime::Kusama => {
+			use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
+			voter_bags::test_voter_bags_migration::<Runtime, Block>(
+				UNITS as u64,
+				options.uri.clone(),
+			)
+			.await;
+		}
+		Runtime::Polkadot => {
+			use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
+			voter_bags::test_voter_bags_migration::<Runtime, Block>(
+				UNITS as u64,
+				options.uri.clone(),
+			)
+			.await;
+		}
 	}
 }
