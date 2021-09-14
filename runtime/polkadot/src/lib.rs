@@ -22,8 +22,8 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots,
-	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
+	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, BlockHashCount,
+	BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
 	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor,
 };
 
@@ -1107,8 +1107,8 @@ impl paras_registrar::Config for Runtime {
 }
 
 parameter_types! {
-	// 6 weeks
-	pub const LeasePeriod: BlockNumber = 6 * WEEKS;
+	// 12 weeks = 3 months per lease period -> 8 lease periods ~ 2 years
+	pub const LeasePeriod: BlockNumber = 12 * WEEKS;
 }
 
 impl slots::Config for Runtime {
@@ -1283,14 +1283,14 @@ pub type Executive = frame_executive::Executive<
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-/// Migrate from `Instance1Membership` to the new pallet prefix `TechnicalMembership`
+/// Set the initial host configuration for Polkadot.
 pub struct SetInitialHostConfiguration;
 
 impl OnRuntimeUpgrade for SetInitialHostConfiguration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		use parachains_configuration::HostConfiguration;
 
-		let active_config: HostConfiguration::<BlockNumber> = HostConfiguration {
+		let active_config: HostConfiguration<BlockNumber> = HostConfiguration {
 			max_code_size: 10_485_760,
 			max_head_data_size: 20_480,
 			max_upward_queue_count: 10,
@@ -1330,7 +1330,7 @@ impl OnRuntimeUpgrade for SetInitialHostConfiguration {
 			n_delay_tranches: 89,
 			zeroth_delay_tranche_width: 0,
 			needed_approvals: 30,
-			relay_vrf_modulo_samples: 40
+			relay_vrf_modulo_samples: 40,
 		};
 		Configuration::force_set_active_config(active_config);
 
