@@ -51,7 +51,6 @@ impl Metrics {
 
 	pub(crate) fn on_concluded_valid(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.open.dec();
 			metrics.concluded.with_label_values(&["valid"]).inc();
 		}
 	}
