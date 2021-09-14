@@ -52,7 +52,8 @@ use primitives::v1::{
 	ValidatorIndex,
 };
 use runtime_common::{
-	claims, paras_sudo_wrapper, BlockHashCount, BlockLength, BlockWeights, SlowAdjustingFeeUpdate,
+	claims, paras_sudo_wrapper, BlockHashCount, BlockLength, BlockWeights, PovParams,
+	SlowAdjustingFeeUpdate,
 };
 use sp_core::OpaqueMetadata;
 use sp_runtime::{
@@ -129,6 +130,7 @@ impl frame_system::Config for Runtime {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
+	type PovParams = PovParams;
 	type DbWeight = ();
 	type Origin = Origin;
 	type Call = Call;

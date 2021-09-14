@@ -191,6 +191,7 @@ frame_support::parameter_types! {
 		// This parameter is used to derive maximal size of a single extrinsic.
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
+	pub DefaultPovParams: limits::PovParams = limits::PovParams::default();
 }
 
 /// Get the maximum weight (compute time) that a Normal extrinsic on the Millau chain can use.

@@ -205,6 +205,8 @@ impl frame_system::Config for Runtime {
 	type BlockWeights = bp_rialto::BlockWeights;
 	/// The maximum length of a block (in bytes).
 	type BlockLength = bp_rialto::BlockLength;
+	/// The parameters for Proof-of-Validity blocks.
+	type PovParams = bp_rialto::DefaultPovParams;
 	/// The weight of database operations that the runtime can invoke.
 	type DbWeight = DbWeight;
 	/// The designated `SS58` prefix of this chain.

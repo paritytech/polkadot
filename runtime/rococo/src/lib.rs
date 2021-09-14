@@ -43,7 +43,7 @@ use primitives::v1::{
 };
 use runtime_common::{
 	auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper, slots, xcm_sender,
-	BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
+	BlockHashCount, BlockLength, BlockWeights, PovParams, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
 use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
 use sp_core::{OpaqueMetadata, RuntimeDebug};
@@ -271,6 +271,7 @@ impl frame_system::Config for Runtime {
 	type BaseCallFilter = BaseFilter;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
+	type PovParams = PovParams;
 	type DbWeight = RocksDbWeight;
 	type Origin = Origin;
 	type Call = Call;

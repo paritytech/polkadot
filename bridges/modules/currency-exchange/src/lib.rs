@@ -359,6 +359,7 @@ mod tests {
 		type SystemWeightInfo = ();
 		type BlockWeights = ();
 		type BlockLength = ();
+		type PovParams = ();
 		type DbWeight = ();
 		type SS58Prefix = ();
 		type OnSetCode = ();

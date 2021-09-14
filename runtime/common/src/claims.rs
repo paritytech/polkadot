@@ -734,6 +734,7 @@ mod tests {
 		type BaseCallFilter = frame_support::traits::Everything;
 		type BlockWeights = ();
 		type BlockLength = ();
+		type PovParams = ();
 		type DbWeight = ();
 		type Origin = Origin;
 		type Call = Call;

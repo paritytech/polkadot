@@ -75,6 +75,7 @@ impl frame_system::Config for TestRuntime {
 	type DbWeight = ();
 	type BlockWeights = ();
 	type BlockLength = ();
+	type PovParams = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
 }

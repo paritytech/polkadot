@@ -626,6 +626,7 @@ mod tests {
 		type DbWeight = ();
 		type BlockWeights = BlockWeights;
 		type BlockLength = BlockLength;
+		type PovParams = ();
 		type Version = ();
 		type PalletInfo = PalletInfo;
 		type AccountData = pallet_balances::AccountData<u128>;

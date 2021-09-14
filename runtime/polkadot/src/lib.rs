@@ -24,7 +24,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	claims, impls::DealWithFees, AssignmentSessionKeyPlaceholder, BlockHashCount, BlockLength,
 	BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit, OffchainSolutionWeightLimit,
-	ParachainSessionKeyPlaceholder, RocksDbWeight, SlowAdjustingFeeUpdate,
+	ParachainSessionKeyPlaceholder, PovParams, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -168,6 +168,7 @@ impl frame_system::Config for Runtime {
 	type BaseCallFilter = BaseFilter;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
+	type PovParams = PovParams;
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;

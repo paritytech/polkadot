@@ -46,7 +46,7 @@ use frame_support::{
 };
 use frame_system::limits;
 use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
-use primitives::v1::{AssignmentId, BlockNumber, ValidatorId};
+use primitives::v1::{AssignmentId, BlockNumber, MAX_POV_SIZE, ValidatorId};
 use sp_runtime::{FixedPointNumber, Perbill, Perquintill};
 use static_assertions::const_assert;
 
@@ -111,6 +111,10 @@ parameter_types! {
 		})
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
+	/// PoV parameter values and limits.
+	pub PovParams: limits::PovParams = limits::PovParams {
+		max_size: MAX_POV_SIZE,
+	};
 }
 
 /// Parameterized slow adjusting fee updated based on
@@ -219,6 +223,7 @@ mod multiplier_tests {
 		type BaseCallFilter = frame_support::traits::Everything;
 		type BlockWeights = BlockWeights;
 		type BlockLength = ();
+		type PovParams = ();
 		type DbWeight = ();
 		type Origin = Origin;
 		type Index = u64;

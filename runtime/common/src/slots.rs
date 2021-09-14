@@ -510,6 +510,7 @@ mod tests {
 		type BaseCallFilter = frame_support::traits::Everything;
 		type BlockWeights = ();
 		type BlockLength = ();
+		type PovParams = ();
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;

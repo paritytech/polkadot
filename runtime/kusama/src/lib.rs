@@ -31,7 +31,7 @@ use primitives::v1::{
 use runtime_common::{
 	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, xcm_sender,
 	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor,
+	OffchainSolutionWeightLimit, PovParams, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor,
 };
 use sp_core::u32_trait::{_1, _2, _3, _5};
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -160,6 +160,7 @@ impl frame_system::Config for Runtime {
 	type BaseCallFilter = BaseFilter;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
+	type PovParams = PovParams;
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;

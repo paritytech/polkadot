@@ -125,6 +125,7 @@ mod tests {
 		type BlockHashCount = BlockHashCount;
 		type BlockLength = BlockLength;
 		type BlockWeights = BlockWeights;
+		type PovParams = ();
 		type DbWeight = ();
 		type Version = ();
 		type PalletInfo = PalletInfo;
