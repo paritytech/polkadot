@@ -25,7 +25,7 @@ where
 		msg: FromOverseer<Self::Message>,
 	) -> Option<FromOverseer<Self::Message>> {
 		match msg {
-			FromOverseer::Communication { _msg } => None,
+			FromOverseer::Communication { msg: _msg } => None,
 			// to conclude the test cleanly
 			sig => Some(sig),
 		}
