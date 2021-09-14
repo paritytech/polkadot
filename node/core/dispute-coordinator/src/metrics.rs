@@ -58,7 +58,6 @@ impl Metrics {
 
 	pub(crate) fn on_concluded_invalid(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.open.dec();
 			metrics.concluded.with_label_values(&["invalid"]).inc();
 		}
 	}
