@@ -226,6 +226,17 @@ check-runtime-benchmarks:
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
+check-no-default-features:
+  stage:                           test
+  <<:                              *rules-test
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *vault-secrets
+  script:
+    # Check that polkadot-cli will compile no default features.
+    - ./scripts/gitlab/check_no_default_features.sh
+    - sccache -s
+
 spellcheck:
   stage:                           test
   <<:                              *docker-env

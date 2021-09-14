@@ -30,10 +30,11 @@ use sc_transaction_pool_api::TransactionStatus;
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
 	client: &WsClient,
 	at: B::Hash,
-) -> Result<(), Error> {
+) -> Result<(), Error<T>> {
 	let key = sp_core::storage::StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
 	let phase = get_storage::<EPM::Phase<BlockNumber>>(client, params! {key, at})
-		.await?
+		.await
+		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
 
 	if phase.is_signed() {
@@ -50,7 +51,7 @@ async fn ensure_no_previous_solution<
 >(
 	ext: &mut Ext,
 	us: &AccountId,
-) -> Result<(), Error> {
+) -> Result<(), Error<T>> {
 	use EPM::signed::SignedSubmissions;
 	ext.execute_with(|| {
 		if <SignedSubmissions<T>>::get().iter().any(|ss| &ss.who == us) {
@@ -68,7 +69,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 		shared: SharedConfig,
 		config: MonitorConfig,
 		signer: Signer,
-	) -> Result<(), Error> {
+	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
 		let (sub, unsub) = if config.listen == "head" {
 			("chain_subscribeNewHeads", "chain_unsubscribeNewHeads")
@@ -109,7 +110,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				continue;
 			}
 
-			let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, config.iterations, true)?;
+			let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext)?;
+
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
 			let nonce = crate::get_account_info::<Runtime>(client, &signer.account, Some(hash))
@@ -149,8 +151,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					TransactionStatus::InBlock(hash) => {
 						log::info!(target: LOG_TARGET, "included at {:?}", hash);
 						let key = frame_support::storage::storage_prefix(b"System", b"Events");
-						let events =get_storage::<
-							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>
+						let events = get_storage::<Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
 						>(client, params!{ key, hash }).await?.unwrap_or_default();
 						log::info!(target: LOG_TARGET, "events at inclusion {:?}", events);
 					}
