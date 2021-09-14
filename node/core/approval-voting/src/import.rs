@@ -450,7 +450,7 @@ pub(crate) async fn handle_new_head(
 		let num_candidates = included_candidates.len();
 		let approved_bitfield = {
 			if needed_approvals == 0 {
-				tracing::trace!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					block_hash = ?block_hash,
 					"Insta-approving all candidates",
