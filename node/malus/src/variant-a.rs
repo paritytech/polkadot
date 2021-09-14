@@ -35,7 +35,7 @@ use polkadot_cli::{
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-use polkadot_node_subsystem::messages::CandidateValidationMessage;
+use polkadot_node_subsystem::{messages::CandidateValidationMessage, SubsystemSender};
 
 // Filter wrapping related types.
 use malus::*;
@@ -59,7 +59,7 @@ where
 
 	fn intercept_incoming(
 		&self,
-		_sender: &mut S,
+		_sender: &mut Sender,
 		msg: FromOverseer<Self::Message>,
 	) -> Option<FromOverseer<Self::Message>> {
 		if self.0.fetch_add(1, Ordering::Relaxed) % 2 == 0 {
@@ -68,7 +68,7 @@ where
 			None
 		}
 	}
-	fn intercept_outgoing(&self, _sender: &mut S, msg: AllMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(&self, _sender: &mut Sender, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
