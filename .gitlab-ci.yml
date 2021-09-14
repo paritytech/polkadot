@@ -270,10 +270,14 @@ build-malus:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   script:
+    # temporary build for malus
+    - git checkout temporary-malus && git pull
     - time cargo build --release --verbose -p polkadot-test-malus --features disputes
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
+    # the temporary branch for malus, creates a bin named "polkadot", so it needs to be renamed
+    - mv ./target/release/polkadot ./target/release/malus
     - mv ./target/release/malus ./artifacts/.
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
