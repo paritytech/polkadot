@@ -272,7 +272,8 @@ build-malus:
   script:
     # temporary build for malus
     - git checkout temporary-malus && git pull
-    - time cargo build --release --verbose -p polkadot-test-malus --features disputes
+    - time cargo build --release --verbose -p polkadot --features disputes
+    #- time cargo build --release --verbose -p polkadot-test-malus --features disputes
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
