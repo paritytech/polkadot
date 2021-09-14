@@ -1735,8 +1735,8 @@ enum ApprovalStateTransition {
 impl ApprovalStateTransition {
 	fn validator_index(&self) -> Option<ValidatorIndex> {
 		match *self {
-			ApprovalStateTransition::RemoteApproval(v)
-				| ApprovalStateTransition::LocalApproval(v, _) => Some(v),
+			ApprovalStateTransition::RemoteApproval(v) |
+			ApprovalStateTransition::LocalApproval(v, _) => Some(v),
 			ApprovalStateTransition::WakeupProcessed => None,
 		}
 	}
@@ -1772,8 +1772,7 @@ fn advance_approval_state(
 ) -> Vec<Action> {
 	let validator_index = transition.validator_index();
 
-	let already_approved_by = validator_index.as_ref()
-		.map(|v| candidate_entry.mark_approval(*v));
+	let already_approved_by = validator_index.as_ref().map(|v| candidate_entry.mark_approval(*v));
 	let candidate_approved_in_block = block_entry.is_candidate_approved(&candidate_hash);
 
 	// Check for early exits.
@@ -1881,7 +1880,10 @@ fn advance_approval_state(
 		// 2. The candidate is not newly approved, as we haven't altered the approval entry's
 		//	  approved flag with `mark_approved` above.
 		// 3. The approver, if any, had already approved the candidate, as we haven't altered the bitfield.
-		if !transition.is_remote_approval() || newly_approved || already_approved_by.unwrap_or(false) {
+		if !transition.is_remote_approval() ||
+			newly_approved ||
+			already_approved_by.unwrap_or(false)
+		{
 			// In all other cases, we need to write the candidate entry.
 			db.write_candidate_entry(candidate_entry);
 		}
