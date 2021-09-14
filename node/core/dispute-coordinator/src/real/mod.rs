@@ -761,8 +761,15 @@ async fn handle_import_statements(
 	if status != prev_status {
 		// This branch is only hit when the candidate is freshly disputed -
 		// status was previously `None`, and now is not.
-		if prev_status.is_none() {
-			// No matter what, if the dispute is new, we participate.
+		if prev_status.is_none() && {
+			let controlled_indices =
+				find_controlled_validator_indices(&state.keystore, &validators);
+			let voted_indices = votes.voted_indices();
+
+			!controlled_indices.iter().all(|val_index| voted_indices.contains(&val_index))
+		} {
+			// If the dispute is new, we participate UNLESS all our controlled
+			// keys have already participated.
 			//
 			// We also block the coordinator while awaiting our determination
 			// of whether the vote is available.
