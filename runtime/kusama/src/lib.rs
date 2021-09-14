@@ -1505,7 +1505,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	TechnicalMembershipStoragePrefixMigration,
+	(TechnicalMembershipStoragePrefixMigration, MigrateTipsPalletPrefix),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1546,6 +1546,28 @@ impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
 			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
 			name,
 		);
+		Ok(())
+	}
+}
+
+const TIPS_OLD_PREFIX: &str = "Treasury";
+/// Migrate pallet-tips from `Treasury` to the new pallet prefix `Tips`
+pub struct MigrateTipsPalletPrefix;
+
+impl OnRuntimeUpgrade for MigrateTipsPalletPrefix {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_tips::migrations::v4::migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_tips::migrations::v4::pre_migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX);
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_tips::migrations::v4::post_migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX);
 		Ok(())
 	}
 }
