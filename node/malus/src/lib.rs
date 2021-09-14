@@ -191,8 +191,8 @@ where
 
 /// A subsystem to which incoming and outgoing filters are applied.
 pub struct InterceptedSubsystem<Sub, Interceptor> {
-	subsystem: Sub,
-	message_interceptor: Interceptor,
+	pub subsystem: Sub,
+	pub message_interceptor: Interceptor,
 }
 
 impl<Sub, Interceptor> InterceptedSubsystem<Sub, Interceptor> {

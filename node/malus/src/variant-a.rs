@@ -35,7 +35,11 @@ use polkadot_cli::{
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-use polkadot_node_subsystem::{FromOverseer, messages::{AllMessages, CandidateValidationMessage}, overseer::{self, OverseerHandle,}};
+use polkadot_node_subsystem::{
+	messages::{AllMessages, CandidateValidationMessage},
+	overseer::{self, OverseerHandle},
+	FromOverseer,
+};
 
 use malus::*;
 
@@ -53,7 +57,10 @@ struct Skippy(Arc<AtomicUsize>);
 
 impl<Sender> MessageInterceptor<Sender> for Skippy
 where
-	Sender: overseer::SubsystemSender<AllMessages> + overseer::SubsystemSender<CandidateValidationMessage> + Clone + 'static,
+	Sender: overseer::SubsystemSender<AllMessages>
+		+ overseer::SubsystemSender<CandidateValidationMessage>
+		+ Clone
+		+ 'static,
 {
 	type Message = CandidateValidationMessage;
 
