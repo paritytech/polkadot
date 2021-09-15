@@ -18,7 +18,7 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 #[derive(Clone)]
 struct MetricsInner {
-	/// Absolute number of open disputes.
+	/// Number of opened disputes.
 	open: prometheus::Counter<prometheus::U64>,
 	/// Votes of all disputes.
 	votes: prometheus::CounterVec<prometheus::U64>,
