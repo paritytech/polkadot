@@ -295,7 +295,7 @@ impl State {
 				let our_index = ensure_i_am_an_authority(keystore, &all_authorities).await?;
 				let other_authorities = {
 					let mut authorities = all_authorities.clone();
-					authorities.remove(our_index);
+					authorities.swap_remove(our_index);
 					authorities
 				};
 
