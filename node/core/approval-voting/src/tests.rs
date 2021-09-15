@@ -2569,12 +2569,13 @@ fn pre_covers_dont_stall_approval() {
 	// Note that we have 6 validators, otherwise the 2nd approval triggers
 	// the >1/3 insta-approval condition.
 
-	let assignment_criteria =
-		Box::new(MockAssignmentCriteria::check_only(move |validator_index| match validator_index {
+	let assignment_criteria = Box::new(MockAssignmentCriteria::check_only(
+		move |validator_index| match validator_index {
 			ValidatorIndex(0 | 1) => Ok(0),
 			ValidatorIndex(2) => Ok(1),
 			ValidatorIndex(_) => Err(criteria::InvalidAssignment),
-		}));
+		},
+	));
 
 	let config = HarnessConfigBuilder::default().assignment_criteria(assignment_criteria).build();
 	let store = config.backend();
