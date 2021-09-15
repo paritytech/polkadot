@@ -1127,20 +1127,12 @@ impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		if StorageVersion::<Runtime>::get() == Releases::V6_0_0 {
-			migrations::v7::pre_migrate::<Runtime>()
-		} else {
-			Ok(())
-		}
+		pallet_staking::migrations::v8::pre_migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		if StorageVersion::<Runtime>::get() == Releases::V8_0_0 {
-			migrations::v8::post_migrate::<Runtime>()
-		} else {
-			Ok(())
-		}
+		pallet_staking::migrations::v8::post_migrate::<Runtime>()
 	}
 }
 
