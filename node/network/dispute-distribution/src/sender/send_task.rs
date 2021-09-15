@@ -26,7 +26,7 @@ use polkadot_node_network_protocol::{
 	},
 	IfDisconnected,
 };
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_node_subsystem_util::{metrics, runtime::RuntimeInfo};
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
 };
@@ -39,7 +39,7 @@ use super::error::{Fatal, Result};
 
 use crate::{
 	metrics::{FAILED, SUCCEEDED},
-	LOG_TARGET,
+	Metrics, LOG_TARGET,
 };
 
 /// Delivery status for a particular dispute.
@@ -118,6 +118,7 @@ impl SendTask {
 		active_sessions: &HashMap<SessionIndex, Hash>,
 		tx: mpsc::Sender<TaskFinish>,
 		request: DisputeRequest,
+		metrics: &Metrics,
 	) -> Result<Self> {
 		let mut send_task = Self {
 			request,
@@ -127,7 +128,7 @@ impl SendTask {
 			failed_count: 0,
 			send_count: 0,
 		};
-		send_task.refresh_sends(ctx, runtime, active_sessions).await?;
+		send_task.refresh_sends(ctx, runtime, active_sessions, metrics).await?;
 		Ok(send_task)
 	}
 
@@ -140,6 +141,7 @@ impl SendTask {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex, Hash>,
+		metrics: &Metrics,
 	) -> Result<()> {
 		let new_authorities = self.get_relevant_validators(ctx, runtime, active_sessions).await?;
 
@@ -154,7 +156,8 @@ impl SendTask {
 
 		// Start any new tasks that are needed:
 		let new_statuses =
-			send_requests(ctx, self.tx.clone(), add_authorities, self.request.clone()).await?;
+			send_requests(ctx, self.tx.clone(), add_authorities, self.request.clone(), metrics)
+				.await?;
 
 		self.has_failed_sends = false;
 		self.send_count += new_statuses.len();
@@ -277,6 +280,7 @@ async fn send_requests<Context: SubsystemContext>(
 	tx: mpsc::Sender<TaskFinish>,
 	receivers: Vec<AuthorityDiscoveryId>,
 	req: DisputeRequest,
+	metrics: &Metrics,
 ) -> Result<HashMap<AuthorityDiscoveryId, DeliveryStatus>> {
 	let mut statuses = HashMap::with_capacity(receivers.len());
 	let mut reqs = Vec::with_capacity(receivers.len());
@@ -292,6 +296,7 @@ async fn send_requests<Context: SubsystemContext>(
 			req.0.candidate_receipt.hash(),
 			receiver.clone(),
 			tx.clone(),
+			metrics.time_dispute_request(),
 		);
 
 		let (remote, remote_handle) = fut.remote_handle();
@@ -314,6 +319,7 @@ async fn wait_response_task(
 	candidate_hash: CandidateHash,
 	receiver: AuthorityDiscoveryId,
 	mut tx: mpsc::Sender<TaskFinish>,
+	_timer: Option<metrics::prometheus::prometheus::HistogramTimer>,
 ) {
 	let result = pending_response.await;
 	let msg = match result {
