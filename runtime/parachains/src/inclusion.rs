@@ -28,6 +28,7 @@ use primitives::v1::{
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, HeadData,
 	Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
 };
+use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{One, Saturating},
 	DispatchError,
@@ -43,7 +44,7 @@ pub use pallet::*;
 ///
 /// The bitfield's signature should be checked at the point of submission. Afterwards it can be
 /// dropped.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub struct AvailabilityBitfieldRecord<N> {
 	bitfield: AvailabilityBitfield, // one bit per core.
@@ -51,7 +52,7 @@ pub struct AvailabilityBitfieldRecord<N> {
 }
 
 /// A backed candidate pending availability.
-#[derive(Encode, Decode, PartialEq)]
+#[derive(Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
@@ -134,7 +135,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::Hash = "Hash")]
 	pub enum Event<T: Config> {
 		/// A candidate was backed. `[candidate, head_data]`
 		CandidateBacked(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),

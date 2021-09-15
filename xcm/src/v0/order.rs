@@ -26,10 +26,11 @@ use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
 /// An instruction to be executed on some or all of the assets in holding, used by asset-related XCM messages.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, scale_info::TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub enum Order<Call> {
 	/// Do nothing. Not generally used.
 	#[codec(index = 0)]

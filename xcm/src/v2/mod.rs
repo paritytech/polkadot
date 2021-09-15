@@ -26,6 +26,7 @@ use core::{
 };
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
+use scale_info::TypeInfo;
 
 mod traits;
 
@@ -45,10 +46,11 @@ pub const VERSION: super::Version = 2;
 /// An identifier for a query.
 pub type QueryId = u64;
 
-#[derive(Derivative, Default, Encode, Decode)]
+#[derive(Derivative, Default, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub struct Xcm<Call>(pub Vec<Instruction<Call>>);
 
 impl<Call> Xcm<Call> {
@@ -143,7 +145,7 @@ pub mod prelude {
 }
 
 /// Response data to a query.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
 pub enum Response {
 	/// No response. Serves as a neutral default.
 	Null,
@@ -162,7 +164,7 @@ impl Default for Response {
 }
 
 /// An optional weight limit.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
 pub enum WeightLimit {
 	/// No weight limit imposed.
 	Unlimited,
@@ -196,10 +198,11 @@ impl From<WeightLimit> for Option<u64> {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub enum Instruction<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into the Holding
 	/// Register.
