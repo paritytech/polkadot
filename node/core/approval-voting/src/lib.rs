@@ -1882,7 +1882,7 @@ fn advance_approval_state(
 		// 3. The approver, if any, had already approved the candidate, as we haven't altered the bitfield.
 		if !transition.is_remote_approval() ||
 			newly_approved ||
-			already_approved_by.unwrap_or(false)
+			!already_approved_by.unwrap_or(true)
 		{
 			// In all other cases, we need to write the candidate entry.
 			db.write_candidate_entry(candidate_entry);
