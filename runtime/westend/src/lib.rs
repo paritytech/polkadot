@@ -712,11 +712,11 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::Staking => {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
-			}
+			},
 			ProxyType::SudoBalances => match c {
 				Call::Sudo(pallet_sudo::Call::sudo(ref x)) => {
 					matches!(x.as_ref(), &Call::Balances(..))
-				}
+				},
 				Call::Utility(..) => true,
 				_ => false,
 			},
@@ -726,7 +726,7 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..)))
-			}
+			},
 			ProxyType::Auction => matches!(
 				c,
 				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)

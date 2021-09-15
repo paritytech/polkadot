@@ -99,9 +99,8 @@ impl SubstrateCli for Cli {
 			#[cfg(feature = "kusama-native")]
 			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()?),
 			#[cfg(not(feature = "kusama-native"))]
-			name if name.starts_with("kusama-") && !name.ends_with(".json") => {
-				Err(format!("`{}` only supported with `kusama-native` feature enabled.", name))?
-			}
+			name if name.starts_with("kusama-") && !name.ends_with(".json") =>
+				Err(format!("`{}` only supported with `kusama-native` feature enabled.", name))?,
 			"polkadot" => Box::new(service::chain_spec::polkadot_config()?),
 			#[cfg(feature = "polkadot-native")]
 			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
@@ -117,9 +116,8 @@ impl SubstrateCli for Cli {
 			#[cfg(feature = "rococo-native")]
 			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
 			#[cfg(not(feature = "rococo-native"))]
-			name if name.starts_with("rococo-") && !name.ends_with(".json") => {
-				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?
-			}
+			name if name.starts_with("rococo-") && !name.ends_with(".json") =>
+				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
 			"westend" => Box::new(service::chain_spec::westend_config()?),
 			#[cfg(feature = "westend-native")]
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
@@ -128,18 +126,16 @@ impl SubstrateCli for Cli {
 			#[cfg(feature = "westend-native")]
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
 			#[cfg(not(feature = "westend-native"))]
-			name if name.starts_with("westend-") && !name.ends_with(".json") => {
-				Err(format!("`{}` only supported with `westend-native` feature enabled.", name))?
-			}
+			name if name.starts_with("westend-") && !name.ends_with(".json") =>
+				Err(format!("`{}` only supported with `westend-native` feature enabled.", name))?,
 			"wococo" => Box::new(service::chain_spec::wococo_config()?),
 			#[cfg(feature = "rococo-native")]
 			"wococo-dev" => Box::new(service::chain_spec::wococo_development_config()?),
 			#[cfg(feature = "rococo-native")]
 			"wococo-local" => Box::new(service::chain_spec::wococo_local_testnet_config()?),
 			#[cfg(not(feature = "rococo-native"))]
-			name if name.starts_with("wococo-") => {
-				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?
-			}
+			name if name.starts_with("wococo-") =>
+				Err(format!("`{}` only supported with `rococo-native` feature enabled.", name))?,
 			path => {
 				let path = std::path::PathBuf::from(path);
 
@@ -157,24 +153,24 @@ impl SubstrateCli for Cli {
 				} else {
 					chain_spec
 				}
-			}
+			},
 		})
 	}
 
 	fn native_runtime_version(spec: &Box<dyn service::ChainSpec>) -> &'static RuntimeVersion {
 		#[cfg(feature = "kusama-native")]
 		if spec.is_kusama() {
-			return &service::kusama_runtime::VERSION;
+			return &service::kusama_runtime::VERSION
 		}
 
 		#[cfg(feature = "westend-native")]
 		if spec.is_westend() {
-			return &service::westend_runtime::VERSION;
+			return &service::westend_runtime::VERSION
 		}
 
 		#[cfg(feature = "rococo-native")]
 		if spec.is_rococo() || spec.is_wococo() {
-			return &service::rococo_runtime::VERSION;
+			return &service::rococo_runtime::VERSION
 		}
 
 		#[cfg(not(all(
@@ -186,7 +182,7 @@ impl SubstrateCli for Cli {
 
 		#[cfg(feature = "polkadot-native")]
 		{
-			return &service::polkadot_runtime::VERSION;
+			return &service::polkadot_runtime::VERSION
 		}
 
 		#[cfg(not(feature = "polkadot-native"))]
@@ -278,7 +274,7 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run(config.chain_spec, config.network))?)
-		}
+		},
 		Some(Subcommand::CheckBlock(cmd)) => {
 			let runner = cli.create_runner(cmd).map_err(Error::SubstrateCli)?;
 			let chain_spec = &runner.config().chain_spec;
@@ -290,7 +286,7 @@ pub fn run() -> Result<()> {
 					service::new_chain_ops(&mut config, None)?;
 				Ok((cmd.run(client, import_queue).map_err(Error::SubstrateCli), task_manager))
 			})
-		}
+		},
 		Some(Subcommand::ExportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
@@ -302,7 +298,7 @@ pub fn run() -> Result<()> {
 					service::new_chain_ops(&mut config, None).map_err(Error::PolkadotService)?;
 				Ok((cmd.run(client, config.database).map_err(Error::SubstrateCli), task_manager))
 			})?)
-		}
+		},
 		Some(Subcommand::ExportState(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
@@ -313,7 +309,7 @@ pub fn run() -> Result<()> {
 				let (client, _, _, task_manager) = service::new_chain_ops(&mut config, None)?;
 				Ok((cmd.run(client, config.chain_spec).map_err(Error::SubstrateCli), task_manager))
 			})?)
-		}
+		},
 		Some(Subcommand::ImportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
@@ -325,11 +321,11 @@ pub fn run() -> Result<()> {
 					service::new_chain_ops(&mut config, None)?;
 				Ok((cmd.run(client, import_queue).map_err(Error::SubstrateCli), task_manager))
 			})?)
-		}
+		},
 		Some(Subcommand::PurgeChain(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			Ok(runner.sync_run(|config| cmd.run(config.database))?)
-		}
+		},
 		Some(Subcommand::Revert(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
@@ -340,7 +336,7 @@ pub fn run() -> Result<()> {
 				let (client, backend, _, task_manager) = service::new_chain_ops(&mut config, None)?;
 				Ok((cmd.run(client, backend).map_err(Error::SubstrateCli), task_manager))
 			})?)
-		}
+		},
 		Some(Subcommand::PvfPrepareWorker(cmd)) => {
 			let mut builder = sc_cli::LoggerBuilder::new("");
 			builder.with_colors(false);
@@ -351,7 +347,7 @@ pub fn run() -> Result<()> {
 				return Err(sc_cli::Error::Input(
 					"PVF preparation workers are not supported under this platform".into(),
 				)
-				.into());
+				.into())
 			}
 
 			#[cfg(not(target_os = "android"))]
@@ -359,7 +355,7 @@ pub fn run() -> Result<()> {
 				polkadot_node_core_pvf::prepare_worker_entrypoint(&cmd.socket_path);
 				Ok(())
 			}
-		}
+		},
 		Some(Subcommand::PvfExecuteWorker(cmd)) => {
 			let mut builder = sc_cli::LoggerBuilder::new("");
 			builder.with_colors(false);
@@ -370,7 +366,7 @@ pub fn run() -> Result<()> {
 				return Err(sc_cli::Error::Input(
 					"PVF execution workers are not supported under this platform".into(),
 				)
-				.into());
+				.into())
 			}
 
 			#[cfg(not(target_os = "android"))]
@@ -378,7 +374,7 @@ pub fn run() -> Result<()> {
 				polkadot_node_core_pvf::execute_worker_entrypoint(&cmd.socket_path);
 				Ok(())
 			}
-		}
+		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
@@ -393,7 +389,7 @@ pub fn run() -> Result<()> {
 						config,
 					)
 					.map_err(|e| Error::SubstrateCli(e))
-				})?);
+				})?)
 			}
 
 			#[cfg(feature = "westend-native")]
@@ -403,7 +399,7 @@ pub fn run() -> Result<()> {
 						config,
 					)
 					.map_err(|e| Error::SubstrateCli(e))
-				})?);
+				})?)
 			}
 
 			// else we assume it is polkadot.
@@ -414,11 +410,11 @@ pub fn run() -> Result<()> {
 						config,
 					)
 					.map_err(|e| Error::SubstrateCli(e))
-				})?);
+				})?)
 			}
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
-		}
+		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
 		Some(Subcommand::TryRuntime(cmd)) => {
@@ -443,7 +439,7 @@ pub fn run() -> Result<()> {
 						.map_err(Error::SubstrateCli),
 						task_manager,
 					))
-				});
+				})
 			}
 
 			#[cfg(feature = "westend-native")]
@@ -456,7 +452,7 @@ pub fn run() -> Result<()> {
 						.map_err(Error::SubstrateCli),
 						task_manager,
 					))
-				});
+				})
 			}
 			// else we assume it is polkadot.
 			#[cfg(feature = "polkadot-native")]
@@ -469,11 +465,11 @@ pub fn run() -> Result<()> {
 						.map_err(Error::SubstrateCli),
 						task_manager,
 					))
-				});
+				})
 			}
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
-		}
+		},
 		#[cfg(not(feature = "try-runtime"))]
 		Some(Subcommand::TryRuntime) => Err(Error::Other(
 			"TryRuntime wasn't enabled when building the node. \
