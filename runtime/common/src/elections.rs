@@ -116,7 +116,7 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 	}
 
 	fn on_insert(id: T::AccountId, weight: VoteWeight) -> Result<(), Self::Error> {
-		pallet_bags_list::Pallet::<T>::on_insert(id, weight).map_err(Into::into)
+		pallet_bags_list::Pallet::<T>::on_insert(id, weight)
 	}
 
 	fn on_update(id: &T::AccountId, new_weight: VoteWeight) {

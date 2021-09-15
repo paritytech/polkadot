@@ -1,10 +1,3 @@
-# Remote Extension Tests
+# Remote Extension Tests For Pallet Bags List
 
 Integration tests that use state from live chains via remote externalities.
-
-## Features
-
-Tests are feature gated.
-
-- `polkadot`: tests for the polkadot runtime.
-- `kusama`: tests for the kusama runtime.
