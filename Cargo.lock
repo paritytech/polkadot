@@ -471,7 +471,7 @@ name = "beefy-gadget"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging#7657bea5fd7d23f15cd97052440a9635d212cc23"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
+ "beefy-primitives",
  "fnv",
  "futures 0.3.17",
  "hex",
@@ -483,14 +483,14 @@ dependencies = [
  "sc-network",
  "sc-network-gossip",
  "sc-utils",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
  "wasm-timer",
@@ -502,7 +502,7 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging#7657bea5fd7d23f15cd97052440a9635d212cc23"
 dependencies = [
  "beefy-gadget",
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
+ "beefy-primitives",
  "futures 0.3.17",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -513,8 +513,8 @@ dependencies = [
  "sc-rpc",
  "serde",
  "serde_json",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -523,35 +523,16 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging#7657bea5fd7d23f15cd97052440a9635d212cc23"
 
 [[package]]
-name = "beefy-merkle-tree"
-version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#71859649338cff5ebc47003cd2606307b20ec87e"
-
-[[package]]
 name = "beefy-primitives"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging#7657bea5fd7d23f15cd97052440a9635d212cc23"
 dependencies = [
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "beefy-primitives"
-version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#71859649338cff5ebc47003cd2606307b20ec87e"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -740,14 +721,14 @@ dependencies = [
  "assert_matches",
  "bp-test-utils",
  "finality-grandpa",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -755,10 +736,10 @@ name = "bp-message-dispatch"
 version = "0.1.0"
 dependencies = [
  "bp-runtime",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "parity-scale-codec",
  "scale-info",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-std",
 ]
 
 [[package]]
@@ -767,13 +748,13 @@ version = "0.1.0"
 dependencies = [
  "bitvec 0.20.1",
  "bp-runtime",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-std",
 ]
 
 [[package]]
@@ -782,16 +763,16 @@ version = "0.1.0"
 dependencies = [
  "bp-messages",
  "bp-runtime",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "hex",
  "parity-scale-codec",
  "scale-info",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+ "sp-version",
 ]
 
 [[package]]
@@ -800,12 +781,12 @@ version = "0.1.0"
 dependencies = [
  "bp-messages",
  "bp-runtime",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -815,30 +796,30 @@ dependencies = [
  "bp-messages",
  "bp-polkadot-core",
  "bp-runtime",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "parity-scale-codec",
  "smallvec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
+ "sp-version",
 ]
 
 [[package]]
 name = "bp-runtime"
 version = "0.1.0"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "hash-db",
  "num-traits",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -849,10 +830,10 @@ dependencies = [
  "ed25519-dalek",
  "finality-grandpa",
  "parity-scale-codec",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
  "sp-finality-grandpa",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -864,9 +845,9 @@ dependencies = [
  "bp-rococo",
  "bp-runtime",
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -877,7 +858,7 @@ dependencies = [
  "bp-messages",
  "bp-runtime",
  "ed25519-dalek",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "hash-db",
  "pallet-bridge-dispatch",
  "pallet-bridge-grandpa",
@@ -885,11 +866,11 @@ dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -1966,39 +1947,19 @@ name = "frame-benchmarking"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "linregress",
  "log",
  "parity-scale-codec",
  "paste 1.0.5",
  "scale-info",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "frame-benchmarking"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "linregress",
- "log",
- "parity-scale-codec",
- "paste 1.0.5",
- "scale-info",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-api",
+ "sp-io",
+ "sp-runtime",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -2008,8 +1969,8 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "Inflector",
  "chrono",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
  "handlebars",
  "linked-hash-map",
  "log",
@@ -2019,11 +1980,11 @@ dependencies = [
  "sc-executor",
  "sc-service",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
  "structopt",
 ]
 
@@ -2032,13 +1993,13 @@ name = "frame-election-provider-support"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
  "sp-npos-elections",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-std",
 ]
 
 [[package]]
@@ -2046,15 +2007,15 @@ name = "frame-executive"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -2076,7 +2037,7 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "bitflags",
  "frame-metadata",
- "frame-support-procedural 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support-procedural",
  "impl-trait-for-tuples",
  "log",
  "once_cell",
@@ -2085,42 +2046,15 @@ dependencies = [
  "scale-info",
  "serde",
  "smallvec",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "frame-support"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "bitflags",
- "frame-metadata",
- "frame-support-procedural 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "impl-trait-for-tuples",
- "log",
- "once_cell",
- "parity-scale-codec",
- "paste 1.0.5",
- "scale-info",
- "serde",
- "smallvec",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -2129,19 +2063,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "Inflector",
- "frame-support-procedural-tools 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "Inflector",
- "frame-support-procedural-tools 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "frame-support-procedural-tools",
  "proc-macro2",
  "quote",
  "syn",
@@ -2152,19 +2074,7 @@ name = "frame-support-procedural-tools"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "proc-macro-crate 1.0.0",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural-tools"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
+ "frame-support-procedural-tools-derive",
  "proc-macro-crate 1.0.0",
  "proc-macro2",
  "quote",
@@ -2175,16 +2085,6 @@ dependencies = [
 name = "frame-support-procedural-tools-derive"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "frame-support-procedural-tools-derive"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2196,21 +2096,21 @@ name = "frame-support-test"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "frame-support-test-pallet",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-system",
  "parity-scale-codec",
  "pretty_assertions",
  "rustversion",
  "scale-info",
  "serde",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-version",
  "trybuild",
 ]
 
@@ -2219,8 +2119,8 @@ name = "frame-support-test-pallet"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
 ]
@@ -2230,33 +2130,16 @@ name = "frame-system"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "log",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "frame-system"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "log",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-version",
 ]
 
 [[package]]
@@ -2264,14 +2147,14 @@ name = "frame-system-benchmarking"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -2280,7 +2163,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
 ]
 
 [[package]]
@@ -2288,10 +2171,10 @@ name = "frame-try-runtime"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3268,13 +3151,13 @@ dependencies = [
 name = "kusama-runtime"
 version = "0.9.9"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
+ "beefy-primitives",
  "bitvec 0.20.1",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
@@ -3295,7 +3178,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-mmr-primitives",
  "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
@@ -3303,12 +3186,12 @@ dependencies = [
  "pallet-proxy",
  "pallet-recovery",
  "pallet-scheduler",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
  "pallet-session-benchmarking",
  "pallet-society",
  "pallet-staking",
  "pallet-staking-reward-fn",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-timestamp",
  "pallet-tips",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -3327,24 +3210,24 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-arithmetic",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-npos-elections",
  "sp-offchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-trie",
+ "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
  "tiny-keccak",
@@ -4667,15 +4550,15 @@ name = "pallet-authority-discovery"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
+ "pallet-session",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
  "sp-authority-discovery",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4683,14 +4566,14 @@ name = "pallet-authorship"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "scale-info",
  "sp-authorship",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4698,23 +4581,23 @@ name = "pallet-babe"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-authorship",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
+ "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -4722,14 +4605,14 @@ name = "pallet-balances"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4737,31 +4620,15 @@ name = "pallet-beefy"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging#7657bea5fd7d23f15cd97052440a9635d212cc23"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "beefy-primitives",
+ "frame-support",
+ "frame-system",
+ "pallet-session",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "pallet-beefy"
-version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#71859649338cff5ebc47003cd2606307b20ec87e"
-dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4769,49 +4636,24 @@ name = "pallet-beefy-mmr"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging#7657bea5fd7d23f15cd97052440a9635d212cc23"
 dependencies = [
- "beefy-merkle-tree 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "beefy-merkle-tree",
+ "beefy-primitives",
+ "frame-support",
+ "frame-system",
  "hex",
  "libsecp256k1 0.6.0",
  "log",
- "pallet-beefy 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
- "pallet-mmr 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-beefy",
+ "pallet-mmr",
+ "pallet-mmr-primitives",
+ "pallet-session",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "pallet-beefy-mmr"
-version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#71859649338cff5ebc47003cd2606307b20ec87e"
-dependencies = [
- "beefy-merkle-tree 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master)",
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "hex",
- "libsecp256k1 0.6.0",
- "log",
- "pallet-beefy 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master)",
- "pallet-mmr 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4819,14 +4661,14 @@ name = "pallet-bounties"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "pallet-treasury",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4835,16 +4677,16 @@ version = "0.1.0"
 dependencies = [
  "bp-message-dispatch",
  "bp-runtime",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4855,19 +4697,19 @@ dependencies = [
  "bp-runtime",
  "bp-test-utils",
  "finality-grandpa",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "num-traits",
  "parity-scale-codec",
  "scale-info",
  "serde",
  "sp-finality-grandpa",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -4879,9 +4721,9 @@ dependencies = [
  "bp-messages",
  "bp-rialto",
  "bp-runtime",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "hex",
  "hex-literal",
  "log",
@@ -4890,10 +4732,10 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4901,16 +4743,16 @@ name = "pallet-collective"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4918,15 +4760,15 @@ name = "pallet-democracy"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4934,20 +4776,20 @@ name = "pallet-election-provider-multi-phase"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
  "frame-election-provider-support",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "rand 0.7.3",
  "scale-info",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
  "sp-npos-elections",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
  "static_assertions",
  "strum 0.21.0",
  "strum_macros 0.21.1",
@@ -4958,17 +4800,17 @@ name = "pallet-elections-phragmen"
 version = "5.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
  "sp-npos-elections",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4976,14 +4818,14 @@ name = "pallet-gilt"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4991,22 +4833,22 @@ name = "pallet-grandpa"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-authorship",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -5015,14 +4857,14 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "enumflags2",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5030,19 +4872,19 @@ name = "pallet-im-online"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-authorship",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -5050,16 +4892,16 @@ name = "pallet-indices"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
  "sp-keyring",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5067,16 +4909,16 @@ name = "pallet-membership"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5085,34 +4927,16 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "ckb-merkle-mountain-range",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-mmr-primitives",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "pallet-mmr"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "ckb-merkle-mountain-range",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "parity-scale-codec",
- "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5120,31 +4944,15 @@ name = "pallet-mmr-primitives"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "pallet-mmr-primitives"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "log",
- "parity-scale-codec",
- "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5155,13 +4963,13 @@ dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",
  "jsonrpc-derive",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-mmr-primitives",
  "parity-scale-codec",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -5169,14 +4977,14 @@ name = "pallet-multisig"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5184,13 +4992,13 @@ name = "pallet-nicks"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5198,16 +5006,16 @@ name = "pallet-offences"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-balances",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -5215,22 +5023,22 @@ name = "pallet-offences-benchmarking"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
  "frame-election-provider-support",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "pallet-babe",
  "pallet-balances",
  "pallet-grandpa",
  "pallet-im-online",
  "pallet-offences",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
  "pallet-staking",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -5238,14 +5046,14 @@ name = "pallet-proxy"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5253,13 +5061,13 @@ name = "pallet-recovery"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5267,15 +5075,15 @@ name = "pallet-scheduler"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5283,41 +5091,20 @@ name = "pallet-session"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "log",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "pallet-session"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "impl-trait-for-tuples",
- "log",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "parity-scale-codec",
- "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -5325,15 +5112,15 @@ name = "pallet-session-benchmarking"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "pallet-session",
  "pallet-staking",
  "rand 0.7.3",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-session",
+ "sp-std",
 ]
 
 [[package]]
@@ -5341,13 +5128,13 @@ name = "pallet-society"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "scale-info",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5355,22 +5142,22 @@ name = "pallet-staking"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
  "frame-election-provider-support",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-authorship",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "scale-info",
  "serde",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -5390,7 +5177,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "log",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
 ]
 
 [[package]]
@@ -5398,13 +5185,13 @@ name = "pallet-sudo"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5412,34 +5199,17 @@ name = "pallet-timestamp"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "pallet-timestamp"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "log",
- "parity-scale-codec",
- "scale-info",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-timestamp",
 ]
 
 [[package]]
@@ -5447,18 +5217,18 @@ name = "pallet-tips"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-treasury",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5466,16 +5236,16 @@ name = "pallet-transaction-payment"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
  "serde",
  "smallvec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5488,11 +5258,11 @@ dependencies = [
  "jsonrpc-derive",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -5502,8 +5272,8 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -5511,16 +5281,16 @@ name = "pallet-treasury"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "impl-trait-for-tuples",
  "pallet-balances",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5528,15 +5298,15 @@ name = "pallet-utility"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -5544,22 +5314,22 @@ name = "pallet-vesting"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
 name = "pallet-xcm"
 version = "0.9.9"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-balances",
  "parity-scale-codec",
@@ -5567,10 +5337,10 @@ dependencies = [
  "polkadot-runtime-parachains",
  "scale-info",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
  "xcm-builder",
  "xcm-executor",
@@ -5973,7 +5743,7 @@ dependencies = [
  "polkadot-primitives",
  "rand_core 0.5.1",
  "schnorrkel",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "tracing",
 ]
 
@@ -5992,9 +5762,9 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "tracing",
 ]
 
@@ -6017,10 +5787,10 @@ dependencies = [
  "polkadot-primitives",
  "rand 0.8.4",
  "sc-network",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-tracing",
  "thiserror",
  "tracing",
 ]
@@ -6045,8 +5815,8 @@ dependencies = [
  "polkadot-primitives",
  "rand 0.8.4",
  "sc-network",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
  "thiserror",
  "tracing",
@@ -6063,8 +5833,8 @@ dependencies = [
  "polkadot-service",
  "sc-cli",
  "sc-service",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-trie",
  "structopt",
  "substrate-build-script-utils",
  "thiserror",
@@ -6075,11 +5845,11 @@ dependencies = [
 name = "polkadot-client"
 version = "0.9.9"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "beefy-primitives",
+ "frame-benchmarking",
  "frame-system-rpc-runtime-api",
  "kusama-runtime",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-mmr-primitives",
  "pallet-transaction-payment-rpc-runtime-api",
  "polkadot-primitives",
  "polkadot-runtime",
@@ -6088,7 +5858,7 @@ dependencies = [
  "sc-consensus",
  "sc-executor",
  "sc-service",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-blockchain",
@@ -6096,9 +5866,9 @@ dependencies = [
  "sp-consensus-babe",
  "sp-finality-grandpa",
  "sp-offchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-session",
+ "sp-storage",
  "sp-transaction-pool",
  "westend-runtime",
 ]
@@ -6122,10 +5892,10 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-network",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-runtime",
  "thiserror",
  "tracing",
 ]
@@ -6137,9 +5907,9 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6163,10 +5933,10 @@ dependencies = [
  "polkadot-primitives",
  "sc-keystore",
  "sc-network",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-tracing",
  "thiserror",
  "tracing",
 ]
@@ -6179,8 +5949,8 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-primitives",
  "reed-solomon-novelpoly",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-trie",
  "thiserror",
 ]
 
@@ -6197,11 +5967,11 @@ dependencies = [
  "polkadot-primitives",
  "rand 0.8.4",
  "rand_chacha 0.3.1",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
  "tracing",
 ]
 
@@ -6223,7 +5993,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-network",
  "sp-consensus",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
  "tracing",
 ]
@@ -6240,8 +6010,8 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-maybe-compressed-blob",
  "thiserror",
  "tracing",
 ]
@@ -6272,14 +6042,14 @@ dependencies = [
  "rand_core 0.5.1",
  "sc-keystore",
  "schnorrkel",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
  "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-slots",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-runtime",
  "tracing",
 ]
 
@@ -6304,7 +6074,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
  "thiserror",
  "tracing",
@@ -6326,11 +6096,11 @@ dependencies = [
  "polkadot-statement-table",
  "rand 0.5.6",
  "sc-keystore",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-tracing",
  "thiserror",
  "tracing",
 ]
@@ -6344,7 +6114,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
  "thiserror",
  "tracing",
  "wasm-timer",
@@ -6365,9 +6135,9 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-parachain",
  "polkadot-primitives",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
- "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-maybe-compressed-blob",
  "tracing",
 ]
 
@@ -6386,7 +6156,7 @@ dependencies = [
  "sc-client-api",
  "sc-consensus-babe",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "tracing",
 ]
 
@@ -6406,7 +6176,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "thiserror",
  "tracing",
 ]
@@ -6428,9 +6198,9 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
  "thiserror",
  "tracing",
 ]
@@ -6446,7 +6216,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "thiserror",
  "tracing",
 ]
@@ -6461,8 +6231,8 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "sp-blockchain",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-inherents",
+ "sp-runtime",
  "thiserror",
  "tracing",
 ]
@@ -6478,8 +6248,8 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-keystore",
  "thiserror",
  "tracing",
 ]
@@ -6506,12 +6276,12 @@ dependencies = [
  "sc-executor-common",
  "sc-executor-wasmtime",
  "slotmap",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-maybe-compressed-blob",
+ "sp-tracing",
+ "sp-wasm-interface",
  "tempfile",
  "test-parachain-adder",
  "test-parachain-halt",
@@ -6530,10 +6300,10 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "tracing",
 ]
 
@@ -6550,7 +6320,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-primitives",
  "sc-network",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "thiserror",
 ]
 
@@ -6594,12 +6364,12 @@ dependencies = [
  "polkadot-primitives",
  "schnorrkel",
  "serde",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-keystore",
+ "sp-maybe-compressed-blob",
  "thiserror",
  "zstd",
 ]
@@ -6625,10 +6395,10 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-keystore",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
 ]
 
 [[package]]
@@ -6672,9 +6442,9 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "rand 0.8.4",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "thiserror",
  "tracing",
 ]
@@ -6698,8 +6468,8 @@ dependencies = [
  "polkadot-overseer-gen",
  "polkadot-primitives",
  "sc-client-api",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-core",
  "tracing",
 ]
 
@@ -6746,15 +6516,15 @@ name = "polkadot-parachain"
 version = "0.9.9"
 dependencies = [
  "derive_more",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "parity-scale-codec",
  "parity-util-mem",
  "polkadot-core-primitives",
  "scale-info",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6762,7 +6532,7 @@ name = "polkadot-primitives"
 version = "0.9.9"
 dependencies = [
  "bitvec 0.20.1",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-system",
  "hex-literal",
  "parity-scale-codec",
  "parity-util-mem",
@@ -6770,20 +6540,20 @@ dependencies = [
  "polkadot-parachain",
  "scale-info",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-authority-discovery",
  "sp-consensus-slots",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
+ "sp-trie",
+ "sp-version",
 ]
 
 [[package]]
@@ -6806,13 +6576,13 @@ dependencies = [
  "sc-rpc",
  "sc-sync-state-rpc",
  "sc-transaction-pool-api",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-frame-rpc-system",
 ]
 
@@ -6820,13 +6590,13 @@ dependencies = [
 name = "polkadot-runtime"
 version = "0.9.9"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
+ "beefy-primitives",
  "bitvec 0.20.1",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
@@ -6846,18 +6616,18 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-mmr-primitives",
  "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
  "pallet-offences-benchmarking",
  "pallet-proxy",
  "pallet-scheduler",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
  "pallet-session-benchmarking",
  "pallet-staking",
  "pallet-staking-reward-curve",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-timestamp",
  "pallet-tips",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -6874,23 +6644,23 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-npos-elections",
  "sp-offchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-trie",
+ "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
  "tiny-keccak",
@@ -6901,13 +6671,13 @@ dependencies = [
 name = "polkadot-runtime-common"
 version = "0.9.9"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master)",
+ "beefy-primitives",
  "bitvec 0.20.1",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
  "frame-election-provider-support",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "frame-support-test",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-system",
  "hex-literal",
  "impl-trait-for-tuples",
  "libsecp256k1 0.6.0",
@@ -6915,11 +6685,11 @@ dependencies = [
  "pallet-authorship",
  "pallet-babe",
  "pallet-balances",
- "pallet-beefy-mmr 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master)",
+ "pallet-beefy-mmr",
  "pallet-election-provider-multi-phase",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
  "pallet-staking",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-treasury",
  "pallet-vesting",
@@ -6932,16 +6702,16 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "slot-range-helper",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
  "sp-npos-elections",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
  "static_assertions",
  "xcm",
 ]
@@ -6953,19 +6723,19 @@ dependencies = [
  "bitflags",
  "bitvec 0.20.1",
  "derive_more",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
  "frame-support-test",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-system",
  "futures 0.3.17",
  "hex-literal",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-balances",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
  "pallet-staking",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-timestamp",
  "pallet-vesting",
  "parity-scale-codec",
  "polkadot-primitives",
@@ -6975,16 +6745,16 @@ dependencies = [
  "sc-keystore",
  "scale-info",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -6996,7 +6766,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "beefy-gadget",
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
+ "beefy-primitives",
  "env_logger 0.9.0",
  "frame-system-rpc-runtime-api",
  "futures 0.3.17",
@@ -7007,7 +6777,7 @@ dependencies = [
  "log",
  "pallet-babe",
  "pallet-im-online",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-mmr-primitives",
  "pallet-staking",
  "pallet-transaction-payment-rpc-runtime-api",
  "polkadot-approval-distribution",
@@ -7065,25 +6835,25 @@ dependencies = [
  "sc-telemetry",
  "sc-transaction-pool",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
  "sp-offchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-session",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-timestamp",
  "sp-transaction-pool",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-trie",
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
@@ -7094,9 +6864,9 @@ dependencies = [
 name = "polkadot-simnet"
 version = "0.9.9"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-collective",
  "pallet-democracy",
@@ -7117,7 +6887,7 @@ dependencies = [
  "sc-tracing",
  "sp-consensus-babe",
  "sp-keyring",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
  "structopt",
  "test-runner",
 ]
@@ -7133,14 +6903,14 @@ dependencies = [
 name = "polkadot-simnet-test"
 version = "0.9.9"
 dependencies = [
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-system",
  "pallet-balances",
  "polkadot-runtime",
  "polkadot-simnet",
  "sc-client-api",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7162,12 +6932,12 @@ dependencies = [
  "polkadot-primitives",
  "sc-keystore",
  "sc-network",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-staking",
+ "sp-tracing",
  "thiserror",
  "tracing",
 ]
@@ -7178,7 +6948,7 @@ version = "0.9.9"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
 ]
 
 [[package]]
@@ -7194,16 +6964,16 @@ dependencies = [
  "sc-block-builder",
  "sc-consensus",
  "sc-service",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
  "sp-keyring",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-timestamp",
  "substrate-test-client",
 ]
 
@@ -7227,12 +6997,12 @@ dependencies = [
 name = "polkadot-test-runtime"
 version = "0.9.9"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
+ "beefy-primitives",
  "bitvec 0.20.1",
  "frame-election-provider-support",
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "log",
@@ -7242,14 +7012,14 @@ dependencies = [
  "pallet-balances",
  "pallet-grandpa",
  "pallet-indices",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-mmr-primitives",
  "pallet-nicks",
  "pallet-offences",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-vesting",
@@ -7265,22 +7035,22 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-trie",
+ "sp-version",
  "substrate-wasm-builder",
  "tiny-keccak",
  "xcm",
@@ -7292,8 +7062,8 @@ dependencies = [
 name = "polkadot-test-service"
 version = "0.9.9"
 dependencies = [
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
+ "frame-system",
  "futures 0.1.29",
  "futures 0.3.17",
  "hex",
@@ -7324,17 +7094,17 @@ dependencies = [
  "sc-tracing",
  "sc-transaction-pool",
  "serde_json",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
  "sp-authority-discovery",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-inherents",
  "sp-keyring",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-state-machine",
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
@@ -7937,10 +7707,10 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "serde_json",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-version",
 ]
 
 [[package]]
@@ -8007,23 +7777,23 @@ dependencies = [
 name = "rococo-runtime"
 version = "0.9.9"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
+ "beefy-primitives",
  "bp-messages",
  "bp-rococo",
  "bp-runtime",
  "bp-wococo",
  "bridge-runtime-common",
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "frame-system-rpc-runtime-api",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
  "pallet-balances",
- "pallet-beefy 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
- "pallet-beefy-mmr 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
+ "pallet-beefy",
+ "pallet-beefy-mmr",
  "pallet-bridge-dispatch",
  "pallet-bridge-grandpa",
  "pallet-bridge-messages",
@@ -8032,14 +7802,14 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
- "pallet-mmr 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-mmr",
+ "pallet-mmr-primitives",
  "pallet-offences",
  "pallet-proxy",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
  "pallet-staking",
  "pallet-sudo",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-utility",
@@ -8053,20 +7823,20 @@ dependencies = [
  "serde",
  "serde_derive",
  "smallvec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-offchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-version",
  "substrate-wasm-builder",
  "xcm",
  "xcm-builder",
@@ -8191,8 +7961,8 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "log",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-wasm-interface",
  "thiserror",
 ]
 
@@ -8214,12 +7984,12 @@ dependencies = [
  "rand 0.7.3",
  "sc-client-api",
  "sc-network",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
 
@@ -8237,12 +8007,12 @@ dependencies = [
  "sc-proposer-metrics",
  "sc-telemetry",
  "sc-transaction-pool-api",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
 
@@ -8253,13 +8023,13 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "parity-scale-codec",
  "sc-client-api",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -8274,8 +8044,8 @@ dependencies = [
  "sc-telemetry",
  "serde",
  "serde_json",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8315,12 +8085,12 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-panic-handler",
+ "sp-runtime",
+ "sp-version",
  "structopt",
  "thiserror",
  "tiny-bip39",
@@ -8341,17 +8111,17 @@ dependencies = [
  "sc-executor",
  "sc-transaction-pool-api",
  "sc-utils",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-database",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-trie",
  "substrate-prometheus-endpoint",
 ]
 
@@ -8371,13 +8141,13 @@ dependencies = [
  "parking_lot 0.11.1",
  "sc-client-api",
  "sc-state-db",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-database",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
 ]
 
 [[package]]
@@ -8394,12 +8164,12 @@ dependencies = [
  "sc-client-api",
  "sc-utils",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -8430,20 +8200,20 @@ dependencies = [
  "sc-telemetry",
  "schnorrkel",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-version",
  "substrate-prometheus-endpoint",
 ]
 
@@ -8461,14 +8231,14 @@ dependencies = [
  "sc-consensus-epochs",
  "sc-rpc-api",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8481,7 +8251,7 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sp-blockchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8505,16 +8275,16 @@ dependencies = [
  "sc-transaction-pool",
  "sc-transaction-pool-api",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-slots",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-timestamp",
  "substrate-prometheus-endpoint",
 ]
 
@@ -8531,16 +8301,16 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sc-telemetry",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-slots",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-timestamp",
  "thiserror",
 ]
 
@@ -8551,7 +8321,7 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "sc-client-api",
  "sp-authorship",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -8568,16 +8338,16 @@ dependencies = [
  "sc-executor-common",
  "sc-executor-wasmi",
  "sc-executor-wasmtime",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-panic-handler",
+ "sp-runtime-interface",
  "sp-tasks",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-trie",
+ "sp-version",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -8591,10 +8361,10 @@ dependencies = [
  "parity-scale-codec",
  "pwasm-utils",
  "sc-allocator",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-maybe-compressed-blob",
  "sp-serializer",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-wasm-interface",
  "thiserror",
  "wasmi",
 ]
@@ -8609,9 +8379,9 @@ dependencies = [
  "sc-allocator",
  "sc-executor-common",
  "scoped-tls",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -8628,9 +8398,9 @@ dependencies = [
  "sc-allocator",
  "sc-executor-common",
  "scoped-tls",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmtime",
 ]
 
@@ -8659,15 +8429,15 @@ dependencies = [
  "sc-telemetry",
  "sc-utils",
  "serde_json",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
 
@@ -8691,8 +8461,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8709,7 +8479,7 @@ dependencies = [
  "sc-network",
  "sc-transaction-pool-api",
  "sp-blockchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8722,9 +8492,9 @@ dependencies = [
  "hex",
  "parking_lot 0.11.1",
  "serde_json",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
 ]
 
 [[package]]
@@ -8737,12 +8507,12 @@ dependencies = [
  "parking_lot 0.11.1",
  "sc-client-api",
  "sc-executor",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-externalities",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -8783,12 +8553,12 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "thiserror",
  "unsigned-varint 0.6.0",
@@ -8807,7 +8577,7 @@ dependencies = [
  "log",
  "lru",
  "sc-network",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
  "tracing",
 ]
@@ -8832,10 +8602,10 @@ dependencies = [
  "sc-client-api",
  "sc-network",
  "sc-utils",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-core",
  "sp-offchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
  "threadpool",
 ]
 
@@ -8881,15 +8651,15 @@ dependencies = [
  "sc-transaction-pool-api",
  "sc-utils",
  "serde_json",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-keystore",
  "sp-offchain",
  "sp-rpc",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-session",
+ "sp-version",
 ]
 
 [[package]]
@@ -8909,11 +8679,11 @@ dependencies = [
  "sc-transaction-pool-api",
  "serde",
  "serde_json",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-tracing",
+ "sp-version",
  "thiserror",
 ]
 
@@ -8973,24 +8743,24 @@ dependencies = [
  "sc-utils",
  "serde",
  "serde_json",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-externalities",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-session",
+ "sp-state-machine",
+ "sp-storage",
+ "sp-tracing",
  "sp-transaction-pool",
  "sp-transaction-storage-proof",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-trie",
+ "sp-version",
  "substrate-prometheus-endpoint",
  "tempfile",
  "thiserror",
@@ -9010,7 +8780,7 @@ dependencies = [
  "parity-util-mem-derive",
  "parking_lot 0.11.1",
  "sc-client-api",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
 ]
 
 [[package]]
@@ -9031,7 +8801,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -9070,12 +8840,12 @@ dependencies = [
  "sc-rpc-server",
  "sc-tracing-proc-macro",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-tracing",
  "thiserror",
  "tracing",
  "tracing-log",
@@ -9110,11 +8880,11 @@ dependencies = [
  "sc-transaction-pool-api",
  "sc-utils",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
+ "sp-tracing",
  "sp-transaction-pool",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -9130,7 +8900,7 @@ dependencies = [
  "log",
  "serde",
  "sp-blockchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
  "thiserror",
 ]
 
@@ -9470,8 +9240,8 @@ dependencies = [
  "enumn",
  "parity-scale-codec",
  "paste 1.0.5",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9574,29 +9344,12 @@ dependencies = [
  "hash-db",
  "log",
  "parity-scale-codec",
- "sp-api-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "thiserror",
-]
-
-[[package]]
-name = "sp-api"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "hash-db",
- "log",
- "parity-scale-codec",
- "sp-api-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-api-proc-macro",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-version",
  "thiserror",
 ]
 
@@ -9613,18 +9366,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp-api-proc-macro"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "blake2-rfc",
- "proc-macro-crate 1.0.0",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "sp-application-crypto"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
@@ -9632,22 +9373,9 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "sp-application-crypto"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -9660,23 +9388,8 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "static_assertions",
-]
-
-[[package]]
-name = "sp-arithmetic"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "integer-sqrt",
- "num-traits",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-debug-derive",
+ "sp-std",
  "static_assertions",
 ]
 
@@ -9687,10 +9400,10 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9700,9 +9413,9 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "async-trait",
  "parity-scale-codec",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9711,10 +9424,10 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9727,11 +9440,11 @@ dependencies = [
  "lru",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-consensus",
  "sp-database",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-state-machine",
  "thiserror",
 ]
 
@@ -9745,12 +9458,12 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-version",
  "thiserror",
 ]
 
@@ -9764,17 +9477,17 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-application-crypto",
  "sp-consensus",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
+ "sp-timestamp",
 ]
 
 [[package]]
@@ -9784,8 +9497,8 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -9795,9 +9508,9 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9831,56 +9544,11 @@ dependencies = [
  "secrecy",
  "serde",
  "sha2 0.9.2",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "substrate-bip39",
- "thiserror",
- "tiny-bip39",
- "tiny-keccak",
- "twox-hash",
- "wasmi",
- "zeroize",
-]
-
-[[package]]
-name = "sp-core"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "base58",
- "blake2-rfc",
- "byteorder",
- "dyn-clonable",
- "ed25519-dalek",
- "futures 0.3.17",
- "hash-db",
- "hash256-std-hasher",
- "hex",
- "impl-serde",
- "lazy_static",
- "libsecp256k1 0.6.0",
- "log",
- "merlin",
- "num-traits",
- "parity-scale-codec",
- "parity-util-mem",
- "parking_lot 0.11.1",
- "primitive-types",
- "rand 0.7.3",
- "regex",
- "scale-info",
- "schnorrkel",
- "secrecy",
- "serde",
- "sha2 0.9.2",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-debug-derive",
+ "sp-externalities",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
  "substrate-bip39",
  "thiserror",
  "tiny-bip39",
@@ -9910,35 +9578,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp-debug-derive"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "sp-externalities"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "sp-externalities"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "environmental",
- "parity-scale-codec",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -9951,12 +9598,12 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -9967,23 +9614,9 @@ dependencies = [
  "async-trait",
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "thiserror",
-]
-
-[[package]]
-name = "sp-inherents"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "async-trait",
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
  "thiserror",
 ]
 
@@ -9998,41 +9631,16 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "tracing",
- "tracing-core",
-]
-
-[[package]]
-name = "sp-io"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "futures 0.3.17",
- "hash-db",
- "libsecp256k1 0.6.0",
- "log",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-maybe-compressed-blob",
+ "sp-runtime-interface",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
+ "sp-trie",
+ "sp-wasm-interface",
  "tracing",
  "tracing-core",
 ]
@@ -10043,8 +9651,8 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "lazy_static",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
  "strum 0.20.0",
 ]
 
@@ -10061,38 +9669,14 @@ dependencies = [
  "parking_lot 0.11.1",
  "schnorrkel",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "sp-keystore"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "async-trait",
- "derive_more",
- "futures 0.3.17",
- "merlin",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "schnorrkel",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core",
+ "sp-externalities",
 ]
 
 [[package]]
 name = "sp-maybe-compressed-blob"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
-dependencies = [
- "zstd",
-]
-
-[[package]]
-name = "sp-maybe-compressed-blob"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
 dependencies = [
  "zstd",
 ]
@@ -10105,11 +9689,11 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
+ "sp-core",
  "sp-npos-elections-solution-type",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -10128,23 +9712,15 @@ name = "sp-offchain"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
 name = "sp-panic-handler"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
-dependencies = [
- "backtrace",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
 dependencies = [
  "backtrace",
 ]
@@ -10156,7 +9732,7 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "rustc-hash",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
 ]
 
 [[package]]
@@ -10174,33 +9750,11 @@ dependencies = [
  "rand 0.7.3",
  "scale-info",
  "serde",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "sp-runtime"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "either",
- "hash256-std-hasher",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "parity-util-mem",
- "paste 1.0.5",
- "rand 0.7.3",
- "scale-info",
- "serde",
- "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -10211,29 +9765,12 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime-interface-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "static_assertions",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "primitive-types",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime-interface-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-externalities",
+ "sp-runtime-interface-proc-macro",
+ "sp-std",
+ "sp-storage",
+ "sp-tracing",
+ "sp-wasm-interface",
  "static_assertions",
 ]
 
@@ -10241,18 +9778,6 @@ dependencies = [
 name = "sp-runtime-interface-proc-macro"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
-dependencies = [
- "Inflector",
- "proc-macro-crate 1.0.0",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "sp-runtime-interface-proc-macro"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
 dependencies = [
  "Inflector",
  "proc-macro-crate 1.0.0",
@@ -10277,25 +9802,11 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "sp-session"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
 ]
 
 [[package]]
@@ -10305,19 +9816,8 @@ source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_lo
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "sp-staking"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -10332,34 +9832,11 @@ dependencies = [
  "parking_lot 0.11.1",
  "rand 0.7.3",
  "smallvec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "thiserror",
- "tracing",
- "trie-db",
- "trie-root",
-]
-
-[[package]]
-name = "sp-state-machine"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "hash-db",
- "log",
- "num-traits",
- "parity-scale-codec",
- "parking_lot 0.11.1",
- "rand 0.7.3",
- "smallvec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core",
+ "sp-externalities",
+ "sp-panic-handler",
+ "sp-std",
+ "sp-trie",
  "thiserror",
  "tracing",
  "trie-db",
@@ -10372,11 +9849,6 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 
 [[package]]
-name = "sp-std"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-
-[[package]]
 name = "sp-storage"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
@@ -10385,21 +9857,8 @@ dependencies = [
  "parity-scale-codec",
  "ref-cast",
  "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
-]
-
-[[package]]
-name = "sp-storage"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "ref-cast",
- "serde",
- "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -10408,11 +9867,11 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "log",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
@@ -10424,26 +9883,10 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "thiserror",
-]
-
-[[package]]
-name = "sp-timestamp"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "async-trait",
- "futures-timer 3.0.2",
- "log",
- "parity-scale-codec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-api",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
  "thiserror",
 ]
 
@@ -10459,25 +9902,7 @@ dependencies = [
  "serde",
  "serde_json",
  "slog",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "tracing",
- "tracing-core",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "sp-tracing"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "erased-serde",
- "log",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "serde",
- "serde_json",
- "slog",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-std",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -10488,8 +9913,8 @@ name = "sp-transaction-pool"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -10501,11 +9926,11 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -10517,23 +9942,8 @@ dependencies = [
  "memory-db",
  "parity-scale-codec",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "trie-db",
- "trie-root",
-]
-
-[[package]]
-name = "sp-trie"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "hash-db",
- "memory-db",
- "parity-scale-codec",
- "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-core",
+ "sp-std",
  "trie-db",
  "trie-root",
 ]
@@ -10548,25 +9958,9 @@ dependencies = [
  "parity-wasm 0.42.2",
  "scale-info",
  "serde",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "thiserror",
-]
-
-[[package]]
-name = "sp-version"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "parity-wasm 0.42.2",
- "scale-info",
- "serde",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "sp-version-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-runtime",
+ "sp-std",
+ "sp-version-proc-macro",
  "thiserror",
 ]
 
@@ -10582,35 +9976,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp-version-proc-macro"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "parity-scale-codec",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "sp-wasm-interface"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "wasmi",
-]
-
-[[package]]
-name = "sp-wasm-interface"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=master#ba153b9ae050eda022f002d74d76f98d1e339a81"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
+ "sp-std",
  "wasmi",
 ]
 
@@ -10632,8 +10004,8 @@ version = "0.9.9"
 dependencies = [
  "env_logger 0.9.0",
  "frame-election-provider-support",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "jsonrpsee-ws-client",
  "kusama-runtime",
  "log",
@@ -10650,11 +10022,11 @@ dependencies = [
  "sc-transaction-pool-api",
  "serde",
  "serde_json",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
  "sp-npos-elections",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-version",
  "structopt",
  "sub-tokens",
  "thiserror",
@@ -10822,11 +10194,11 @@ dependencies = [
  "sc-client-api",
  "sc-rpc-api",
  "sc-transaction-pool-api",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -10863,11 +10235,11 @@ dependencies = [
  "serde_json",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -10899,7 +10271,7 @@ dependencies = [
  "ansi_term 0.12.1",
  "build-helper",
  "cargo_metadata",
- "sp-maybe-compressed-blob 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-maybe-compressed-blob",
  "tempfile",
  "toml",
  "walkdir",
@@ -10994,8 +10366,8 @@ dependencies = [
  "dlmalloc",
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-std",
  "substrate-wasm-builder",
  "tiny-keccak",
 ]
@@ -11018,7 +10390,7 @@ dependencies = [
  "polkadot-test-service",
  "sc-cli",
  "sc-service",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "sp-keyring",
  "structopt",
  "substrate-test-utils",
@@ -11038,7 +10410,7 @@ name = "test-parachains"
 version = "0.9.9"
 dependencies = [
  "parity-scale-codec",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
  "test-parachain-adder",
  "test-parachain-halt",
  "tiny-keccak",
@@ -11049,7 +10421,7 @@ name = "test-runner"
 version = "0.9.0"
 source = "git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs#d52bc4ec96d79bba4f8e75c511d37fedb982a61f"
 dependencies = [
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-system",
  "futures 0.3.17",
  "jsonrpc-core",
  "log",
@@ -11069,23 +10441,23 @@ dependencies = [
  "sc-service",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-externalities",
  "sp-finality-grandpa",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-inherents",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-runtime-interface",
+ "sp-session",
+ "sp-state-machine",
  "sp-transaction-pool",
- "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-wasm-interface",
  "tokio",
 ]
 
@@ -11464,10 +10836,10 @@ dependencies = [
  "sc-executor",
  "sc-service",
  "serde",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
  "structopt",
 ]
 
@@ -12076,13 +11448,13 @@ dependencies = [
 name = "westend-runtime"
 version = "0.9.9"
 dependencies = [
- "beefy-primitives 0.1.0 (git+https://github.com/paritytech/grandpa-bridge-gadget?branch=grandpa_finality_logging)",
+ "beefy-primitives",
  "bitvec 0.20.1",
- "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
@@ -12101,7 +11473,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
- "pallet-mmr-primitives 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-mmr-primitives",
  "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
@@ -12109,13 +11481,13 @@ dependencies = [
  "pallet-proxy",
  "pallet-recovery",
  "pallet-scheduler",
- "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-session",
  "pallet-session-benchmarking",
  "pallet-society",
  "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",
- "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-treasury",
@@ -12133,23 +11505,23 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-npos-elections",
  "sp-offchain",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-trie",
+ "sp-version",
  "substrate-wasm-builder",
  "tiny-keccak",
  "xcm",
@@ -12268,8 +11640,8 @@ dependencies = [
 name = "xcm-builder"
 version = "0.9.9"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "log",
  "pallet-balances",
  "pallet-transaction-payment",
@@ -12278,11 +11650,11 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-runtime-parachains",
  "scale-info",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -12291,15 +11663,15 @@ dependencies = [
 name = "xcm-executor"
 version = "0.9.9"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
- "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
 ]
 
@@ -12307,8 +11679,8 @@ dependencies = [
 name = "xcm-executor-integration-tests"
 version = "0.9.9"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "futures 0.3.17",
  "pallet-xcm",
  "polkadot-test-client",
@@ -12316,9 +11688,9 @@ dependencies = [
  "polkadot-test-service",
  "sp-consensus",
  "sp-keyring",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-tracing",
  "xcm",
  "xcm-executor",
 ]
@@ -12336,14 +11708,14 @@ dependencies = [
 name = "xcm-simulator"
 version = "0.9.9"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
  "parity-scale-codec",
  "paste 1.0.5",
  "polkadot-core-primitives",
  "polkadot-parachain",
  "polkadot-runtime-parachains",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-io",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -12352,8 +11724,8 @@ dependencies = [
 name = "xcm-simulator-example"
 version = "0.9.9"
 dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "frame-support",
+ "frame-system",
  "pallet-balances",
  "pallet-xcm",
  "parity-scale-codec",
@@ -12361,10 +11733,10 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-runtime-parachains",
  "scale-info",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
- "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=grandpa_finality_logs)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
  "xcm-builder",
  "xcm-executor",
