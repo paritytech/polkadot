@@ -4930,13 +4930,18 @@ name = "pallet-bags-list"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module#cf63c639ba934c1bbd11dbcc5b95d0446f8c7d65"
 dependencies = [
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "log",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "parity-scale-codec",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
  "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=zeke-voter-bags-module)",
 ]
 
 [[package]]
@@ -7488,7 +7493,6 @@ dependencies = [
  "pallet-authority-discovery 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-babe 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
- "pallet-bags-list",
  "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-bounties 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
  "pallet-collective 4.0.0-dev (git+https://github.com/paritytech/substrate?branch=master)",
