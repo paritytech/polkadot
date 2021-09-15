@@ -132,7 +132,7 @@ mod v0 {
 }
 
 /// Migrates the `HostConfiguration` from v0 (with deprecated `hrmp_open_request_ttl` and without
-/// `ump_max_individual_weight`) to v1 (without hrmp ttl and with max individual weight).
+/// `ump_max_individual_weight`) to v1 (without HRMP TTL and with max individual weight).
 /// Uses the `Default` implementation of `HostConfiguration` to choose a value for `ump_max_individual_weight`.
 ///
 /// NOTE: Only use this function if you know what you are doing. Default to using `migrate_to_latest`.
