@@ -1105,6 +1105,8 @@ impl parachains_initializer::Config for Runtime {
 }
 
 parameter_types! {
+	// Mostly arbitrary deposit price, but should provide an adequate incentive not to spam reserve
+	// `ParaId`s.
 	pub const ParaDeposit: Balance = 100 * DOLLARS;
 	pub const ParaDataByteDeposit: Balance = deposit(0, 1);
 }
@@ -1134,7 +1136,10 @@ impl slots::Config for Runtime {
 
 parameter_types! {
 	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
-	pub const SubmissionDeposit: Balance = 10 * DOLLARS;
+	// Accounts for 10_000 contributions, each using 48 bytes (16 bytes for balance, and 32 bytes
+	// for a memo).
+	pub const SubmissionDeposit: Balance = deposit(1, 480_000);
+	// The minimum crowdloan contribution.
 	pub const MinContribution: Balance = 10 * DOLLARS;
 	pub const RemoveKeysLimit: u32 = 1000;
 	// Allow 32 bytes for an additional memo to a crowdloan.
