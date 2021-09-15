@@ -167,12 +167,9 @@ impl Contains<Call> for BaseFilter {
 			Call::Dmp(_) |
 			Call::Ump(_) |
 			Call::Hrmp(_) |
-			Call::Slots(_)
-			=> true,
+			Call::Slots(_) => true,
 			// Disable paras registration, crowdloans, and auctions for now.
-			Call::Registrar(_) |
-			Call::Auctions(_) |
-			Call::Crowdloan(_) => false,
+			Call::Registrar(_) | Call::Auctions(_) | Call::Crowdloan(_) => false,
 		}
 	}
 }
