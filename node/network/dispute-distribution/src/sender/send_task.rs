@@ -188,7 +188,7 @@ impl SendTask {
 				let error_rate = (100 * self.failed_count).checked_div(self.send_count).expect(
 					"We cannot receive a failed request, without having sent one first. qed.",
 				);
-				// 10% seems to be a sensible threshold to become alarted - note that
+				// 10% seems to be a sensible threshold to become alert - note that
 				// self.send_count gets increased in batches of the full validator set, so we don't
 				// need to account for a low send_count.
 				if error_rate > 10 {
