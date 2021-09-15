@@ -54,7 +54,6 @@ const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 /// should be fine:
 ///
 /// https://github.com/paritytech/substrate/blob/fc49802f263529160635471c8a17888846035f5d/client/authority-discovery/src/lib.rs#L88
-///
 const LOW_CONNECTIVITY_WARN_DELAY: Duration = Duration::from_secs(600);
 
 /// The Gossip Support subsystem.
