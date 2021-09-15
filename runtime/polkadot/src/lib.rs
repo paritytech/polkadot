@@ -24,7 +24,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, BlockHashCount,
 	BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor,
+	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
 };
 
 use runtime_parachains::{
@@ -157,7 +157,22 @@ impl Contains<Call> for BaseFilter {
 			Call::Multisig(_) |
 			Call::Bounties(_) |
 			Call::Tips(_) |
-			Call::ElectionProviderMultiPhase(_) => true,
+			Call::ElectionProviderMultiPhase(_) |
+			Call::Configuration(_) |
+			Call::ParasShared(_) |
+			Call::ParaInclusion(_) |
+			Call::Paras(_) |
+			Call::Initializer(_) |
+			Call::ParaInherent(_) |
+			Call::Dmp(_) |
+			Call::Ump(_) |
+			Call::Hrmp(_) |
+			Call::Slots(_)
+			=> true,
+			// Disable paras registration, crowdloans, and auctions for now.
+			Call::Registrar(_) |
+			Call::Auctions(_) |
+			Call::Crowdloan(_) => false,
 		}
 	}
 }
@@ -1093,7 +1108,7 @@ impl parachains_initializer::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ParaDeposit: Balance = 40 * UNITS;
+	pub const ParaDeposit: Balance = 100 * DOLLARS;
 }
 
 impl paras_registrar::Config for Runtime {
@@ -1121,8 +1136,8 @@ impl slots::Config for Runtime {
 
 parameter_types! {
 	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
-	pub const SubmissionDeposit: Balance = 3_000 * DOLLARS; // TODO: Shawn
-	pub const MinContribution: Balance = 3_000 * CENTS; // TODO: Shawn
+	pub const SubmissionDeposit: Balance = 10 * DOLLARS;
+	pub const MinContribution: Balance = 10 * DOLLARS;
 	pub const RemoveKeysLimit: u32 = 1000;
 	// Allow 32 bytes for an additional memo to a crowdloan.
 	pub const MaxMemoLength: u8 = 32;
@@ -1305,7 +1320,7 @@ impl OnRuntimeUpgrade for SetInitialHostConfiguration {
 			ump_service_total_weight: 100_000_000_000,
 			hrmp_max_parachain_outbound_channels: 10,
 			hrmp_max_parathread_outbound_channels: 0,
-			hrmp_open_request_ttl: 72,
+			_hrmp_open_request_ttl: 72,
 			hrmp_sender_deposit: deposit(1004, 100 * 1024),
 			hrmp_recipient_deposit: deposit(1004, 100 * 1024),
 			hrmp_channel_max_capacity: 1_000,

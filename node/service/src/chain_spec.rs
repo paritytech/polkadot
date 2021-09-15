@@ -365,6 +365,8 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: polkadot::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
+		configuration: Default::default(),
+		paras: Default::default(),
 	}
 }
 
@@ -1311,6 +1313,8 @@ pub fn polkadot_testnet_genesis(
 		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: polkadot::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
+		configuration: Default::default(),
+		paras: Default::default(),
 	}
 }
 
