@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::result;
-use xcm::v0::{Error as XcmError, MultiAsset};
+use xcm::latest::{Error as XcmError, MultiAsset};
 
 /// Errors associated with [`MatchesFungibles`] operation.
 pub enum Error {

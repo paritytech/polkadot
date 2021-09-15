@@ -49,7 +49,7 @@ pub mod fee {
 	use frame_support::weights::{
 		WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
 	};
-	use primitives::v0::Balance;
+	use primitives::v1::Balance;
 	use runtime_common::ExtrinsicBaseWeight;
 	use smallvec::smallvec;
 	pub use sp_runtime::Perbill;

@@ -41,7 +41,7 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
-/// Weight functions for runtime_common::auctions.
+/// Weight functions for `runtime_common::auctions`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInfo<T> {
 	// Storage: Auctions AuctionInfo (r:1 w:1)

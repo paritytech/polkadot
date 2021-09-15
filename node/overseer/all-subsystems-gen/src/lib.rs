@@ -106,7 +106,7 @@ fn impl_subsystems_gen(item: TokenStream) -> Result<proc_macro2::TokenStream> {
 
 				if generic_types.contains(&ty_ident) {
 					if let Some(previous) = duplicate_generic_detection.replace(ty_ident) {
-						return Err(Error::new(previous.span(), "Generic type parameters may only be used for exactly one field, but is used more than once."))
+						return Err(Error::new(previous.span(), "Generic type parameters may only be used for exactly one field, but is used more than once."));
 					}
 				}
 

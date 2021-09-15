@@ -14,30 +14,27 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{
-	traits::{EnsureOrigin, Everything, OriginTrait},
-	weights::Weight,
+use frame_support::{parameter_types, traits::Everything, weights::Weight};
+use xcm::latest::{
+	Error as XcmError, Junctions::Here, MultiAsset, MultiLocation, NetworkId, Parent,
+	Result as XcmResult, SendXcm, Xcm,
 };
-use xcm::v0::{Error as XcmError, MultiAsset, MultiLocation, Result as XcmResult, SendXcm, Xcm};
-use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds};
+use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
 	traits::{InvertLocation, TransactAsset, WeightTrader},
 	Assets,
 };
 
-pub struct ConvertOriginToLocal;
-impl<Origin: OriginTrait> EnsureOrigin<Origin> for ConvertOriginToLocal {
-	type Success = MultiLocation;
-
-	fn try_origin(_: Origin) -> Result<MultiLocation, Origin> {
-		Ok(MultiLocation::Null)
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	fn successful_origin() -> Origin {
-		Origin::root()
-	}
+parameter_types! {
+	pub const OurNetwork: NetworkId = NetworkId::Polkadot;
 }
+
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain.
+pub type LocalOriginToLocation = (
+	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
+	SignedToAccountId32<crate::Origin, crate::AccountId, OurNetwork>,
+);
 
 pub struct DoNothingRouter;
 impl SendXcm for DoNothingRouter {
@@ -55,7 +52,8 @@ impl TransactAsset for DummyAssetTransactor {
 	}
 
 	fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
-		Ok(Assets::default())
+		let asset: MultiAsset = (Parent, 100_000).into();
+		Ok(asset.into())
 	}
 }
 
@@ -73,7 +71,7 @@ impl WeightTrader for DummyWeightTrader {
 pub struct InvertNothing;
 impl InvertLocation for InvertNothing {
 	fn invert_location(_: &MultiLocation) -> MultiLocation {
-		MultiLocation::Null
+		Here.into()
 	}
 }
 
@@ -90,4 +88,5 @@ impl xcm_executor::Config for XcmConfig {
 	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call>;
 	type Trader = DummyWeightTrader;
 	type ResponseHandler = ();
+	type SubscriptionService = ();
 }

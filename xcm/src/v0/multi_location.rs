@@ -16,10 +16,8 @@
 
 //! Cross-Consensus Message format data structures.
 
-use core::{convert::TryFrom, mem, result};
-
 use super::Junction;
-use crate::VersionedMultiLocation;
+use core::{mem, result};
 use parity_scale_codec::{self, Decode, Encode};
 
 /// A relative path between state-bearing consensus systems.
@@ -69,117 +67,7 @@ pub enum MultiLocation {
 /// Maximum number of junctions a `MultiLocation` can contain.
 pub const MAX_MULTILOCATION_LENGTH: usize = 8;
 
-impl From<Junction> for MultiLocation {
-	fn from(x: Junction) -> Self {
-		MultiLocation::X1(x)
-	}
-}
-
-impl From<()> for MultiLocation {
-	fn from(_: ()) -> Self {
-		MultiLocation::Null
-	}
-}
-impl From<(Junction,)> for MultiLocation {
-	fn from(x: (Junction,)) -> Self {
-		MultiLocation::X1(x.0)
-	}
-}
-impl From<(Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction)) -> Self {
-		MultiLocation::X2(x.0, x.1)
-	}
-}
-impl From<(Junction, Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction, Junction)) -> Self {
-		MultiLocation::X3(x.0, x.1, x.2)
-	}
-}
-impl From<(Junction, Junction, Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction, Junction, Junction)) -> Self {
-		MultiLocation::X4(x.0, x.1, x.2, x.3)
-	}
-}
-impl From<(Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction, Junction, Junction, Junction)) -> Self {
-		MultiLocation::X5(x.0, x.1, x.2, x.3, x.4)
-	}
-}
-impl From<(Junction, Junction, Junction, Junction, Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
-		MultiLocation::X6(x.0, x.1, x.2, x.3, x.4, x.5)
-	}
-}
-impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction)>
-	for MultiLocation
-{
-	fn from(x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction)) -> Self {
-		MultiLocation::X7(x.0, x.1, x.2, x.3, x.4, x.5, x.6)
-	}
-}
-impl From<(Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction)>
-	for MultiLocation
-{
-	fn from(
-		x: (Junction, Junction, Junction, Junction, Junction, Junction, Junction, Junction),
-	) -> Self {
-		MultiLocation::X8(x.0, x.1, x.2, x.3, x.4, x.5, x.6, x.7)
-	}
-}
-
-impl From<[Junction; 0]> for MultiLocation {
-	fn from(_: [Junction; 0]) -> Self {
-		MultiLocation::Null
-	}
-}
-impl From<[Junction; 1]> for MultiLocation {
-	fn from(x: [Junction; 1]) -> Self {
-		let [x0] = x;
-		MultiLocation::X1(x0)
-	}
-}
-impl From<[Junction; 2]> for MultiLocation {
-	fn from(x: [Junction; 2]) -> Self {
-		let [x0, x1] = x;
-		MultiLocation::X2(x0, x1)
-	}
-}
-impl From<[Junction; 3]> for MultiLocation {
-	fn from(x: [Junction; 3]) -> Self {
-		let [x0, x1, x2] = x;
-		MultiLocation::X3(x0, x1, x2)
-	}
-}
-impl From<[Junction; 4]> for MultiLocation {
-	fn from(x: [Junction; 4]) -> Self {
-		let [x0, x1, x2, x3] = x;
-		MultiLocation::X4(x0, x1, x2, x3)
-	}
-}
-impl From<[Junction; 5]> for MultiLocation {
-	fn from(x: [Junction; 5]) -> Self {
-		let [x0, x1, x2, x3, x4] = x;
-		MultiLocation::X5(x0, x1, x2, x3, x4)
-	}
-}
-impl From<[Junction; 6]> for MultiLocation {
-	fn from(x: [Junction; 6]) -> Self {
-		let [x0, x1, x2, x3, x4, x5] = x;
-		MultiLocation::X6(x0, x1, x2, x3, x4, x5)
-	}
-}
-impl From<[Junction; 7]> for MultiLocation {
-	fn from(x: [Junction; 7]) -> Self {
-		let [x0, x1, x2, x3, x4, x5, x6] = x;
-		MultiLocation::X7(x0, x1, x2, x3, x4, x5, x6)
-	}
-}
-impl From<[Junction; 8]> for MultiLocation {
-	fn from(x: [Junction; 8]) -> Self {
-		let [x0, x1, x2, x3, x4, x5, x6, x7] = x;
-		MultiLocation::X8(x0, x1, x2, x3, x4, x5, x6, x7)
-	}
-}
+xcm_procedural::impl_conversion_functions_for_multilocation_v0!();
 
 pub struct MultiLocationIterator(MultiLocation);
 impl Iterator for MultiLocationIterator {
@@ -697,24 +585,9 @@ impl MultiLocation {
 	}
 }
 
-impl From<MultiLocation> for VersionedMultiLocation {
-	fn from(x: MultiLocation) -> Self {
-		VersionedMultiLocation::V0(x)
-	}
-}
-
-impl TryFrom<VersionedMultiLocation> for MultiLocation {
-	type Error = ();
-	fn try_from(x: VersionedMultiLocation) -> result::Result<Self, ()> {
-		match x {
-			VersionedMultiLocation::V0(x) => Ok(x),
-		}
-	}
-}
-
 #[cfg(test)]
 mod tests {
-	use super::MultiLocation::*;
+	use super::MultiLocation::{self, *};
 	use crate::opaque::v0::{Junction::*, NetworkId::Any};
 
 	#[test]
@@ -816,5 +689,27 @@ mod tests {
 		let mut m = X4(Parent, Parent, Parachain(1), Parachain(2));
 		m.canonicalize();
 		assert_eq!(m, X4(Parent, Parent, Parachain(1), Parachain(2)));
+	}
+
+	#[test]
+	fn conversion_from_other_types_works() {
+		use crate::v1::{self, Junction, Junctions};
+		use core::convert::TryInto;
+
+		fn takes_multilocation<Arg: Into<MultiLocation>>(_arg: Arg) {}
+
+		takes_multilocation(Null);
+		takes_multilocation(Parent);
+		takes_multilocation([Parent, Parachain(4)]);
+
+		assert_eq!(v1::MultiLocation::here().try_into(), Ok(MultiLocation::Null));
+		assert_eq!(
+			v1::MultiLocation::new(1, Junctions::X1(Junction::Parachain(8))).try_into(),
+			Ok(X2(Parent, Parachain(8))),
+		);
+		assert_eq!(
+			v1::MultiLocation::new(24, Junctions::Here).try_into(),
+			Err::<MultiLocation, ()>(()),
+		);
 	}
 }

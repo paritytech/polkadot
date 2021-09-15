@@ -17,10 +17,9 @@
 mod parachain;
 mod relay_chain;
 
-use sp_runtime::AccountId32;
 use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain};
 
-pub const ALICE: AccountId32 = AccountId32::new([0u8; 32]);
+pub const ALICE: sp_runtime::AccountId32 = sp_runtime::AccountId32::new([0u8; 32]);
 
 decl_test_parachain! {
 	pub struct ParaA {
@@ -100,13 +99,7 @@ mod tests {
 
 	use codec::Encode;
 	use frame_support::assert_ok;
-	use xcm::v0::{
-		Junction::{self, Parachain, Parent},
-		MultiAsset::*,
-		MultiLocation::*,
-		NetworkId, OriginKind,
-		Xcm::*,
-	};
+	use xcm::latest::prelude::*;
 	use xcm_simulator::TestExt;
 
 	#[test]
@@ -118,8 +111,8 @@ mod tests {
 		);
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
-				Null,
-				X1(Parachain(1)),
+				Here,
+				Parachain(1).into(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
@@ -145,8 +138,8 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				Null,
-				X1(Parent),
+				Here,
+				Parent.into(),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
@@ -172,8 +165,8 @@ mod tests {
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
-				Null,
-				X2(Parent, Parachain(2)),
+				Here,
+				MultiLocation::new(1, X1(Parachain(2))),
 				Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
@@ -197,10 +190,11 @@ mod tests {
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::reserve_transfer_assets(
 				relay_chain::Origin::signed(ALICE),
-				X1(Parachain(1)),
-				X1(Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }),
-				vec![ConcreteFungible { id: Null, amount: 123 }],
-				123,
+				Box::new(X1(Parachain(1)).into().into()),
+				Box::new(X1(AccountId32 { network: Any, id: ALICE.into() }).into().into()),
+				Box::new((Here, 123).into()),
+				0,
+				3,
 			));
 		});
 

@@ -23,10 +23,10 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-overseer-gen = { path = "../overseer/overseer-gen" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 smallvec = "1.6.1"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 thiserror = "1.0.23"
 log = "0.4.13"
 

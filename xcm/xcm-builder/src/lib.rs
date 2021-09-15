@@ -41,8 +41,8 @@ pub use origin_conversion::{
 
 mod barriers;
 pub use barriers::{
-	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	IsChildSystemParachain, TakeWeightCredit,
+	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
+	AllowUnpaidExecutionFrom, IsChildSystemParachain, TakeWeightCredit,
 };
 
 mod currency_adapter;
@@ -55,7 +55,9 @@ pub use fungibles_adapter::{
 };
 
 mod weight;
-pub use weight::{FixedRateOfConcreteFungible, FixedWeightBounds, TakeRevenue, UsingComponents};
+#[allow(deprecated)]
+pub use weight::FixedRateOfConcreteFungible;
+pub use weight::{FixedRateOfFungible, FixedWeightBounds, TakeRevenue, UsingComponents};
 
 mod matches_fungible;
 pub use matches_fungible::{IsAbstract, IsConcrete};

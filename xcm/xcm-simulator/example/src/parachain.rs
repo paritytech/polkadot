@@ -35,18 +35,10 @@ use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
 use polkadot_parachain::primitives::{
 	DmpMessageHandler, Id as ParaId, Sibling, XcmpMessageFormat, XcmpMessageHandler,
 };
-use xcm::{
-	v0::{
-		Error as XcmError, ExecuteXcm,
-		Junction::{Parachain, Parent},
-		MultiLocation::{self, X1},
-		NetworkId, Outcome, Xcm,
-	},
-	VersionedXcm,
-};
+use xcm::{latest::prelude::*, VersionedXcm};
 use xcm_builder::{
 	AccountId32Aliases, AllowUnpaidExecutionFrom, CurrencyAdapter as XcmCurrencyAdapter,
-	EnsureXcmOrigin, FixedRateOfConcreteFungible, FixedWeightBounds, IsConcrete, LocationInverter,
+	EnsureXcmOrigin, FixedRateOfFungible, FixedWeightBounds, IsConcrete, LocationInverter,
 	NativeAsset, ParentIsDefault, SiblingParachainConvertsVia, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation,
 };
@@ -109,7 +101,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const KsmLocation: MultiLocation = MultiLocation::X1(Parent);
+	pub const KsmLocation: MultiLocation = MultiLocation::parent();
 	pub const RelayNetwork: NetworkId = NetworkId::Kusama;
 	pub Ancestry: MultiLocation = Parachain(MsgQueue::parachain_id().into()).into();
 }
@@ -128,7 +120,7 @@ pub type XcmOriginToCallOrigin = (
 
 parameter_types! {
 	pub const UnitWeightCost: Weight = 1;
-	pub KsmPerSecond: (MultiLocation, u128) = (X1(Parent), 1);
+	pub KsmPerSecond: (AssetId, u128) = (Concrete(Parent.into()), 1);
 }
 
 pub type LocalAssetTransactor =
@@ -148,8 +140,9 @@ impl Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
-	type Trader = FixedRateOfConcreteFungible<KsmPerSecond, ()>;
+	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
+	type SubscriptionService = PolkadotXcm;
 }
 
 #[frame_support::pallet]
@@ -218,8 +211,8 @@ pub mod mock_msg_queue {
 			let hash = Encode::using_encoded(&xcm, T::Hashing::hash);
 			let (result, event) = match Xcm::<T::Call>::try_from(xcm) {
 				Ok(xcm) => {
-					let location = (Parent, Parachain(sender.into()));
-					match T::XcmExecutor::execute_xcm(location.into(), xcm, max_weight) {
+					let location = MultiLocation::new(1, X1(Parachain(sender.into())));
+					match T::XcmExecutor::execute_xcm(location, xcm, max_weight) {
 						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
 						Outcome::Complete(w) => (Ok(w), Event::Success(Some(hash))),
 						// As far as the caller is concerned, this was dispatched without error, so

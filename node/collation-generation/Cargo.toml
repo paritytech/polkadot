@@ -12,8 +12,8 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-maybe-compressed-blob  = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
+sp-maybe-compressed-blob  = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 thiserror = "1.0.23"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
 

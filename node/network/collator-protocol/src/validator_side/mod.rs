@@ -36,7 +36,7 @@ use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
 	request_response as req_res,
 	request_response::{
-		request::{Recipient, RequestError},
+		outgoing::{Recipient, RequestError},
 		v1::{CollationFetchingRequest, CollationFetchingResponse},
 		OutgoingRequest, Requests,
 	},
@@ -53,6 +53,8 @@ use polkadot_subsystem::{
 	},
 	overseer, FromOverseer, OverseerSignal, PerLeafSpan, SubsystemContext, SubsystemSender,
 };
+
+use crate::error::FatalResult;
 
 use super::{modify_reputation, Result, LOG_TARGET};
 
@@ -1079,12 +1081,6 @@ async fn process_msg<Context>(
 				);
 			}
 		},
-		CollationFetchingRequest(_) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				"CollationFetchingRequest message is not expected on the validator side of the protocol",
-			);
-		},
 		Seconded(parent, stmt) => {
 			if let Some(collation_event) = state.pending_candidates.remove(&parent) {
 				let (collator_id, pending_collation) = collation_event;
@@ -1146,7 +1142,7 @@ pub(crate) async fn run<Context>(
 	keystore: SyncCryptoStorePtr,
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
-) -> Result<()>
+) -> FatalResult<()>
 where
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,

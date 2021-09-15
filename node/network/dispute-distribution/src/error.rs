@@ -19,32 +19,25 @@
 
 use thiserror::Error;
 
-use polkadot_node_subsystem_util::{runtime, unwrap_non_fatal, Fault};
+use polkadot_node_subsystem_util::runtime;
 use polkadot_subsystem::SubsystemError;
 
 use crate::{sender, LOG_TARGET};
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, derive_more::From)]
 #[error(transparent)]
-pub struct Error(pub Fault<NonFatal, Fatal>);
-
-impl From<NonFatal> for Error {
-	fn from(e: NonFatal) -> Self {
-		Self(Fault::from_non_fatal(e))
-	}
-}
-
-impl From<Fatal> for Error {
-	fn from(f: Fatal) -> Self {
-		Self(Fault::from_fatal(f))
-	}
+pub enum Error {
+	/// Fatal errors of dispute distribution.
+	Fatal(Fatal),
+	/// Non fatal errors of dispute distribution.
+	NonFatal(NonFatal),
 }
 
 impl From<sender::Error> for Error {
-	fn from(e: sender::Error) -> Self {
-		match e.0 {
-			Fault::Fatal(f) => Self(Fault::Fatal(Fatal::Sender(f))),
-			Fault::Err(nf) => Self(Fault::Err(NonFatal::Sender(nf))),
+	fn from(o: sender::Error) -> Self {
+		match o {
+			sender::Error::Fatal(f) => Self::Fatal(Fatal::Sender(f)),
+			sender::Error::NonFatal(f) => Self::NonFatal(NonFatal::Sender(f)),
 		}
 	}
 }
@@ -90,8 +83,12 @@ pub type FatalResult<T> = std::result::Result<T, Fatal>;
 /// We basically always want to try and continue on error. This utility function is meant to
 /// consume top-level errors by simply logging them
 pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(), Fatal> {
-	if let Some(error) = unwrap_non_fatal(result.map_err(|e| e.0))? {
-		tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+	match result {
+		Err(Error::Fatal(f)) => Err(f),
+		Err(Error::NonFatal(error)) => {
+			tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+			Ok(())
+		},
+		Ok(()) => Ok(()),
 	}
-	Ok(())
 }

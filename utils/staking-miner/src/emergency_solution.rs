@@ -26,7 +26,7 @@ macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 		shared: SharedConfig,
 	) -> Result<(), Error> {
 		use $crate::[<$runtime _runtime_exports>]::*;
-		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), None, false).await?;
+		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), None, vec![]).await?;
 		ext.execute_with(|| {
 			assert!(EPM::Pallet::<Runtime>::current_phase().is_emergency());
 			// NOTE: this internally calls feasibility_check, but we just re-do it here as an easy way

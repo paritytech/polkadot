@@ -41,7 +41,7 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
-/// Weight functions for runtime_common::slots.
+/// Weight functions for `runtime_common::slots`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T> {
 	// Storage: Slots Leases (r:1 w:1)

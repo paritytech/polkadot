@@ -41,7 +41,7 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
-/// Weight functions for runtime_common::crowdloan.
+/// Weight functions for `runtime_common::crowdloan`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightInfo<T> {
 	// Storage: Crowdloan Funds (r:1 w:1)

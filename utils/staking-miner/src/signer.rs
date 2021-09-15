@@ -16,7 +16,7 @@
 
 //! Wrappers around creating a signer account.
 
-use crate::{rpc_helpers, AccountId, Error, Index, Pair, WsClient, LOG_TARGET};
+use crate::{prelude::*, rpc_helpers, AccountId, Error, Index, Pair, WsClient, LOG_TARGET};
 use sp_core::crypto::Pair as _;
 use std::path::Path;
 
@@ -54,7 +54,11 @@ pub(crate) async fn get_account_info<T: frame_system::Config>(
 /// Read the signer account's URI from the given `path`.
 pub(crate) async fn read_signer_uri<
 	P: AsRef<Path>,
-	T: frame_system::Config<AccountId = AccountId, Index = Index>,
+	T: frame_system::Config<
+		AccountId = AccountId,
+		Index = Index,
+		AccountData = pallet_balances::AccountData<Balance>,
+	>,
 >(
 	path: P,
 	client: &WsClient,
@@ -69,6 +73,12 @@ pub(crate) async fn read_signer_uri<
 	let _info = get_account_info::<T>(&client, &account, None)
 		.await?
 		.ok_or(Error::AccountDoesNotExists)?;
-	log::info!(target: LOG_TARGET, "loaded account {:?}, info: {:?}", &account, _info);
+	log::info!(
+		target: LOG_TARGET,
+		"loaded account {:?}, free: {:?}, info: {:?}",
+		&account,
+		Token::from(_info.data.free),
+		_info
+	);
 	Ok(Signer { account, pair, uri: uri.to_string() })
 }

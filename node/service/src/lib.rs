@@ -37,7 +37,6 @@ mod tests;
 #[cfg(feature = "full-node")]
 use {
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
-	polkadot_network_bridge::RequestMultiplexer,
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
 	polkadot_node_core_av_store::Config as AvailabilityConfig,
 	polkadot_node_core_av_store::Error as AvailabilityError,
@@ -632,6 +631,8 @@ where
 	Executor: NativeExecutionDispatch + 'static,
 	OverseerGenerator: OverseerGen,
 {
+	use polkadot_node_network_protocol::request_response::IncomingRequest;
+
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks = {
@@ -681,11 +682,18 @@ where
 		config.network.extra_sets.extend(peer_sets_info(is_authority));
 	}
 
-	let request_multiplexer = {
-		let (multiplexer, configs) = RequestMultiplexer::new();
-		config.network.request_response_protocols.extend(configs);
-		multiplexer
-	};
+	let (pov_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	config.network.request_response_protocols.push(cfg);
+	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	config.network.request_response_protocols.push(cfg);
+	let (collation_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	config.network.request_response_protocols.push(cfg);
+	let (available_data_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	config.network.request_response_protocols.push(cfg);
+	let (statement_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	config.network.request_response_protocols.push(cfg);
+	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver();
+	config.network.request_response_protocols.push(cfg);
 
 	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
@@ -824,7 +832,12 @@ where
 					parachains_db,
 					network_service: network.clone(),
 					authority_discovery_service,
-					request_multiplexer,
+					pov_req_receiver,
+					chunk_req_receiver,
+					collation_req_receiver,
+					available_data_req_receiver,
+					statement_req_receiver,
+					dispute_req_receiver,
 					registry: prometheus_registry.as_ref(),
 					spawner,
 					is_collator,

@@ -20,6 +20,7 @@ use crate::{
 	params, prelude::*, rpc_helpers::*, signer::Signer, DryRunConfig, Error, SharedConfig, WsClient,
 };
 use codec::Encode;
+use frame_support::traits::Currency;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
 fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
@@ -35,18 +36,53 @@ fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error> {
 }
 
 /// Helper method to print the encoded size of the snapshot.
-fn measure_snapshot_size<T: EPM::Config>(ext: &mut Ext) {
+async fn print_info<T: EPM::Config>(
+	client: &WsClient,
+	ext: &mut Ext,
+	raw_solution: &EPM::RawSolution<EPM::SolutionOf<T>>,
+	extrinsic: sp_core::Bytes,
+) where
+	<T as EPM::Config>::Currency: Currency<T::AccountId, Balance = Balance>,
+{
 	ext.execute_with(|| {
-		log::info!(target: LOG_TARGET, "Metadata: {:?}", <EPM::Pallet<T>>::snapshot_metadata());
 		log::info!(
 			target: LOG_TARGET,
-			"Encoded Length: {:?}",
+			"Snapshot Metadata: {:?}",
+			<EPM::Pallet<T>>::snapshot_metadata()
+		);
+		log::info!(
+			target: LOG_TARGET,
+			"Snapshot Encoded Length: {:?}",
 			<EPM::Pallet<T>>::snapshot()
 				.expect("snapshot must exist before calling `measure_snapshot_size`")
 				.encode()
 				.len()
 		);
-	})
+
+		let snapshot_size =
+			<EPM::Pallet<T>>::snapshot_metadata().expect("snapshot must exist by now; qed.");
+		let deposit = EPM::Pallet::<T>::deposit_for(&raw_solution, snapshot_size);
+		log::info!(
+			target: LOG_TARGET,
+			"solution score {:?} / deposit {:?} / length {:?}",
+			&raw_solution.score.iter().map(|x| Token::from(*x)).collect::<Vec<_>>(),
+			Token::from(deposit),
+			raw_solution.encode().len(),
+		);
+	});
+
+	let info = rpc::<pallet_transaction_payment::RuntimeDispatchInfo<Balance>>(
+		client,
+		"payment_queryInfo",
+		params! { extrinsic },
+	)
+	.await;
+	log::info!(
+		target: LOG_TARGET,
+		"payment_queryInfo: (fee = {}) {:?}",
+		info.as_ref().map(|d| Token::from(d.partial_fee)).unwrap_or(Token::from(0)),
+		info,
+	);
 }
 
 /// Find the stake threshold in order to have at most `count` voters.
@@ -76,24 +112,40 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		signer: Signer,
 	) -> Result<(), Error> {
 		use $crate::[<$runtime _runtime_exports>]::*;
-		let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), config.at, true).await?;
+		let mut ext = crate::create_election_ext::<Runtime, Block>(
+			shared.uri.clone(),
+			config.at,
+			vec!["Staking".to_string(), "System".to_string(), "Balances".to_string()]
+		).await?;
 		force_create_snapshot::<Runtime>(&mut ext)?;
-		measure_snapshot_size::<Runtime>(&mut ext);
-		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, config.iterations, false)?;
-		log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
+		let (raw_solution, witness) = crate::mine_unchecked::<Runtime>(&mut ext, config.iterations, false)?;
 		let nonce = crate::get_account_info::<Runtime>(client, &signer.account, config.at)
 			.await?
 			.map(|i| i.nonce)
 			.expect("signer account is checked to exist upon startup; it can only die if it \
-				transfers funds out of it, or get slashed. If it does not exist at this point, \
-				it is likely due to a bug, or the signer got slashed. Terminating."
-			);
+			transfers funds out of it, or get slashed. If it does not exist at this point, \
+			it is likely due to a bug, or the signer got slashed. Terminating."
+		);
 		let tip = 0 as Balance;
 		let era = sp_runtime::generic::Era::Immortal;
-		let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
+		let extrinsic = ext.execute_with(|| create_uxt(raw_solution.clone(), witness, signer.clone(), nonce, tip, era));
 
 		let bytes = sp_core::Bytes(extrinsic.encode().to_vec());
+		print_info::<Runtime>(client, &mut ext, &raw_solution, bytes.clone()).await;
+
+		let feasibility_result = ext.execute_with(|| {
+			EPM::Pallet::<Runtime>::feasibility_check(raw_solution.clone(), EPM::ElectionCompute::Signed)
+		});
+		log::info!(target: LOG_TARGET, "feasibility result is {:?}", feasibility_result.map(|_| ()));
+
+		let dispatch_result = ext.execute_with(|| {
+			// manually tweak the phase.
+			EPM::CurrentPhase::<Runtime>::put(EPM::Phase::Signed);
+			EPM::Pallet::<Runtime>::submit(frame_system::RawOrigin::Signed(signer.account).into(), Box::new(raw_solution), witness)
+		});
+		log::info!(target: LOG_TARGET, "dispatch result is {:?}", dispatch_result);
+
 		let outcome = rpc_decode::<sp_runtime::ApplyExtrinsicResult>(client, "system_dryRun", params!{ bytes }).await?;
 		log::info!(target: LOG_TARGET, "dry-run outcome is {:?}", outcome);
 		Ok(())

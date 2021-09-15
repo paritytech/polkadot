@@ -174,7 +174,6 @@ fn default_parachains_host_configuration(
 		ump_service_total_weight: 4 * 1_000_000_000,
 		max_upward_message_size: 1024 * 1024,
 		max_upward_message_num_per_candidate: 5,
-		hrmp_open_request_ttl: 5,
 		hrmp_sender_deposit: 0,
 		hrmp_recipient_deposit: 0,
 		hrmp_channel_max_capacity: 8,

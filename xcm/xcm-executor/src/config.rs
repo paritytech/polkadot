@@ -16,13 +16,13 @@
 
 use crate::traits::{
 	ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, ShouldExecute, TransactAsset,
-	WeightBounds, WeightTrader,
+	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
-use xcm::v0::SendXcm;
+use xcm::latest::SendXcm;
 
 /// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
@@ -58,4 +58,7 @@ pub trait Config {
 
 	/// What to do when a response of a query is found.
 	type ResponseHandler: OnResponse;
+
+	/// How we handle version subscription requests.
+	type SubscriptionService: VersionChangeNotifier;
 }

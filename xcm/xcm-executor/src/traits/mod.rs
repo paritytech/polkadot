@@ -25,7 +25,7 @@ pub use matches_fungible::MatchesFungible;
 mod matches_fungibles;
 pub use matches_fungibles::{Error, MatchesFungibles};
 mod on_response;
-pub use on_response::OnResponse;
+pub use on_response::{OnResponse, VersionChangeNotifier};
 mod should_execute;
 pub use should_execute::ShouldExecute;
 mod transact_asset;

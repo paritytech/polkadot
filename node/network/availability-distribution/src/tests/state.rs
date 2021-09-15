@@ -30,7 +30,7 @@ use futures::{
 use futures_timer::Delay;
 
 use sc_network as network;
-use sc_network::{config as netconfig, IfDisconnected};
+use sc_network::{config as netconfig, config::RequestResponseConfig, IfDisconnected};
 use sp_core::{testing::TaskExecutor, traits::SpawnNamed};
 use sp_keystore::SyncCryptoStorePtr;
 
@@ -59,6 +59,8 @@ use crate::LOG_TARGET;
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>;
 pub struct TestHarness {
 	pub virtual_overseer: VirtualOverseer,
+	pub pov_req_cfg: RequestResponseConfig,
+	pub chunk_req_cfg: RequestResponseConfig,
 	pub pool: TaskExecutor,
 }
 
@@ -152,9 +154,7 @@ impl TestState {
 	/// Run, but fail after some timeout.
 	pub async fn run(self, harness: TestHarness) {
 		// Make sure test won't run forever.
-		let f = self
-			.run_inner(harness.pool, harness.virtual_overseer)
-			.timeout(Duration::from_secs(10));
+		let f = self.run_inner(harness).timeout(Duration::from_secs(10));
 		assert!(f.await.is_some(), "Test ran into timeout");
 	}
 
@@ -166,7 +166,7 @@ impl TestState {
 	///
 	/// We try to be as agnostic about details as possible, how the subsystem achieves those goals
 	/// should not be a matter to this test suite.
-	async fn run_inner(mut self, executor: TaskExecutor, virtual_overseer: VirtualOverseer) {
+	async fn run_inner(mut self, mut harness: TestHarness) {
 		// We skip genesis here (in reality ActiveLeavesUpdate can also skip a block:
 		let updates = {
 			let mut advanced = self.relay_chain.iter();
@@ -191,12 +191,12 @@ impl TestState {
 		// Test will fail if this does not happen until timeout.
 		let mut remaining_stores = self.valid_chunks.len();
 
-		let TestSubsystemContextHandle { tx, mut rx } = virtual_overseer;
+		let TestSubsystemContextHandle { tx, mut rx } = harness.virtual_overseer;
 
 		// Spawning necessary as incoming queue can only hold a single item, we don't want to dead
 		// lock ;-)
 		let update_tx = tx.clone();
-		executor.spawn(
+		harness.pool.spawn(
 			"Sending active leaves updates",
 			async move {
 				for update in updates {
@@ -219,16 +219,15 @@ impl TestState {
 				)) => {
 					for req in reqs {
 						// Forward requests:
-						let in_req = to_incoming_req(&executor, req);
-
-						executor.spawn(
-							"Request forwarding",
-							overseer_send(
-								tx.clone(),
-								AvailabilityDistributionMessage::ChunkFetchingRequest(in_req),
-							)
-							.boxed(),
-						);
+						let in_req = to_incoming_req(&harness.pool, req);
+						harness
+							.chunk_req_cfg
+							.inbound_queue
+							.as_mut()
+							.unwrap()
+							.send(in_req.into_raw())
+							.await
+							.unwrap();
 					}
 				},
 				AllMessages::AvailabilityStore(AvailabilityStoreMessage::QueryChunk(
@@ -293,18 +292,6 @@ async fn overseer_signal(
 	let msg = msg.into();
 	tracing::trace!(target: LOG_TARGET, msg = ?msg, "sending message");
 	tx.send(FromOverseer::Signal(msg)).await.expect("Test subsystem no longer live");
-}
-
-async fn overseer_send(
-	mut tx: SingleItemSink<FromOverseer<AvailabilityDistributionMessage>>,
-	msg: impl Into<AvailabilityDistributionMessage>,
-) {
-	let msg = msg.into();
-	tracing::trace!(target: LOG_TARGET, msg = ?msg, "sending message");
-	tx.send(FromOverseer::Communication { msg })
-		.await
-		.expect("Test subsystem no longer live");
-	tracing::trace!(target: LOG_TARGET, "sent message");
 }
 
 async fn overseer_recv(rx: &mut mpsc::UnboundedReceiver<AllMessages>) -> AllMessages {

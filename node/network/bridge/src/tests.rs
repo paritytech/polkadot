@@ -28,7 +28,7 @@ use std::{
 
 use sc_network::{Event as NetworkEvent, IfDisconnected};
 
-use polkadot_node_network_protocol::{request_response::request::Requests, view, ObservedRole};
+use polkadot_node_network_protocol::{request_response::outgoing::Requests, view, ObservedRole};
 use polkadot_node_subsystem_test_helpers::{
 	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 };
@@ -41,7 +41,7 @@ use polkadot_subsystem::{
 	},
 	ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };
-use sc_network::{config::RequestResponseConfig, Multiaddr};
+use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
 
 use crate::{network::Network, validator_discovery::AuthorityDiscovery, Rep};
@@ -61,7 +61,6 @@ pub enum NetworkAction {
 struct TestNetwork {
 	net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
 	action_tx: Arc<Mutex<metered::UnboundedMeteredSender<NetworkAction>>>,
-	_req_configs: Vec<RequestResponseConfig>,
 }
 
 #[derive(Clone, Debug)]
@@ -74,9 +73,7 @@ struct TestNetworkHandle {
 	net_tx: SingleItemSink<NetworkEvent>,
 }
 
-fn new_test_network(
-	req_configs: Vec<RequestResponseConfig>,
-) -> (TestNetwork, TestNetworkHandle, TestAuthorityDiscovery) {
+fn new_test_network() -> (TestNetwork, TestNetworkHandle, TestAuthorityDiscovery) {
 	let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
 	let (action_tx, action_rx) = metered::unbounded();
 
@@ -84,7 +81,6 @@ fn new_test_network(
 		TestNetwork {
 			net_events: Arc::new(Mutex::new(Some(net_rx))),
 			action_tx: Arc::new(Mutex::new(action_tx)),
-			_req_configs: req_configs,
 		},
 		TestNetworkHandle { action_rx, net_tx },
 		TestAuthorityDiscovery,
@@ -285,8 +281,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	test: impl FnOnce(TestHarness) -> T,
 ) {
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (request_multiplexer, req_configs) = RequestMultiplexer::new();
-	let (mut network, network_handle, discovery) = new_test_network(req_configs);
+	let (mut network, network_handle, discovery) = new_test_network();
 	let (context, virtual_overseer) =
 		polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 	let network_stream = network.event_stream();
@@ -294,7 +289,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let bridge = NetworkBridge {
 		network_service: network,
 		authority_discovery_service: discovery,
-		request_multiplexer,
 		metrics: Metrics(None),
 		sync_oracle,
 	};
@@ -642,17 +636,6 @@ fn peer_view_updates_sent_via_overseer() {
 
 		let view = view![Hash::repeat_byte(1)];
 
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::DisputeDistribution(DisputeDistributionMessage::DisputeSendingReceiver(_))
-		);
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::StatementFetchingReceiver(_)
-			)
-		);
-
 		// bridge will inform about all connected peers.
 		{
 			assert_sends_validation_event_to_all(
@@ -695,17 +678,6 @@ fn peer_messages_sent_via_overseer() {
 		network_handle
 			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
 			.await;
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::DisputeDistribution(DisputeDistributionMessage::DisputeSendingReceiver(_))
-		);
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::StatementFetchingReceiver(_)
-			)
-		);
 
 		// bridge will inform about all connected peers.
 		{
@@ -769,17 +741,6 @@ fn peer_disconnect_from_just_one_peerset() {
 		let TestHarness { mut network_handle, mut virtual_overseer } = test_harness;
 
 		let peer = PeerId::random();
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::DisputeDistribution(DisputeDistributionMessage::DisputeSendingReceiver(_))
-		);
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::StatementFetchingReceiver(_)
-			)
-		);
 
 		network_handle
 			.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full)
@@ -863,17 +824,6 @@ fn relays_collation_protocol_messages() {
 
 		let peer_a = PeerId::random();
 		let peer_b = PeerId::random();
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::DisputeDistribution(DisputeDistributionMessage::DisputeSendingReceiver(_))
-		);
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::StatementFetchingReceiver(_)
-			)
-		);
 
 		network_handle
 			.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full)
@@ -974,17 +924,6 @@ fn different_views_on_different_peer_sets() {
 		network_handle
 			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
 			.await;
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::DisputeDistribution(DisputeDistributionMessage::DisputeSendingReceiver(_))
-		);
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::StatementFetchingReceiver(_)
-			)
-		);
 
 		// bridge will inform about all connected peers.
 		{
@@ -1148,17 +1087,6 @@ fn send_messages_to_peers() {
 		network_handle
 			.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full)
 			.await;
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::DisputeDistribution(DisputeDistributionMessage::DisputeSendingReceiver(_))
-		);
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::StatementFetchingReceiver(_)
-			)
-		);
 
 		// bridge will inform about all connected peers.
 		{
@@ -1327,17 +1255,6 @@ fn our_view_updates_decreasing_order_and_limited_to_max() {
 				)))
 				.await;
 		}
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::DisputeDistribution(DisputeDistributionMessage::DisputeSendingReceiver(_))
-		);
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::StatementFetchingReceiver(_)
-			)
-		);
 
 		let our_views = (1..=MAX_VIEW_HEADS).rev().map(|start| {
 			OurView::new(

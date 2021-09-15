@@ -16,9 +16,12 @@
 
 //! Version 0 of the Cross-Consensus Message format data structures.
 
-use crate::{DoubleEncoded, VersionedMultiAsset, VersionedXcm};
+use crate::DoubleEncoded;
 use alloc::vec::Vec;
-use core::{convert::TryFrom, fmt::Debug, result};
+use core::{
+	convert::{TryFrom, TryInto},
+	result,
+};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 
@@ -27,16 +30,17 @@ mod multi_asset;
 mod multi_location;
 mod order;
 mod traits;
+use super::v1::{MultiLocation as MultiLocation1, Response as Response1, Xcm as Xcm1};
 pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use multi_asset::{AssetInstance, MultiAsset};
-pub use multi_location::MultiLocation;
+pub use multi_location::MultiLocation::{self, *};
 pub use order::Order;
 pub use traits::{Error, ExecuteXcm, Outcome, Result, SendXcm};
 
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	pub use super::{
-		junction::{BodyId, BodyPart, Junction::*, NetworkId},
+		junction::{BodyId, Junction::*},
 		multi_asset::{
 			AssetInstance::{self, *},
 			MultiAsset::{self, *},
@@ -44,12 +48,13 @@ pub mod prelude {
 		multi_location::MultiLocation::{self, *},
 		order::Order::{self, *},
 		traits::{Error as XcmError, ExecuteXcm, Outcome, Result as XcmResult, SendXcm},
+		Junction::*,
 		OriginKind,
 		Xcm::{self, *},
 	};
 }
 
-// TODO: #2841 #XCMENCODE Efficient encodings for Vec<MultiAsset>, Vec<Order>, using initial byte values 128+ to encode
+// TODO: #2841 #XCMENCODE Efficient encodings for MultiAssets, Vec<Order>, using initial byte values 128+ to encode
 //   the number of items in the vector.
 
 /// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
@@ -275,21 +280,6 @@ pub enum Xcm<Call> {
 	RelayedFrom { who: MultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
 }
 
-impl<Call> From<Xcm<Call>> for VersionedXcm<Call> {
-	fn from(x: Xcm<Call>) -> Self {
-		VersionedXcm::V0(x)
-	}
-}
-
-impl<Call> TryFrom<VersionedXcm<Call>> for Xcm<Call> {
-	type Error = ();
-	fn try_from(x: VersionedXcm<Call>) -> result::Result<Self, ()> {
-		match x {
-			VersionedXcm::V0(x) => Ok(x),
-		}
-	}
-}
-
 impl<Call> Xcm<Call> {
 	pub fn into<C>(self) -> Xcm<C> {
 		Xcm::from(self)
@@ -328,4 +318,69 @@ pub mod opaque {
 	pub type Xcm = super::Xcm<()>;
 
 	pub use super::order::opaque::*;
+}
+
+// Convert from a v1 response to a v0 response
+impl TryFrom<Response1> for Response {
+	type Error = ();
+	fn try_from(new_response: Response1) -> result::Result<Self, ()> {
+		Ok(match new_response {
+			Response1::Assets(assets) => Self::Assets(assets.try_into()?),
+			Response1::Version(..) => return Err(()),
+		})
+	}
+}
+
+impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
+	type Error = ();
+	fn try_from(x: Xcm1<Call>) -> result::Result<Xcm<Call>, ()> {
+		use Xcm::*;
+		Ok(match x {
+			Xcm1::WithdrawAsset { assets, effects } => WithdrawAsset {
+				assets: assets.try_into()?,
+				effects: effects
+					.into_iter()
+					.map(Order::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Xcm1::ReserveAssetDeposited { assets, effects } => ReserveAssetDeposit {
+				assets: assets.try_into()?,
+				effects: effects
+					.into_iter()
+					.map(Order::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Xcm1::ReceiveTeleportedAsset { assets, effects } => TeleportAsset {
+				assets: assets.try_into()?,
+				effects: effects
+					.into_iter()
+					.map(Order::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Xcm1::QueryResponse { query_id: u64, response } =>
+				QueryResponse { query_id: u64, response: response.try_into()? },
+			Xcm1::TransferAsset { assets, beneficiary } =>
+				TransferAsset { assets: assets.try_into()?, dest: beneficiary.try_into()? },
+			Xcm1::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
+				assets: assets.try_into()?,
+				dest: dest.try_into()?,
+				effects: effects
+					.into_iter()
+					.map(Order::try_from)
+					.collect::<result::Result<_, _>>()?,
+			},
+			Xcm1::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
+			Xcm1::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
+			Xcm1::HrmpChannelClosing { initiator, sender, recipient } =>
+				HrmpChannelClosing { initiator, sender, recipient },
+			Xcm1::Transact { origin_type, require_weight_at_most, call } =>
+				Transact { origin_type, require_weight_at_most, call: call.into() },
+			Xcm1::RelayedFrom { who, message } => RelayedFrom {
+				who: MultiLocation1 { interior: who, parents: 0 }.try_into()?,
+				message: alloc::boxed::Box::new((*message).try_into()?),
+			},
+			Xcm1::SubscribeVersion { .. } | Xcm1::UnsubscribeVersion => return Err(()),
+		})
+	}
 }

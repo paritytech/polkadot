@@ -14,13 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::mock::*;
+use crate::{mock::*, VersionNotifyTargets};
 use frame_support::{assert_noop, assert_ok, traits::Currency};
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
-use xcm::{
-	opaque::v0::prelude::*,
-	v0::{Junction, Xcm},
-};
+use std::convert::TryInto;
+use xcm::{v1::prelude::*, VersionedMultiLocation, VersionedXcm};
+use xcm_executor::XcmExecutor;
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -38,23 +37,27 @@ fn send_works() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		let sender: MultiLocation =
-			Junction::AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
-		let message = Xcm::ReserveAssetDeposit {
-			assets: vec![ConcreteFungible { id: Parent.into(), amount: SEND_AMOUNT }],
+			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
+		let message = Xcm::ReserveAssetDeposited {
+			assets: (Parent, SEND_AMOUNT).into(),
 			effects: vec![
-				buy_execution(
-					weight,
-					ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT },
-				),
-				DepositAsset { assets: vec![All], dest: sender.clone() },
+				buy_execution((Parent, SEND_AMOUNT), weight),
+				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
-		assert_ok!(XcmPallet::send(Origin::signed(ALICE), RelayLocation::get(), message.clone()));
+		assert_ok!(XcmPallet::send(
+			Origin::signed(ALICE),
+			Box::new(RelayLocation::get().into()),
+			Box::new(VersionedXcm::from(message.clone()))
+		));
 		assert_eq!(
 			sent_xcm(),
 			vec![(
-				MultiLocation::Null,
-				RelayedFrom { who: sender.clone(), message: Box::new(message.clone()) }
+				Here.into(),
+				RelayedFrom {
+					who: sender.clone().try_into().unwrap(),
+					message: Box::new(message.clone()),
+				}
 			)]
 		);
 		assert_eq!(
@@ -76,30 +79,18 @@ fn send_fails_when_xcm_router_blocks() {
 		let weight = 2 * BaseXcmWeight::get();
 		let sender: MultiLocation =
 			Junction::AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
-		let message = Xcm::ReserveAssetDeposit {
-			assets: vec![ConcreteFungible { id: Parent.into(), amount: SEND_AMOUNT }],
+		let message = Xcm::ReserveAssetDeposited {
+			assets: (Parent, SEND_AMOUNT).into(),
 			effects: vec![
-				buy_execution(
-					weight,
-					ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT },
-				),
-				DepositAsset { assets: vec![All], dest: sender.clone() },
+				buy_execution((Parent, SEND_AMOUNT), weight),
+				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
 			],
 		};
 		assert_noop!(
 			XcmPallet::send(
 				Origin::signed(ALICE),
-				X8(
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent,
-					Junction::Parent
-				),
-				message.clone()
+				Box::new(MultiLocation::ancestor(8).into()),
+				Box::new(VersionedXcm::from(message.clone())),
 			),
 			crate::Error::<Test>::SendFailure
 		);
@@ -119,9 +110,10 @@ fn teleport_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::teleport_assets(
 			Origin::signed(ALICE),
-			RelayLocation::get(),
-			MultiLocation::X1(Junction::AccountId32 { network: NetworkId::Any, id: BOB.into() }),
-			vec![ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT }],
+			Box::new(RelayLocation::get().into()),
+			Box::new(AccountId32 { network: Any, id: BOB.into() }.into().into()),
+			Box::new((Here, SEND_AMOUNT).into()),
+			0,
 			weight,
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -147,9 +139,10 @@ fn reserve_transfer_assets_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			Origin::signed(ALICE),
-			Parachain(PARA_ID).into(),
-			dest.clone(),
-			vec![ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT }],
+			Box::new(Parachain(PARA_ID).into().into()),
+			Box::new(dest.clone().into()),
+			Box::new((Here, SEND_AMOUNT).into()),
+			0,
 			weight
 		));
 		// Alice spent amount
@@ -161,14 +154,11 @@ fn reserve_transfer_assets_works() {
 			sent_xcm(),
 			vec![(
 				Parachain(PARA_ID).into(),
-				Xcm::ReserveAssetDeposit {
-					assets: vec![ConcreteFungible { id: Parent.into(), amount: SEND_AMOUNT }],
+				Xcm::ReserveAssetDeposited {
+					assets: (Parent, SEND_AMOUNT).into(),
 					effects: vec![
-						buy_execution(
-							weight,
-							ConcreteFungible { id: Parent.into(), amount: SEND_AMOUNT }
-						),
-						DepositAsset { assets: vec![All], dest },
+						buy_execution((Parent, SEND_AMOUNT), weight),
+						DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 					]
 				}
 			)]
@@ -195,16 +185,13 @@ fn execute_withdraw_to_deposit_works() {
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
-			Box::new(Xcm::WithdrawAsset {
-				assets: vec![ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT }],
+			Box::new(VersionedXcm::from(Xcm::WithdrawAsset {
+				assets: (Here, SEND_AMOUNT).into(),
 				effects: vec![
-					buy_execution(
-						weight,
-						ConcreteFungible { id: MultiLocation::Null, amount: SEND_AMOUNT }
-					),
-					DepositAsset { assets: vec![All], dest },
+					buy_execution((Here, SEND_AMOUNT), weight),
+					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest }
 				],
-			}),
+			})),
 			weight
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
@@ -213,5 +200,29 @@ fn execute_withdraw_to_deposit_works() {
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
 		);
+	});
+}
+
+#[test]
+fn subscriptions_work() {
+	new_test_ext_with_balances(vec![]).execute_with(|| {
+		let remote = Parachain(1000).into();
+		let weight = BaseXcmWeight::get();
+		let message = SubscribeVersion { query_id: 69, max_response_weight: 42 };
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote.clone(), message.clone(), weight);
+		assert_eq!(r, Outcome::Complete(weight));
+
+		let reply = QueryResponse { query_id: 69, response: Response::Version(1) };
+		assert_eq!(sent_xcm(), vec![(remote.clone(), reply)]);
+
+		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
+		contents.sort_by_key(|k| k.2);
+		assert_eq!(
+			contents,
+			vec![(1, VersionedMultiLocation::from(Parachain(1000).into()), (69, 42, 1)),]
+		);
+
+		let r = XcmExecutor::<XcmConfig>::execute_xcm(remote, message, weight);
+		assert_eq!(r, Outcome::Incomplete(weight, XcmError::InvalidLocation));
 	});
 }

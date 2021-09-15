@@ -12,8 +12,8 @@ lazy_static = "1.4"
 parking_lot = "0.11.1"
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 thiserror = "1.0.23"
 log = "0.4.13"
 parity-scale-codec = { version = "2.0.0", default-features = false }

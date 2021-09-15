@@ -18,12 +18,15 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
-	session_info, shared, ump,
+	session_info, shared,
+	ump::{self, MessageId, UmpSink},
+	ParaId,
 };
-use frame_support::{parameter_types, traits::GenesisBuild};
+use frame_support::{parameter_types, traits::GenesisBuild, weights::Weight};
 use frame_support_test::TestRandomness;
+use parity_scale_codec::Decode;
 use primitives::v1::{
-	AuthorityDiscoveryId, Balance, BlockNumber, Header, SessionIndex, ValidatorIndex,
+	AuthorityDiscoveryId, Balance, BlockNumber, Header, SessionIndex, UpwardMessage, ValidatorIndex,
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
@@ -128,8 +131,9 @@ parameter_types! {
 
 impl crate::ump::Config for Test {
 	type Event = Event;
-	type UmpSink = crate::ump::mock_sink::MockUmpSink;
+	type UmpSink = TestUmpSink;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
+	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
 }
 
 impl crate::hrmp::Config for Test {
@@ -232,6 +236,41 @@ pub fn availability_rewards() -> HashMap<ValidatorIndex, usize> {
 	AVAILABILITY_REWARDS.with(|r| r.borrow().clone())
 }
 
+std::thread_local! {
+	static PROCESSED: RefCell<Vec<(ParaId, UpwardMessage)>> = RefCell::new(vec![]);
+}
+
+/// Return which messages have been processed by `pocess_upward_message` and clear the buffer.
+pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
+	PROCESSED.with(|opt_hook| std::mem::take(&mut *opt_hook.borrow_mut()))
+}
+
+/// An implementation of a UMP sink that just records which messages were processed.
+///
+/// A message's weight is defined by the first 4 bytes of its data, which we decode into a
+/// `u32`.
+pub struct TestUmpSink;
+impl UmpSink for TestUmpSink {
+	fn process_upward_message(
+		actual_origin: ParaId,
+		actual_msg: &[u8],
+		max_weight: Weight,
+	) -> Result<Weight, (MessageId, Weight)> {
+		let weight = match u32::decode(&mut &actual_msg[..]) {
+			Ok(w) => w as Weight,
+			Err(_) => return Ok(0), // same as the real `UmpSink`
+		};
+		if weight > max_weight {
+			let id = sp_io::hashing::blake2_256(actual_msg);
+			return Err((id, weight))
+		}
+		PROCESSED.with(|opt_hook| {
+			opt_hook.borrow_mut().push((actual_origin, actual_msg.to_owned()));
+		});
+		Ok(weight)
+	}
+}
+
 pub struct TestRewardValidators;
 
 impl inclusion::RewardValidators for TestRewardValidators {
@@ -270,4 +309,12 @@ pub struct MockGenesisConfig {
 	pub system: frame_system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
 	pub paras: crate::paras::GenesisConfig,
+}
+
+pub fn assert_last_event(generic_event: Event) {
+	let events = frame_system::Pallet::<Test>::events();
+	let system_event: <Test as frame_system::Config>::Event = generic_event.into();
+	// compare to the last event record
+	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
+	assert_eq!(event, &system_event);
 }

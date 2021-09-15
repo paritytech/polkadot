@@ -5,9 +5,9 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -20,9 +20,9 @@ rand_chacha = { version = "0.3.1", default-features = false }
 tracing = "0.1.26"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "polkadot-v0.9.9" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "polkadot-v0.9.10" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 

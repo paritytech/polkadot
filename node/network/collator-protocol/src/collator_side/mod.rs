@@ -20,15 +20,17 @@ use std::{
 	time::Duration,
 };
 
-use futures::{channel::oneshot, select, stream::FuturesUnordered, Future, FutureExt, StreamExt};
+use futures::{
+	channel::oneshot, pin_mut, select, stream::FuturesUnordered, Future, FutureExt, StreamExt,
+};
 use sp_core::Pair;
 
 use polkadot_node_network_protocol::{
 	peer_set::PeerSet,
 	request_response::{
-		request::OutgoingResponse,
-		v1::{CollationFetchingRequest, CollationFetchingResponse},
-		IncomingRequest,
+		incoming::{self, OutgoingResponse},
+		v1::{self as request_v1, CollationFetchingRequest, CollationFetchingResponse},
+		IncomingRequest, IncomingRequestReceiver,
 	},
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, View,
 };
@@ -49,11 +51,12 @@ use polkadot_subsystem::{
 };
 
 use super::{Result, LOG_TARGET};
-use crate::error::{log_error, Fatal, NonFatal};
+use crate::error::{log_error, Fatal, FatalResult, NonFatal};
 
 #[cfg(test)]
 mod tests;
 
+const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::CostMinor("An unexpected message");
 const COST_APPARENT_FLOOD: Rep =
 	Rep::CostMinor("Message received when previous one was still being processed");
@@ -684,74 +687,6 @@ where
 				);
 			}
 		},
-		CollationFetchingRequest(incoming) => {
-			let _span = state
-				.span_per_relay_parent
-				.get(&incoming.payload.relay_parent)
-				.map(|s| s.child("request-collation"));
-			match state.collating_on {
-				Some(our_para_id) =>
-					if our_para_id == incoming.payload.para_id {
-						let (receipt, pov) = if let Some(collation) =
-							state.collations.get_mut(&incoming.payload.relay_parent)
-						{
-							collation.status.advance_to_requested();
-							(collation.receipt.clone(), collation.pov.clone())
-						} else {
-							tracing::warn!(
-								target: LOG_TARGET,
-								relay_parent = %incoming.payload.relay_parent,
-								"received a `RequestCollation` for a relay parent we don't have collation stored.",
-							);
-
-							return Ok(())
-						};
-
-						state.metrics.on_collation_sent_requested();
-
-						let _span = _span.as_ref().map(|s| s.child("sending"));
-
-						let waiting = state
-							.waiting_collation_fetches
-							.entry(incoming.payload.relay_parent)
-							.or_default();
-
-						if !waiting.waiting_peers.insert(incoming.peer) {
-							tracing::debug!(
-								target: LOG_TARGET,
-								"Dropping incoming request as peer has a request in flight already."
-							);
-							ctx.send_message(NetworkBridgeMessage::ReportPeer(
-								incoming.peer,
-								COST_APPARENT_FLOOD,
-							))
-							.await;
-							return Ok(())
-						}
-
-						if waiting.collation_fetch_active {
-							waiting.waiting.push_back(incoming);
-						} else {
-							waiting.collation_fetch_active = true;
-							send_collation(state, incoming, receipt, pov).await;
-						}
-					} else {
-						tracing::warn!(
-							target: LOG_TARGET,
-							for_para_id = %incoming.payload.para_id,
-							our_para_id = %our_para_id,
-							"received a `CollationFetchingRequest` for unexpected para_id",
-						);
-					},
-				None => {
-					tracing::warn!(
-						target: LOG_TARGET,
-						for_para_id = %incoming.payload.para_id,
-						"received a `RequestCollation` while not collating on any para",
-					);
-				},
-			}
-		},
 		_ => {},
 	}
 
@@ -875,6 +810,80 @@ where
 	Ok(())
 }
 
+/// Process an incoming network request for a collation.
+async fn handle_incoming_request<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	req: IncomingRequest<request_v1::CollationFetchingRequest>,
+) -> Result<()>
+where
+	Context: SubsystemContext<Message = CollatorProtocolMessage>,
+	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
+{
+	let _span = state
+		.span_per_relay_parent
+		.get(&req.payload.relay_parent)
+		.map(|s| s.child("request-collation"));
+
+	match state.collating_on {
+		Some(our_para_id) if our_para_id == req.payload.para_id => {
+			let (receipt, pov) =
+				if let Some(collation) = state.collations.get_mut(&req.payload.relay_parent) {
+					collation.status.advance_to_requested();
+					(collation.receipt.clone(), collation.pov.clone())
+				} else {
+					tracing::warn!(
+						target: LOG_TARGET,
+						relay_parent = %req.payload.relay_parent,
+						"received a `RequestCollation` for a relay parent we don't have collation stored.",
+					);
+
+					return Ok(())
+				};
+
+			state.metrics.on_collation_sent_requested();
+
+			let _span = _span.as_ref().map(|s| s.child("sending"));
+
+			let waiting =
+				state.waiting_collation_fetches.entry(req.payload.relay_parent).or_default();
+
+			if !waiting.waiting_peers.insert(req.peer) {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Dropping incoming request as peer has a request in flight already."
+				);
+				ctx.send_message(NetworkBridgeMessage::ReportPeer(req.peer, COST_APPARENT_FLOOD))
+					.await;
+				return Ok(())
+			}
+
+			if waiting.collation_fetch_active {
+				waiting.waiting.push_back(req);
+			} else {
+				waiting.collation_fetch_active = true;
+				send_collation(state, req, receipt, pov).await;
+			}
+		},
+		Some(our_para_id) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				for_para_id = %req.payload.para_id,
+				our_para_id = %our_para_id,
+				"received a `CollationFetchingRequest` for unexpected para_id",
+			);
+		},
+		None => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				for_para_id = %req.payload.para_id,
+				"received a `RequestCollation` while not collating on any para",
+			);
+		},
+	}
+	Ok(())
+}
+
 /// Our view has changed.
 async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
@@ -994,8 +1003,9 @@ pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	local_peer_id: PeerId,
 	collator_pair: CollatorPair,
+	mut req_receiver: IncomingRequestReceiver<request_v1::CollationFetchingRequest>,
 	metrics: Metrics,
-) -> Result<()>
+) -> FatalResult<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
@@ -1006,6 +1016,8 @@ where
 	let mut runtime = RuntimeInfo::new(None);
 
 	loop {
+		let recv_req = req_receiver.recv(|| vec![COST_INVALID_REQUEST]).fuse();
+		pin_mut!(recv_req);
 		select! {
 			msg = ctx.recv().fuse() => match msg.map_err(Fatal::SubsystemReceive)? {
 				FromOverseer::Communication { msg } => {
@@ -1037,6 +1049,25 @@ where
 					let pov = collation.pov.clone();
 
 					send_collation(&mut state, next, receipt, pov).await;
+				}
+			}
+			in_req = recv_req => {
+				match in_req {
+					Ok(req) => {
+						log_error(
+							handle_incoming_request(&mut ctx, &mut state, req).await,
+							"Handling incoming request"
+						)?;
+					}
+					Err(incoming::Error::Fatal(f)) => return Err(f.into()),
+					Err(incoming::Error::NonFatal(err)) => {
+						tracing::debug!(
+							target: LOG_TARGET,
+							?err,
+							"Decoding incoming request failed"
+						);
+						continue
+					}
 				}
 			}
 		}

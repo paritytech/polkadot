@@ -41,7 +41,7 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
-/// Weight functions for runtime_common::paras_registrar.
+/// Weight functions for `runtime_common::paras_registrar`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for WeightInfo<T> {
 	// Storage: Registrar NextFreeParaId (r:1 w:1)
