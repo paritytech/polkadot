@@ -37,7 +37,9 @@ arg_enum! {
 }
 
 impl Runtime {
-	fn generate_thresholds_fn(&self) -> Box<dyn FnOnce(usize, &Path, u128, u128) -> Result<(), std::io::Error>> {
+	fn generate_thresholds_fn(
+		&self,
+	) -> Box<dyn FnOnce(usize, &Path, u128, u128) -> Result<(), std::io::Error>> {
 		match self {
 			Runtime::Westend => Box::new(generate_thresholds::<WestendRuntime>),
 			Runtime::Kusama => Box::new(generate_thresholds::<KusamaRuntime>),
