@@ -17,7 +17,7 @@ polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-overseer-gen = { path = "./overseer-gen" }
 polkadot-overseer-all-subsystems-gen = { path = "./all-subsystems-gen" }
-tracing = "0.1.26"
+tracing = "0.1.27"
 lru = "0.6"
 
 [dev-dependencies]

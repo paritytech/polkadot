@@ -31,7 +31,7 @@ use sc_executor::NativeElseWasmExecutor;
 use sc_service::{TFullBackend, TFullClient};
 use sp_runtime::{app_crypto::sp_core::H256, generic::Era, AccountId32};
 use std::{error::Error, future::Future, str::FromStr};
-use support::{weights::Weight, StorageValue};
+use support::weights::Weight;
 use test_runner::{
 	build_runtime, client_parts, ChainInfo, ConfigOrChainSpec, Node, SignatureVerificationOverride,
 };
