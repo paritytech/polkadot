@@ -11,8 +11,6 @@ HRMP related structs:
 struct HrmpOpenChannelRequest {
     /// Indicates if this request was confirmed by the recipient.
     confirmed: bool,
-    /// How many session boundaries ago this request was seen.
-    age: SessionIndex,
     /// The amount that the sender supplied at the time of creation of this request.
     sender_deposit: Balance,
     /// The maximum message size that could be put into the channel.
@@ -158,8 +156,8 @@ Candidate Enactment:
         1. Decrement `C.msg_count`
         1. Decrement `C.total_size` by `M`'s payload size.
     1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
-    > NOTE: That collecting digests can be inefficient and the time it takes grows very fast. Thanks to the aggresive
-    > parametrization this shouldn't be a big of a deal.
+    > NOTE: That collecting digests can be inefficient and the time it takes grows very fast. Thanks to the aggressive
+    > parameterization this shouldn't be a big of a deal.
     > If that becomes a problem consider introducing an extra dictionary which says at what block the given sender
     > sent a message to the recipient.
 
@@ -212,6 +210,13 @@ the parachain executed the message.
         - The DM is sent using `queue_downward_message`.
         - The DM is represented by the `HrmpChannelAccepted` XCM message.
             - `recipient` is set to `origin`.
+* `hrmp_cancel_open_request(ch)`:
+    1. Check that `origin` is either `ch.sender` or `ch.recipient`
+    1. Check that the open channel request `ch` exists.
+    1. Check that the open channel request for `ch` is not confirmed.
+    1. Remove `ch` from `HrmpOpenChannelRequests` and `HrmpOpenChannelRequestsList`
+    1. Decrement `HrmpAcceptedChannelRequestCount` for `ch.recipient` by 1.
+    1. Unreserve the deposit of `ch.sender`.
 * `hrmp_close_channel(ch)`:
     1. Check that `origin` is either `ch.sender` or `ch.recipient`
     1. Check that `HrmpChannels` for `ch` exists.
@@ -233,15 +238,12 @@ the parachain executed the message.
     1. Remove all outbound channels of `P`, i.e. `(P, _)`,
     1. Remove `HrmpOpenChannelRequestCount` for `P`
     1. Remove `HrmpAcceptedChannelRequestCount` for `P`.
+    1. Remove `HrmpOpenChannelRequests` and `HrmpOpenChannelRequestsList` for `(P, _)` and `(_, P)`.
+        1. For each removed channel request `C`:
+            1. Unreserve the sender's deposit if the sender is not present in `outgoing_paras`
+            1. Unreserve the recipient's deposit if `C` is confirmed and the recipient is not present in `outgoing_paras`
 1. For each channel designator `D` in `HrmpOpenChannelRequestsList` we query the request `R` from `HrmpOpenChannelRequests`:
-    1. if `R.confirmed = false`:
-        1. increment `R.age` by 1.
-        1. if `R.age` reached a preconfigured time-to-live limit `config.hrmp_open_request_ttl`, then:
-            1. refund `R.sender_deposit` to the sender
-            1. decrement `HrmpOpenChannelRequestCount` for `D.sender` by 1.
-            1. remove `R`
-            1. remove `D`
-    2. if `R.confirmed = true`,
+    1. if `R.confirmed = true`,
         1. if both `D.sender` and `D.recipient` are not offboarded.
           1. create a new channel `C` between `(D.sender, D.recipient)`.
               1. Initialize the `C.sender_deposit` with `R.sender_deposit` and `C.recipient_deposit`

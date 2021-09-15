@@ -19,7 +19,10 @@
 //!
 //! See https://w3f.github.io/parachain-implementers-guide/runtime/session_info.html.
 
-use crate::{configuration, paras, scheduler, shared, util::take_active_subset};
+use crate::{
+	configuration, paras, scheduler, shared,
+	util::{take_active_subset, take_active_subset_and_inactive},
+};
 use frame_support::{pallet_prelude::*, traits::OneSessionHandler};
 use primitives::v1::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
 use sp_std::vec::Vec;
@@ -120,7 +123,7 @@ impl<T: Config> Pallet<T> {
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
 			validators, // these are from the notification and are thus already correct.
-			discovery_keys: take_active_subset(&active_set, &discovery_keys),
+			discovery_keys: take_active_subset_and_inactive(&active_set, &discovery_keys),
 			assignment_keys: take_active_subset(&active_set, &assignment_keys),
 			validator_groups,
 			n_cores,
@@ -176,6 +179,7 @@ mod tests {
 			new_test_ext, Configuration, MockGenesisConfig, Origin, ParasShared, SessionInfo,
 			System, Test,
 		},
+		util::take_active_subset,
 	};
 	use keyring::Sr25519Keyring;
 	use primitives::v1::{BlockNumber, ValidatorId, ValidatorIndex};
@@ -357,7 +361,7 @@ mod tests {
 			assert_eq!(session.validators, validators);
 			assert_eq!(
 				session.discovery_keys,
-				take_active_subset(&active_set, &unscrambled_discovery),
+				take_active_subset_and_inactive(&active_set, &unscrambled_discovery),
 			);
 			assert_eq!(
 				session.assignment_keys,

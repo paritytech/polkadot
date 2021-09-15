@@ -1064,7 +1064,7 @@ async fn handle_from_overseer(
 					Ok(block_imported_candidates) => {
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
-							tracing::debug!(
+							tracing::trace!(
 								target: LOG_TARGET,
 								block_hash = ?block_batch.block_hash,
 								num_candidates = block_batch.imported_candidates.len(),
@@ -2407,7 +2407,7 @@ async fn issue_approval(
 	)
 	.expect("Statement just signed; should pass checks; qed");
 
-	tracing::debug!(
+	tracing::trace!(
 		target: LOG_TARGET,
 		?candidate_hash,
 		?block_hash,
