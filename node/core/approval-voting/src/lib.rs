@@ -1874,13 +1874,14 @@ fn advance_approval_state(
 			status.required_tranches,
 		));
 
-		// We have no need to write the candidate entry if
+		// We have no need to write the candidate entry if all of the following
+		// are trueL
 		//
-		// 1. The approver is remote, as we don't store anything new in the approval entry.
+		// 1. This is not a local approval, as we don't store anything new in the approval entry.
 		// 2. The candidate is not newly approved, as we haven't altered the approval entry's
 		//	  approved flag with `mark_approved` above.
 		// 3. The approver, if any, had already approved the candidate, as we haven't altered the bitfield.
-		if !transition.is_remote_approval() ||
+		if transition.is_local_approval() ||
 			newly_approved ||
 			!already_approved_by.unwrap_or(true)
 		{
