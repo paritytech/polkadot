@@ -93,7 +93,8 @@ pub mod pallet_test_notifier {
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
-			let call = Call::<T>::notification_received(0, Default::default());
+			let call =
+				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = crate::Pallet::<T>::new_notify_query(
 				Junction::AccountId32 { network: Any, id }.into(),
 				<T as Config>::Call::from(call),

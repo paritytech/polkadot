@@ -30,6 +30,7 @@ use primitives::v1::{
 	InvalidDisputeStatementKind, MultiDisputeStatementSet, SessionIndex, SigningContext,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
+use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{AppVerify, One, Saturating, Zero},
 	DispatchError, RuntimeDebug, SaturatedConversion,
@@ -37,14 +38,14 @@ use sp_runtime::{
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
 /// Whether the dispute is local or remote.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub enum DisputeLocation {
 	Local,
 	Remote,
 }
 
 /// The result of a dispute, whether the candidate is deemed valid (for) or invalid (against).
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub enum DisputeResult {
 	Valid,
 	Invalid,

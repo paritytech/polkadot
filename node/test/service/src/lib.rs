@@ -286,16 +286,16 @@ impl PolkadotTestNode {
 		validation_code: impl Into<ValidationCode>,
 		genesis_head: impl Into<HeadData>,
 	) -> Result<(), RpcTransactionError> {
-		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize(
+		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize {
 			id,
-			ParaGenesisArgs {
+			genesis: ParaGenesisArgs {
 				genesis_head: genesis_head.into(),
 				validation_code: validation_code.into(),
 				parachain: true,
 			},
-		);
+		};
 
-		self.send_extrinsic(SudoCall::sudo(Box::new(call.into())), Sr25519Keyring::Alice)
+		self.send_extrinsic(SudoCall::sudo { call: Box::new(call.into()) }, Sr25519Keyring::Alice)
 			.await
 			.map(drop)
 	}
@@ -377,10 +377,10 @@ pub fn construct_transfer_extrinsic(
 	dest: sp_keyring::AccountKeyring,
 	value: Balance,
 ) -> UncheckedExtrinsic {
-	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer(
-		MultiSigner::from(dest.public()).into_account().into(),
+	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer {
+		dest: MultiSigner::from(dest.public()).into_account().into(),
 		value,
-	));
+	});
 
 	construct_extrinsic(client, function, origin, 0)
 }
