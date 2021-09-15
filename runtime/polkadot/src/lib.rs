@@ -96,7 +96,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9100,
+	spec_version: 9090,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -123,32 +123,32 @@ impl Contains<Call> for BaseFilter {
 	fn contains(call: &Call) -> bool {
 		match call {
 			// These modules are all allowed to be called by transactions:
-			Call::Democracy(_) |
-			Call::Council(_) |
-			Call::TechnicalCommittee(_) |
-			Call::TechnicalMembership(_) |
-			Call::Treasury(_) |
-			Call::PhragmenElection(_) |
-			Call::System(_) |
-			Call::Scheduler(_) |
-			Call::Indices(_) |
-			Call::Babe(_) |
-			Call::Timestamp(_) |
-			Call::Balances(_) |
-			Call::Authorship(_) |
-			Call::Staking(_) |
-			Call::Session(_) |
-			Call::Grandpa(_) |
-			Call::ImOnline(_) |
-			Call::Utility(_) |
-			Call::Claims(_) |
-			Call::Vesting(_) |
-			Call::Identity(_) |
-			Call::Proxy(_) |
-			Call::Multisig(_) |
-			Call::Bounties(_) |
-			Call::Tips(_) |
-			Call::ElectionProviderMultiPhase(_) => true,
+			Call::Democracy(_)
+			| Call::Council(_)
+			| Call::TechnicalCommittee(_)
+			| Call::TechnicalMembership(_)
+			| Call::Treasury(_)
+			| Call::PhragmenElection(_)
+			| Call::System(_)
+			| Call::Scheduler(_)
+			| Call::Indices(_)
+			| Call::Babe(_)
+			| Call::Timestamp(_)
+			| Call::Balances(_)
+			| Call::Authorship(_)
+			| Call::Staking(_)
+			| Call::Session(_)
+			| Call::Grandpa(_)
+			| Call::ImOnline(_)
+			| Call::Utility(_)
+			| Call::Claims(_)
+			| Call::Vesting(_)
+			| Call::Identity(_)
+			| Call::Proxy(_)
+			| Call::Multisig(_)
+			| Call::Bounties(_)
+			| Call::Tips(_)
+			| Call::ElectionProviderMultiPhase(_) => true,
 		}
 	}
 }
@@ -993,22 +993,22 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::Governance => matches!(
 				c,
-				Call::Democracy(..) |
-					Call::Council(..) | Call::TechnicalCommittee(..) |
-					Call::PhragmenElection(..) |
-					Call::Treasury(..) | Call::Bounties(..) |
-					Call::Tips(..) | Call::Utility(..)
+				Call::Democracy(..)
+					| Call::Council(..) | Call::TechnicalCommittee(..)
+					| Call::PhragmenElection(..)
+					| Call::Treasury(..) | Call::Bounties(..)
+					| Call::Tips(..) | Call::Utility(..)
 			),
 			ProxyType::Staking => {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
-			},
+			}
 			ProxyType::IdentityJudgement => matches!(
 				c,
 				Call::Identity(pallet_identity::Call::provide_judgement(..)) | Call::Utility(..)
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement(..)))
-			},
+			}
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -1534,6 +1534,10 @@ sp_api::impl_runtime_apis! {
 			log::info!("try-runtime::on_runtime_upgrade polkadot.");
 			let weight = Executive::try_runtime_upgrade()?;
 			Ok((weight, BlockWeights::get().max_block))
+		}
+
+		fn execute_block_no_state_root_check(block: Block) -> Weight {
+			Executive::execute_block_no_state_root_check(block)
 		}
 	}
 
