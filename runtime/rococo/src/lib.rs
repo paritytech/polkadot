@@ -1065,10 +1065,10 @@ impl InstanceFilter<Call> for ProxyType {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. })),
 			ProxyType::Auction => matches!(
 				c,
-				Call::Auctions { .. }
-					| Call::Crowdloan { .. }
-					| Call::Registrar { .. }
-					| Call::Slots { .. }
+				Call::Auctions { .. } |
+					Call::Crowdloan { .. } |
+					Call::Registrar { .. } |
+					Call::Slots { .. }
 			),
 		}
 	}
