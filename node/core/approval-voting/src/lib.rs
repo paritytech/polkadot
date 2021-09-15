@@ -1726,6 +1726,7 @@ fn check_and_import_approval<T>(
 	Ok((actions, t))
 }
 
+#[derive(Debug)]
 enum ApprovalStateTransition {
 	RemoteApproval(ValidatorIndex),
 	LocalApproval(ValidatorIndex, ValidatorSignature),
@@ -1738,14 +1739,6 @@ impl ApprovalStateTransition {
 			ApprovalStateTransition::RemoteApproval(v) |
 			ApprovalStateTransition::LocalApproval(v, _) => Some(v),
 			ApprovalStateTransition::WakeupProcessed => None,
-		}
-	}
-
-	fn is_remote_approval(&self) -> bool {
-		match *self {
-			ApprovalStateTransition::RemoteApproval(_) => true,
-			ApprovalStateTransition::LocalApproval(_, _) => false,
-			ApprovalStateTransition::WakeupProcessed => false,
 		}
 	}
 
