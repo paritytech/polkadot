@@ -41,7 +41,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
-	weights::Weight,
+	weights::{Weight, constants::WEIGHT_PER_MILLIS},
 	PalletId, RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
@@ -1085,6 +1085,7 @@ impl parachains_ump::Config for Runtime {
 	type Event = Event;
 	type UmpSink = ();
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
+	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -1418,7 +1419,6 @@ impl OnRuntimeUpgrade for SetInitialHostConfiguration {
 			ump_service_total_weight: 100_000_000_000,
 			hrmp_max_parachain_outbound_channels: 10,
 			hrmp_max_parathread_outbound_channels: 0,
-			_hrmp_open_request_ttl: 72,
 			hrmp_sender_deposit: deposit(1004, 100 * 1024),
 			hrmp_recipient_deposit: deposit(1004, 100 * 1024),
 			hrmp_channel_max_capacity: 1_000,
@@ -1444,6 +1444,7 @@ impl OnRuntimeUpgrade for SetInitialHostConfiguration {
 			zeroth_delay_tranche_width: 0,
 			needed_approvals: 30,
 			relay_vrf_modulo_samples: 40,
+			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
 		};
 		Configuration::force_set_active_config(active_config);
 
