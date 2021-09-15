@@ -23,6 +23,7 @@ use frame_support::{
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sp_core::sr25519;
 use sp_runtime::{
 	traits::{CheckedAdd, Saturating, Verify, Zero},
@@ -34,7 +35,7 @@ type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// The kind of a statement an account needs to make for a claim to be valid.
-#[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum AccountValidity {
 	/// Account is not valid.
 	Invalid,
@@ -70,7 +71,7 @@ impl AccountValidity {
 }
 
 /// All information about an account regarding the purchase of DOTs.
-#[derive(Encode, Decode, Default, Clone, Eq, PartialEq, RuntimeDebug)]
+#[derive(Encode, Decode, Default, Clone, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct AccountStatus<Balance> {
 	/// The current validity status of the user. Will denote if the user has passed KYC,
 	/// how much they are able to purchase, and when their purchase process has completed.
@@ -129,11 +130,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(
-		T::AccountId = "AccountId",
-		T::BlockNumber = "BlockNumber",
-		BalanceOf<T> = "Balance",
-	)]
 	pub enum Event<T: Config> {
 		/// A [new] account was created.
 		AccountCreated(T::AccountId),
@@ -1071,7 +1067,7 @@ mod tests {
 			);
 			// Vesting lock is removed in whole on block 101 (100 blocks after block 1)
 			System::set_block_number(100);
-			let vest_call = Call::Vesting(pallet_vesting::Call::<Test>::vest());
+			let vest_call = Call::Vesting(pallet_vesting::Call::<Test>::vest {});
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
 			assert_eq!(<Test as Config>::VestingSchedule::vesting_balance(&alice()), Some(45));

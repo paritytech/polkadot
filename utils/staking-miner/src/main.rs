@@ -81,7 +81,7 @@ macro_rules! construct_runtime_prelude {
 
 					let crate::signer::Signer { account, pair, .. } = signer;
 
-					let local_call = EPMCall::<Runtime>::submit(Box::new(raw_solution), witness);
+					let local_call = EPMCall::<Runtime>::submit { raw_solution: Box::new(raw_solution), num_signed_submissions: witness };
 					let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
 						.expect("election provider pallet must exist in the runtime, thus \
 							inner call can be converted, qed."

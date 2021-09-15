@@ -593,7 +593,8 @@ pub mod pallet_test_notifier {
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
-			let call = Call::<T>::notification_received(0, Default::default());
+			let call =
+				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
 				Junction::AccountId32 { network: Any, id }.into(),
 				<T as Config>::Call::from(call),
@@ -723,7 +724,7 @@ sp_api::impl_runtime_apis! {
 
 	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
-			Runtime::metadata().into()
+			OpaqueMetadata::new(Runtime::metadata().into())
 		}
 	}
 

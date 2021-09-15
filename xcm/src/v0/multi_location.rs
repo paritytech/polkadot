@@ -42,7 +42,7 @@ use parity_scale_codec::{self, Decode, Encode};
 /// This specific `MultiLocation` implementation uses a Rust `enum` in order to make pattern matching easier.
 ///
 /// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, scale_info::TypeInfo)]
 pub enum MultiLocation {
 	/// The interpreting consensus system.
 	Null,
