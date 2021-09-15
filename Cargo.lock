@@ -528,7 +528,6 @@ version = "0.1.0"
 source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#8b04f0ecbd97cfe0199dba444264baafb6d35eca"
 dependencies = [
  "parity-scale-codec",
- "scale-info",
  "sp-api",
  "sp-application-crypto",
  "sp-core",
