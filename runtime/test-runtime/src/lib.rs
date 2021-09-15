@@ -314,9 +314,7 @@ parameter_types! {
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
-	type AccountId = <Self as frame_system::Config>::AccountId;
-	type BlockNumber = <Self as frame_system::Config>::BlockNumber;
-	type Accuracy = sp_runtime::Perbill;
+	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
 	type DataProvider = Staking;
 }
 
@@ -493,6 +491,7 @@ impl parachains_ump::Config for Runtime {
 	type Event = Event;
 	type UmpSink = ();
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
+	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
 }
 
 parameter_types! {
@@ -594,7 +593,8 @@ pub mod pallet_test_notifier {
 			let id = who
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
-			let call = Call::<T>::notification_received(0, Default::default());
+			let call =
+				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
 				Junction::AccountId32 { network: Any, id }.into(),
 				<T as Config>::Call::from(call),
@@ -724,7 +724,7 @@ sp_api::impl_runtime_apis! {
 
 	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
-			Runtime::metadata().into()
+			OpaqueMetadata::new(Runtime::metadata().into())
 		}
 	}
 

@@ -36,7 +36,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", default-features = 
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 
 [features]
-default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker" ]
+default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-native" ]
 wasmtime = [ "sc-cli/wasmtime" ]
 db = [ "service/db" ]
 cli = [
@@ -59,9 +59,10 @@ trie-memory-tracker = [ "sp-trie/memory-tracker" ]
 full-node = [ "service/full-node" ]
 try-runtime = [ "service/try-runtime" ]
 
-# Configure the native runtimes to use. Polkadot is always enabled by default.
+# Configure the native runtimes to use. Polkadot is enabled by default.
 #
 # Validators require the native runtime currently
+polkadot-native = [ "service/polkadot-native" ]
 kusama-native = [ "service/kusama-native" ]
 westend-native = [ "service/westend-native" ]
 rococo-native = [ "service/rococo-native" ]

@@ -62,7 +62,7 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 # External Crates
 futures = "0.3.17"
 hex-literal = "0.3.3"
-tracing = "0.1.26"
+tracing = "0.1.27"
 serde = { version = "1.0.130", features = ["derive"] }
 thiserror = "1.0.26"
 kvdb = "0.10.0"
@@ -72,7 +72,7 @@ async-trait = "0.1.51"
 # Polkadot
 polkadot-node-core-parachains-inherent = { path = "../core/parachains-inherent" }
 polkadot-overseer = { path = "../overseer" }
-polkadot-client = { path = "../client" }
+polkadot-client = { path = "../client", default-features = false, optional = true }
 polkadot-parachain = { path = "../../parachain" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
@@ -83,7 +83,7 @@ polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 
 # Polkadot Runtimes
-polkadot-runtime = { path = "../../runtime/polkadot" }
+polkadot-runtime = { path = "../../runtime/polkadot", optional = true }
 kusama-runtime = { path = "../../runtime/kusama", optional = true }
 westend-runtime = { path = "../../runtime/westend", optional = true }
 rococo-runtime = { path = "../../runtime/rococo", optional = true }
@@ -119,7 +119,7 @@ log = "0.4.14"
 assert_matches = "1.5.0"
 
 [features]
-default = ["db", "full-node"]
+default = ["db", "full-node", "polkadot-native"]
 
 db = [
 	"service/db"
@@ -131,6 +131,7 @@ full-node = [
 	"polkadot-availability-bitfield-distribution",
 	"polkadot-availability-distribution",
 	"polkadot-availability-recovery",
+	"polkadot-client",
 	"polkadot-collator-protocol",
 	"polkadot-dispute-distribution",
 	"polkadot-gossip-support",
@@ -152,9 +153,10 @@ full-node = [
 
 light-node = []
 
-# Configure the native runtimes to use. Polkadot is always enabled by default.
+# Configure the native runtimes to use. Polkadot is enabled by default.
 #
 # Validators require the native runtime currently
+polkadot-native = [ "polkadot-runtime", "polkadot-client/polkadot" ]
 kusama-native = [ "kusama-runtime", "polkadot-client/kusama" ]
 westend-native = [ "westend-runtime", "polkadot-client/westend" ]
 rococo-native = [ "rococo-runtime", "polkadot-client/rococo" ]

@@ -1,7 +1,7 @@
 # This file is a "runtime" part from a builder-pattern in Dockerfile, it's used in CI.
 # The only different part is that the compilation happens externally,
 # so COPY has a different source.
-FROM ubuntu:20.04
+FROM docker.io/library/ubuntu:20.04
 
 # show backtraces
 ENV RUST_BACKTRACE 1

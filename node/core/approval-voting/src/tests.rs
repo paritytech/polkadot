@@ -2556,3 +2556,197 @@ fn subsystem_assignment_not_triggered_if_at_maximum_but_clock_is_before_with_dri
 		should_be_triggered: |_| false,
 	});
 }
+
+#[test]
+fn pre_covers_dont_stall_approval() {
+	// A, B are tranche 0.
+	// C is tranche 1.
+	//
+	// All assignments imported at once, and B, C approvals imported immediately.
+	// A no-shows, leading to being covered by C.
+	// Technically, this is an approved block, but it will be approved
+	// when the no-show timer hits, not as a response to an approval vote.
+	//
+	// Note that we have 6 validators, otherwise the 2nd approval triggers
+	// the >1/3 insta-approval condition.
+
+	let assignment_criteria = Box::new(MockAssignmentCriteria::check_only(
+		move |validator_index| match validator_index {
+			ValidatorIndex(0 | 1) => Ok(0),
+			ValidatorIndex(2) => Ok(1),
+			ValidatorIndex(_) => Err(criteria::InvalidAssignment),
+		},
+	));
+
+	let config = HarnessConfigBuilder::default().assignment_criteria(assignment_criteria).build();
+	let store = config.backend();
+	test_harness(config, |test_harness| async move {
+		let TestHarness {
+			mut virtual_overseer,
+			clock,
+			sync_oracle_handle: _sync_oracle_handle,
+			..
+		} = test_harness;
+
+		let block_hash = Hash::repeat_byte(0x01);
+		let validator_index_a = ValidatorIndex(0);
+		let validator_index_b = ValidatorIndex(1);
+		let validator_index_c = ValidatorIndex(2);
+
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Eve,
+			Sr25519Keyring::One,
+		];
+		let session_info = SessionInfo {
+			validators: validators.iter().map(|v| v.public().into()).collect(),
+			validator_groups: vec![
+				vec![ValidatorIndex(0), ValidatorIndex(1)],
+				vec![ValidatorIndex(2), ValidatorIndex(5)],
+				vec![ValidatorIndex(3), ValidatorIndex(4)],
+			],
+			needed_approvals: 2,
+			discovery_keys: validators.iter().map(|v| v.public().into()).collect(),
+			assignment_keys: validators.iter().map(|v| v.public().into()).collect(),
+			n_cores: validators.len() as _,
+			zeroth_delay_tranche_width: 5,
+			relay_vrf_modulo_samples: 3,
+			n_delay_tranches: 50,
+			no_show_slots: 2,
+		};
+
+		let candidate_descriptor = make_candidate(1.into(), &block_hash);
+		let candidate_hash = candidate_descriptor.hash();
+
+		let head: Hash = ChainBuilder::GENESIS_HASH;
+		let mut builder = ChainBuilder::new();
+		let slot = Slot::from(1 as u64);
+		builder.add_block(
+			block_hash,
+			head,
+			1,
+			BlockConfig {
+				slot,
+				candidates: Some(vec![(candidate_descriptor, CoreIndex(0), GroupIndex(0))]),
+				session_info: Some(session_info),
+			},
+		);
+		builder.build(&mut virtual_overseer).await;
+
+		let candidate_index = 0;
+
+		let rx = check_and_import_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator_index_a,
+		)
+		.await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted),);
+
+		let rx = check_and_import_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator_index_b,
+		)
+		.await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted),);
+
+		let rx = check_and_import_assignment(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator_index_c,
+		)
+		.await;
+
+		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted),);
+
+		let session_index = 1;
+		let sig_b = sign_approval(Sr25519Keyring::Bob, candidate_hash, session_index);
+
+		let rx = check_and_import_approval(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator_index_b,
+			candidate_hash,
+			session_index,
+			false,
+			true,
+			Some(sig_b),
+		)
+		.await;
+
+		assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted),);
+
+		let sig_c = sign_approval(Sr25519Keyring::Charlie, candidate_hash, session_index);
+		let rx = check_and_import_approval(
+			&mut virtual_overseer,
+			block_hash,
+			candidate_index,
+			validator_index_c,
+			candidate_hash,
+			session_index,
+			false,
+			true,
+			Some(sig_c),
+		)
+		.await;
+
+		assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted),);
+
+		// Sleep to ensure we get a consistent read on the database.
+		//
+		// NOTE: Since the response above occurs before writing to the database, we are somewhat
+		// breaking the external consistency of the API by reaching into the database directly.
+		// Under normal operation, this wouldn't be necessary, since all requests are serialized by
+		// the event loop and we write at the end of each pass. However, if the database write were
+		// to fail, a downstream subsystem may expect for this candidate to be approved, and
+		// possibly take further actions on the assumption that the candidate is approved, when
+		// that may not be the reality from the database's perspective. This could be avoided
+		// entirely by having replies processed after database writes, but that would constitute a
+		// larger refactor and incur a performance penalty.
+		futures_timer::Delay::new(Duration::from_millis(100)).await;
+
+		// The candidate should not be approved.
+		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
+		assert!(!candidate_entry.approval_entry(&block_hash).unwrap().is_approved());
+		assert!(clock.inner.lock().has_wakeup(20));
+
+		// Wait for the no-show timer to observe the approval from
+		// tranche 0 and set a wakeup for tranche 1.
+		clock.inner.lock().set_tick(20);
+
+		// Sleep to ensure we get a consistent read on the database.
+		futures_timer::Delay::new(Duration::from_millis(100)).await;
+
+		// The next wakeup should observe the assignment & approval from
+		// tranche 1, and the no-show from tranche 0 should be immediately covered.
+		assert_eq!(clock.inner.lock().next_wakeup(), Some(31));
+		clock.inner.lock().set_tick(31);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainSelection(ChainSelectionMessage::Approved(b_hash)) => {
+				assert_eq!(b_hash, block_hash);
+			}
+		);
+
+		// The candidate and block should now be approved.
+		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
+		assert!(candidate_entry.approval_entry(&block_hash).unwrap().is_approved());
+		assert!(clock.inner.lock().next_wakeup().is_none());
+
+		let block_entry = store.load_block_entry(&block_hash).unwrap().unwrap();
+		assert!(block_entry.is_fully_approved());
+
+		virtual_overseer
+	});
+}

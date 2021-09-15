@@ -22,11 +22,13 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "grandpa_f
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 
 
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
