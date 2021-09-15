@@ -1109,6 +1109,7 @@ impl parachains_initializer::Config for Runtime {
 
 parameter_types! {
 	pub const ParaDeposit: Balance = 100 * DOLLARS;
+	pub const ParaDataByteDeposit: Balance = deposit(0, 1);
 }
 
 impl paras_registrar::Config for Runtime {
@@ -1117,7 +1118,7 @@ impl paras_registrar::Config for Runtime {
 	type Currency = Balances;
 	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
-	type DataDepositPerByte = DataDepositPerByte;
+	type DataDepositPerByte = ParaDataByteDeposit;
 	type WeightInfo = weights::runtime_common_paras_registrar::WeightInfo<Runtime>;
 }
 
