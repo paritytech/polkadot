@@ -1868,7 +1868,7 @@ fn advance_approval_state(
 		));
 
 		// We have no need to write the candidate entry if all of the following
-		// are trueL
+		// is true:
 		//
 		// 1. This is not a local approval, as we don't store anything new in the approval entry.
 		// 2. The candidate is not newly approved, as we haven't altered the approval entry's
