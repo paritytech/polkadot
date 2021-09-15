@@ -358,7 +358,7 @@ parameter_types! {
 	// miner configs
 	pub OffchainRepeat: BlockNumber = 5;
 
-	pub const VoterSnapshotPerBlock: u32 = u32::max_value();
+	pub const VoterSnapshotPerBlock: u32 = u32::MAX;
 }
 
 sp_npos_elections::generate_solution_type!(
@@ -522,6 +522,8 @@ impl pallet_staking::Config for Runtime {
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	// Use the nominators map to iter voters, but also perform the bags-list migration and keep
+	// it up-to-date.
 	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }

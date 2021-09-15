@@ -86,9 +86,6 @@ use frame_support::traits::InstanceFilter;
 // Weights used in the runtime.
 mod weights;
 
-// Voter bag threshold definitions.
-mod voter_bags;
-
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -364,8 +361,6 @@ parameter_types! {
 
 	// miner configs
 	pub OffchainRepeat: BlockNumber = 5;
-
-	pub const VoterSnapshotPerBlock: u32 = u32::max_value();
 }
 
 sp_npos_elections::generate_solution_type!(
@@ -412,17 +407,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
 	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
-}
-
-parameter_types! {
-	pub const BagThresholds: &'static [u64] = &voter_bags::THRESHOLDS;
-}
-
-impl pallet_bags_list::Config for Runtime {
-	type Event = Event;
-	type VoteWeightProvider = Staking;
-	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
-	type BagThresholds = BagThresholds;
 }
 
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
@@ -483,6 +467,8 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
+	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
+	// to bags-list is a no-op, but the storage version will be updated.
 	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
