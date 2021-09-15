@@ -62,7 +62,8 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfi
 pub type OnOnChainAccuracy = sp_runtime::Perbill;
 
 /// The election provider of the genesis
-pub type GenesisElectionOf<T> = frame_election_provider_support::onchain::OnChainSequentialPhragmen<T>;
+pub type GenesisElectionOf<T> =
+	frame_election_provider_support::onchain::OnChainSequentialPhragmen<T>;
 
 /// Maximum number of iterations for balancing that will be executed in the embedded miner of
 /// pallet-election-provider-multi-phase.
@@ -137,8 +138,8 @@ impl<T: pallet_bags_list::Config + pallet_staking::Config> SortedListProvider<T:
 		pallet_bags_list::Pallet::<T>::sanity_check()
 	}
 
-	fn clear() {
-		pallet_bags_list::Pallet::<T>::clear()
+	fn clear(count: Option<u32>) -> u32 {
+		pallet_bags_list::Pallet::<T>::clear(count)
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]

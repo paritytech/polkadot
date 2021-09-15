@@ -56,7 +56,7 @@ async fn main() {
 				options.uri.clone(),
 			)
 			.await;
-		}
+		},
 		Runtime::Polkadot => {
 			use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
 			voter_bags::test_voter_bags_migration::<Runtime, Block>(
@@ -64,6 +64,6 @@ async fn main() {
 				options.uri.clone(),
 			)
 			.await;
-		}
+		},
 	}
 }

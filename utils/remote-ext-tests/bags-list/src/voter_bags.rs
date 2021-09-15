@@ -88,8 +88,8 @@ pub(crate) async fn test_voter_bags_migration<
 				Some(bag) => bag,
 				None => {
 					log::info!(target: LOG_TARGET, "{} NO VOTERS.", pretty_thresh);
-					continue;
-				}
+					continue
+				},
 			};
 
 			let voters_in_bag = bag.std_iter().count() as u32;

@@ -148,8 +148,7 @@ impl Contains<Call> for BaseFilter {
 			Call::Multisig(_) |
 			Call::Bounties(_) |
 			Call::Tips(_) |
-			Call::ElectionProviderMultiPhase(_) |
-			Call::BagsList(_) => true,
+			Call::ElectionProviderMultiPhase(_) => true,
 		}
 	}
 }
@@ -361,6 +360,8 @@ parameter_types! {
 
 	// miner configs
 	pub OffchainRepeat: BlockNumber = 5;
+
+	pub const VoterSnapshotPerBlock: u32 = u32::MAX;
 }
 
 sp_npos_elections::generate_solution_type!(
@@ -1102,9 +1103,6 @@ construct_runtime! {
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
-
-		// Provides a semi-sorted list of nominators for staking.
-		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
 	}
 }
 

@@ -49,11 +49,16 @@ use sp_std::marker::PhantomData;
 /// Weights for pallet_bags_list using the Substrate node and recommended hardware.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_bags_list::WeightInfo for WeightInfo<T> {
+	fn rebag_non_terminal() -> Weight {
+		(75_718_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(7 as Weight))
+			.saturating_add(T::DbWeight::get().writes(5 as Weight))
+	}
 	// Storage: Staking Bonded (r:1 w:0)
 	// Storage: Staking Ledger (r:1 w:0)
 	// Storage: BagsList ListNodes (r:4 w:4)
 	// Storage: BagsList ListBags (r:1 w:1)
-	fn rebag() -> Weight {
+	fn rebag_terminal() -> Weight {
 		(75_718_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(7 as Weight))
 			.saturating_add(T::DbWeight::get().writes(5 as Weight))

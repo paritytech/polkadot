@@ -37,7 +37,7 @@ arg_enum! {
 }
 
 impl Runtime {
-	fn generate_thresholds(&self) -> Box<dyn FnOnce(usize, &Path) -> Result<(), std::io::Error>> {
+	fn generate_thresholds_fn(&self) -> Box<dyn FnOnce(usize, &Path, u128, u128) -> Result<(), std::io::Error>> {
 		match self {
 			Runtime::Westend => Box::new(generate_thresholds::<WestendRuntime>),
 			Runtime::Kusama => Box::new(generate_thresholds::<KusamaRuntime>),
@@ -76,5 +76,5 @@ struct Opt {
 fn main() -> Result<(), std::io::Error> {
 	let Opt { n_bags, output, runtime, total_issuance, minimum_balance } = Opt::from_args();
 
-	runtime.generate_thresholds()(n_bags, &output, total_issuance, minimum_balance))
+	runtime.generate_thresholds_fn()(n_bags, &output, total_issuance, minimum_balance)
 }
