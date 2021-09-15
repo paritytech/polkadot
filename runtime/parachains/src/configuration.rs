@@ -19,7 +19,7 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use crate::shared;
-use frame_support::pallet_prelude::*;
+use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_POV_SIZE};
@@ -27,6 +27,10 @@ use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
 pub use pallet::*;
+
+pub mod migration;
+
+const LOG_TARGET: &str = "runtime::configuration";
 
 /// All configuration of the runtime with respect to parachains and parathreads.
 #[derive(Clone, Encode, Decode, PartialEq, sp_core::RuntimeDebug)]
@@ -91,10 +95,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
 	pub hrmp_max_parathread_outbound_channels: u32,
-	/// NOTE: this field is deprecated. Channel open requests became non-expiring. Changing this value
-	/// doesn't have any effect. This field doesn't have a `deprecated` attribute because that would
-	/// trigger warnings coming from macros.
-	pub _hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
 	pub hrmp_sender_deposit: Balance,
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
@@ -170,6 +170,9 @@ pub struct HostConfiguration<BlockNumber> {
 	pub needed_approvals: u32,
 	/// The number of samples to do of the `RelayVRFModulo` approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
+	/// The maximum amount of weight any individual upward message may consume. Messages above this
+	/// weight go into the overweight queue and may only be serviced explicitly.
+	pub ump_max_individual_weight: Weight,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
@@ -204,7 +207,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			ump_service_total_weight: Default::default(),
 			max_upward_message_size: Default::default(),
 			max_upward_message_num_per_candidate: Default::default(),
-			_hrmp_open_request_ttl: Default::default(),
 			hrmp_sender_deposit: Default::default(),
 			hrmp_recipient_deposit: Default::default(),
 			hrmp_channel_max_capacity: Default::default(),
@@ -215,6 +217,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
+			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
 		}
 	}
 }
@@ -261,6 +264,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -764,10 +768,24 @@ pub mod pallet {
 			});
 			Ok(())
 		}
+
+		/// Sets the maximum amount of weight any individual upward message may consume.
+		#[pallet::weight((1_000, DispatchClass::Operational))]
+		pub fn set_ump_max_individual_weight(origin: OriginFor<T>, new: Weight) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.ump_max_individual_weight, new) != new
+			});
+			Ok(())
+		}
 	}
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_runtime_upgrade() -> Weight {
+			migration::migrate_to_latest::<T>()
+		}
+
 		fn integrity_test() {
 			assert_eq!(
 				&ActiveConfig::<T>::hashed_key(),
@@ -888,7 +906,6 @@ mod tests {
 				ump_service_total_weight: 20000,
 				max_upward_message_size: 448,
 				max_upward_message_num_per_candidate: 5,
-				_hrmp_open_request_ttl: 0,
 				hrmp_sender_deposit: 22,
 				hrmp_recipient_deposit: 4905,
 				hrmp_channel_max_capacity: 3921,
@@ -899,6 +916,7 @@ mod tests {
 				hrmp_max_parachain_outbound_channels: 100,
 				hrmp_max_parathread_outbound_channels: 200,
 				hrmp_max_message_num_per_candidate: 20,
+				ump_max_individual_weight: 909,
 			};
 
 			assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none());
@@ -1058,6 +1076,11 @@ mod tests {
 			Configuration::set_hrmp_max_message_num_per_candidate(
 				Origin::root(),
 				new_config.hrmp_max_message_num_per_candidate,
+			)
+			.unwrap();
+			Configuration::set_ump_max_individual_weight(
+				Origin::root(),
+				new_config.ump_max_individual_weight,
 			)
 			.unwrap();
 
