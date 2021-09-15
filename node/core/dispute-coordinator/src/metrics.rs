@@ -30,6 +30,7 @@ struct MetricsInner {
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
+#[cfg(feature = "disputes")]
 impl Metrics {
 	pub(crate) fn on_open(&self) {
 		if let Some(metrics) = &self.0 {
