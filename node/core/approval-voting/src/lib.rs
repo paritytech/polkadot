@@ -1297,7 +1297,7 @@ async fn handle_approved_ancestor(
 									.by_val()
 									.enumerate()
 									.filter(|(i, approved)| {
-										approved && a_entry.is_assigned(ValidatorIndex(i as _))
+										*approved && a_entry.is_assigned(ValidatorIndex(*i as _))
 									})
 									.count();
 
