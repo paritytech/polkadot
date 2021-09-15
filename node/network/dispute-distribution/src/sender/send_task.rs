@@ -20,6 +20,7 @@ use futures::{channel::mpsc, future::RemoteHandle, Future, FutureExt, SinkExt};
 
 use polkadot_node_network_protocol::{
 	request_response::{
+		outgoing::RequestError,
 		v1::{DisputeRequest, DisputeResponse},
 		OutgoingRequest, OutgoingResult, Recipient, Requests,
 	},
@@ -57,6 +58,16 @@ pub struct SendTask {
 	/// Whether we have any tasks failed since the last refresh.
 	has_failed_sends: bool,
 
+	/// Total count of failed transmissions.
+	///
+	/// Used for issuing a warning, if that number gets above a certain threshold.
+	failed_count: usize,
+
+	/// Total number of initiated requests.
+	///
+	/// Used together with `failed_count` for issuing a warning on too many failed attempts.
+	send_count: usize,
+
 	/// Sender to be cloned for tasks.
 	tx: mpsc::Sender<TaskFinish>,
 }
@@ -87,14 +98,14 @@ pub enum TaskResult {
 	/// Task was not able to get the request out to its peer.
 	///
 	/// It should be retried in that case.
-	Failed,
+	Failed(RequestError),
 }
 
 impl TaskResult {
 	pub fn as_metrics_label(&self) -> &'static str {
 		match self {
 			Self::Succeeded => SUCCEEDED,
-			Self::Failed => FAILED,
+			Self::Failed(_) => FAILED,
 		}
 	}
 }
@@ -108,8 +119,14 @@ impl SendTask {
 		tx: mpsc::Sender<TaskFinish>,
 		request: DisputeRequest,
 	) -> Result<Self> {
-		let mut send_task =
-			Self { request, deliveries: HashMap::new(), has_failed_sends: false, tx };
+		let mut send_task = Self {
+			request,
+			deliveries: HashMap::new(),
+			has_failed_sends: false,
+			tx,
+			failed_count: 0,
+			send_count: 0,
+		};
 		send_task.refresh_sends(ctx, runtime, active_sessions).await?;
 		Ok(send_task)
 	}
@@ -139,8 +156,9 @@ impl SendTask {
 		let new_statuses =
 			send_requests(ctx, self.tx.clone(), add_authorities, self.request.clone()).await?;
 
-		self.deliveries.extend(new_statuses.into_iter());
 		self.has_failed_sends = false;
+		self.send_count += new_statuses.len();
+		self.deliveries.extend(new_statuses.into_iter());
 		Ok(())
 	}
 
@@ -150,15 +168,38 @@ impl SendTask {
 	}
 
 	/// Handle a finished response waiting task.
+	///
+	/// Called by `DisputeSender` upon reception of the corresponding message from our spawned `wait_response_task`.
 	pub fn on_finished_send(&mut self, authority: &AuthorityDiscoveryId, result: TaskResult) {
 		match result {
-			TaskResult::Failed => {
-				tracing::warn!(
+			TaskResult::Failed(err) => {
+				tracing::debug!(
 					target: LOG_TARGET,
-					candidate = ?self.request.0.candidate_receipt.hash(),
 					?authority,
-					"Could not get our message out! If this keeps happening, then check chain whether the dispute made it there."
+					candidate_hash = %self.request.0.candidate_receipt.hash(),
+					%err,
+					"Error sending dispute statements to node."
 				);
+
+				self.failed_count += 1;
+				let error_rate = (100 * self.failed_count).checked_div(self.send_count).expect(
+					"We cannot receive a failed request, without having sent one first. qed.",
+				);
+				// 10% seems to be a sensible threshold to become alarted - note that
+				// self.send_count gets increased in batches of the full validator set, so we don't
+				// need to account for a low send_count.
+				if error_rate > 10 {
+					tracing::warn!(
+						target: LOG_TARGET,
+						candidate_hash = %self.request.0.candidate_receipt.hash(),
+						last_authority = ?authority,
+						last_error = %err,
+						failed_count = ?self.failed_count,
+						total_attempts = ?self.send_count,
+						"Sending our dispute vote failed for more than 10% of total attempts!"
+					);
+				}
+
 				self.has_failed_sends = true;
 				// Remove state, so we know what to try again:
 				self.deliveries.remove(authority);
@@ -276,25 +317,9 @@ async fn wait_response_task(
 ) {
 	let result = pending_response.await;
 	let msg = match result {
-		Err(err) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				%candidate_hash,
-				%receiver,
-				%err,
-				"Error sending dispute statements to node."
-			);
-			TaskFinish { candidate_hash, receiver, result: TaskResult::Failed }
-		},
-		Ok(DisputeResponse::Confirmed) => {
-			tracing::trace!(
-				target: LOG_TARGET,
-				%candidate_hash,
-				%receiver,
-				"Sending dispute message succeeded"
-			);
-			TaskFinish { candidate_hash, receiver, result: TaskResult::Succeeded }
-		},
+		Err(err) => TaskFinish { candidate_hash, receiver, result: TaskResult::Failed(err) },
+		Ok(DisputeResponse::Confirmed) =>
+			TaskFinish { candidate_hash, receiver, result: TaskResult::Succeeded },
 	};
 	if let Err(err) = tx.feed(msg).await {
 		tracing::debug!(
