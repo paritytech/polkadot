@@ -5,31 +5,31 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-support = { package = "frame-support", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-benchmarking = { package = "frame-benchmarking", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-collective = { package = "pallet-collective", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-democracy = { package = "pallet-democracy", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+support = { package = "frame-support", git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+benchmarking = { package = "frame-benchmarking", git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+collective = { package = "pallet-collective", git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+democracy = { package = "pallet-democracy", git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
 
-test-runner = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+test-runner = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sc-consensus-manual-seal = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
 
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
 
 polkadot-primitives = { path = "../../../../primitives" }
 polkadot-cli = { path = "../../../../cli", features = ["cli"] }

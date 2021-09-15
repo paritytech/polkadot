@@ -18,14 +18,14 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
 
 [dev-dependencies]
 kvdb-memorydb = "0.10.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers"}
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.9" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
 assert_matches = "1.4.0"
 polkadot-overseer = { path = "../../overseer" }
 

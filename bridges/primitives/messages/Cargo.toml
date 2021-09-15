@@ -18,9 +18,9 @@ bp-runtime = { path = "../runtime", default-features = false }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.9" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.9" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.9" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
 
 [features]
 default = ["std"]

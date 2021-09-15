@@ -10,13 +10,13 @@ impl-trait-for-tuples = "0.2.0"
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.9" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.9" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.9" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.9" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.9" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.9" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.9" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "apopiak/polkadot-v0.9.9-compilation-fix" }
 
 # Polkadot dependencies
 polkadot-parachain = { path = "../../parachain", default-features = false }
