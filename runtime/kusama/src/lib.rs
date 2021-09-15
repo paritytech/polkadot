@@ -1531,7 +1531,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	TechnicalMembershipStoragePrefixMigration,
+	(TechnicalMembershipStoragePrefixMigration, StakingBagsListMigrationV8),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1573,6 +1573,33 @@ impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
 			name,
 		);
 		Ok(())
+	}
+}
+
+// Migration to generate pallet staking's `SortedListProvider` from pre-existing nominators.
+pub struct StakingBagsListMigrationV8;
+
+impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_staking::migrations::v8::migrate::<Runtime>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		if StorageVersion::<Runtime>::get() == Releases::V6_0_0 {
+			migrations::v7::pre_migrate::<Runtime>()
+		} else {
+			Ok(())
+		}
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		if StorageVersion::<Runtime>::get() == Releases::V8_0_0 {
+			migrations::v8::post_migrate::<Runtime>()
+		} else {
+			Ok(())
+		}
 	}
 }
 
