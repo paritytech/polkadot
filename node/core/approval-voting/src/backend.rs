@@ -55,6 +55,8 @@ pub trait Backend {
 	fn load_blocks_at_height(&self, height: &BlockNumber) -> SubsystemResult<Vec<Hash>>;
 	/// Load all block from the DB.
 	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>>;
+	/// Load all candidates from the DB.
+	fn load_all_candidates(&self) -> SubsystemResult<Vec<CandidateEntry>>;
 	/// Load stored block range form the DB.
 	fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>>;
 	/// Atomically write the list of operations, with later operations taking precedence over prior.
@@ -108,6 +110,30 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		}
 
 		Ok(hashes)
+	}
+
+	pub fn load_all_candidates(&self) -> SubsystemResult<Vec<CandidateEntry>> {
+		// Load all candidates from disk.
+		let mut candidates: HashMap<_, _> = self
+			.inner
+			.load_all_candidates()?
+			.into_iter()
+			.map(|c| (c.candidate.hash(), c))
+			.collect();
+
+		// Modify the set to reflect any unpersisted changes.
+		for (c_hash, c_entry) in self.candidate_entries.iter() {
+			match c_entry {
+				Some(c_entry) => {
+					let _ = candidates.insert(*c_hash, c_entry.clone());
+				},
+				None => {
+					let _ = candidates.remove(c_hash);
+				},
+			}
+		}
+
+		Ok(candidates.into_iter().map(|(_, c_entry)| c_entry).collect())
 	}
 
 	pub fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {

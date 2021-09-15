@@ -48,9 +48,9 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::v1::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ApprovalVote, AssignmentPair, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
+	DisputeStatement, GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -97,6 +97,11 @@ const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
 const LOG_TARGET: &str = "parachain::approval-voting";
+
+#[cfg(not(test))]
+const STARTUP_WAIT_DURATION: Duration = Duration::from_secs(12);
+#[cfg(test)]
+const STARTUP_WAIT_DURATION: Duration = Duration::from_secs(2);
 
 /// Configuration for the approval voting subsystem
 #[derive(Debug, Clone)]
@@ -683,9 +688,17 @@ where
 
 	let mut last_finalized_height: Option<BlockNumber> = None;
 
+	let mut startup_delay =
+		stream::once(futures_timer::Delay::new(STARTUP_WAIT_DURATION)).chain(stream::empty());
+
 	loop {
 		let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
+			_res = (&mut startup_delay).next() => {
+				let height = last_finalized_height.unwrap_or_default();
+				let actions = handle_startup(&mut overlayed_db, &mut state).await?;
+				actions.into_iter().filter_map(|(candidate_height, a)| if candidate_height > height { Some(a) } else { None }).collect()
+			},
 			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
 				subsystem.metrics.on_wakeup();
 				process_wakeup(
@@ -774,6 +787,145 @@ where
 	Ok(())
 }
 
+// Determines the set of assigned but unapproved candidates that require resumption of the
+// approval process by the local node. For each such, this method generates a `LaunchApproval`
+// action so that the approvals can continue to make progress after a restart.
+async fn handle_startup(
+	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+	state: &mut State,
+) -> SubsystemResult<Vec<(BlockNumber, Action)>> {
+	let all_candidates = overlay_db.load_all_candidates().map_err(|e| {
+		tracing::error!(target: LOG_TARGET, "Failed initial load of active candidates: {:?}", e);
+		e
+	})?;
+
+	let mut actions = Vec::new();
+	let mut sessions: HashMap<SessionIndex, (Vec<ValidatorIndex>, Vec<ValidatorIndex>)> =
+		HashMap::new();
+	for candidate in all_candidates {
+		let mut assigned_but_unapproved_candidates = Vec::new();
+		let session = candidate.session;
+		let info = match state.session_info(session) {
+			Some(info) => info,
+			None => {
+				tracing::debug!(target: LOG_TARGET, "Missing session info for {:?}", session);
+				continue
+			},
+		};
+
+		// Compute the local validator indexes, if any, for this session.
+		let local = sessions.entry(session).or_insert((
+			info.validators
+				.iter()
+				.enumerate()
+				.filter(|(_, validator)| {
+					state
+						.keystore
+						.key_pair::<ValidatorPair>(validator)
+						.ok()
+						.map_or(false, |v| v.is_some())
+				})
+				.map(|(index, _)| ValidatorIndex(index as _))
+				.collect(),
+			info.assignment_keys
+				.iter()
+				.enumerate()
+				.filter_map(|(index, assigner)| {
+					state
+						.keystore
+						.key_pair::<AssignmentPair>(assigner)
+						.ok()
+						.map(|_| ValidatorIndex(index as _))
+				})
+				.collect(),
+		));
+
+		let is_session_validator = !local.0.is_empty();
+		let is_session_assigner = !local.1.is_empty();
+
+		// Determine whether or not the local node controls session validation and assignment. If
+		// not, skip all candidates in this session.
+		let controls_validation_and_assignment = is_session_validator && is_session_assigner;
+		if !controls_validation_and_assignment {
+			continue
+		}
+
+		// Find all the locally-controlled validators on this specific candidate that need to
+		// have their approval resumed.
+		if !local.0.iter().all(|index| candidate.has_approved(*index)) {
+			let candidate_receipt = candidate.candidate.clone();
+			assigned_but_unapproved_candidates.extend(
+				candidate
+					.block_assignments
+					.into_iter()
+					// Retain any candidates that have our assignment indexes in the assignments
+					// bitfield.
+					.filter(|(_, approval_entry)| {
+						local.1.iter().any(|index| approval_entry.is_assigned(*index))
+					})
+					.map(|(block_hash, approval_entry)| {
+						(candidate_receipt.clone(), block_hash, approval_entry)
+					}),
+			);
+		}
+
+		// Construct the LaunchApproval action for each block containing an instance of this candidate
+		for (candidate_receipt, block_hash, approval_entry) in
+			assigned_but_unapproved_candidates.into_iter()
+		{
+			// Skip any candidates for which we don't have our assignment triggered.
+			let our = match approval_entry.our_assignment() {
+				Some(our) => our,
+				None => continue,
+			};
+
+			let indirect_cert = IndirectAssignmentCert {
+				block_hash,
+				validator: our.validator_index(),
+				cert: our.cert().clone(),
+			};
+
+			let block_entry = match overlay_db.load_block_entry(&block_hash)? {
+				Some(block_entry) => block_entry,
+				None => {
+					tracing::warn!(target: LOG_TARGET, "Missing block entry for: {:?}", block_hash,);
+					continue
+				},
+			};
+
+			let candidate_hash = candidate_receipt.hash();
+			let candidate_index =
+				block_entry.candidates().iter().position(|(_, h)| &candidate_hash == h);
+
+			if let Some(candidate_index) = candidate_index {
+				actions.push((
+					block_entry.block_number(),
+					Action::LaunchApproval {
+						candidate_hash,
+						session,
+						relay_block_hash: block_hash,
+						candidate: candidate_receipt,
+						candidate_index: candidate_index as _,
+						indirect_cert,
+						assignment_tranche: our.tranche(),
+						backing_group: approval_entry.backing_group(),
+					},
+				));
+			} else {
+				tracing::trace!(
+					target: LOG_TARGET,
+					tranche = our.tranche(),
+					?candidate_hash,
+					?block_hash,
+					"Candidate Hash has unknown Index.",
+				);
+			}
+		}
+	}
+
+	Ok(actions)
+}
+
 // Handle actions is a function that accepts a set of instructions
 // and subsequently updates the underlying approvals_db in accordance
 // with the linear set of instructions passed in. Therefore, actions
@@ -859,7 +1011,6 @@ async fn handle_actions(
 				metrics.on_assignment_produced(assignment_tranche);
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
-
 				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 					indirect_cert,
 					candidate_index,

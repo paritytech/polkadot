@@ -35,6 +35,9 @@ use crate::{
 };
 
 const STORED_BLOCKS_KEY: &[u8] = b"Approvals_StoredBlocks";
+const BLOCK_ENTRY_PREFIX: [u8; 14] = *b"Approvals_blck";
+const CANDIDATE_ENTRY_PREFIX: [u8; 14] = *b"Approvals_cand";
+const BLOCKS_AT_HEIGHT_PREFIX: [u8; 12] = *b"Approvals_at";
 
 #[cfg(test)]
 pub mod tests;
@@ -74,6 +77,13 @@ impl Backend for DbBackend {
 
 	fn load_all_blocks(&self) -> SubsystemResult<Vec<Hash>> {
 		load_all_blocks(&*self.inner, &self.config)
+	}
+
+	fn load_all_candidates(&self) -> SubsystemResult<Vec<persisted_entries::CandidateEntry>> {
+		Ok(load_all_candidates(&*self.inner, &self.config)?
+			.into_iter()
+			.map(Into::into)
+			.collect())
 	}
 
 	fn load_stored_blocks(&self) -> SubsystemResult<Option<StoredBlockRange>> {
@@ -251,8 +261,6 @@ pub(crate) fn load_decode<D: Decode>(
 
 /// The key a given block entry is stored under.
 pub(crate) fn block_entry_key(block_hash: &Hash) -> [u8; 46] {
-	const BLOCK_ENTRY_PREFIX: [u8; 14] = *b"Approvals_blck";
-
 	let mut key = [0u8; 14 + 32];
 	key[0..14].copy_from_slice(&BLOCK_ENTRY_PREFIX);
 	key[14..][..32].copy_from_slice(block_hash.as_ref());
@@ -262,8 +270,6 @@ pub(crate) fn block_entry_key(block_hash: &Hash) -> [u8; 46] {
 
 /// The key a given candidate entry is stored under.
 pub(crate) fn candidate_entry_key(candidate_hash: &CandidateHash) -> [u8; 46] {
-	const CANDIDATE_ENTRY_PREFIX: [u8; 14] = *b"Approvals_cand";
-
 	let mut key = [0u8; 14 + 32];
 	key[0..14].copy_from_slice(&CANDIDATE_ENTRY_PREFIX);
 	key[14..][..32].copy_from_slice(candidate_hash.0.as_ref());
@@ -273,8 +279,6 @@ pub(crate) fn candidate_entry_key(candidate_hash: &CandidateHash) -> [u8; 46] {
 
 /// The key a set of block hashes corresponding to a block number is stored under.
 pub(crate) fn blocks_at_height_key(block_number: BlockNumber) -> [u8; 16] {
-	const BLOCKS_AT_HEIGHT_PREFIX: [u8; 12] = *b"Approvals_at";
-
 	let mut key = [0u8; 12 + 4];
 	key[0..12].copy_from_slice(&BLOCKS_AT_HEIGHT_PREFIX);
 	block_number.using_encoded(|s| key[12..16].copy_from_slice(s));
@@ -293,6 +297,21 @@ pub fn load_all_blocks(store: &dyn KeyValueDB, config: &Config) -> SubsystemResu
 	}
 
 	Ok(hashes)
+}
+
+/// Return all candidate entries stored in the database.
+pub fn load_all_candidates(
+	store: &dyn KeyValueDB,
+	config: &Config,
+) -> SubsystemResult<Vec<CandidateEntry>> {
+	let mut candidate_entries = Vec::new();
+	for (_, candidate_data) in store.iter_with_prefix(config.col_data, &CANDIDATE_ENTRY_PREFIX) {
+		let candidate = CandidateEntry::decode(&mut &candidate_data[..])
+			.map_err(|e| SubsystemError::with_origin("approval-voting", e))?;
+		candidate_entries.push(candidate);
+	}
+
+	Ok(candidate_entries)
 }
 
 /// Load the stored-blocks key from the state.
