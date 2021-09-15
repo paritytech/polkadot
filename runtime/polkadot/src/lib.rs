@@ -1325,7 +1325,7 @@ impl OnRuntimeUpgrade for CouncilStoragePrefixMigration {
 }
 
 const TECHNICAL_COMMITTEE_OLD_PREFIX: &str = "Instance2Collective";
-/// Migrate from 'Instance2Collective' to the new pallet prefix `TechnicalCommittee`
+/// Migrate from `Instance2Collective` to the new pallet prefix `TechnicalCommittee`
 pub struct TechnicalCommitteeStoragePrefixMigration;
 
 impl OnRuntimeUpgrade for TechnicalCommitteeStoragePrefixMigration {
