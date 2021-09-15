@@ -296,6 +296,11 @@ fn filled_tranche_iterator<'a>(
 /// and tick parameters. This method also returns the next tick at which a `no_show` will occur
 /// amongst the set of validators that have not submitted an approval.
 ///
+/// This also bounds the earliest tick of all assignments to be equal to the
+/// block tick for the purposes of the calculation, so no assignment can be treated
+/// as being received before the block itself. This is unlikely if not impossible
+/// in practice, but can occur during test code.
+///
 /// If the returned `next_no_show` is not None, there are two possible cases for the value of
 /// based on the earliest assignment `tick` of a non-approving, yet-to-be-no-show validator:
 ///  - if `tick` <= `clock_drift`: the value will always be `clock_drift` + `no_show_duration`.
@@ -304,13 +309,17 @@ fn count_no_shows(
 	assignments: &[(ValidatorIndex, Tick)],
 	approvals: &BitSlice<BitOrderLsb0, u8>,
 	clock_drift: Tick,
+	block_tick: Tick,
 	no_show_duration: Tick,
 	drifted_tick_now: Tick,
 ) -> (usize, Option<u64>) {
 	let mut next_no_show = None;
 	let no_shows = assignments
 		.iter()
-		.map(|(v_index, tick)| (v_index, tick.saturating_sub(clock_drift) + no_show_duration))
+		.map(|(v_index, tick)| (
+			v_index,
+			tick.min(&block_tick).saturating_sub(clock_drift) + no_show_duration,
+		))
 		.filter(|&(v_index, no_show_at)| {
 			let has_approved = if let Some(approved) = approvals.get(v_index.0 as usize) {
 				*approved
@@ -393,6 +402,7 @@ pub fn tranches_to_approve(
 				assignments,
 				approvals,
 				clock_drift,
+				block_tick,
 				no_show_duration,
 				drifted_tick_now,
 			);
@@ -1069,6 +1079,7 @@ mod tests {
 			&test.assignments,
 			&approvals,
 			test.clock_drift,
+			0, // TODO: Ladi, add to tests.
 			test.no_show_duration,
 			test.drifted_tick_now,
 		);
