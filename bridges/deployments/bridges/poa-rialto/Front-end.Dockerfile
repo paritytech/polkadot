@@ -1,4 +1,4 @@
-FROM node:12 as build-deps
+FROM docker.io/library/node:12 as build-deps
 
 # install tools and dependencies
 RUN set -eux; \
@@ -19,7 +19,7 @@ ENV EXPECTED_ETHEREUM_NETWORK_ID $EXPECTED_ETHEREUM_NETWORK_ID
 RUN yarn build:docker
 
 # Stage 2 - the production environment
-FROM nginx:1.12
+FROM docker.io/library/nginx:1.12
 COPY --from=build-deps /usr/src/bridge-ui/nginx/*.conf /etc/nginx/conf.d/
 COPY --from=build-deps /usr/src/bridge-ui/dist /usr/share/nginx/html
 EXPOSE 80

@@ -31,10 +31,9 @@ use sc_executor::NativeElseWasmExecutor;
 use sc_service::{TFullBackend, TFullClient};
 use sp_runtime::{app_crypto::sp_core::H256, generic::Era, AccountId32};
 use std::{error::Error, future::Future, str::FromStr};
-use support::{weights::Weight, StorageValue};
+use support::weights::Weight;
 use test_runner::{
-	build_runtime, client_parts, task_executor, ChainInfo, ConfigOrChainSpec, Node,
-	SignatureVerificationOverride,
+	build_runtime, client_parts, ChainInfo, ConfigOrChainSpec, Node, SignatureVerificationOverride,
 };
 
 type BlockImport<B, BE, C, SC> = BabeBlockImport<B, C, GrandpaBlockImport<BE, B, C, SC>>;
@@ -360,7 +359,6 @@ where
 	use structopt::StructOpt;
 
 	let tokio_runtime = build_runtime()?;
-	let task_executor = task_executor(tokio_runtime.handle().clone());
 	// parse cli args
 	let cmd = <polkadot_cli::Cli as StructOpt>::from_args();
 	// set up logging
@@ -369,7 +367,7 @@ where
 	logger.init()?;
 
 	// set up the test-runner
-	let config = cmd.create_configuration(&cmd.run.base, task_executor)?;
+	let config = cmd.create_configuration(&cmd.run.base, tokio_runtime.handle().clone())?;
 	sc_cli::print_node_infos::<polkadot_cli::Cli>(&config);
 	let (rpc, task_manager, client, pool, command_sink, backend) =
 		client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::Config(config))?;
@@ -392,11 +390,10 @@ mod tests {
 	#[test]
 	fn test_runner() {
 		let runtime = build_runtime().unwrap();
-		let task_executor = task_executor(runtime.handle().clone());
 		let (rpc, task_manager, client, pool, command_sink, backend) =
 			client_parts::<PolkadotChainInfo>(ConfigOrChainSpec::ChainSpec(
 				Box::new(polkadot_development_config().unwrap()),
-				task_executor,
+				runtime.handle().clone(),
 			))
 			.unwrap();
 		let node =
