@@ -2001,6 +2001,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_common::slots, Slots);
 			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
 			// Substrate
+			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_bounties, Bounties);
 			list_benchmark!(list, extra, pallet_collective, Council);
@@ -2025,7 +2026,6 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_treasury, Treasury);
 			list_benchmark!(list, extra, pallet_utility, Utility);
 			list_benchmark!(list, extra, pallet_vesting, Vesting);
-			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -2076,6 +2076,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
+			add_benchmark!(params, batches, pallet_bags_list, BagsList);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
 			add_benchmark!(params, batches, pallet_collective, Council);
 			add_benchmark!(params, batches, pallet_collective, TechnicalCommittee);
@@ -2099,7 +2100,6 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_treasury, Treasury);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
-			add_benchmark!(params, batches, pallet_bags_list, BagsList);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
