@@ -24,7 +24,9 @@
 pub use jaeger::*;
 pub use polkadot_node_jaeger as jaeger;
 
-pub use polkadot_overseer::{self as overseer, ActiveLeavesUpdate, DummySubsystem, OverseerSignal, OverseerConnector};
+pub use polkadot_overseer::{
+	self as overseer, ActiveLeavesUpdate, DummySubsystem, OverseerConnector, OverseerSignal,
+};
 
 pub use polkadot_node_subsystem_types::{
 	errors::{self, *},
