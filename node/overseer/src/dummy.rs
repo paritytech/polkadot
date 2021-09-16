@@ -17,10 +17,12 @@
 use crate::{
 	prometheus::Registry, AllMessages, HeadSupportsParachains, Metrics, MetricsTrait, Overseer,
 	OverseerBuilder, OverseerSignal, SpawnNamed, KNOWN_LEAVES_CACHE_SIZE,
+	OverseerSubsystemContext,
 };
 use lru::LruCache;
 use polkadot_node_subsystem_types::errors::SubsystemError;
 use polkadot_overseer_gen::{FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext};
+use polkadot_node_subsystem_types::messages::*;
 
 /// A dummy subsystem that implements [`Subsystem`] for all
 /// types of messages. Used for tests or as a placeholder.
@@ -57,13 +59,14 @@ where
 	}
 }
 
-/// Create an overseer with all subsystem being `DummySubsystem`.
+
+/// Create an overseer with all subsystem being `Sub`.
 ///
 /// Preferred way of initializing a dummy overseer for subsystem tests.
 pub fn dummy_overseer_builder<
 	'a,
-	Spawner: SpawnNamed + Send + Sync + 'static,
-	SupportsParachains: HeadSupportsParachains,
+	Spawner,
+	SupportsParachains,
 >(
 	spawner: Spawner,
 	supports_parachains: SupportsParachains,
@@ -95,31 +98,103 @@ pub fn dummy_overseer_builder<
 		DummySubsystem,
 	>,
 	SubsystemError,
-> {
+>
+where
+	Spawner: SpawnNamed + Send + Sync + 'static,
+	SupportsParachains: HeadSupportsParachains,
+{
+	one_for_all_overseer_builder(spawner, supports_parachains,DummySubsystem, registry)
+}
+
+/// Create an overseer with all subsystem being `Sub`.
+pub fn one_for_all_overseer_builder<
+	'a,
+	Spawner,
+	SupportsParachains,
+	Sub,
+>(
+	spawner: Spawner,
+	supports_parachains: SupportsParachains,
+	subsystem: Sub,
+	registry: Option<&'a Registry>,
+) -> Result<
+	OverseerBuilder<
+		Spawner,
+		SupportsParachains,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+	>,
+	SubsystemError,
+>
+where
+	Spawner: SpawnNamed + Send + Sync + 'static,
+	SupportsParachains: HeadSupportsParachains,
+	Sub: Clone
+		+ Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ChainApiMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<CollationGenerationMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ProvisionerMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<DisputeCoordinatorMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<DisputeParticipationMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>,
+{
 	let metrics: Metrics = <Metrics as MetricsTrait>::register(registry)?;
 
 	let builder = Overseer::builder()
-		.availability_distribution(DummySubsystem)
-		.availability_recovery(DummySubsystem)
-		.availability_store(DummySubsystem)
-		.bitfield_distribution(DummySubsystem)
-		.bitfield_signing(DummySubsystem)
-		.candidate_backing(DummySubsystem)
-		.candidate_validation(DummySubsystem)
-		.chain_api(DummySubsystem)
-		.collation_generation(DummySubsystem)
-		.collator_protocol(DummySubsystem)
-		.network_bridge(DummySubsystem)
-		.provisioner(DummySubsystem)
-		.runtime_api(DummySubsystem)
-		.statement_distribution(DummySubsystem)
-		.approval_distribution(DummySubsystem)
-		.approval_voting(DummySubsystem)
-		.gossip_support(DummySubsystem)
-		.dispute_coordinator(DummySubsystem)
-		.dispute_participation(DummySubsystem)
-		.dispute_distribution(DummySubsystem)
-		.chain_selection(DummySubsystem)
+		.availability_distribution(subsystem.clone())
+		.availability_recovery(subsystem.clone())
+		.availability_store(subsystem.clone())
+		.bitfield_distribution(subsystem.clone())
+		.bitfield_signing(subsystem.clone())
+		.candidate_backing(subsystem.clone())
+		.candidate_validation(subsystem.clone())
+		.chain_api(subsystem.clone())
+		.collation_generation(subsystem.clone())
+		.collator_protocol(subsystem.clone())
+		.network_bridge(subsystem.clone())
+		.provisioner(subsystem.clone())
+		.runtime_api(subsystem.clone())
+		.statement_distribution(subsystem.clone())
+		.approval_distribution(subsystem.clone())
+		.approval_voting(subsystem.clone())
+		.gossip_support(subsystem.clone())
+		.dispute_coordinator(subsystem.clone())
+		.dispute_participation(subsystem.clone())
+		.dispute_distribution(subsystem.clone())
+		.chain_selection(subsystem)
 		.activation_external_listeners(Default::default())
 		.span_per_active_leaf(Default::default())
 		.active_leaves(Default::default())

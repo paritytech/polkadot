@@ -388,20 +388,6 @@ mod tests {
 	fn forward_subsystem_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
 		let (tx, rx) = mpsc::channel(2);
-<<<<<<< HEAD
-		let all_subsystems =
-			AllSubsystems::<()>::dummy().replace_collator_protocol(|_| ForwardSubsystem(tx));
-		let (overseer, handle) = Overseer::new(
-			Vec::new(),
-			all_subsystems,
-			None,
-			AlwaysSupportsParachains,
-			spawner.clone(),
-			OverseerConnector::default(),
-		)
-		.unwrap();
-		let mut handle = Handle::new(handle);
-=======
 		let (overseer, handle) =
 			dummy_overseer_builder(spawner.clone(), AlwaysSupportsParachains, None)
 				.unwrap()
@@ -411,7 +397,6 @@ mod tests {
 				.unwrap();
 
 		let mut handle = Handle(handle);
->>>>>>> 9295e7885f (adjust tests, minor fixes)
 
 		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
 

@@ -27,7 +27,7 @@ mod relay_chain_selection;
 pub mod overseer;
 
 #[cfg(feature = "full-node")]
-pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
+pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen, OverseerConnector};
 
 #[cfg(all(test, feature = "disputes"))]
 mod tests;
@@ -58,6 +58,7 @@ pub use {
 	sp_authority_discovery::AuthorityDiscoveryApi,
 	sp_blockchain::HeaderBackend,
 	sp_consensus_babe::BabeApi,
+	relay_chain_selection::SelectRelayChainWithFallback,
 };
 
 #[cfg(feature = "full-node")]
@@ -710,7 +711,6 @@ where
 	let name = config.network.node_name.clone();
 
 	let overseer_connector = OverseerConnector::default();
-	let handle = Handle::Connected(overseer_connector.as_handle().clone());
 
 	let basics = new_partial_basics::<RuntimeApi, ExecutorDispatch>(
 		&mut config,
@@ -737,15 +737,13 @@ where
 		is_relay_chain &&
 		(role.is_authority() || is_collator.is_collator());
 
-	use relay_chain_selection::SelectRelayChain;
-
-	let select_chain = SelectRelayChain::new(
+	let select_chain = SelectRelayChainWithFallback::new(
 		basics.backend.clone(),
 		overseer_handle.clone(),
 		requires_overseer_for_chain_sel,
 		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
 	);
-	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
+	let service::PartialComponents::<_, _, SelectRelayChainWithFallback<_>, _, _, _> {
 		client,
 		backend,
 		mut task_manager,
@@ -754,7 +752,7 @@ where
 		import_queue,
 		transaction_pool,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry),
-	} = new_partial::<RuntimeApi, ExecutorDispatch, SelectRelayChain<_>>(
+	} = new_partial::<RuntimeApi, ExecutorDispatch, SelectRelayChainWithFallback<_>>(
 		&mut config,
 		basics,
 		select_chain,
@@ -955,22 +953,22 @@ where
 				Box::pin(async move {
 					use futures::{pin_mut, select, FutureExt};
 
-					let forward = polkadot_overseer::forward_events(overseer_client, handle);
+						let forward = polkadot_overseer::forward_events(overseer_client, handle);
 
-					let forward = forward.fuse();
-					let overseer_fut = overseer.run().fuse();
+						let forward = forward.fuse();
+						let overseer_fut = overseer.run().fuse();
 
-					pin_mut!(overseer_fut);
-					pin_mut!(forward);
+						pin_mut!(overseer_fut);
+						pin_mut!(forward);
 
-					select! {
-						_ = forward => (),
-						_ = overseer_fut => (),
-						complete => (),
-					}
-				}),
-			);
-		}
+						select! {
+							_ = forward => (),
+							_ = overseer_fut => (),
+							complete => (),
+						}
+					}),
+				);
+			}
 		Some(handle)
 	} else {
 		assert!(
