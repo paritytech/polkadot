@@ -372,7 +372,9 @@ mod tests {
 	use super::*;
 	use futures::executor::block_on;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
-	use polkadot_overseer::{Handle, HeadSupportsParachains, Overseer, dummy::dummy_overseer_builder};
+	use polkadot_overseer::{
+		dummy::dummy_overseer_builder, Handle, HeadSupportsParachains, Overseer,
+	};
 	use polkadot_primitives::v1::Hash;
 
 	struct AlwaysSupportsParachains;

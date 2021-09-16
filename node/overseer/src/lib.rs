@@ -518,7 +518,8 @@ where
 	}
 	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
-	let memory_stats = MemoryAllocationTracker::new().expect("Jemalloc is the default allocator. qed");
+	let memory_stats =
+		MemoryAllocationTracker::new().expect("Jemalloc is the default allocator. qed");
 
 	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
 		match memory_stats.snapshot() {
