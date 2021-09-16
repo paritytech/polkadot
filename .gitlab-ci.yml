@@ -269,22 +269,6 @@ build-adder-collator:
 
 #### stage:                        build
 
-check-transaction-versions:
-  image:                           node:15
-  stage:                           build
-  <<:                              *rules-test
-  <<:                              *docker-env
-  <<:                              *vault-secrets
-  needs:
-    - job:                         test-build-linux-stable
-      artifacts:                   true
-  before_script:
-    - apt-get -y update; apt-get -y install jq lsof
-    - npm install --ignore-scripts -g @polkadot/metadata-cmp
-    - git fetch origin release
-  script:
-    - scripts/gitlab/check_extrinsics_ordering.sh
-
 generate-impl-guide:
   stage:                           build
   <<:                              *rules-test
