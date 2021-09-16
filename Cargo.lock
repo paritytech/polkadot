@@ -6977,12 +6977,15 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "color-eyre",
+ "futures 0.3.17",
  "parity-util-mem",
  "polkadot-cli",
  "polkadot-node-core-candidate-validation",
  "polkadot-node-core-pvf",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
+ "sp-core",
  "structopt",
 ]
 
