@@ -99,4 +99,8 @@ benchmarks! {
 	set_hrmp_max_message_num_per_candidate {}: _(RawOrigin::Root, 10)
 }
 
-impl_benchmark_test_suite!(Pallet, crate::mock::new_test_ext(Default::default()), crate::mock::Test);
+impl_benchmark_test_suite!(
+	Pallet,
+	crate::mock::new_test_ext(Default::default()),
+	crate::mock::Test
+);
