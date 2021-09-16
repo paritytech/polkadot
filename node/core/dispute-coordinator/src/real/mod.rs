@@ -737,9 +737,15 @@ async fn handle_import_statements(
 	let prev_status = recent_disputes.get(&(session, candidate_hash)).map(|x| x.clone());
 
 	let status = if is_disputed {
-		let status = recent_disputes
-			.entry((session, candidate_hash))
-			.or_insert(DisputeStatus::active());
+		let status = recent_disputes.entry((session, candidate_hash)).or_insert_with(|| {
+			tracing::info!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				session,
+				"New disputed initiated for candidate.",
+			);
+			DisputeStatus::active()
+		});
 
 		// Note: concluded-invalid overwrites concluded-valid,
 		// so we do this check first. Dispute state machine is
