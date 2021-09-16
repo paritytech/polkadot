@@ -659,7 +659,9 @@ mod tests {
 		type Event = Event;
 	}
 
-	impl configuration::Config for Test {}
+	impl configuration::Config for Test {
+		type WeightInfo = configuration::weights::WeightInfo<Test>;
+	}
 
 	parameter_types! {
 		pub const ParaDeposit: Balance = 10;
