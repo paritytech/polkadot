@@ -1388,6 +1388,7 @@ mod benchmarking {
 	use super::*;
 	use crate::claims::Call;
 	use frame_benchmarking::{account, benchmarks};
+	use frame_support::dispatch::UnfilteredDispatchable;
 	use frame_system::RawOrigin;
 	use secp_utils::*;
 	use sp_runtime::{traits::ValidateUnsigned, DispatchResult};
@@ -1444,9 +1445,12 @@ mod benchmarking {
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 			let call = Call::<T>::claim { dest: account.clone(), ethereum_signature: signature.clone() };
+			let call_enc = call.encode();
 		}: {
 			super::Pallet::<T>::validate_unsigned(source, &call).map_err(|e| -> &'static str { e.into() })?;
-			super::Pallet::<T>::claim(RawOrigin::None.into(), account, signature)?;
+			<Call<T> as Decode>::decode(&mut &*call_enc)
+				.expect("call is encoded above, encoding must be correct")
+				.dispatch_bypass_filter(RawOrigin::None.into())?;
 		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
@@ -1488,11 +1492,18 @@ mod benchmarking {
 			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
 			super::Pallet::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
-			let call = Call::<T>::claim_attest { dest: account.clone(), ethereum_signature: signature.clone(), statement: StatementKind::Regular.to_text().to_vec() };
+			let call = Call::<T>::claim_attest {
+				dest: account.clone(),
+				ethereum_signature: signature.clone(),
+				statement: StatementKind::Regular.to_text().to_vec()
+			};
+			let call_enc = call.encode();
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
 			super::Pallet::<T>::validate_unsigned(source, &call).map_err(|e| -> &'static str { e.into() })?;
-			super::Pallet::<T>::claim_attest(RawOrigin::None.into(), account, signature, statement.to_text().to_vec())?;
+			<Call<T> as Decode>::decode(&mut &*call_enc)
+				.expect("call is encoded above, encoding must be correct")
+				.dispatch_bypass_filter(RawOrigin::None.into())?;
 		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
@@ -1529,9 +1540,12 @@ mod benchmarking {
 				}
 				Ok(())
 			};
+			let call_enc = call.encode();
 		}: {
 			validate(&account, &call)?;
-			super::Pallet::<T>::attest(RawOrigin::Signed(account).into(), statement.to_text().to_vec())?;
+			<Call<T> as Decode>::decode(&mut &*call_enc)
+				.expect("call is encoded above, encoding must be correct")
+				.dispatch_bypass_filter(RawOrigin::Signed(account).into())?;
 		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
