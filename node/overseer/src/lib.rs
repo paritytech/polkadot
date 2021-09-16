@@ -94,7 +94,7 @@ pub use polkadot_node_subsystem_types::{
 // TODO legacy, to be deleted, left for easier integration
 // TODO https://github.com/paritytech/polkadot/issues/3427
 mod subsystems;
-pub use self::subsystems::AllSubsystems;
+pub use self::subsystems::{AllSubsystems, DummySubsystem};
 
 mod metrics;
 use self::metrics::Metrics;

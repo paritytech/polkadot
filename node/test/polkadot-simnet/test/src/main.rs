@@ -35,7 +35,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 			.ok_or("Polkadot development wasm not available")?
 			.to_vec();
 		// upgrade runtime.
-		dispatch_with_root(system::Call::set_code(wasm_binary), &node).await?;
+		dispatch_with_root(system::Call::set_code { code: wasm_binary }, &node).await?;
 
 		// assert that the runtime has been updated by looking at events
 		let events = node
@@ -74,8 +74,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 		);
 
 		// post upgrade tests, a simple balance transfer
-		node.submit_extrinsic(balances::Call::transfer(dest.into(), balance), Some(from))
-			.await?;
+		node.submit_extrinsic(
+			balances::Call::transfer { dest: dest.into(), value: balance },
+			Some(from),
+		)
+		.await?;
 		node.seal_blocks(1).await;
 
 		let events = node
