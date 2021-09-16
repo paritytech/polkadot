@@ -115,7 +115,7 @@ impl crate::initializer::Config for Test {
 }
 
 impl crate::configuration::Config for Test {
-	type Weight = crate::configuration::weights::WeightInfo<Test>;
+	type WeightInfo = crate::configuration::weights::WeightInfo<Test>;
 }
 
 impl crate::shared::Config for Test {}
