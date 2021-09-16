@@ -479,7 +479,6 @@ struct ApprovalStatus {
 	block_tick: Tick,
 }
 
-
 #[derive(Copy, Clone)]
 #[allow(dead_code)]
 enum ApprovalOutcome {
