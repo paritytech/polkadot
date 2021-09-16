@@ -48,21 +48,21 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:0)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_validation_upgrade_frequency() -> Weight {
-		(9_127_000 as Weight)
+		(9_235_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 	}
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	// Storage: Configuration PendingConfig (r:1 w:0)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_validation_upgrade_delay() -> Weight {
-		(9_294_000 as Weight)
+		(9_251_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 	}
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_code_retention_period() -> Weight {
-		(12_984_000 as Weight)
+		(12_611_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -70,7 +70,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_max_code_size() -> Weight {
-		(13_002_000 as Weight)
+		(12_643_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -78,7 +78,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_max_pov_size() -> Weight {
-		(12_987_000 as Weight)
+		(12_627_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -86,7 +86,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_max_head_data_size() -> Weight {
-		(12_934_000 as Weight)
+		(12_663_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -94,7 +94,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_parathread_cores() -> Weight {
-		(12_917_000 as Weight)
+		(12_743_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -102,7 +102,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_parathread_retries() -> Weight {
-		(12_933_000 as Weight)
+		(12_623_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -110,7 +110,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_group_rotation_frequency() -> Weight {
-		(12_925_000 as Weight)
+		(12_594_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -118,7 +118,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_chain_availability_period() -> Weight {
-		(12_855_000 as Weight)
+		(12_647_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -126,7 +126,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_thread_availability_period() -> Weight {
-		(13_047_000 as Weight)
+		(12_694_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -134,7 +134,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_scheduling_lookahead() -> Weight {
-		(12_943_000 as Weight)
+		(12_644_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -142,7 +142,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_max_validators_per_core() -> Weight {
-		(13_080_000 as Weight)
+		(12_716_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -150,7 +150,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_max_validators() -> Weight {
-		(13_083_000 as Weight)
+		(12_590_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -158,7 +158,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_dispute_period() -> Weight {
-		(12_889_000 as Weight)
+		(12_574_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -166,7 +166,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_dispute_post_conclusion_acceptance_period() -> Weight {
-		(12_883_000 as Weight)
+		(12_718_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -174,7 +174,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_dispute_max_spam_slots() -> Weight {
-		(12_946_000 as Weight)
+		(12_582_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -182,7 +182,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_dispute_conclusion_by_time_out_period() -> Weight {
-		(12_836_000 as Weight)
+		(12_677_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -190,7 +190,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_no_show_slots() -> Weight {
-		(12_923_000 as Weight)
+		(12_632_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -198,7 +198,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_n_delay_tranches() -> Weight {
-		(13_015_000 as Weight)
+		(12_740_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -206,7 +206,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_zeroth_delay_tranche_width() -> Weight {
-		(13_051_000 as Weight)
+		(12_591_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -214,7 +214,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_needed_approvals() -> Weight {
-		(12_932_000 as Weight)
+		(12_709_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -222,7 +222,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_relay_vrf_modulo_samples() -> Weight {
-		(13_026_000 as Weight)
+		(12_752_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -230,7 +230,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_max_upward_queue_count() -> Weight {
-		(12_938_000 as Weight)
+		(12_544_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -238,7 +238,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_max_upward_queue_size() -> Weight {
-		(12_915_000 as Weight)
+		(12_567_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -246,14 +246,14 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:0)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_max_downward_message_size() -> Weight {
-		(9_444_000 as Weight)
+		(9_161_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 	}
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_ump_service_total_weight() -> Weight {
-		(12_985_000 as Weight)
+		(12_680_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -261,7 +261,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_max_upward_message_size() -> Weight {
-		(12_931_000 as Weight)
+		(12_459_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -269,7 +269,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_max_upward_message_num_per_candidate() -> Weight {
-		(13_088_000 as Weight)
+		(12_601_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -281,7 +281,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_hrmp_sender_deposit() -> Weight {
-		(13_052_000 as Weight)
+		(12_564_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -289,7 +289,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_hrmp_recipient_deposit() -> Weight {
-		(12_806_000 as Weight)
+		(12_635_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -297,7 +297,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_hrmp_channel_max_capacity() -> Weight {
-		(12_976_000 as Weight)
+		(12_554_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -305,7 +305,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_hrmp_channel_max_total_size() -> Weight {
-		(12_966_000 as Weight)
+		(12_522_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -313,7 +313,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_hrmp_max_parachain_inbound_channels() -> Weight {
-		(13_042_000 as Weight)
+		(12_652_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -321,7 +321,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_hrmp_max_parathread_inbound_channels() -> Weight {
-		(12_948_000 as Weight)
+		(12_777_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -329,7 +329,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_hrmp_channel_max_message_size() -> Weight {
-		(12_915_000 as Weight)
+		(12_702_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -337,7 +337,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_hrmp_max_parachain_outbound_channels() -> Weight {
-		(12_911_000 as Weight)
+		(12_624_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -345,7 +345,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_hrmp_max_parathread_outbound_channels() -> Weight {
-		(12_717_000 as Weight)
+		(12_624_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -353,7 +353,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_hrmp_max_message_num_per_candidate() -> Weight {
-		(12_776_000 as Weight)
+		(12_497_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
