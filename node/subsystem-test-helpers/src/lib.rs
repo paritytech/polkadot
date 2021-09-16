@@ -19,8 +19,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
-	messages::AllMessages, overseer, FromOverseer, OverseerConnector, OverseerSignal,
-	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,
+	messages::AllMessages, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	SubsystemContext, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 
@@ -372,7 +372,9 @@ mod tests {
 	use super::*;
 	use futures::executor::block_on;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
-	use polkadot_overseer::{AllSubsystems, Handle, HeadSupportsParachains, Overseer};
+	use polkadot_overseer::{
+		AllSubsystems, Handle, HeadSupportsParachains, Overseer, OverseerConnector,
+	};
 	use polkadot_primitives::v1::Hash;
 
 	struct AlwaysSupportsParachains;
