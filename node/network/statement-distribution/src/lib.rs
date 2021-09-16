@@ -105,7 +105,7 @@ const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
 
 /// The statement distribution subsystem.
 pub struct StatementDistribution {
-	/// Pointer to a keystore, which is required for determining this nodes validator index.
+	/// Pointer to a keystore, which is required for determining the nodes validator index.
 	keystore: SyncCryptoStorePtr,
 	/// Receiver for incoming large statement requests.
 	req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,

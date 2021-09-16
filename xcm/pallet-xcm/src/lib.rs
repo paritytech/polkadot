@@ -328,7 +328,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type SafeXcmVersion<T: Config> = StorageValue<_, XcmVersion, OptionQuery>;
 
-	/// Latest versions that we know various locations support.
+	/// The Latest versions that we know various locations support.
 	#[pallet::storage]
 	pub(super) type SupportedVersion<T: Config> = StorageDoubleMap<
 		_,
