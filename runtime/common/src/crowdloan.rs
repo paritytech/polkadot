@@ -63,6 +63,7 @@ use frame_support::{
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::Id as ParaId;
+use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{
 		AccountIdConversion, CheckedAdd, Hash, IdentifyAccount, One, Saturating, Verify, Zero,
@@ -124,7 +125,7 @@ impl WeightInfo for TestWeightInfo {
 	}
 }
 
-#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Copy, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub enum LastContribution<BlockNumber> {
 	Never,
 	PreEnding(u32),
@@ -133,7 +134,7 @@ pub enum LastContribution<BlockNumber> {
 
 /// Information on a funding effort for a pre-existing parachain. We assume that the parachain ID
 /// is known as it's used for the key of the storage item for which this is the value (`Funds`).
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 #[codec(dumb_trait_bound)]
 pub struct FundInfo<AccountId, Balance, BlockNumber, LeasePeriod> {
 	/// The owning account who placed the deposit.
@@ -242,7 +243,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
 	pub enum Event<T: Config> {
 		/// Create a new crowdloaning campaign. `[fund_index]`
 		Created(ParaId),

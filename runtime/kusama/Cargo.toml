@@ -8,6 +8,7 @@ build = "build.rs"
 [dependencies]
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 serde = { version = "1.0.130", default-features = false }
@@ -109,6 +110,7 @@ std = [
 	"primitives/std",
 	"rustc-hex/std",
 	"parity-scale-codec/std",
+	"scale-info/std",
 	"inherents/std",
 	"sp-core/std",
 	"sp-api/std",

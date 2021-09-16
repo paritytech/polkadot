@@ -25,6 +25,7 @@ mod tests;
 
 use codec::{Decode, Encode, EncodeLike};
 use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
+use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{BadOrigin, Saturating},
 	RuntimeDebug,
@@ -217,7 +218,7 @@ pub mod pallet {
 	}
 
 	#[pallet::origin]
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 	pub enum Origin {
 		/// It comes from somewhere in the XCM space wanting to transact.
 		Xcm(MultiLocation),
@@ -264,7 +265,7 @@ pub mod pallet {
 	}
 
 	/// The status of a query.
-	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, TypeInfo)]
 	pub enum QueryStatus<BlockNumber> {
 		/// The query was sent but no response has yet been received.
 		Pending {
@@ -290,7 +291,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd)]
+	#[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, TypeInfo)]
 	pub enum VersionMigrationStage {
 		MigrateSupportedVersion,
 		MigrateVersionNotifiers,

@@ -36,11 +36,15 @@ use polkadot_cli::{
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-use polkadot_node_subsystem::messages::CandidateValidationMessage;
+use polkadot_node_subsystem::{
+	messages::{AllMessages, CandidateValidationMessage},
+	overseer::{self, OverseerHandle},
+	FromOverseer,
+};
 
-// Filter wrapping related types.
 use malus::*;
 
+// Filter wrapping related types.
 use std::sync::{
 	atomic::{AtomicUsize, Ordering},
 	Arc,
@@ -52,17 +56,27 @@ use structopt::StructOpt;
 #[derive(Clone, Default, Debug)]
 struct Skippy(Arc<AtomicUsize>);
 
-impl MsgFilter for Skippy {
+impl<Sender> MessageInterceptor<Sender> for Skippy
+where
+	Sender: overseer::SubsystemSender<AllMessages>
+		+ overseer::SubsystemSender<CandidateValidationMessage>
+		+ Clone
+		+ 'static,
+{
 	type Message = CandidateValidationMessage;
 
-	fn filter_in(&self, msg: FromOverseer<Self::Message>) -> Option<FromOverseer<Self::Message>> {
+	fn intercept_incoming(
+		&self,
+		_sender: &mut Sender,
+		msg: FromOverseer<Self::Message>,
+	) -> Option<FromOverseer<Self::Message>> {
 		if self.0.fetch_add(1, Ordering::Relaxed) % 2 == 0 {
 			Some(msg)
 		} else {
 			None
 		}
 	}
-	fn filter_out(&self, msg: AllMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
