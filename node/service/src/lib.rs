@@ -54,7 +54,7 @@ use {
 pub use sp_core::traits::SpawnNamed;
 #[cfg(feature = "full-node")]
 pub use {
-	polkadot_overseer::{Handle, Overseer, OverseerHandle},
+	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
 	polkadot_primitives::v1::ParachainHost,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
@@ -862,6 +862,7 @@ where
 		// already have access to the handle
 		let (overseer, _handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
+				overseer_connector,
 				OverseerGenArgs {
 					leaves: active_leaves,
 					keystore,
@@ -887,7 +888,7 @@ where
 			)?;
 
 		{
-			let handle = handle.clone();
+			let handle = overseer_connector.as_handle().clone();
 			task_manager.spawn_essential_handle().spawn_blocking(
 				"overseer",
 				Box::pin(async move {
