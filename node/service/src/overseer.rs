@@ -418,6 +418,7 @@ impl OverseerGen for RealOverseerGen {
 					.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number)),
 			))
 			.spawner(spawner)
+			.activation_external_listeners(Default::default())
 			.build_with_connector(connector)
 			.map_err(|e| e.into())
 	}

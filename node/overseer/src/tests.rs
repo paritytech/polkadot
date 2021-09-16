@@ -173,7 +173,7 @@ fn overseer_works() {
 			OverseerConnector::default(),
 		)
 		.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle(handle);
 		let overseer_fut = overseer.run().fuse();
 
 		pin_mut!(overseer_fut);
@@ -237,7 +237,7 @@ fn overseer_metrics_work() {
 			OverseerConnector::default(),
 		)
 		.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle(handle);
 		let overseer_fut = overseer.run().fuse();
 
 		pin_mut!(overseer_fut);
@@ -406,7 +406,7 @@ fn overseer_start_stop_works() {
 			OverseerConnector::default(),
 		)
 		.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle(handle);
 
 		let overseer_fut = overseer.run().fuse();
 		pin_mut!(overseer_fut);
@@ -510,7 +510,7 @@ fn overseer_finalize_works() {
 			OverseerConnector::default(),
 		)
 		.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle(handle);
 
 		let overseer_fut = overseer.run().fuse();
 		pin_mut!(overseer_fut);
@@ -604,7 +604,7 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 			OverseerConnector::default(),
 		)
 		.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle(handle);
 
 		let overseer_fut = overseer.run().fuse();
 		pin_mut!(overseer_fut);
@@ -877,6 +877,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			dispute_distribution: subsystem.clone(),
 			chain_selection: subsystem.clone(),
 		};
+
 		let (overseer, handle) = Overseer::new(
 			vec![],
 			all_subsystems,
@@ -886,7 +887,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			OverseerConnector::default(),
 		)
 		.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle(handle);
 		let overseer_fut = overseer.run().fuse();
 
 		pin_mut!(overseer_fut);
