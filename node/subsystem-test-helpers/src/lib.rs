@@ -19,8 +19,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
-	messages::AllMessages, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError, SubsystemResult,
+	messages::AllMessages, overseer, FromOverseer, OverseerConnector, OverseerSignal,
+	SpawnedSubsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 
@@ -394,6 +394,7 @@ mod tests {
 			None,
 			AlwaysSupportsParachains,
 			spawner.clone(),
+			OverseerConnector::default(),
 		)
 		.unwrap();
 		let mut handle = Handle(handle);

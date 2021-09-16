@@ -493,6 +493,7 @@ where
 	///     None,
 	///     AlwaysSupportsParachains,
 	///     spawner,
+	///     OverseerConnector::default(),
 	/// ).unwrap();
 	///
 	/// let timer = Delay::new(Duration::from_millis(50)).fuse();
@@ -559,6 +560,7 @@ where
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
 		s: S,
+		connector: OverseerConnector,
 	) -> SubsystemResult<(Self, OverseerHandle)>
 	where
 		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
@@ -623,7 +625,7 @@ where
 			.supports_parachains(supports_parachains)
 			.metrics(metrics.clone())
 			.spawner(s)
-			.build()?;
+			.build_with_connector(connector)?;
 
 		// spawn the metrics metronome task
 		{
