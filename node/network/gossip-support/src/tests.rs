@@ -92,20 +92,27 @@ async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 }
 
 fn authorities() -> Vec<AuthorityDiscoveryId> {
+	let mut authorities = other_authorities();
+	authorities.push(Sr25519Keyring::Ferdie.public().into());
+	authorities
+}
+
+// Authorities other than ourselves:
+fn other_authorities() -> Vec<AuthorityDiscoveryId> {
 	vec![
 		Sr25519Keyring::Alice.public().into(),
 		Sr25519Keyring::Bob.public().into(),
 		Sr25519Keyring::Charlie.public().into(),
-		Sr25519Keyring::Ferdie.public().into(),
 		Sr25519Keyring::Eve.public().into(),
 		Sr25519Keyring::One.public().into(),
+		Sr25519Keyring::Two.public().into(),
 	]
 }
 
 fn neighbors() -> Vec<AuthorityDiscoveryId> {
 	vec![
-		Sr25519Keyring::One.public().into(),
-		Sr25519Keyring::Alice.public().into(),
+		Sr25519Keyring::Two.public().into(),
+		Sr25519Keyring::Charlie.public().into(),
 		Sr25519Keyring::Eve.public().into(),
 	]
 }
@@ -177,7 +184,7 @@ fn issues_a_connection_request_on_new_session() {
 				peer_set,
 				failed,
 			}) => {
-				assert_eq!(validator_ids, authorities());
+				assert_eq!(validator_ids, other_authorities());
 				assert_eq!(peer_set, PeerSet::Validation);
 				failed.send(0).unwrap();
 			}
@@ -245,7 +252,7 @@ fn issues_a_connection_request_on_new_session() {
 				peer_set,
 				failed,
 			}) => {
-				assert_eq!(validator_ids, authorities());
+				assert_eq!(validator_ids, other_authorities());
 				assert_eq!(peer_set, PeerSet::Validation);
 				failed.send(0).unwrap();
 			}
@@ -293,7 +300,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 				peer_set,
 				failed,
 			}) => {
-				assert_eq!(validator_ids, authorities());
+				assert_eq!(validator_ids, other_authorities());
 				assert_eq!(peer_set, PeerSet::Validation);
 				failed.send(2).unwrap();
 			}
@@ -340,7 +347,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 				peer_set,
 				failed,
 			}) => {
-				assert_eq!(validator_ids, authorities());
+				assert_eq!(validator_ids, other_authorities());
 				assert_eq!(peer_set, PeerSet::Validation);
 				failed.send(1).unwrap();
 			}
