@@ -26,9 +26,8 @@ use color_eyre::eyre;
 use polkadot_cli::{
 	prepared_overseer_builder,
 	service::{
-		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
-		ProvideRuntimeApi, SpawnNamed,
+		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, OverseerGen,
+		OverseerGenArgs, ParachainHost, ProvideRuntimeApi, SpawnNamed,
 	},
 	Cli,
 };
@@ -38,7 +37,7 @@ use polkadot_cli::{
 use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CandidateValidationMessage},
-	overseer::{self, OverseerHandle},
+	overseer::{self, Overseer, OverseerConnector, OverseerHandle},
 	FromOverseer,
 };
 
@@ -99,7 +98,7 @@ impl OverseerGen for BehaveMaleficient {
 
 		prepared_overseer_builder(args)?
 			.replace_candidate_validation(|orig: CandidateValidationSubsystem| {
-				FilteredSubsystem::new(
+				InterceptedSubsystem::new(
 					CandidateValidationSubsystem::with_config(
 						candidate_validation_config,
 						orig.metrics,
