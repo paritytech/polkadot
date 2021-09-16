@@ -202,7 +202,7 @@ impl<C> ExecuteXcm<C> for () {
 }
 
 /// Error result value when attempting to send an XCM message.
-#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug, scale_info::TypeInfo)]
 pub enum SendError {
 	/// The message and destination combination was not recognized as being reachable.
 	///
