@@ -1024,7 +1024,14 @@ impl CandidateBackingJob {
 
 							(collator_pair.public(), collator_pair.sign(&signature_payload))
 						};
-						let malicious_commitments = CandidateCommitments::default();
+						let malicious_commitments = CandidateCommitments {
+							upward_messages: Vec::new(),
+							horizontal_messages: Vec::new(),
+							new_validation_code: None,
+							head_data: vec![1, 2, 3, 4, 5].into(),
+							processed_downward_messages: 0,
+							hrmp_watermark: validation_data.relay_parent_number - 1,
+						};
 						let malicious_candidate = CommittedCandidateReceipt {
 							descriptor: CandidateDescriptor {
 								para_id: candidate.descriptor().para_id,
