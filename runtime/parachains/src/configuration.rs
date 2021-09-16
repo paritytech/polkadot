@@ -28,6 +28,7 @@ use sp_std::prelude::*;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+pub mod weights;
 
 pub use pallet::*;
 
@@ -258,6 +259,49 @@ impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
 	}
 }
 
+pub trait WeightInfo {
+	fn set_validation_upgrade_frequency() -> Weight;
+	fn set_validation_upgrade_delay() -> Weight;
+	fn set_code_retention_period() -> Weight;
+	fn set_max_code_size() -> Weight;
+	fn set_max_pov_size() -> Weight;
+	fn set_max_head_data_size() -> Weight;
+	fn set_parathread_cores() -> Weight;
+	fn set_parathread_retries() -> Weight;
+	fn set_group_rotation_frequency() -> Weight;
+	fn set_chain_availability_period() -> Weight;
+	fn set_thread_availability_period() -> Weight;
+	fn set_scheduling_lookahead() -> Weight;
+	fn set_max_validators_per_core() -> Weight;
+	fn set_max_validators() -> Weight;
+	fn set_dispute_period() -> Weight;
+	fn set_dispute_post_conclusion_acceptance_period() -> Weight;
+	fn set_dispute_max_spam_slots() -> Weight;
+	fn set_dispute_conclusion_by_time_out_period() -> Weight;
+	fn set_no_show_slots() -> Weight;
+	fn set_n_delay_tranches() -> Weight;
+	fn set_zeroth_delay_tranche_width() -> Weight;
+	fn set_needed_approvals() -> Weight;
+	fn set_relay_vrf_modulo_samples() -> Weight;
+	fn set_max_upward_queue_count() -> Weight;
+	fn set_max_upward_queue_size() -> Weight;
+	fn set_max_downward_message_size() -> Weight;
+	fn set_ump_service_total_weight() -> Weight;
+	fn set_max_upward_message_size() -> Weight;
+	fn set_max_upward_message_num_per_candidate() -> Weight;
+	fn set_hrmp_open_request_ttl() -> Weight;
+	fn set_hrmp_sender_deposit() -> Weight;
+	fn set_hrmp_recipient_deposit() -> Weight;
+	fn set_hrmp_channel_max_capacity() -> Weight;
+	fn set_hrmp_channel_max_total_size() -> Weight;
+	fn set_hrmp_max_parachain_inbound_channels() -> Weight;
+	fn set_hrmp_max_parathread_inbound_channels() -> Weight;
+	fn set_hrmp_channel_max_message_size() -> Weight;
+	fn set_hrmp_max_parachain_outbound_channels() -> Weight;
+	fn set_hrmp_max_parathread_outbound_channels() -> Weight;
+	fn set_hrmp_max_message_num_per_candidate() -> Weight;
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -267,7 +311,10 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + shared::Config {}
+	pub trait Config: frame_system::Config + shared::Config {
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
+	}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -322,7 +369,7 @@ pub mod pallet {
 		}
 
 		/// Set the validation upgrade delay.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_validation_upgrade_delay())]
 		pub fn set_validation_upgrade_delay(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,
@@ -335,7 +382,7 @@ pub mod pallet {
 		}
 
 		/// Set the acceptance period for an included candidate.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_code_retention_period())]
 		pub fn set_code_retention_period(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,
@@ -348,7 +395,7 @@ pub mod pallet {
 		}
 
 		/// Set the max validation code size for incoming upgrades.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_max_code_size())]
 		pub fn set_max_code_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			ensure!(new <= MAX_CODE_SIZE, Error::<T>::InvalidNewValue);
@@ -359,7 +406,7 @@ pub mod pallet {
 		}
 
 		/// Set the max POV block size for incoming upgrades.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_max_pov_size())]
 		pub fn set_max_pov_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			ensure!(new <= MAX_POV_SIZE, Error::<T>::InvalidNewValue);
@@ -370,7 +417,7 @@ pub mod pallet {
 		}
 
 		/// Set the max head data size for paras.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_max_head_data_size())]
 		pub fn set_max_head_data_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -380,7 +427,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of parathread execution cores.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_parathread_cores())]
 		pub fn set_parathread_cores(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -390,7 +437,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of retries for a particular parathread.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_parathread_retries())]
 		pub fn set_parathread_retries(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -400,7 +447,7 @@ pub mod pallet {
 		}
 
 		/// Set the parachain validator-group rotation frequency
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_group_rotation_frequency())]
 		pub fn set_group_rotation_frequency(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,
@@ -416,7 +463,7 @@ pub mod pallet {
 		}
 
 		/// Set the availability period for parachains.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_chain_availability_period())]
 		pub fn set_chain_availability_period(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,
@@ -432,7 +479,7 @@ pub mod pallet {
 		}
 
 		/// Set the availability period for parathreads.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_thread_availability_period())]
 		pub fn set_thread_availability_period(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,
@@ -448,7 +495,7 @@ pub mod pallet {
 		}
 
 		/// Set the scheduling lookahead, in expected number of blocks at peak throughput.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_scheduling_lookahead())]
 		pub fn set_scheduling_lookahead(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -458,7 +505,7 @@ pub mod pallet {
 		}
 
 		/// Set the maximum number of validators to assign to any core.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_max_validators_per_core())]
 		pub fn set_max_validators_per_core(
 			origin: OriginFor<T>,
 			new: Option<u32>,
@@ -471,7 +518,7 @@ pub mod pallet {
 		}
 
 		/// Set the maximum number of validators to use in parachain consensus.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_max_validators())]
 		pub fn set_max_validators(origin: OriginFor<T>, new: Option<u32>) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -481,7 +528,7 @@ pub mod pallet {
 		}
 
 		/// Set the dispute period, in number of sessions to keep for disputes.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_dispute_period())]
 		pub fn set_dispute_period(origin: OriginFor<T>, new: SessionIndex) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -491,7 +538,7 @@ pub mod pallet {
 		}
 
 		/// Set the dispute post conclusion acceptance period.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_dispute_post_conclusion_acceptance_period())]
 		pub fn set_dispute_post_conclusion_acceptance_period(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,
@@ -505,7 +552,7 @@ pub mod pallet {
 		}
 
 		/// Set the maximum number of dispute spam slots.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_dispute_max_spam_slots())]
 		pub fn set_dispute_max_spam_slots(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -515,7 +562,7 @@ pub mod pallet {
 		}
 
 		/// Set the dispute conclusion by time out period.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_dispute_conclusion_by_time_out_period())]
 		pub fn set_dispute_conclusion_by_time_out_period(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,
@@ -529,7 +576,7 @@ pub mod pallet {
 
 		/// Set the no show slots, in number of number of consensus slots.
 		/// Must be at least 1.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_no_show_slots())]
 		pub fn set_no_show_slots(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 
@@ -542,7 +589,7 @@ pub mod pallet {
 		}
 
 		/// Set the total number of delay tranches.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_n_delay_tranches())]
 		pub fn set_n_delay_tranches(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -552,7 +599,7 @@ pub mod pallet {
 		}
 
 		/// Set the zeroth delay tranche width.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_zeroth_delay_tranche_width())]
 		pub fn set_zeroth_delay_tranche_width(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -562,7 +609,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of validators needed to approve a block.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_needed_approvals())]
 		pub fn set_needed_approvals(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -572,7 +619,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of samples to do of the `RelayVRFModulo` approval assignment criterion.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_relay_vrf_modulo_samples())]
 		pub fn set_relay_vrf_modulo_samples(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -582,7 +629,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum items that can present in a upward dispatch queue at once.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_max_upward_queue_count())]
 		pub fn set_max_upward_queue_count(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -592,7 +639,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum total size of items that can present in a upward dispatch queue at once.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_max_upward_queue_size())]
 		pub fn set_max_upward_queue_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -602,7 +649,7 @@ pub mod pallet {
 		}
 
 		/// Set the critical downward message size.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_max_downward_message_size())]
 		pub fn set_max_downward_message_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -612,7 +659,7 @@ pub mod pallet {
 		}
 
 		/// Sets the soft limit for the phase of dispatching dispatchable upward messages.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_ump_service_total_weight())]
 		pub fn set_ump_service_total_weight(origin: OriginFor<T>, new: Weight) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -622,7 +669,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum size of an upward message that can be sent by a candidate.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_max_upward_message_size())]
 		pub fn set_max_upward_message_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -632,7 +679,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of messages that a candidate can contain.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_max_upward_message_num_per_candidate())]
 		pub fn set_max_upward_message_num_per_candidate(
 			origin: OriginFor<T>,
 			new: u32,
@@ -645,7 +692,7 @@ pub mod pallet {
 		}
 
 		/// Sets the number of sessions after which an HRMP open channel request expires.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_open_request_ttl())]
 		// Deprecated, but is not marked as such, because that would trigger warnings coming from
 		// the macro.
 		pub fn set_hrmp_open_request_ttl(_origin: OriginFor<T>, _new: u32) -> DispatchResult {
@@ -653,7 +700,7 @@ pub mod pallet {
 		}
 
 		/// Sets the amount of funds that the sender should provide for opening an HRMP channel.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_sender_deposit())]
 		pub fn set_hrmp_sender_deposit(origin: OriginFor<T>, new: Balance) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -664,7 +711,7 @@ pub mod pallet {
 
 		/// Sets the amount of funds that the recipient should provide for accepting opening an HRMP
 		/// channel.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_recipient_deposit())]
 		pub fn set_hrmp_recipient_deposit(origin: OriginFor<T>, new: Balance) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -674,7 +721,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of messages allowed in an HRMP channel at once.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_channel_max_capacity())]
 		pub fn set_hrmp_channel_max_capacity(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -684,7 +731,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum total size of messages in bytes allowed in an HRMP channel at once.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_channel_max_total_size())]
 		pub fn set_hrmp_channel_max_total_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -694,7 +741,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of inbound HRMP channels a parachain is allowed to accept.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_max_parachain_inbound_channels())]
 		pub fn set_hrmp_max_parachain_inbound_channels(
 			origin: OriginFor<T>,
 			new: u32,
@@ -707,7 +754,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of inbound HRMP channels a parathread is allowed to accept.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_max_parathread_inbound_channels())]
 		pub fn set_hrmp_max_parathread_inbound_channels(
 			origin: OriginFor<T>,
 			new: u32,
@@ -720,7 +767,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum size of a message that could ever be put into an HRMP channel.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_channel_max_message_size())]
 		pub fn set_hrmp_channel_max_message_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
@@ -730,7 +777,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of outbound HRMP channels a parachain is allowed to open.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_max_parachain_outbound_channels())]
 		pub fn set_hrmp_max_parachain_outbound_channels(
 			origin: OriginFor<T>,
 			new: u32,
@@ -743,7 +790,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of outbound HRMP channels a parathread is allowed to open.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_max_parathread_outbound_channels())]
 		pub fn set_hrmp_max_parathread_outbound_channels(
 			origin: OriginFor<T>,
 			new: u32,
@@ -756,7 +803,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of outbound HRMP messages can be sent by a candidate.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_hrmp_max_message_num_per_candidate())]
 		pub fn set_hrmp_max_message_num_per_candidate(
 			origin: OriginFor<T>,
 			new: u32,

@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::configuration::*;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, BenchmarkError, BenchmarkResult};
 use frame_system::RawOrigin;
 use sp_runtime::traits::One;
 
@@ -77,6 +77,12 @@ benchmarks! {
 	set_max_upward_message_size {}: _(RawOrigin::Root, 1024)
 
 	set_max_upward_message_num_per_candidate {}: _(RawOrigin::Root, 10)
+
+	set_hrmp_open_request_ttl {}: {
+		Err(BenchmarkError::Override(
+			BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
+		))?;
+	}
 
 	set_hrmp_sender_deposit {}: _(RawOrigin::Root, 100)
 
