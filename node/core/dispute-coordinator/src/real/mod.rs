@@ -742,7 +742,7 @@ async fn handle_import_statements(
 				target: LOG_TARGET,
 				?candidate_hash,
 				session,
-				"New disputed initiated for candidate.",
+				"New dispute initiated for candidate.",
 			);
 			DisputeStatus::active()
 		});
