@@ -26,6 +26,9 @@ use primitives::v1::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_POV_SIZE};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
 pub use pallet::*;
 
 /// All configuration of the runtime with respect to parachains and parathreads.
@@ -306,7 +309,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Set the validation upgrade frequency.
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight(T::WeightInfo::set_validation_upgrade_frequency())]
 		pub fn set_validation_upgrade_frequency(
 			origin: OriginFor<T>,
 			new: T::BlockNumber,

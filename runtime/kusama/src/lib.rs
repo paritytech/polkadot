@@ -1943,6 +1943,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_common::claims, Claims);
 			list_benchmark!(list, extra, runtime_common::slots, Slots);
 			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
+			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
 			// Substrate
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_bounties, Bounties);
@@ -2016,6 +2017,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			add_benchmark!(params, batches, runtime_common::slots, Slots);
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
+			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
