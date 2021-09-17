@@ -26,6 +26,10 @@ use xcm::latest::SendError;
 
 pub use pallet::*;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+//pub mod weights;
+
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
 pub enum QueueDownwardMessageError {
@@ -65,6 +69,9 @@ impl fmt::Debug for ProcessedDownwardMessagesAcceptanceErr {
 	}
 }
 
+pub trait WeightInfo {
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -74,7 +81,9 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + configuration::Config {}
+	pub trait Config: frame_system::Config + configuration::Config {
+//		type WeightInfo: WeightInfo;
+	}
 
 	/// The downward messages addressed for a certain para.
 	#[pallet::storage]
