@@ -469,12 +469,11 @@ dependencies = [
 [[package]]
 name = "beefy-gadget"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#8b04f0ecbd97cfe0199dba444264baafb6d35eca"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#c3a24cd3ceb9053520f7ecc48c4f5197c3344fb8"
 dependencies = [
  "beefy-primitives",
  "fnv",
  "futures 0.3.17",
- "hex",
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
@@ -487,7 +486,6 @@ dependencies = [
  "sp-application-crypto",
  "sp-arithmetic",
  "sp-blockchain",
- "sp-consensus",
  "sp-core",
  "sp-keystore",
  "sp-runtime",
@@ -499,7 +497,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#8b04f0ecbd97cfe0199dba444264baafb6d35eca"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#c3a24cd3ceb9053520f7ecc48c4f5197c3344fb8"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
@@ -512,7 +510,6 @@ dependencies = [
  "parity-scale-codec",
  "sc-rpc",
  "serde",
- "serde_json",
  "sp-core",
  "sp-runtime",
 ]
@@ -520,14 +517,15 @@ dependencies = [
 [[package]]
 name = "beefy-merkle-tree"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#8b04f0ecbd97cfe0199dba444264baafb6d35eca"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#c3a24cd3ceb9053520f7ecc48c4f5197c3344fb8"
 
 [[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#8b04f0ecbd97cfe0199dba444264baafb6d35eca"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#c3a24cd3ceb9053520f7ecc48c4f5197c3344fb8"
 dependencies = [
  "parity-scale-codec",
+ "scale-info",
  "sp-api",
  "sp-application-crypto",
  "sp-core",
@@ -4684,7 +4682,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#8b04f0ecbd97cfe0199dba444264baafb6d35eca"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#c3a24cd3ceb9053520f7ecc48c4f5197c3344fb8"
 dependencies = [
  "beefy-primitives",
  "frame-support",
@@ -4700,7 +4698,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy-mmr"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#8b04f0ecbd97cfe0199dba444264baafb6d35eca"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=master#c3a24cd3ceb9053520f7ecc48c4f5197c3344fb8"
 dependencies = [
  "beefy-merkle-tree",
  "beefy-primitives",
