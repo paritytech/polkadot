@@ -402,7 +402,10 @@ where
 #[cfg(feature = "full-node")]
 fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 	config: &mut Configuration,
-	basics: Basics<RuntimeApi, ExecutorDispatch>,
+	Basics { task_manager, backend, client, keystore_container, telemetry }: Basics<
+		RuntimeApi,
+		ExecutorDispatch,
+	>,
 	select_chain: ChainSelection,
 ) -> Result<
 	service::PartialComponents<
@@ -440,8 +443,6 @@ where
 	ExecutorDispatch: NativeExecutionDispatch + 'static,
 	ChainSelection: 'static + SelectChain<Block>,
 {
-	let Basics { task_manager, backend, client, keystore_container, telemetry, .. } = basics;
-
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
 		config.role.is_authority().into(),
