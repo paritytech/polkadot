@@ -16,7 +16,7 @@
 
 use super::*;
 use crate::{account_and_location, new_executor, worst_case_holding, AssetTransactorOf, XcmCallOf};
-use frame_benchmarking::{benchmarks_instance_pallet, impl_benchmark_test_suite, BenchmarkError};
+use frame_benchmarking::{benchmarks_instance_pallet, impl_benchmark_test_suite, BenchmarkError, BenchmarkResult};
 use frame_support::{pallet_prelude::Get, traits::fungible::Inspect};
 use sp_runtime::traits::Zero;
 use sp_std::{convert::TryInto, prelude::*, vec};
@@ -106,7 +106,11 @@ benchmarks_instance_pallet! {
 
 	receive_teleported_asset {
 		// If there is no trusted teleporter, then we skip this benchmark.
-		let (trusted_teleporter, teleportable_asset) = T::TrustedTeleporter::get().ok_or(BenchmarkError::Skip)?;
+		let (trusted_teleporter, teleportable_asset) = T::TrustedTeleporter::get().ok_or(
+			BenchmarkError::Override(
+				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
+			)
+		)?;
 
 		let assets: MultiAssets = vec![ teleportable_asset ].into();
 
@@ -114,7 +118,11 @@ benchmarks_instance_pallet! {
 		let instruction = Instruction::ReceiveTeleportedAsset(assets.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm).map_err(|_| BenchmarkError::Skip)?;
+		executor.execute(xcm).map_err(|_| {
+			BenchmarkError::Override(
+				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
+			)
+		})?;
 	} verify {
 		assert!(executor.holding.ensure_contains(&assets).is_ok());
 	}

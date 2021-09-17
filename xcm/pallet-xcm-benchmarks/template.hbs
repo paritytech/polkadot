@@ -32,7 +32,7 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
-/// Weights for `{{pallet}}` using the Substrate node and recommended hardware.
+/// Weights for `{{pallet}}`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo<T> {
 	{{~#each benchmarks as |benchmark|}}
