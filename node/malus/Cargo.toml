@@ -36,3 +36,8 @@ tracing = "0.1.26"
 [features]
 default = [] # we do not enable disputes by default to avoid feature leak
 disputes = ["polkadot-cli/disputes"]
+
+[dev-dependencies]
+polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+futures = { version = "0.3.17", features = ["thread-pool"] }

@@ -253,6 +253,7 @@ timestamp/MS
 transitionary
 trie/MS
 trustless/Y
+TTL
 tuple/SM
 typesystem
 ubuntu/M
@@ -296,6 +297,7 @@ WND/S
 Wococo
 XCM/S
 XCMP/M
+yeet
 decrement
 DM
 ParaId

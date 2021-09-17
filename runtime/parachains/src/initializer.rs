@@ -27,6 +27,7 @@ use crate::{
 use frame_support::traits::{OneSessionHandler, Randomness};
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
+use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
 pub use pallet::*;
@@ -61,7 +62,7 @@ impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<Blo
 	}
 }
 
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, TypeInfo)]
 struct BufferedSessionChange {
 	validators: Vec<ValidatorId>,
 	queued: Vec<ValidatorId>,

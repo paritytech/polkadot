@@ -32,6 +32,7 @@ use bp_messages::{
 use bp_runtime::{messages::MessageDispatchResult, Size};
 use codec::{Decode, Encode};
 use frame_support::{parameter_types, weights::Weight};
+use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header as SubstrateHeader,
@@ -42,7 +43,7 @@ use std::collections::BTreeMap;
 
 pub type AccountId = u64;
 pub type Balance = u64;
-#[derive(Decode, Encode, Clone, Debug, PartialEq, Eq)]
+#[derive(Decode, Encode, Clone, Debug, PartialEq, Eq, TypeInfo)]
 pub struct TestPayload {
 	/// Field that may be used to identify messages.
 	pub id: u64,
@@ -138,7 +139,7 @@ parameter_types! {
 	pub storage TokenConversionRate: FixedU128 = 1.into();
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum TestMessagesParameter {
 	TokenConversionRate(FixedU128),
 }
@@ -211,7 +212,7 @@ pub const PAYLOAD_REJECTED_BY_TARGET_CHAIN: TestPayload = message_payload(1, 50)
 pub type MessagesByLaneVec = Vec<(LaneId, ProvedLaneMessages<Message<TestMessageFee>>)>;
 
 /// Test messages proof.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq)]
+#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
 pub struct TestMessagesProof {
 	pub result: Result<MessagesByLaneVec, ()>,
 }
@@ -242,7 +243,7 @@ impl From<Result<Vec<Message<TestMessageFee>>, ()>> for TestMessagesProof {
 }
 
 /// Messages delivery proof used in tests.
-#[derive(Debug, Encode, Decode, Eq, Clone, PartialEq)]
+#[derive(Debug, Encode, Decode, Eq, Clone, PartialEq, TypeInfo)]
 pub struct TestMessagesDeliveryProof(pub Result<(LaneId, InboundLaneData<TestRelayer>), ()>);
 
 impl Size for TestMessagesDeliveryProof {

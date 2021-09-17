@@ -25,6 +25,7 @@ use bp_runtime::{
 };
 use codec::{Decode, Encode};
 use frame_support::RuntimeDebug;
+use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
 /// Message dispatch weight.
@@ -71,7 +72,7 @@ pub trait MessageDispatch<AccountId, MessageId> {
 /// The source chain can (and should) verify that the message can be dispatched on the target chain
 /// with a particular origin given the source chain's origin. This can be done with the
 /// `verify_message_origin()` function.
-#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq)]
+#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
 pub enum CallOrigin<SourceChainAccountId, TargetChainAccountPublic, TargetChainSignature> {
 	/// Call is sent by the Root origin on the source chain. On the target chain it is dispatched
 	/// from a derived account.
@@ -111,7 +112,7 @@ pub enum CallOrigin<SourceChainAccountId, TargetChainAccountPublic, TargetChainS
 }
 
 /// Message payload type used by dispatch module.
-#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq)]
+#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
 pub struct MessagePayload<SourceChainAccountId, TargetChainAccountPublic, TargetChainSignature, Call> {
 	/// Runtime specification version. We only dispatch messages that have the same
 	/// runtime version. Otherwise we risk to misinterpret encoded calls.

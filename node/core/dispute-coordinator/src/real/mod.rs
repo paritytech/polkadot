@@ -56,6 +56,7 @@ use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use sc_keystore::LocalKeystore;
 
+use crate::metrics::Metrics;
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
 use metrics::Metrics;
@@ -882,7 +883,6 @@ async fn issue_local_statement(
 
 	let voted_indices: HashSet<_> = voted_indices.into_iter().collect();
 	let controlled_indices = find_controlled_validator_indices(&state.keystore, &validators[..]);
-
 	for index in controlled_indices {
 		if voted_indices.contains(&index) {
 			continue

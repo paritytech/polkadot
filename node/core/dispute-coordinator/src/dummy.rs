@@ -31,6 +31,8 @@ use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use sc_keystore::LocalKeystore;
 
+use crate::metrics::Metrics;
+
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
 
 /// Candidate validation metrics placeholder.
