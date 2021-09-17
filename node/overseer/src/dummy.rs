@@ -16,13 +16,11 @@
 
 use crate::{
 	prometheus::Registry, AllMessages, HeadSupportsParachains, Metrics, MetricsTrait, Overseer,
-	OverseerBuilder, OverseerSignal, SpawnNamed, KNOWN_LEAVES_CACHE_SIZE,
-	OverseerSubsystemContext,
+	OverseerBuilder, OverseerSignal, OverseerSubsystemContext, SpawnNamed, KNOWN_LEAVES_CACHE_SIZE,
 };
 use lru::LruCache;
-use polkadot_node_subsystem_types::errors::SubsystemError;
+use polkadot_node_subsystem_types::{errors::SubsystemError, messages::*};
 use polkadot_overseer_gen::{FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext};
-use polkadot_node_subsystem_types::messages::*;
 
 /// A dummy subsystem that implements [`Subsystem`] for all
 /// types of messages. Used for tests or as a placeholder.
@@ -59,15 +57,10 @@ where
 	}
 }
 
-
 /// Create an overseer with all subsystem being `Sub`.
 ///
 /// Preferred way of initializing a dummy overseer for subsystem tests.
-pub fn dummy_overseer_builder<
-	'a,
-	Spawner,
-	SupportsParachains,
->(
+pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
 	spawner: Spawner,
 	supports_parachains: SupportsParachains,
 	registry: Option<&'a Registry>,
@@ -103,16 +96,11 @@ where
 	Spawner: SpawnNamed + Send + Sync + 'static,
 	SupportsParachains: HeadSupportsParachains,
 {
-	one_for_all_overseer_builder(spawner, supports_parachains,DummySubsystem, registry)
+	one_for_all_overseer_builder(spawner, supports_parachains, DummySubsystem, registry)
 }
 
 /// Create an overseer with all subsystem being `Sub`.
-pub fn one_for_all_overseer_builder<
-	'a,
-	Spawner,
-	SupportsParachains,
-	Sub,
->(
+pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
 	spawner: Spawner,
 	supports_parachains: SupportsParachains,
 	subsystem: Sub,

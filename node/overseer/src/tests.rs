@@ -33,7 +33,10 @@ use polkadot_primitives::v1::{
 };
 
 use crate::{
-	self as overseer, dummy::{one_for_all_overseer_builder, dummy_overseer_builder}, gen::Delay, HeadSupportsParachains,
+	self as overseer,
+	dummy::{dummy_overseer_builder, one_for_all_overseer_builder},
+	gen::Delay,
+	HeadSupportsParachains,
 };
 use metered_channel as metered;
 
@@ -840,10 +843,11 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			msgs_received.clone(),
 		);
 
-		let (overseer, handle) = one_for_all_overseer_builder(spawner, MockSupportsParachains, subsystem, None)
-			.unwrap()
-			.build()
-			.unwrap();
+		let (overseer, handle) =
+			one_for_all_overseer_builder(spawner, MockSupportsParachains, subsystem, None)
+				.unwrap()
+				.build()
+				.unwrap();
 
 		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run().fuse();

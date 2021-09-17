@@ -27,7 +27,7 @@ mod relay_chain_selection;
 pub mod overseer;
 
 #[cfg(feature = "full-node")]
-pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen, OverseerConnector};
+pub use self::overseer::{OverseerConnector, OverseerGen, OverseerGenArgs, RealOverseerGen};
 
 #[cfg(all(test, feature = "disputes"))]
 mod tests;
@@ -54,11 +54,11 @@ pub use sp_core::traits::SpawnNamed;
 pub use {
 	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
 	polkadot_primitives::v1::ParachainHost,
+	relay_chain_selection::SelectRelayChainWithFallback,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
 	sp_blockchain::HeaderBackend,
 	sp_consensus_babe::BabeApi,
-	relay_chain_selection::SelectRelayChainWithFallback,
 };
 
 #[cfg(feature = "full-node")]
@@ -953,22 +953,22 @@ where
 				Box::pin(async move {
 					use futures::{pin_mut, select, FutureExt};
 
-						let forward = polkadot_overseer::forward_events(overseer_client, handle);
+					let forward = polkadot_overseer::forward_events(overseer_client, handle);
 
-						let forward = forward.fuse();
-						let overseer_fut = overseer.run().fuse();
+					let forward = forward.fuse();
+					let overseer_fut = overseer.run().fuse();
 
-						pin_mut!(overseer_fut);
-						pin_mut!(forward);
+					pin_mut!(overseer_fut);
+					pin_mut!(forward);
 
-						select! {
-							_ = forward => (),
-							_ = overseer_fut => (),
-							complete => (),
-						}
-					}),
-				);
-			}
+					select! {
+						_ = forward => (),
+						_ = overseer_fut => (),
+						complete => (),
+					}
+				}),
+			);
+		}
 		Some(handle)
 	} else {
 		assert!(
