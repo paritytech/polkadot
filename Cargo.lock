@@ -7879,6 +7879,7 @@ dependencies = [
  "pallet-membership",
  "pallet-mmr",
  "pallet-mmr-primitives",
+ "pallet-multisig",
  "pallet-offences",
  "pallet-proxy",
  "pallet-session",
