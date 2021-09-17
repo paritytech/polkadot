@@ -321,6 +321,7 @@ type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::Bl
 type LightClient<RuntimeApi, ExecutorDispatch> =
 	service::TLightClientWithBackend<Block, RuntimeApi, ExecutorDispatch, LightBackend>;
 
+#[cfg(feature = "full-node")]
 struct Basics<RuntimeApi, ExecutorDispatch>
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
