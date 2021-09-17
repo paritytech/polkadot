@@ -20,63 +20,13 @@ use frame_system::RawOrigin;
 use sp_runtime::traits::One;
 
 benchmarks! {
-	set_validation_upgrade_frequency {}: _(RawOrigin::Root, One::one())
+	set_config_with_block_number {}: set_validation_upgrade_frequency(RawOrigin::Root, One::one())
 
-	set_validation_upgrade_delay {}: _(RawOrigin::Root, One::one())
+	set_config_with_u32 {}: set_max_code_size(RawOrigin::Root, 100)
 
-	set_code_retention_period {}: _(RawOrigin::Root, One::one())
+	set_config_with_option_u32 {}: set_max_validators(RawOrigin::Root, Some(10))
 
-	set_max_code_size {}: _(RawOrigin::Root, 1024)
-
-	set_max_pov_size {}: _(RawOrigin::Root, 1024)
-
-	set_max_head_data_size {}: _(RawOrigin::Root, 1024)
-
-	set_parathread_cores {}: _(RawOrigin::Root, 5)
-
-	set_parathread_retries {}: _(RawOrigin::Root, 10)
-
-	set_group_rotation_frequency {}: _(RawOrigin::Root, One::one())
-
-	set_chain_availability_period {}: _(RawOrigin::Root, One::one())
-
-	set_thread_availability_period {}: _(RawOrigin::Root, One::one())
-
-	set_scheduling_lookahead {}: _(RawOrigin::Root, 10)
-
-	set_max_validators_per_core {}: _(RawOrigin::Root, Some(10))
-
-	set_max_validators {}: _(RawOrigin::Root, Some(300))
-
-	set_dispute_period {}: _(RawOrigin::Root, 10)
-
-	set_dispute_post_conclusion_acceptance_period {}: _(RawOrigin::Root, One::one())
-
-	set_dispute_max_spam_slots {}: _(RawOrigin::Root, 50)
-
-	set_dispute_conclusion_by_time_out_period {}: _(RawOrigin::Root, One::one())
-
-	set_no_show_slots {}: _(RawOrigin::Root, 10)
-
-	set_n_delay_tranches {}: _(RawOrigin::Root, 10)
-
-	set_zeroth_delay_tranche_width {}: _(RawOrigin::Root, 10)
-
-	set_needed_approvals {}: _(RawOrigin::Root, 5)
-
-	set_relay_vrf_modulo_samples {}: _(RawOrigin::Root, 10)
-
-	set_max_upward_queue_count {}: _(RawOrigin::Root, 3)
-
-	set_max_upward_queue_size {}: _(RawOrigin::Root, 10)
-
-	set_max_downward_message_size {}: _(RawOrigin::Root, 1024)
-
-	set_ump_service_total_weight {}: _(RawOrigin::Root, 3_000_000)
-
-	set_max_upward_message_size {}: _(RawOrigin::Root, 1024)
-
-	set_max_upward_message_num_per_candidate {}: _(RawOrigin::Root, 10)
+	set_config_with_weight {}: set_ump_service_total_weight(RawOrigin::Root, 3_000_000)
 
 	set_hrmp_open_request_ttl {}: {
 		Err(BenchmarkError::Override(
@@ -84,25 +34,7 @@ benchmarks! {
 		))?;
 	}
 
-	set_hrmp_sender_deposit {}: _(RawOrigin::Root, 100)
-
-	set_hrmp_recipient_deposit {}: _(RawOrigin::Root, 100)
-
-	set_hrmp_channel_max_capacity {}: _(RawOrigin::Root, 10)
-
-	set_hrmp_channel_max_total_size {}: _(RawOrigin::Root, 100)
-
-	set_hrmp_max_parachain_inbound_channels {}: _(RawOrigin::Root, 10)
-
-	set_hrmp_max_parathread_inbound_channels {}: _(RawOrigin::Root, 10)
-
-	set_hrmp_channel_max_message_size {}: _(RawOrigin::Root, 1024)
-
-	set_hrmp_max_parachain_outbound_channels {}: _(RawOrigin::Root, 10)
-
-	set_hrmp_max_parathread_outbound_channels {}: _(RawOrigin::Root, 10)
-
-	set_hrmp_max_message_num_per_candidate {}: _(RawOrigin::Root, 10)
+	set_config_with_balance {}: set_hrmp_sender_deposit(RawOrigin::Root, 100_000_000_000)
 }
 
 impl_benchmark_test_suite!(
