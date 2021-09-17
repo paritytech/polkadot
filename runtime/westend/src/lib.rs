@@ -1438,8 +1438,8 @@ sp_api::impl_runtime_apis! {
 			let weight = Executive::try_runtime_upgrade().unwrap();
 			(weight, BlockWeights::get().max_block)
 		}
-		fn execute_block_no_state_root_check(block: Block) -> Weight {
-			Executive::execute_block_no_state_root_check(block)
+		fn execute_block_no_check(block: Block) -> Weight {
+			Executive::execute_block_no_check(block)
 		}
 	}
 
