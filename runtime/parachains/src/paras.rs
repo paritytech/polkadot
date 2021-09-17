@@ -41,6 +41,9 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::Origin as ParachainOrigin;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
 pub use pallet::*;
 
 // the two key times necessary to track for every code replacement.
@@ -265,6 +268,14 @@ pub struct ParaGenesisArgs {
 	pub validation_code: ValidationCode,
 	/// True if parachain, false if parathread.
 	pub parachain: bool,
+}
+
+pub trait WeightInfo {
+	fn force_set_current_code() -> Weight;
+	fn force_set_current_head() -> Weight;
+	fn force_schedule_code_upgrade() -> Weight;
+	fn force_note_new_head() -> Weight;
+	fn force_queue_action() -> Weight;
 }
 
 #[frame_support::pallet]
