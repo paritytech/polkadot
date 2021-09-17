@@ -14,7 +14,7 @@ GITREPO=polkadot
 
 # Build the image
 echo "Building ${GITUSER}/${GITREPO}:latest docker image, hang on!"
-time docker build -f ./docker/Dockerfile --build-arg RUSTC_WRAPPER= --build-arg PROFILE=release -t ${GITUSER}/${GITREPO}:latest .
+time docker build -f ./scripts/docker/polkadot/manual.Dockerfile --build-arg RUSTC_WRAPPER= --build-arg PROFILE=release -t ${GITUSER}/${GITREPO}:latest .
 
 # Show the list of available images for this repo
 echo "Image is ready"
