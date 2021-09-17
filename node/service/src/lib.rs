@@ -1340,7 +1340,13 @@ pub fn new_chain_ops(
 		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; westend_runtime, WestendExecutorDispatch, Westend)
 	}
 
-	chain_ops!(config, jaeger_agent, telemetry_worker_handle; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
+	#[cfg(feature = "polkadot-native")]
+	{
+		chain_ops!(config, jaeger_agent, telemetry_worker_handle; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
+	}
+	
+	#[cfg(not(feature = "polkadot-native"))]
+	Err(Error::NoRuntime)
 }
 
 /// Build a new light node.
