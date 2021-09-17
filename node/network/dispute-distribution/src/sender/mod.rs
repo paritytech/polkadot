@@ -97,9 +97,15 @@ impl DisputeSender {
 				return Ok(())
 			},
 			Entry::Vacant(vacant) => {
-				let send_task =
-					SendTask::new(ctx, runtime, &self.active_sessions, self.tx.clone(), req)
-						.await?;
+				let send_task = SendTask::new(
+					ctx,
+					runtime,
+					&self.active_sessions,
+					self.tx.clone(),
+					req,
+					&self.metrics,
+				)
+				.await?;
 				vacant.insert(send_task);
 			},
 		}
@@ -140,7 +146,9 @@ impl DisputeSender {
 
 		for dispute in self.disputes.values_mut() {
 			if have_new_sessions || dispute.has_failed_sends() {
-				dispute.refresh_sends(ctx, runtime, &self.active_sessions).await?;
+				dispute
+					.refresh_sends(ctx, runtime, &self.active_sessions, &self.metrics)
+					.await?;
 			}
 		}
 
