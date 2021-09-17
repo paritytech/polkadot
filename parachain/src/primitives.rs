@@ -21,6 +21,7 @@ use sp_std::vec::Vec;
 
 use frame_support::weights::Weight;
 use parity_scale_codec::{CompactAs, Decode, Encode};
+use scale_info::TypeInfo;
 use sp_core::{RuntimeDebug, TypeId};
 use sp_runtime::traits::Hash as _;
 
@@ -40,7 +41,7 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(
-	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From,
+	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash, MallocSizeOf))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
@@ -53,7 +54,9 @@ impl HeadData {
 }
 
 /// Parachain validation code.
-#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From)]
+#[derive(
+	Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
+)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
@@ -69,7 +72,7 @@ impl ValidationCode {
 /// This type is produced by [`ValidationCode::hash`].
 ///
 /// This type makes it easy to enforce that a hash is a validation code hash on the type level.
-#[derive(Clone, Copy, Encode, Decode, Default, Hash, Eq, PartialEq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Encode, Decode, Default, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct ValidationCodeHash(Hash);
 
@@ -112,7 +115,7 @@ impl sp_std::fmt::LowerHex for ValidationCodeHash {
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, MallocSizeOf))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
@@ -130,6 +133,7 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec
 	PartialEq,
 	PartialOrd,
 	RuntimeDebug,
+	TypeInfo,
 )]
 #[cfg_attr(
 	feature = "std",
@@ -227,7 +231,9 @@ impl sp_std::ops::Sub<u32> for Id {
 	}
 }
 
-#[derive(Clone, Copy, Default, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
+#[derive(
+	Clone, Copy, Default, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug, TypeInfo,
+)]
 pub struct Sibling(pub Id);
 
 impl From<Id> for Sibling {
@@ -330,7 +336,7 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 /// is allowed between two participants in one direction, i.e. there cannot be 2 different channels
 /// identified by `(A, B)`. A channel with the same para id in sender and recipient is invalid. That
 /// is, however, not enforced.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct HrmpChannelId {
 	/// The para that acts as the sender in this channel.
@@ -370,7 +376,7 @@ impl DmpMessageHandler for () {
 }
 
 /// The aggregate XCMP message format.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
 pub enum XcmpMessageFormat {
 	/// Encoded `VersionedXcm` messages, all concatenated.
 	ConcatenatedVersionedXcm,

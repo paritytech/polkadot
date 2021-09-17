@@ -35,12 +35,13 @@ use sp_std::{prelude::*, result};
 use crate::traits::{OnSwap, Registrar};
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{CheckedSub, Saturating},
 	RuntimeDebug,
 };
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug, TypeInfo)]
 pub struct ParaInfo<Account, Balance> {
 	/// The account that has placed a deposit for registering this para.
 	pub(crate) manager: Account,
@@ -124,7 +125,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::AccountId = "AccountId")]
 	pub enum Event<T: Config> {
 		Registered(ParaId, T::AccountId),
 		Deregistered(ParaId),
