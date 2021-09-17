@@ -1,14 +1,14 @@
 # This is the build stage for Polkadot. Here we create the binary in a temporary image.
 FROM docker.io/paritytech/ci-linux:production as builder
 
-ARG PROFILE=release
-
 WORKDIR /polkadot
 
 COPY . /polkadot
 
-RUN cargo build --locked --$PROFILE
-
+RUN cargo build --locked --release
+# RUN mkdir -p /polkadot/target/release/ && \
+# 	echo "#!/usr/bin/bash\nprintf 'Hello'\n" > /polkadot/target/release/polkadot && \
+# 	chmod +x /polkadot/target/release/polkadot
 
 # This is the 2nd stage: a very small image where we copy the Polkadot binary."
 FROM docker.io/library/ubuntu:20.04
@@ -21,20 +21,18 @@ LABEL description="Multistage Docker image for Polkadot: a platform for web3" \
 	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/docker/Dockerfile" \
 	io.parity.image.documentation="https://github.com/paritytech/polkadot/"
 
-ARG PROFILE=release
-
-COPY --from=builder /polkadot/target/$PROFILE/polkadot /usr/local/bin
+COPY --from=builder /polkadot/target/release/polkadot /usr/local/bin
 
 RUN useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
 	mkdir -p /data /polkadot/.local/share && \
 	chown -R polkadot:polkadot /data && \
-	ln -s /data /polkadot/.local/share/polkadot && \
-	rm -rf /usr/bin /usr/sbin
-
-USER polkadot
+	ln -s /data /polkadot/.local/share/polkadot
 
 # check if executable works in this container
 RUN /usr/local/bin/polkadot --version
+
+RUN	rm -rf /usr/bin /usr/sbin
+USER polkadot
 
 EXPOSE 30333 9933 9944 9615
 VOLUME ["/data"]
