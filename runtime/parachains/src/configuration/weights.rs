@@ -34,7 +34,7 @@ use sp_std::marker::PhantomData;
 
 /// Weight functions for runtime_parachains::configuration.
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for WeightInfo<T> {
+impl<T: frame_system::Config> super::WeightInfo for WeightInfo<T> {
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	// Storage: Configuration PendingConfig (r:1 w:0)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
