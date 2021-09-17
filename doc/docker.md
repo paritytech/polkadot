@@ -118,7 +118,7 @@ To get up and running with the smallest footprint on your system, you may use th
 You can build it yourself (it takes a while...) in the shell session of the daemon:
 
 ```bash
-cd docker
+cd scripts/docker/polkadot
 ./build.sh
 ```
 

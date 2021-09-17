@@ -9,7 +9,7 @@ LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
 	io.parity.image.title="${IMAGE_NAME}" \
 	io.parity.image.description="Polkadot: a platform for web3" \
-	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/docker/Dockerfile" \
+	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/docker/ci_debug.Dockerfile" \
 	io.parity.image.revision="${VCS_REF}" \
 	io.parity.image.created="${BUILD_DATE}" \
 	io.parity.image.documentation="https://github.com/paritytech/polkadot/"
@@ -21,8 +21,7 @@ ENV RUST_BACKTRACE 1
 RUN apt-get update && \
 	DEBIAN_FRONTEND=noninteractive apt-get install -y \
 		libssl1.1 \
-		ca-certificates \
-		curl && \
+		ca-certificates && \
 # apt cleanup
 	apt-get autoremove -y && \
 	apt-get clean && \
