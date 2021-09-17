@@ -24,12 +24,10 @@ use polkadot_node_core_chain_selection::Config as ChainSelectionConfig;
 use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
 use polkadot_node_network_protocol::request_response::{v1 as request_v1, IncomingRequestReceiver};
 #[cfg(feature = "malus")]
+pub use polkadot_overseer::{dummy::DummySubsystem, AllSubsystems, HeadSupportsParachains};
 pub use polkadot_overseer::{
-	dummy::{dummy_overseer_builder, DummySubsystem},
-	HeadSupportsParachains,
-};
-pub use polkadot_overseer::{
-	BlockInfo, MetricsTrait, Overseer, OverseerBuilder, OverseerConnector, OverseerHandle,
+	metrics::{Metrics, MetricsTrait},
+	BlockInfo, Overseer, OverseerBuilder, OverseerConnector, OverseerHandle,
 };
 
 use polkadot_primitives::v1::ParachainHost;
@@ -328,8 +326,7 @@ where
 	use polkadot_node_subsystem_util::metrics::Metrics;
 	use std::iter::FromIterator;
 
-	let metrics: polkadot_overseer::Metrics =
-		<polkadot_overseer::Metrics as MetricsTrait>::register(registry)?;
+	let metrics = <polkadot_overseer::metrics::Metrics as MetricsTrait>::register(registry)?;
 
 	let builder = Overseer::builder()
 		.availability_distribution(AvailabilityDistributionSubsystem::new(

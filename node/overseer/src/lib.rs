@@ -90,12 +90,17 @@ pub use polkadot_node_subsystem_types::{
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
 };
 
+/// Test helper supplements.
+pub mod dummy;
+pub use self::dummy::DummySubsystem;
+
 // TODO legacy, to be deleted, left for easier integration
 // TODO https://github.com/paritytech/polkadot/issues/3427
 mod subsystems;
-pub use self::subsystems::{AllSubsystems, DummySubsystem};
+pub use self::subsystems::AllSubsystems;
 
-mod metrics;
+/// Metrics re-exports of `polkadot-metrics`.
+pub mod metrics;
 use self::metrics::Metrics;
 
 use polkadot_node_metrics::{
@@ -115,7 +120,7 @@ pub use polkadot_overseer_gen::{
 
 /// Store 2 days worth of blocks, not accounting for forks,
 /// in the LRU cache. Assumes a 6-second block time.
-const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
+pub const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
 
 #[cfg(test)]
 mod tests;
