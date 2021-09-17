@@ -8,6 +8,7 @@ services:
       - "30333:30333"
       - "9933:9933"
       - "9944:9944"
+      - "9615:9615"
     image: chevdor/polkadot:latest
     volumes:
       - "polkadot-data-alice:/data"
@@ -24,6 +25,7 @@ services:
       - "30344:30344"
       - "9935:9935"
       - "9945:9945"
+      - "9615:9615"
     image: chevdor/polkadot:latest
     volumes:
       - "polkadot-data-bob:/data"
