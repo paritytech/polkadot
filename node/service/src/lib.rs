@@ -23,6 +23,9 @@ mod grandpa_support;
 mod parachains_db;
 mod relay_chain_selection;
 
+// TODO(niklasad1): this should be replaced.
+type RpcHandlers = ();
+
 #[cfg(feature = "full-node")]
 mod overseer;
 
@@ -68,7 +71,6 @@ use polkadot_subsystem::jaeger;
 use std::{sync::Arc, time::Duration};
 
 use prometheus_endpoint::Registry;
-use service::RpcHandlers;
 use telemetry::TelemetryWorker;
 #[cfg(feature = "full-node")]
 use telemetry::{Telemetry, TelemetryWorkerHandle};
@@ -331,7 +333,10 @@ fn new_partial<RuntimeApi, ExecutorDispatch>(
 		sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
 		(
-			impl service::RpcExtensionBuilder,
+			impl Fn(
+				sc_rpc_api::DenyUnsafe,
+				sc_rpc::SubscriptionTaskExecutor,
+			) -> Result<jsonrpsee::RpcModule<()>, SubstrateServiceError>,
 			(
 				babe::BabeBlockImport<
 					Block,
@@ -791,7 +796,7 @@ where
 		client: client.clone(),
 		keystore: keystore_container.sync_keystore(),
 		network: network.clone(),
-		rpc_extensions_builder: Box::new(rpc_extensions_builder),
+		rpc_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
 		on_demand: None,

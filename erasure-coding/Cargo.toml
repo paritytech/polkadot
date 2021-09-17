@@ -9,6 +9,6 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../node/primitives" }
 novelpoly = { package = "reed-solomon-novelpoly", version = "1.0.0" }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["std", "derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
 thiserror = "1.0.26"

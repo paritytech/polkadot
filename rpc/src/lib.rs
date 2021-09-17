@@ -20,6 +20,7 @@
 
 use std::sync::Arc;
 
+use jsonrpsee::RpcModule;
 use polkadot_primitives::v0::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
 use sc_client_api::{
 	light::{Fetcher, RemoteBlockchain},
@@ -28,7 +29,6 @@ use sc_client_api::{
 use sc_consensus_babe::Epoch;
 use sc_finality_grandpa::FinalityProofProvider;
 pub use sc_rpc::{DenyUnsafe, SubscriptionTaskExecutor};
-use sc_sync_state_rpc::{SyncStateRpcApi, SyncStateRpcHandler};
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
@@ -38,7 +38,7 @@ use sp_keystore::SyncCryptoStorePtr;
 use txpool_api::TransactionPool;
 
 /// A type representing all RPC extensions.
-pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
+pub type RpcExtension = RpcModule<()>;
 
 /// Light client extra dependencies.
 pub struct LightDeps<C, F, P> {
@@ -126,13 +126,16 @@ where
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
-	use frame_rpc_system::{FullSystem, SystemApi};
-	use pallet_mmr_rpc::{Mmr, MmrApi};
-	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
-	use sc_consensus_babe_rpc::BabeRpcHandler;
-	use sc_finality_grandpa_rpc::{GrandpaApi, GrandpaRpcHandler};
 
-	let mut io = jsonrpc_core::IoHandler::default();
+	use frame_rpc_system::{SystemApiServer, SystemRpc, SystemRpcBackendFull};
+	use pallet_mmr_rpc::{MmrApiServer, MmrRpc};
+	use pallet_transaction_payment_rpc::{TransactionPaymentApiServer, TransactionPaymentRpc};
+	use sc_consensus_babe_rpc::{BabeRpc, BabeApiServer};
+	use sc_finality_grandpa_rpc::{GrandpaApiServer, GrandpaRpc};
+	use sc_sync_state_rpc::{SyncStateRpc, SyncStateRpcApiServer};
+	use beefy_gadget_rpc::{BeefyApiServer, BeefyRpcHandler};
+
+	let mut io = RpcModule::new(());
 	let FullDeps { client, pool, select_chain, chain_spec, deny_unsafe, babe, grandpa, beefy } =
 		deps;
 	let BabeDeps { keystore, babe_config, shared_epoch_changes } = babe;
@@ -144,44 +147,53 @@ where
 		finality_provider,
 	} = grandpa;
 
-	io.extend_with(SystemApi::to_delegate(FullSystem::new(client.clone(), pool, deny_unsafe)));
-	io.extend_with(TransactionPaymentApi::to_delegate(TransactionPayment::new(client.clone())));
-	io.extend_with(MmrApi::to_delegate(Mmr::new(client.clone())));
-	io.extend_with(sc_consensus_babe_rpc::BabeApi::to_delegate(BabeRpcHandler::new(
-		client.clone(),
-		shared_epoch_changes.clone(),
-		keystore,
-		babe_config,
-		select_chain,
-		deny_unsafe,
-	)));
-	io.extend_with(GrandpaApi::to_delegate(GrandpaRpcHandler::new(
-		shared_authority_set.clone(),
-		shared_voter_state,
-		justification_stream,
-		subscription_executor,
-		finality_provider,
-	)));
-	io.extend_with(SyncStateRpcApi::to_delegate(SyncStateRpcHandler::new(
-		chain_spec,
-		client,
-		shared_authority_set,
-		shared_epoch_changes,
-		deny_unsafe,
-	)?));
+	let system_backend = SystemRpcBackendFull::new(client.clone(), pool, deny_unsafe);
+	io.merge(SystemRpc::new(Box::new(system_backend)).into_rpc())?;
+	io.merge(TransactionPaymentRpc::new(client.clone()).into_rpc())?;
+	io.merge(MmrRpc::new(client.clone()).into_rpc())?;
+	io.merge(
+		BabeRpc::new(
+			client.clone(),
+			shared_epoch_changes.clone(),
+			keystore,
+			babe_config,
+			select_chain,
+			deny_unsafe,
+		)
+		.into_rpc(),
+	)?;
+	io.merge(
+		GrandpaRpc::new(
+			subscription_executor,
+			shared_authority_set.clone(),
+			shared_voter_state,
+			justification_stream,
+			finality_provider,
+		)
+		.into_rpc(),
+	)?;
+	io.merge(
+		SyncStateRpc::new(
+			chain_spec,
+			client,
+			shared_authority_set,
+			shared_epoch_changes,
+			deny_unsafe,
+		)?
+		.into_rpc(),
+	)?;
 
-	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
-		beefy_gadget_rpc::BeefyRpcHandler::new(
+	io.merge(BeefyRpcHandler::new(
 			beefy.beefy_commitment_stream,
 			beefy.subscription_executor,
-		),
-	));
+		).into_rpc()
+	)?;
 
 	Ok(io)
 }
 
 /// Instantiate all RPC extensions for light node.
-pub fn create_light<C, P, F>(deps: LightDeps<C, F, P>) -> RpcExtension
+pub fn create_light<C, P, F>(deps: LightDeps<C, F, P>) -> Result<RpcExtension, Box<dyn std::error::Error + Send + Sync>>
 where
 	C: ProvideRuntimeApi<Block>,
 	C: HeaderBackend<Block>,
@@ -191,15 +203,12 @@ where
 	P: TransactionPool + Sync + Send + 'static,
 	F: Fetcher<Block> + 'static,
 {
-	use frame_rpc_system::{LightSystem, SystemApi};
+
+	use frame_rpc_system::{SystemApiServer, SystemRpc, SystemRpcBackendLight};
 
 	let LightDeps { client, pool, remote_blockchain, fetcher } = deps;
-	let mut io = jsonrpc_core::IoHandler::default();
-	io.extend_with(SystemApi::<Hash, AccountId, Nonce>::to_delegate(LightSystem::new(
-		client,
-		remote_blockchain,
-		fetcher,
-		pool,
-	)));
-	io
+	let mut io = RpcModule::new(());
+	let backend = SystemRpcBackendLight::new(client, pool, fetcher, remote_blockchain);
+	io.merge(SystemRpc::<Hash, AccountId, Nonce>::new(Box::new(backend)).into_rpc())?;
+	Ok(io)
 }

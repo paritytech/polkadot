@@ -17,4 +17,4 @@ polkadot-primitives = { path = "../../../primitives" }
 assert_matches = "1.5.0"
 parity-scale-codec = "2.0.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers"}
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
