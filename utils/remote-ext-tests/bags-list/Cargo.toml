@@ -10,7 +10,7 @@ kusama-runtime = { version = "0.9.8", path = "../../../runtime/kusama" }
 
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "zeke-voter-bags-module" }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
