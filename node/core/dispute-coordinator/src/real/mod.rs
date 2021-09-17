@@ -59,7 +59,6 @@ use sc_keystore::LocalKeystore;
 use crate::metrics::Metrics;
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
-use metrics::Metrics;
 
 mod backend;
 mod db;
