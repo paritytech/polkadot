@@ -21,7 +21,7 @@
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("westend-dev"), DB CACHE: 128
 
 // Executed Command:
-// ./target/release/polkadot
+// target/release/polkadot
 // benchmark
 // --chain=westend-dev
 // --steps=50
@@ -43,18 +43,18 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
-/// Weights for `pallet_xcm_benchmarks::fungible` using the Substrate node and recommended hardware.
+/// Weights for `pallet_xcm_benchmarks::fungible`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: System Account (r:1 w:1)
 	pub(crate) fn withdraw_asset() -> Weight {
-		(27_000_000 as Weight)
+		(39_691_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	// Storage: System Account (r:2 w:2)
 	pub(crate) fn transfer_asset() -> Weight {
-		(42_000_000 as Weight)
+		(62_616_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
@@ -62,7 +62,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn transfer_reserve_asset() -> Weight {
-		(61_000_000 as Weight)
+		(86_642_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(4 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
@@ -72,7 +72,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	}
 	// Storage: System Account (r:1 w:1)
 	pub(crate) fn deposit_asset() -> Weight {
-		(37_000_000 as Weight)
+		(49_745_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -80,7 +80,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn deposit_reserve_asset() -> Weight {
-		(57_000_000 as Weight)
+		(75_318_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
@@ -88,7 +88,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn initiate_teleport() -> Weight {
-		(54_000_000 as Weight)
+		(75_467_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
