@@ -34,7 +34,7 @@ RUN useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
 USER polkadot
 
 # check if executable works in this container
-RUN /usr/bin/polkadot --version
+RUN /usr/local/bin/polkadot --version
 
 EXPOSE 30333 9933 9944 9615
 VOLUME ["/data"]
