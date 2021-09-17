@@ -1,4 +1,4 @@
-FROM debian:buster-slim
+FROM docker.io/library/ubuntu:20.04
 
 # metadata
 ARG VCS_REF
@@ -8,7 +8,7 @@ ARG IMAGE_NAME
 LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
 	io.parity.image.title="${IMAGE_NAME}" \
-	io.parity.image.description="polkadot: a platform for web3" \
+	io.parity.image.description="Polkadot: a platform for web3" \
 	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/docker/Dockerfile" \
 	io.parity.image.revision="${VCS_REF}" \
 	io.parity.image.created="${BUILD_DATE}" \

@@ -25,6 +25,7 @@ use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
 };
+use scale_info::TypeInfo;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash as HashT, UniqueSaturatedInto};
 use sp_std::{
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -35,7 +36,7 @@ use sp_std::{
 pub use pallet::*;
 
 /// A description of a request to open an HRMP channel.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, TypeInfo)]
 pub struct HrmpOpenChannelRequest {
 	/// Indicates if this request was confirmed by the recipient.
 	pub confirmed: bool,
@@ -53,7 +54,7 @@ pub struct HrmpOpenChannelRequest {
 }
 
 /// A metadata of an HRMP channel.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub struct HrmpChannel {
 	// NOTE: This structure is used by parachains via merkle proofs. Therefore, this struct requires

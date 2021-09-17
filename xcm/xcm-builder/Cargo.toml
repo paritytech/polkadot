@@ -7,6 +7,7 @@ version = "0.9.9"
 
 [dependencies]
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -32,6 +33,7 @@ runtime-benchmarks = []
 std = [
 	"log/std",
 	"parity-scale-codec/std",
+	"scale-info/std",
 	"xcm/std",
 	"xcm-executor/std",
 	"sp-std/std",

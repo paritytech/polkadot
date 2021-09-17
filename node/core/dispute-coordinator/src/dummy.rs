@@ -30,6 +30,8 @@ use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use sc_keystore::LocalKeystore;
 
+use crate::metrics::Metrics;
+
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
 
 /// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
@@ -52,7 +54,7 @@ pub struct DisputeCoordinatorSubsystem {}
 
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
-	pub fn new(_: Arc<dyn KeyValueDB>, _: Config, _: Arc<LocalKeystore>) -> Self {
+	pub fn new(_: Arc<dyn KeyValueDB>, _: Config, _: Arc<LocalKeystore>, _: Metrics) -> Self {
 		DisputeCoordinatorSubsystem {}
 	}
 }
