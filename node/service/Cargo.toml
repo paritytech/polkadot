@@ -26,6 +26,7 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
+lru = "0.6"
 
 # Substrate Primitives
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }

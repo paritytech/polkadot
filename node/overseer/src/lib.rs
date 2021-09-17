@@ -70,7 +70,6 @@ use std::{
 
 use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, StreamExt};
 use lru::LruCache;
-use parking_lot::RwLock;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use polkadot_primitives::v1::{Block, BlockId, BlockNumber, Hash, ParachainHost};
@@ -91,12 +90,17 @@ pub use polkadot_node_subsystem_types::{
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
 };
 
+/// Test helper supplements.
+pub mod dummy;
+pub use self::dummy::DummySubsystem;
+
 // TODO legacy, to be deleted, left for easier integration
 // TODO https://github.com/paritytech/polkadot/issues/3427
 mod subsystems;
-pub use self::subsystems::{AllSubsystems, DummySubsystem};
+pub use self::subsystems::AllSubsystems;
 
-mod metrics;
+/// Metrics re-exports of `polkadot-metrics`.
+pub mod metrics;
 use self::metrics::Metrics;
 
 use polkadot_node_metrics::{
@@ -116,7 +120,7 @@ pub use polkadot_overseer_gen::{
 
 /// Store 2 days worth of blocks, not accounting for forks,
 /// in the LRU cache. Assumes a 6-second block time.
-const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
+pub const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
 
 #[cfg(test)]
 mod tests;
@@ -142,18 +146,12 @@ where
 ///
 /// [`Overseer`]: struct.Overseer.html
 #[derive(Clone)]
-pub enum Handle {
-	/// Used only at initialization to break the cyclic dependency.
-	// TODO: refactor in https://github.com/paritytech/polkadot/issues/3427
-	Disconnected(Arc<RwLock<Option<OverseerHandle>>>),
-	/// A handle to the overseer.
-	Connected(OverseerHandle),
-}
+pub struct Handle(pub OverseerHandle);
 
 impl Handle {
-	/// Create a new disconnected [`Handle`].
-	pub fn new_disconnected() -> Self {
-		Self::Disconnected(Arc::new(RwLock::new(None)))
+	/// Create a new [`Handle`].
+	pub fn new(raw: OverseerHandle) -> Self {
+		Self(raw)
 	}
 
 	/// Inform the `Overseer` that that some block was imported.
@@ -202,58 +200,8 @@ impl Handle {
 
 	/// Most basic operation, to stop a server.
 	async fn send_and_log_error(&mut self, event: Event) {
-		self.try_connect();
-		if let Self::Connected(ref mut handle) = self {
-			if handle.send(event).await.is_err() {
-				tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
-			}
-		} else {
-			tracing::warn!(target: LOG_TARGET, "Using a disconnected Handle to send to Overseer");
-		}
-	}
-
-	/// Whether the handle is disconnected.
-	pub fn is_disconnected(&self) -> bool {
-		match self {
-			Self::Disconnected(ref x) => x.read().is_none(),
-			_ => false,
-		}
-	}
-
-	/// Connect this handle and all disconnected clones of it to the overseer.
-	pub fn connect_to_overseer(&mut self, handle: OverseerHandle) {
-		match self {
-			Self::Disconnected(ref mut x) => {
-				let mut maybe_handle = x.write();
-				if maybe_handle.is_none() {
-					tracing::info!(target: LOG_TARGET, "🖇️ Connecting all Handles to Overseer");
-					*maybe_handle = Some(handle);
-				} else {
-					tracing::warn!(
-						target: LOG_TARGET,
-						"Attempting to connect a clone of a connected Handle",
-					);
-				}
-			},
-			_ => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"Attempting to connect an already connected Handle",
-				);
-			},
-		}
-	}
-
-	/// Try upgrading from `Self::Disconnected` to `Self::Connected` state
-	/// after calling `connect_to_overseer` on `self` or a clone of `self`.
-	fn try_connect(&mut self) {
-		if let Self::Disconnected(ref mut x) = self {
-			let guard = x.write();
-			if let Some(ref h) = *guard {
-				let handle = h.clone();
-				drop(guard);
-				*self = Self::Connected(handle);
-			}
+		if self.0.send(event).await.is_err() {
+			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
 		}
 	}
 }
@@ -491,12 +439,13 @@ where
 	/// # use polkadot_primitives::v1::Hash;
 	/// # use polkadot_overseer::{
 	/// # 	self as overseer,
+	/// # 	Overseer,
 	/// #   OverseerSignal,
+	/// # 	OverseerConnector,
 	/// # 	SubsystemSender as _,
 	/// # 	AllMessages,
 	/// # 	AllSubsystems,
 	/// # 	HeadSupportsParachains,
-	/// # 	Overseer,
 	/// # 	SubsystemError,
 	/// # 	gen::{
 	/// # 		SubsystemContext,
@@ -550,6 +499,7 @@ where
 	///     None,
 	///     AlwaysSupportsParachains,
 	///     spawner,
+	///     OverseerConnector::default(),
 	/// ).unwrap();
 	///
 	/// let timer = Delay::new(Duration::from_millis(50)).fuse();
@@ -616,6 +566,7 @@ where
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
 		s: S,
+		connector: OverseerConnector,
 	) -> SubsystemResult<(Self, OverseerHandle)>
 	where
 		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
@@ -680,7 +631,7 @@ where
 			.supports_parachains(supports_parachains)
 			.metrics(metrics.clone())
 			.spawner(s)
-			.build()?;
+			.build_with_connector(connector)?;
 
 		// spawn the metrics metronome task
 		{

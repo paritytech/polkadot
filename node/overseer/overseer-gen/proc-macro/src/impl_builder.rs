@@ -130,7 +130,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				&mut self.handle
 			}
 			/// Obtain access to the overseer handle.
-			pub fn as_handle(&mut self) -> &#handle {
+			pub fn as_handle(&self) -> &#handle {
 				&self.handle
 			}
 		}

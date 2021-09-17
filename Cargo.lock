@@ -6841,6 +6841,7 @@ dependencies = [
  "kvdb",
  "kvdb-rocksdb",
  "log",
+ "lru",
  "pallet-babe",
  "pallet-im-online",
  "pallet-mmr-primitives",
