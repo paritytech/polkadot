@@ -22,7 +22,6 @@ mod voter_bags;
 
 #[derive(StructOpt)]
 enum Runtime {
-	Polkadot,
 	Kusama,
 }
 
@@ -30,7 +29,6 @@ impl std::str::FromStr for Runtime {
 	type Err = &'static str;
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		match s.to_lowercase().as_str() {
-			"polkadot" => Ok(Runtime::Polkadot),
 			"kusama" => Ok(Runtime::Kusama),
 			_ => Err("wrong Runtime: can be 'polkadot' or 'kusama'."),
 		}
@@ -39,9 +37,9 @@ impl std::str::FromStr for Runtime {
 
 #[derive(StructOpt)]
 struct Cli {
-	#[structopt(long, default_value = "wss://rpc.polkadot.io")]
+	#[structopt(long, default_value = "wss://rpc.kusama.io")]
 	uri: String,
-	#[structopt(long, short, default_value = "polkadot")]
+	#[structopt(long, short, default_value = "kusama")]
 	runtime: Runtime,
 }
 
@@ -51,14 +49,6 @@ async fn main() {
 	match options.runtime {
 		Runtime::Kusama => {
 			use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
-			voter_bags::test_voter_bags_migration::<Runtime, Block>(
-				UNITS as u64,
-				options.uri.clone(),
-			)
-			.await;
-		},
-		Runtime::Polkadot => {
-			use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
 			voter_bags::test_voter_bags_migration::<Runtime, Block>(
 				UNITS as u64,
 				options.uri.clone(),
