@@ -32,21 +32,22 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
-/// Weight functions for runtime_parachains::configuration.
+/// Weight functions for `runtime_parachains::configuration`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> super::WeightInfo for WeightInfo<T> {
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
-	// Storage: Configuration PendingConfig (r:1 w:0)
+	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_config_with_block_number() -> Weight {
-		(10_419_000 as Weight)
+		(16_730_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_config_with_u32() -> Weight {
-		(15_119_000 as Weight)
+		(16_592_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -54,7 +55,7 @@ impl<T: frame_system::Config> super::WeightInfo for WeightInfo<T> {
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_config_with_option_u32() -> Weight {
-		(15_225_000 as Weight)
+		(16_419_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -62,7 +63,7 @@ impl<T: frame_system::Config> super::WeightInfo for WeightInfo<T> {
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_config_with_weight() -> Weight {
-		(15_265_000 as Weight)
+		(16_732_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -74,7 +75,7 @@ impl<T: frame_system::Config> super::WeightInfo for WeightInfo<T> {
 	// Storage: Configuration PendingConfig (r:1 w:1)
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	fn set_config_with_balance() -> Weight {
-		(15_192_000 as Weight)
+		(16_752_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}

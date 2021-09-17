@@ -20,7 +20,7 @@ use frame_system::RawOrigin;
 use sp_runtime::traits::One;
 
 benchmarks! {
-	set_config_with_block_number {}: set_validation_upgrade_frequency(RawOrigin::Root, One::one())
+	set_config_with_block_number {}: set_code_retention_period(RawOrigin::Root, One::one())
 
 	set_config_with_u32 {}: set_max_code_size(RawOrigin::Root, 100)
 
