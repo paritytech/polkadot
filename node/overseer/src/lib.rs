@@ -439,12 +439,13 @@ where
 	/// # use polkadot_primitives::v1::Hash;
 	/// # use polkadot_overseer::{
 	/// # 	self as overseer,
+	/// # 	Overseer,
 	/// #   OverseerSignal,
+	/// # 	OverseerConnector,
 	/// # 	SubsystemSender as _,
 	/// # 	AllMessages,
 	/// # 	AllSubsystems,
 	/// # 	HeadSupportsParachains,
-	/// # 	Overseer,
 	/// # 	SubsystemError,
 	/// # 	gen::{
 	/// # 		SubsystemContext,
