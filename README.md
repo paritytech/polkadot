@@ -108,6 +108,22 @@ cargo build --release
 
 Note that compilation is a memory intensive process. We recommend having 4 GiB of physical RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
 
+#### Build from Source with Docker
+
+You can also build from source using 
+[Parity CI docker image](https://github.com/paritytech/scripts/tree/master/dockerfiles/ci-linux):
+
+```bash
+git checkout <latest tagged release>
+docker run --rm -it -w /shellhere/polkadot \
+                    -v $(pwd):/shellhere/polkadot \
+                    paritytech/ci-linux:production cargo build --release
+sudo chown -R $(id -u):$(id -g) target/
+```
+
+If you want to reproduce other steps of CI process you can use the following 
+[guide](https://github.com/paritytech/scripts#gitlab-ci-for-building-docker-images).
+
 ## Networks
 
 This repo supports runtimes for Polkadot, Kusama, and Westend.

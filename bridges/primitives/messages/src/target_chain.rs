@@ -21,13 +21,14 @@ use crate::{LaneId, Message, MessageData, MessageKey, OutboundLaneData};
 use bp_runtime::{messages::MessageDispatchResult, Size};
 use codec::{Decode, Encode, Error as CodecError};
 use frame_support::{weights::Weight, Parameter, RuntimeDebug};
+use scale_info::TypeInfo;
 use sp_std::{collections::btree_map::BTreeMap, fmt::Debug, prelude::*};
 
 /// Proved messages from the source chain.
 pub type ProvedMessages<Message> = BTreeMap<LaneId, ProvedLaneMessages<Message>>;
 
 /// Proved messages from single lane of the source chain.
-#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq)]
+#[derive(RuntimeDebug, Encode, Decode, Clone, PartialEq, Eq, TypeInfo)]
 pub struct ProvedLaneMessages<Message> {
 	/// Optional outbound lane state.
 	pub lane_state: Option<OutboundLaneData>,
