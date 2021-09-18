@@ -19,7 +19,7 @@ use crate::configuration::HostConfiguration;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
 use primitives::v1::{HeadData, Id as ParaId, ValidationCode};
-use sp_runtime::traits::One;
+use sp_runtime::traits::{One, Saturating};
 
 fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 	let events = frame_system::Pallet::<T>::events();
