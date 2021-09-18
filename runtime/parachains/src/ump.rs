@@ -1042,3 +1042,19 @@ pub(crate) mod tests {
 		});
 	}
 }
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking {
+	use super::{Pallet as Ump, *};
+
+	frame_benchmarking::benchmarks! {
+		service_overweight {}: {} verify {}
+	}
+
+	frame_benchmarking::impl_benchmark_test_suite!(
+		Ump,
+		crate::mock::new_test_ext(Default::default()),
+		crate::mock::Test
+	);
+}
+
