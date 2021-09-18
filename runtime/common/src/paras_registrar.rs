@@ -660,7 +660,9 @@ mod tests {
 		type WeightInfo = paras::weights::WeightInfo<Test>;
 	}
 
-	impl configuration::Config for Test {}
+	impl configuration::Config for Test {
+		type WeightInfo = configuration::weights::WeightInfo<Test>;
+	}
 
 	parameter_types! {
 		pub const ParaDeposit: Balance = 10;

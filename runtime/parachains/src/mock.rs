@@ -114,7 +114,9 @@ impl crate::initializer::Config for Test {
 	type ForceOrigin = frame_system::EnsureRoot<u64>;
 }
 
-impl crate::configuration::Config for Test {}
+impl crate::configuration::Config for Test {
+	type WeightInfo = crate::configuration::weights::WeightInfo<Test>;
+}
 
 impl crate::shared::Config for Test {}
 

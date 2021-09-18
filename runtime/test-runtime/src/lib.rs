@@ -454,7 +454,9 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-impl parachains_configuration::Config for Runtime {}
+impl parachains_configuration::Config for Runtime {
+	type WeightInfo = parachains_configuration::weights::WeightInfo<Runtime>;
+}
 
 impl parachains_shared::Config for Runtime {}
 
