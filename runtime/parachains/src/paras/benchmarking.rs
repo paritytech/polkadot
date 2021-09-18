@@ -14,12 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::*;
 use crate::configuration::HostConfiguration;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
 use primitives::v1::{HeadData, Id as ParaId, ValidationCode};
 use sp_runtime::traits::One;
-use super::*;
 
 fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 	let events = frame_system::Pallet::<T>::events();
