@@ -59,9 +59,9 @@ benchmarks! {
 		let new_head = HeadData(vec![0]);
 		// schedule an expired code upgrade for this para_id so that force_note_new_head would use
 		// the worst possible code path
-		let now = frame_system::Pallet::<T>::block_number() - One::one();
+		let expired = frame_system::Pallet::<T>::block_number().saturating_sub(One::one());
 		let config = HostConfiguration::<T::BlockNumber>::default();
-		Pallet::<T>::schedule_code_upgrade(para_id, ValidationCode(vec![0]), now, &config);
+		Pallet::<T>::schedule_code_upgrade(para_id, ValidationCode(vec![0]), expired, &config);
 	}: _(RawOrigin::Root, para_id, new_head)
 	verify {
 		assert_last_event::<T>(Event::NewHeadNoted(para_id).into());
