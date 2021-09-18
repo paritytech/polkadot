@@ -1345,7 +1345,7 @@ pub fn new_chain_ops(
 	{
 		chain_ops!(config, jaeger_agent, telemetry_worker_handle; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
 	}
-	
+
 	#[cfg(not(feature = "polkadot-native"))]
 	Err(Error::NoRuntime)
 }
