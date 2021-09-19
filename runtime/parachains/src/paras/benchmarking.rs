@@ -32,7 +32,7 @@ fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 fn generate_disordered_pruning<T: Config>() {
 	let mut needs_pruning = Vec::new();
 
-	for i in 0 .. 1000 {
+	for i in 0..1000 {
 		let id = ParaId::from(i);
 		let block_number = T::BlockNumber::from(1000u32);
 		needs_pruning.push((id, block_number));
