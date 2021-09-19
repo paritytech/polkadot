@@ -15,10 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::configuration::HostConfiguration;
+use crate::configuration::{self, HostConfiguration};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
-use primitives::v1::{HeadData, Id as ParaId, ValidationCode};
+use primitives::v1::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE};
 use sp_runtime::traits::{One, Saturating};
 
 fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
@@ -29,17 +29,31 @@ fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 	assert_eq!(event, &system_event);
 }
 
+fn generate_disordered_pruning<T: Config>() {
+	let mut needs_pruning = Vec::new();
+
+	for i in 0 .. 1000 {
+		let id = ParaId::from(i);
+		let block_number = T::BlockNumber::from(1000u32);
+		needs_pruning.push((id, block_number));
+	}
+
+	<Pallet<T> as Store>::PastCodePruning::put(needs_pruning);
+}
+
 benchmarks! {
 	force_set_current_code {
-		let c in 1024 .. 2048;
+		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
 		let para_id = ParaId::from(c as u32);
+		generate_disordered_pruning::<T>();
 	}: _(RawOrigin::Root, para_id, new_code)
 	verify {
 		assert_last_event::<T>(Event::CurrentCodeUpdated(para_id).into());
 	}
 	force_set_current_head {
-		let new_head = HeadData(vec![0]);
+		let max_head_data_size = configuration::Pallet::<T>::config().max_head_data_size as usize;
+		let new_head = HeadData(vec![0; max_head_data_size]);
 		let para_id = ParaId::from(1000);
 	}: _(RawOrigin::Root, para_id, new_head)
 	verify {
@@ -61,6 +75,7 @@ benchmarks! {
 		// the worst possible code path
 		let expired = frame_system::Pallet::<T>::block_number().saturating_sub(One::one());
 		let config = HostConfiguration::<T::BlockNumber>::default();
+		generate_disordered_pruning::<T>();
 		Pallet::<T>::schedule_code_upgrade(para_id, ValidationCode(vec![0]), expired, &config);
 	}: _(RawOrigin::Root, para_id, new_head)
 	verify {

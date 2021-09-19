@@ -505,7 +505,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Set the storage for the parachain validation code immediately.
-		#[pallet::weight(T::WeightInfo::force_set_current_code(new_code.0.len() as u32))]
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_code(new_code.0.len() as u32))]
 		pub fn force_set_current_code(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -524,7 +524,7 @@ pub mod pallet {
 		}
 
 		/// Set the storage for the current parachain head data immediately.
-		#[pallet::weight(T::WeightInfo::force_set_current_head())]
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_head())]
 		pub fn force_set_current_head(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -537,7 +537,7 @@ pub mod pallet {
 		}
 
 		/// Schedule an upgrade as if it was scheduled in the given relay parent block.
-		#[pallet::weight(T::WeightInfo::force_schedule_code_upgrade(new_code.0.len() as u32))]
+		#[pallet::weight(<T as Config>::WeightInfo::force_schedule_code_upgrade(new_code.0.len() as u32))]
 		pub fn force_schedule_code_upgrade(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -552,7 +552,7 @@ pub mod pallet {
 		}
 
 		/// Note a new block head for para within the context of the current block.
-		#[pallet::weight(T::WeightInfo::force_note_new_head())]
+		#[pallet::weight(<T as Config>::WeightInfo::force_note_new_head())]
 		pub fn force_note_new_head(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -568,7 +568,7 @@ pub mod pallet {
 		/// Put a parachain directly into the next session's action queue.
 		/// We can't queue it any sooner than this without going into the
 		/// initializer...
-		#[pallet::weight(T::WeightInfo::force_queue_action())]
+		#[pallet::weight(<T as Config>::WeightInfo::force_queue_action())]
 		pub fn force_queue_action(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			let next_session = shared::Pallet::<T>::session_index().saturating_add(One::one());
