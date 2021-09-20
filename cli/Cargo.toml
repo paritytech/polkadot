@@ -46,13 +46,6 @@ cli = [
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
 	"polkadot-node-core-pvf",
-# memory stats require jemalloc, which we know is enabled for Linux
-# but not present on wasm or windows
-# https://github.com/paritytech/parity-common/blob/master/parity-util-mem/src/allocators.rs#L9-L34
-# Once
-# https://github.com/rust-lang/cargo/issues/1197
-# is resolved.
-	"service/memory-stats",
 ]
 runtime-benchmarks = [ "service/runtime-benchmarks" ]
 trie-memory-tracker = [ "sp-trie/memory-tracker" ]

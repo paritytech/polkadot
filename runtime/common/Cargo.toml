@@ -10,6 +10,7 @@ bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
 log = { version = "0.4.13", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 serde = { version = "1.0.130", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
@@ -37,6 +38,7 @@ pallet-treasury = { git = "https://github.com/paritytech/substrate", default-fea
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
 pallet-beefy-mmr = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "na-jsonrpseeE", default-features = false }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-jsonrpsee-integration-2" }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "dp-jsonrpsee-integration-2" }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "dp-jsonrpsee-integration-2" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "dp-jsonrpsee-integration-2" }
@@ -63,6 +65,7 @@ no_std = []
 std = [
 	"bitvec/std",
 	"parity-scale-codec/std",
+	"scale-info/std",
 	"log/std",
 	"rustc-hex/std",
 	"serde_derive",
@@ -93,6 +96,7 @@ std = [
 	"runtime-parachains/std",
 	"xcm/std",
 	"sp-npos-elections/std",
+	"pallet-bags-list/std"
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",

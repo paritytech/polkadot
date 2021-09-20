@@ -13,8 +13,5 @@ metered-channel = { path = "../metered-channel" }
 
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "dp-jsonrpsee-integration-2" }
 
-jemalloc-ctl = { version = "0.3.3", optional = true }
-
 [features]
 default = []
-memory-stats = ["jemalloc-ctl"]

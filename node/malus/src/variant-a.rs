@@ -27,7 +27,7 @@ use polkadot_cli::{
 	create_default_subsystems,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
+		OverseerGen, OverseerGenArgs, ParachainHost, ProvideRuntimeApi, SpawnNamed,
 	},
 	Cli,
 };
@@ -35,11 +35,15 @@ use polkadot_cli::{
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-use polkadot_node_subsystem::messages::CandidateValidationMessage;
+use polkadot_node_subsystem::{
+	messages::{AllMessages, CandidateValidationMessage},
+	overseer::{self, OverseerConnector, OverseerHandle},
+	FromOverseer,
+};
 
-// Filter wrapping related types.
 use malus::*;
 
+// Filter wrapping related types.
 use std::sync::{
 	atomic::{AtomicUsize, Ordering},
 	Arc,
@@ -51,17 +55,27 @@ use structopt::StructOpt;
 #[derive(Clone, Default, Debug)]
 struct Skippy(Arc<AtomicUsize>);
 
-impl MsgFilter for Skippy {
+impl<Sender> MessageInterceptor<Sender> for Skippy
+where
+	Sender: overseer::SubsystemSender<AllMessages>
+		+ overseer::SubsystemSender<CandidateValidationMessage>
+		+ Clone
+		+ 'static,
+{
 	type Message = CandidateValidationMessage;
 
-	fn filter_in(&self, msg: FromOverseer<Self::Message>) -> Option<FromOverseer<Self::Message>> {
+	fn intercept_incoming(
+		&self,
+		_sender: &mut Sender,
+		msg: FromOverseer<Self::Message>,
+	) -> Option<FromOverseer<Self::Message>> {
 		if self.0.fetch_add(1, Ordering::Relaxed) % 2 == 0 {
 			Some(msg)
 		} else {
 			None
 		}
 	}
-	fn filter_out(&self, msg: AllMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
 		Some(msg)
 	}
 }
@@ -72,6 +86,7 @@ struct BehaveMaleficient;
 impl OverseerGen for BehaveMaleficient {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
+		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
@@ -88,7 +103,7 @@ impl OverseerGen for BehaveMaleficient {
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(
 			// create the filtered subsystem
 			|orig: CandidateValidationSubsystem| {
-				FilteredSubsystem::new(
+				InterceptedSubsystem::new(
 					CandidateValidationSubsystem::with_config(
 						candidate_validation_config,
 						orig.metrics,
@@ -99,7 +114,7 @@ impl OverseerGen for BehaveMaleficient {
 			},
 		);
 
-		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
+		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner, connector)
 			.map_err(|e| e.into())
 	}
 }

@@ -67,12 +67,13 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 # External Crates
 futures = "0.3.17"
 hex-literal = "0.3.3"
-tracing = "0.1.26"
+tracing = "0.1.27"
 serde = { version = "1.0.130", features = ["derive"] }
 thiserror = "1.0.26"
 kvdb = "0.10.0"
 kvdb-rocksdb = { version = "0.14.0", optional = true }
 async-trait = "0.1.51"
+lru = "0.6"
 
 # Polkadot
 polkadot-node-core-parachains-inherent = { path = "../core/parachains-inherent" }
@@ -179,5 +180,4 @@ try-runtime = [
 	"rococo-runtime/try-runtime",
 ]
 malus = ["full-node"]
-memory-stats = ["polkadot-overseer/memory-stats"]
 disputes = ["polkadot-node-core-dispute-coordinator/disputes"]

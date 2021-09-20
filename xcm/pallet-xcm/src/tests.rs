@@ -44,7 +44,10 @@ fn report_outcome_notify_works() {
 		assets: (Here, SEND_AMOUNT).into(),
 		beneficiary: sender.clone(),
 	}]);
-	let call = pallet_test_notifier::Call::notification_received(0, Default::default());
+	let call = pallet_test_notifier::Call::notification_received {
+		query_id: 0,
+		response: Default::default(),
+	};
 	let notify = Call::TestNotifier(call);
 	new_test_ext_with_balances(balances).execute_with(|| {
 		XcmPallet::report_outcome_notify(&mut message, Parachain(PARA_ID).into(), notify, 100)
