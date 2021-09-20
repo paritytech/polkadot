@@ -213,7 +213,7 @@ pub mod pallet {
 		///
 		/// ## Events
 		/// The `Registered` event is emitted in case of success.
-		#[pallet::weight(T::WeightInfo::register())]
+		#[pallet::weight(<T as Config>::WeightInfo::register())]
 		pub fn register(
 			origin: OriginFor<T>,
 			id: ParaId,
@@ -231,7 +231,7 @@ pub mod pallet {
 		///
 		/// The deposit taken can be specified for this registration. Any `ParaId`
 		/// can be registered, including sub-1000 IDs which are System Parachains.
-		#[pallet::weight(T::WeightInfo::force_register())]
+		#[pallet::weight(<T as Config>::WeightInfo::force_register())]
 		pub fn force_register(
 			origin: OriginFor<T>,
 			who: T::AccountId,
@@ -247,7 +247,7 @@ pub mod pallet {
 		/// Deregister a Para Id, freeing all data and returning any deposit.
 		///
 		/// The caller must be Root, the `para` owner, or the `para` itself. The para must be a parathread.
-		#[pallet::weight(T::WeightInfo::deregister())]
+		#[pallet::weight(<T as Config>::WeightInfo::deregister())]
 		pub fn deregister(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			Self::ensure_root_para_or_owner(origin, id)?;
 			Self::do_deregister(id)
@@ -264,7 +264,7 @@ pub mod pallet {
 		/// `ParaId` to be a long-term identifier of a notional "parachain". However, their
 		/// scheduling info (i.e. whether they're a parathread or parachain), auction information
 		/// and the auction deposit are switched.
-		#[pallet::weight(T::WeightInfo::swap())]
+		#[pallet::weight(<T as Config>::WeightInfo::swap())]
 		pub fn swap(origin: OriginFor<T>, id: ParaId, other: ParaId) -> DispatchResult {
 			Self::ensure_root_para_or_owner(origin, id)?;
 
@@ -325,7 +325,7 @@ pub mod pallet {
 		///
 		/// ## Events
 		/// The `Reserved` event is emitted in case of success, which provides the ID reserved for use.
-		#[pallet::weight(T::WeightInfo::reserve())]
+		#[pallet::weight(<T as Config>::WeightInfo::reserve())]
 		pub fn reserve(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let id = NextFreeParaId::<T>::get().max(LOWEST_PUBLIC_ID);
@@ -659,7 +659,9 @@ mod tests {
 		type Event = Event;
 	}
 
-	impl configuration::Config for Test {}
+	impl configuration::Config for Test {
+		type WeightInfo = configuration::weights::WeightInfo<Test>;
+	}
 
 	parameter_types! {
 		pub const ParaDeposit: Balance = 10;
