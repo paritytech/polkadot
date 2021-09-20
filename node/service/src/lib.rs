@@ -959,13 +959,13 @@ where
 		);
 		// we should remove this check before we deploy parachains on polkadot
 		// TODO: https://github.com/paritytech/polkadot/issues/3326
-		let should_connect_overseer = chain_spec.is_kusama() ||
+		let is_relay_chain = chain_spec.is_kusama() ||
 			chain_spec.is_westend() ||
 			chain_spec.is_rococo() ||
 			chain_spec.is_wococo();
 
-		if should_connect_overseer {
-			select_chain.connect_to_overseer(overseer_handle.clone());
+		if is_relay_chain {
+			select_chain.mark_as_relay_chain();
 		} else {
 			tracing::info!("Overseer is running in the disconnected state");
 		}
