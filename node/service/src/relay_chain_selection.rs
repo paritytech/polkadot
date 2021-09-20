@@ -110,6 +110,7 @@ impl Metrics {
 
 /// A chain-selection implementation which provides safety for relay chains.
 pub struct SelectRelayChain<B: sc_client_api::Backend<PolkadotBlock>> {
+	is_relay_chain: bool,
 	longest_chain: sc_consensus::LongestChain<B, PolkadotBlock>,
 	selection: SelectRelayChainInner<B, Handle>,
 }
@@ -120,7 +121,11 @@ where
 	SelectRelayChainInner<B, Handle>: Clone,
 {
 	fn clone(&self) -> Self {
-		Self { longest_chain: self.longest_chain.clone(), selection: self.selection.clone() }
+		Self {
+			longest_chain: self.longest_chain.clone(),
+			is_relay_chain: self.is_relay_chain,
+			selection: self.selection.clone(),
+		}
 	}
 }
 
@@ -130,10 +135,12 @@ where
 {
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	pub fn new(backend: Arc<B>, overseer: Handle, metrics: Metrics) -> Self {
+
+	pub fn new(backend: Arc<B>, overseer: Handle, is_relay_chain: bool, metrics: Metrics) -> Self {
 		SelectRelayChain {
 			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
 			selection: SelectRelayChainInner::new(backend, overseer, metrics),
+			is_relay_chain,
 		}
 	}
 }
@@ -144,8 +151,8 @@ where
 {
 	/// Given an overseer handle, this connects the [`SelectRelayChain`]'s
 	/// internal handle and its clones to the same overseer.
-	pub fn connect_to_overseer(&mut self, handle: OverseerHandle) {
-		self.selection.overseer.connect_to_overseer(handle);
+	pub fn mark_as_relay_chain(&mut self) {
+		self.is_relay_chain = true;
 	}
 }
 
@@ -155,7 +162,7 @@ where
 	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 {
 	async fn leaves(&self) -> Result<Vec<Hash>, ConsensusError> {
-		if self.selection.overseer.is_disconnected() {
+		if !self.is_relay_chain {
 			return self.longest_chain.leaves().await
 		}
 
@@ -163,7 +170,7 @@ where
 	}
 
 	async fn best_chain(&self) -> Result<PolkadotHeader, ConsensusError> {
-		if self.selection.overseer.is_disconnected() {
+		if !self.is_relay_chain {
 			return self.longest_chain.best_chain().await
 		}
 		self.selection.best_chain().await
@@ -177,7 +184,7 @@ where
 		let longest_chain_best =
 			self.longest_chain.finality_target(target_hash, maybe_max_number).await?;
 
-		if self.selection.overseer.is_disconnected() {
+		if !self.is_relay_chain {
 			return Ok(longest_chain_best)
 		}
 		self.selection
