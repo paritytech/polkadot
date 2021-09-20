@@ -90,10 +90,14 @@ pub use polkadot_node_subsystem_types::{
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
 };
 
+/// Test helper supplements.
+pub mod dummy;
+pub use self::dummy::DummySubsystem;
+
 // TODO legacy, to be deleted, left for easier integration
 // TODO https://github.com/paritytech/polkadot/issues/3427
 mod subsystems;
-pub use self::subsystems::{AllSubsystems, DummySubsystem};
+pub use self::subsystems::AllSubsystems;
 
 pub mod metrics;
 
