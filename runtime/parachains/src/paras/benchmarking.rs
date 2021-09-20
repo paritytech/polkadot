@@ -15,10 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::configuration::{self, HostConfiguration};
+use crate::configuration::HostConfiguration;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
-use primitives::v1::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE};
+use primitives::v1::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 use sp_runtime::traits::{One, Saturating};
 
 fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
@@ -52,15 +52,14 @@ benchmarks! {
 		assert_last_event::<T>(Event::CurrentCodeUpdated(para_id).into());
 	}
 	force_set_current_head {
-		let max_head_data_size = configuration::Pallet::<T>::config().max_head_data_size as usize;
-		let new_head = HeadData(vec![0; max_head_data_size]);
+		let new_head = HeadData(vec![0; MAX_HEAD_DATA_SIZE as usize]);
 		let para_id = ParaId::from(1000);
 	}: _(RawOrigin::Root, para_id, new_head)
 	verify {
 		assert_last_event::<T>(Event::CurrentHeadUpdated(para_id).into());
 	}
 	force_schedule_code_upgrade {
-		let c in 1024 .. 2048;
+		let c in 1 .. MAX_CODE_SIZE;
 		let new_code = ValidationCode(vec![0; c as usize]);
 		let para_id = ParaId::from(c as u32);
 		let block = T::BlockNumber::from(c);
@@ -70,7 +69,7 @@ benchmarks! {
 	}
 	force_note_new_head {
 		let para_id = ParaId::from(1000);
-		let new_head = HeadData(vec![0]);
+		let new_head = HeadData(vec![0; MAX_HEAD_DATA_SIZE as usize]);
 		// schedule an expired code upgrade for this para_id so that force_note_new_head would use
 		// the worst possible code path
 		let expired = frame_system::Pallet::<T>::block_number().saturating_sub(One::one());
