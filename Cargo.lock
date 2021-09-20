@@ -5480,14 +5480,15 @@ dependencies = [
 
 [[package]]
 name = "parity-util-mem"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ad6f1acec69b95caf435bbd158d486e5a0a44fcf51531e84922c59ff09e8457"
+checksum = "9f7adaf50e545c285006d384d50588e98c405c49b55c0aa05660aca081f6ee5e"
 dependencies = [
  "cfg-if 1.0.0",
  "ethereum-types",
  "hashbrown",
  "impl-trait-for-tuples",
+ "jemalloc-ctl",
  "jemallocator",
  "lru",
  "parity-util-mem-derive",
@@ -6395,7 +6396,6 @@ version = "0.9.9"
 dependencies = [
  "futures 0.3.17",
  "futures-timer 3.0.2",
- "jemalloc-ctl",
  "metered-channel",
  "substrate-prometheus-endpoint",
 ]
@@ -6524,6 +6524,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "lru",
  "metered-channel",
+ "parity-util-mem",
  "parking_lot 0.11.1",
  "polkadot-node-metrics",
  "polkadot-node-network-protocol",
