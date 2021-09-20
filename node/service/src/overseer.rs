@@ -26,11 +26,9 @@ use polkadot_node_network_protocol::request_response::{v1 as request_v1, Incomin
 #[cfg(any(feature = "malus", test))]
 pub use polkadot_overseer::dummy::DummySubsystem;
 pub use polkadot_overseer::{
-	metrics::Metrics, MetricsTrait,
-	AllSubsystems, BlockInfo, HeadSupportsParachains, Overseer, OverseerBuilder, OverseerConnector,
-	OverseerHandle,
+	metrics::Metrics, AllSubsystems, BlockInfo, HeadSupportsParachains, MetricsTrait, Overseer,
+	OverseerBuilder, OverseerConnector, OverseerHandle,
 };
-use lru::LruCache;
 
 use polkadot_primitives::v1::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;

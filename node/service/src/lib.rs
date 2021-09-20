@@ -387,7 +387,6 @@ where
 		)?;
 	let client = Arc::new(client);
 
-
 	let telemetry = telemetry.map(|(worker, telemetry)| {
 		if let Some(worker) = worker {
 			task_manager.spawn_handle().spawn("telemetry", worker.run());
@@ -711,7 +710,6 @@ where
 
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
-
 
 	let basics = new_partial_basics::<RuntimeApi, ExecutorDispatch>(
 		&mut config,
