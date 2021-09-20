@@ -738,6 +738,8 @@ where
 
 	use relay_chain_selection::SelectRelayChain;
 
+	let overseer_connector = OverseerConnector::default();
+
 	let select_chain = SelectRelayChain::new(
 		basics.backend.clone(),
 		overseer_handle.clone(),
@@ -919,6 +921,7 @@ where
 		local_keystore.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
 
 	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
+		// already have access to the handle
 		let (overseer, overseer_handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
 				overseer_connector,
