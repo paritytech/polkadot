@@ -724,7 +724,7 @@ where
 	use relay_chain_selection::SelectRelayChain;
 
 	let overseer_connector = OverseerConnector::default();
-	let overseer_handle = Handle::Connected(overseer_connector.handle());
+	let overseer_handle = Handle::new(overseer_connector.handle());
 
 	let is_relay_chain = false;
 	let select_chain = SelectRelayChain::new(
@@ -934,29 +934,31 @@ where
 					dispute_coordinator_config,
 				},
 			)?;
-		let handle = Handle::Connected(overseer_handle.clone());
+		let handle = Handle::new(overseer_handle.clone());
 
-		let handle_clone = handle.clone();
-		task_manager.spawn_essential_handle().spawn_blocking(
-			"overseer",
-			Box::pin(async move {
-				use futures::{pin_mut, select, FutureExt};
+		{
+			let handle = handle.clone();
+			task_manager.spawn_essential_handle().spawn_blocking(
+				"overseer",
+				Box::pin(async move {
+					use futures::{pin_mut, select, FutureExt};
 
-				let forward = polkadot_overseer::forward_events(overseer_client, handle_clone);
+					let forward = polkadot_overseer::forward_events(overseer_client, handle);
 
-				let forward = forward.fuse();
-				let overseer_fut = overseer.run().fuse();
+					let forward = forward.fuse();
+					let overseer_fut = overseer.run().fuse();
 
-				pin_mut!(overseer_fut);
-				pin_mut!(forward);
+					pin_mut!(overseer_fut);
+					pin_mut!(forward);
 
-				select! {
-					_ = forward => (),
-					_ = overseer_fut => (),
-					complete => (),
-				}
-			}),
-		);
+					select! {
+						_ = forward => (),
+						_ = overseer_fut => (),
+						complete => (),
+					}
+				}),
+			);
+		}
 		// we should remove this check before we deploy parachains on polkadot
 		// TODO: https://github.com/paritytech/polkadot/issues/3326
 		let is_relay_chain = chain_spec.is_kusama() ||
@@ -967,7 +969,7 @@ where
 		if is_relay_chain {
 			select_chain.mark_as_relay_chain();
 		} else {
-			tracing::info!("Overseer is running in the disconnected state");
+			tracing::info!("Authority without relay-chain enablement.");
 		}
 		Some(handle)
 	} else {
