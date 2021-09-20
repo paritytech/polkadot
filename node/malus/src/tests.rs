@@ -19,9 +19,9 @@ use super::*;
 use polkadot_node_subsystem_test_helpers::*;
 
 use polkadot_node_subsystem::{
+	dummy::DummySubsystem,
 	messages::{AllMessages, AvailabilityStoreMessage},
 	overseer::{gen::TimeoutExt, Subsystem},
-	dummy::DummySubsystem,
 };
 
 #[derive(Clone, Debug)]
