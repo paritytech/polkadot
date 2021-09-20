@@ -185,7 +185,6 @@ struct BehaveMaleficient;
 impl OverseerGen for BehaveMaleficient {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
-		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandler), Error>
 	where
@@ -214,7 +213,7 @@ impl OverseerGen for BehaveMaleficient {
 			),
 		);
 
-		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner, connector)
+		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
 			.map_err(|e| e.into())
 
         // A builder pattern will simplify this further

@@ -29,8 +29,7 @@ use polkadot_node_subsystem_types::messages::{
 use polkadot_overseer::{
 	self as overseer,
 	gen::{FromOverseer, SpawnedSubsystem},
-	AllMessages, AllSubsystems, HeadSupportsParachains, Overseer, OverseerConnector,
-	OverseerSignal, SubsystemError,
+	AllMessages, AllSubsystems, HeadSupportsParachains, Overseer, OverseerSignal, SubsystemError,
 };
 use polkadot_primitives::v1::Hash;
 
@@ -174,15 +173,8 @@ fn main() {
 			.replace_candidate_validation(|_| Subsystem2)
 			.replace_candidate_backing(|orig| orig);
 
-		let (overseer, _handle) = Overseer::new(
-			vec![],
-			all_subsystems,
-			None,
-			AlwaysSupportsParachains,
-			spawner,
-			OverseerConnector::default(),
-		)
-		.unwrap();
+		let (overseer, _handle) =
+			Overseer::new(vec![], all_subsystems, None, AlwaysSupportsParachains, spawner).unwrap();
 		let overseer_fut = overseer.run().fuse();
 		let timer_stream = timer_stream;
 
