@@ -739,7 +739,9 @@ where
 	use relay_chain_selection::SelectRelayChain;
 
 	let overseer_connector = OverseerConnector::default();
+	let overseer_handle = Handle::Connected(overseer_connector.handle());
 
+	let is_relay_chain = false;
 	let select_chain = SelectRelayChain::new(
 		basics.backend.clone(),
 		overseer_handle.clone(),
