@@ -191,9 +191,9 @@ pub mod pallet {
 
 		/// An interface for reserving deposits for opening channels.
 		///
-		/// NOTE that this Currency instance will be charged with the amounts defined in the `Configuration`
-		/// pallet. Specifically, that means that the `Balance` of the `Currency` implementation should
-		/// be the same as `Balance` as used in the `Configuration`.
+		/// NOTE that this Currency instance will be charged with the amounts defined in the
+		/// `Configuration` pallet. Specifically, that means that the `Balance` of the `Currency`
+		/// implementation should be the same as `Balance` as used in the `Configuration`.
 		type Currency: ReservableCurrency<Self::AccountId>;
 	}
 
@@ -267,8 +267,8 @@ pub mod pallet {
 		StorageValue<_, Vec<HrmpChannelId>, ValueQuery>;
 
 	/// This mapping tracks how many open channel requests are initiated by a given sender para.
-	/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X, _)`
-	/// as the number of `HrmpOpenChannelRequestCount` for `X`.
+	/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X,
+	/// _)` as the number of `HrmpOpenChannelRequestCount` for `X`.
 	#[pallet::storage]
 	pub type HrmpOpenChannelRequestCount<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, u32, ValueQuery>;
@@ -280,8 +280,8 @@ pub mod pallet {
 	pub type HrmpAcceptedChannelRequestCount<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, u32, ValueQuery>;
 
-	/// A set of pending HRMP close channel requests that are going to be closed during the session change.
-	/// Used for checking if a given channel is registered for closure.
+	/// A set of pending HRMP close channel requests that are going to be closed during the session
+	/// change. Used for checking if a given channel is registered for closure.
 	///
 	/// The set is accompanied by a list for iteration.
 	///
@@ -306,17 +306,17 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type HrmpChannels<T: Config> = StorageMap<_, Twox64Concat, HrmpChannelId, HrmpChannel>;
 
-	/// Ingress/egress indexes allow to find all the senders and receivers given the opposite
-	/// side. I.e.
+	/// Ingress/egress indexes allow to find all the senders and receivers given the opposite side.
+	/// I.e.
 	///
-	/// (a) ingress index allows to find all the senders for a given recipient.
-	/// (b) egress index allows to find all the recipients for a given sender.
+	/// (a) ingress index allows to find all the senders for a given recipient. (b) egress index
+	/// allows to find all the recipients for a given sender.
 	///
 	/// Invariants:
-	/// - for each ingress index entry for `P` each item `I` in the index should present in `HrmpChannels`
-	///   as `(I, P)`.
-	/// - for each egress index entry for `P` each item `E` in the index should present in `HrmpChannels`
-	///   as `(P, E)`.
+	/// - for each ingress index entry for `P` each item `I` in the index should present in
+	///   `HrmpChannels` as `(I, P)`.
+	/// - for each egress index entry for `P` each item `E` in the index should present in
+	///   `HrmpChannels` as `(P, E)`.
 	/// - there should be no other dangling channels in `HrmpChannels`.
 	/// - the vectors are sorted.
 	#[pallet::storage]
@@ -340,27 +340,27 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
-	/// Maintains a mapping that can be used to answer the question:
-	/// What paras sent a message at the given block number for a given receiver.
-	/// Invariants:
+	/// Maintains a mapping that can be used to answer the question: What paras sent a message at
+	/// the given block number for a given receiver. Invariants:
 	/// - The inner `Vec<ParaId>` is never empty.
 	/// - The inner `Vec<ParaId>` cannot store two same `ParaId`.
-	/// - The outer vector is sorted ascending by block number and cannot store two items with the same
-	///   block number.
+	/// - The outer vector is sorted ascending by block number and cannot store two items with the
+	///   same block number.
 	#[pallet::storage]
 	pub type HrmpChannelDigests<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, Vec<(T::BlockNumber, Vec<ParaId>)>, ValueQuery>;
 
 	/// Preopen the given HRMP channels.
 	///
-	/// The values in the tuple corresponds to `(sender, recipient, max_capacity, max_message_size)`,
-	/// i.e. similar to `init_open_channel`. In fact, the initialization is performed as if
-	/// the `init_open_channel` and `accept_open_channel` were called with the respective parameters
-	/// and the session change take place.
+	/// The values in the tuple corresponds to `(sender, recipient, max_capacity,
+	/// max_message_size)`, i.e. similar to `init_open_channel`. In fact, the initialization is
+	/// performed as if the `init_open_channel` and `accept_open_channel` were called with the
+	/// respective parameters and the session change take place.
 	///
 	/// As such, each channel initializer should satisfy the same constraints, namely:
 	///
-	/// 1. `max_capacity` and `max_message_size` should be within the limits set by the configuration pallet.
+	/// 1. `max_capacity` and `max_message_size` should be within the limits set by the
+	///    configuration pallet.
 	/// 2. `sender` and `recipient` must be valid paras.
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
@@ -477,7 +477,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// This cancels a pending open channel request. It can be canceled be either of the sender
+		/// This cancels a pending open channel request. It can be canceled by either of the sender
 		/// or the recipient for that request. The origin must be either of those.
 		///
 		/// The cancelling happens immediately. It is not possible to cancel the request if it is
@@ -1037,6 +1037,8 @@ impl<T: Config> Pallet<T> {
 			config.hrmp_sender_deposit.unique_saturated_into(),
 		)?;
 
+		// mutating storage -- shall not bail henceforth.
+
 		<Self as Store>::HrmpOpenChannelRequestCount::insert(&origin, open_req_cnt + 1);
 		<Self as Store>::HrmpOpenChannelRequests::insert(
 			&channel_id,
@@ -1067,6 +1069,7 @@ impl<T: Config> Pallet<T> {
 		{
 			// this should never happen unless the max downward message size is configured to an
 			// jokingly small number.
+			log::error!(target: "runtime::hrmp", "sending 'init_open_channel::notification_bytes' failed.");
 			debug_assert!(false);
 		}
 
@@ -1076,7 +1079,7 @@ impl<T: Config> Pallet<T> {
 	/// Accept a pending open channel request from the given sender.
 	///
 	/// Basically the same as [`hrmp_accept_open_channel`](Pallet::hrmp_accept_open_channel) but
-	/// intendend for calling directly from other pallets rather than dispatched.
+	/// intended for calling directly from other pallets rather than dispatched.
 	pub fn accept_open_channel(origin: ParaId, sender: ParaId) -> DispatchResult {
 		let channel_id = HrmpChannelId { sender, recipient: origin };
 		let mut channel_req = <Self as Store>::HrmpOpenChannelRequests::get(&channel_id)
@@ -1121,6 +1124,7 @@ impl<T: Config> Pallet<T> {
 		{
 			// this should never happen unless the max downward message size is configured to an
 			// jokingly small number.
+			log::error!(target: "runtime::hrmp", "sending 'accept_open_channel::notification_bytes' failed.");
 			debug_assert!(false);
 		}
 
@@ -1195,6 +1199,7 @@ impl<T: Config> Pallet<T> {
 		{
 			// this should never happen unless the max downward message size is configured to an
 			// jokingly small number.
+			log::error!(target: "runtime::hrmp", "sending 'close_channel::notification_bytes' failed.");
 			debug_assert!(false);
 		}
 
@@ -2014,15 +2019,235 @@ mod tests {
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking {
 	use super::{Pallet as Hrmp, *};
+	use crate::{
+		configuration::Pallet as Configuration, paras::Pallet as Paras, shared::Pallet as Shared,
+	};
+	use frame_support::{assert_ok, traits::Currency};
+
+	type BalanceOf<T> =
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+	fn register_parachain_with_balance<T: Config>(id: ParaId, balance: BalanceOf<T>) {
+		assert_ok!(Paras::<T>::initialize_para_now(
+			id,
+			crate::paras::ParaGenesisArgs {
+				parachain: true,
+				genesis_head: vec![1].into(),
+				validation_code: vec![1].into(),
+			},
+		));
+		T::Currency::make_free_balance_be(&id.into_account(), balance);
+	}
+
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+		let events = frame_system::Pallet::<T>::events();
+		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		// compare to the last event record
+		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
+		assert_eq!(event, &system_event);
+	}
+
+	enum ParachainSetupStep {
+		/// A channel open has been requested
+		Requested,
+		/// A channel open has been requested and accepted.
+		Accepted,
+		/// A channel open has been requested and accepted, and a session has passed and is now open.
+		Established,
+		/// A channel open has been requested and accepted, and a session has passed and is now
+		/// open, and now it has been requested to close down.
+		CloseRequested,
+	}
+
+	fn establish_para_connection<T: Config>(
+		from: u32,
+		to: u32,
+		until: ParachainSetupStep,
+	) -> [(ParaId, crate::Origin); 2]
+	where
+		<T as frame_system::Config>::Origin: From<crate::Origin>,
+	{
+		let config = Configuration::<T>::config();
+		let deposit: BalanceOf<T> = config.hrmp_sender_deposit.unique_saturated_into();
+		let capacity = config.hrmp_channel_max_capacity;
+		let message_size = config.hrmp_channel_max_message_size;
+
+		let sender: ParaId = from.into();
+		let sender_origin: crate::Origin = from.into();
+
+		let recipient: ParaId = to.into();
+		let recipient_origin: crate::Origin = to.into();
+
+		let output = [(sender, sender_origin.clone()), (recipient, recipient_origin.clone())];
+
+		// Make both a parachain if they are already not.
+		if !Paras::<T>::is_parachain(sender) {
+			register_parachain_with_balance::<T>(sender, deposit);
+		}
+		if !Paras::<T>::is_parachain(recipient) {
+			register_parachain_with_balance::<T>(recipient, deposit);
+		}
+
+		assert_ok!(Hrmp::<T>::hrmp_init_open_channel(
+			sender_origin.clone().into(),
+			recipient,
+			capacity,
+			message_size
+		));
+		if matches!(until, ParachainSetupStep::Requested) {
+			return output;
+		}
+
+		assert_ok!(Hrmp::<T>::hrmp_accept_open_channel(recipient_origin.into(), sender));
+		if matches!(until, ParachainSetupStep::Accepted) {
+			return output;
+		}
+
+		Hrmp::<T>::process_hrmp_open_channel_requests(&Configuration::<T>::config());
+		if matches!(until, ParachainSetupStep::Established) {
+			return output;
+		}
+
+		let channel_id = HrmpChannelId { sender, recipient };
+		assert_ok!(Hrmp::<T>::hrmp_close_channel(sender_origin.clone().into(), channel_id));
+		if matches!(until, ParachainSetupStep::CloseRequested) {
+			// NOTE: this is just for expressiveness, otherwise the if-statement could be omitted.
+			return output;
+		}
+
+		output
+	}
 
 	frame_benchmarking::benchmarks! {
-		hrmp_init_open_channel {}: {} verify {}
-		hrmp_accept_open_channel {}: {} verify {}
-		hrmp_close_channel {}: {} verify {}
-		force_clean_hrmp {}: {} verify {}
-		force_process_hrmp_open {}: {} verify {}
-		force_process_hrmp_close {}: {} verify {}
-		hrmp_cancel_open_request {}: {} verify {}
+		where_clause { where <T as frame_system::Config>::Origin: From<crate::Origin> }
+
+		hrmp_init_open_channel {
+			let sender_id: ParaId = 1u32.into();
+			let sender_origin: crate::Origin = 1u32.into();
+
+			let recipient_id: ParaId = 2u32.into();
+
+			// make sure para is registered, and has enough balance.
+			let deposit: BalanceOf<T> = Configuration::<T>::config().hrmp_sender_deposit.unique_saturated_into();
+			register_parachain_with_balance::<T>(sender_id, deposit);
+			register_parachain_with_balance::<T>(recipient_id, deposit);
+
+			let capacity = Configuration::<T>::config().hrmp_channel_max_capacity;
+			let message_size = Configuration::<T>::config().hrmp_channel_max_message_size;
+		}: _(sender_origin, recipient_id, capacity, message_size)
+		verify {
+			assert_last_event::<T>(
+				Event::<T>::OpenChannelRequested(sender_id, recipient_id, capacity, message_size).into()
+			);
+		}
+
+		hrmp_accept_open_channel {
+			let [(sender, _), (recipient, recipient_origin)] =establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
+		}: _(recipient_origin, sender)
+		verify {
+			assert_last_event::<T>(Event::<T>::OpenChannelAccepted(sender, recipient).into());
+		}
+
+		hrmp_close_channel {
+			let [(sender, sender_origin), (recipient, _)] = establish_para_connection::<T>(1, 2, ParachainSetupStep::Established);
+			let channel_id = HrmpChannelId { sender, recipient };
+		}: _(sender_origin, channel_id.clone())
+		verify {
+			assert_last_event::<T>(Event::<T>::ChannelClosed(sender, channel_id).into());
+		}
+
+		force_clean_hrmp {
+			// TODO: reasonable constant/config for these.
+			// TODO: assert that `i` and `e` are well below 10k as prefix that we use.
+			// ingress channels to a single leaving parachain that need to be closed.
+			let i in 0..128;
+			// egress channels to a single leaving parachain that need to be closed.
+			let e in 0..128;
+
+			// first, update the configs to support this many open channels...
+			assert_ok!(Configuration::<T>::set_hrmp_max_parachain_outbound_channels(frame_system::RawOrigin::Root.into(), e + 1));
+			assert_ok!(Configuration::<T>::set_hrmp_max_parachain_inbound_channels(frame_system::RawOrigin::Root.into(), i + 1));
+			// .. and enact it.
+			Configuration::<T>::initializer_on_new_session(&Shared::<T>::scheduled_session());
+
+			let config = Configuration::<T>::config();
+			let deposit: BalanceOf<T> = config.hrmp_sender_deposit.unique_saturated_into();
+
+			let para: ParaId = 1u32.into();
+			let para_origin: crate::Origin = 1u32.into();
+			register_parachain_with_balance::<T>(para, deposit);
+			T::Currency::make_free_balance_be(&para.into_account(), deposit * 256u32.into());
+
+			for ingress_para_id in 0..i {
+				// establish ingress channels to `para`.
+				let ingress_para_id = ingress_para_id + 10000;
+				let _ = establish_para_connection::<T>(ingress_para_id, 1, ParachainSetupStep::Established);
+			}
+
+			// nothing should be left unprocessed.
+			assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default(), 0);
+
+			for egress_para_id in 0..e {
+				// establish egress channels to `para`.
+				let egress_para_id = egress_para_id + 20000;
+				let _ = establish_para_connection::<T>(1, egress_para_id, ParachainSetupStep::Established);
+			}
+
+			// nothing should be left unprocessed.
+			assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default(), 0);
+
+			// all in all, we have created these many channels
+			assert_eq!(HrmpChannels::<T>::iter().count() as u32, i + e);
+		}: _(frame_system::Origin::<T>::Root, para) verify {
+			// all in all, all of them must be gone by now.
+			assert_eq!(HrmpChannels::<T>::iter().count() as u32, 0);
+		}
+
+		force_process_hrmp_open {
+			// number of channels that need to be processed. Worse case is an N-M relation: unique
+			// sender and recipients for all channels.
+			let c in 0 .. 128;
+
+			for id in 0 .. c {
+				let _ = establish_para_connection::<T>(10_000 + id, 20_000 + id, ParachainSetupStep::Accepted);
+			}
+			assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c);
+		}: _(frame_system::Origin::<T>::Root)
+		verify {
+			assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, 0);
+		}
+
+		force_process_hrmp_close {
+			// number of channels that need to be processed. Worse case is an N-M relation: unique
+			// sender and recipients for all channels.
+			let c in 0 .. 128;
+
+			for id in 0 .. c {
+				let _ = establish_para_connection::<T>(10_000 + id, 20_000 + id, ParachainSetupStep::CloseRequested);
+			}
+
+			assert_eq!(HrmpCloseChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c);
+		}: _(frame_system::Origin::<T>::Root)
+		 verify {
+			 assert_eq!(HrmpCloseChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, 0);
+		 }
+
+		hrmp_cancel_open_request {
+			// number of items already existing in the `HrmpOpenChannelRequestsList`, other than the
+			// one that we remove.
+			let c in 0 .. 128;
+
+			for id in 0 .. c {
+				let _ = establish_para_connection::<T>(10_000 + id, 20_000 + id, ParachainSetupStep::Requested);
+			}
+
+			let [(sender, sender_origin), (recipient, _)] = establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
+			assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c + 1);
+			let channel_id = HrmpChannelId { sender, recipient };
+		}: _(sender_origin, channel_id)
+		verify {
+			assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c);
+		}
 	}
 
 	frame_benchmarking::impl_benchmark_test_suite!(

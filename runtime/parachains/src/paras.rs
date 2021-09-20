@@ -850,6 +850,19 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn initialize_para_now(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
+		// first queue this para actions..
+		let _ = Self::schedule_para_initialize(id, genesis)?;
+
+		// .. and immediately apply them.
+		let _ = Self::apply_actions_queue(Self::scheduled_session());
+
+		// ensure it has become a para.
+		assert_eq!(ParaLifecycles::<T>::get(id), Some(ParaLifecycle::Parachain));
+		Ok(())
+	}
+
 	/// Schedule a para to be cleaned up at the start of the next session.
 	///
 	/// Will return error if para is not a stable parachain or parathread.
