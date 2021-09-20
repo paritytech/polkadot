@@ -108,8 +108,7 @@ use polkadot_node_metrics::{
 	Metronome,
 };
 
-#[cfg(feature = "memory-stats")]
-use polkadot_node_metrics::memory_stats::MemoryAllocationTracker;
+use parity_util_mem::MemoryAllocationTracker;
 
 pub use polkadot_overseer_gen as gen;
 pub use polkadot_overseer_gen::{
@@ -649,28 +648,39 @@ where
 			}
 			let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
-			#[cfg(feature = "memory-stats")]
-			let memory_stats = MemoryAllocationTracker::new().expect("Jemalloc is the default allocator. qed");
+			let memory_stats = match MemoryAllocationTracker::new() {
+				Ok(memory_stats) => Some(memory_stats),
+				Err(error) => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Failed to initialize memory allocation tracker: {:?}",
+						error
+					);
+
+					None
+				},
+			};
 
 			let metronome_metrics = metrics.clone();
 			let metronome =
 				Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
-					#[cfg(feature = "memory-stats")]
-					match memory_stats.snapshot() {
-						Ok(memory_stats_snapshot) => {
-							tracing::trace!(
-								target: LOG_TARGET,
-								"memory_stats: {:?}",
-								&memory_stats_snapshot
-							);
-							metronome_metrics.memory_stats_snapshot(memory_stats_snapshot);
-						},
+					if let Some(ref memory_stats) = memory_stats {
+						match memory_stats.snapshot() {
+							Ok(memory_stats_snapshot) => {
+								tracing::trace!(
+									target: LOG_TARGET,
+									"memory_stats: {:?}",
+									&memory_stats_snapshot
+								);
+								metronome_metrics.memory_stats_snapshot(memory_stats_snapshot);
+							},
 
-						Err(e) => tracing::debug!(
-							target: LOG_TARGET,
-							"Failed to obtain memory stats: {:?}",
-							e
-						),
+							Err(e) => tracing::debug!(
+								target: LOG_TARGET,
+								"Failed to obtain memory stats: {:?}",
+								e
+							),
+						}
 					}
 
 					// We combine the amount of messages from subsystems to the overseer
