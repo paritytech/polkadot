@@ -372,7 +372,9 @@ mod tests {
 	use super::*;
 	use futures::executor::block_on;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
-	use polkadot_overseer::{AllSubsystems, Handle, HeadSupportsParachains, Overseer};
+	use polkadot_overseer::{
+		AllSubsystems, Handle, HeadSupportsParachains, Overseer, OverseerConnector,
+	};
 	use polkadot_primitives::v1::Hash;
 
 	struct AlwaysSupportsParachains;
@@ -394,6 +396,7 @@ mod tests {
 			None,
 			AlwaysSupportsParachains,
 			spawner.clone(),
+			OverseerConnector::default(),
 		)
 		.unwrap();
 		let mut handle = Handle::Connected(handle);

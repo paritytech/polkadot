@@ -96,10 +96,9 @@ pub use polkadot_node_subsystem_types::{
 mod subsystems;
 pub use self::subsystems::{AllSubsystems, DummySubsystem};
 
-mod metrics;
-use self::metrics::Metrics;
+pub mod metrics;
 
-use polkadot_node_metrics::{
+pub use polkadot_node_metrics::{
 	metrics::{prometheus, Metrics as MetricsTrait},
 	Metronome,
 };
@@ -115,7 +114,7 @@ pub use polkadot_overseer_gen::{
 
 /// Store 2 days worth of blocks, not accounting for forks,
 /// in the LRU cache. Assumes a 6-second block time.
-const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
+pub const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
 
 #[cfg(test)]
 mod tests;
@@ -439,7 +438,7 @@ pub struct Overseer<SupportsParachains> {
 	pub known_leaves: LruCache<Hash, ()>,
 
 	/// Various Prometheus metrics.
-	pub metrics: Metrics,
+	pub metrics: crate::metrics::Metrics,
 }
 
 impl<S, SupportsParachains> Overseer<S, SupportsParachains>
@@ -490,12 +489,13 @@ where
 	/// # use polkadot_primitives::v1::Hash;
 	/// # use polkadot_overseer::{
 	/// # 	self as overseer,
+	/// # 	Overseer,
 	/// #   OverseerSignal,
+	/// # 	OverseerConnector,
 	/// # 	SubsystemSender as _,
 	/// # 	AllMessages,
 	/// # 	AllSubsystems,
 	/// # 	HeadSupportsParachains,
-	/// # 	Overseer,
 	/// # 	SubsystemError,
 	/// # 	gen::{
 	/// # 		SubsystemContext,
@@ -549,6 +549,7 @@ where
 	///     None,
 	///     AlwaysSupportsParachains,
 	///     spawner,
+	///     OverseerConnector::default(),
 	/// ).unwrap();
 	///
 	/// let timer = Delay::new(Duration::from_millis(50)).fuse();
@@ -615,6 +616,7 @@ where
 		prometheus_registry: Option<&prometheus::Registry>,
 		supports_parachains: SupportsParachains,
 		s: S,
+		connector: OverseerConnector,
 	) -> SubsystemResult<(Self, OverseerHandle)>
 	where
 		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
@@ -643,7 +645,7 @@ where
 		CS: Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError> + Send,
 		S: SpawnNamed,
 	{
-		let metrics: Metrics = <Metrics as MetricsTrait>::register(prometheus_registry)?;
+		let metrics = <crate::metrics::Metrics as MetricsTrait>::register(prometheus_registry)?;
 
 		let (mut overseer, handle) = Self::builder()
 			.candidate_validation(all_subsystems.candidate_validation)
@@ -679,7 +681,7 @@ where
 			.supports_parachains(supports_parachains)
 			.metrics(metrics.clone())
 			.spawner(s)
-			.build()?;
+			.build_with_connector(connector)?;
 
 		// spawn the metrics metronome task
 		{

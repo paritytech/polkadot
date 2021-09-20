@@ -133,6 +133,10 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			pub fn as_handle(&self) -> &#handle {
 				&self.handle
 			}
+			/// Obtain a clone of the handle.
+			pub fn handle(&self) -> #handle {
+				self.handle.clone()
+			}
 		}
 
 		impl ::std::default::Default for #connector {
