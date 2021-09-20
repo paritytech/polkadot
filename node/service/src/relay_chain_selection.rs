@@ -109,44 +109,40 @@ impl Metrics {
 }
 
 /// A chain-selection implementation which provides safety for relay chains.
-pub struct SelectRelayChainWithFallback<B: sc_client_api::Backend<PolkadotBlock>> {
-	// A fallback to use in case the overseer is disconnected.
-	//
-	// This is used on relay chains which have not yet enabled
-	// parachains as well as situations where the node is offline.
-	fallback: sc_consensus::LongestChain<B, PolkadotBlock>,
-	selection: SelectRelayChain<B, Handle>,
+pub struct SelectRelayChain<B: sc_client_api::Backend<PolkadotBlock>> {
+	longest_chain: sc_consensus::LongestChain<B, PolkadotBlock>,
+	selection: SelectRelayChainInner<B, Handle>,
 }
 
-impl<B> Clone for SelectRelayChainWithFallback<B>
+impl<B> Clone for SelectRelayChain<B>
 where
 	B: sc_client_api::Backend<PolkadotBlock>,
-	SelectRelayChain<B, Handle>: Clone,
+	SelectRelayChainInner<B, Handle>: Clone,
 {
 	fn clone(&self) -> Self {
-		Self { fallback: self.fallback.clone(), selection: self.selection.clone() }
+		Self { longest_chain: self.longest_chain.clone(), selection: self.selection.clone() }
 	}
 }
 
-impl<B> SelectRelayChainWithFallback<B>
+impl<B> SelectRelayChain<B>
 where
 	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 {
-	/// Create a new [`SelectRelayChainWithFallback`] wrapping the given chain backend
+	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
 	pub fn new(backend: Arc<B>, overseer: Handle, metrics: Metrics) -> Self {
-		SelectRelayChainWithFallback {
-			fallback: sc_consensus::LongestChain::new(backend.clone()),
-			selection: SelectRelayChain::new(backend, overseer, metrics),
+		SelectRelayChain {
+			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
+			selection: SelectRelayChainInner::new(backend, overseer, metrics),
 		}
 	}
 }
 
-impl<B> SelectRelayChainWithFallback<B>
+impl<B> SelectRelayChain<B>
 where
 	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 {
-	/// Given an overseer handle, this connects the [`SelectRelayChainWithFallback`]'s
+	/// Given an overseer handle, this connects the [`SelectRelayChain`]'s
 	/// internal handle and its clones to the same overseer.
 	pub fn connect_to_overseer(&mut self, handle: OverseerHandle) {
 		self.selection.overseer.connect_to_overseer(handle);
@@ -154,13 +150,13 @@ where
 }
 
 #[async_trait::async_trait]
-impl<B> SelectChain<PolkadotBlock> for SelectRelayChainWithFallback<B>
+impl<B> SelectChain<PolkadotBlock> for SelectRelayChain<B>
 where
 	B: sc_client_api::Backend<PolkadotBlock> + 'static,
 {
 	async fn leaves(&self) -> Result<Vec<Hash>, ConsensusError> {
 		if self.selection.overseer.is_disconnected() {
-			return self.fallback.leaves().await
+			return self.longest_chain.leaves().await
 		}
 
 		self.selection.leaves().await
@@ -168,7 +164,7 @@ where
 
 	async fn best_chain(&self) -> Result<PolkadotHeader, ConsensusError> {
 		if self.selection.overseer.is_disconnected() {
-			return self.fallback.best_chain().await
+			return self.longest_chain.best_chain().await
 		}
 		self.selection.best_chain().await
 	}
@@ -179,34 +175,34 @@ where
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Option<Hash>, ConsensusError> {
 		let longest_chain_best =
-			self.fallback.finality_target(target_hash, maybe_max_number).await?;
+			self.longest_chain.finality_target(target_hash, maybe_max_number).await?;
 
 		if self.selection.overseer.is_disconnected() {
 			return Ok(longest_chain_best)
 		}
 		self.selection
-			.finality_target_with_fallback(target_hash, longest_chain_best, maybe_max_number)
+			.finality_target_with_longest_chain(target_hash, longest_chain_best, maybe_max_number)
 			.await
 	}
 }
 
 /// A chain-selection implementation which provides safety for relay chains
 /// but does not handle situations where the overseer is not yet connected.
-pub struct SelectRelayChain<B, OH> {
+pub struct SelectRelayChainInner<B, OH> {
 	backend: Arc<B>,
 	overseer: OH,
 	metrics: Metrics,
 }
 
-impl<B, OH> SelectRelayChain<B, OH>
+impl<B, OH> SelectRelayChainInner<B, OH>
 where
 	B: HeaderProviderProvider<PolkadotBlock>,
 	OH: OverseerHandleT,
 {
-	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
+	/// Create a new [`SelectRelayChainInner`] wrapping the given chain backend
 	/// and a handle to the overseer.
 	pub fn new(backend: Arc<B>, overseer: OH, metrics: Metrics) -> Self {
-		SelectRelayChain { backend, overseer, metrics }
+		SelectRelayChainInner { backend, overseer, metrics }
 	}
 
 	fn block_header(&self, hash: Hash) -> Result<PolkadotHeader, ConsensusError> {
@@ -234,13 +230,13 @@ where
 	}
 }
 
-impl<B, OH> Clone for SelectRelayChain<B, OH>
+impl<B, OH> Clone for SelectRelayChainInner<B, OH>
 where
 	B: HeaderProviderProvider<PolkadotBlock> + Send + Sync,
 	OH: OverseerHandleT,
 {
 	fn clone(&self) -> Self {
-		SelectRelayChain {
+		SelectRelayChainInner {
 			backend: self.backend.clone(),
 			overseer: self.overseer.clone(),
 			metrics: self.metrics.clone(),
@@ -273,7 +269,7 @@ impl OverseerHandleT for Handle {
 	}
 }
 
-impl<B, OH> SelectRelayChain<B, OH>
+impl<B, OH> SelectRelayChainInner<B, OH>
 where
 	B: HeaderProviderProvider<PolkadotBlock>,
 	OH: OverseerHandleT,
@@ -317,7 +313,7 @@ where
 	///
 	/// It will also constrain the chain to only chains which are fully
 	/// approved, and chains which contain no disputes.
-	pub(crate) async fn finality_target_with_fallback(
+	pub(crate) async fn finality_target_with_longest_chain(
 		&self,
 		target_hash: Hash,
 		best_leaf: Option<Hash>,
