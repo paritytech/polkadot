@@ -79,7 +79,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let (finality_target_tx, finality_target_rx) = oneshot::channel::<Option<Hash>>();
 
-	let select_relay_chain = SelectRelayChainInner::<TestChainStorage, TestSubsystemSender>::new(
+	let select_relay_chain = SelectRelayChain::<TestChainStorage, TestSubsystemSender>::new(
 		Arc::new(case_vars.chain.clone()),
 		context.sender().clone(),
 		Default::default(),
