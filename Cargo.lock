@@ -469,7 +469,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#f59074b5b750bd592a9b6957ee21f88cc08ed755"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#ccb13ff9f40ce483ce5e3b4be20bacc17b8d5a9b"
 dependencies = [
  "beefy-primitives",
  "fnv",
@@ -499,7 +499,7 @@ dependencies = [
 [[package]]
 name = "beefy-gadget-rpc"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#f59074b5b750bd592a9b6957ee21f88cc08ed755"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#ccb13ff9f40ce483ce5e3b4be20bacc17b8d5a9b"
 dependencies = [
  "beefy-gadget",
  "beefy-primitives",
@@ -517,12 +517,12 @@ dependencies = [
 [[package]]
 name = "beefy-merkle-tree"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#f59074b5b750bd592a9b6957ee21f88cc08ed755"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#ccb13ff9f40ce483ce5e3b4be20bacc17b8d5a9b"
 
 [[package]]
 name = "beefy-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#f59074b5b750bd592a9b6957ee21f88cc08ed755"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#ccb13ff9f40ce483ce5e3b4be20bacc17b8d5a9b"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -4514,7 +4514,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#f59074b5b750bd592a9b6957ee21f88cc08ed755"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#ccb13ff9f40ce483ce5e3b4be20bacc17b8d5a9b"
 dependencies = [
  "beefy-primitives",
  "frame-support",
@@ -4530,7 +4530,7 @@ dependencies = [
 [[package]]
 name = "pallet-beefy-mmr"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#f59074b5b750bd592a9b6957ee21f88cc08ed755"
+source = "git+https://github.com/paritytech/grandpa-bridge-gadget?branch=na-jsonrpseeE#ccb13ff9f40ce483ce5e3b4be20bacc17b8d5a9b"
 dependencies = [
  "beefy-merkle-tree",
  "beefy-primitives",
