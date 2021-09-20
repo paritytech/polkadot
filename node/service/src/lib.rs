@@ -724,11 +724,9 @@ where
 	let overseer_connector = OverseerConnector::default();
 	let overseer_handle = Handle::new(overseer_connector.handle());
 
-	let is_relay_chain = false;
 	let select_chain = SelectRelayChain::new(
 		basics.backend.clone(),
 		overseer_handle.clone(),
-		is_relay_chain,
 		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
 	);
 	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
