@@ -136,23 +136,12 @@ where
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
 
-	pub fn new(backend: Arc<B>, overseer: Handle, metrics: Metrics) -> Self {
+	pub fn new(backend: Arc<B>, overseer: Handle, is_relay_chain: bool, metrics: Metrics) -> Self {
 		SelectRelayChain {
 			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
 			selection: SelectRelayChainInner::new(backend, overseer, metrics),
-			is_relay_chain: false,
+			is_relay_chain,
 		}
-	}
-}
-
-impl<B> SelectRelayChain<B>
-where
-	B: sc_client_api::Backend<PolkadotBlock> + 'static,
-{
-	/// Given an overseer handle, this connects the [`SelectRelayChain`]'s
-	/// internal handle and its clones to the same overseer.
-	pub fn mark_as_relay_chain(&mut self) {
-		self.is_relay_chain = true;
 	}
 }
 

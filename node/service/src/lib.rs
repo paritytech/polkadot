@@ -719,14 +719,29 @@ where
 
 	let prometheus_registry = config.prometheus_registry().cloned();
 
-	use relay_chain_selection::SelectRelayChain;
-
 	let overseer_connector = OverseerConnector::default();
 	let overseer_handle = Handle::new(overseer_connector.handle());
+
+	let chain_spec = config.chain_spec.cloned_box();
+
+	// we should remove this check before we deploy parachains on polkadot
+	// TODO: https://github.com/paritytech/polkadot/issues/3326
+	let is_relay_chain = chain_spec.is_kusama() ||
+		chain_spec.is_westend() ||
+		chain_spec.is_rococo() ||
+		chain_spec.is_wococo();
+
+	let local_keystore = basics.keystore_container.local_keystore();
+	let requires_overseer_for_chain_sel = local_keystore.is_some()
+		&& is_relay_chain
+		&& (role.is_authority() || is_collator.is_collator());
+
+	use relay_chain_selection::SelectRelayChain;
 
 	let select_chain = SelectRelayChain::new(
 		basics.backend.clone(),
 		overseer_handle.clone(),
+		requires_overseer_for_chain_sel,
 		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
 	);
 	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
@@ -734,7 +749,7 @@ where
 		backend,
 		mut task_manager,
 		keystore_container,
-		mut select_chain,
+		select_chain,
 		import_queue,
 		transaction_pool,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry),
@@ -752,7 +767,7 @@ where
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 
-	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
+	if chain_spec.is_rococo() || chain_spec.is_wococo() {
 		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
 	}
 
@@ -837,7 +852,6 @@ where
 		col_data: crate::parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
 	};
 
-	let chain_spec = config.chain_spec.cloned_box();
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -894,7 +908,6 @@ where
 		None
 	};
 
-	let local_keystore = keystore_container.local_keystore();
 	if local_keystore.is_none() {
 		tracing::info!("Cannot run as validator without local keystore.");
 	}
@@ -903,6 +916,7 @@ where
 		local_keystore.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
 
 	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
+		assert!(chain_spec.is_dev() || requires_overseer_for_chain_sel, "Precondition congruence (true) is guaranteed by manual checking. qed");
 		let (overseer, overseer_handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
 				overseer_connector,
@@ -954,20 +968,9 @@ where
 				}),
 			);
 		}
-		// we should remove this check before we deploy parachains on polkadot
-		// TODO: https://github.com/paritytech/polkadot/issues/3326
-		let is_relay_chain = chain_spec.is_kusama() ||
-			chain_spec.is_westend() ||
-			chain_spec.is_rococo() ||
-			chain_spec.is_wococo();
-
-		if is_relay_chain {
-			select_chain.mark_as_relay_chain();
-		} else {
-			tracing::info!("Authority without relay-chain enablement.");
-		}
 		Some(handle)
 	} else {
+		assert!(!requires_overseer_for_chain_sel, "Precondition congruence (false) is guaranteed by manual checking. qed");
 		None
 	};
 
