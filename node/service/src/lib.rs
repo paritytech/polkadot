@@ -27,7 +27,7 @@ mod relay_chain_selection;
 pub mod overseer;
 
 #[cfg(feature = "full-node")]
-pub use self::overseer::{OverseerConnector, OverseerGen, OverseerGenArgs, RealOverseerGen};
+pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
 
 #[cfg(all(test, feature = "disputes"))]
 mod tests;
@@ -52,9 +52,9 @@ use {
 pub use sp_core::traits::SpawnNamed;
 #[cfg(feature = "full-node")]
 pub use {
-	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
+	polkadot_overseer::{Handle, Overseer, OverseerHandle, OverseerConnector},
 	polkadot_primitives::v1::ParachainHost,
-	relay_chain_selection::SelectRelayChainWithFallback,
+	relay_chain_selection::SelectRelayChain,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
 	sp_blockchain::HeaderBackend,
@@ -737,13 +737,14 @@ where
 		is_relay_chain &&
 		(role.is_authority() || is_collator.is_collator());
 
-	let select_chain = SelectRelayChainWithFallback::new(
+	let select_chain = SelectRelayChain::new(
 		basics.backend.clone(),
 		overseer_handle.clone(),
 		requires_overseer_for_chain_sel,
 		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
 	);
-	let service::PartialComponents::<_, _, SelectRelayChainWithFallback<_>, _, _, _> {
+
+	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
 		client,
 		backend,
 		mut task_manager,
@@ -752,7 +753,7 @@ where
 		import_queue,
 		transaction_pool,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry),
-	} = new_partial::<RuntimeApi, ExecutorDispatch, SelectRelayChainWithFallback<_>>(
+	} = new_partial::<RuntimeApi, ExecutorDispatch, SelectRelayChain<_>>(
 		&mut config,
 		basics,
 		select_chain,
