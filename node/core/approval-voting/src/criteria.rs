@@ -265,7 +265,7 @@ pub(crate) fn compute_assignments(
 			None => {
 				tracing::trace!(target: LOG_TARGET, "No assignment key");
 				return Default::default()
-			}
+			},
 			Some(k) => k,
 		}
 	};
