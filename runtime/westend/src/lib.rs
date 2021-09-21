@@ -49,9 +49,9 @@ use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
-	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit, UsingComponents,
+	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, LocationInverter,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
+	UsingComponents, WeightInfoBounds,
 };
 use xcm_executor::XcmExecutor;
 
@@ -939,10 +939,6 @@ type LocalOriginConverter = (
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
-parameter_types! {
-	pub const BaseXcmWeight: Weight = 10_000_000;
-}
-
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
 pub type XcmRouter = (
@@ -978,7 +974,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
 	type Trader = UsingComponents<WeightToFee, WndLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
@@ -1004,7 +1000,7 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Origin = Origin;
 	type Call = Call;
