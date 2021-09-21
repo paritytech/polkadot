@@ -21,8 +21,10 @@ use frame_system::RawOrigin;
 use primitives::v1::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 use sp_runtime::traits::{One, Saturating};
 
-// 2 ^ 10, because binary search time complexity is O(log(2, n)) and n = 1024 gives us a
-// big and round number.
+// 2 ^ 10, because binary search time complexity is O(log(2, n)) and n = 1024 gives us a big and
+// round number.
+// Due to the limited number of parachains, the number of pruning, upcoming upgrades and cooldowns
+// shouldn't exceed this number.
 const SAMPLE_SIZE: u32 = 1024;
 
 fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
