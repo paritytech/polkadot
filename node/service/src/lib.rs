@@ -903,7 +903,6 @@ where
 		local_keystore.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
 
 	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
-		// already have access to the handle
 		let (overseer, overseer_handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
 				overseer_connector,
