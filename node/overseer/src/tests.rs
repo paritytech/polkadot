@@ -240,7 +240,7 @@ fn overseer_metrics_work() {
 				.build()
 				.unwrap();
 
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run().fuse();
 
 		pin_mut!(overseer_fut);
@@ -505,7 +505,7 @@ fn overseer_finalize_works() {
 			.leaves(block_info_to_pair(vec![first_block, second_block]))
 			.build()
 			.unwrap();
-		let mut handle = Handle::Connected(handle);
+		let mut handle = Handle::new(handle);
 
 		let overseer_fut = overseer.run().fuse();
 		pin_mut!(overseer_fut);
