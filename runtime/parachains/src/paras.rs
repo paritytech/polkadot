@@ -126,9 +126,9 @@ impl ParaLifecycle {
 	pub fn is_parachain(&self) -> bool {
 		matches!(
 			self,
-			ParaLifecycle::Parachain |
-				ParaLifecycle::DowngradingParachain |
-				ParaLifecycle::OffboardingParachain
+			ParaLifecycle::Parachain
+				| ParaLifecycle::DowngradingParachain
+				| ParaLifecycle::OffboardingParachain
 		)
 	}
 
@@ -138,9 +138,9 @@ impl ParaLifecycle {
 	pub fn is_parathread(&self) -> bool {
 		matches!(
 			self,
-			ParaLifecycle::Parathread |
-				ParaLifecycle::UpgradingParathread |
-				ParaLifecycle::OffboardingParathread
+			ParaLifecycle::Parathread
+				| ParaLifecycle::UpgradingParathread
+				| ParaLifecycle::OffboardingParathread
 		)
 	}
 
@@ -621,7 +621,7 @@ impl<T: Config> Pallet<T> {
 			let lifecycle = ParaLifecycles::<T>::get(&para);
 			match lifecycle {
 				None | Some(ParaLifecycle::Parathread) | Some(ParaLifecycle::Parachain) => { /* Nothing to do... */
-				},
+				}
 				// Onboard a new parathread or parachain.
 				Some(ParaLifecycle::Onboarding) => {
 					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
@@ -639,24 +639,24 @@ impl<T: Config> Pallet<T> {
 						Self::increase_code_ref(&code_hash, &genesis_data.validation_code);
 						<Self as Store>::CurrentCodeHash::insert(&para, code_hash);
 					}
-				},
+				}
 				// Upgrade a parathread to a parachain
 				Some(ParaLifecycle::UpgradingParathread) => {
 					if let Err(i) = parachains.binary_search(&para) {
 						parachains.insert(i, para);
 					}
 					ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parachain);
-				},
+				}
 				// Downgrade a parachain to a parathread
 				Some(ParaLifecycle::DowngradingParachain) => {
 					if let Ok(i) = parachains.binary_search(&para) {
 						parachains.remove(i);
 					}
 					ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parathread);
-				},
+				}
 				// Offboard a parathread or parachain from the system
-				Some(ParaLifecycle::OffboardingParachain) |
-				Some(ParaLifecycle::OffboardingParathread) => {
+				Some(ParaLifecycle::OffboardingParachain)
+				| Some(ParaLifecycle::OffboardingParathread) => {
 					if let Ok(i) = parachains.binary_search(&para) {
 						parachains.remove(i);
 					}
@@ -677,7 +677,7 @@ impl<T: Config> Pallet<T> {
 					}
 
 					outgoing.push(para);
-				},
+				}
 			}
 		}
 
@@ -705,7 +705,7 @@ impl<T: Config> Pallet<T> {
 		// Place the new parachains set in storage.
 		<Self as Store>::Parachains::set(parachains);
 
-		return outgoing
+		return outgoing;
 	}
 
 	// note replacement of the code of para with given `id`, which occured in the
@@ -744,7 +744,7 @@ impl<T: Config> Pallet<T> {
 		let code_retention_period = config.code_retention_period;
 		if now <= code_retention_period {
 			let weight = T::DbWeight::get().reads_writes(1, 0);
-			return weight
+			return weight;
 		}
 
 		// The height of any changes we no longer should keep around.
@@ -856,10 +856,13 @@ impl<T: Config> Pallet<T> {
 		let _ = Self::schedule_para_initialize(id, genesis)?;
 
 		// .. and immediately apply them.
-		let _ = Self::apply_actions_queue(Self::scheduled_session());
+		Self::apply_actions_queue(Self::scheduled_session());
 
 		// ensure it has become a para.
-		assert_eq!(ParaLifecycles::<T>::get(id), Some(ParaLifecycle::Parachain));
+		ensure!(
+			ParaLifecycles::<T>::get(id) == Some(ParaLifecycle::Parachain),
+			"Parachain not created properly"
+		);
 		Ok(())
 	}
 
@@ -875,10 +878,10 @@ impl<T: Config> Pallet<T> {
 			None => return Ok(()),
 			Some(ParaLifecycle::Parathread) => {
 				ParaLifecycles::<T>::insert(&id, ParaLifecycle::OffboardingParathread);
-			},
+			}
 			Some(ParaLifecycle::Parachain) => {
 				ParaLifecycles::<T>::insert(&id, ParaLifecycle::OffboardingParachain);
-			},
+			}
 			_ => return Err(Error::<T>::CannotOffboard)?,
 		}
 
@@ -1035,7 +1038,7 @@ impl<T: Config> Pallet<T> {
 		assume_intermediate: Option<T::BlockNumber>,
 	) -> Option<ValidationCodeHash> {
 		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
-			return None
+			return None;
 		}
 
 		let planned_upgrade = <Self as Store>::FutureCodeUpgrades::get(&id);
@@ -1050,8 +1053,9 @@ impl<T: Config> Pallet<T> {
 			match Self::past_code_meta(&id).code_at(at) {
 				None => None,
 				Some(UseCodeAt::Current) => CurrentCodeHash::<T>::get(&id),
-				Some(UseCodeAt::ReplacedAt(replaced)) =>
-					<Self as Store>::PastCodeHash::get(&(id, replaced)),
+				Some(UseCodeAt::ReplacedAt(replaced)) => {
+					<Self as Store>::PastCodeHash::get(&(id, replaced))
+				}
 			}
 		}
 	}
@@ -1099,7 +1103,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn last_code_upgrade(id: ParaId, include_future: bool) -> Option<T::BlockNumber> {
 		if include_future {
 			if let Some(at) = Self::future_code_upgrade_at(id) {
-				return Some(at)
+				return Some(at);
 			}
 		}
 
