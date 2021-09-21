@@ -374,7 +374,7 @@ impl NetworkBridgeMessage {
 			Self::SendValidationMessages(_) => None,
 			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
-			Self::ConnectToPeer { .. } => None,
+			Self::ConnectToValidatorsResolved { .. } => None,
 			Self::SendRequests { .. } => None,
 			Self::NewGossipTopology { .. } => None,
 		}

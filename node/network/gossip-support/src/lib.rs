@@ -24,10 +24,7 @@
 //! in this graph will be forwarded to the network bridge with
 //! the `NetworkBridgeMessage::NewGossipTopology` message.
 
-use std::{
-	collections::HashMap,
-	time::{Duration, Instant},
-};
+use std::{collections::HashMap, time::{Duration, Instant, SystemTime}};
 
 use futures::{channel::oneshot, FutureExt as _};
 use rand::{seq::SliceRandom as _, SeedableRng};
@@ -97,6 +94,8 @@ pub struct GossipSupport<AD> {
 	///
 	/// Needed for efficient handling of disconnect events.
 	connected_authorities_by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
+	/// When was the last time we checked our connectivity, if ever?
+	last_connectivity_check: Option<Instant>,
 	/// Authority discovery service.
 	authority_discovery: AD,
 }
@@ -107,7 +106,7 @@ where
 {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
 	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD) -> Self {
-		Self { keystore, last_session_index: None, last_failure: None, failure_start: None, resolved_authorities: HashMap::new(), connected_authorities: HashMap::new(), connected_authorities_by_peer_id: HashMap::new(), authority_discovery,   }
+		Self { keystore, last_session_index: None, last_failure: None, failure_start: None, resolved_authorities: HashMap::new(), connected_authorities: HashMap::new(), connected_authorities_by_peer_id: HashMap::new(), last_connectivity_check: None, authority_discovery,   }
 	}
 
 	async fn run<Context>(self, ctx: Context)
@@ -161,6 +160,9 @@ where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
+		// Use active leaves update as tick to see whether we need to report on connectivity.
+		self.check_connectivity();
+
 		for leaf in leaves {
 			let current_index =
 				util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
@@ -171,16 +173,12 @@ where
 				Some(i) if current_index <= i => None,
 				_ => leaf_session,
 			};
-			let is_new_session = maybe_new_session.is_some();
-			// Inform about connectivity at each session:
-			if is_new_session {
-				self.log_connectivity_report(true);
-			}
 
 			let maybe_issue_connection =
 				if force_request { leaf_session } else { maybe_new_session };
 
 			if let Some((session_index, relay_parent)) = maybe_issue_connection {
+				let is_new_session = maybe_new_session.is_some();
 				if is_new_session {
 					tracing::debug!(
 						target: LOG_TARGET,
@@ -214,16 +212,30 @@ where
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
 		let num = authorities.len();
+		let all_addrs = Vec::with_capacity(authorities.len());
+		let mut failures = 0;
+		let mut resolved = HashMap::with_capacity(authorities.len());
+		for authority in authorities {
+			if let Some(addrs) = self.authority_discovery.get_addresses_by_authority_id(authority).await {
+				all_addrs.push(addrs.clone());
+				resolved.insert(authority, addrs);
+			} else {
+				failures += 1;
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Couldn't resolve addresses of authority: {:?}",
+					authority
+				);
+			}
+		}
+		self.resolved_authorities = resolved;
 		tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
-		let failures = connect_to_authorities(ctx, authorities, PeerSet::Validation).await;
-
-		// we await for the request to be processed
-		// this is fine, it should take much less time than one session
-		let failures = failures.await.unwrap_or(num);
+		ctx.send_message(NetworkBridgeMessage::ConnectToValidatorsResolved { validator_addrs, peer_set })
+			.await;
 
 		// issue another request for the same session
-		// if at least a third of the authorities were not resolved
+		// if at least a third of the authorities were not resolved.
 		if failures >= num / 3 {
 			let timestamp = Instant::now();
 			match self.failure_start {
@@ -279,11 +291,20 @@ where
 		}
 	}
 
-	/// Log report about connectivity and warn in logs on low connectivity.
+	/// Check connectivity and report on it in logs.
 	///
-	///
-	/// warn: Whether or not we should warn on low connectivity.
-	fn log_connectivity_report(&self, warn: bool) {
+	/// This is only done every `LOW_CONNECTIVITY_WARN_DELAY` seconds, in order not to needlessly
+	/// flood logs and to avoid fals warnings on startup.
+	fn check_connectivity(&mut self) {
+		let now = SystemTime::now();
+		if let Some(last_check) = self.last_connectivity_check.take() {
+			if now.duration_since(last_check) < LOW_CONNECTIVITY_WARN_DELAY {
+				self.last_connectivity_check = Some(last_check);
+				return
+			}
+		}
+		self.last_connectivity_check = Some(now);
+
 		let absolute_connected = self.connected_authorities.len();
 		let absolute_resolved = self.resolved_authorities.len();
 		let connected_ratio =
@@ -292,7 +313,7 @@ where
 			.resolved_authorities
 			.iter()
 			.filter(|(a, _)| self.connected_authorities.contains_key(a));
-		if warn && connected_ratio <= LOW_CONNECTIVITY_WARN_TRESHOLD {
+		if connected_ratio <= LOW_CONNECTIVITY_WARN_THRESHOLD {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"Connectivity seems low, we are only connected to {}% of available validators (see debug logs for details)", connected_ratio
@@ -337,22 +358,6 @@ async fn ensure_i_am_an_authority(
 		}
 	}
 	Err(util::Error::NotAValidator)
-}
-
-/// A helper function for making a `ConnectToValidators` request.
-async fn connect_to_authorities<Context>(
-	ctx: &mut Context,
-	validator_ids: Vec<AuthorityDiscoveryId>,
-	peer_set: PeerSet,
-) -> oneshot::Receiver<usize>
-where
-	Context: SubsystemContext<Message = GossipSupportMessage>,
-	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-{
-	let (failed, failed_rx) = oneshot::channel();
-	ctx.send_message(NetworkBridgeMessage::ConnectToValidators { validator_ids, peer_set, failed })
-		.await;
-	failed_rx
 }
 
 /// We partition the list of all sorted `authorities` into `sqrt(len)` groups of `sqrt(len)` size
