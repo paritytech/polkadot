@@ -43,11 +43,11 @@ pub fn make_persisted_validation_data<T: paras::Config + hrmp::Config>(
 
 /// Take an active subset of a set containing all validators.
 ///
-/// First item in pair will be all items in set have indeces found in the `active` indices set (in
+/// First item in pair will be all items in set have indices found in the `active` indices set (in
 /// the order of the `active` vec, the second item will contain the rest, in the original order.
 ///
 /// ```ignore
-///		split_active_subset(active.into_iter().collect(), all).0 == take_active_subset(active, all)
+///		split_active_subset(active, all).0 == take_active_subset(active, all)
 /// ```
 pub fn split_active_subset<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> (Vec<T>, Vec<T>) {
 	let active_set: BTreeSet<_> = active.iter().cloned().collect();
@@ -73,6 +73,10 @@ pub fn split_active_subset<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> (V
 }
 
 /// Uses `split_active_subset` and concatenates the inactive to the active vec.
+///
+/// ```ignore
+///		split_active_subset(active, all)[0..active.len()]) == take_active_subset(active, all)
+/// ```
 pub fn take_active_subset_and_inactive<T: Clone>(active: &[ValidatorIndex], all: &[T]) -> Vec<T> {
 	let (mut a, mut i) = split_active_subset(active, all);
 	a.append(&mut i);
