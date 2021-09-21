@@ -346,11 +346,11 @@ pub enum NetworkBridgeMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
-	/// Alternative to `ConnectToValidators` in case you alrady know the `Multiaddr` you want to be
+	/// Alternative to `ConnectToValidators` in case you alrady know the `Multiaddrs` you want to be
 	/// connected to.
-	ConnectToPeers {
-		/// the peers we want to connect to.
-		peers: Vec<Multiaddr>,
+	ConnectToValidatorsResolved {
+		/// Each entry corresponds to the addresses of an already resolved validator.
+		validator_addrs: Vec<Vec<Multiaddr>>,
 		/// The peer set we want the connection on.
 		peer_set: PeerSet,
 	},

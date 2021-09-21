@@ -37,7 +37,7 @@ use sc_network::Multiaddr;
 use sp_application_crypto::{AppKey, Public};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use polkadot_node_network_protocol::{peer_set::PeerSet, v1::GossipSuppportNetworkMessage, PeerId};
+use polkadot_node_network_protocol::{PeerId, authority_discovery::{self, AuthorityDiscovery}, peer_set::PeerSet, v1::GossipSuppportNetworkMessage};
 use polkadot_node_subsystem::{
 	messages::{
 		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
@@ -70,12 +70,9 @@ const LOW_CONNECTIVITY_WARN_DELAY: Duration = Duration::from_secs(600);
 const LOW_CONNECTIVITY_WARN_TRESHOLD: usize = 90;
 
 /// The Gossip Support subsystem.
-pub struct GossipSupport {
+pub struct GossipSupport<AD> {
 	keystore: SyncCryptoStorePtr,
-}
 
-#[derive(Default)]
-struct State {
 	last_session_index: Option<SessionIndex>,
 	// Some(timestamp) if we failed to resolve
 	// at least a third of authorities the last time.
@@ -100,12 +97,17 @@ struct State {
 	///
 	/// Needed for efficient handling of disconnect events.
 	connected_authorities_by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
+	/// Authority discovery service.
+	authority_discovery: AD,
 }
 
-impl GossipSupport {
+impl<AD> GossipSupport<AD>
+where
+	AD: AuthorityDiscovery + Clone,
+{
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new(keystore: SyncCryptoStorePtr) -> Self {
-		Self { keystore }
+	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD) -> Self {
+		Self { keystore, last_session_index: None, last_failure: None, failure_start: None, resolved_authorities: HashMap::new(), connected_authorities: HashMap::new(), connected_authorities_by_peer_id: HashMap::new(), authority_discovery,   }
 	}
 
 	async fn run<Context>(self, ctx: Context)
@@ -113,16 +115,6 @@ impl GossipSupport {
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
-		let mut state = State::default();
-		self.run_inner(ctx, &mut state).await;
-	}
-
-	async fn run_inner<Context>(self, mut ctx: Context, state: &mut State)
-	where
-		Context: SubsystemContext<Message = GossipSupportMessage>,
-		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-	{
-		let Self { keystore } = self;
 		loop {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
@@ -138,7 +130,7 @@ impl GossipSupport {
 			match message {
 				FromOverseer::Communication {
 					msg: GossipSupportMessage::NetworkBridgeUpdateV1(ev),
-				} => handle_connect_disconnect(state, ev),
+				} => self.handle_connect_disconnect(ev),
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,
 					..
@@ -146,7 +138,7 @@ impl GossipSupport {
 					tracing::trace!(target: LOG_TARGET, "active leaves signal");
 
 					let leaves = activated.into_iter().map(|a| a.hash);
-					if let Err(e) = state.handle_active_leaves(&mut ctx, &keystore, leaves).await {
+					if let Err(e) = self.handle_active_leaves(&mut ctx, leaves).await {
 						tracing::debug!(target: LOG_TARGET, error = ?e);
 					}
 				},
@@ -155,132 +147,7 @@ impl GossipSupport {
 			}
 		}
 	}
-}
 
-async fn determine_relevant_authorities<Context>(
-	ctx: &mut Context,
-	relay_parent: Hash,
-) -> Result<Vec<AuthorityDiscoveryId>, util::Error>
-where
-	Context: SubsystemContext<Message = GossipSupportMessage>,
-	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-{
-	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
-	tracing::debug!(
-		target: LOG_TARGET,
-		authority_count = ?authorities.len(),
-		"Determined relevant authorities",
-	);
-	Ok(authorities)
-}
-
-/// Return an error if we're not a validator in the given set (do not have keys).
-/// Otherwise, returns the index of our keys in `authorities`.
-async fn ensure_i_am_an_authority(
-	keystore: &SyncCryptoStorePtr,
-	authorities: &[AuthorityDiscoveryId],
-) -> Result<usize, util::Error> {
-	for (i, v) in authorities.iter().enumerate() {
-		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)]).await {
-			return Ok(i)
-		}
-	}
-	Err(util::Error::NotAValidator)
-}
-
-/// A helper function for making a `ConnectToValidators` request.
-async fn connect_to_authorities<Context>(
-	ctx: &mut Context,
-	validator_ids: Vec<AuthorityDiscoveryId>,
-	peer_set: PeerSet,
-) -> oneshot::Receiver<usize>
-where
-	Context: SubsystemContext<Message = GossipSupportMessage>,
-	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-{
-	let (failed, failed_rx) = oneshot::channel();
-	ctx.send_message(NetworkBridgeMessage::ConnectToValidators { validator_ids, peer_set, failed })
-		.await;
-	failed_rx
-}
-
-/// We partition the list of all sorted `authorities` into `sqrt(len)` groups of `sqrt(len)` size
-/// and form a matrix where each validator is connected to all validators in its row and column.
-/// This is similar to `[web3]` research proposed topology, except for the groups are not parachain
-/// groups (because not all validators are parachain validators and the group size is small),
-/// but formed randomly via BABE randomness from two epochs ago.
-/// This limits the amount of gossip peers to 2 * `sqrt(len)` and ensures the diameter of 2.
-///
-/// [web3]: https://research.web3.foundation/en/latest/polkadot/networking/3-avail-valid.html#topology
-async fn update_gossip_topology<Context>(
-	ctx: &mut Context,
-	our_index: usize,
-	authorities: Vec<AuthorityDiscoveryId>,
-	relay_parent: Hash,
-) -> Result<(), util::Error>
-where
-	Context: SubsystemContext<Message = GossipSupportMessage>,
-	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
-{
-	// retrieve BABE randomness
-	let random_seed = {
-		let (tx, rx) = oneshot::channel();
-
-		ctx.send_message(RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::CurrentBabeEpoch(tx),
-		))
-		.await;
-
-		let randomness = rx.await??.randomness;
-		let mut subject = [0u8; 40];
-		subject[..8].copy_from_slice(b"gossipsu");
-		subject[8..].copy_from_slice(&randomness);
-		sp_core::blake2_256(&subject)
-	};
-
-	// shuffle the indices
-	let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
-	let len = authorities.len();
-	let mut indices: Vec<usize> = (0..len).collect();
-	indices.shuffle(&mut rng);
-	let our_shuffled_position = indices
-		.iter()
-		.position(|i| *i == our_index)
-		.expect("our_index < len; indices contains it; qed");
-
-	let neighbors = matrix_neighbors(our_shuffled_position, len);
-	let our_neighbors = neighbors.map(|i| authorities[indices[i]].clone()).collect();
-
-	ctx.send_message(NetworkBridgeMessage::NewGossipTopology { our_neighbors })
-		.await;
-
-	Ok(())
-}
-
-/// Compute our row and column neighbors in a matrix
-fn matrix_neighbors(our_index: usize, len: usize) -> impl Iterator<Item = usize> {
-	assert!(our_index < len, "our_index is computed using `enumerate`; qed");
-
-	// e.g. for size 11 the matrix would be
-	//
-	// 0  1  2
-	// 3  4  5
-	// 6  7  8
-	// 9 10
-	//
-	// and for index 10, the neighbors would be 1, 4, 7, 9
-
-	let sqrt = (len as f64).sqrt() as usize;
-	let our_row = our_index / sqrt;
-	let our_column = our_index % sqrt;
-	let row_neighbors = our_row * sqrt..std::cmp::min(our_row * sqrt + sqrt, len);
-	let column_neighbors = (our_column..len).step_by(sqrt);
-
-	row_neighbors.chain(column_neighbors).filter(move |i| *i != our_index)
-}
-
-impl State {
 	/// 1. Determine if the current session index has changed.
 	/// 2. If it has, determine relevant validators
 	///    and issue a connection request.
@@ -439,6 +306,129 @@ impl State {
 			?unconnected_authorities,
 		);
 	}
+}
+
+async fn determine_relevant_authorities<Context>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+) -> Result<Vec<AuthorityDiscoveryId>, util::Error>
+where
+	Context: SubsystemContext<Message = GossipSupportMessage>,
+	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+{
+	let authorities = util::request_authorities(relay_parent, ctx.sender()).await.await??;
+	tracing::debug!(
+		target: LOG_TARGET,
+		authority_count = ?authorities.len(),
+		"Determined relevant authorities",
+	);
+	Ok(authorities)
+}
+
+/// Return an error if we're not a validator in the given set (do not have keys).
+/// Otherwise, returns the index of our keys in `authorities`.
+async fn ensure_i_am_an_authority(
+	keystore: &SyncCryptoStorePtr,
+	authorities: &[AuthorityDiscoveryId],
+) -> Result<usize, util::Error> {
+	for (i, v) in authorities.iter().enumerate() {
+		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)]).await {
+			return Ok(i)
+		}
+	}
+	Err(util::Error::NotAValidator)
+}
+
+/// A helper function for making a `ConnectToValidators` request.
+async fn connect_to_authorities<Context>(
+	ctx: &mut Context,
+	validator_ids: Vec<AuthorityDiscoveryId>,
+	peer_set: PeerSet,
+) -> oneshot::Receiver<usize>
+where
+	Context: SubsystemContext<Message = GossipSupportMessage>,
+	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+{
+	let (failed, failed_rx) = oneshot::channel();
+	ctx.send_message(NetworkBridgeMessage::ConnectToValidators { validator_ids, peer_set, failed })
+		.await;
+	failed_rx
+}
+
+/// We partition the list of all sorted `authorities` into `sqrt(len)` groups of `sqrt(len)` size
+/// and form a matrix where each validator is connected to all validators in its row and column.
+/// This is similar to `[web3]` research proposed topology, except for the groups are not parachain
+/// groups (because not all validators are parachain validators and the group size is small),
+/// but formed randomly via BABE randomness from two epochs ago.
+/// This limits the amount of gossip peers to 2 * `sqrt(len)` and ensures the diameter of 2.
+///
+/// [web3]: https://research.web3.foundation/en/latest/polkadot/networking/3-avail-valid.html#topology
+async fn update_gossip_topology<Context>(
+	ctx: &mut Context,
+	our_index: usize,
+	authorities: Vec<AuthorityDiscoveryId>,
+	relay_parent: Hash,
+) -> Result<(), util::Error>
+where
+	Context: SubsystemContext<Message = GossipSupportMessage>,
+	Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
+{
+	// retrieve BABE randomness
+	let random_seed = {
+		let (tx, rx) = oneshot::channel();
+
+		ctx.send_message(RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::CurrentBabeEpoch(tx),
+		))
+		.await;
+
+		let randomness = rx.await??.randomness;
+		let mut subject = [0u8; 40];
+		subject[..8].copy_from_slice(b"gossipsu");
+		subject[8..].copy_from_slice(&randomness);
+		sp_core::blake2_256(&subject)
+	};
+
+	// shuffle the indices
+	let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
+	let len = authorities.len();
+	let mut indices: Vec<usize> = (0..len).collect();
+	indices.shuffle(&mut rng);
+	let our_shuffled_position = indices
+		.iter()
+		.position(|i| *i == our_index)
+		.expect("our_index < len; indices contains it; qed");
+
+	let neighbors = matrix_neighbors(our_shuffled_position, len);
+	let our_neighbors = neighbors.map(|i| authorities[indices[i]].clone()).collect();
+
+	ctx.send_message(NetworkBridgeMessage::NewGossipTopology { our_neighbors })
+		.await;
+
+	Ok(())
+}
+
+/// Compute our row and column neighbors in a matrix
+fn matrix_neighbors(our_index: usize, len: usize) -> impl Iterator<Item = usize> {
+	assert!(our_index < len, "our_index is computed using `enumerate`; qed");
+
+	// e.g. for size 11 the matrix would be
+	//
+	// 0  1  2
+	// 3  4  5
+	// 6  7  8
+	// 9 10
+	//
+	// and for index 10, the neighbors would be 1, 4, 7, 9
+
+	let sqrt = (len as f64).sqrt() as usize;
+	let our_row = our_index / sqrt;
+	let our_column = our_index % sqrt;
+	let row_neighbors = our_row * sqrt..std::cmp::min(our_row * sqrt + sqrt, len);
+	let column_neighbors = (our_column..len).step_by(sqrt);
+
+	row_neighbors.chain(column_neighbors).filter(move |i| *i != our_index)
 }
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for GossipSupport

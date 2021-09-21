@@ -552,33 +552,26 @@ where
 						network_service = ns;
 						authority_discovery_service = ads;
 					}
-					NetworkBridgeMessage::ConnectToPeers {
-						addrs,
+					NetworkBridgeMessage::ConnectToValidatorsResolved {
+						validator_addrs,
 						peer_set,
-						failed,
 					} => {
 						tracing::trace!(
 							target: LOG_TARGET,
 							action = "ConnectToPeers",
 							peer_set = ?peer_set,
 							?addrs,
-							"Received a peer connection request",
+							"Received a resolved validator connection request",
 						);
 
-						// FIXME
-						addrs.iter().map(|a| a.
-						metrics.note_desired_peer_count(peer_set, validator_ids.len());
+						metrics.note_desired_peer_count(peer_set, validator_addrs.len());
 
-						let (ns, ads) = validator_discovery.on_request(
-							validator_ids,
+						let all_addrs = validator_addrs.into_iter().flatten().collect();
+						network_service = validator_discovery.on_request(
+							all_addrs,
 							peer_set,
-							failed,
 							network_service,
-							authority_discovery_service,
 						).await;
-
-						network_service = ns;
-						authority_discovery_service = ads;
 					}
 					NetworkBridgeMessage::NewGossipTopology {
 						our_neighbors,
