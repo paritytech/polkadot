@@ -24,20 +24,30 @@
 //! in this graph will be forwarded to the network bridge with
 //! the `NetworkBridgeMessage::NewGossipTopology` message.
 
+use std::{
+	collections::HashMap,
+	time::{Duration, Instant},
+};
+
 use futures::{channel::oneshot, FutureExt as _};
-use polkadot_node_network_protocol::peer_set::PeerSet;
+use rand::{seq::SliceRandom as _, SeedableRng};
+use rand_chacha::ChaCha20Rng;
+
+use sc_network::Multiaddr;
+use sp_application_crypto::{AppKey, Public};
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
+
+use polkadot_node_network_protocol::{peer_set::PeerSet, v1::GossipSuppportNetworkMessage, PeerId};
 use polkadot_node_subsystem::{
-	messages::{GossipSupportMessage, NetworkBridgeMessage, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{
+		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
+		RuntimeApiRequest,
+	},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Hash, SessionIndex};
-use rand::{seq::SliceRandom as _, SeedableRng};
-use rand_chacha::ChaCha20Rng;
-use sp_application_crypto::{AppKey, Public};
-use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
-use std::time::{Duration, Instant};
 
 #[cfg(test)]
 mod tests;
@@ -55,6 +65,9 @@ const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 ///
 /// https://github.com/paritytech/substrate/blob/fc49802f263529160635471c8a17888846035f5d/client/authority-discovery/src/lib.rs#L88
 const LOW_CONNECTIVITY_WARN_DELAY: Duration = Duration::from_secs(600);
+
+/// If connectivity is lower than this in percent, issue warning in logs.
+const LOW_CONNECTIVITY_WARN_TRESHOLD: usize = 90;
 
 /// The Gossip Support subsystem.
 pub struct GossipSupport {
@@ -75,6 +88,18 @@ struct State {
 	/// potential sequence of failed attempts. It will be cleared once we reached >2/3
 	/// connectivity.
 	failure_start: Option<Instant>,
+
+	/// Successfully resolved connections
+	///
+	/// waiting for actual connection.
+	resolved_authorities: HashMap<AuthorityDiscoveryId, Vec<Multiaddr>>,
+
+	/// Actually connected authorities.
+	connected_authorities: HashMap<AuthorityDiscoveryId, PeerId>,
+	/// By `PeerId`.
+	///
+	/// Needed for efficient handling of disconnect events.
+	connected_authorities_by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
 }
 
 impl GossipSupport {
@@ -111,7 +136,9 @@ impl GossipSupport {
 				},
 			};
 			match message {
-				FromOverseer::Communication { .. } => {},
+				FromOverseer::Communication {
+					msg: GossipSupportMessage::NetworkBridgeUpdateV1(ev),
+				} => handle_connect_disconnect(state, ev),
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,
 					..
@@ -277,12 +304,16 @@ impl State {
 				Some(i) if current_index <= i => None,
 				_ => leaf_session,
 			};
+			let is_new_session = maybe_new_session.is_some();
+			// Inform about connectivity at each session:
+			if is_new_session {
+				self.log_connectivity_report(true);
+			}
 
 			let maybe_issue_connection =
 				if force_request { leaf_session } else { maybe_new_session };
 
 			if let Some((session_index, relay_parent)) = maybe_issue_connection {
-				let is_new_session = maybe_new_session.is_some();
 				if is_new_session {
 					tracing::debug!(
 						target: LOG_TARGET,
@@ -354,6 +385,59 @@ impl State {
 		};
 
 		Ok(())
+	}
+
+	fn handle_connect_disconnect(
+		state: &mut State,
+		ev: NetworkBridgeEvent<GossipSuppportNetworkMessage>,
+	) {
+		match ev {
+			NetworkBridgeEvent::PeerConnected(peer_id, _, o_authority) => {
+				if let Some(authority) = o_authority {
+					state.connected_authorities.insert(authority.clone(), peer_id);
+					state.connected_authorities_by_peer_id.insert(peer_id, authority);
+				}
+			},
+			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
+				if let Some(authority) = state.connected_authorities_by_peer_id.remove(&peer_id) {
+					state.connected_authorities.remove(&authority);
+				}
+			},
+			NetworkBridgeEvent::OurViewChange(_) => {},
+			NetworkBridgeEvent::PeerViewChange(_, _) => {},
+			NetworkBridgeEvent::NewGossipTopology(_) => {},
+			NetworkBridgeEvent::PeerMessage(_, v) => {
+				match v {};
+			},
+		}
+	}
+
+	/// Log report about connectivity and warn in logs on low connectivity.
+	///
+	///
+	/// warn: Whether or not we should warn on low connectivity.
+	fn log_connectivity_report(&self, warn: bool) {
+		let absolute_connected = self.connected_authorities.len();
+		let absolute_resolved = self.resolved_authorities.len();
+		let connected_ratio =
+			(100 * absolute_connected).checked_div(absolute_resolved).unwrap_or(0);
+		let unconnected_authorities = self
+			.resolved_authorities
+			.iter()
+			.filter(|(a, _)| self.connected_authorities.contains_key(a));
+		if warn && connected_ratio <= LOW_CONNECTIVITY_WARN_TRESHOLD {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"Connectivity seems low, we are only connected to {}% of available validators (see debug logs for details)", connected_ratio
+			);
+		}
+		tracing::debug!(
+			target: LOG_TARGET,
+			?connected_ratio,
+			?absolute_connected,
+			?absolute_resolved,
+			?unconnected_authorities,
+		);
 	}
 }
 

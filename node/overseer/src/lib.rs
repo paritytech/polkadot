@@ -404,7 +404,7 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, ApprovalVotingMessage)]
 	approval_voting: ApprovalVoting,
 
-	#[subsystem(no_dispatch, GossipSupportMessage)]
+	#[subsystem(GossipSupportMessage)]
 	gossip_support: GossipSupport,
 
 	#[subsystem(no_dispatch, DisputeCoordinatorMessage)]
