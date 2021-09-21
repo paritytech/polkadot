@@ -3,7 +3,7 @@ services:
   node_alice:
     build:
       context: .
-      dockerfile: manual.Dockerfile
+      dockerfile: polkadot_builder.Dockerfile
     ports:
       - "30333:30333"
       - "9933:9933"
@@ -19,7 +19,7 @@ services:
   node_bob:
     build:
       context: .
-      dockerfile: manual.Dockerfile
+      dockerfile: polkadot_builder.Dockerfile
     ports:
       - "30344:30344"
       - "9935:9935"

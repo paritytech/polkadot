@@ -358,8 +358,8 @@ publish-polkadot-image:
   <<:                              *build-push-image
   variables:
     <<:                            *image-variables
-    # scripts/docker/ci_debug.Dockerfile
-    DOCKERFILE:                    ci_debug.Dockerfile
+    # scripts/docker/polkadot_injected_debug.Dockerfile
+    DOCKERFILE:                    polkadot_injected_debug.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/synth-wave
   rules:
     # Don't run on releases - this is handled by the Github Action here:
@@ -394,8 +394,8 @@ publish-adder-collator-image:
   <<:                              *build-push-image
   variables:
     <<:                            *image-variables
-    # scripts/docker/ci_collator.Dockerfile
-    DOCKERFILE:                    ci_collator.Dockerfile
+    # scripts/docker/collator_injected.Dockerfile
+    DOCKERFILE:                    collator_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
