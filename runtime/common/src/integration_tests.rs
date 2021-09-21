@@ -126,6 +126,7 @@ impl pallet_babe::Config for Test {
 	)>>::IdentificationTuple;
 	type HandleEquivocation = ();
 	type WeightInfo = ();
+	type MaxAuthorities = MaxAuthorities;
 }
 
 parameter_types! {
