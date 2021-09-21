@@ -273,9 +273,9 @@ pub struct ParaGenesisArgs {
 
 pub trait WeightInfo {
 	fn force_set_current_code(c: u32) -> Weight;
-	fn force_set_current_head() -> Weight;
+	fn force_set_current_head(s: u32) -> Weight;
 	fn force_schedule_code_upgrade(c: u32) -> Weight;
-	fn force_note_new_head() -> Weight;
+	fn force_note_new_head(s: u32) -> Weight;
 	fn force_queue_action() -> Weight;
 }
 
@@ -524,7 +524,7 @@ pub mod pallet {
 		}
 
 		/// Set the storage for the current parachain head data immediately.
-		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_head())]
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_head(new_head.0.len() as u32))]
 		pub fn force_set_current_head(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -552,7 +552,7 @@ pub mod pallet {
 		}
 
 		/// Note a new block head for para within the context of the current block.
-		#[pallet::weight(<T as Config>::WeightInfo::force_note_new_head())]
+		#[pallet::weight(<T as Config>::WeightInfo::force_note_new_head(new_head.0.len() as u32))]
 		pub fn force_note_new_head(
 			origin: OriginFor<T>,
 			para: ParaId,

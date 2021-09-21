@@ -58,7 +58,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 			.saturating_add(T::DbWeight::get().writes(6 as Weight))
 	}
 	// Storage: Paras Heads (r:0 w:1)
-	fn force_set_current_head() -> Weight {
+	fn force_set_current_head(_s: u32) -> Weight {
 		(62_824_000 as Weight)
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
@@ -87,7 +87,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras Heads (r:0 w:1)
 	// Storage: Paras PastCodeHash (r:0 w:1)
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
-	fn force_note_new_head() -> Weight {
+	fn force_note_new_head(_s: u32) -> Weight {
 		(69_048_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(6 as Weight))
 			.saturating_add(T::DbWeight::get().writes(9 as Weight))
