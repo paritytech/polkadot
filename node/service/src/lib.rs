@@ -732,9 +732,9 @@ where
 		chain_spec.is_wococo();
 
 	let local_keystore = basics.keystore_container.local_keystore();
-	let requires_overseer_for_chain_sel = local_keystore.is_some()
-		&& is_relay_chain
-		&& (role.is_authority() || is_collator.is_collator());
+	let requires_overseer_for_chain_sel = local_keystore.is_some() &&
+		is_relay_chain &&
+		(role.is_authority() || is_collator.is_collator());
 
 	use relay_chain_selection::SelectRelayChain;
 
@@ -969,7 +969,10 @@ where
 		}
 		Some(handle)
 	} else {
-		assert!(!requires_overseer_for_chain_sel, "Precondition congruence (false) is guaranteed by manual checking. qed");
+		assert!(
+			!requires_overseer_for_chain_sel,
+			"Precondition congruence (false) is guaranteed by manual checking. qed"
+		);
 		None
 	};
 
