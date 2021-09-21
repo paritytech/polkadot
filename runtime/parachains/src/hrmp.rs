@@ -35,6 +35,111 @@ use sp_std::{
 
 pub use pallet::*;
 
+pub trait WeightInfo {
+	fn hrmp_init_open_channel() -> Weight;
+	fn hrmp_accept_open_channel() -> Weight;
+	fn hrmp_close_channel() -> Weight;
+	fn force_clean_hrmp(i: u32, e: u32) -> Weight;
+	fn force_process_hrmp_open(c: u32) -> Weight;
+	fn force_process_hrmp_close(c: u32) -> Weight;
+	fn hrmp_cancel_open_request(c: u32) -> Weight;
+}
+
+use frame_support::weights::constants::RocksDbWeight;
+
+impl WeightInfo for () {
+	fn hrmp_init_open_channel() -> Weight {
+		(61_914_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(10 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(5 as Weight))
+	}
+	// Storage: Hrmp HrmpOpenChannelRequests (r:1 w:1)
+	// Storage: Configuration ActiveConfig (r:1 w:0)
+	// Storage: Paras ParaLifecycles (r:1 w:0)
+	// Storage: Hrmp HrmpIngressChannelsIndex (r:1 w:0)
+	// Storage: Hrmp HrmpAcceptedChannelRequestCount (r:1 w:1)
+	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
+	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
+	fn hrmp_accept_open_channel() -> Weight {
+		(53_022_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(7 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
+	}
+	// Storage: Hrmp HrmpChannels (r:1 w:0)
+	// Storage: Hrmp HrmpCloseChannelRequests (r:1 w:1)
+	// Storage: Hrmp HrmpCloseChannelRequestsList (r:1 w:1)
+	// Storage: Configuration ActiveConfig (r:1 w:0)
+	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
+	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
+	fn hrmp_close_channel() -> Weight {
+		(47_548_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(6 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
+	}
+	// Storage: Hrmp HrmpIngressChannelsIndex (r:128 w:127)
+	// Storage: Hrmp HrmpEgressChannelsIndex (r:1 w:1)
+	// Storage: Hrmp HrmpChannels (r:127 w:127)
+	// Storage: Hrmp HrmpAcceptedChannelRequestCount (r:0 w:1)
+	// Storage: Hrmp HrmpChannelContents (r:0 w:127)
+	// Storage: Hrmp HrmpOpenChannelRequestCount (r:0 w:1)
+	fn force_clean_hrmp(i: u32, e: u32) -> Weight {
+		(0 as Weight)
+			// Standard Error: 19_000
+			.saturating_add((17_052_000 as Weight).saturating_mul(i as Weight))
+			// Standard Error: 19_000
+			.saturating_add((16_998_000 as Weight).saturating_mul(e as Weight))
+			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
+			.saturating_add(RocksDbWeight::get().reads((2 as Weight).saturating_mul(i as Weight)))
+			.saturating_add(RocksDbWeight::get().reads((2 as Weight).saturating_mul(e as Weight)))
+			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
+			.saturating_add(RocksDbWeight::get().writes((3 as Weight).saturating_mul(i as Weight)))
+			.saturating_add(RocksDbWeight::get().writes((3 as Weight).saturating_mul(e as Weight)))
+	}
+	// Storage: Configuration ActiveConfig (r:1 w:0)
+	// Storage: Hrmp HrmpOpenChannelRequestsList (r:1 w:0)
+	// Storage: Hrmp HrmpOpenChannelRequests (r:2 w:2)
+	// Storage: Paras ParaLifecycles (r:4 w:0)
+	// Storage: Hrmp HrmpIngressChannelsIndex (r:2 w:2)
+	// Storage: Hrmp HrmpEgressChannelsIndex (r:2 w:2)
+	// Storage: Hrmp HrmpOpenChannelRequestCount (r:2 w:2)
+	// Storage: Hrmp HrmpAcceptedChannelRequestCount (r:2 w:2)
+	// Storage: Hrmp HrmpChannels (r:0 w:2)
+	fn force_process_hrmp_open(c: u32) -> Weight {
+		(0 as Weight)
+			// Standard Error: 28_000
+			.saturating_add((37_628_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
+			.saturating_add(RocksDbWeight::get().reads((7 as Weight).saturating_mul(c as Weight)))
+			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+			.saturating_add(RocksDbWeight::get().writes((6 as Weight).saturating_mul(c as Weight)))
+	}
+	// Storage: Hrmp HrmpCloseChannelRequestsList (r:1 w:0)
+	// Storage: Hrmp HrmpChannels (r:2 w:2)
+	// Storage: Hrmp HrmpEgressChannelsIndex (r:2 w:2)
+	// Storage: Hrmp HrmpIngressChannelsIndex (r:2 w:2)
+	// Storage: Hrmp HrmpCloseChannelRequests (r:0 w:2)
+	// Storage: Hrmp HrmpChannelContents (r:0 w:2)
+	fn force_process_hrmp_close(c: u32) -> Weight {
+		(0 as Weight)
+			// Standard Error: 17_000
+			.saturating_add((21_825_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
+			.saturating_add(RocksDbWeight::get().reads((3 as Weight).saturating_mul(c as Weight)))
+			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+			.saturating_add(RocksDbWeight::get().writes((5 as Weight).saturating_mul(c as Weight)))
+	}
+	// Storage: Hrmp HrmpOpenChannelRequests (r:1 w:1)
+	// Storage: Hrmp HrmpOpenChannelRequestsList (r:1 w:1)
+	// Storage: Hrmp HrmpOpenChannelRequestCount (r:1 w:1)
+	fn hrmp_cancel_open_request(c: u32) -> Weight {
+		(35_031_000 as Weight)
+			// Standard Error: 0
+			.saturating_add((56_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
+	}
+}
+
 /// A description of a request to open an HRMP channel.
 #[derive(Encode, Decode, TypeInfo)]
 pub struct HrmpOpenChannelRequest {
@@ -195,6 +300,9 @@ pub mod pallet {
 		/// `Configuration` pallet. Specifically, that means that the `Balance` of the `Currency`
 		/// implementation should be the same as `Balance` as used in the `Configuration`.
 		type Currency: ReservableCurrency<Self::AccountId>;
+
+		/// Something that provides the weight of this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -397,7 +505,7 @@ pub mod pallet {
 		///
 		/// The channel can be opened only after the recipient confirms it and only on a session
 		/// change.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::hrmp_init_open_channel())]
 		pub fn hrmp_init_open_channel(
 			origin: OriginFor<T>,
 			recipient: ParaId,
@@ -423,7 +531,7 @@ pub mod pallet {
 		/// Accept a pending open channel request from the given sender.
 		///
 		/// The channel will be opened only on the next session boundary.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::hrmp_accept_open_channel())]
 		pub fn hrmp_accept_open_channel(origin: OriginFor<T>, sender: ParaId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::accept_open_channel(origin, sender)?;
@@ -435,7 +543,7 @@ pub mod pallet {
 		/// recipient in the channel being closed.
 		///
 		/// The closure can only happen on a session change.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::hrmp_close_channel())]
 		pub fn hrmp_close_channel(
 			origin: OriginFor<T>,
 			channel_id: HrmpChannelId,
@@ -451,8 +559,15 @@ pub mod pallet {
 		/// you to trigger the cleanup immediately for a specific parachain.
 		///
 		/// Origin must be Root.
-		#[pallet::weight(0)]
-		pub fn force_clean_hrmp(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+		///
+		/// Number of inbound and outbound channels for `para` must be provided as witness data.
+		#[pallet::weight(<T as Config>::WeightInfo::force_clean_hrmp(*_inbound, *_outbound))]
+		pub fn force_clean_hrmp(
+			origin: OriginFor<T>,
+			para: ParaId,
+			_inbound: u32,
+			_outbound: u32,
+		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::clean_hrmp_after_outgoing(&para);
 			Ok(())
@@ -462,8 +577,10 @@ pub mod pallet {
 		///
 		/// If there are pending HRMP open channel requests, you can use this
 		/// function process all of those requests immediately.
-		#[pallet::weight(0)]
-		pub fn force_process_hrmp_open(origin: OriginFor<T>) -> DispatchResult {
+		///
+		/// Total number of opening channels must be provided as witness data.
+		#[pallet::weight(<T as Config>::WeightInfo::force_process_hrmp_open(*_channels))]
+		pub fn force_process_hrmp_open(origin: OriginFor<T>, _channels: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			let host_config = configuration::Pallet::<T>::config();
 			Self::process_hrmp_open_channel_requests(&host_config);
@@ -474,8 +591,10 @@ pub mod pallet {
 		///
 		/// If there are pending HRMP close channel requests, you can use this
 		/// function process all of those requests immediately.
-		#[pallet::weight(0)]
-		pub fn force_process_hrmp_close(origin: OriginFor<T>) -> DispatchResult {
+		///
+		/// Total number of closing channels must be provided as witness data.
+		#[pallet::weight(<T as Config>::WeightInfo::force_process_hrmp_close(*_channels))]
+		pub fn force_process_hrmp_close(origin: OriginFor<T>, _channels: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::process_hrmp_close_channel_requests();
 			Ok(())
@@ -486,10 +605,13 @@ pub mod pallet {
 		///
 		/// The cancelling happens immediately. It is not possible to cancel the request if it is
 		/// already accepted.
-		#[pallet::weight(0)]
+		///
+		/// Total number of opening channels must be provided as witness data.
+		#[pallet::weight(<T as Config>::WeightInfo::hrmp_cancel_open_request(*_channels))]
 		pub fn hrmp_cancel_open_request(
 			origin: OriginFor<T>,
 			channel_id: HrmpChannelId,
+			_channels: u32,
 		) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
 			Self::cancel_open_request(origin, channel_id.clone())?;
@@ -2208,7 +2330,7 @@ mod benchmarking {
 
 			// all in all, we have created these many channels
 			assert_eq!(HrmpChannels::<T>::iter().count() as u32, i + e);
-		}: _(frame_system::Origin::<T>::Root, para) verify {
+		}: _(frame_system::Origin::<T>::Root, para, i, e) verify {
 			// all in all, all of them must be gone by now.
 			assert_eq!(HrmpChannels::<T>::iter().count() as u32, 0);
 		}
@@ -2222,7 +2344,7 @@ mod benchmarking {
 				let _ = establish_para_connection::<T>(PREFIX_0 + id, PREFIX_1 + id, ParachainSetupStep::Accepted);
 			}
 			assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c);
-		}: _(frame_system::Origin::<T>::Root)
+		}: _(frame_system::Origin::<T>::Root, c)
 		verify {
 			assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, 0);
 		}
@@ -2237,7 +2359,7 @@ mod benchmarking {
 			}
 
 			assert_eq!(HrmpCloseChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c);
-		}: _(frame_system::Origin::<T>::Root)
+		}: _(frame_system::Origin::<T>::Root, c)
 		 verify {
 			 assert_eq!(HrmpCloseChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, 0);
 		 }
@@ -2254,7 +2376,7 @@ mod benchmarking {
 			let [(sender, sender_origin), (recipient, _)] = establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
 			assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c + 1);
 			let channel_id = HrmpChannelId { sender, recipient };
-		}: _(sender_origin, channel_id)
+		}: _(sender_origin, channel_id, c)
 		verify {
 			assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c);
 		}

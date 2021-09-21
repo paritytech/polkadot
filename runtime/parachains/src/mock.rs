@@ -148,6 +148,7 @@ impl crate::hrmp::Config for Test {
 	type Event = Event;
 	type Origin = Origin;
 	type Currency = pallet_balances::Pallet<Test>;
+	type WeightInfo = ();
 }
 
 impl crate::disputes::Config for Test {
