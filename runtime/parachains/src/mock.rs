@@ -272,6 +272,7 @@ impl UmpSink for TestUmpSink {
 			let id = sp_io::hashing::blake2_256(actual_msg);
 			return Err((id, weight))
 		}
+
 		PROCESSED.with(|opt_hook| {
 			opt_hook.borrow_mut().push((actual_origin, actual_msg.to_owned()));
 		});
