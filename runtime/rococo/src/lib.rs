@@ -568,6 +568,8 @@ impl parachains_origin::Config for Runtime {}
 
 impl parachains_configuration::Config for Runtime {
 	type WeightInfo = parachains_configuration::weights::WeightInfo<Runtime>;
+	type HrmpMaxOutboundChannelsBound = ConstU32<128>;
+	type HrmpMaxInboundChannelsBound = ConstU32<128>;
 }
 
 impl parachains_shared::Config for Runtime {}
@@ -1069,14 +1071,15 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			ProxyType::CancelProxy =>
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. })),
+			ProxyType::CancelProxy => {
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
+			}
 			ProxyType::Auction => matches!(
 				c,
-				Call::Auctions { .. } |
-					Call::Crowdloan { .. } |
-					Call::Registrar { .. } |
-					Call::Slots { .. }
+				Call::Auctions { .. }
+					| Call::Crowdloan { .. }
+					| Call::Registrar { .. }
+					| Call::Slots { .. }
 			),
 		}
 	}

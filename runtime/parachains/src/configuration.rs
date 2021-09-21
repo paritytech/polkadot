@@ -527,8 +527,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.dispute_post_conclusion_acceptance_period, new)
-					!= new
+				sp_std::mem::replace(&mut config.dispute_post_conclusion_acceptance_period, new) !=
+					new
 			});
 			Ok(())
 		}
