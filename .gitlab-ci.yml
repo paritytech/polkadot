@@ -113,13 +113,13 @@ default:
       file:                        false
     GITHUB_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_TOKEN@kv
-      file:                        false    
+      file:                        false
     MATRIX_ACCESS_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ACCESS_TOKEN@kv
       file:                        false
     MATRIX_ROOM_ID:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ROOM_ID@kv
-      file:                        false   
+      file:                        false
     PARITYPR_USER:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/PARITYPR_USER@kv
       file:                        false
@@ -221,6 +221,17 @@ check-runtime-benchmarks:
   script:
     # Check that the node will compile with `runtime-benchmarks` feature flag.
     - ./scripts/gitlab/check_runtime_benchmarks.sh
+    - sccache -s
+
+check-no-default-features:
+  stage:                           test
+  <<:                              *rules-test
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *vault-secrets
+  script:
+    # Check that polkadot-cli will compile no default features.
+    - ./scripts/gitlab/check_no_default_features.sh
     - sccache -s
 
 spellcheck:

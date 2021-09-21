@@ -241,6 +241,7 @@ where
 			parachains_db.clone(),
 			dispute_coordinator_config,
 			keystore.clone(),
+			Metrics::register(registry)?,
 		),
 		dispute_participation: DisputeParticipationSubsystem::new(),
 		dispute_distribution: DisputeDistributionSubsystem::new(
