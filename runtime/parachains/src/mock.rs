@@ -22,7 +22,11 @@ use crate::{
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
-use frame_support::{parameter_types, traits::GenesisBuild, weights::Weight};
+use frame_support::{
+	parameter_types,
+	traits::{ConstU32, GenesisBuild},
+	weights::Weight,
+};
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::v1::{
@@ -116,6 +120,8 @@ impl crate::initializer::Config for Test {
 
 impl crate::configuration::Config for Test {
 	type WeightInfo = crate::configuration::weights::WeightInfo<Test>;
+	type HrmpMaxOutboundChannelsBound = ConstU32<128>;
+	type HrmpMaxInboundChannelsBound = ConstU32<128>;
 }
 
 impl crate::shared::Config for Test {}
@@ -264,7 +270,7 @@ impl UmpSink for TestUmpSink {
 		};
 		if weight > max_weight {
 			let id = sp_io::hashing::blake2_256(actual_msg);
-			return Err((id, weight))
+			return Err((id, weight));
 		}
 		PROCESSED.with(|opt_hook| {
 			opt_hook.borrow_mut().push((actual_origin, actual_msg.to_owned()));
@@ -296,6 +302,7 @@ impl inclusion::RewardValidators for TestRewardValidators {
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
+	sp_tracing::try_init_simple();
 	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
 	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
 

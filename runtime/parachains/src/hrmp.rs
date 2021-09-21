@@ -145,7 +145,7 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			),
 			NotSorted { idx } => {
 				write!(fmt, "the HRMP messages are not sorted (first unsorted is at index {})", idx,)
-			},
+			}
 			NoSuchChannel { idx, channel_id } => write!(
 				fmt,
 				"the HRMP message at index {} is sent to a non existent channel {:?}->{:?}",
@@ -262,6 +262,9 @@ pub mod pallet {
 	pub type HrmpOpenChannelRequests<T: Config> =
 		StorageMap<_, Twox64Concat, HrmpChannelId, HrmpOpenChannelRequest>;
 
+	// NOTE: could become bounded, but we don't have a global maximum for this.
+	// `HrmpMaxOutboundChannelsBound` are per parachain/parathread, while this storage tracks the
+	// global state.
 	#[pallet::storage]
 	pub type HrmpOpenChannelRequestsList<T: Config> =
 		StorageValue<_, Vec<HrmpChannelId>, ValueQuery>;
@@ -577,8 +580,8 @@ impl<T: Config> Pallet<T> {
 				Some(req_data) => req_data,
 				None => {
 					// Can't normally happen but no need to panic.
-					continue
-				},
+					continue;
+				}
 			};
 
 			// Return the deposit of the sender, but only if it is not the para being offboarded.
@@ -633,7 +636,7 @@ impl<T: Config> Pallet<T> {
 	fn process_hrmp_open_channel_requests(config: &HostConfiguration<T::BlockNumber>) {
 		let mut open_req_channels = <Self as Store>::HrmpOpenChannelRequestsList::get();
 		if open_req_channels.is_empty() {
-			return
+			return;
 		}
 
 		// iterate the vector starting from the end making our way to the beginning. This way we
@@ -642,7 +645,7 @@ impl<T: Config> Pallet<T> {
 		loop {
 			// bail if we've iterated over all items.
 			if idx == 0 {
-				break
+				break;
 			}
 
 			idx -= 1;
@@ -652,8 +655,8 @@ impl<T: Config> Pallet<T> {
 			);
 
 			if request.confirmed {
-				if <paras::Pallet<T>>::is_valid_para(channel_id.sender) &&
-					<paras::Pallet<T>>::is_valid_para(channel_id.recipient)
+				if <paras::Pallet<T>>::is_valid_para(channel_id.sender)
+					&& <paras::Pallet<T>>::is_valid_para(channel_id.recipient)
 				{
 					<Self as Store>::HrmpChannels::insert(
 						&channel_id,
@@ -753,14 +756,14 @@ impl<T: Config> Pallet<T> {
 				return Err(HrmpWatermarkAcceptanceErr::AdvancementRule {
 					new_watermark: new_hrmp_watermark,
 					last_watermark,
-				})
+				});
 			}
 		}
 		if new_hrmp_watermark > relay_chain_parent_number {
 			return Err(HrmpWatermarkAcceptanceErr::AheadRelayParent {
 				new_watermark: new_hrmp_watermark,
 				relay_chain_parent_number,
-			})
+			});
 		}
 
 		// Second, check where the watermark CAN land. It's one of the following:
@@ -777,7 +780,7 @@ impl<T: Config> Pallet<T> {
 			{
 				return Err(HrmpWatermarkAcceptanceErr::LandsOnBlockWithNoMessages {
 					new_watermark: new_hrmp_watermark,
-				})
+				});
 			}
 			Ok(())
 		}
@@ -792,7 +795,7 @@ impl<T: Config> Pallet<T> {
 			return Err(OutboundHrmpAcceptanceErr::MoreMessagesThanPermitted {
 				sent: out_hrmp_msgs.len() as u32,
 				permitted: config.hrmp_max_message_num_per_candidate,
-			})
+			});
 		}
 
 		let mut last_recipient = None::<ParaId>;
@@ -804,8 +807,9 @@ impl<T: Config> Pallet<T> {
 				// the messages must be sorted in ascending order and there must be no two messages sent
 				// to the same recipient. Thus we can check that every recipient is strictly greater than
 				// the previous one.
-				Some(last_recipient) if out_msg.recipient <= last_recipient =>
-					return Err(OutboundHrmpAcceptanceErr::NotSorted { idx }),
+				Some(last_recipient) if out_msg.recipient <= last_recipient => {
+					return Err(OutboundHrmpAcceptanceErr::NotSorted { idx })
+				}
 				_ => last_recipient = Some(out_msg.recipient),
 			}
 
@@ -822,7 +826,7 @@ impl<T: Config> Pallet<T> {
 					idx,
 					msg_size,
 					max_size: channel.max_message_size,
-				})
+				});
 			}
 
 			let new_total_size = channel.total_size + out_msg.data.len() as u32;
@@ -831,7 +835,7 @@ impl<T: Config> Pallet<T> {
 					idx,
 					total_size: new_total_size,
 					limit: channel.max_total_size,
-				})
+				});
 			}
 
 			let new_msg_count = channel.msg_count + 1;
@@ -840,7 +844,7 @@ impl<T: Config> Pallet<T> {
 					idx,
 					count: new_msg_count,
 					limit: channel.max_capacity,
-				})
+				});
 			}
 		}
 
@@ -926,8 +930,8 @@ impl<T: Config> Pallet<T> {
 				None => {
 					// apparently, that since acceptance of this candidate the recipient was
 					// offboarded and the channel no longer exists.
-					continue
-				},
+					continue;
+				}
 			};
 
 			let inbound = InboundHrmpMessage { sent_at: now, data: out_msg.data };
@@ -1585,13 +1589,13 @@ mod tests {
 			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::hrmp_init_open_channel(para_a_origin.into(), para_b, 2, 8).unwrap();
 			assert_storage_consistency_exhaustive();
-			assert!(System::events().iter().any(|record| record.event ==
-				MockEvent::Hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8))));
+			assert!(System::events().iter().any(|record| record.event
+				== MockEvent::Hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8))));
 
 			Hrmp::hrmp_accept_open_channel(para_b_origin.into(), para_a).unwrap();
 			assert_storage_consistency_exhaustive();
-			assert!(System::events().iter().any(|record| record.event ==
-				MockEvent::Hrmp(Event::OpenChannelAccepted(para_a, para_b))));
+			assert!(System::events().iter().any(|record| record.event
+				== MockEvent::Hrmp(Event::OpenChannelAccepted(para_a, para_b))));
 
 			// Advance to a block 6, but without session change. That means that the channel has
 			// not been created yet.
@@ -1633,8 +1637,8 @@ mod tests {
 			run_to_block(8, Some(vec![8]));
 			assert!(!channel_exists(para_a, para_b));
 			assert_storage_consistency_exhaustive();
-			assert!(System::events().iter().any(|record| record.event ==
-				MockEvent::Hrmp(Event::ChannelClosed(para_b, channel_id.clone()))));
+			assert!(System::events().iter().any(|record| record.event
+				== MockEvent::Hrmp(Event::ChannelClosed(para_b, channel_id.clone()))));
 		});
 	}
 
@@ -2094,24 +2098,24 @@ mod benchmarking {
 			message_size
 		));
 		if matches!(until, ParachainSetupStep::Requested) {
-			return output
+			return output;
 		}
 
 		assert_ok!(Hrmp::<T>::hrmp_accept_open_channel(recipient_origin.into(), sender));
 		if matches!(until, ParachainSetupStep::Accepted) {
-			return output
+			return output;
 		}
 
 		Hrmp::<T>::process_hrmp_open_channel_requests(&Configuration::<T>::config());
 		if matches!(until, ParachainSetupStep::Established) {
-			return output
+			return output;
 		}
 
 		let channel_id = HrmpChannelId { sender, recipient };
 		assert_ok!(Hrmp::<T>::hrmp_close_channel(sender_origin.clone().into(), channel_id));
 		if matches!(until, ParachainSetupStep::CloseRequested) {
 			// NOTE: this is just for expressiveness, otherwise the if-statement could be omitted.
-			return output
+			return output;
 		}
 
 		output
@@ -2156,12 +2160,16 @@ mod benchmarking {
 		}
 
 		force_clean_hrmp {
-			// TODO: reasonable constant/config for these.
-			// TODO: assert that `i` and `e` are well below 10k as prefix that we use.
 			// ingress channels to a single leaving parachain that need to be closed.
-			let i in 0..128;
+			let i in 0 .. (<T as configuration::Config>::HrmpMaxInboundChannelsBound::get() - 1);
 			// egress channels to a single leaving parachain that need to be closed.
-			let e in 0..128;
+			let e in 0 .. (<T as configuration::Config>::HrmpMaxOutboundChannelsBound::get() - 1);
+
+			// we use 10_000 in this benchmark as the prefix of accounts. The components must be
+			//than that to keep accounts sane.
+			let prefix = 10_000;
+			assert!(<T as configuration::Config>::HrmpMaxInboundChannelsBound::get() < prefix);
+			assert!(<T as configuration::Config>::HrmpMaxOutboundChannelsBound::get() < prefix);
 
 			// first, update the configs to support this many open channels...
 			assert_ok!(Configuration::<T>::set_hrmp_max_parachain_outbound_channels(frame_system::RawOrigin::Root.into(), e + 1));
@@ -2179,7 +2187,7 @@ mod benchmarking {
 
 			for ingress_para_id in 0..i {
 				// establish ingress channels to `para`.
-				let ingress_para_id = ingress_para_id + 10000;
+				let ingress_para_id = ingress_para_id + prefix;
 				let _ = establish_para_connection::<T>(ingress_para_id, 1, ParachainSetupStep::Established);
 			}
 
@@ -2188,7 +2196,7 @@ mod benchmarking {
 
 			for egress_para_id in 0..e {
 				// establish egress channels to `para`.
-				let egress_para_id = egress_para_id + 20000;
+				let egress_para_id = egress_para_id + prefix * 2;
 				let _ = establish_para_connection::<T>(1, egress_para_id, ParachainSetupStep::Established);
 			}
 

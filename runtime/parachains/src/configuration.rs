@@ -284,6 +284,18 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + shared::Config {
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
+
+		/// Maximum value that `hrmp_max_parachain_outbound_channels` or
+		/// `hrmp_max_parathread_outbound_channels` can be set to.
+		///
+		/// This is used for benchmarking sanely bounding relevant storage items.
+		type HrmpMaxOutboundChannelsBound: Get<u32>;
+
+		/// Maximum value that `hrmp_max_parachain_inbound_channels` or
+		/// `hrmp_max_parathread_inbound_channels` can be set to.
+		///
+		/// This is used for benchmarking sanely bounding relevant storage items.
+		type HrmpMaxInboundChannelsBound: Get<u32>;
 	}
 
 	#[pallet::error]
@@ -515,8 +527,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.dispute_post_conclusion_acceptance_period, new) !=
-					new
+				sp_std::mem::replace(&mut config.dispute_post_conclusion_acceptance_period, new)
+					!= new
 			});
 			Ok(())
 		}
@@ -717,6 +729,7 @@ pub mod pallet {
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(new <= T::HrmpMaxInboundChannelsBound::get(), Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.hrmp_max_parachain_inbound_channels, new) != new
 			});
@@ -730,6 +743,7 @@ pub mod pallet {
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(new <= T::HrmpMaxInboundChannelsBound::get(), Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.hrmp_max_parathread_inbound_channels, new) != new
 			});
@@ -753,6 +767,7 @@ pub mod pallet {
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(new <= T::HrmpMaxOutboundChannelsBound::get(), Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.hrmp_max_parachain_outbound_channels, new) != new
 			});
@@ -766,6 +781,7 @@ pub mod pallet {
 			new: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(new <= T::HrmpMaxOutboundChannelsBound::get(), Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.hrmp_max_parathread_outbound_channels, new) != new
 			});
