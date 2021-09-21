@@ -198,7 +198,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::GaugeVec::new(
 					prometheus::Opts::new(
 						"parachain_desired_peer_count",
-						"The number of peers that the local node is expected to connect to on a parachain-related peer-set",
+						"The number of peers that the local node is expected to connect to on a parachain-related peer-set (either including or not including unresolvable authorities, depending on whether `ConnectToValidators` or `ConnectToValidatorsResolved` was used.)",
 					),
 					&["protocol"]
 				)?,
