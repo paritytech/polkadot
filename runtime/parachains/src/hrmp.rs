@@ -270,8 +270,8 @@ pub mod pallet {
 		StorageValue<_, Vec<HrmpChannelId>, ValueQuery>;
 
 	/// This mapping tracks how many open channel requests are initiated by a given sender para.
-	/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X,
-	/// _)` as the number of `HrmpOpenChannelRequestCount` for `X`.
+	/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has
+	/// `(X, _)` as the number of `HrmpOpenChannelRequestCount` for `X`.
 	#[pallet::storage]
 	pub type HrmpOpenChannelRequestCount<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, u32, ValueQuery>;
@@ -312,8 +312,8 @@ pub mod pallet {
 	/// Ingress/egress indexes allow to find all the senders and receivers given the opposite side.
 	/// I.e.
 	///
-	/// (a) ingress index allows to find all the senders for a given recipient. (b) egress index
-	/// allows to find all the recipients for a given sender.
+	/// (a) ingress index allows to find all the senders for a given recipient.
+	/// (b) egress index allows to find all the recipients for a given sender.
 	///
 	/// Invariants:
 	/// - for each ingress index entry for `P` each item `I` in the index should present in
@@ -355,10 +355,11 @@ pub mod pallet {
 
 	/// Preopen the given HRMP channels.
 	///
-	/// The values in the tuple corresponds to `(sender, recipient, max_capacity,
-	/// max_message_size)`, i.e. similar to `init_open_channel`. In fact, the initialization is
-	/// performed as if the `init_open_channel` and `accept_open_channel` were called with the
-	/// respective parameters and the session change take place.
+	/// The values in the tuple corresponds to
+	/// `(sender, recipient, max_capacity, max_message_size)`, i.e. similar to `init_open_channel`.
+	/// In fact, the initialization is performed as if the `init_open_channel` and
+	/// `accept_open_channel` were called with the respective parameters and the session change take
+	///  place.
 	///
 	/// As such, each channel initializer should satisfy the same constraints, namely:
 	///
@@ -985,8 +986,8 @@ impl<T: Config> Pallet<T> {
 	/// Initiate opening a channel from a parachain to a given recipient with given channel
 	/// parameters.
 	///
-	/// Basically the same as [`hrmp_init_open_channel`](Pallet::hrmp_init_open_channel) but intendend for calling directly from
-	/// other pallets rather than dispatched.
+	/// Basically the same as [`hrmp_init_open_channel`](Pallet::hrmp_init_open_channel) but
+	/// intended for calling directly from other pallets rather than dispatched.
 	pub fn init_open_channel(
 		origin: ParaId,
 		recipient: ParaId,
@@ -2148,7 +2149,7 @@ mod benchmarking {
 		}
 
 		hrmp_accept_open_channel {
-			let [(sender, _), (recipient, recipient_origin)] =establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
+			let [(sender, _), (recipient, recipient_origin)] = establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
 		}: _(recipient_origin, sender)
 		verify {
 			assert_last_event::<T>(Event::<T>::OpenChannelAccepted(sender, recipient).into());
@@ -2169,7 +2170,7 @@ mod benchmarking {
 			let e in 0 .. (<T as configuration::Config>::HrmpMaxOutboundChannelsBound::get() - 1);
 
 			// we use 10_000 in this benchmark as the prefix of accounts. The components must be
-			//than that to keep accounts sane.
+			// than that to keep accounts sane.
 			assert!(<T as configuration::Config>::HrmpMaxInboundChannelsBound::get() < PREFIX_0);
 			assert!(<T as configuration::Config>::HrmpMaxOutboundChannelsBound::get() < PREFIX_0);
 
