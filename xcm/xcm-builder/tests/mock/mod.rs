@@ -109,6 +109,8 @@ impl shared::Config for Runtime {}
 
 impl configuration::Config for Runtime {
 	type WeightInfo = configuration::weights::WeightInfo<Runtime>;
+	type HrmpMaxOutboundChannelsBound = frame_support::traits::ConstU32<128>;
+	type HrmpMaxInboundChannelsBound = frame_support::traits::ConstU32<128>;
 }
 
 // aims to closely emulate the Kusama XcmConfig

@@ -1134,8 +1134,8 @@ impl parachains_origin::Config for Runtime {}
 
 impl parachains_configuration::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_configuration::WeightInfo<Runtime>;
-	type HrmpMaxOutboundChannelsBound = ConstU32<128>;
-	type HrmpMaxInboundChannelsBound = ConstU32<128>;
+	type HrmpMaxOutboundChannelsBound = frame_support::traits::ConstU32<128>;
+	type HrmpMaxInboundChannelsBound = frame_support::traits::ConstU32<128>;
 }
 
 impl parachains_shared::Config for Runtime {}

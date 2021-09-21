@@ -661,6 +661,8 @@ mod tests {
 
 	impl configuration::Config for Test {
 		type WeightInfo = configuration::weights::WeightInfo<Test>;
+		type HrmpMaxOutboundChannelsBound = frame_support::traits::ConstU32<128>;
+		type HrmpMaxInboundChannelsBound = frame_support::traits::ConstU32<128>;
 	}
 
 	parameter_types! {
