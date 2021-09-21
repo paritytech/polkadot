@@ -478,7 +478,6 @@ impl pallet_session::Config for Runtime {
 parameter_types! {
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 	pub ReportLongevity: u64 = EpochDurationInBlocks::get() as u64 * 10;
-	pub const MaxSegmentLength: u32 = 256;
 }
 
 impl pallet_babe::Config for Runtime {
@@ -508,7 +507,6 @@ impl pallet_babe::Config for Runtime {
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
-	type MaxSegmentLength = MaxSegmentLength;
 }
 
 parameter_types! {
