@@ -44,3 +44,4 @@ pub mod runtime_common_claims;
 pub mod runtime_common_crowdloan;
 pub mod runtime_common_paras_registrar;
 pub mod runtime_common_slots;
+pub mod runtime_parachains_configuration;
