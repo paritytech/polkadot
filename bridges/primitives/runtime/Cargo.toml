@@ -14,16 +14,16 @@ scale-info = { version = "1.0", default-features = false, features = ["derive"] 
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 
 [features]

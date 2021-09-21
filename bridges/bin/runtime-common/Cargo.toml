@@ -24,13 +24,13 @@ pallet-bridge-messages = { path = "../../modules/messages", default-features = f
 
 # Substrate dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "grandpa_finality_logs" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 [features]
 default = ["std"]

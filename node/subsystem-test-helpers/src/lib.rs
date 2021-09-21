@@ -150,22 +150,25 @@ pub fn sender_receiver() -> (TestSubsystemSender, mpsc::UnboundedReceiver<AllMes
 }
 
 #[async_trait::async_trait]
-impl overseer::SubsystemSender<AllMessages> for TestSubsystemSender {
-	async fn send_message(&mut self, msg: AllMessages) {
-		self.tx.send(msg).await.expect("test overseer no longer live");
+impl<T> overseer::SubsystemSender<T> for TestSubsystemSender
+where
+	T: Into<AllMessages> + Send + 'static,
+{
+	async fn send_message(&mut self, msg: T) {
+		self.tx.send(msg.into()).await.expect("test overseer no longer live");
 	}
 
-	async fn send_messages<T>(&mut self, msgs: T)
+	async fn send_messages<X>(&mut self, msgs: X)
 	where
-		T: IntoIterator<Item = AllMessages> + Send,
-		T::IntoIter: Send,
+		X: IntoIterator<Item = T> + Send,
+		X::IntoIter: Send,
 	{
-		let mut iter = stream::iter(msgs.into_iter().map(Ok));
+		let mut iter = stream::iter(msgs.into_iter().map(|msg| Ok(msg.into())));
 		self.tx.send_all(&mut iter).await.expect("test overseer no longer live");
 	}
 
-	fn send_unbounded_message(&mut self, msg: AllMessages) {
-		self.tx.unbounded_send(msg).expect("test overseer no longer live");
+	fn send_unbounded_message(&mut self, msg: T) {
+		self.tx.unbounded_send(msg.into()).expect("test overseer no longer live");
 	}
 }
 

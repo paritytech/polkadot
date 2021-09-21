@@ -22,19 +22,19 @@ bp-header-chain = { path = "../../primitives/header-chain", default-features = f
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 # Optional Benchmarking Dependencies
 bp-test-utils = { path = "../../primitives/test-utils", default-features = false, optional = true }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "grandpa_finality_logs" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "master" }
 
 [dev-dependencies]
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]

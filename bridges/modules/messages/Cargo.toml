@@ -23,18 +23,18 @@ bp-runtime = { path = "../../primitives/runtime", default-features = false }
 
 # Substrate Dependencies
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "grandpa_finality_logs" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "grandpa_finality_logs" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 [dev-dependencies]
 hex = "0.4"
 hex-literal = "0.3"
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]

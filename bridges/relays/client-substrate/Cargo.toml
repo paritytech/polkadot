@@ -26,17 +26,17 @@ relay-utils = { path = "../utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-rpc-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 #[dev-dependencies]
 futures = "0.3.7"

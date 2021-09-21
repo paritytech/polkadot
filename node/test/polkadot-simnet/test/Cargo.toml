@@ -6,16 +6,16 @@ edition = "2018"
 
 [dependencies]
 # substrate primitives
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # frame pallets
-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
-balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master" }
+balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # substrate client libs
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "grandpa_finality_logs" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # polkadot deps
 polkadot-simnet = { path = "../common" }
