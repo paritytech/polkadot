@@ -360,6 +360,11 @@ parameter_types! {
 
 	// miner configs
 	pub OffchainRepeat: BlockNumber = 5;
+
+	/// Whilst `UseNominatorsAndUpdateBagsList` or `UseNominatorsMap` is in use, this can still be a
+	/// very large value. Once the `BagsList` is in full motion, staking might open its door to many
+	/// more nominators, and this value should instead be what is a "safe" number (e.g. 22500).
+	pub const VoterSnapshotPerBlock: u32 = 22_500;
 }
 
 sp_npos_elections::generate_solution_type!(
@@ -405,6 +410,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
 	>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
+	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
 }
 
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
@@ -465,6 +471,9 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
+	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
+	// to bags-list is a no-op, but the storage version will be updated.
+	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -679,6 +688,9 @@ parameter_types! {
 	pub const BountyValueMinimum: Balance = 10 * DOLLARS;
 	pub const MaxApprovals: u32 = 100;
 	pub const MaxAuthorities: u32 = 100_000;
+	pub const MaxKeys: u32 = 10_000;
+	pub const MaxPeerInHeartbeats: u32 = 10_000;
+	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
 type ApproveOrigin = EnsureOneOf<
@@ -751,6 +763,9 @@ impl pallet_im_online::Config for Runtime {
 	type ReportUnresponsiveness = Offences;
 	type UnsignedPriority = ImOnlineUnsignedPriority;
 	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
+	type MaxKeys = MaxKeys;
+	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
+	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -1107,7 +1122,6 @@ construct_runtime! {
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
-
 	}
 }
 
