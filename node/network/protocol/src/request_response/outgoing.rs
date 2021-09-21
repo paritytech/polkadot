@@ -82,11 +82,11 @@ pub type ResponseSender = oneshot::Sender<Result<Vec<u8>, network::RequestFailur
 #[derive(Debug, Error)]
 pub enum RequestError {
 	/// Response could not be decoded.
-	#[error("Response could not be decoded")]
+	#[error("Response could not be decoded: {0}")]
 	InvalidResponse(#[source] DecodingError),
 
 	/// Some error in substrate/libp2p happened.
-	#[error("Some network error occurred")]
+	#[error("{0}")]
 	NetworkError(#[source] network::RequestFailure),
 
 	/// Response got canceled by networking.

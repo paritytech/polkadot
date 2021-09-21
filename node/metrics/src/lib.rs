@@ -26,13 +26,6 @@
 
 pub use metered_channel as metered;
 
-/// Memory allocation stats tracking.
-#[cfg(feature = "memory-stats")]
-pub mod memory_stats;
-
-#[cfg(feature = "memory-stats")]
-pub use self::memory_stats::{MemoryAllocationSnapshot, MemoryAllocationTracker};
-
 /// Cyclic metric collection support.
 pub mod metronome;
 pub use self::metronome::Metronome;

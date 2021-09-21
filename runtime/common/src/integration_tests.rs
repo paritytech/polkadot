@@ -156,7 +156,9 @@ impl pallet_balances::Config for Test {
 	type ReserveIdentifier = [u8; 8];
 }
 
-impl configuration::Config for Test {}
+impl configuration::Config for Test {
+	type WeightInfo = configuration::weights::WeightInfo<Test>;
+}
 
 impl shared::Config for Test {}
 
