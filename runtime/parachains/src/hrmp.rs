@@ -143,8 +143,9 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 				"more HRMP messages than permitted by config ({} > {})",
 				sent, permitted,
 			),
-			NotSorted { idx } =>
-				write!(fmt, "the HRMP messages are not sorted (first unsorted is at index {})", idx,),
+			NotSorted { idx } => {
+				write!(fmt, "the HRMP messages are not sorted (first unsorted is at index {})", idx,)
+			},
 			NoSuchChannel { idx, channel_id } => write!(
 				fmt,
 				"the HRMP message at index {} is sent to a non existent channel {:?}->{:?}",
