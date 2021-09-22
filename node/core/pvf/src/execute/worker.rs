@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	artifacts::{Artifact, ArtifactPathId},
+	artifacts::{ArtifactPathId, CompiledArtifact},
 	executor_intf::TaskExecutor,
 	worker_common::{
 		bytes_to_path, framed_recv, framed_send, path_to_bytes, spawn_with_program_path,
@@ -217,18 +217,12 @@ async fn validate_using_artifact(
 		Ok(b) => b,
 	};
 
-	let artifact = match Artifact::deserialize(&artifact_bytes) {
+	let artifact = match CompiledArtifact::decode(&mut artifact_bytes.as_slice()) {
 		Err(e) => return Response::InternalError(format!("artifact deserialization: {:?}", e)),
 		Ok(a) => a,
 	};
 
-	let compiled_artifact = match &artifact {
-		Artifact::PrevalidationErr(msg) => return Response::format_invalid("prevalidation", msg),
-		Artifact::PreparationErr(msg) => return Response::format_invalid("preparation", msg),
-		Artifact::DidntMakeIt => return Response::format_invalid("preparation timeout", ""),
-
-		Artifact::Compiled { compiled_artifact } => compiled_artifact,
-	};
+	let compiled_artifact = artifact.as_ref();
 
 	let validation_started_at = Instant::now();
 	let descriptor_bytes = match unsafe {

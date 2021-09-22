@@ -23,31 +23,42 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
+/// An error that occurred during the prepare part of the PVF pipeline.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum PrepareError {
+	/// During the prevalidation stage of preparation an issue was found with the PVF.
+	Prevalidation(String),
+	/// Compilation failed for the given PVF.
+	Preparation(String),
+	/// This state indicates that the process assigned to prepare the artifact wasn't responsible
+	/// or were killed. This state is reported by the validation host (not by the worker).
+	DidNotMakeIt,
+}
+
+/// A wrapper for the compiled PVF code.
+#[derive(Encode, Decode)]
+pub struct CompiledArtifact(Vec<u8>);
+
+impl CompiledArtifact {
+	pub fn new(code: Vec<u8>) -> Self {
+		Self(code)
+	}
+}
+
+impl AsRef<[u8]> for CompiledArtifact {
+	fn as_ref(&self) -> &[u8] {
+		self.0.as_slice()
+	}
+}
+
 /// A final product of preparation process. Contains either a ready to run compiled artifact or
 /// a description what went wrong.
 #[derive(Encode, Decode)]
 pub enum Artifact {
-	/// During the prevalidation stage of preparation an issue was found with the PVF.
-	PrevalidationErr(String),
-	/// Compilation failed for the given PVF.
-	PreparationErr(String),
-	/// This state indicates that the process assigned to prepare the artifact wasn't responsible
-	/// or were killed. This state is reported by the validation host (not by the worker).
-	DidntMakeIt,
+	/// An error occurred during the prepare part of the PVF pipeline.
+	Error(PrepareError),
 	/// The PVF passed all the checks and is ready for execution.
-	Compiled { compiled_artifact: Vec<u8> },
-}
-
-impl Artifact {
-	/// Serializes this struct into a byte buffer.
-	pub fn serialize(&self) -> Vec<u8> {
-		self.encode()
-	}
-
-	/// Deserialize the given byte buffer to an artifact.
-	pub fn deserialize(mut bytes: &[u8]) -> Result<Self, String> {
-		Artifact::decode(&mut bytes).map_err(|e| format!("{:?}", e))
-	}
+	Compiled(CompiledArtifact),
 }
 
 /// Identifier of an artifact. Right now it only encodes a code hash of the PVF. But if we get to
@@ -117,6 +128,9 @@ pub enum ArtifactState {
 	},
 	/// A task to prepare this artifact is scheduled.
 	Preparing,
+	/// The code couldn't be compiled due to an error. Such artifacts
+	/// never reach the executor and stay in the host's memory.
+	FailedToProcess(PrepareError),
 }
 
 /// A container of all known artifact ids and their states.

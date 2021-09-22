@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::artifacts::PrepareError;
+
 /// A error raised during validation of the candidate.
 #[derive(Debug, Clone)]
 pub enum ValidationError {
@@ -53,4 +55,15 @@ pub enum InvalidCandidate {
 	AmbigiousWorkerDeath,
 	/// PVF execution (compilation is not included) took more time than was allotted.
 	HardTimeout,
+}
+
+impl From<PrepareError> for ValidationError {
+	fn from(error: PrepareError) -> Self {
+		let error_str = match error {
+			PrepareError::Prevalidation(err) => err,
+			PrepareError::Preparation(err) => err,
+			PrepareError::DidNotMakeIt => "preparation timeout".to_owned(),
+		};
+		ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(error_str))
+	}
 }
