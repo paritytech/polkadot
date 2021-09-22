@@ -1893,6 +1893,7 @@ fn should_trigger_assignment(
 	match approval_entry.our_assignment() {
 		None => false,
 		Some(ref assignment) if assignment.triggered() => false,
+		Some(ref assignment) if assignment.tranche() == 0 => true,
 		Some(ref assignment) => {
 			match required_tranches {
 				RequiredTranches::All => !approval_checking::check_approval(
