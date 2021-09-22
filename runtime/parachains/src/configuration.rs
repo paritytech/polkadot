@@ -22,7 +22,7 @@ use crate::shared;
 use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_POV_SIZE};
+use primitives::v1::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
@@ -256,6 +256,13 @@ impl<BlockNumber: Zero> HostConfiguration<BlockNumber> {
 			)
 		}
 
+		if self.max_head_data_size > MAX_HEAD_DATA_SIZE {
+			panic!(
+				"`max_head_data_size` ({}) is bigger than allowed by the client ({})",
+				self.max_head_data_size, MAX_HEAD_DATA_SIZE
+			)
+		}
+
 		if self.max_pov_size > MAX_POV_SIZE {
 			panic!("`max_pov_size` is bigger than allowed by the client")
 		}
@@ -390,6 +397,7 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::set_config_with_u32())]
 		pub fn set_max_head_data_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
+			ensure!(new <= MAX_HEAD_DATA_SIZE, Error::<T>::InvalidNewValue);
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.max_head_data_size, new) != new
 			});

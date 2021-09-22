@@ -363,6 +363,7 @@ impl pallet_grandpa::Config for Runtime {
 	type HandleEquivocation = ();
 
 	type WeightInfo = ();
+	type MaxAuthorities = MaxAuthorities;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -484,6 +485,7 @@ impl parachains_session_info::Config for Runtime {}
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 	type Event = Event;
+	type WeightInfo = parachains_paras::weights::WeightInfo<Runtime>;
 }
 
 impl parachains_dmp::Config for Runtime {}

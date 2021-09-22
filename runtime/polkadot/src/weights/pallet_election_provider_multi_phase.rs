@@ -83,7 +83,7 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	// Storage: ElectionProviderMultiPhase SnapshotMetadata (r:0 w:1)
 	// Storage: ElectionProviderMultiPhase DesiredTargets (r:0 w:1)
 	// Storage: ElectionProviderMultiPhase Snapshot (r:0 w:1)
-	fn create_snapshot_internal() -> Weight {
+	fn create_snapshot_internal(_: u32, _: u32) -> Weight {
 		(8_835_233_000 as Weight).saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	// Storage: ElectionProviderMultiPhase SignedSubmissionIndices (r:1 w:1)
