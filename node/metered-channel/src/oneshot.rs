@@ -48,10 +48,16 @@ pub enum Reason {
 /// A peek into delay and state of a `oneshot` channel.
 #[derive(Debug, Clone, Default)]
 pub struct Meter {
+	inner: Arc<AtomicMeterInner>,
+}
+
+/// Inner meter representation.
+#[derive(Debug, Default)]
+pub struct AtomicMeterInner {
 	/// Delay between first poll and completion or cancellation.
-	first_poll_till_end_in_millis: Arc<AtomicU64>,
+	first_poll_till_end_in_millis: AtomicU64,
 	/// Determine the reason of completion.
-	reason: Arc<AtomicU8>,
+	reason: AtomicU8,
 }
 
 impl Meter {
@@ -62,14 +68,14 @@ impl Meter {
 		if self.reason() == Reason::Unfinished {
 			None
 		} else {
-			let millis = self.first_poll_till_end_in_millis.load(Ordering::Acquire);
+			let millis = self.inner.first_poll_till_end_in_millis.load(Ordering::Acquire);
 			Some(Duration::from_millis(millis))
 		}
 	}
 
 	/// Obtain the reason to the channel termination.
 	pub fn reason(&self) -> Reason {
-		let reason = self.reason.load(Ordering::Acquire);
+		let reason = self.inner.reason.load(Ordering::Acquire);
 		Reason::try_from(reason).expect(
 			"Input is originally a `Termination` before cast, hence recovery always works. qed",
 		)
@@ -182,9 +188,12 @@ impl<T> OneshotMeteredReceiver<T> {
 	fn update_meter(&mut self, sent_at_timestamp: Instant, reason: Reason) {
 		let delta: Duration = sent_at_timestamp.elapsed();
 		let val = u64::try_from(delta.as_millis()).unwrap_or(u64::MAX);
-		self.shared_meter.first_poll_till_end_in_millis.store(val, Ordering::Release);
+		self.shared_meter
+			.inner
+			.first_poll_till_end_in_millis
+			.store(val, Ordering::Release);
 
-		self.shared_meter.reason.store(reason as u8, Ordering::Release);
+		self.shared_meter.inner.reason.store(reason as u8, Ordering::Release);
 	}
 }
 
