@@ -186,14 +186,19 @@ where
 					);
 				}
 
-				let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
-				let our_index = ensure_i_am_an_authority(&self.keystore, &authorities).await?;
+				let all_authorities = determine_relevant_authorities(ctx, relay_parent).await?;
+				let our_index = ensure_i_am_an_authority(&self.keystore, &all_authorities).await?;
+				let other_authorities = {
+					let mut authorities = all_authorities.clone();
+					authorities.swap_remove(our_index);
+					authorities
+				};
 
-				self.issue_connection_request(ctx, authorities.clone()).await?;
+				self.issue_connection_request(ctx, other_authorities).await?;
 
 				if is_new_session {
 					self.last_session_index = Some(session_index);
-					update_gossip_topology(ctx, our_index, authorities, relay_parent).await?;
+					update_gossip_topology(ctx, our_index, all_authorities, relay_parent).await?;
 				}
 			}
 		}

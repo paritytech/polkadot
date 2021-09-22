@@ -102,9 +102,9 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 /// Runtime version (Rococo).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
-	impl_name: create_runtime_str!("parity-rococo-v1.7"),
+	impl_name: create_runtime_str!("parity-rococo-v1.8"),
 	authoring_version: 0,
-	spec_version: 9102,
+	spec_version: 9103,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -377,6 +377,9 @@ parameter_types! {
 
 parameter_types! {
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	pub const MaxKeys: u32 = 10_000;
+	pub const MaxPeerInHeartbeats: u32 = 10_000;
+	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
 
 impl pallet_im_online::Config for Runtime {
@@ -387,6 +390,9 @@ impl pallet_im_online::Config for Runtime {
 	type ReportUnresponsiveness = Offences;
 	type UnsignedPriority = ImOnlineUnsignedPriority;
 	type WeightInfo = ();
+	type MaxKeys = MaxKeys;
+	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
+	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
 parameter_types! {
@@ -560,7 +566,9 @@ impl pallet_authorship::Config for Runtime {
 
 impl parachains_origin::Config for Runtime {}
 
-impl parachains_configuration::Config for Runtime {}
+impl parachains_configuration::Config for Runtime {
+	type WeightInfo = parachains_configuration::weights::WeightInfo<Runtime>;
+}
 
 impl parachains_shared::Config for Runtime {}
 
@@ -580,6 +588,7 @@ impl parachains_inclusion::Config for Runtime {
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 	type Event = Event;
+	type WeightInfo = parachains_paras::weights::WeightInfo<Runtime>;
 }
 
 parameter_types! {

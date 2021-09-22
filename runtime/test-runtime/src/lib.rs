@@ -340,6 +340,9 @@ impl pallet_staking::Config for Runtime {
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type GenesisElectionProvider =
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
+	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
+	// to bags-list is a no-op, but the storage version will be updated.
+	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
 	type WeightInfo = ();
 }
 
@@ -451,7 +454,9 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-impl parachains_configuration::Config for Runtime {}
+impl parachains_configuration::Config for Runtime {
+	type WeightInfo = parachains_configuration::weights::WeightInfo<Runtime>;
+}
 
 impl parachains_shared::Config for Runtime {}
 
@@ -479,6 +484,7 @@ impl parachains_session_info::Config for Runtime {}
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 	type Event = Event;
+	type WeightInfo = parachains_paras::weights::WeightInfo<Runtime>;
 }
 
 impl parachains_dmp::Config for Runtime {}

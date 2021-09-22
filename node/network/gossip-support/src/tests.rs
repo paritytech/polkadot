@@ -21,7 +21,9 @@ use std::{sync::Arc, time::Duration};
 use async_trait::async_trait;
 use assert_matches::assert_matches;
 use futures::{executor, future, Future};
+use lazy_static::lazy_static;
 
+use sc_network::multiaddr::Protocol;
 use sp_consensus_babe::{AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch};
 use sp_keyring::Sr25519Keyring;
 
@@ -36,30 +38,97 @@ use test_helpers::mock::make_ferdie_keystore;
 
 use super::*;
 
+lazy_static! {
+
+static ref MOCK_AUTHORITY_DISCOVERY: MockAuthorityDiscovery = MockAuthorityDiscovery::new();
+
+static ref AUTHORITIES: Vec<AuthorityDiscoveryId> = {
+	let mut authorities = OTHER_AUTHORITIES.clone();
+	authorities.push(Sr25519Keyring::Ferdie.public().into());
+	authorities
+};
+
+static ref OTHER_AUTHORITIES: Vec<AuthorityDiscoveryId> = vec![
+		Sr25519Keyring::Alice.public().into(),
+		Sr25519Keyring::Bob.public().into(),
+		Sr25519Keyring::Charlie.public().into(),
+		Sr25519Keyring::Eve.public().into(),
+		Sr25519Keyring::One.public().into(),
+		Sr25519Keyring::Two.public().into(),
+];
+
+
+static ref NEIGHBORS: Vec<AuthorityDiscoveryId> =
+	vec![
+		Sr25519Keyring::Two.public().into(),
+		Sr25519Keyring::Charlie.public().into(),
+		Sr25519Keyring::Eve.public().into(),
+];
+}
+
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<GossipSupportMessage>;
+
 
 #[derive(Debug, Clone)]
 struct MockAuthorityDiscovery {
+	addrs: HashMap<AuthorityDiscoveryId, Vec<Multiaddr>>,
+	authorities: HashMap<PeerId, AuthorityDiscoveryId>,
+}
+
+impl MockAuthorityDiscovery {
+	fn new() -> Self {
+		let authorities: HashMap<_,_> = AUTHORITIES.clone().into_iter().map(|a| (PeerId::random(), a)).collect();
+		let addrs = authorities.clone().into_iter().map(|(p, a)| {
+			let multiaddr = Multiaddr::empty().with(Protocol::P2p(p.into()));
+			(a, vec![multiaddr])
+		}
+		).collect();
+		Self {
+			addrs, authorities
+		}
+	}
 }
 
 #[async_trait]
 impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
-		_authority: polkadot_primitives::v1::AuthorityDiscoveryId,
+		authority: polkadot_primitives::v1::AuthorityDiscoveryId,
 	) -> Option<Vec<sc_network::Multiaddr>> {
-		panic!("Not implemented");
+		self.addrs.get(&authority).cloned()
 	}
 	async fn get_authority_id_by_peer_id(
 		&mut self,
 		peer_id: polkadot_node_network_protocol::PeerId,
 	) -> Option<polkadot_primitives::v1::AuthorityDiscoveryId> {
-		panic!("Not implemented");
+		self.authorities.get(&peer_id).cloned()
 	}
 }
 
+async fn get_other_authorities_addrs() -> Vec<Vec<Multiaddr>> {
+	let mut addrs = Vec::with_capacity(OTHER_AUTHORITIES.len());
+	let mut discovery = MOCK_AUTHORITY_DISCOVERY.clone();
+	for authority in OTHER_AUTHORITIES.iter().cloned() {
+		if let Some(addr) = discovery.get_addresses_by_authority_id(authority).await {
+			addrs.push(addr);
+		}
+	}
+	addrs
+}
+
+async fn get_other_authorities_addrs_map() -> HashMap<AuthorityDiscoveryId, Vec<Multiaddr>> {
+	let mut addrs = HashMap::with_capacity(OTHER_AUTHORITIES.len());
+	let mut discovery = MOCK_AUTHORITY_DISCOVERY.clone();
+	for authority in OTHER_AUTHORITIES.iter().cloned() {
+		if let Some(addr) = discovery.get_addresses_by_authority_id(authority.clone()).await {
+			addrs.insert(authority, addr);
+		}
+	}
+	addrs
+}
+
 fn make_subsystem() -> GossipSupport<MockAuthorityDiscovery> {
-	GossipSupport::new(make_ferdie_keystore(), MockAuthorityDiscovery {})
+	GossipSupport::new(make_ferdie_keystore(), MOCK_AUTHORITY_DISCOVERY.clone())
 }
 
 fn test_harness<T: Future<Output = VirtualOverseer>, AD: AuthorityDiscovery>(
@@ -114,25 +183,6 @@ async fn overseer_recv(overseer: &mut VirtualOverseer) -> AllMessages {
 	msg
 }
 
-fn authorities() -> Vec<AuthorityDiscoveryId> {
-	vec![
-		Sr25519Keyring::Alice.public().into(),
-		Sr25519Keyring::Bob.public().into(),
-		Sr25519Keyring::Charlie.public().into(),
-		Sr25519Keyring::Ferdie.public().into(),
-		Sr25519Keyring::Eve.public().into(),
-		Sr25519Keyring::One.public().into(),
-	]
-}
-
-fn neighbors() -> Vec<AuthorityDiscoveryId> {
-	vec![
-		Sr25519Keyring::One.public().into(),
-		Sr25519Keyring::Alice.public().into(),
-		Sr25519Keyring::Eve.public().into(),
-	]
-}
-
 async fn test_neighbors(overseer: &mut VirtualOverseer) {
 	assert_matches!(
 		overseer_recv(overseer).await,
@@ -161,7 +211,7 @@ async fn test_neighbors(overseer: &mut VirtualOverseer) {
 		}) => {
 			let mut got: Vec<_> = our_neighbors.into_iter().collect();
 			got.sort();
-			assert_eq!(got, neighbors());
+			assert_eq!(got, NEIGHBORS.clone());
 		}
 	);
 }
@@ -189,20 +239,18 @@ fn issues_a_connection_request_on_new_session() {
 				RuntimeApiRequest::Authorities(tx),
 			)) => {
 				assert_eq!(relay_parent, hash);
-				tx.send(Ok(authorities())).unwrap();
+				tx.send(Ok(AUTHORITIES.clone())).unwrap();
 			}
 		);
 
 		assert_matches!(
 			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-				validator_ids,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidatorsResolved {
+				validator_addrs,
 				peer_set,
-				failed,
 			}) => {
-				assert_eq!(validator_ids, authorities());
+				assert_eq!(validator_addrs, get_other_authorities_addrs().await);
 				assert_eq!(peer_set, PeerSet::Validation);
-				failed.send(0).unwrap();
 			}
 		);
 
@@ -257,20 +305,18 @@ fn issues_a_connection_request_on_new_session() {
 				RuntimeApiRequest::Authorities(tx),
 			)) => {
 				assert_eq!(relay_parent, hash);
-				tx.send(Ok(authorities())).unwrap();
+				tx.send(Ok(AUTHORITIES.clone())).unwrap();
 			}
 		);
 
 		assert_matches!(
 			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-				validator_ids,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidatorsResolved {
+				validator_addrs,
 				peer_set,
-				failed,
 			}) => {
-				assert_eq!(validator_ids, authorities());
+				assert_eq!(validator_addrs, get_other_authorities_addrs().await);
 				assert_eq!(peer_set, PeerSet::Validation);
-				failed.send(0).unwrap();
 			}
 		);
 
@@ -285,51 +331,69 @@ fn issues_a_connection_request_on_new_session() {
 #[test]
 fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 	let hash = Hash::repeat_byte(0xAA);
-	let mut state = test_harness(make_subsystem(), |mut virtual_overseer| async move {
-		let overseer = &mut virtual_overseer;
-		overseer_signal_active_leaves(overseer, hash).await;
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::SessionIndexForChild(tx),
-			)) => {
-				assert_eq!(relay_parent, hash);
-				tx.send(Ok(1)).unwrap();
-			}
-		);
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::Authorities(tx),
-			)) => {
-				assert_eq!(relay_parent, hash);
-				tx.send(Ok(authorities())).unwrap();
-			}
-		);
+	let mut state = make_subsystem();
+	// There will be two lookup failures:
+	let alice = Sr25519Keyring::Alice.public().into();
+	let bob = Sr25519Keyring::Bob.public().into();
+	let alice_addr = state.authority_discovery.addrs.remove(&alice);
+	state.authority_discovery.addrs.remove(&bob);
 
-		assert_matches!(
-			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-				validator_ids,
-				peer_set,
-				failed,
-			}) => {
-				assert_eq!(validator_ids, authorities());
-				assert_eq!(peer_set, PeerSet::Validation);
-				failed.send(2).unwrap();
-			}
-		);
+	let mut state = {
+		let alice = alice.clone();
+		let bob = bob.clone();
 
-		test_neighbors(overseer).await;
+		test_harness(state, |mut virtual_overseer| async move {
+			let overseer = &mut virtual_overseer;
+			overseer_signal_active_leaves(overseer, hash).await;
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::SessionIndexForChild(tx),
+				)) => {
+					assert_eq!(relay_parent, hash);
+					tx.send(Ok(1)).unwrap();
+				}
+			);
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Authorities(tx),
+				)) => {
+					assert_eq!(relay_parent, hash);
+					tx.send(Ok(AUTHORITIES.clone())).unwrap();
+				}
+			);
 
-		virtual_overseer
-	});
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidatorsResolved {
+					mut validator_addrs,
+					peer_set,
+				}) => {
+					let mut expected = get_other_authorities_addrs_map().await;
+					expected.remove(&alice);
+					expected.remove(&bob);
+					let mut expected: Vec<Vec<Multiaddr>> = expected.into_values().collect();
+					validator_addrs.sort();
+					expected.sort();
+					assert_eq!(validator_addrs, expected);
+					assert_eq!(peer_set, PeerSet::Validation);
+				}
+			);
+
+			test_neighbors(overseer).await;
+
+			virtual_overseer
+	})
+	};
 
 	assert_eq!(state.last_session_index, Some(1));
 	assert!(state.last_failure.is_some());
 	state.last_failure = state.last_failure.and_then(|i| i.checked_sub(BACKOFF_DURATION));
+	// One error less:
+	state.authority_discovery.addrs.insert(alice, alice_addr.unwrap());
 
 	let hash = Hash::repeat_byte(0xBB);
 	let state = test_harness(state, |mut virtual_overseer| async move {
@@ -352,20 +416,23 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 				RuntimeApiRequest::Authorities(tx),
 			)) => {
 				assert_eq!(relay_parent, hash);
-				tx.send(Ok(authorities())).unwrap();
+				tx.send(Ok(AUTHORITIES.clone())).unwrap();
 			}
 		);
 
 		assert_matches!(
 			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidators {
-				validator_ids,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidatorsResolved {
+				mut validator_addrs,
 				peer_set,
-				failed,
 			}) => {
-				assert_eq!(validator_ids, authorities());
+				let mut expected = get_other_authorities_addrs_map().await;
+				expected.remove(&bob);
+				let mut expected: Vec<Vec<Multiaddr>> = expected.into_values().collect();
+				expected.sort();
+				validator_addrs.sort();
+				assert_eq!(validator_addrs, expected);
 				assert_eq!(peer_set, PeerSet::Validation);
-				failed.send(1).unwrap();
 			}
 		);
 
