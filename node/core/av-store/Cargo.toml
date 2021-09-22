@@ -12,7 +12,7 @@ thiserror = "1.0.26"
 tracing = "0.1.27"
 bitvec = "0.20.1"
 
-parity-scale-codec = { version = "2.0.0", features = ["derive"] }
+parity-scale-codec = { version = "2.3.0", features = ["derive"] }
 erasure = { package = "polkadot-erasure-coding", path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
