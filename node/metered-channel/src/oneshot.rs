@@ -216,17 +216,27 @@ impl<T> Future for OneshotMeteredReceiver<T> {
 		}
 
 		let soft_timeout = unsafe {
-			self.as_mut().map_unchecked_mut(|this| this.soft_timeout_fut.as_mut().unwrap())
+			self.as_mut().map_unchecked_mut(|this| {
+				this.soft_timeout_fut
+					.as_mut()
+					.expect("Option is populated on the first call to `poll`. qed")
+			})
 		};
 		if soft_timeout.poll(ctx).is_ready() {
 			tracing::warn!("Oneshot `{name}` exceeded the soft threshold", name = &self.name);
 		}
 
 		let hard_timeout = unsafe {
-			self.as_mut().map_unchecked_mut(|this| this.hard_timeout_fut.as_mut().unwrap())
+			self.as_mut().map_unchecked_mut(|this| {
+				this.hard_timeout_fut
+					.as_mut()
+					.expect("Option is populated on the first call to `poll`. qed")
+			})
 		};
 		if hard_timeout.poll(ctx).is_ready() {
-			let first_poll_timestamp = self.first_poll_timestamp.unwrap();
+			let first_poll_timestamp = self
+				.first_poll_timestamp
+				.expect("Option is populated on the first call to `poll`. qed");
 			self.update_meter(first_poll_timestamp, Reason::HardTimeout);
 			return Poll::Ready(Err(Error::HardTimeout(self.hard_timeout.clone())))
 		}
@@ -234,7 +244,9 @@ impl<T> Future for OneshotMeteredReceiver<T> {
 		match Pin::new(&mut self.inner).poll(ctx) {
 			Poll::Pending => Poll::Pending,
 			Poll::Ready(Err(e)) => {
-				let first_poll_timestamp = self.first_poll_timestamp.unwrap();
+				let first_poll_timestamp = self
+					.first_poll_timestamp
+					.expect("Option is populated on the first call to `poll`. qed");
 				self.update_meter(first_poll_timestamp, Reason::Cancellation);
 				Poll::Ready(Err(Error::from(e)))
 			},
