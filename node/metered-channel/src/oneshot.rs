@@ -40,7 +40,7 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 #[repr(u8)]
 pub enum Reason {
 	Unfinished = 0,
-	Compeletion = 1,
+	Completion = 1,
 	Cancellation = 2,
 	HardTimeout = 3,
 }
