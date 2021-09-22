@@ -174,7 +174,9 @@ pub mod pallet {
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
 			let freed_disputed: Vec<(_, FreedReason)> = {
+				// TODO check if length/count of disputes matters here
 				let fresh_disputes = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				// NOTE fresh_disputes -> freshly created disputes
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
@@ -191,6 +193,8 @@ pub mod pallet {
 						.map(|(_, c)| *c)
 						.collect();
 
+					// collect_disputed will increase storage read/writes when disputed 
+					// contains storage items from `PendingAvailability`
 					<inclusion::Pallet<T>>::collect_disputed(current_session_disputes)
 						.into_iter()
 						.map(|core| (core, FreedReason::Concluded))
@@ -202,10 +206,11 @@ pub mod pallet {
 
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
+			// TODO look into availibility cores
 			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
-				signed_bitfields,
+				signed_bitfields, // TODO varying over the length of this
 				<scheduler::Pallet<T>>::core_para,
 			)?;
 

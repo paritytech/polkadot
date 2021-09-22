@@ -796,6 +796,7 @@ impl<T: Config> Pallet<T> {
 		let mut cleaned_up_ids = Vec::new();
 		let mut cleaned_up_cores = Vec::new();
 
+		// TODO this is probably most expensive when pending availability is none?
 		for (para_id, pending_record) in <PendingAvailability<T>>::iter() {
 			if disputed.contains(&pending_record.hash) {
 				cleaned_up_ids.push(para_id);
@@ -804,6 +805,8 @@ impl<T: Config> Pallet<T> {
 		}
 
 		for para_id in cleaned_up_ids {
+			// TODO this take will add storage reads, to maximize will need disputed to contain
+			// para_ids already included here
 			let _ = <PendingAvailability<T>>::take(&para_id);
 			let _ = <PendingAvailabilityCommitments<T>>::take(&para_id);
 		}
