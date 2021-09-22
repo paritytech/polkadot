@@ -1459,7 +1459,7 @@ impl pallet_bridge_dispatch::Config<PolkadotMessagesDispatchInstance> for Runtim
 	type Event = Event;
 	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
-	type CallFilter = frame_support::traits::Everything;
+	type CallFilter = polkadot_messages::FromPolkadotCallFilter;
 	type EncodedCall = polkadot_messages::FromPolkadotEncodedCall;
 	type SourceChainAccountId = bp_polkadot::AccountId;
 	type TargetChainAccountPublic = sp_runtime::MultiSigner;

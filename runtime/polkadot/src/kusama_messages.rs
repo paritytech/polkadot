@@ -16,7 +16,7 @@
 
 //! Over-bridge messaging support for Polkadot <> Kusama bridge.
 
-use crate::Runtime;
+use crate::{Call, Runtime};
 
 use bp_messages::{
 	source_chain::{LaneMessageVerifier, TargetHeaderChain},
@@ -28,7 +28,7 @@ use bridge_runtime_common::messages::{self, MessageBridge, MessageTransaction, T
 use parity_scale_codec::{Decode, Encode};
 use frame_support::{
 	parameter_types,
-	traits::Get,
+	traits::{Contains, Get},
 	weights::{DispatchClass, Weight, WeightToFeePolynomial},
 	RuntimeDebug,
 };
@@ -319,6 +319,15 @@ impl Get<bp_polkadot::Balance> for GetDeliveryConfirmationTransactionFee {
 		<Polkadot as ThisChainWithMessages>::transaction_payment(
 			Polkadot::estimate_delivery_confirmation_transaction(),
 		)
+	}
+}
+
+/// Call filter for messages that are coming from Kusama.
+pub struct FromKusamaCallFilter;
+
+impl Contains<Call> for FromKusamaCallFilter {
+	fn contains(call: &Call) -> bool {
+		matches!(call, Call::Balances(pallet_balances::Call::transfer(..)))
 	}
 }
 

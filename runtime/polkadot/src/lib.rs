@@ -1426,7 +1426,7 @@ impl pallet_bridge_dispatch::Config<KusamaMessagesDispatchInstance> for Runtime 
 	type Event = Event;
 	type MessageId = (bp_messages::LaneId, bp_messages::MessageNonce);
 	type Call = Call;
-	type CallFilter = frame_support::traits::Everything;
+	type CallFilter = kusama_messages::FromKusamaCallFilter;
 	type EncodedCall = kusama_messages::FromKusamaEncodedCall;
 	type SourceChainAccountId = bp_kusama::AccountId;
 	type TargetChainAccountPublic = sp_runtime::MultiSigner;
