@@ -27,3 +27,4 @@ sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 
 assert_matches = "1.4.0"
+async-trait = "0.1.51"

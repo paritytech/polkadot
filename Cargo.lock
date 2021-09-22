@@ -5954,6 +5954,7 @@ name = "polkadot-gossip-support"
 version = "0.9.9"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "futures 0.3.17",
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",

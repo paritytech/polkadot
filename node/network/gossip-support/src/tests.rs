@@ -16,7 +16,15 @@
 
 //! Unit tests for Gossip Support Subsystem.
 
-use super::*;
+use std::{sync::Arc, time::Duration};
+
+use async_trait::async_trait;
+use assert_matches::assert_matches;
+use futures::{executor, future, Future};
+
+use sp_consensus_babe::{AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch};
+use sp_keyring::Sr25519Keyring;
+
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
@@ -24,47 +32,62 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
-use sp_consensus_babe::{AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch};
-use sp_keyring::Sr25519Keyring;
 use test_helpers::mock::make_ferdie_keystore;
 
-use assert_matches::assert_matches;
-use futures::{executor, future, Future};
-use std::{sync::Arc, time::Duration};
+use super::*;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<GossipSupportMessage>;
 
-fn test_harness<T: Future<Output = VirtualOverseer>>(
-	mut state: State,
+#[derive(Debug, Clone)]
+struct MockAuthorityDiscovery {
+}
+
+#[async_trait]
+impl AuthorityDiscovery for MockAuthorityDiscovery {
+	async fn get_addresses_by_authority_id(
+		&mut self,
+		_authority: polkadot_primitives::v1::AuthorityDiscoveryId,
+	) -> Option<Vec<sc_network::Multiaddr>> {
+		panic!("Not implemented");
+	}
+	async fn get_authority_id_by_peer_id(
+		&mut self,
+		peer_id: polkadot_node_network_protocol::PeerId,
+	) -> Option<polkadot_primitives::v1::AuthorityDiscoveryId> {
+		panic!("Not implemented");
+	}
+}
+
+fn make_subsystem() -> GossipSupport<MockAuthorityDiscovery> {
+	GossipSupport::new(make_ferdie_keystore(), MockAuthorityDiscovery {})
+}
+
+fn test_harness<T: Future<Output = VirtualOverseer>, AD: AuthorityDiscovery>(
+	subsystem: GossipSupport<AD>,
 	test_fn: impl FnOnce(VirtualOverseer) -> T,
-) -> State {
+) -> GossipSupport<AD> {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let keystore = make_ferdie_keystore();
-	let subsystem = GossipSupport::new(keystore);
-	{
-		let subsystem = subsystem.run_inner(context, &mut state);
+	let subsystem = subsystem.run(context);
 
-		let test_fut = test_fn(virtual_overseer);
+	let test_fut = test_fn(virtual_overseer);
 
-		futures::pin_mut!(test_fut);
-		futures::pin_mut!(subsystem);
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(subsystem);
 
-		executor::block_on(future::join(
-			async move {
-				let mut overseer = test_fut.await;
-				overseer
-					.send(FromOverseer::Signal(OverseerSignal::Conclude))
-					.timeout(TIMEOUT)
-					.await
-					.expect("Conclude send timeout");
-			},
-			subsystem,
-		));
-	}
-
-	state
+	let (_, subsystem) = executor::block_on(future::join(
+		async move {
+			let mut overseer = test_fut.await;
+			overseer
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.timeout(TIMEOUT)
+				.await
+				.expect("Conclude send timeout");
+		},
+		subsystem,
+	));
+	subsystem
 }
 
 const TIMEOUT: Duration = Duration::from_millis(100);
@@ -146,7 +169,7 @@ async fn test_neighbors(overseer: &mut VirtualOverseer) {
 #[test]
 fn issues_a_connection_request_on_new_session() {
 	let hash = Hash::repeat_byte(0xAA);
-	let state = test_harness(State::default(), |mut virtual_overseer| async move {
+	let state = test_harness(make_subsystem(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		overseer_signal_active_leaves(overseer, hash).await;
 		assert_matches!(
@@ -262,7 +285,7 @@ fn issues_a_connection_request_on_new_session() {
 #[test]
 fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 	let hash = Hash::repeat_byte(0xAA);
-	let mut state = test_harness(State::default(), |mut virtual_overseer| async move {
+	let mut state = test_harness(make_subsystem(), |mut virtual_overseer| async move {
 		let overseer = &mut virtual_overseer;
 		overseer_signal_active_leaves(overseer, hash).await;
 		assert_matches!(
