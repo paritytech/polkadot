@@ -405,7 +405,11 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 		DisputeStateImporter { state, now, new_participants, pre_flags }
 	}
 
-	fn import(&mut self, validator: ValidatorIndex, valid: bool) -> Result<ImportUndo, VoteImportError> {
+	fn import(
+		&mut self,
+		validator: ValidatorIndex,
+		valid: bool,
+	) -> Result<ImportUndo, VoteImportError> {
 		let (bits, other_bits) = if valid {
 			(&mut self.state.validators_for, &mut self.state.validators_against)
 		} else {
@@ -424,11 +428,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 			return Err(VoteImportError::ValidatorIndexOutOfBounds)
 		}
 
-		let mut undo = ImportUndo {
-			validator_index: validator,
-			valid,
-			new_participant: false,
-		};
+		let mut undo = ImportUndo { validator_index: validator, valid, new_participant: false };
 
 		bits.set(validator.0 as usize, true);
 
@@ -791,7 +791,7 @@ impl<T: Config> Pallet<T> {
 					Err(_) => {
 						filter.remove_index(i);
 						continue
-					}
+					},
 				};
 
 				// Check signature after attempting import.
@@ -960,7 +960,8 @@ impl<T: Config> Pallet<T> {
 
 		// Reject disputes which don't have at least one vote on each side.
 		ensure!(
-			summary.state.validators_for.count_ones() > 0 && summary.state.validators_against.count_ones() > 0,
+			summary.state.validators_for.count_ones() > 0 &&
+				summary.state.validators_against.count_ones() > 0,
 			Error::<T>::SingleSidedDispute,
 		);
 
@@ -1603,7 +1604,12 @@ mod tests {
 			run_to_block(3, |b| {
 				// a new session at each block
 				if b == 1 {
-					Some((true, b, vec![(&0, v0.public()), (&1, v1.public())], Some(vec![(&0, v0.public()), (&1, v1.public())])))
+					Some((
+						true,
+						b,
+						vec![(&0, v0.public()), (&1, v1.public())],
+						Some(vec![(&0, v0.public()), (&1, v1.public())]),
+					))
 				} else {
 					Some((true, b, vec![(&1, v1.public())], Some(vec![(&1, v1.public())])))
 				}
@@ -1679,7 +1685,12 @@ mod tests {
 
 			run_to_block(6, |b| {
 				// a new session at each block
-				Some((true, b, vec![(&0, v0.public()), (&1, v1.public())], Some(vec![(&0, v0.public()), (&1, v1.public())])))
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
 			});
 
 			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
@@ -1742,7 +1753,12 @@ mod tests {
 
 			run_to_block(6, |b| {
 				// a new session at each block
-				Some((true, b, vec![(&0, v0.public()), (&1, v1.public())], Some(vec![(&0, v0.public()), (&1, v1.public())])))
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
 			});
 
 			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
@@ -2060,7 +2076,7 @@ mod tests {
 									session: 5,
 								}
 								.signing_payload(),
-							)
+							),
 						),
 						(
 							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
@@ -2072,7 +2088,7 @@ mod tests {
 									session: 5,
 								}
 								.signing_payload(),
-							)
+							),
 						),
 						(
 							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
@@ -2084,7 +2100,7 @@ mod tests {
 									session: 5,
 								}
 								.signing_payload(),
-							)
+							),
 						),
 					],
 				},
@@ -2103,7 +2119,7 @@ mod tests {
 									session: 3,
 								}
 								.signing_payload(),
-							)
+							),
 						),
 						(
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
@@ -2115,7 +2131,7 @@ mod tests {
 									session: 3,
 								}
 								.signing_payload(),
-							)
+							),
 						),
 					],
 				},
@@ -2727,7 +2743,12 @@ mod tests {
 
 			run_to_block(3, |b| {
 				// a new session at each block
-				Some((true, b, vec![(&0, v0.public()), (&1, v1.public())], Some(vec![(&0, v0.public()), (&1, v1.public())])))
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
 			});
 
 			let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
@@ -2832,11 +2853,10 @@ mod tests {
 
 			let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
 
-			let payload = |c_hash: &CandidateHash, valid| ExplicitDisputeStatement {
-				valid,
-				candidate_hash: c_hash.clone(),
-				session: 1,
-			}.signing_payload();
+			let payload = |c_hash: &CandidateHash, valid| {
+				ExplicitDisputeStatement { valid, candidate_hash: c_hash.clone(), session: 1 }
+					.signing_payload()
+			};
 
 			let payload_a = payload(&candidate_hash_a, true);
 			let payload_a_bad = payload(&candidate_hash_a, false);
@@ -2844,24 +2864,22 @@ mod tests {
 			let sig_0 = v0.sign(&payload_a);
 			let sig_1 = v1.sign(&payload_a_bad);
 
-			let mut statements = vec![
-				DisputeStatementSet {
-					candidate_hash: candidate_hash_a.clone(),
-					session: 1,
-					statements: vec![
-						(
-							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-							ValidatorIndex(0),
-							sig_0.clone(),
-						),
-						(
-							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-							ValidatorIndex(2),
-							sig_1.clone(),
-						),
-					],
-				},
-			];
+			let mut statements = vec![DisputeStatementSet {
+				candidate_hash: candidate_hash_a.clone(),
+				session: 1,
+				statements: vec![
+					(
+						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+						ValidatorIndex(0),
+						sig_0.clone(),
+					),
+					(
+						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+						ValidatorIndex(2),
+						sig_1.clone(),
+					),
+				],
+			}];
 
 			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
 
@@ -2921,11 +2939,10 @@ mod tests {
 			let candidate_hash_b = CandidateHash(sp_core::H256::repeat_byte(2));
 			let candidate_hash_c = CandidateHash(sp_core::H256::repeat_byte(3));
 
-			let payload = |c_hash: &CandidateHash, valid| ExplicitDisputeStatement {
-				valid,
-				candidate_hash: c_hash.clone(),
-				session: 1,
-			}.signing_payload();
+			let payload = |c_hash: &CandidateHash, valid| {
+				ExplicitDisputeStatement { valid, candidate_hash: c_hash.clone(), session: 1 }
+					.signing_payload()
+			};
 
 			let payload_a = payload(&candidate_hash_a, true);
 			let payload_b = payload(&candidate_hash_b, true);
@@ -3159,7 +3176,12 @@ mod tests {
 
 			run_to_block(3, |b| {
 				// a new session at each block
-				Some((true, b, vec![(&0, v0.public()), (&1, v1.public())], Some(vec![(&0, v0.public()), (&1, v1.public())])))
+				Some((
+					true,
+					b,
+					vec![(&0, v0.public()), (&1, v1.public())],
+					Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				))
 			});
 
 			let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
@@ -3264,17 +3286,15 @@ mod tests {
 
 			let sig_a = v0.sign(&payload);
 
-			let mut statements = vec![
-				DisputeStatementSet {
-					candidate_hash: candidate_hash_a.clone(),
-					session: 1,
-					statements: vec![(
-						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-						ValidatorIndex(0),
-						sig_a.clone(),
-					)],
-				},
-			];
+			let mut statements = vec![DisputeStatementSet {
+				candidate_hash: candidate_hash_a.clone(),
+				session: 1,
+				statements: vec![(
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(0),
+					sig_a.clone(),
+				)],
+			}];
 
 			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
 
@@ -3303,17 +3323,15 @@ mod tests {
 
 			let sig_a = v0.sign(&payload);
 
-			let statements = vec![
-				DisputeStatementSet {
-					candidate_hash: candidate_hash_a.clone(),
-					session: 1,
-					statements: vec![(
-						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-						ValidatorIndex(0),
-						sig_a.clone(),
-					)],
-				},
-			];
+			let statements = vec![DisputeStatementSet {
+				candidate_hash: candidate_hash_a.clone(),
+				session: 1,
+				statements: vec![(
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(0),
+					sig_a.clone(),
+				)],
+			}];
 
 			assert_err!(
 				Pallet::<Test>::provide_multi_dispute_data(statements),
