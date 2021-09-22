@@ -41,6 +41,10 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::Origin as ParachainOrigin;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+pub mod weights;
+
 pub use pallet::*;
 
 // the two key times necessary to track for every code replacement.
@@ -267,6 +271,14 @@ pub struct ParaGenesisArgs {
 	pub parachain: bool,
 }
 
+pub trait WeightInfo {
+	fn force_set_current_code(c: u32) -> Weight;
+	fn force_set_current_head(s: u32) -> Weight;
+	fn force_schedule_code_upgrade(c: u32) -> Weight;
+	fn force_note_new_head(s: u32) -> Weight;
+	fn force_queue_action() -> Weight;
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -283,6 +295,9 @@ pub mod pallet {
 			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -490,7 +505,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Set the storage for the parachain validation code immediately.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_code(new_code.0.len() as u32))]
 		pub fn force_set_current_code(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -509,7 +524,7 @@ pub mod pallet {
 		}
 
 		/// Set the storage for the current parachain head data immediately.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_head(new_head.0.len() as u32))]
 		pub fn force_set_current_head(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -522,7 +537,7 @@ pub mod pallet {
 		}
 
 		/// Schedule an upgrade as if it was scheduled in the given relay parent block.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_schedule_code_upgrade(new_code.0.len() as u32))]
 		pub fn force_schedule_code_upgrade(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -537,7 +552,7 @@ pub mod pallet {
 		}
 
 		/// Note a new block head for para within the context of the current block.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_note_new_head(new_head.0.len() as u32))]
 		pub fn force_note_new_head(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -553,7 +568,7 @@ pub mod pallet {
 		/// Put a parachain directly into the next session's action queue.
 		/// We can't queue it any sooner than this without going into the
 		/// initializer...
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_queue_action())]
 		pub fn force_queue_action(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			let next_session = shared::Pallet::<T>::session_index().saturating_add(One::one());

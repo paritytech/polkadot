@@ -657,6 +657,7 @@ mod tests {
 	impl paras::Config for Test {
 		type Origin = Origin;
 		type Event = Event;
+		type WeightInfo = paras::weights::WeightInfo<Test>;
 	}
 
 	impl configuration::Config for Test {
