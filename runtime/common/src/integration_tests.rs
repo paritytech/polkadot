@@ -165,6 +165,7 @@ impl shared::Config for Test {}
 impl paras::Config for Test {
 	type Origin = Origin;
 	type Event = Event;
+	type WeightInfo = paras::weights::WeightInfo<Test>;
 }
 
 parameter_types! {

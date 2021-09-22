@@ -41,7 +41,7 @@ pub(crate) async fn test_voter_bags_migration<
 	let mut ext = Builder::<Block>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: ws_url.to_string().into(),
-			modules: vec!["Staking".to_string()],
+			pallets: vec!["Staking".to_string()],
 			at: None,
 			state_snapshot: None,
 		}))
