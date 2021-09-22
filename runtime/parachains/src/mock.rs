@@ -149,6 +149,7 @@ impl crate::disputes::Config for Test {
 	type Event = Event;
 	type RewardValidators = Self;
 	type PunishValidators = Self;
+	type WeightInfo = crate::disputes::weights::WeightInfo<Test>;
 }
 
 thread_local! {

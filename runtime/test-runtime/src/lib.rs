@@ -471,6 +471,7 @@ impl parachains_disputes::Config for Runtime {
 	type Event = Event;
 	type RewardValidators = ();
 	type PunishValidators = ();
+	type WeightInfo = parachains_disputes::weights::WeightInfo<Runtime>;
 }
 
 impl parachains_paras_inherent::Config for Runtime {}
