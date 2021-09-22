@@ -78,6 +78,10 @@ pallet-bridge-dispatch = { path = "../../bridges/modules/dispatch", default-feat
 pallet-bridge-grandpa = { path = "../../bridges/modules/grandpa", default-features = false }
 pallet-bridge-messages = { path = "../../bridges/modules/messages", default-features = false }
 
+# Benchmarking Dependencies
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+hex-literal = { version = "0.3.3", optional = true }
+
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -169,6 +173,8 @@ runtime-benchmarks = [
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"xcm-builder/runtime-benchmarks",
+	"frame-benchmarking",
+	"hex-literal"
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
