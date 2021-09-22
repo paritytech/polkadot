@@ -82,7 +82,7 @@ impl Meter {
 	}
 }
 
-/// Create a new pair of
+/// Create a new pair of `OneshotMetered{Sender,Receiver}`.
 pub fn channel<T>(
 	name: &'static str,
 	soft_timeout: Duration,
@@ -106,6 +106,7 @@ pub fn channel<T>(
 	)
 }
 
+#[allow(missing_docs)]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
 	#[error(transparent)]
@@ -185,7 +186,7 @@ impl<T> OneshotMeteredReceiver<T> {
 		self.shared_meter.clone()
 	}
 
-	fn update_meter(&mut self, sent_at_timestamp: Instant, reason: Reason) {
+	fn update_meter(&mut self, sent_at_timestamp: &Instant, reason: Reason) {
 		let delta: Duration = sent_at_timestamp.elapsed();
 		let val = u64::try_from(delta.as_millis()).unwrap_or(u64::MAX);
 		self.shared_meter
@@ -207,51 +208,35 @@ impl<T> Future for OneshotMeteredReceiver<T> {
 	type Output = Result<T, Error>;
 
 	fn poll(mut self: Pin<&mut Self>, ctx: &mut Context<'_>) -> Poll<Result<T, Error>> {
-		let mut me = self.as_mut();
+		let first_poll_timestamp =
+			self.first_poll_timestamp.get_or_insert_with(|| Instant::now()).clone();
 
-		if me.first_poll_timestamp.is_none() {
-			me.first_poll_timestamp = Some(Instant::now());
-			me.soft_timeout_fut = Some(Delay::new(me.soft_timeout.clone()).fuse());
-			me.hard_timeout_fut = Some(Delay::new(me.hard_timeout.clone()));
-		}
+		let soft_timeout = self.soft_timeout.clone();
+		let soft_timeout = self
+			.soft_timeout_fut
+			.get_or_insert_with(move || Delay::new(soft_timeout).fuse());
 
-		let soft_timeout = unsafe {
-			self.as_mut().map_unchecked_mut(|this| {
-				this.soft_timeout_fut
-					.as_mut()
-					.expect("Option is populated on the first call to `poll`. qed")
-			})
-		};
-		if soft_timeout.poll(ctx).is_ready() {
+		if Pin::new(soft_timeout).poll(ctx).is_ready() {
 			tracing::warn!("Oneshot `{name}` exceeded the soft threshold", name = &self.name);
 		}
 
-		let hard_timeout = unsafe {
-			self.as_mut().map_unchecked_mut(|this| {
-				this.hard_timeout_fut
-					.as_mut()
-					.expect("Option is populated on the first call to `poll`. qed")
-			})
-		};
-		if hard_timeout.poll(ctx).is_ready() {
-			let first_poll_timestamp = self
-				.first_poll_timestamp
-				.expect("Option is populated on the first call to `poll`. qed");
-			self.update_meter(first_poll_timestamp, Reason::HardTimeout);
+		let hard_timeout = self.hard_timeout.clone();
+		let hard_timeout =
+			self.hard_timeout_fut.get_or_insert_with(move || Delay::new(hard_timeout));
+
+		if Pin::new(hard_timeout).poll(ctx).is_ready() {
+			self.update_meter(&first_poll_timestamp, Reason::HardTimeout);
 			return Poll::Ready(Err(Error::HardTimeout(self.hard_timeout.clone())))
 		}
 
 		match Pin::new(&mut self.inner).poll(ctx) {
 			Poll::Pending => Poll::Pending,
 			Poll::Ready(Err(e)) => {
-				let first_poll_timestamp = self
-					.first_poll_timestamp
-					.expect("Option is populated on the first call to `poll`. qed");
-				self.update_meter(first_poll_timestamp, Reason::Cancellation);
+				self.update_meter(&first_poll_timestamp, Reason::Cancellation);
 				Poll::Ready(Err(Error::from(e)))
 			},
-			Poll::Ready(Ok((sent_at_timestamp, val))) => {
-				self.update_meter(sent_at_timestamp, Reason::Compeletion);
+			Poll::Ready(Ok((ref sent_at_timestamp, val))) => {
+				self.update_meter(sent_at_timestamp, Reason::Completion);
 				Poll::Ready(Ok(val))
 			},
 		}
