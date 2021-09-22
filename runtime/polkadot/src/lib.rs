@@ -1182,7 +1182,7 @@ parameter_types! {
 	// for a memo).
 	pub const SubmissionDeposit: Balance = deposit(1, 480_000);
 	// The minimum crowdloan contribution.
-	pub const MinContribution: Balance = 10 * DOLLARS;
+	pub const MinContribution: Balance = 5 * DOLLARS;
 	pub const RemoveKeysLimit: u32 = 1000;
 	// Allow 32 bytes for an additional memo to a crowdloan.
 	pub const MaxMemoLength: u8 = 32;
