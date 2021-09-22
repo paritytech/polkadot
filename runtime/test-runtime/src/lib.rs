@@ -222,11 +222,13 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
 	pub storage TransactionByteFee: Balance = 10 * MILLICENTS;
+	pub WeightTipRatio: Balance = BlockWeights::get().max_block as _ / 100 / CENTS;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
 	type TransactionByteFee = TransactionByteFee;
+	type WeightTipRatio = WeightTipRatio;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
