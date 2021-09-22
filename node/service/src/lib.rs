@@ -871,7 +871,10 @@ where
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
-	let active_leaves = futures::executor::block_on(active_leaves(&select_chain, &*client))?;
+	// Cannot use the `RelayChainSelection`, since that'd require a setup _and running_ overseer
+	// which we are about to setup.
+	let active_leaves =
+		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
 	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
 		use futures::StreamExt;

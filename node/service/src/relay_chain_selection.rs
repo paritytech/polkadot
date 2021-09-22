@@ -135,13 +135,17 @@ where
 {
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
-
 	pub fn new(backend: Arc<B>, overseer: Handle, is_relay_chain: bool, metrics: Metrics) -> Self {
 		SelectRelayChain {
 			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
 			selection: SelectRelayChainInner::new(backend, overseer, metrics),
 			is_relay_chain,
 		}
+	}
+
+	/// Allow access to the inner chain, for usage during the node setup.
+	pub fn as_longest_chain(&self) -> &sc_consensus::LongestChain<B, PolkadotBlock> {
+		&self.longest_chain
 	}
 }
 
