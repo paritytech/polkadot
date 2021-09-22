@@ -19,9 +19,9 @@
 use crate::Runtime;
 
 use bp_messages::{
-	source_chain::TargetHeaderChain,
+	source_chain::{LaneMessageVerifier, TargetHeaderChain},
 	target_chain::{ProvedMessages, SourceHeaderChain},
-	InboundLaneData, LaneId, Message, MessageNonce, Parameter as MessagesParameter,
+	InboundLaneData, LaneId, Message, MessageNonce, OutboundLaneData, Parameter as MessagesParameter,
 };
 use bp_runtime::{ChainId, KUSAMA_CHAIN_ID, POLKADOT_CHAIN_ID};
 use bridge_runtime_common::messages::{self, MessageBridge, MessageTransaction, ThisChainWithMessages};
@@ -32,6 +32,7 @@ use frame_support::{
 	weights::{DispatchClass, Weight, WeightToFeePolynomial},
 	RuntimeDebug,
 };
+use frame_system::RawOrigin;
 use sp_runtime::{traits::Saturating, FixedPointNumber, FixedU128};
 use sp_std::{convert::TryFrom, ops::RangeInclusive};
 
@@ -45,13 +46,12 @@ parameter_types! {
 	pub storage PolkadotToKusamaConversionRate: FixedU128 = INITIAL_POLKADOT_TO_KUSAMA_CONVERSION_RATE;
 	/// Fee multiplier at Polkadot.
 	pub storage PolkadotFeeMultiplier: FixedU128 = INITIAL_POLKADOT_FEE_MULTIPLIER;
+	/// The only Kusama account that is allowed to send messages to Polkadot.
+	pub storage AllowedMessageSender: bp_kusama::AccountId = Default::default();
 }
 
 /// Message payload for Kusama -> Polkadot messages.
 pub type ToPolkadotMessagePayload = messages::source::FromThisChainMessagePayload<WithPolkadotMessageBridge>;
-
-/// Message verifier for Kusama -> Polkadot messages.
-pub type ToPolkadotMessageVerifier = messages::source::FromThisChainMessageVerifier<WithPolkadotMessageBridge>;
 
 /// Message payload for Polkadot -> Kusama messages.
 pub type FromPolkadotMessagePayload = messages::target::FromBridgedChainMessagePayload<WithPolkadotMessageBridge>;
@@ -66,6 +66,44 @@ pub type FromPolkadotMessageDispatch = messages::target::FromBridgedChainMessage
 	pallet_balances::Pallet<Runtime>,
 	crate::PolkadotMessagesDispatchInstance,
 >;
+
+/// Error that happens when message is sent by anyone but `AllowedMessageSender`.
+const NOT_ALLOWED_MESSAGE_SENDER: &str = "Cannot accept message from this account";
+
+/// Message verifier for Kusama -> Polkadot messages.
+#[derive(RuntimeDebug)]
+pub struct ToPolkadotMessageVerifier;
+
+impl LaneMessageVerifier<
+	bp_kusama::AccountId,
+	ToPolkadotMessagePayload,
+	bp_kusama::Balance,
+> for ToPolkadotMessageVerifier {
+	type Error = &'static str;
+
+	fn verify_message(
+		submitter: &RawOrigin<bp_kusama::AccountId>,
+		delivery_and_dispatch_fee: &bp_kusama::Balance,
+		lane: &LaneId,
+		lane_outbound_data: &OutboundLaneData,
+		payload: &ToPolkadotMessagePayload,
+	) -> Result<(), Self::Error> {
+		// we only allow messages to be sent by given account
+		let allowed_sender = AllowedMessageSender::get();
+		if *submitter != RawOrigin::Signed(allowed_sender) {
+			return Err(NOT_ALLOWED_MESSAGE_SENDER);
+		}
+
+		// perform other checks
+		messages::source::FromThisChainMessageVerifier::<WithPolkadotMessageBridge>::verify_message(
+			submitter,
+			delivery_and_dispatch_fee,
+			lane,
+			lane_outbound_data,
+			payload,
+		)
+	}
+}
 
 /// Kusama <-> Polkadot message bridge.
 #[derive(RuntimeDebug, Clone, Copy)]
@@ -253,6 +291,8 @@ pub enum WithPolkadotMessageBridgeParameter {
 	PolkadotToKusamaConversionRate(FixedU128),
 	/// Fee multiplier at the Polkadot chain.
 	PolkadotFeeMultiplier(FixedU128),
+	/// The only Kusama account that is allowed to send messages to Polkadot.
+	AllowedMessageSender(bp_kusama::AccountId),
 }
 
 impl MessagesParameter for WithPolkadotMessageBridgeParameter {
@@ -264,6 +304,9 @@ impl MessagesParameter for WithPolkadotMessageBridgeParameter {
 			WithPolkadotMessageBridgeParameter::PolkadotFeeMultiplier(ref fee_multiplier) => {
 				PolkadotFeeMultiplier::set(fee_multiplier);
 			},
+			WithPolkadotMessageBridgeParameter::AllowedMessageSender(ref message_sender) => {
+				AllowedMessageSender::set(message_sender);
+			}
 		}
 	}
 }
@@ -281,6 +324,7 @@ impl Get<bp_kusama::Balance> for GetDeliveryConfirmationTransactionFee {
 
 #[cfg(test)]
 mod tests {
+	use runtime_common::RocksDbWeight;
 	use crate::*;
 	use super::*;
 
@@ -293,7 +337,7 @@ mod tests {
 			bp_kusama::ADDITIONAL_MESSAGE_BYTE_DELIVERY_WEIGHT,
 			bp_kusama::MAX_SINGLE_MESSAGE_DELIVERY_CONFIRMATION_TX_WEIGHT,
 			bp_kusama::PAY_INBOUND_DISPATCH_FEE_WEIGHT,
-			DbWeight::get(),
+			RocksDbWeight::get(),
 		);
 
 		let max_incoming_message_proof_size = bp_polkadot::EXTRA_STORAGE_PROOF_SIZE.saturating_add(
@@ -318,7 +362,45 @@ mod tests {
 			max_incoming_inbound_lane_data_proof_size,
 			bp_polkadot::MAX_UNREWARDED_RELAYER_ENTRIES_AT_INBOUND_LANE,
 			bp_polkadot::MAX_UNCONFIRMED_MESSAGES_AT_INBOUND_LANE,
-			DbWeight::get(),
+			RocksDbWeight::get(),
 		);
+	}
+
+	#[test]
+	fn message_by_invalid_submitter_are_rejected() {
+		sp_io::TestExternalities::new(Default::default()).execute_with(|| {
+			fn message_payload(sender: bp_kusama::AccountId) -> ToPolkadotMessagePayload {
+				bp_message_dispatch::MessagePayload {
+					spec_version: 1,
+					weight: 100,
+					origin: bp_message_dispatch::CallOrigin::SourceAccount(sender),
+					dispatch_fee_payment: bp_runtime::messages::DispatchFeePayment::AtSourceChain,
+					call: vec![42],
+				}
+			}
+
+			let invalid_sender = bp_kusama::AccountId::from([1u8; 32]);
+			let valid_sender = AllowedMessageSender::get();
+			assert_eq!(
+				ToPolkadotMessageVerifier::verify_message(
+					&RawOrigin::Signed(invalid_sender.clone()),
+					&bp_kusama::Balance::MAX,
+					&Default::default(),
+					&Default::default(),
+					&message_payload(invalid_sender),
+				),
+				Err(NOT_ALLOWED_MESSAGE_SENDER),
+			);
+			assert_eq!(
+				ToPolkadotMessageVerifier::verify_message(
+					&RawOrigin::Signed(valid_sender.clone()),
+					&bp_kusama::Balance::MAX,
+					&Default::default(),
+					&Default::default(),
+					&message_payload(valid_sender),
+				),
+				Ok(()),
+			);
+		});
 	}
 }
