@@ -417,18 +417,18 @@ where
 
 		let (lag, subchain_head) = if cfg!(feature = "disputes") {
 			// Prevent sending flawed data to the dispute-coordinator.
-			if Some(subchain_block_descriptions.len() as _) !=
-				subchain_number.checked_sub(target_number)
-			{
-				tracing::error!(
-					LOG_TARGET,
-					present_block_descriptions = subchain_block_descriptions.len(),
-					target_number,
-					subchain_number,
-					"Mismatch of anticipated block descriptions and block number difference.",
-				);
-				return Ok(Some(target_hash))
-			}
+				if Some(subchain_block_descriptions.len() as _) !=
+					subchain_number.checked_sub(target_number)
+				{
+					tracing::error!(
+						LOG_TARGET,
+						present_block_descriptions = subchain_block_descriptions.len(),
+						target_number,
+						subchain_number,
+						"Mismatch of anticipated block descriptions and block number difference.",
+					);
+					return Ok(Some(target_hash))
+				}
 			// 3. Constrain according to disputes:
 			let (tx, rx) = oneshot::channel();
 			overseer
