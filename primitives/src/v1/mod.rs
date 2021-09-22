@@ -237,6 +237,13 @@ pub const ASSIGNMENT_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"asgn");
 /// * when detecting a code decompression bomb in the client
 pub const MAX_CODE_SIZE: u32 = 3 * 1024 * 1024;
 
+/// Maximum head data size we support right now.
+///
+/// Used for:
+/// * initial genesis for the Parachains configuration
+/// * checking updates to this stored runtime configuration do not exceed this limit
+pub const MAX_HEAD_DATA_SIZE: u32 = 1 * 1024 * 1024;
+
 /// Maximum PoV size we support right now.
 ///
 /// Used for:
