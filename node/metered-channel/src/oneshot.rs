@@ -181,8 +181,7 @@ impl<T> OneshotMeteredReceiver<T> {
 
 	fn update_meter(&mut self, sent_at_timestamp: Instant, reason: Reason) {
 		let delta: Duration = sent_at_timestamp.elapsed();
-		let val =
-			if delta.as_millis() > u64::MAX as u128 { u64::MAX } else { delta.as_millis() as u64 };
+		let val = u64::try_from(delta.as_millis()).unwrap_or(u64::MAX);
 		self.shared_meter.first_poll_till_end_in_millis.store(val, Ordering::Release);
 
 		self.shared_meter.reason.store(reason as u8, Ordering::Release);
