@@ -2360,9 +2360,9 @@ mod benchmarking {
 
 			assert_eq!(HrmpCloseChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c);
 		}: _(frame_system::Origin::<T>::Root, c)
-		 verify {
-			 assert_eq!(HrmpCloseChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, 0);
-		 }
+		verify {
+			assert_eq!(HrmpCloseChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, 0);
+		}
 
 		hrmp_cancel_open_request {
 			// number of items already existing in the `HrmpOpenChannelRequestsList`, other than the
