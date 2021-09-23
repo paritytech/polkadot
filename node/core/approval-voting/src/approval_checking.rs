@@ -316,10 +316,9 @@ fn count_no_shows(
 	let mut next_no_show = None;
 	let no_shows = assignments
 		.iter()
-		.map(|(v_index, tick)| (
-			v_index,
-			tick.min(&block_tick).saturating_sub(clock_drift) + no_show_duration,
-		))
+		.map(|(v_index, tick)| {
+			(v_index, tick.min(&block_tick).saturating_sub(clock_drift) + no_show_duration)
+		})
 		.filter(|&(v_index, no_show_at)| {
 			let has_approved = if let Some(approved) = approvals.get(v_index.0 as usize) {
 				*approved
@@ -594,7 +593,7 @@ mod tests {
 
 	#[test]
 	fn tranches_to_approve_everyone_present() {
-		let block_tick = 0;
+		let block_tick = 20;
 		let no_show_duration = 10;
 		let needed_approvals = 4;
 
@@ -829,7 +828,7 @@ mod tests {
 			RequiredTranches::Exact {
 				needed: 1,
 				tolerated_missing: 0,
-				next_no_show: Some(block_tick + no_show_duration + 1),
+				next_no_show: Some(block_tick + no_show_duration),
 			},
 		);
 
@@ -844,10 +843,11 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Exact {
-				needed: 2,
-				tolerated_missing: 1,
-				next_no_show: Some(block_tick + 2 * no_show_duration + 2),
+			RequiredTranches::Pending {
+				considered: 2,
+				next_no_show: None,
+				maximum_broadcast: 3,
+				clock_drift: block_tick,
 			},
 		);
 
@@ -1079,7 +1079,7 @@ mod tests {
 			&test.assignments,
 			&approvals,
 			test.clock_drift,
-			0, // TODO: Ladi, add to tests.
+			20,
 			test.no_show_duration,
 			test.drifted_tick_now,
 		);
@@ -1108,8 +1108,8 @@ mod tests {
 			clock_drift: 10,
 			no_show_duration: 10,
 			drifted_tick_now: 20,
-			exp_no_shows: 0,
-			exp_next_no_show: Some(31),
+			exp_no_shows: 1,
+			exp_next_no_show: None,
 		})
 	}
 
@@ -1147,8 +1147,8 @@ mod tests {
 			clock_drift: 10,
 			no_show_duration: 10,
 			drifted_tick_now: 20,
-			exp_no_shows: 0,
-			exp_next_no_show: Some(31),
+			exp_no_shows: 2,
+			exp_next_no_show: None,
 		})
 	}
 
@@ -1160,8 +1160,8 @@ mod tests {
 			clock_drift: 10,
 			no_show_duration: 10,
 			drifted_tick_now: 20,
-			exp_no_shows: 0,
-			exp_next_no_show: Some(31),
+			exp_no_shows: 2,
+			exp_next_no_show: None,
 		})
 	}
 
@@ -1177,8 +1177,8 @@ mod tests {
 			clock_drift: 10,
 			no_show_duration: 10,
 			drifted_tick_now: 20,
-			exp_no_shows: 1,
-			exp_next_no_show: Some(31),
+			exp_no_shows: 2,
+			exp_next_no_show: None,
 		})
 	}
 
