@@ -29,14 +29,14 @@
 #![allow(unused_parens)]
 #![allow(unused_imports)]
 
-use frame_support::{traits::Get, weights::Weight};
+use frame_support::weights::{constants::RocksDbWeight, Weight};
 
 /// Weight functions for `runtime_parachains::initializer`.
-impl<T: frame_system::Config> super::WeightInfo for () {
+impl super::WeightInfo for () {
 	// Storage: System Digest (r:1 w:1)
 	fn force_approve() -> Weight {
 		(5_115_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
 }
