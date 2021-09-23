@@ -9,8 +9,11 @@ use xcm::{latest::prelude::*, DoubleEncoded};
 use pallet_xcm_benchmarks_fungible::WeightInfo as XcmBalancesWeight;
 use pallet_xcm_benchmarks_generic::WeightInfo as XcmGeneric;
 
+/// Types of asset supported by the westend runtime. 
 pub enum AssetTypes {
+	/// An asset backed by `pallet-balances`.
 	Balances,
+	/// Unknown asset.
 	Unknown,
 }
 
@@ -35,7 +38,7 @@ impl WeighMultiAssets for MultiAssetFilter {
 			Self::Definite(assets) => assets
 				.inner()
 				.into_iter()
-				.map(|m| <AssetTypes as From<&MultiAsset>>::from(m))
+				.map(From::from)
 				.map(|t| match t {
 					AssetTypes::Balances => balances_weight,
 					AssetTypes::Unknown => Weight::MAX,
@@ -67,7 +70,6 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn reserve_asset_deposited(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmGeneric::<Runtime>::reserve_asset_deposited())
 	}
-	// TODO none of these need effects
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::receive_teleported_asset())
 	}

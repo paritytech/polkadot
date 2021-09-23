@@ -191,10 +191,8 @@ benchmarks_instance_pallet! {
 		// Add our asset to the holding.
 		holding.subsume(asset.clone());
 
-		if let Some(checked_account) = T::CheckedAccount::get() {
-			// Checked account starts at zero
-			assert!(T::TransactAsset::balance(&checked_account).is_zero());
-		}
+		// Checked account starts at zero
+		assert!(T::CheckedAccount::get().map_or(true, |c| T::TransactAsset::balance(&c).is_zero());
 
 		let mut executor = new_executor::<T>(Default::default());
 		executor.holding = holding;
