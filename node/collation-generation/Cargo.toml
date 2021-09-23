@@ -15,7 +15,7 @@ polkadot-primitives = { path = "../../primitives" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-maybe-compressed-blob  = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.26"
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "2.3.0", default-features = false, features = ["bit-vec", "derive"] }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
