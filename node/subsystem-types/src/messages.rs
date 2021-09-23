@@ -346,7 +346,7 @@ pub enum NetworkBridgeMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
-	/// Alternative to `ConnectToValidators` in case you alrady know the `Multiaddrs` you want to be
+	/// Alternative to `ConnectToValidators` in case you already know the `Multiaddrs` you want to be
 	/// connected to.
 	ConnectToResolvedValidators {
 		/// Each entry corresponds to the addresses of an already resolved validator.

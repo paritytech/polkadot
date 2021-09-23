@@ -47,7 +47,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		Self { state: Default::default(), _phantom: PhantomData }
 	}
 
-	/// Connect to alrady resolved addresses:
+	/// Connect to already resolved addresses:
 	pub async fn on_resolved_request(
 		&mut self,
 		newly_requested: HashSet<Multiaddr>,
