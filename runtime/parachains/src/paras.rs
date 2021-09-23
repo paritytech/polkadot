@@ -278,6 +278,25 @@ pub trait WeightInfo {
 	fn force_queue_action() -> Weight;
 }
 
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn force_set_current_code(c: u32) -> Weight {
+		0
+	}
+	fn force_set_current_head(s: u32) -> Weight {
+		0
+	}
+	fn force_schedule_code_upgrade(c: u32) -> Weight {
+		0
+	}
+	fn force_note_new_head(s: u32)  -> Weight {
+		0
+	}
+	fn force_queue_action() -> Weight {
+		0
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;

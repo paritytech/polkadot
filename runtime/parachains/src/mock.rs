@@ -115,7 +115,7 @@ impl crate::initializer::Config for Test {
 }
 
 impl crate::configuration::Config for Test {
-	type WeightInfo = crate::configuration::weights::WeightInfo<Test>;
+	type WeightInfo = crate::configuration::TestWeightInfo;
 }
 
 impl crate::shared::Config for Test {}
@@ -123,7 +123,7 @@ impl crate::shared::Config for Test {}
 impl crate::paras::Config for Test {
 	type Origin = Origin;
 	type Event = Event;
-	type WeightInfo = crate::paras::weights::WeightInfo<Test>;
+	type WeightInfo = crate::paras::TestWeightInfo;
 }
 
 impl crate::dmp::Config for Test {}

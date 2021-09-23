@@ -277,6 +277,28 @@ pub trait WeightInfo {
 	fn set_hrmp_open_request_ttl() -> Weight;
 }
 
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn set_config_with_block_number() -> Weight {
+		0
+	}
+	fn set_config_with_u32() -> Weight {
+		0
+	}
+	fn set_config_with_option_u32() -> Weight {
+		0
+	}
+	fn set_config_with_weight() -> Weight {
+		0
+	}
+	fn set_config_with_balance() -> Weight {
+		0
+	}
+	fn set_hrmp_open_request_ttl() -> Weight {
+		0
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
