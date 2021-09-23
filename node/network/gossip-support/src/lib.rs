@@ -479,8 +479,13 @@ where
 	I: Iterator<Item = (&'a AuthorityDiscoveryId, &'a Vec<Multiaddr>)> + Clone,
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "\n")?;
-		for (authority, addrs) in self.0.clone() {
+		let mut authorities = self.0.clone().peekable();
+		if authorities.peek().is_none() {
+			write!(f, "None")?;
+		} else {
+			write!(f, "\n")?;
+		}
+		for (authority, addrs) in authorities {
 			write!(f, "{}:\n", authority)?;
 			for addr in addrs {
 				write!(f, "  {}\n", addr)?;
