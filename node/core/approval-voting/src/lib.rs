@@ -562,6 +562,13 @@ impl CurrentlyCheckingSet {
 	) -> SubsystemResult<()> {
 		let val = self.candidate_hash_map.entry(candidate_hash).or_insert(Default::default());
 
+		tracing::debug!(
+			target: DEBUG_LOG_TARGET,
+			?candidate_hash,
+			?relay_block,
+			"ladi-debug-approval launching approvals work",
+		);
+
 		if let Err(k) = val.binary_search_by_key(&relay_block, |v| *v) {
 			let _ = val.insert(k, relay_block);
 			let work = launch_work.await?;
