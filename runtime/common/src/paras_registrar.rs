@@ -657,11 +657,11 @@ mod tests {
 	impl paras::Config for Test {
 		type Origin = Origin;
 		type Event = Event;
-		type WeightInfo = paras::weights::WeightInfo<Test>;
+		type WeightInfo = paras::TestWeightInfo;
 	}
 
 	impl configuration::Config for Test {
-		type WeightInfo = configuration::weights::WeightInfo<Test>;
+		type WeightInfo = configuration::TestWeightInfo;
 	}
 
 	parameter_types! {
