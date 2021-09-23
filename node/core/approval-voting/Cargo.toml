@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 futures = "0.3.17"
 futures-timer = "3.0.2"
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "2.3.0", default-features = false, features = ["bit-vec", "derive"] }
 tracing = "0.1.27"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 lru = "0.6"

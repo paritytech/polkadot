@@ -14,7 +14,7 @@ name = "adder_collator_puppet_worker"
 path = "bin/puppet_worker.rs"
 
 [dependencies]
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3.0", default-features = false, features = ["derive"] }
 futures = "0.3.17"
 futures-timer = "3.0.2"
 log = "0.4.13"

@@ -38,7 +38,8 @@ use sp_runtime::{
 };
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
-pub mod weights;
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 
 pub use crate::Origin as ParachainOrigin;
 
@@ -219,6 +220,13 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 
 pub trait WeightInfo {
 	fn force_unfreeze() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn force_unfreeze() -> Weight {
+		0
+	}
 }
 
 pub use pallet::*;
