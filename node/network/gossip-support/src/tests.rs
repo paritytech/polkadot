@@ -245,7 +245,7 @@ fn issues_a_connection_request_on_new_session() {
 
 		assert_matches!(
 			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidatorsResolved {
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
 				validator_addrs,
 				peer_set,
 			}) => {
@@ -311,7 +311,7 @@ fn issues_a_connection_request_on_new_session() {
 
 		assert_matches!(
 			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidatorsResolved {
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
 				validator_addrs,
 				peer_set,
 			}) => {
@@ -368,7 +368,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 
 			assert_matches!(
 				overseer_recv(overseer).await,
-				AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidatorsResolved {
+				AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
 					mut validator_addrs,
 					peer_set,
 				}) => {
@@ -422,7 +422,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 
 		assert_matches!(
 			overseer_recv(overseer).await,
-			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToValidatorsResolved {
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ConnectToResolvedValidators {
 				mut validator_addrs,
 				peer_set,
 			}) => {

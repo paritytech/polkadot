@@ -552,7 +552,7 @@ where
 						network_service = ns;
 						authority_discovery_service = ads;
 					}
-					NetworkBridgeMessage::ConnectToValidatorsResolved {
+					NetworkBridgeMessage::ConnectToResolvedValidators {
 						validator_addrs,
 						peer_set,
 					} => {

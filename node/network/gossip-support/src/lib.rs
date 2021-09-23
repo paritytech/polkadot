@@ -235,7 +235,7 @@ where
 		self.resolved_authorities = resolved;
 		tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
-		ctx.send_message(NetworkBridgeMessage::ConnectToValidatorsResolved { validator_addrs, peer_set: PeerSet::Validation })
+		ctx.send_message(NetworkBridgeMessage::ConnectToResolvedValidators { validator_addrs, peer_set: PeerSet::Validation })
 			.await;
 
 		// issue another request for the same session

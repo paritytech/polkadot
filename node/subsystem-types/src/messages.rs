@@ -348,7 +348,7 @@ pub enum NetworkBridgeMessage {
 	},
 	/// Alternative to `ConnectToValidators` in case you alrady know the `Multiaddrs` you want to be
 	/// connected to.
-	ConnectToValidatorsResolved {
+	ConnectToResolvedValidators {
 		/// Each entry corresponds to the addresses of an already resolved validator.
 		validator_addrs: Vec<Vec<Multiaddr>>,
 		/// The peer set we want the connection on.
@@ -374,7 +374,7 @@ impl NetworkBridgeMessage {
 			Self::SendValidationMessages(_) => None,
 			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
-			Self::ConnectToValidatorsResolved { .. } => None,
+			Self::ConnectToResolvedValidators { .. } => None,
 			Self::SendRequests { .. } => None,
 			Self::NewGossipTopology { .. } => None,
 		}
