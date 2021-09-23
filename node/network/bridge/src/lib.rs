@@ -560,14 +560,14 @@ where
 							target: LOG_TARGET,
 							action = "ConnectToPeers",
 							peer_set = ?peer_set,
-							?addrs,
+							?validator_addrs,
 							"Received a resolved validator connection request",
 						);
 
 						metrics.note_desired_peer_count(peer_set, validator_addrs.len());
 
 						let all_addrs = validator_addrs.into_iter().flatten().collect();
-						network_service = validator_discovery.on_request(
+						network_service = validator_discovery.on_resolved_request(
 							all_addrs,
 							peer_set,
 							network_service,

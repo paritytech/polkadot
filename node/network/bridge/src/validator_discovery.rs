@@ -52,7 +52,6 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		&mut self,
 		newly_requested: HashSet<Multiaddr>,
 		peer_set: PeerSet,
-		failed: oneshot::Sender<usize>,
 		mut network_service: N,
 	) -> N {
 		let state = &mut self.state[peer_set];
@@ -98,7 +97,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		peer_set: PeerSet,
 		failed: oneshot::Sender<usize>,
-		mut network_service: N,
+		network_service: N,
 		mut authority_discovery_service: AD,
 	) -> (N, AD) {
 		// collect multiaddress of validators
@@ -129,12 +128,12 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			"New ConnectToValidators request",
 		);
 
-		let r = self.on_resolved_request(newly_requested, peer_set, network_service).await?;
+		let r = self.on_resolved_request(newly_requested, peer_set, network_service).await;
 
 
 		let _ = failed.send(failed_to_resolve);
 
-		r
+		(r, authority_discovery_service)
 	}
 }
 
