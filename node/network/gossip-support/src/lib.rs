@@ -313,7 +313,7 @@ where
 		let unconnected_authorities = self
 			.resolved_authorities
 			.iter()
-			.filter(|(a, _)| self.connected_authorities.contains_key(a));
+			.filter(|(a, _)| !self.connected_authorities.contains_key(a));
 		if connected_ratio <= LOW_CONNECTIVITY_WARN_THRESHOLD {
 			tracing::warn!(
 				target: LOG_TARGET,
