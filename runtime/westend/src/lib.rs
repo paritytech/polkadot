@@ -805,7 +805,7 @@ impl pallet_proxy::Config for Runtime {
 impl parachains_origin::Config for Runtime {}
 
 impl parachains_configuration::Config for Runtime {
-	type WeightInfo = parachains_configuration::weights::WeightInfo<Runtime>;
+	type WeightInfo = weights::runtime_parachains_configuration::WeightInfo<Runtime>;
 }
 
 impl parachains_shared::Config for Runtime {}
@@ -850,7 +850,7 @@ impl parachains_scheduler::Config for Runtime {}
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type ForceOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = ();
+	type WeightInfo = weights::runtime_parachains_initializer::WeightInfo<Runtime>;
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}

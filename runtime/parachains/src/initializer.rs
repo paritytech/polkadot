@@ -28,6 +28,7 @@ use frame_support::{
 	traits::{OneSessionHandler, Randomness},
 	weights::Weight,
 };
+use frame_system::limits::BlockWeights;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
 use scale_info::TypeInfo;
@@ -35,7 +36,6 @@ use sp_std::prelude::*;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-pub mod weights;
 
 pub use pallet::*;
 
@@ -78,6 +78,12 @@ struct BufferedSessionChange {
 
 pub trait WeightInfo {
 	fn force_approve() -> Weight;
+}
+
+impl WeightInfo for () {
+	fn force_approve() -> Weight {
+		BlockWeights::default().max_block
+	}
 }
 
 #[frame_support::pallet]
