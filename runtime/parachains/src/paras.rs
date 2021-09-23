@@ -289,7 +289,7 @@ impl WeightInfo for TestWeightInfo {
 	fn force_schedule_code_upgrade(c: u32) -> Weight {
 		0
 	}
-	fn force_note_new_head(s: u32)  -> Weight {
+	fn force_note_new_head(s: u32) -> Weight {
 		0
 	}
 	fn force_queue_action() -> Weight {
