@@ -1570,9 +1570,6 @@ sp_api::impl_runtime_apis! {
 
 			let mut list = Vec::<BenchmarkList>::new();
 
-			// Polkadot
-			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
-			// in the generated file.
 			list_benchmark!(list, extra, runtime_parachains::disputes, ParasDisputes);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
@@ -1603,11 +1600,7 @@ sp_api::impl_runtime_apis! {
 			];
 			let params = (&config, &whitelist);
 
-			// Polkadot
-			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
-			// in the generated file.
 			add_benchmark!(params, batches, runtime_parachains::disputes, ParasDisputes);
-
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
