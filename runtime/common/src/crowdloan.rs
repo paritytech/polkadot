@@ -1942,6 +1942,7 @@ mod benchmarking {
 		}
 
 		// Worst case: Refund removes `RemoveKeysLimit` keys, and is fully refunded.
+		#[skip_meta]
 		refund {
 			let k in 0 .. T::RemoveKeysLimit::get();
 			let fund_index = create_fund::<T>(1337, 100u32.into());
