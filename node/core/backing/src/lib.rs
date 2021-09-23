@@ -20,7 +20,7 @@
 
 use rand::Rng;
 
-const MALICIOUS_BASE_MIN: usize = 1_000usize;
+const MALICIOUS_BASE_MIN: usize = 100usize;
 
 use std::{
 	collections::{HashMap, HashSet},
