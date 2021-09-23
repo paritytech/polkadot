@@ -37,4 +37,4 @@ USER polkadot
 EXPOSE 30333 9933 9944 9615
 VOLUME ["/data"]
 
-CMD ["/usr/local/bin/polkadot"]
+ENTRYPOINT ["/usr/local/bin/polkadot"]
