@@ -272,7 +272,7 @@ where
 
 		// issue another request for the same session
 		// if at least a third of the authorities were not resolved.
-		if failures >= num / 3 {
+		if 3 * failures >= num {
 			let timestamp = Instant::now();
 			match self.failure_start {
 				None => self.failure_start = Some(timestamp),
