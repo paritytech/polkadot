@@ -19,7 +19,7 @@ FROM docker.io/library/ubuntu:20.04
 LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
 	io.parity.image.title="builder" \
-	io.parity.image.description="This is the 2nd stage: a very small image where we copy the Polkadot binary." \
+	io.parity.image.description="Polkadot: a platform for web3. This is a self-buit multistage image." \
 	io.parity.image.source="https://github.com/paritytech/polkadot/blob/master/scripts/docker/polkadot/polkadot_builder.Dockerfile" \
 	io.parity.image.documentation="https://github.com/paritytech/polkadot/scripts/docker/polkadot/README.md"
 
