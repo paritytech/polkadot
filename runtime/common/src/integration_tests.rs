@@ -159,7 +159,7 @@ impl pallet_balances::Config for Test {
 }
 
 impl configuration::Config for Test {
-	type WeightInfo = configuration::weights::WeightInfo<Test>;
+	type WeightInfo = configuration::TestWeightInfo;
 }
 
 impl shared::Config for Test {}
@@ -167,7 +167,7 @@ impl shared::Config for Test {}
 impl paras::Config for Test {
 	type Origin = Origin;
 	type Event = Event;
-	type WeightInfo = paras::weights::WeightInfo<Test>;
+	type WeightInfo = paras::TestWeightInfo;
 }
 
 parameter_types! {
