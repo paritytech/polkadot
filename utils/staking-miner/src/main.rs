@@ -389,15 +389,15 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
 	use sp_core::hashing::twox_128;
 
-	let mut modules = vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
+	let mut pallets = vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
 		.expect("Pallet always has name; qed.")
 		.to_string()];
-	modules.extend(additional);
+	pallets.extend(additional);
 	Builder::<B>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: uri.into(),
 			at,
-			modules,
+			pallets,
 			..Default::default()
 		}))
 		.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
