@@ -29,8 +29,8 @@ pub use polkadot_overseer::{
 	HeadSupportsParachains,
 };
 use polkadot_overseer::{
-	metrics::{Metrics as OverseerMetrics},
-	BlockInfo, MetricsTrait, Overseer, OverseerBuilder, OverseerConnector, OverseerHandle,
+	metrics::Metrics as OverseerMetrics, BlockInfo, MetricsTrait, Overseer, OverseerBuilder,
+	OverseerConnector, OverseerHandle,
 };
 
 use polkadot_primitives::v1::ParachainHost;

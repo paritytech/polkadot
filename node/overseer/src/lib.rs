@@ -90,7 +90,7 @@ pub use polkadot_node_subsystem_types::{
 };
 
 pub mod metrics;
-pub use self::metrics::{Metrics as OverseerMetrics};
+pub use self::metrics::Metrics as OverseerMetrics;
 
 /// A dummy subsystem, mostly useful for placeholders and tests.
 pub mod dummy;
