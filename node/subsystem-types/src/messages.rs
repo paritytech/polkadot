@@ -862,7 +862,7 @@ pub enum ApprovalDistributionMessage {
 /// Message to the Gossip Support subsystem.
 #[derive(Debug, derive_more::From)]
 pub enum GossipSupportMessage {
-	/// Dummy constructor, so we can receive netorking events.
+	/// Dummy constructor, so we can receive networking events.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
 }
