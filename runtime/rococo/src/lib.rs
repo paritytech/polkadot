@@ -94,6 +94,7 @@ use xcm_executor::XcmExecutor;
 /// Constant values used within the runtime.
 pub mod constants;
 mod validator_manager;
+mod weights;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -369,7 +370,7 @@ impl parachains_disputes::Config for Runtime {
 	type Event = Event;
 	type RewardValidators = ();
 	type PunishValidators = ();
-	type WeightInfo = parachains_disputes::weights::WeightInfo<Runtime>;
+	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
 }
 
 parameter_types! {
