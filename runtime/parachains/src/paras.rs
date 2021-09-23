@@ -43,7 +43,6 @@ pub use crate::Origin as ParachainOrigin;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-pub mod weights;
 
 pub use pallet::*;
 

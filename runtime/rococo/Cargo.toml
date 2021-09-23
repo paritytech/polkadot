@@ -68,6 +68,9 @@ xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", defa
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+hex-literal = { version = "0.3.3", optional = true }
+
 # Bridge Dependencies
 bp-messages = { path = "../../bridges/primitives/messages", default-features = false }
 bp-rococo = { path = "../../bridges/primitives/chain-rococo", default-features = false }
@@ -169,6 +172,8 @@ runtime-benchmarks = [
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"xcm-builder/runtime-benchmarks",
+	"frame-benchmarking",
+	"hex-literal"
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
