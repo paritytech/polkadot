@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 impl-trait-for-tuples = "0.2.0"
-parity-scale-codec = { version = "2.0.0", default-features = false, features = [ "derive" ] }
+parity-scale-codec = { version = "2.3.0", default-features = false, features = [ "derive" ] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 derivative = {version = "2.2.0", default-features = false, features = [ "use_core" ] }
 log = { version = "0.4.14", default-features = false }

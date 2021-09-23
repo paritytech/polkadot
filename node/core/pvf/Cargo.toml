@@ -20,7 +20,7 @@ slotmap = "1.0"
 tracing = "0.1.27"
 pin-project = "1.0.8"
 rand = "0.8.3"
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3.0", default-features = false, features = ["derive"] }
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util"}

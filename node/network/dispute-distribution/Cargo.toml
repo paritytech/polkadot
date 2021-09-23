@@ -8,7 +8,7 @@ edition = "2018"
 futures = "0.3.17"
 tracing = "0.1.27"
 derive_more = "0.99.14"
-parity-scale-codec = { version = "2.0.0", features = ["std"] }
+parity-scale-codec = { version = "2.3.0", features = ["std"] }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
