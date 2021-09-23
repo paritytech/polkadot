@@ -280,22 +280,22 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn set_config_with_block_number() -> Weight {
-		0
+		frame_system::limits::BlockWeights::default().max_block
 	}
 	fn set_config_with_u32() -> Weight {
-		0
+		frame_system::limits::BlockWeights::default().max_block
 	}
 	fn set_config_with_option_u32() -> Weight {
-		0
+		frame_system::limits::BlockWeights::default().max_block
 	}
 	fn set_config_with_weight() -> Weight {
-		0
+		frame_system::limits::BlockWeights::default().max_block
 	}
 	fn set_config_with_balance() -> Weight {
-		0
+		frame_system::limits::BlockWeights::default().max_block
 	}
 	fn set_hrmp_open_request_ttl() -> Weight {
-		0
+		frame_system::limits::BlockWeights::default().max_block
 	}
 }
 
