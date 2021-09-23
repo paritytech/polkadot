@@ -30,7 +30,7 @@ use std::{
 	time::{Duration, Instant},
 };
 
-use futures::{FutureExt as _, channel::oneshot, select};
+use futures::{channel::oneshot, select, FutureExt as _};
 use futures_timer::Delay;
 use rand::{seq::SliceRandom as _, SeedableRng};
 use rand_chacha::ChaCha20Rng;
