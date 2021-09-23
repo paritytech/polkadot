@@ -186,9 +186,6 @@ where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
-		// Use active leaves update as tick to see whether we need to report on connectivity.
-		self.check_connectivity();
-
 		for leaf in leaves {
 			let current_index =
 				util::request_session_index_for_child(leaf, ctx.sender()).await.await??;
