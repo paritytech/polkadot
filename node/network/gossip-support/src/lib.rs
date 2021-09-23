@@ -26,8 +26,8 @@
 
 use std::{
 	collections::HashMap,
-	time::{Duration, Instant},
 	fmt,
+	time::{Duration, Instant},
 };
 
 use futures::{channel::oneshot, FutureExt as _};
@@ -470,15 +470,13 @@ where
 	}
 }
 
-
 /// Helper struct to get a nice rendering of unreachable authorities.
-struct PrettyAuthorities<I> (I);
+struct PrettyAuthorities<I>(I);
 
-
-impl<'a, I> fmt::Display for PrettyAuthorities<I> 
+impl<'a, I> fmt::Display for PrettyAuthorities<I>
 where
-I: Iterator<Item=(&'a AuthorityDiscoveryId, &'a Vec<Multiaddr>)> + Clone
-	{
+	I: Iterator<Item = (&'a AuthorityDiscoveryId, &'a Vec<Multiaddr>)> + Clone,
+{
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "\n")?;
 		for (authority, addrs) in self.0.clone() {
@@ -489,6 +487,5 @@ I: Iterator<Item=(&'a AuthorityDiscoveryId, &'a Vec<Multiaddr>)> + Clone
 			write!(f, "\n")?;
 		}
 		Ok(())
-    }
-
+	}
 }
