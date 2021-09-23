@@ -130,7 +130,6 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 		let r = self.on_resolved_request(newly_requested, peer_set, network_service).await;
 
-
 		let _ = failed.send(failed_to_resolve);
 
 		(r, authority_discovery_service)

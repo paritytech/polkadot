@@ -24,7 +24,10 @@
 //! in this graph will be forwarded to the network bridge with
 //! the `NetworkBridgeMessage::NewGossipTopology` message.
 
-use std::{collections::HashMap, time::{Duration, Instant}};
+use std::{
+	collections::HashMap,
+	time::{Duration, Instant},
+};
 
 use futures::{channel::oneshot, FutureExt as _};
 use rand::{seq::SliceRandom as _, SeedableRng};
@@ -34,7 +37,10 @@ use sc_network::Multiaddr;
 use sp_application_crypto::{AppKey, Public};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use polkadot_node_network_protocol::{PeerId, authority_discovery::{AuthorityDiscovery}, peer_set::PeerSet, v1::GossipSuppportNetworkMessage};
+use polkadot_node_network_protocol::{
+	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, v1::GossipSuppportNetworkMessage,
+	PeerId,
+};
 use polkadot_node_subsystem::{
 	messages::{
 		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, RuntimeApiMessage,
@@ -106,7 +112,17 @@ where
 {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
 	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD) -> Self {
-		Self { keystore, last_session_index: None, last_failure: None, failure_start: None, resolved_authorities: HashMap::new(), connected_authorities: HashMap::new(), connected_authorities_by_peer_id: HashMap::new(), last_connectivity_check: Instant::now(), authority_discovery,   }
+		Self {
+			keystore,
+			last_session_index: None,
+			last_failure: None,
+			failure_start: None,
+			resolved_authorities: HashMap::new(),
+			connected_authorities: HashMap::new(),
+			connected_authorities_by_peer_id: HashMap::new(),
+			last_connectivity_check: Instant::now(),
+			authority_discovery,
+		}
 	}
 
 	async fn run<Context>(mut self, mut ctx: Context) -> Self
@@ -220,7 +236,9 @@ where
 		let mut failures = 0;
 		let mut resolved = HashMap::with_capacity(authorities.len());
 		for authority in authorities {
-			if let Some(addrs) = self.authority_discovery.get_addresses_by_authority_id(authority.clone()).await {
+			if let Some(addrs) =
+				self.authority_discovery.get_addresses_by_authority_id(authority.clone()).await
+			{
 				validator_addrs.push(addrs.clone());
 				resolved.insert(authority, addrs);
 			} else {
@@ -235,8 +253,11 @@ where
 		self.resolved_authorities = resolved;
 		tracing::debug!(target: LOG_TARGET, %num, "Issuing a connection request");
 
-		ctx.send_message(NetworkBridgeMessage::ConnectToResolvedValidators { validator_addrs, peer_set: PeerSet::Validation })
-			.await;
+		ctx.send_message(NetworkBridgeMessage::ConnectToResolvedValidators {
+			validator_addrs,
+			peer_set: PeerSet::Validation,
+		})
+		.await;
 
 		// issue another request for the same session
 		// if at least a third of the authorities were not resolved.
@@ -270,10 +291,7 @@ where
 		Ok(())
 	}
 
-	fn handle_connect_disconnect(
-		&mut self,
-		ev: NetworkBridgeEvent<GossipSuppportNetworkMessage>,
-	) {
+	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSuppportNetworkMessage>) {
 		match ev {
 			NetworkBridgeEvent::PeerConnected(peer_id, _, o_authority) => {
 				if let Some(authority) = o_authority {

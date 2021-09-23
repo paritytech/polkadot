@@ -18,8 +18,8 @@
 
 use std::{sync::Arc, time::Duration};
 
-use async_trait::async_trait;
 use assert_matches::assert_matches;
+use async_trait::async_trait;
 use futures::{executor, future, Future};
 use lazy_static::lazy_static;
 
@@ -39,35 +39,28 @@ use test_helpers::mock::make_ferdie_keystore;
 use super::*;
 
 lazy_static! {
-
-static ref MOCK_AUTHORITY_DISCOVERY: MockAuthorityDiscovery = MockAuthorityDiscovery::new();
-
-static ref AUTHORITIES: Vec<AuthorityDiscoveryId> = {
-	let mut authorities = OTHER_AUTHORITIES.clone();
-	authorities.push(Sr25519Keyring::Ferdie.public().into());
-	authorities
-};
-
-static ref OTHER_AUTHORITIES: Vec<AuthorityDiscoveryId> = vec![
+	static ref MOCK_AUTHORITY_DISCOVERY: MockAuthorityDiscovery = MockAuthorityDiscovery::new();
+	static ref AUTHORITIES: Vec<AuthorityDiscoveryId> = {
+		let mut authorities = OTHER_AUTHORITIES.clone();
+		authorities.push(Sr25519Keyring::Ferdie.public().into());
+		authorities
+	};
+	static ref OTHER_AUTHORITIES: Vec<AuthorityDiscoveryId> = vec![
 		Sr25519Keyring::Alice.public().into(),
 		Sr25519Keyring::Bob.public().into(),
 		Sr25519Keyring::Charlie.public().into(),
 		Sr25519Keyring::Eve.public().into(),
 		Sr25519Keyring::One.public().into(),
 		Sr25519Keyring::Two.public().into(),
-];
-
-
-static ref NEIGHBORS: Vec<AuthorityDiscoveryId> =
-	vec![
+	];
+	static ref NEIGHBORS: Vec<AuthorityDiscoveryId> = vec![
 		Sr25519Keyring::Two.public().into(),
 		Sr25519Keyring::Charlie.public().into(),
 		Sr25519Keyring::Eve.public().into(),
-];
+	];
 }
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<GossipSupportMessage>;
-
 
 #[derive(Debug, Clone)]
 struct MockAuthorityDiscovery {
@@ -77,15 +70,17 @@ struct MockAuthorityDiscovery {
 
 impl MockAuthorityDiscovery {
 	fn new() -> Self {
-		let authorities: HashMap<_,_> = AUTHORITIES.clone().into_iter().map(|a| (PeerId::random(), a)).collect();
-		let addrs = authorities.clone().into_iter().map(|(p, a)| {
-			let multiaddr = Multiaddr::empty().with(Protocol::P2p(p.into()));
-			(a, vec![multiaddr])
-		}
-		).collect();
-		Self {
-			addrs, authorities
-		}
+		let authorities: HashMap<_, _> =
+			AUTHORITIES.clone().into_iter().map(|a| (PeerId::random(), a)).collect();
+		let addrs = authorities
+			.clone()
+			.into_iter()
+			.map(|(p, a)| {
+				let multiaddr = Multiaddr::empty().with(Protocol::P2p(p.into()));
+				(a, vec![multiaddr])
+			})
+			.collect();
+		Self { addrs, authorities }
 	}
 }
 
@@ -386,7 +381,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 			test_neighbors(overseer).await;
 
 			virtual_overseer
-	})
+		})
 	};
 
 	assert_eq!(state.last_session_index, Some(1));
