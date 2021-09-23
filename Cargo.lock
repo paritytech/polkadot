@@ -5981,6 +5981,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "futures 0.3.17",
+ "futures-timer 3.0.2",
  "lazy_static",
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",

@@ -30,7 +30,8 @@ use std::{
 	time::{Duration, Instant},
 };
 
-use futures::{channel::oneshot, FutureExt as _};
+use futures::{FutureExt as _, channel::oneshot, select};
+use futures_timer::Delay;
 use rand::{seq::SliceRandom as _, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
@@ -101,8 +102,6 @@ pub struct GossipSupport<AD> {
 	///
 	/// Needed for efficient handling of disconnect events.
 	connected_authorities_by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
-	/// When was the last connectivity check/node startup.
-	last_connectivity_check: Instant,
 	/// Authority discovery service.
 	authority_discovery: AD,
 }
@@ -121,7 +120,6 @@ where
 			resolved_authorities: HashMap::new(),
 			connected_authorities: HashMap::new(),
 			connected_authorities_by_peer_id: HashMap::new(),
-			last_connectivity_check: Instant::now(),
 			authority_discovery,
 		}
 	}
@@ -131,18 +129,30 @@ where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
+		fn get_connectivity_check_delay() -> Delay {
+			Delay::new(LOW_CONNECTIVITY_WARN_DELAY)
+		}
+		let mut next_connectivity_check = get_connectivity_check_delay().fuse();
 		loop {
-			let message = match ctx.recv().await {
-				Ok(message) => message,
-				Err(e) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						err = ?e,
-						"Failed to receive a message from Overseer, exiting",
-					);
-					return self
-				},
-			};
+			let message = select!(
+				_ = next_connectivity_check => {
+					self.check_connectivity();
+					next_connectivity_check = get_connectivity_check_delay().fuse();
+					continue
+				}
+				result = ctx.recv().fuse() =>
+					match result {
+						Ok(message) => message,
+						Err(e) => {
+							tracing::debug!(
+								target: LOG_TARGET,
+								err = ?e,
+								"Failed to receive a message from Overseer, exiting",
+							);
+							return self
+						},
+					}
+			);
 			match message {
 				FromOverseer::Communication {
 					msg: GossipSupportMessage::NetworkBridgeUpdateV1(ev),
@@ -315,16 +325,7 @@ where
 	}
 
 	/// Check connectivity and report on it in logs.
-	///
-	/// This is only done every `LOW_CONNECTIVITY_WARN_DELAY` seconds, in order not to needlessly
-	/// flood logs and to avoid spurious warnings on startup.
 	fn check_connectivity(&mut self) {
-		let now = Instant::now();
-		if now.duration_since(self.last_connectivity_check) < LOW_CONNECTIVITY_WARN_DELAY {
-			return
-		}
-		self.last_connectivity_check = now;
-
 		let absolute_connected = self.connected_authorities.len();
 		let absolute_resolved = self.resolved_authorities.len();
 		let connected_ratio =
