@@ -710,8 +710,6 @@ where
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
-	let overseer_connector = OverseerConnector::default();
-
 	let basics = new_partial_basics::<RuntimeApi, ExecutorDispatch>(
 		&mut config,
 		jaeger_agent,

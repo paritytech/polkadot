@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	prometheus::Registry, AllMessages, HeadSupportsParachains, Metrics, MetricsTrait, Overseer,
+	prometheus::Registry, AllMessages, HeadSupportsParachains, OverseerMetrics, MetricsTrait, Overseer,
 	OverseerBuilder, OverseerSignal, OverseerSubsystemContext, SpawnNamed, KNOWN_LEAVES_CACHE_SIZE,
 };
 use lru::LruCache;
@@ -159,7 +159,7 @@ where
 		+ Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>,
 {
-	let metrics: Metrics = <Metrics as MetricsTrait>::register(registry)?;
+	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
 
 	let builder = Overseer::builder()
 		.availability_distribution(subsystem.clone())
