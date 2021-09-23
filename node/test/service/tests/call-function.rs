@@ -15,17 +15,17 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use polkadot_test_service::*;
-use service::TaskExecutor;
 use sp_keyring::Sr25519Keyring::{Alice, Bob};
 
 #[substrate_test_utils::test]
-async fn call_function_actually_work(task_executor: TaskExecutor) {
-	let alice = run_validator_node(task_executor, Alice, || {}, Vec::new(), None);
+async fn call_function_actually_work() {
+	let alice =
+		run_validator_node(tokio::runtime::Handle::current(), Alice, || {}, Vec::new(), None);
 
-	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer(
-		Default::default(),
-		1,
-	));
+	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer {
+		dest: Default::default(),
+		value: 1,
+	});
 	let output = alice.send_extrinsic(function, Bob).await.unwrap();
 
 	let res = output.result.expect("return value expected");
