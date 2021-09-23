@@ -324,6 +324,30 @@ fn issues_a_connection_request_on_new_session() {
 }
 
 #[test]
+fn test_log_output() {
+	sp_tracing::try_init_simple();
+	let alice: AuthorityDiscoveryId = Sr25519Keyring::Alice.public().into();
+	let bob = Sr25519Keyring::Bob.public().into();
+	let unconnected_authorities = {
+		let mut m = HashMap::new();
+		let peer_id = PeerId::random();
+		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id.into()));
+		let addrs = vec![addr.clone(), addr];
+		m.insert(alice, addrs);
+		let peer_id = PeerId::random();
+		let addr = Multiaddr::empty().with(Protocol::P2p(peer_id.into()));
+		let addrs = vec![addr.clone(), addr];
+		m.insert(bob, addrs);
+		m
+	};
+	tracing::debug!(
+		target: LOG_TARGET,
+		unconnected_authorities = %PrettyAuthorities(unconnected_authorities.iter()),
+		"Connectivity Report"
+	);
+}
+
+#[test]
 fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 	let hash = Hash::repeat_byte(0xAA);
 	let mut state = make_subsystem();

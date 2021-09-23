@@ -27,6 +27,7 @@
 use std::{
 	collections::HashMap,
 	time::{Duration, Instant},
+	fmt,
 };
 
 use futures::{channel::oneshot, FutureExt as _};
@@ -343,7 +344,7 @@ where
 			?connected_ratio,
 			?absolute_connected,
 			?absolute_resolved,
-			?unconnected_authorities,
+			unconnected_authorities = %PrettyAuthorities(unconnected_authorities),
 			"Connectivity Report"
 		);
 	}
@@ -467,4 +468,27 @@ where
 
 		SpawnedSubsystem { name: "gossip-support-subsystem", future }
 	}
+}
+
+
+/// Helper struct to get a nice rendering of unreachable authorities.
+struct PrettyAuthorities<I> (I);
+
+
+impl<'a, I> fmt::Display for PrettyAuthorities<I> 
+where
+I: Iterator<Item=(&'a AuthorityDiscoveryId, &'a Vec<Multiaddr>)> + Clone
+	{
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "\n")?;
+		for (authority, addrs) in self.0.clone() {
+			write!(f, "{}:\n", authority)?;
+			for addr in addrs {
+				write!(f, "  {}\n", addr)?;
+			}
+			write!(f, "\n")?;
+		}
+		Ok(())
+    }
+
 }
