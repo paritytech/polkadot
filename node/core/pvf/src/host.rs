@@ -507,12 +507,6 @@ async fn handle_prepare_done(
 		Some(state @ ArtifactState::Preparing) => state,
 	};
 
-	// Don't send failed artifacts to the execution's queue.
-	if let Err(error) = result {
-		*state = ArtifactState::FailedToProcess(error);
-		return Ok(())
-	}
-
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
 	let pending_requests = awaiting_prepare.take(&artifact_id);
@@ -520,6 +514,13 @@ async fn handle_prepare_done(
 		if result_tx.is_canceled() {
 			// Preparation could've taken quite a bit of time and the requester may be not interested
 			// in execution anymore, in which case we just skip the request.
+			continue
+		}
+
+		// Don't send failed artifacts to the execution's queue.
+		if let Err(ref error) = result {
+			*state = ArtifactState::FailedToProcess(error.clone());
+			let _ = result_tx.send(Err(ValidationError::from(error.clone())));
 			continue
 		}
 
