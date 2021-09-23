@@ -329,7 +329,7 @@ where
 		let absolute_connected = self.connected_authorities.len();
 		let absolute_resolved = self.resolved_authorities.len();
 		let connected_ratio =
-			(100 * absolute_connected).checked_div(absolute_resolved).unwrap_or(0);
+			(100 * absolute_connected).checked_div(absolute_resolved).unwrap_or(100);
 		let unconnected_authorities = self
 			.resolved_authorities
 			.iter()
