@@ -34,7 +34,7 @@ RUN useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
 	rm -rf /usr/bin /usr/sbin
 
 USER polkadot
-EXPOSE 30333 9933 9944
+EXPOSE 30333 9933 9944 9615
 VOLUME ["/data"]
 
 CMD ["/usr/local/bin/polkadot"]
