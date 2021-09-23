@@ -16,11 +16,13 @@
 
 use super::*;
 
+use std::convert::TryFrom;
+
 use assert_matches::assert_matches;
 use futures::{channel::oneshot, executor, future, Future};
 
 use parking_lot::Mutex;
-use polkadot_node_primitives::{AvailableData, BlockData, PoV};
+use polkadot_node_primitives::{AvailableData, BlockData, PoV, Proof};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
@@ -287,7 +289,7 @@ fn store_chunk_works() {
 		let chunk = ErasureChunk {
 			chunk: vec![1, 2, 3],
 			index: validator_index,
-			proof: vec![vec![3, 4, 5]],
+			proof: Proof::try_from(vec![vec![3, 4, 5]]).unwrap(),
 		};
 
 		// Ensure an entry already exists. In reality this would come from watching
@@ -333,7 +335,7 @@ fn store_chunk_does_nothing_if_no_entry_already() {
 		let chunk = ErasureChunk {
 			chunk: vec![1, 2, 3],
 			index: validator_index,
-			proof: vec![vec![3, 4, 5]],
+			proof: Proof::try_from(vec![vec![3, 4, 5]]).unwrap(),
 		};
 
 		let (tx, rx) = oneshot::channel();
@@ -441,8 +443,11 @@ fn store_block_works() {
 		let mut branches = erasure::branches(chunks.as_ref());
 
 		let branch = branches.nth(5).unwrap();
-		let expected_chunk =
-			ErasureChunk { chunk: branch.1.to_vec(), index: ValidatorIndex(5), proof: branch.0 };
+		let expected_chunk = ErasureChunk {
+			chunk: branch.1.to_vec(),
+			index: ValidatorIndex(5),
+			proof: Proof::try_from(branch.0).unwrap(),
+		};
 
 		assert_eq!(chunk, expected_chunk);
 		virtual_overseer
@@ -545,7 +550,7 @@ fn query_all_chunks_works() {
 			let chunk = ErasureChunk {
 				chunk: vec![1, 2, 3],
 				index: ValidatorIndex(1),
-				proof: vec![vec![3, 4, 5]],
+				proof: Proof::try_from(vec![vec![3, 4, 5]]).unwrap(),
 			};
 
 			let (tx, rx) = oneshot::channel();

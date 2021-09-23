@@ -94,6 +94,11 @@ impl Assets {
 		self.fungible.len() + self.non_fungible.len()
 	}
 
+	/// Returns `true` if `self` contains no assets.
+	pub fn is_empty(&self) -> bool {
+		self.fungible.is_empty() && self.non_fungible.is_empty()
+	}
+
 	/// A borrowing iterator over the fungible assets.
 	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
 		self.fungible

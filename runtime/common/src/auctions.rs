@@ -118,12 +118,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(
-		T::AccountId = "AccountId",
-		T::BlockNumber = "BlockNumber",
-		LeasePeriodOf<T> = "LeasePeriod",
-		BalanceOf<T> = "Balance",
-	)]
 	pub enum Event<T: Config> {
 		/// An auction started. Provides its index and the block number where it will begin to
 		/// close and the first lease period of the quadruplet that is auctioned.
@@ -605,7 +599,7 @@ impl<T: Config> Pallet<T> {
 					.map(|(_, _, amount)| *amount * (range.len() as u32).into())
 			};
 			for i in 0..SlotRange::LEASE_PERIODS_PER_SLOT {
-				let r = SlotRange::new_bounded(0, 0, i as u32).expect("`i < 4`; qed");
+				let r = SlotRange::new_bounded(0, 0, i as u32).expect("`i < LPPS`; qed");
 				if let Some(bid) = best_bid(r) {
 					best_winners_ending_at[i] = (vec![r], bid);
 				}

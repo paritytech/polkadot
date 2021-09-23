@@ -174,24 +174,24 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone
 ///
 /// let input = MultiLocation::new(2, X2(Parachain(2), AccountId32 { network: Any, id: Default::default() }));
 /// let inverted = LocationInverter::<Ancestry>::invert_location(&input);
-/// assert_eq!(inverted, MultiLocation::new(
+/// assert_eq!(inverted, Ok(MultiLocation::new(
 ///     2,
 ///     X2(Parachain(1), AccountKey20 { network: Any, key: Default::default() }),
-/// ));
+/// )));
 /// # }
 /// ```
 pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
 impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry> {
-	fn invert_location(location: &MultiLocation) -> MultiLocation {
+	fn invert_location(location: &MultiLocation) -> Result<MultiLocation, ()> {
 		let mut ancestry = Ancestry::get();
 		let mut junctions = Here;
 		for _ in 0..location.parent_count() {
 			junctions = junctions
 				.pushed_with(ancestry.take_first_interior().unwrap_or(OnlyChild))
-				.expect("ancestry is well-formed and has less than 8 non-parent junctions; qed");
+				.map_err(|_| ())?;
 		}
 		let parents = location.interior().len() as u8;
-		MultiLocation::new(parents, junctions)
+		Ok(MultiLocation::new(parents, junctions))
 	}
 }
 
@@ -229,7 +229,7 @@ mod tests {
 		}
 
 		let input = MultiLocation::new(3, X2(Parachain(2), account32()));
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
 		assert_eq!(inverted, MultiLocation::new(2, X3(Parachain(1), account20(), account20())));
 	}
 
@@ -244,7 +244,7 @@ mod tests {
 		}
 
 		let input = MultiLocation::grandparent();
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
 		assert_eq!(inverted, X2(account20(), account20()).into());
 	}
 
@@ -259,7 +259,18 @@ mod tests {
 		}
 
 		let input = MultiLocation::grandparent();
-		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input).unwrap();
 		assert_eq!(inverted, X2(PalletInstance(5), OnlyChild).into());
+	}
+
+	#[test]
+	fn inverter_errors_when_location_is_too_large() {
+		parameter_types! {
+			pub Ancestry: MultiLocation = Here.into();
+		}
+
+		let input = MultiLocation { parents: 99, interior: X1(Parachain(88)) };
+		let inverted = LocationInverter::<Ancestry>::invert_location(&input);
+		assert_eq!(inverted, Err(()));
 	}
 }

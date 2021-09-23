@@ -415,7 +415,7 @@ where
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
 
-		let lag = if cfg!(feature = "disputes") {
+		let (lag, subchain_head) = if cfg!(feature = "disputes") {
 			// Prevent sending flawed data to the dispute-coordinator.
 			if Some(subchain_block_descriptions.len() as _) !=
 				subchain_number.checked_sub(target_number)
@@ -434,25 +434,24 @@ where
 			overseer
 				.send_msg(
 					DisputeCoordinatorMessage::DetermineUndisputedChain {
-						base_number: target_number,
+						base: (target_number, target_hash),
 						block_descriptions: subchain_block_descriptions,
 						tx,
 					},
 					std::any::type_name::<Self>(),
 				)
 				.await;
-			let (subchain_number, _subchain_head) = rx
+			let (subchain_number, subchain_head) = rx
 				.await
 				.map_err(Error::OverseerDisconnected)
-				.map_err(|e| ConsensusError::Other(Box::new(e)))?
-				.unwrap_or_else(|| (subchain_number, subchain_head));
+				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
 			// The the total lag accounting for disputes.
 			let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
 			self.metrics.note_disputes_finality_lag(lag_disputes);
-			lag_disputes
+			(lag_disputes, subchain_head)
 		} else {
-			lag
+			(lag, subchain_head)
 		};
 
 		// 4. Apply the maximum safeguard to the finality lag.

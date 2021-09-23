@@ -6,11 +6,11 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
-parity-scale-codec = { version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
-serde = { version = "1.0.123", default-features = false }
+parity-scale-codec = { version = "2.3.0", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
+serde = { version = "1.0.130", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.6.1"
-hex-literal = "0.3.3"
 log = { version = "0.4.14", default-features = false }
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -48,7 +48,6 @@ pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", 
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -56,7 +55,7 @@ pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "mast
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
-frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
@@ -94,6 +93,7 @@ std = [
 	"bp-wococo/std",
 	"bridge-runtime-common/std",
 	"parity-scale-codec/std",
+	"scale-info/std",
 	"frame-executive/std",
 	"pallet-authority-discovery/std",
 	"pallet-authorship/std",

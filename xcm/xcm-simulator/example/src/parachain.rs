@@ -121,6 +121,7 @@ pub type XcmOriginToCallOrigin = (
 parameter_types! {
 	pub const UnitWeightCost: Weight = 1;
 	pub KsmPerSecond: (AssetId, u128) = (Concrete(Parent.into()), 1);
+	pub const MaxInstructions: u32 = 100;
 }
 
 pub type LocalAssetTransactor =
@@ -139,9 +140,12 @@ impl Config for XcmConfig {
 	type IsTeleporter = ();
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
+	type Weigher = FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = ();
+	type AssetTrap = ();
+	type AssetClaims = ();
+	type SubscriptionService = ();
 }
 
 #[frame_support::pallet]
@@ -298,8 +302,12 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Nothing;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<UnitWeightCost, Call>;
+	type Weigher = FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type LocationInverter = LocationInverter<Ancestry>;
+	type Origin = Origin;
+	type Call = Call;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;

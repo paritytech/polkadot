@@ -5,18 +5,16 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.15"
-tracing = "0.1.26"
-parity-scale-codec = { version = "2.0.0", features = ["std"]  }
+futures = "0.3.17"
+tracing = "0.1.27"
+parity-scale-codec = { version = "2.3.0", features = ["std"] }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-primitives = { path = "../../primitives" }
-polkadot-node-core-runtime-api = { path = "../../core/runtime-api" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.26"
 rand = "0.8.3"
@@ -31,4 +29,3 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures-timer = "3.0.2"
 assert_matches = "1.4.0"
-maplit = "1.0"

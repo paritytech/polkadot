@@ -58,7 +58,7 @@ pub trait TransactAsset {
 	///
 	/// When composed as a tuple, all type-items are called. It is up to the implementer that there exists no
 	/// value for `_what` which can cause side-effects for more than one of the type-items.
-	fn check_out(_origin: &MultiLocation, _what: &MultiAsset) {}
+	fn check_out(_dest: &MultiLocation, _what: &MultiAsset) {}
 
 	/// Deposit the `what` asset into the account of `who`.
 	///
@@ -67,8 +67,8 @@ pub trait TransactAsset {
 		Err(XcmError::Unimplemented)
 	}
 
-	/// Withdraw the given asset from the consensus system. Return the actual asset(s) withdrawn. In
-	/// the case of `what` being a wildcard, this may be something more specific.
+	/// Withdraw the given asset from the consensus system. Return the actual asset(s) withdrawn,
+	/// which should always be equal to `_what`.
 	///
 	/// Implementations should return `XcmError::FailedToTransactAsset` if withdraw failed.
 	fn withdraw_asset(_what: &MultiAsset, _who: &MultiLocation) -> Result<Assets, XcmError> {
