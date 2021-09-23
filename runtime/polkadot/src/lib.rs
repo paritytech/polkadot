@@ -1526,9 +1526,13 @@ impl OnRuntimeUpgrade for SetInitialHostConfiguration {
 			relay_vrf_modulo_samples: 40,
 			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
 		};
-		Configuration::force_set_active_config(active_config);
 
-		RocksDbWeight::get().writes(1)
+		// Only set the config if it's needed to be set explicitly.
+		if Configuration::config() == Default::default() {
+			Configuration::force_set_active_config(active_config);
+		}
+
+		RocksDbWeight::get().reads(1) + RocksDbWeight::get().writes(1)
 	}
 }
 
