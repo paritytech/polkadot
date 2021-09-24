@@ -478,6 +478,29 @@ async fn handle_new_activations(
 	new_activations: impl IntoIterator<Item = Hash>,
 ) -> Result<(), Error> {
 	for new_leaf in new_activations {
+		let disputes = {
+			let (tx, rx) = oneshot::channel();
+			ctx.send_message(ChainApiMessage::ChainApiMessage(new_leaf, tx)).await;
+
+			match rx.await?? {
+				None => continue,
+				Some(header) => header,
+			}
+		};
+
+		for DisputeStatementSet { candidate_hash, session, statements } in disputes {
+			let (tx, rx) = oneshot::channel();
+			ctx.send_message(DisputesCoordinator::ImportStatements {
+				candidate_hash,
+				candidate_receipt,
+				session,
+				statements,
+				pending_confirmation: tx,
+			})
+			.await;
+			dbg!(rx.await??);
+		}
+
 		let block_header = {
 			let (tx, rx) = oneshot::channel();
 
