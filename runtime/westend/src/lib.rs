@@ -952,7 +952,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = 10_000_000;
+	pub const BaseXcmWeight: Weight = 1_000_000_000;
 }
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
