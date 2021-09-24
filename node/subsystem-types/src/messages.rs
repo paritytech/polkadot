@@ -547,6 +547,13 @@ pub enum ChainApiMessage {
 		/// The response channel.
 		response_channel: ChainApiResponseChannel<Vec<Hash>>,
 	},
+	/// Disputes we know about by means the extrinsic of an imported block.
+	ImportedOnChainDisputes {
+		/// The hash of the block in question.
+		relay_parent: Hash,
+		/// The response questions.
+		response_channel: ChainApiResponseChannel<BlockNumber>,
+	},
 }
 
 impl ChainApiMessage {
@@ -636,6 +643,8 @@ pub enum RuntimeApiRequest {
 	),
 	/// Get information about the BABE epoch the block was included in.
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
+	/// Get all desputes in relation to a relay parent.
+	ImportedOnChainDisputes(RuntimeApiSender<polkadot_primitives::v1::MultiDisputeStatementSet>),
 }
 
 /// A message to the Runtime API subsystem.

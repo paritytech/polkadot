@@ -281,6 +281,8 @@ pub trait WeightInfo {
 
 #[frame_support::pallet]
 pub mod pallet {
+	use primitives::v1::MultiDisputeStatementSet;
+
 	use super::*;
 
 	#[pallet::pallet]
@@ -456,6 +458,12 @@ pub mod pallet {
 	#[pallet::getter(fn code_by_hash)]
 	pub(super) type CodeByHash<T: Config> =
 		StorageMap<_, Identity, ValidationCodeHash, ValidationCode>;
+
+	// FIXME adjust stored value
+	#[pallet::storage]
+	#[pallet::getter(fn imported_on_chain_disputes)]
+	pub(super) type ImportedDisputes<T: Config> =
+		StorageValue<_, MultiDisputeStatementSet, ValueQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {

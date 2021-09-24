@@ -23,7 +23,7 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
+use polkadot_primitives::v1::{Block, BlockId, Hash, MultiDisputeStatementSet, ParachainHost};
 use polkadot_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
@@ -143,6 +143,8 @@ where
 				.cache_inbound_hrmp_channel_contents((relay_parent, para_id), contents),
 			CurrentBabeEpoch(relay_parent, epoch) =>
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
+			ImportedOnChainDisputes(disputes) =>
+				self.requests_cache.cache_current_babe_epoch(relay_parent, disputes),
 		}
 	}
 
@@ -209,6 +211,9 @@ where
 					.map(|sender| Request::InboundHrmpChannelsContents(id, sender)),
 			Request::CurrentBabeEpoch(sender) =>
 				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
+			Request::ImportedOnChainDisputes(sender) =>
+				query!(imported_on_chain_disputes(), sender)
+					.map(|sender| Request::ImportedOnChainDisputes(sender)),
 		}
 	}
 
@@ -342,6 +347,8 @@ where
 		Request::InboundHrmpChannelsContents(id, sender) =>
 			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
 		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
+		Request::ImportedOnChainDisputes(sender) =>
+			query!(ImportedOnChainDisputes, imported_on_chain_disputes(), sender),
 	}
 }
 

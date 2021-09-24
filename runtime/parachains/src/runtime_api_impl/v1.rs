@@ -23,9 +23,9 @@ use crate::{
 use primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	ScheduledCore, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex,
+	InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCore, OccupiedCoreAssumption,
+	PersistedValidationData, ScheduledCore, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -328,4 +328,10 @@ pub fn validation_code_by_hash<T: paras::Config>(
 	hash: ValidationCodeHash,
 ) -> Option<ValidationCode> {
 	<paras::Pallet<T>>::code_by_hash(hash)
+}
+
+/// Disputes imported via means of on-chain imports.
+/// XXX figure out return type
+pub fn imported_on_chain_disputes<T: initializer::Config>() -> MultiDisputeStatementSet {
+	<paras::Pallet<T>>::imported_on_chain_disputes()
 }

@@ -23,8 +23,9 @@ use sp_consensus_babe::Epoch;
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
 	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
-	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
+	PersistedValidationData, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex,
 };
 
 const AUTHORITIES_CACHE_SIZE: usize = 128 * 1024;
@@ -98,6 +99,7 @@ pub(crate) struct RequestResultCache {
 		ResidentSizeOf<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
 	>,
 	current_babe_epoch: MemoryLruCache<Hash, DoesNotAllocate<Epoch>>,
+	imported_on_chain_disputes: MemoryLruCache<Hash, MultiDisputeStatementSet>,
 }
 
 impl Default for RequestResultCache {
@@ -342,4 +344,5 @@ pub(crate) enum RequestResult {
 		BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>,
 	),
 	CurrentBabeEpoch(Hash, Epoch),
+	ImportedOnChainDisputes(MultiDisputeStatementSet),
 }
