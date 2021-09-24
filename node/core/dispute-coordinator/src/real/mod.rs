@@ -38,6 +38,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
+		RuntimeApiMessage, RuntimeApiRequest,
 		BlockDescription, ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		DisputeParticipationMessage, ImportStatementsResult,
 	},
@@ -47,10 +48,10 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate,
 };
 use polkadot_primitives::v1::{
+	DisputeStatementSet,
 	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, Hash, SessionIndex,
 	SessionInfo, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
-
 use futures::{channel::oneshot, prelude::*};
 use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
@@ -348,6 +349,8 @@ where
 					&mut overlay_db,
 					&mut state,
 					update.activated.into_iter().map(|a| a.hash),
+					clock.now(),
+					&metrics,
 				)
 				.await?;
 				if !state.recovery_state.complete() {
@@ -476,6 +479,8 @@ async fn handle_new_activations(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	state: &mut State,
 	new_activations: impl IntoIterator<Item = Hash>,
+	now: u64,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	for new_leaf in new_activations {
 		let block_header = {
@@ -517,15 +522,37 @@ async fn handle_new_activations(
 
 		let disputes = {
 			let (tx, rx) = oneshot::channel();
-			ctx.send_message(ChainApiMessage::ChainApiMessage(new_leaf, tx)).await;
+			ctx.send_message(RuntimeApiMessage::Request(
+				new_leaf,
+				RuntimeApiRequest::ImportedOnChainDisputes(tx)
+			)).await;
 
-			match rx.await?? {
-				None => continue,
-				Some(header) => header,
-			}
+			rx.await??
 		};
 		for DisputeStatementSet { candidate_hash, session, statements } in disputes {
-			let _ = dbg!(handle_import_statements(candidate_hash, candidate_receipt, session, statements).await?);
+			let statements = statements
+				.into_iter()
+				.map(|(dispute_statement, validator_idx, validator_signature)| {
+					(SignedDisputeStatement {
+						dispute_statement,
+						candidate_hash,
+						validator_public: todo!("Obtain validator ID"),
+						validator_signature,
+						session_index: todo!("Obtain session index"),
+					}, validator_idx)
+				}).collect::<Vec<(SignedDisputeStatement, ValidatorIndex)>>();
+
+			let _ = dbg!(handle_import_statements(
+				ctx,
+				overlay_db,
+				state,
+				candidate_hash,
+				todo!("Obtain the candidate_receipt"),
+				session,
+				statements,
+				now,
+				metrics,
+			).await?);
 		}
 	}
 
@@ -657,7 +684,6 @@ async fn handle_import_statements(
 	session: SessionIndex,
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
-	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
 	metrics: &Metrics,
 ) -> Result<ImportStatementsResult, Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
@@ -939,7 +965,7 @@ async fn issue_local_statement(
 			now,
 			metrics,
 		)
-		.await?
+		.await
 		{
 			Err(_) => {
 				tracing::error!(

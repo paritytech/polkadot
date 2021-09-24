@@ -547,13 +547,6 @@ pub enum ChainApiMessage {
 		/// The response channel.
 		response_channel: ChainApiResponseChannel<Vec<Hash>>,
 	},
-	/// Disputes we know about by means the extrinsic of an imported block.
-	ImportedOnChainDisputes {
-		/// The hash of the block in question.
-		relay_parent: Hash,
-		/// The response questions.
-		response_channel: ChainApiResponseChannel<BlockNumber>,
-	},
 }
 
 impl ChainApiMessage {
