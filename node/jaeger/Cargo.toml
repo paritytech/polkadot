@@ -6,7 +6,7 @@ edition = "2018"
 description = "Polkadot Jaeger primitives"
 
 [dependencies]
-async-std = "1.8.0"
+async-std = "1.10.0"
 mick-jaeger = "0.1.4"
 lazy_static = "1.4"
 parking_lot = "0.11.1"
