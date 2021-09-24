@@ -1002,7 +1002,7 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const LeasePeriod: BlockNumber = 1 * WEEKS;
+	pub const LeasePeriod: BlockNumber = 7 * DAYS;
 }
 
 impl slots::Config for Runtime {
