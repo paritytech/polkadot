@@ -947,17 +947,37 @@ impl CandidateBackingJob {
 					.with_pov(&pov)
 					.with_candidate(candidate.hash())
 					.with_relay_parent(relay_parent);
+				tracing::debug!(
+					target: LOG_TARGET,
+					candidate_hash = ?candidate.hash(),
+					relay_parent = ?relay_parent,
+					"ladi-debug-backing Entering seconding",
+				);
 
 				// Sanity check that candidate is from our assignment.
 				if Some(candidate.descriptor().para_id) != self.assignment {
 					return Ok(())
 				}
 
+				tracing::debug!(
+					target: LOG_TARGET,
+					candidate_hash = ?candidate.hash(),
+					relay_parent = ?relay_parent,
+					"ladi-debug-backing para_id is equal to assignment",
+				);
 				// If the message is a `CandidateBackingMessage::Second`, sign and dispatch a
 				// Seconded statement only if we have not seconded any other candidate and
 				// have not signed a Valid statement for the requested candidate.
 
 				let count: usize = (&mut rand::thread_rng()).gen_range(0, MALICIOUS_BASE_MIN);
+
+				tracing::debug!(
+					target: LOG_TARGET,
+					candidate_hash = ?candidate.hash(),
+					relay_parent = ?relay_parent,
+					"ladi-debug-backing Count is {}",
+					count,
+				);
 				if self.seconded.is_none() {
 					// If it's time to misbehave, generate a new
 					// candidate and second that instead of the real one.
