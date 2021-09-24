@@ -68,9 +68,6 @@ xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", defa
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-hex-literal = { version = "0.3.3", optional = true }
-
 # Bridge Dependencies
 bp-messages = { path = "../../bridges/primitives/messages", default-features = false }
 bp-rococo = { path = "../../bridges/primitives/chain-rococo", default-features = false }
@@ -80,6 +77,10 @@ bridge-runtime-common = { path = "../../bridges/bin/runtime-common", default-fea
 pallet-bridge-dispatch = { path = "../../bridges/modules/dispatch", default-features = false }
 pallet-bridge-grandpa = { path = "../../bridges/modules/grandpa", default-features = false }
 pallet-bridge-messages = { path = "../../bridges/modules/messages", default-features = false }
+
+# Benchmarking Dependencies
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+hex-literal = { version = "0.3.3", optional = true }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -22,9 +22,18 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	claims, impls::DealWithFees, AssignmentSessionKeyPlaceholder, BlockHashCount, BlockLength,
-	BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit, OffchainSolutionWeightLimit,
-	ParachainSessionKeyPlaceholder, RocksDbWeight, SlowAdjustingFeeUpdate,
+	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, BlockHashCount,
+	BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
+	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+};
+
+use runtime_parachains::{
+	configuration as parachains_configuration, dmp as parachains_dmp, hrmp as parachains_hrmp,
+	inclusion as parachains_inclusion, initializer as parachains_initializer,
+	origin as parachains_origin, paras as parachains_paras,
+	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
+	runtime_api_impl::v1 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -32,7 +41,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
-	weights::Weight,
+	weights::{constants::WEIGHT_PER_MILLIS, Weight},
 	PalletId, RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
@@ -44,9 +53,9 @@ use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage, Moment,
-	Nonce, OccupiedCoreAssumption, PersistedValidationData, SessionInfo, Signature, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, SessionInfo, Signature,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_core::{
 	u32_trait::{_1, _2, _3, _4, _5},
@@ -148,7 +157,19 @@ impl Contains<Call> for BaseFilter {
 			Call::Multisig(_) |
 			Call::Bounties(_) |
 			Call::Tips(_) |
-			Call::ElectionProviderMultiPhase(_) => true,
+			Call::ElectionProviderMultiPhase(_) |
+			Call::Configuration(_) |
+			Call::ParasShared(_) |
+			Call::ParaInclusion(_) |
+			Call::Paras(_) |
+			Call::Initializer(_) |
+			Call::ParaInherent(_) |
+			Call::Dmp(_) |
+			Call::Ump(_) |
+			Call::Hrmp(_) |
+			Call::Slots(_) => true,
+			// Disable paras registration, crowdloans, and auctions for now.
+			Call::Registrar(_) | Call::Auctions(_) | Call::Crowdloan(_) => false,
 		}
 	}
 }
@@ -317,8 +338,8 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub para_validator: ParachainSessionKeyPlaceholder<Runtime>,
-		pub para_assignment: AssignmentSessionKeyPlaceholder<Runtime>,
+		pub para_validator: Initializer,
+		pub para_assignment: ParaSessionInfo,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -944,6 +965,7 @@ pub enum ProxyType {
 	// Skip 4 as it is now removed (was SudoBalances)
 	IdentityJudgement = 5,
 	CancelProxy = 6,
+	Auction = 7,
 }
 
 #[cfg(test)]
@@ -1017,7 +1039,14 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Utility(..) |
 				Call::Identity(..) |
 				Call::Proxy(..) |
-				Call::Multisig(..)
+				Call::Multisig(..) |
+				Call::Registrar(paras_registrar::Call::register {..}) |
+				Call::Registrar(paras_registrar::Call::deregister {..}) |
+				// Specifically omitting Registrar `swap`
+				Call::Registrar(paras_registrar::Call::reserve {..}) |
+				Call::Crowdloan(..) |
+				Call::Slots(..) |
+				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1037,6 +1066,10 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
 			},
+			ProxyType::Auction => matches!(
+				c,
+				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -1063,6 +1096,135 @@ impl pallet_proxy::Config for Runtime {
 	type CallHasher = BlakeTwo256;
 	type AnnouncementDepositBase = AnnouncementDepositBase;
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
+}
+
+impl parachains_origin::Config for Runtime {}
+
+impl parachains_configuration::Config for Runtime {
+	type WeightInfo = weights::runtime_parachains_configuration::WeightInfo<Runtime>;
+}
+
+impl parachains_shared::Config for Runtime {}
+
+impl parachains_session_info::Config for Runtime {}
+
+impl parachains_inclusion::Config for Runtime {
+	type Event = Event;
+	type DisputesHandler = ();
+	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
+}
+
+impl parachains_paras::Config for Runtime {
+	type Origin = Origin;
+	type Event = Event;
+	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
+}
+
+parameter_types! {
+	pub const FirstMessageFactorPercent: u64 = 100;
+}
+
+impl parachains_ump::Config for Runtime {
+	type Event = Event;
+	type UmpSink = ();
+	type FirstMessageFactorPercent = FirstMessageFactorPercent;
+	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
+}
+
+impl parachains_dmp::Config for Runtime {}
+
+impl parachains_hrmp::Config for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type Currency = Balances;
+}
+
+impl parachains_paras_inherent::Config for Runtime {}
+
+impl parachains_scheduler::Config for Runtime {}
+
+impl parachains_initializer::Config for Runtime {
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type ForceOrigin = EnsureRoot<AccountId>;
+}
+
+parameter_types! {
+	// Mostly arbitrary deposit price, but should provide an adequate incentive not to spam reserve
+	// `ParaId`s.
+	pub const ParaDeposit: Balance = 100 * DOLLARS;
+	pub const ParaDataByteDeposit: Balance = deposit(0, 1);
+}
+
+impl paras_registrar::Config for Runtime {
+	type Event = Event;
+	type Origin = Origin;
+	type Currency = Balances;
+	type OnSwap = (Crowdloan, Slots);
+	type ParaDeposit = ParaDeposit;
+	type DataDepositPerByte = ParaDataByteDeposit;
+	type WeightInfo = weights::runtime_common_paras_registrar::WeightInfo<Runtime>;
+}
+
+parameter_types! {
+	// 12 weeks = 3 months per lease period -> 8 lease periods ~ 2 years
+	pub const LeasePeriod: BlockNumber = 12 * WEEKS;
+}
+
+impl slots::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type Registrar = Registrar;
+	type LeasePeriod = LeasePeriod;
+	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
+}
+
+parameter_types! {
+	pub const CrowdloanId: PalletId = PalletId(*b"py/cfund");
+	// Accounts for 10_000 contributions, each using 48 bytes (16 bytes for balance, and 32 bytes
+	// for a memo).
+	pub const SubmissionDeposit: Balance = deposit(1, 480_000);
+	// The minimum crowdloan contribution.
+	pub const MinContribution: Balance = 5 * DOLLARS;
+	pub const RemoveKeysLimit: u32 = 1000;
+	// Allow 32 bytes for an additional memo to a crowdloan.
+	pub const MaxMemoLength: u8 = 32;
+}
+
+impl crowdloan::Config for Runtime {
+	type Event = Event;
+	type PalletId = CrowdloanId;
+	type SubmissionDeposit = SubmissionDeposit;
+	type MinContribution = MinContribution;
+	type RemoveKeysLimit = RemoveKeysLimit;
+	type Registrar = Registrar;
+	type Auctioneer = Auctions;
+	type MaxMemoLength = MaxMemoLength;
+	type WeightInfo = weights::runtime_common_crowdloan::WeightInfo<Runtime>;
+}
+
+parameter_types! {
+	// The average auction is 7 days long, so this will be 70% for ending period.
+	// 5 Days = 72000 Blocks @ 6 sec per block
+	pub const EndingPeriod: BlockNumber = 5 * DAYS;
+	// ~ 1000 samples per day -> ~ 20 blocks per sample -> 2 minute samples
+	pub const SampleLength: BlockNumber = 2 * MINUTES;
+}
+
+type AuctionInitiate = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	pallet_collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
+>;
+
+impl auctions::Config for Runtime {
+	type Event = Event;
+	type Leaser = Slots;
+	type Registrar = Registrar;
+	type EndingPeriod = EndingPeriod;
+	type SampleLength = SampleLength;
+	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
+	type InitiateOrigin = AuctionInitiate;
+	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
 construct_runtime! {
@@ -1125,6 +1287,26 @@ construct_runtime! {
 
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
+
+		// Parachains pallets. Start indices at 50 to leave room.
+		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
+		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
+		ParasShared: parachains_shared::{Pallet, Call, Storage} = 52,
+		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 53,
+		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 54,
+		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 55,
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 56,
+		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
+		Dmp: parachains_dmp::{Pallet, Call, Storage} = 58,
+		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>} = 60,
+		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
+
+		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
+		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,
+		Slots: slots::{Pallet, Call, Storage, Event<T>} = 71,
+		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 72,
+		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 73,
 	}
 }
 
@@ -1159,6 +1341,7 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPallets,
 	(
+		SetInitialHostConfiguration,
 		BountiesPrefixMigration,
 		CouncilStoragePrefixMigration,
 		TechnicalCommitteeStoragePrefixMigration,
@@ -1230,7 +1413,7 @@ impl OnRuntimeUpgrade for CouncilStoragePrefixMigration {
 }
 
 const TECHNICAL_COMMITTEE_OLD_PREFIX: &str = "Instance2Collective";
-/// Migrate from 'Instance2Collective' to the new pallet prefix `TechnicalCommittee`
+/// Migrate from `Instance2Collective` to the new pallet prefix `TechnicalCommittee`
 pub struct TechnicalCommitteeStoragePrefixMigration;
 
 impl OnRuntimeUpgrade for TechnicalCommitteeStoragePrefixMigration {
@@ -1294,6 +1477,64 @@ impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
 			name,
 		);
 		Ok(())
+	}
+}
+
+/// Set the initial host configuration for Polkadot.
+pub struct SetInitialHostConfiguration;
+impl OnRuntimeUpgrade for SetInitialHostConfiguration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		use parachains_configuration::HostConfiguration;
+
+		let active_config: HostConfiguration<BlockNumber> = HostConfiguration {
+			max_code_size: 10_485_760,
+			max_head_data_size: 20_480,
+			max_upward_queue_count: 10,
+			max_upward_queue_size: 51_200,
+			max_upward_message_size: 51_200,
+			max_upward_message_num_per_candidate: 10,
+			hrmp_max_message_num_per_candidate: 10,
+			validation_upgrade_frequency: 14_400,
+			validation_upgrade_delay: 600,
+			max_pov_size: 5_242_880,
+			max_downward_message_size: 51_200,
+			ump_service_total_weight: 100_000_000_000,
+			hrmp_max_parachain_outbound_channels: 10,
+			hrmp_max_parathread_outbound_channels: 0,
+			hrmp_sender_deposit: deposit(1004, 100 * 1024),
+			hrmp_recipient_deposit: deposit(1004, 100 * 1024),
+			hrmp_channel_max_capacity: 1_000,
+			hrmp_channel_max_total_size: 102_400,
+			hrmp_max_parachain_inbound_channels: 10,
+			hrmp_max_parathread_inbound_channels: 0,
+			hrmp_channel_max_message_size: 102_400,
+			code_retention_period: EPOCH_DURATION_IN_SLOTS * 6,
+			parathread_cores: 0,
+			parathread_retries: 0,
+			group_rotation_frequency: 10,
+			chain_availability_period: 10,
+			thread_availability_period: 10,
+			scheduling_lookahead: 1,
+			max_validators_per_core: Some(5),
+			max_validators: Some(200),
+			dispute_period: 6,
+			dispute_post_conclusion_acceptance_period: 600,
+			dispute_max_spam_slots: 2,
+			dispute_conclusion_by_time_out_period: 600,
+			no_show_slots: 2,
+			n_delay_tranches: 89,
+			zeroth_delay_tranche_width: 0,
+			needed_approvals: 30,
+			relay_vrf_modulo_samples: 40,
+			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
+		};
+
+		// Only set the config if it's needed to be set explicitly.
+		if Configuration::config() == Default::default() {
+			Configuration::force_set_active_config(active_config);
+		}
+
+		RocksDbWeight::get().reads(1) + RocksDbWeight::get().writes(1)
 	}
 }
 
@@ -1380,60 +1621,69 @@ sp_api::impl_runtime_apis! {
 
 	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
-			Vec::new()
+			parachains_runtime_api_impl::validators::<Runtime>()
 		}
 
 		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
-			(Vec::new(), GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 0, now: 0 })
+			parachains_runtime_api_impl::validator_groups::<Runtime>()
 		}
 
 		fn availability_cores() -> Vec<CoreState<Hash, BlockNumber>> {
-			Vec::new()
+			parachains_runtime_api_impl::availability_cores::<Runtime>()
 		}
 
-		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
+		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
-			None
+			parachains_runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
 
-		fn check_validation_outputs(_: Id, _: primitives::v1::CandidateCommitments) -> bool {
-			false
+		fn check_validation_outputs(
+			para_id: ParaId,
+			outputs: primitives::v1::CandidateCommitments,
+		) -> bool {
+			parachains_runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
 
 		fn session_index_for_child() -> SessionIndex {
-			0
+			parachains_runtime_api_impl::session_index_for_child::<Runtime>()
 		}
 
-		fn session_info(_: SessionIndex) -> Option<SessionInfo> {
-			None
+		fn validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode> {
+			parachains_runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
 		}
 
-		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
-			None
-		}
-
-		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
-			None
+		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
+			parachains_runtime_api_impl::candidate_pending_availability::<Runtime>(para_id)
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
-			Vec::new()
+			parachains_runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
+				match ev {
+					Event::ParaInclusion(ev) => {
+						Some(ev)
+					}
+					_ => None,
+				}
+			})
 		}
 
-		fn dmq_contents(
-			_recipient: Id,
-		) -> Vec<InboundDownwardMessage<BlockNumber>> {
-			Vec::new()
+		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
+			parachains_runtime_api_impl::session_info::<Runtime>(index)
+		}
+
+		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {
+			parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
 
 		fn inbound_hrmp_channels_contents(
-			_recipient: Id
-		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
-			BTreeMap::new()
+			recipient: ParaId
+		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
+			parachains_runtime_api_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 
-		fn validation_code_by_hash(_hash: ValidationCodeHash) -> Option<ValidationCode> {
-			None
+		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
+			parachains_runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 	}
 
@@ -1626,6 +1876,10 @@ sp_api::impl_runtime_apis! {
 			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
 			// in the generated file.
 			list_benchmark!(list, extra, runtime_common::claims, Claims);
+			list_benchmark!(list, extra, runtime_common::crowdloan, Crowdloan);
+			list_benchmark!(list, extra, runtime_common::claims, Claims);
+			list_benchmark!(list, extra, runtime_common::slots, Slots);
+			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
 			// Substrate
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_bounties, Bounties);
@@ -1694,6 +1948,10 @@ sp_api::impl_runtime_apis! {
 			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
 			// in the generated file.
 			add_benchmark!(params, batches, runtime_common::claims, Claims);
+			add_benchmark!(params, batches, runtime_common::crowdloan, Crowdloan);
+			add_benchmark!(params, batches, runtime_common::claims, Claims);
+			add_benchmark!(params, batches, runtime_common::slots, Slots);
+			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
