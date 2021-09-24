@@ -331,8 +331,11 @@ where
 			.resolved_authorities
 			.iter()
 			.filter(|(a, _)| !self.connected_authorities.contains_key(a));
+		// TODO: Make that warning once connectivity issues are fixed (no point in warning, if
+		// we already know it is broken.
+		// https://github.com/paritytech/polkadot/issues/3921
 		if connected_ratio <= LOW_CONNECTIVITY_WARN_THRESHOLD {
-			tracing::warn!(
+			tracing::debug!(
 				target: LOG_TARGET,
 				"Connectivity seems low, we are only connected to {}% of available validators (see debug logs for details)", connected_ratio
 			);
