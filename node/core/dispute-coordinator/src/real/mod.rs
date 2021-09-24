@@ -488,19 +488,6 @@ async fn handle_new_activations(
 			}
 		};
 
-		for DisputeStatementSet { candidate_hash, session, statements } in disputes {
-			let (tx, rx) = oneshot::channel();
-			ctx.send_message(DisputesCoordinator::ImportStatements {
-				candidate_hash,
-				candidate_receipt,
-				session,
-				statements,
-				pending_confirmation: tx,
-			})
-			.await;
-			dbg!(rx.await??);
-		}
-
 		let block_header = {
 			let (tx, rx) = oneshot::channel();
 
@@ -523,8 +510,6 @@ async fn handle_new_activations(
 					err = ?e,
 					"Failed to update session cache for disputes",
 				);
-
-				continue
 			},
 			Ok(SessionWindowUpdate::Initialized { window_end, .. }) |
 			Ok(SessionWindowUpdate::Advanced { new_window_end: window_end, .. }) => {
@@ -538,6 +523,10 @@ async fn handle_new_activations(
 				}
 			},
 			_ => {},
+		}
+
+		for DisputeStatementSet { candidate_hash, session, statements } in disputes {
+			handle_import_statements(candidate_hash, candidate_receipt, session, statements).await;
 		}
 	}
 
