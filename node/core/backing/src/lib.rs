@@ -654,7 +654,7 @@ impl CandidateBackingJob {
 						tracing::debug!(
 							target: LOG_TARGET,
 							?error,
-							"Mpsc background validation mpsc died during validation- leaf no longer active?"
+							"Mpsc background validation mpsc died during validation - leaf no longer active?"
 						);
 					} else {
 						tracing::error!(
