@@ -483,7 +483,6 @@ async fn validate_and_make_available(
 				candidate_hash = ?candidate.hash(),
 				"Validation successful",
 			);
-
 			// If validation produces a new set of commitments, we vote the candidate as invalid.
 			if commitments.hash() != expected_commitments_hash {
 				tracing::debug!(
