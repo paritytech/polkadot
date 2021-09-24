@@ -394,7 +394,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 					let mut expected = get_other_authorities_addrs_map().await;
 					expected.remove(&alice);
 					expected.remove(&bob);
-					let mut expected: Vec<Vec<Multiaddr>> = expected.into_values().collect();
+					let mut expected: Vec<Vec<Multiaddr>> = expected.into_iter().map(|(_,v)| v).collect();
 					validator_addrs.sort();
 					expected.sort();
 					assert_eq!(validator_addrs, expected);
@@ -447,7 +447,7 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 			}) => {
 				let mut expected = get_other_authorities_addrs_map().await;
 				expected.remove(&bob);
-				let mut expected: Vec<Vec<Multiaddr>> = expected.into_values().collect();
+				let mut expected: Vec<Vec<Multiaddr>> = expected.into_iter().map(|(_,v)| v).collect();
 				expected.sort();
 				validator_addrs.sort();
 				assert_eq!(validator_addrs, expected);
