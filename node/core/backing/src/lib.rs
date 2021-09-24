@@ -92,7 +92,7 @@ pub enum Error {
 	#[error(transparent)]
 	ValidationFailed(#[from] ValidationFailed),
 	#[error(transparent)]
-	Mpsc(#[from] mpsc::SendError),
+	BackgroundValidationMpsc(#[from] mpsc::SendError),
 	#[error(transparent)]
 	UtilError(#[from] util::Error),
 }
@@ -444,7 +444,7 @@ async fn validate_and_make_available(
 					tx_command
 						.send(ValidatedCandidateCommand::AttestNoPoV(candidate.hash()))
 						.await
-						.map_err(Error::Mpsc)?;
+						.map_err(Error::BackgroundValidationMpsc)?;
 					return Ok(())
 				},
 				Err(err) => return Err(err),
@@ -650,11 +650,19 @@ impl CandidateBackingJob {
 			// spawn background task.
 			let bg = async move {
 				if let Err(e) = validate_and_make_available(params).await {
-					tracing::error!(
-						target: LOG_TARGET,
-						"Failed to validate and make available: {:?}",
-						e
-					);
+					if let Error::BackgroundValidationMpsc(error) = e {
+						tracing::debug!(
+							target: LOG_TARGET,
+							?error,
+							"Mpsc background validation mpsc died during validation - leaf no longer active?"
+						);
+					} else {
+						tracing::error!(
+							target: LOG_TARGET,
+							"Failed to validate and make available: {:?}",
+							e
+						);
+					}
 				}
 			};
 			sender
