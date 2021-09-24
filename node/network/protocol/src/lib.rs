@@ -389,7 +389,7 @@ pub mod v1 {
 	}
 
 	/// Dummy network message type, so we will receive connect/disconnect events.
-	#[derive(Debug, Clone)]
+	#[derive(Debug, Clone, PartialEq, Eq)]
 	pub enum GossipSuppportNetworkMessage {}
 
 	/// Network messages used by the collator protocol subsystem
