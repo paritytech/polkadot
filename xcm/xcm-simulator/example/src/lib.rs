@@ -83,6 +83,7 @@ pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
 
 pub fn relay_ext() -> sp_io::TestExternalities {
 	use relay_chain::{Runtime, System};
+	let para_account_a: relay_chain::AccountId = ParaId::from(1).into_account();
 
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
@@ -197,8 +198,12 @@ mod tests {
 		});
 	}
 
+	/// Scenario:
+	/// A user Alice sends funds from the relaychain to a parachain.
+	///
+	/// Asserts that the correct XCM is sent and the balances are set as expected.
 	#[test]
-	fn reserve_transfer() {
+	fn reserve_transfer_assets() {
 		MockNet::reset();
 
 		let withdraw_amount = 123;
@@ -218,7 +223,26 @@ mod tests {
 		});
 
 		ParaA::execute_with(|| {
-			// free execution, full amount received
+			// Check message received
+			let expected_message = (
+				X1(Parent),
+				ReserveAssetDeposit {
+					assets: vec![ConcreteFungible { id: X1(Parent), amount: withdraw_amount }],
+					effects: vec![
+						buy_execution(max_weight_for_execution),
+						Order::DepositAsset {
+							assets: All.into(),
+							max_assets: 1,
+							beneficiary: X1(Junction::AccountId32 {
+								network: NetworkId::Any,
+								id: ALICE.into(),
+							}).into(),
+						},
+					],
+				},
+			);
+			assert_eq!(parachain::MsgQueue::received_dmp(), vec![expected_message]);
+			// Check message execution with full amount received
 			assert_eq!(
 				pallet_balances::Pallet::<parachain::Runtime>::free_balance(&ALICE),
 				INITIAL_BALANCE + withdraw_amount

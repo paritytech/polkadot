@@ -16,7 +16,7 @@
 
 //! Test kit to simulate cross-chain message passing and XCM execution
 
-pub use codec::Encode;
+pub use codec::{Decode, Encode};
 pub use paste;
 
 pub use frame_support::{traits::Get, weights::Weight};
@@ -219,7 +219,9 @@ macro_rules! decl_test_network {
 				$crate::RELAY_MESSAGE_BUS.with(|b| b.replace(VecDeque::new()));
 				// Reset parachain message bus
 				$crate::PARA_MESSAGE_BUS.with(|b| b.replace(VecDeque::new()));
+				// Reset relay chain state
 				<$relay_chain>::reset_ext();
+				// Reset parachain state
 				$( <$parachain>::reset_ext(); )*
 			}
 		}
@@ -319,6 +321,9 @@ macro_rules! decl_test_network {
 
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
+
+
+
 		impl $crate::SendXcm for RelayChainXcmRouter {
 			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::SendResult {
 				use $crate::DmpMessageHandlerT;

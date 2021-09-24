@@ -44,8 +44,9 @@ pub use pallet::*;
 /// It is possible that by the time the message is sank the origin parachain was offboarded. It is
 /// up to the implementer to check that if it cares.
 pub trait UmpSink {
-	/// Process an incoming upward message and return the amount of weight it consumed, or `None` if
-	/// it did not begin processing a message since it would otherwise exceed `max_weight`.
+	/// Process an incoming upward message and return the amount of weight it consumed, or
+	/// `Err(message_id, required_weight)` if it did not begin processing a message since it would
+	/// otherwise exceed `max_weight`.
 	///
 	/// See the trait docs for more details.
 	fn process_upward_message(
@@ -56,7 +57,7 @@ pub trait UmpSink {
 }
 
 /// An implementation of a sink that just swallows the message without consuming any weight. Returns
-/// `Some(0)` indicating that no messages existed for it to process.
+/// `Ok(0)` indicating that no messages existed for it to process.
 impl UmpSink for () {
 	fn process_upward_message(
 		_: ParaId,

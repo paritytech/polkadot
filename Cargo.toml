@@ -42,6 +42,7 @@ members = [
 	"xcm/xcm-executor/integration-tests",
 	"xcm/xcm-simulator",
 	"xcm/xcm-simulator/example",
+	"xcm/xcm-simulator/statemine-like-example",
 	"xcm/pallet-xcm",
 	"xcm/procedural",
 	"node/client",
