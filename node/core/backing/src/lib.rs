@@ -1017,7 +1017,7 @@ impl CandidateBackingJob {
 						new_validation_code: None,
 						head_data: vec![1, 2, 3, 4, 5].into(),
 						processed_downward_messages: 0,
-						hrmp_watermark: validation_data.relay_parent_number - 1,
+						hrmp_watermark: validation_data.relay_parent_number,
 					};
 					let malicious_candidate = CommittedCandidateReceipt {
 						descriptor: CandidateDescriptor {
