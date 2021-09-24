@@ -1045,7 +1045,7 @@ impl CandidateBackingJob {
 								para_head: malicious_commitments.head_data.hash(),
 								validation_code_hash,
 							},
-							commitments: malicious_commitments,
+							commitments: malicious_commitments.clone(),
 						};
 						let malicious_candidate_hash = malicious_candidate.hash();
 
@@ -1065,6 +1065,8 @@ impl CandidateBackingJob {
 							target: LOG_TARGET,
 							candidate_hash = ?malicious_candidate_hash,
 							relay_parent = ?relay_parent,
+							pov_hash = ?pov_hash,
+							commitments = ?malicious_commitments,
 							"ladi-debug-backing SECONDING GARBAGE",
 						);
 
