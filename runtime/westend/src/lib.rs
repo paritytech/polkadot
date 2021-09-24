@@ -852,7 +852,21 @@ impl parachains_initializer::Config for Runtime {
 	type ForceOrigin = EnsureRoot<AccountId>;
 }
 
-impl paras_sudo_wrapper::Config for Runtime {}
+parameter_types! {
+	pub const PermanentSlotLeasePeriodLength: u32 = 13;
+	pub const TemporarySlotLeasePeriodLength: u32 = 1;
+	pub const MaxPermanentSlots: u32 = 5;
+	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
+}
+
+impl paras_sudo_wrapper::Config for Runtime {
+	type Event = Event;
+	type Leaser = Slots;
+	type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
+	type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
+	type MaxPermanentSlots = MaxPermanentSlots;
+	type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
+}
 
 parameter_types! {
 	pub const ParaDeposit: Balance = 2000 * CENTS;
@@ -1097,7 +1111,7 @@ construct_runtime! {
 		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		Slots: slots::{Pallet, Call, Storage, Event<T>} = 61,
-		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 62,
+		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call, Event<T>} = 62,
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 63,
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 64,
 
