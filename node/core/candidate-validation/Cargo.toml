@@ -10,7 +10,7 @@ futures = "0.3.17"
 tracing = "0.1.27"
 
 sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/paritytech/substrate", branch = "master" }
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "2.3.0", default-features = false, features = ["bit-vec", "derive"] }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-parachain = { path = "../../../parachain" }

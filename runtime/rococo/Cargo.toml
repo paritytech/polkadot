@@ -6,7 +6,7 @@ edition = "2018"
 build = "build.rs"
 
 [dependencies]
-parity-scale-codec = { version = "2.2.0", default-features = false, features = ["derive", "max-encoded-len"] }
+parity-scale-codec = { version = "2.3.0", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 serde = { version = "1.0.130", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
@@ -77,6 +77,10 @@ bridge-runtime-common = { path = "../../bridges/bin/runtime-common", default-fea
 pallet-bridge-dispatch = { path = "../../bridges/modules/dispatch", default-features = false }
 pallet-bridge-grandpa = { path = "../../bridges/modules/grandpa", default-features = false }
 pallet-bridge-messages = { path = "../../bridges/modules/messages", default-features = false }
+
+# Benchmarking Dependencies
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+hex-literal = { version = "0.3.3", optional = true }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -169,6 +173,8 @@ runtime-benchmarks = [
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"xcm-builder/runtime-benchmarks",
+	"frame-benchmarking",
+	"hex-literal"
 ]
 try-runtime = [
 	"frame-executive/try-runtime",

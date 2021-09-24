@@ -17,7 +17,7 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3.0", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
