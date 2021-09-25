@@ -18,14 +18,21 @@ use super::*;
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_system::{DigestItemOf, RawOrigin};
 use primitives::v1::ConsensusLog;
-use sp_runtime::traits::One;
+
+// Random large number for the digest
+const DIGEST_MAX_LEN: u32 = 65536;
 
 benchmarks! {
-	force_approve {}: _(RawOrigin::Root, One::one())
+	force_approve {
+		let d in 0 .. DIGEST_MAX_LEN;
+		for _ in 0 .. d {
+			<frame_system::Pallet<T>>::deposit_log(ConsensusLog::ForceApprove(l).into());
+		}
+	}: _(RawOrigin::Root, l + 1)
 	verify {
 		assert_eq!(
 			<frame_system::Pallet<T>>::digest().logs.last().unwrap(),
-			&<DigestItemOf<T>>::from(ConsensusLog::ForceApprove(One::one())),
+			&<DigestItemOf<T>>::from(ConsensusLog::ForceApprove(l + 1)),
 		);
 	}
 }

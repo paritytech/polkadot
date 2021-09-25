@@ -77,11 +77,11 @@ struct BufferedSessionChange {
 }
 
 pub trait WeightInfo {
-	fn force_approve() -> Weight;
+	fn force_approve(d: u32) -> Weight;
 }
 
 impl WeightInfo for () {
-	fn force_approve() -> Weight {
+	fn force_approve(_: u32) -> Weight {
 		BlockWeights::default().max_block
 	}
 }
@@ -200,7 +200,12 @@ pub mod pallet {
 		/// Issue a signal to the consensus engine to forcibly act as though all parachain
 		/// blocks in all relay chain blocks up to and including the given number in the current
 		/// chain are valid and should be finalized.
-		#[pallet::weight((<T as Config>::WeightInfo::force_approve(), DispatchClass::Operational))]
+		#[pallet::weight((
+			<T as Config>::WeightInfo::force_approve(
+				frame_system::Pallet::<T>::digest().logs.len() as u32,
+			),
+			DispatchClass::Operational,
+		))]
 		pub fn force_approve(origin: OriginFor<T>, up_to: BlockNumber) -> DispatchResult {
 			T::ForceOrigin::ensure_origin(origin)?;
 

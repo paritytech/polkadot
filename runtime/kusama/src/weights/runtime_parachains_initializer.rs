@@ -45,7 +45,7 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_parachains::initializer::WeightInfo for WeightInfo<T> {
 	// Storage: System Digest (r:1 w:1)
-	fn force_approve() -> Weight {
+	fn force_approve(_: u32) -> Weight {
 		(4_297_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
