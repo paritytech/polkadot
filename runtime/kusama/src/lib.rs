@@ -340,7 +340,8 @@ impl pallet_session::Config for Runtime {
 }
 
 impl pallet_session::historical::Config for Runtime {
-	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
+	type FullIdentification =
+		pallet_staking::Exposure<AccountId, Balance, MaxNominatorRewardedPerValidator>;
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
@@ -493,6 +494,13 @@ parameter_types! {
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
+	pub const MaxNominations: u32 = <NposCompactSolution24 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	pub const MaxUnappliedSlashes: u32 = 1_000;
+	pub const MaxNbOfInvulnerables: u32 = 10;
+	pub const MaxErasForRewards: u32 = 10_000;
+	pub const MaxNbOfReporters: u32 = 1_000;
+	pub const MaxPriorSlashingSpans: u32 = 1_000;
+	pub const MaxNbOfValidators: u32 = 4_000;
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -507,8 +515,6 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution24 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -527,6 +533,13 @@ impl pallet_staking::Config for Runtime {
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type MaxNominations = MaxNominations;
+	type MaxUnappliedSlashes = MaxUnappliedSlashes;
+	type MaxNbOfInvulnerables = MaxNbOfInvulnerables;
+	type MaxErasForRewards = MaxErasForRewards;
+	type MaxNbOfReporters = MaxNbOfReporters;
+	type MaxPriorSlashingSpans = MaxPriorSlashingSpans;
+	type MaxNbOfValidators = MaxNbOfValidators;
 	// Use the nominators map to iter voters, but also perform the bags-list migration and keep
 	// it up-to-date.
 	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;

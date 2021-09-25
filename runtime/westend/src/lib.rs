@@ -326,7 +326,8 @@ impl pallet_session::Config for Runtime {
 }
 
 impl pallet_session::historical::Config for Runtime {
-	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
+	type FullIdentification =
+		pallet_staking::Exposure<AccountId, Balance, MaxNominatorRewardedPerValidator>;
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
@@ -425,6 +426,13 @@ parameter_types! {
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
+	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	pub const MaxUnappliedSlashes: u32 = 1_000;
+	pub const MaxNbOfInvulnerables: u32 = 10;
+	pub const MaxErasForRewards: u32 = 10_000;
+	pub const MaxNbOfReporters: u32 = 1_000;
+	pub const MaxPriorSlashingSpans: u32 = 1_000;
+	pub const MaxNbOfValidators: u32 = 4_000;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
@@ -433,8 +441,6 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
@@ -450,6 +456,13 @@ impl pallet_staking::Config for Runtime {
 	type SessionInterface = Self;
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type MaxNominations = MaxNominations;
+	type MaxUnappliedSlashes = MaxUnappliedSlashes;
+	type MaxNbOfInvulnerables = MaxNbOfInvulnerables;
+	type MaxErasForRewards = MaxErasForRewards;
+	type MaxNbOfReporters = MaxNbOfReporters;
+	type MaxPriorSlashingSpans = MaxPriorSlashingSpans;
+	type MaxNbOfValidators = MaxNbOfValidators;
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
