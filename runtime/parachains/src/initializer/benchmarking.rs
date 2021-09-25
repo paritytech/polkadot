@@ -26,13 +26,13 @@ benchmarks! {
 	force_approve {
 		let d in 0 .. DIGEST_MAX_LEN;
 		for _ in 0 .. d {
-			<frame_system::Pallet<T>>::deposit_log(ConsensusLog::ForceApprove(l).into());
+			<frame_system::Pallet<T>>::deposit_log(ConsensusLog::ForceApprove(d).into());
 		}
-	}: _(RawOrigin::Root, l + 1)
+	}: _(RawOrigin::Root, d + 1)
 	verify {
 		assert_eq!(
 			<frame_system::Pallet<T>>::digest().logs.last().unwrap(),
-			&<DigestItemOf<T>>::from(ConsensusLog::ForceApprove(l + 1)),
+			&<DigestItemOf<T>>::from(ConsensusLog::ForceApprove(d + 1)),
 		);
 	}
 }
