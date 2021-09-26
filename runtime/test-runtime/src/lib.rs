@@ -287,7 +287,7 @@ impl pallet_session::Config for Runtime {
 }
 
 impl pallet_session::historical::Config for Runtime {
-	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
+	type FullIdentification = pallet_staking::Exposure<AccountId, Balance, MaxIndividualExposures>;
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
