@@ -177,7 +177,7 @@ where
 		&self,
 		target_hash: Hash,
 		maybe_max_number: Option<BlockNumber>,
-	) -> Result<Option<Hash>, ConsensusError> {
+	) -> Result<Hash, ConsensusError> {
 		let longest_chain_best =
 			self.fallback.finality_target(target_hash, maybe_max_number).await?;
 
@@ -322,7 +322,7 @@ where
 		target_hash: Hash,
 		best_leaf: Option<Hash>,
 		maybe_max_number: Option<BlockNumber>,
-	) -> Result<Option<Hash>, ConsensusError> {
+	) -> Result<Hash, ConsensusError> {
 		let mut overseer = self.overseer.clone();
 
 		let subchain_head = if cfg!(feature = "disputes") {
@@ -341,12 +341,12 @@ where
 
 			match best {
 				// No viable leaves containing the block.
-				None => return Ok(Some(target_hash)),
+				None => return Ok(target_hash),
 				Some(best) => best,
 			}
 		} else {
 			match best_leaf {
-				None => return Ok(Some(target_hash)),
+				None => return Ok(target_hash),
 				Some(best_leaf) => best_leaf,
 			}
 		};
@@ -366,7 +366,7 @@ where
 							"`finality_target` max number is less than target number",
 						);
 					}
-					return Ok(Some(target_hash))
+					return Ok(target_hash)
 				}
 				// find the current number.
 				let subchain_header = self.block_header(subchain_head)?;
@@ -427,7 +427,7 @@ where
 					subchain_number,
 					"Mismatch of anticipated block descriptions and block number difference.",
 				);
-				return Ok(Some(target_hash))
+				return Ok(target_hash)
 			}
 			// 3. Constrain according to disputes:
 			let (tx, rx) = oneshot::channel();
@@ -462,7 +462,7 @@ where
 
 			if safe_target <= target_number {
 				// Minimal vote needs to be on the target number.
-				Ok(Some(target_hash))
+				Ok(target_hash)
 			} else {
 				// Otherwise we're looking for a descendant.
 				let initial_leaf_header = self.block_header(initial_leaf)?;
@@ -473,10 +473,10 @@ where
 				)
 				.map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
 
-				Ok(Some(forced_target))
+				Ok(forced_target)
 			}
 		} else {
-			Ok(Some(subchain_head))
+			Ok(subchain_head)
 		}
 	}
 }
