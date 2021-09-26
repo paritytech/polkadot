@@ -362,8 +362,7 @@ impl pallet_session::Config for Runtime {
 }
 
 impl pallet_session::historical::Config for Runtime {
-	type FullIdentification =
-		pallet_staking::Exposure<AccountId, Balance, MaxNominatorRewardedPerValidator>;
+	type FullIdentification = pallet_staking::Exposure<AccountId, Balance, MaxIndividualExposures>;
 	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
@@ -461,6 +460,7 @@ parameter_types! {
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
+	pub const MaxIndividualExposures: u32 = 256;
 	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	pub const MaxUnappliedSlashes: u32 = 1_000;
 	pub const MaxInvulnerablesCount: u32 = 10;
@@ -498,6 +498,7 @@ impl pallet_staking::Config for Runtime {
 	type SessionInterface = Self;
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type MaxIndividualExposures = MaxIndividualExposures;
 	type MaxNominations = MaxNominations;
 	type MaxUnappliedSlashes = MaxUnappliedSlashes;
 	type MaxInvulnerablesCount = MaxInvulnerablesCount;
