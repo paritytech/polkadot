@@ -312,6 +312,14 @@ parameter_types! {
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub const MaxAuthorities: u32 = 100_000;
+	pub const MaxNominations: u32 = 16;
+	pub const MaxUnappliedSlashes: u32 = 1_000;
+	pub const MaxInvulnerablesCount: u32 = 10;
+	pub const MaxErasForRewards: u32 = 10_000;
+	pub const MaxReportersCount: u32 = 1_000;
+	pub const MaxPriorSlashingSpans: u32 = 1_000;
+	pub const MaxValidatorsCount: u32 = 4_000;
+	pub const MaxUnlockingChunks: u32 = 32;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
@@ -320,7 +328,6 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 = 16;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
@@ -336,6 +343,14 @@ impl pallet_staking::Config for Runtime {
 	type SessionInterface = Self;
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type MaxNominations = MaxNominations;
+	type MaxUnappliedSlashes = MaxUnappliedSlashes;
+	type MaxInvulnerablesCount = MaxInvulnerablesCount;
+	type MaxErasForRewards = MaxErasForRewards;
+	type MaxReportersCount = MaxReportersCount;
+	type MaxPriorSlashingSpans = MaxPriorSlashingSpans;
+	type MaxValidatorsCount = MaxValidatorsCount;
+	type MaxUnlockingChunks = MaxUnlockingChunks;
 	type NextNewSession = Session;
 	type ElectionProvider =
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
