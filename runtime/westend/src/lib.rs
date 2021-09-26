@@ -433,6 +433,7 @@ parameter_types! {
 	pub const MaxReportersCount: u32 = 1_000;
 	pub const MaxPriorSlashingSpans: u32 = 1_000;
 	pub const MaxValidatorsCount: u32 = 4_000;
+	pub const MaxUnlockingChunks: u32 = 32;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
@@ -463,6 +464,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxReportersCount = MaxReportersCount;
 	type MaxPriorSlashingSpans = MaxPriorSlashingSpans;
 	type MaxValidatorsCount = MaxValidatorsCount;
+	type MaxUnlockingChunks = MaxUnlockingChunks;
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;

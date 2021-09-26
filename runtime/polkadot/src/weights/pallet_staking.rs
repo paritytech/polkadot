@@ -105,13 +105,12 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking Ledger (r:1 w:0)
 	// Storage: Staking MinValidatorBond (r:1 w:0)
 	// Storage: Staking Validators (r:1 w:1)
-	// Storage: Staking MaxValidatorsCount (r:1 w:0)
 	// Storage: Staking Nominators (r:1 w:1)
 	// Storage: Staking CounterForNominators (r:1 w:1)
 	// Storage: Staking CounterForValidators (r:1 w:1)
 	fn validate() -> Weight {
 		(36_901_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(7 as Weight))
+			.saturating_add(T::DbWeight::get().reads(6 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	// Storage: Staking Ledger (r:1 w:0)
@@ -364,13 +363,12 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	// Storage: Staking MinValidatorBond (r:0 w:1)
-	// Storage: Staking MaxValidatorsCount (r:0 w:1)
 	// Storage: Staking ChillThreshold (r:0 w:1)
 	// Storage: Staking MaxNominatorsCount (r:0 w:1)
 	// Storage: Staking MinNominatorBond (r:0 w:1)
 	fn set_staking_limits() -> Weight {
 		(5_680_000 as Weight)
-			.saturating_add(T::DbWeight::get().writes(5 as Weight))
+			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	// Storage: Staking Ledger (r:1 w:0)
 	// Storage: Staking ChillThreshold (r:1 w:0)
