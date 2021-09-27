@@ -1084,8 +1084,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Auctions { .. } |
 					Call::Crowdloan { .. } |
 					Call::Registrar { .. } |
-					Call::Multisig(..) |
-					Call::Slots { .. }
+					Call::Multisig(..) | Call::Slots { .. }
 			),
 		}
 	}
