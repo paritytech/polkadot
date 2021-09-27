@@ -519,7 +519,6 @@ async fn handle_prepare_done(
 
 		// Don't send failed artifacts to the execution's queue.
 		if let Err(ref error) = result {
-			*state = ArtifactState::FailedToProcess(error.clone());
 			let _ = result_tx.send(Err(ValidationError::from(error.clone())));
 			continue
 		}
@@ -535,8 +534,10 @@ async fn handle_prepare_done(
 		.await?;
 	}
 
-	// Now consider the artifact prepared.
-	*state = ArtifactState::Prepared { last_time_needed: SystemTime::now() };
+	*state = match result {
+		Ok(()) => ArtifactState::Prepared { last_time_needed: SystemTime::now() },
+		Err(error) => ArtifactState::FailedToProcess(error.clone()),
+	};
 
 	Ok(())
 }
