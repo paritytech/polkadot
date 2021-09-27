@@ -291,8 +291,12 @@ pub fn worker_entrypoint(socket_path: &str) {
 				},
 				Ok(compiled_artifact) => {
 					// Write the serialized artifact into a temp file.
-					// Since a compiled artifact can be heavy, we send an empty
-					// `Ok` to indicate the success.
+					// PVF host only keeps artifacts statuses in its memory,
+					// successfully compiled code gets stored on the disk (and
+					// consequently deserialized by execute-workers). The prepare
+					// worker is only required to send an empty `Ok` to the pool
+					// to indicate the success.
+
 					let artifact_bytes = compiled_artifact.encode();
 
 					tracing::debug!(
