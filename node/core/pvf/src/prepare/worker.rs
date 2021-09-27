@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	artifacts::{Artifact, CompiledArtifact, PrepareError},
+	artifacts::{CompiledArtifact, PrepareError},
 	worker_common::{
 		bytes_to_path, framed_recv, framed_send, path_to_bytes, spawn_with_program_path,
 		tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
@@ -286,11 +286,11 @@ pub fn worker_entrypoint(socket_path: &str) {
 			);
 
 			let result = match prepare_artifact(&code) {
-				Artifact::Error(err) => {
+				Err(err) => {
 					// Serialized error will be written into the socket.
 					Err(err)
 				},
-				Artifact::Compiled(compiled_artifact) => {
+				Ok(compiled_artifact) => {
 					// Write the serialized artifact into a temp file.
 					// Since a compiled artifact can be heavy, we send an empty
 					// `Ok` to indicate the success.
@@ -313,14 +313,14 @@ pub fn worker_entrypoint(socket_path: &str) {
 	});
 }
 
-fn prepare_artifact(code: &[u8]) -> Artifact {
+fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
 	let blob = match crate::executor_intf::prevalidate(code) {
-		Err(err) => return Artifact::Error(PrepareError::Prevalidation(format!("{:?}", err))),
+		Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
 		Ok(b) => b,
 	};
 
 	match crate::executor_intf::prepare(blob) {
-		Ok(compiled_artifact) => Artifact::Compiled(CompiledArtifact::new(compiled_artifact)),
-		Err(err) => Artifact::Error(PrepareError::Preparation(format!("{:?}", err))),
+		Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
+		Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
 	}
 }

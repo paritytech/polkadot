@@ -51,16 +51,6 @@ impl AsRef<[u8]> for CompiledArtifact {
 	}
 }
 
-/// A final product of preparation process. Contains either a ready to run compiled artifact or
-/// a description what went wrong.
-#[derive(Encode, Decode)]
-pub enum Artifact {
-	/// An error occurred during the prepare part of the PVF pipeline.
-	Error(PrepareError),
-	/// The PVF passed all the checks and is ready for execution.
-	Compiled(CompiledArtifact),
-}
-
 /// Identifier of an artifact. Right now it only encodes a code hash of the PVF. But if we get to
 /// multiple engine implementations the artifact ID should include the engine type as well.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
