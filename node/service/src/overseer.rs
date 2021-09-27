@@ -147,7 +147,7 @@ pub fn create_default_subsystems<'a, Spawner, RuntimeClient>(
 		CollatorProtocolSubsystem,
 		ApprovalDistributionSubsystem,
 		ApprovalVotingSubsystem,
-		GossipSupportSubsystem,
+		GossipSupportSubsystem<AuthorityDiscoveryService>,
 		DisputeCoordinatorSubsystem,
 		DisputeParticipationSubsystem,
 		DisputeDistributionSubsystem<AuthorityDiscoveryService>,
@@ -236,7 +236,10 @@ where
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		),
-		gossip_support: GossipSupportSubsystem::new(keystore.clone()),
+		gossip_support: GossipSupportSubsystem::new(
+			keystore.clone(),
+			authority_discovery_service.clone(),
+		),
 		dispute_coordinator: DisputeCoordinatorSubsystem::new(
 			parachains_db.clone(),
 			dispute_coordinator_config,
