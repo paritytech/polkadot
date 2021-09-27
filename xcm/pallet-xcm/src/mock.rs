@@ -297,11 +297,11 @@ impl pallet_test_notifier::Config for Test {
 }
 
 pub(crate) fn last_event() -> Event {
-	System::events().pop().expect("Event expected").event
+	System::events().pop().expect("Event expected").event.0
 }
 
 pub(crate) fn last_events(n: usize) -> Vec<Event> {
-	System::events().into_iter().map(|e| e.event).rev().take(n).rev().collect()
+	System::events().into_iter().map(|e| e.event.0).rev().take(n).rev().collect()
 }
 
 pub(crate) fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {

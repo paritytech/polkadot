@@ -590,7 +590,8 @@ mod tests {
 						id,
 						TEST_SPEC_VERSION,
 						BAD_SPEC_VERSION
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -624,7 +625,8 @@ mod tests {
 						id,
 						call_weight,
 						7,
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -655,7 +657,8 @@ mod tests {
 					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageSignatureMismatch(
 						SOURCE_CHAIN_ID,
 						id
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -677,7 +680,8 @@ mod tests {
 					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageRejected(
 						SOURCE_CHAIN_ID,
 						id
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -707,7 +711,8 @@ mod tests {
 					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageCallDecodeFailed(
 						SOURCE_CHAIN_ID,
 						id
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -738,7 +743,8 @@ mod tests {
 					event: Event::Dispatch(call_dispatch::Event::<TestRuntime>::MessageCallRejected(
 						SOURCE_CHAIN_ID,
 						id
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -773,7 +779,8 @@ mod tests {
 							SourceAccount::Root
 						)),
 						TEST_WEIGHT,
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -803,7 +810,8 @@ mod tests {
 						SOURCE_CHAIN_ID,
 						id,
 						Ok(())
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -831,7 +839,8 @@ mod tests {
 						SOURCE_CHAIN_ID,
 						id,
 						Err(sp_runtime::DispatchError::BadOrigin)
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -859,7 +868,8 @@ mod tests {
 						SOURCE_CHAIN_ID,
 						id,
 						Ok(())
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -887,7 +897,8 @@ mod tests {
 						SOURCE_CHAIN_ID,
 						id,
 						Ok(())
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);
@@ -915,7 +926,8 @@ mod tests {
 						SOURCE_CHAIN_ID,
 						id,
 						Ok(())
-					)),
+					))
+					.into(),
 					topics: vec![],
 				}],
 			);

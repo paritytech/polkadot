@@ -148,7 +148,7 @@ where
 		let events = node.events();
 		events
 			.iter()
-			.filter_map(|event| match event.event {
+			.filter_map(|event| match event.event.0 {
 				Event::Democracy(democracy::Event::PreimageNoted(ref proposal_hash, _, _)) =>
 					Some(proposal_hash.clone()),
 				_ => None,
@@ -180,7 +180,7 @@ where
 		let events = node.events();
 		let (index, hash): (u32, H256) = events
 			.iter()
-			.filter_map(|event| match event.event {
+			.filter_map(|event| match event.event.0 {
 				Event::Council(CouncilCollectiveEvent::Proposed(_, index, ref hash, _)) =>
 					Some((index, hash.clone())),
 				_ => None,
@@ -211,7 +211,7 @@ where
 		let events = node
 			.events()
 			.into_iter()
-			.filter(|event| match event.event {
+			.filter(|event| match event.event.0 {
 				Event::Council(CouncilCollectiveEvent::Closed(_hash, _, _)) if hash == _hash =>
 					true,
 				Event::Council(CouncilCollectiveEvent::Approved(_hash)) if hash == _hash => true,
@@ -252,7 +252,7 @@ where
 		let events = node.events();
 		let (index, hash) = events
 			.iter()
-			.filter_map(|event| match event.event {
+			.filter_map(|event| match event.event.0 {
 				Event::TechnicalCommittee(TechnicalCollectiveEvent::Proposed(
 					_,
 					index,
@@ -288,7 +288,7 @@ where
 		let events = node
 			.events()
 			.into_iter()
-			.filter(|event| match event.event {
+			.filter(|event| match event.event.0 {
 				Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed(_hash, _, _))
 					if hash == _hash =>
 					true,
@@ -315,7 +315,7 @@ where
 	let ref_index = node
 		.events()
 		.into_iter()
-		.filter_map(|event| match event.event {
+		.filter_map(|event| match event.event.0 {
 			Event::Democracy(democracy::Event::Started(index, _)) => Some(index),
 			_ => None,
 		})
@@ -343,7 +343,7 @@ where
 	let events = node
 		.events()
 		.into_iter()
-		.filter(|event| match event.event {
+		.filter(|event| match event.event.0 {
 			Event::Democracy(democracy::Event::Passed(_index)) if _index == ref_index => true,
 			Event::Democracy(democracy::Event::PreimageUsed(_hash, _, _))
 				if _hash == proposal_hash =>

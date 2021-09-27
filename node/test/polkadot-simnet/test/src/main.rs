@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		let events = node
 			.events()
 			.into_iter()
-			.filter(|event| match event.event {
+			.filter(|event| match event.event.0 {
 				Event::System(system::Event::CodeUpdated) => true,
 				_ => false,
 			})
@@ -84,7 +84,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 		let events = node
 			.events()
 			.into_iter()
-			.filter(|event| match event.event {
+			.filter(|event| match event.event.0 {
 				Event::Balances(balances::Event::Transfer(_, _, _)) => true,
 				_ => false,
 			})

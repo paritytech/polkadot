@@ -931,7 +931,7 @@ mod benchmarking {
 		let system_event: <T as frame_system::Config>::Event = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
-		assert_eq!(event, &system_event);
+		assert_eq!(&event.0, &system_event);
 	}
 
 	fn register_a_parathread<T: Config>(i: u32) -> (ParaId, T::AccountId) {

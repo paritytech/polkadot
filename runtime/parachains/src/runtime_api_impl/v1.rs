@@ -291,7 +291,7 @@ where
 
 	<frame_system::Pallet<T>>::read_events_no_consensus()
 		.into_iter()
-		.filter_map(|record| extract_event(record.event))
+		.filter_map(|record| extract_event(record.event.0))
 		.map(|event| match event {
 			RawEvent::<T>::CandidateBacked(c, h, core, group) =>
 				CandidateEvent::CandidateBacked(c, h, core, group),

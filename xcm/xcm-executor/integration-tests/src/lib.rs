@@ -65,7 +65,7 @@ fn basic_buy_fees_message_executes() {
 		.expect("state should exist")
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
-				r.event,
+				r.event.0,
 				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::Attempted(Outcome::Complete(
 					_
 				))),
@@ -107,7 +107,7 @@ fn query_response_fires() {
 		.expect("state should exist")
 		.inspect_state(|| {
 			for r in polkadot_test_runtime::System::events().iter() {
-				match r.event {
+				match r.event.0 {
 					TestNotifier(QueryPrepared(q)) => query_id = Some(q),
 					_ => (),
 				}
@@ -145,7 +145,7 @@ fn query_response_fires() {
 		.expect("state should exist")
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
-				r.event,
+				r.event.0,
 				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::ResponseReady(
 					q,
 					Response::ExecutionResult(Ok(())),
@@ -196,7 +196,7 @@ fn query_response_elicits_handler() {
 		.expect("state should exist")
 		.inspect_state(|| {
 			for r in polkadot_test_runtime::System::events().iter() {
-				match r.event {
+				match r.event.0 {
 					TestNotifier(NotifyQueryPrepared(q)) => query_id = Some(q),
 					_ => (),
 				}
@@ -233,7 +233,7 @@ fn query_response_elicits_handler() {
 		.expect("state should exist")
 		.inspect_state(|| {
 			assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
-				r.event,
+				r.event.0,
 				TestNotifier(ResponseReceived(
 					MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { .. }) },
 					q,

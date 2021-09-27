@@ -1071,7 +1071,7 @@ mod tests {
 	}
 
 	fn last_event() -> Event {
-		System::events().pop().expect("Event expected").event
+		System::events().pop().expect("Event expected").event.0
 	}
 
 	#[test]
@@ -1837,7 +1837,7 @@ mod benchmarking {
 		let system_event: <T as frame_system::Config>::Event = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
-		assert_eq!(event, &system_event);
+		assert_eq!(&event.0, &system_event);
 	}
 
 	fn create_fund<T: Config>(id: u32, end: T::BlockNumber) -> ParaId {

@@ -1580,12 +1580,12 @@ mod tests {
 			run_to_block(5, Some(vec![4, 5]));
 			Hrmp::hrmp_init_open_channel(para_a_origin.into(), para_b, 2, 8).unwrap();
 			assert_storage_consistency_exhaustive();
-			assert!(System::events().iter().any(|record| record.event ==
+			assert!(System::events().iter().any(|record| record.event.0 ==
 				MockEvent::Hrmp(Event::OpenChannelRequested(para_a, para_b, 2, 8))));
 
 			Hrmp::hrmp_accept_open_channel(para_b_origin.into(), para_a).unwrap();
 			assert_storage_consistency_exhaustive();
-			assert!(System::events().iter().any(|record| record.event ==
+			assert!(System::events().iter().any(|record| record.event.0 ==
 				MockEvent::Hrmp(Event::OpenChannelAccepted(para_a, para_b))));
 
 			// Advance to a block 6, but without session change. That means that the channel has
@@ -1628,7 +1628,7 @@ mod tests {
 			run_to_block(8, Some(vec![8]));
 			assert!(!channel_exists(para_a, para_b));
 			assert_storage_consistency_exhaustive();
-			assert!(System::events().iter().any(|record| record.event ==
+			assert!(System::events().iter().any(|record| record.event.0 ==
 				MockEvent::Hrmp(Event::ChannelClosed(para_b, channel_id.clone()))));
 		});
 	}

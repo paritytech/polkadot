@@ -295,7 +295,7 @@ fn run_to_session(n: u32) {
 }
 
 fn last_event() -> Event {
-	System::events().pop().expect("Event expected").event
+	System::events().pop().expect("Event expected").event.0
 }
 
 #[test]

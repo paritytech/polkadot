@@ -319,5 +319,5 @@ pub fn assert_last_event(generic_event: Event) {
 	let system_event: <Test as frame_system::Config>::Event = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
-	assert_eq!(event, &system_event);
+	assert_eq!(&event.0, &system_event);
 }
