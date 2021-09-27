@@ -14,7 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A simple wrapper allowing `Sudo` to call into `paras` routines.
+//! This pallet allows to assign permanent (long-lived) or temporary
+//! (short-lived) parachain slots to paras, leveraging the existing
+//! parachain slot lease mechanism. Temporary slots are given turns
+//! in a fair (though best-effort) manner.
+//! The dispatchables must be called from the configured origin
+//! (typically `Sudo` or a governance origin).
+//! This pallet is mostly to be used on test relay chain (e.g. Rococo).
 
 use crate::{
 	slots::{self, Pallet as Slots},
