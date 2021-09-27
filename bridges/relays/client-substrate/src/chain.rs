@@ -56,7 +56,7 @@ pub trait Chain: ChainBase + Clone {
 	type Call: Dispatchable + Debug;
 	/// Balance of an account in native tokens.
 	///
-	/// The chain may suport multiple tokens, but this particular type is for token that is used
+	/// The chain may support multiple tokens, but this particular type is for token that is used
 	/// to pay for transaction dispatch, to reward different relayers (headers, messages), etc.
 	type Balance: Parameter + Member + DeserializeOwned + Clone + Copy + CheckedSub + PartialOrd + SaturatingAdd + Zero;
 }

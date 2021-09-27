@@ -8,8 +8,8 @@ edition = "2018"
 # Substrate Client
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-primitives = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
-beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "master" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -62,7 +62,7 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 # External Crates
 futures = "0.3.17"
 hex-literal = "0.3.3"
-tracing = "0.1.27"
+tracing = "0.1.28"
 serde = { version = "1.0.130", features = ["derive"] }
 thiserror = "1.0.26"
 kvdb = "0.10.0"
