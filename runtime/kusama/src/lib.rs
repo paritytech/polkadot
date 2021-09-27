@@ -492,7 +492,7 @@ parameter_types! {
 	pub const BondingDuration: pallet_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
-	pub const MaxNominatorRewardedPerValidator: u32 = 256;
+	pub const MaxRewardableIndividualExposures: u32 = 256;
 	pub const MaxIndividualExposures: u32 = 256;
 	pub const MaxNominations: u32 = <NposCompactSolution24 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	pub const MaxUnappliedSlashes: u32 = 1_000;
@@ -533,7 +533,7 @@ impl pallet_staking::Config for Runtime {
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
-	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type MaxRewardableIndividualExposures = MaxRewardableIndividualExposures;
 	type MaxIndividualExposures = MaxIndividualExposures;
 	type MaxNominations = MaxNominations;
 	type MaxUnappliedSlashes = MaxUnappliedSlashes;

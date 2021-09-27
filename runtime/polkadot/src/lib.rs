@@ -459,7 +459,7 @@ parameter_types! {
 	pub const BondingDuration: pallet_staking::EraIndex = 28;
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	pub const MaxNominatorRewardedPerValidator: u32 = 256;
+	pub const MaxRewardableIndividualExposures: u32 = 256;
 	pub const MaxIndividualExposures: u32 = 256;
 	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	pub const MaxUnappliedSlashes: u32 = 1_000;
@@ -497,7 +497,7 @@ impl pallet_staking::Config for Runtime {
 	type SlashCancelOrigin = SlashCancelOrigin;
 	type SessionInterface = Self;
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
-	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type MaxRewardableIndividualExposures = MaxRewardableIndividualExposures;
 	type MaxIndividualExposures = MaxIndividualExposures;
 	type MaxNominations = MaxNominations;
 	type MaxUnappliedSlashes = MaxUnappliedSlashes;
@@ -2013,7 +2013,7 @@ mod test_fees {
 		use pallet_staking::WeightInfo;
 		let payout_weight =
 			<Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
-				MaxNominatorRewardedPerValidator::get(),
+				MaxRewardableIndividualExposures::get(),
 			) as f64;
 		let block_weight = BlockWeights::get().max_block as f64;
 

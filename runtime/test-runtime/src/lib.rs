@@ -310,7 +310,7 @@ parameter_types! {
 	// 27 eras in which slashes can be cancelled (a bit less than 7 days).
 	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
+	pub storage MaxRewardableIndividualExposures: u32 = 64;
 	pub const MaxIndividualExposures: u32 = 64;
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxNominations: u32 = 16;
@@ -343,7 +343,7 @@ impl pallet_staking::Config for Runtime {
 	type SlashCancelOrigin = frame_system::EnsureNever<()>;
 	type SessionInterface = Self;
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
-	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type MaxRewardableIndividualExposures = MaxRewardableIndividualExposures;
 	type MaxIndividualExposures = MaxIndividualExposures;
 	type MaxNominations = MaxNominations;
 	type MaxUnappliedSlashes = MaxUnappliedSlashes;
