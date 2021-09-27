@@ -157,7 +157,12 @@ pub fn wococo_config() -> Result<RococoChainSpec, String> {
 }
 
 /// The default parachains host configuration.
-#[cfg(any(feature = "rococo-native", feature = "kusama-native", feature = "westend-native"))]
+#[cfg(any(
+	feature = "rococo-native",
+	feature = "kusama-native",
+	feature = "westend-native",
+	feature = "polkadot-native"
+))]
 fn default_parachains_host_configuration(
 ) -> polkadot_runtime_parachains::configuration::HostConfiguration<
 	polkadot_primitives::v1::BlockNumber,
@@ -364,6 +369,10 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: polkadot::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
+		configuration: polkadot::ConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
+		paras: Default::default(),
 	}
 }
 
@@ -1310,6 +1319,10 @@ pub fn polkadot_testnet_genesis(
 		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: polkadot::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
+		configuration: polkadot::ConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
+		paras: Default::default(),
 	}
 }
 

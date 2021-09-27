@@ -188,6 +188,7 @@ impl pallet_babe::Config for Runtime {
 	type HandleEquivocation = ();
 
 	type WeightInfo = ();
+	type MaxAuthorities = MaxAuthorities;
 }
 
 parameter_types! {
@@ -340,6 +341,9 @@ impl pallet_staking::Config for Runtime {
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
 	type GenesisElectionProvider =
 		frame_election_provider_support::onchain::OnChainSequentialPhragmen<Self>;
+	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
+	// to bags-list is a no-op, but the storage version will be updated.
+	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
 	type WeightInfo = ();
 }
 
@@ -360,6 +364,7 @@ impl pallet_grandpa::Config for Runtime {
 	type HandleEquivocation = ();
 
 	type WeightInfo = ();
+	type MaxAuthorities = MaxAuthorities;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -451,7 +456,9 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-impl parachains_configuration::Config for Runtime {}
+impl parachains_configuration::Config for Runtime {
+	type WeightInfo = parachains_configuration::weights::WeightInfo<Runtime>;
+}
 
 impl parachains_shared::Config for Runtime {}
 
@@ -465,6 +472,7 @@ impl parachains_disputes::Config for Runtime {
 	type Event = Event;
 	type RewardValidators = ();
 	type PunishValidators = ();
+	type WeightInfo = parachains_disputes::TestWeightInfo;
 }
 
 impl parachains_paras_inherent::Config for Runtime {}
@@ -479,6 +487,7 @@ impl parachains_session_info::Config for Runtime {}
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 	type Event = Event;
+	type WeightInfo = parachains_paras::weights::WeightInfo<Runtime>;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -907,7 +916,7 @@ sp_api::impl_runtime_apis! {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
 				c: BABE_GENESIS_EPOCH_CONFIG.c,
-				genesis_authorities: Babe::authorities(),
+				genesis_authorities: Babe::authorities().to_vec(),
 				randomness: Babe::randomness(),
 				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}

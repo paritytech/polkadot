@@ -47,6 +47,44 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		Self { state: Default::default(), _phantom: PhantomData }
 	}
 
+	/// Connect to already resolved addresses:
+	pub async fn on_resolved_request(
+		&mut self,
+		newly_requested: HashSet<Multiaddr>,
+		peer_set: PeerSet,
+		mut network_service: N,
+	) -> N {
+		let state = &mut self.state[peer_set];
+		// clean up revoked requests
+		let multiaddr_to_remove: HashSet<_> =
+			state.previously_requested.difference(&newly_requested).cloned().collect();
+		let multiaddr_to_add: HashSet<_> =
+			newly_requested.difference(&state.previously_requested).cloned().collect();
+		state.previously_requested = newly_requested;
+
+		tracing::debug!(
+			target: LOG_TARGET,
+			?peer_set,
+			added = multiaddr_to_add.len(),
+			removed = multiaddr_to_remove.len(),
+			"New ConnectToValidators resolved request",
+		);
+		// ask the network to connect to these nodes and not disconnect
+		// from them until removed from the set
+		if let Err(e) = network_service
+			.add_to_peers_set(peer_set.into_protocol_name(), multiaddr_to_add)
+			.await
+		{
+			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
+		}
+		// the addresses are known to be valid
+		let _ = network_service
+			.remove_from_peers_set(peer_set.into_protocol_name(), multiaddr_to_remove)
+			.await;
+
+		network_service
+	}
+
 	/// On a new connection request, a peer set update will be issued.
 	/// It will ask the network to connect to the validators and not disconnect
 	/// from them at least until the next request is issued for the same peer set.
@@ -59,7 +97,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		peer_set: PeerSet,
 		failed: oneshot::Sender<usize>,
-		mut network_service: N,
+		network_service: N,
 		mut authority_discovery_service: AD,
 	) -> (N, AD) {
 		// collect multiaddress of validators
@@ -82,39 +120,19 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			}
 		}
 
-		let state = &mut self.state[peer_set];
-		// clean up revoked requests
-		let multiaddr_to_remove: HashSet<_> =
-			state.previously_requested.difference(&newly_requested).cloned().collect();
-		let multiaddr_to_add: HashSet<_> =
-			newly_requested.difference(&state.previously_requested).cloned().collect();
-		state.previously_requested = newly_requested;
-
 		tracing::debug!(
 			target: LOG_TARGET,
 			?peer_set,
 			?requested,
-			added = multiaddr_to_add.len(),
-			removed = multiaddr_to_remove.len(),
 			?failed_to_resolve,
 			"New ConnectToValidators request",
 		);
-		// ask the network to connect to these nodes and not disconnect
-		// from them until removed from the set
-		if let Err(e) = network_service
-			.add_to_peers_set(peer_set.into_protocol_name(), multiaddr_to_add)
-			.await
-		{
-			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
-		}
-		// the addresses are known to be valid
-		let _ = network_service
-			.remove_from_peers_set(peer_set.into_protocol_name(), multiaddr_to_remove)
-			.await;
+
+		let r = self.on_resolved_request(newly_requested, peer_set, network_service).await;
 
 		let _ = failed.send(failed_to_resolve);
 
-		(network_service, authority_discovery_service)
+		(r, authority_discovery_service)
 	}
 }
 
