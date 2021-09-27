@@ -1444,13 +1444,15 @@ mod benchmarking {
 			super::Pallet::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, None)?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
-			let call = Call::<T>::claim { dest: account.clone(), ethereum_signature: signature.clone() };
-			let call_enc = call.encode();
+			let call_enc = Call::<T>::claim {
+				dest: account.clone(),
+				ethereum_signature: signature.clone()
+			}.encode();
 		}: {
+			let call = <Call<T> as Decode>::decode(&mut &*call_enc)
+				.expect("call is encoded above, encoding must be correct");
 			super::Pallet::<T>::validate_unsigned(source, &call).map_err(|e| -> &'static str { e.into() })?;
-			<Call<T> as Decode>::decode(&mut &*call_enc)
-				.expect("call is encoded above, encoding must be correct")
-				.dispatch_bypass_filter(RawOrigin::None.into())?;
+			call.dispatch_bypass_filter(RawOrigin::None.into())?;
 		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
