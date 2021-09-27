@@ -57,7 +57,9 @@ pub use fungibles_adapter::{
 mod weight;
 #[allow(deprecated)]
 pub use weight::FixedRateOfConcreteFungible;
-pub use weight::{FixedRateOfFungible, FixedWeightBounds, TakeRevenue, UsingComponents};
+pub use weight::{
+	FixedRateOfFungible, FixedWeightBounds, TakeRevenue, UsingComponents, WeightInfoBounds,
+};
 
 mod matches_fungible;
 pub use matches_fungible::{IsAbstract, IsConcrete};

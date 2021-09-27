@@ -64,7 +64,7 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> 
 	}
 }
 
-struct WeightInfoBounds<W, C, M>(PhantomData<(W, C, M)>);
+pub struct WeightInfoBounds<W, C, M>(PhantomData<(W, C, M)>);
 impl<W, C, M> WeightBounds<C> for WeightInfoBounds<W, C, M>
 where
 	W: XcmWeightInfo<C>,
