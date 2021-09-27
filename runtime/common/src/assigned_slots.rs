@@ -130,6 +130,8 @@ pub mod pallet {
 		NotParathread,
 		/// Cannot upgrade parathread.
 		CannotUpgrade,
+		/// Cannot downgrade parachain.
+		CannotDowngrade,
 		/// Permanent or Temporary slot already assigned.
 		SlotAlreadyAssigned,
 		/// Permanent or Temporary slot has not been assigned.
@@ -284,7 +286,8 @@ pub mod pallet {
 
 			// Force downgrade to parathread (if needed) before end of lease period
 			if paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parachain) {
-				// Self::sudo_schedule_parachain_downgrade(origin, id)?;
+				runtime_parachains::schedule_parachain_downgrade::<T>(id)
+					.map_err(|_| Error::<T>::CannotDowngrade)?;
 			}
 
 			Ok(())
