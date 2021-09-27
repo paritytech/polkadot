@@ -13,7 +13,7 @@ parity-scale-codec = { version = "2.3.0", default-features = false, features = [
 pin-project = "1.0.8"
 rand = "0.8.3"
 thiserror = "1.0.26"
-tracing = "0.1.27"
+tracing = "0.1.28"
 derive_more = "0.99.11"
 lru = "0.6.6"
 
