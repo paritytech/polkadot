@@ -124,10 +124,9 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 				NonFatal::QueryAvailableDataResponseChannel(_) |
 				NonFatal::QueryChunkResponseChannel(_) =>
 					tracing::warn!(target: LOG_TARGET, error = %error, ctx),
-				NonFatal::SendResponse |
-				NonFatal::NoSuchPoV |
-				NonFatal::Runtime(_) |
-				NonFatal::FetchPoV(_) => tracing::debug!(target: LOG_TARGET, error = ?error, ctx),
+				NonFatal::FetchPoV(_) => tracing::info!(target: LOG_TARGET, error = ?error, ctx),
+				NonFatal::SendResponse | NonFatal::NoSuchPoV | NonFatal::Runtime(_) =>
+					tracing::debug!(target: LOG_TARGET, error = ?error, ctx),
 			}
 			Ok(())
 		},
