@@ -463,7 +463,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn imported_on_chain_disputes)]
 	pub(super) type ImportedDisputes<T: Config> =
-		StorageValue<_, MultiDisputeStatementSet, ValueQuery>;
+		StorageValue<_, MultiDisputeStatementSet, OptionQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {

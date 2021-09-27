@@ -23,6 +23,7 @@
 
 use crate::{
 	disputes::DisputesHandler,
+	paras::ImportedDisputes,
 	inclusion,
 	scheduler::{self, FreedReason},
 	shared, ump,
@@ -163,6 +164,10 @@ pub mod pallet {
 
 			ensure_none(origin)?;
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
+
+			// The number of disputes included in a block is
+			// limited by the weight.
+			ImportedDisputes::<T>::put(&disputes);
 
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
 			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
