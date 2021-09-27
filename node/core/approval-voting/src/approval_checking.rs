@@ -317,7 +317,7 @@ fn count_no_shows(
 	let no_shows = assignments
 		.iter()
 		.map(|(v_index, tick)| {
-			(v_index, tick.min(&block_tick).saturating_sub(clock_drift) + no_show_duration)
+			(v_index, tick.max(&block_tick).saturating_sub(clock_drift) + no_show_duration)
 		})
 		.filter(|&(v_index, no_show_at)| {
 			let has_approved = if let Some(approved) = approvals.get(v_index.0 as usize) {
@@ -828,7 +828,7 @@ mod tests {
 			RequiredTranches::Exact {
 				needed: 1,
 				tolerated_missing: 0,
-				next_no_show: Some(block_tick + no_show_duration),
+				next_no_show: Some(block_tick + no_show_duration + 1),
 			},
 		);
 
@@ -843,11 +843,10 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Pending {
-				considered: 2,
-				next_no_show: None,
-				maximum_broadcast: 3,
-				clock_drift: block_tick,
+			RequiredTranches::Exact {
+				needed: 2,
+				tolerated_missing: 1,
+				next_no_show: Some(block_tick + 2 * no_show_duration + 2),
 			},
 		);
 
@@ -1103,7 +1102,7 @@ mod tests {
 	#[test]
 	fn count_no_shows_single_validator_is_next_no_show() {
 		test_count_no_shows(NoShowTest {
-			assignments: vec![(ValidatorIndex(1), 21)],
+			assignments: vec![(ValidatorIndex(1), 11)],
 			approvals: vec![],
 			clock_drift: 10,
 			no_show_duration: 10,
@@ -1142,7 +1141,7 @@ mod tests {
 	#[test]
 	fn count_no_shows_two_validators_next_no_show_ordered_first() {
 		test_count_no_shows(NoShowTest {
-			assignments: vec![(ValidatorIndex(1), 21), (ValidatorIndex(2), 22)],
+			assignments: vec![(ValidatorIndex(1), 11), (ValidatorIndex(2), 12)],
 			approvals: vec![],
 			clock_drift: 10,
 			no_show_duration: 10,
@@ -1155,7 +1154,7 @@ mod tests {
 	#[test]
 	fn count_no_shows_two_validators_next_no_show_ordered_last() {
 		test_count_no_shows(NoShowTest {
-			assignments: vec![(ValidatorIndex(1), 22), (ValidatorIndex(2), 21)],
+			assignments: vec![(ValidatorIndex(1), 12), (ValidatorIndex(2), 11)],
 			approvals: vec![],
 			clock_drift: 10,
 			no_show_duration: 10,
@@ -1169,9 +1168,9 @@ mod tests {
 	fn count_no_shows_three_validators_one_almost_late_one_no_show_one_approving() {
 		test_count_no_shows(NoShowTest {
 			assignments: vec![
-				(ValidatorIndex(1), 21),
-				(ValidatorIndex(2), 20),
-				(ValidatorIndex(3), 20),
+				(ValidatorIndex(1), 11),
+				(ValidatorIndex(2), 10),
+				(ValidatorIndex(3), 10),
 			],
 			approvals: vec![3],
 			clock_drift: 10,
@@ -1225,7 +1224,7 @@ mod tests {
 			no_show_duration: 20,
 			drifted_tick_now: 0,
 			exp_no_shows: 0,
-			exp_next_no_show: Some(30),
+			exp_next_no_show: Some(40),
 		})
 	}
 
@@ -1238,7 +1237,7 @@ mod tests {
 			no_show_duration: 20,
 			drifted_tick_now: 0,
 			exp_no_shows: 0,
-			exp_next_no_show: Some(30),
+			exp_next_no_show: Some(40),
 		})
 	}
 

@@ -173,6 +173,7 @@ impl MockClockInner {
 	}
 
 	fn has_wakeup(&self, tick: Tick) -> bool {
+		println!("WAKEUPS {:?}", self.wakeups);
 		self.wakeups.binary_search_by_key(&tick, |w| w.0).is_ok()
 	}
 
@@ -1524,7 +1525,7 @@ fn subsystem_assignment_import_updates_candidate_entry_and_schedules_wakeup() {
 
 		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
 
-		assert!(clock.inner.lock().has_wakeup(20));
+		assert!(clock.inner.lock().has_wakeup(30));
 
 		virtual_overseer
 	});
@@ -1566,14 +1567,14 @@ fn subsystem_process_wakeup_schedules_wakeup() {
 
 		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted));
 
-		assert!(clock.inner.lock().has_wakeup(20));
+		assert!(clock.inner.lock().has_wakeup(30));
 
 		// Activate the wakeup present above, and sleep to allow process_wakeups to execute..
-		clock.inner.lock().wakeup_all(20);
+		clock.inner.lock().wakeup_all(30);
 		futures_timer::Delay::new(Duration::from_millis(100)).await;
 
 		// The wakeup should have been rescheduled.
-		assert!(clock.inner.lock().has_wakeup(20));
+		assert!(clock.inner.lock().has_wakeup(30));
 
 		virtual_overseer
 	});
@@ -1773,8 +1774,8 @@ fn import_checked_approval_updates_entries_and_schedules() {
 		assert_eq!(rx.await, Ok(AssignmentCheckResult::Accepted),);
 
 		// Clear any wake ups from the assignment imports.
-		assert!(clock.inner.lock().has_wakeup(20));
-		clock.inner.lock().wakeup_all(20);
+		assert!(clock.inner.lock().has_wakeup(30));
+		clock.inner.lock().wakeup_all(30);
 
 		let session_index = 1;
 		let sig_a = sign_approval(Sr25519Keyring::Alice, candidate_hash, session_index);
@@ -1801,7 +1802,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 		// approval.
 		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
 		assert!(!candidate_entry.approval_entry(&block_hash).unwrap().is_approved());
-		assert!(clock.inner.lock().has_wakeup(20));
+		assert!(clock.inner.lock().has_wakeup(30));
 
 		// Clear the wake ups to assert that later approval also schedule wakeups.
 		clock.inner.lock().wakeup_all(20);
@@ -1838,7 +1839,7 @@ fn import_checked_approval_updates_entries_and_schedules() {
 		// The candidate should now be approved.
 		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
 		assert!(candidate_entry.approval_entry(&block_hash).unwrap().is_approved());
-		assert!(clock.inner.lock().has_wakeup(20));
+		assert!(clock.inner.lock().has_wakeup(30));
 
 		virtual_overseer
 	});
@@ -2203,8 +2204,8 @@ fn subsystem_process_wakeup_trigger_assignment_launch_approval() {
 
 		futures_timer::Delay::new(Duration::from_millis(200)).await;
 
-		assert!(clock.inner.lock().has_wakeup(slot_to_tick(slot + 1)));
-		clock.inner.lock().wakeup_all(slot_to_tick(slot + 1));
+		assert!(clock.inner.lock().has_wakeup(slot_to_tick(slot + 2)));
+		clock.inner.lock().wakeup_all(slot_to_tick(slot + 2));
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -2435,9 +2436,9 @@ fn subsystem_assignment_triggered_by_all_with_less_than_threshold() {
 		assignments_to_import: vec![1, 2, 3, 4, 5],
 		approvals_to_import: vec![2, 4],
 		ticks: vec![
-			20, // Check for no shows
+			21, // Check for no shows
 		],
-		should_be_triggered: |_| true,
+		should_be_triggered: |_| false,
 	});
 }
 
@@ -2450,7 +2451,7 @@ fn subsystem_assignment_not_triggered_by_all_with_threshold() {
 		assignments_to_import: vec![1, 2, 3, 4, 5],
 		approvals_to_import: vec![1, 3, 5],
 		ticks: vec![
-			20, // Check no shows
+			21, // Check no shows
 		],
 		should_be_triggered: |_| false,
 	});
@@ -2465,8 +2466,8 @@ fn subsystem_assignment_triggered_if_below_maximum_and_clock_is_equal() {
 		assignments_to_import: vec![1],
 		approvals_to_import: vec![],
 		ticks: vec![
-			20, // Check no shows
-			21, // Alice wakeup, assignment triggered
+			21, // Check no shows
+			30, // Alice wakeup, assignment triggered
 		],
 		should_be_triggered: |tick| tick >= 21,
 	});
@@ -2482,7 +2483,7 @@ fn subsystem_assignment_not_triggered_more_than_maximum() {
 		approvals_to_import: vec![],
 		ticks: vec![
 			13, // Alice wakeup
-			20, // Check no shows
+			30, // Check no shows
 		],
 		should_be_triggered: |_| false,
 	});
@@ -2490,7 +2491,6 @@ fn subsystem_assignment_not_triggered_more_than_maximum() {
 
 #[test]
 fn subsystem_assignment_triggered_if_at_maximum() {
-	// TODO(ladi): is this possible?
 	triggers_assignment_test(TriggersAssignmentConfig {
 		our_assigned_tranche: 11,
 		assign_validator_tranche: |_| Ok(2),
@@ -2499,9 +2499,9 @@ fn subsystem_assignment_triggered_if_at_maximum() {
 		approvals_to_import: vec![],
 		ticks: vec![
 			12, // Bob wakeup
-			20, // Check no shows
+			21, // Check no shows
 		],
-		should_be_triggered: |_| false,
+		should_be_triggered: |v| v >= 21,
 	});
 }
 
@@ -2549,7 +2549,7 @@ fn subsystem_assignment_not_triggered_if_at_maximum_but_clock_is_before_with_dri
 			12, // Charlie wakeup
 			13, // Dave wakeup
 			15, // Alice wakeup, noop
-			20, // Check no shows
+			30, // Check no shows
 			34, // Eve wakeup
 		],
 		should_be_triggered: |_| false,
@@ -2717,11 +2717,11 @@ fn pre_covers_dont_stall_approval() {
 		// The candidate should not be approved.
 		let candidate_entry = store.load_candidate_entry(&candidate_hash).unwrap().unwrap();
 		assert!(!candidate_entry.approval_entry(&block_hash).unwrap().is_approved());
-		assert!(clock.inner.lock().has_wakeup(20));
+		assert!(clock.inner.lock().has_wakeup(30));
 
 		// Wait for the no-show timer to observe the approval from
 		// tranche 0 and set a wakeup for tranche 1.
-		clock.inner.lock().set_tick(20);
+		clock.inner.lock().set_tick(30);
 
 		// Sleep to ensure we get a consistent read on the database.
 		futures_timer::Delay::new(Duration::from_millis(100)).await;
