@@ -20,6 +20,7 @@
 //! particular the `Initializer` module, as it is responsible for initializing the state
 //! of the other modules.
 
+#![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "256")]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod configuration;

@@ -27,7 +27,7 @@ use structopt::StructOpt;
 /// since messages sent over the bridge will be able to spend these.
 #[derive(StructOpt)]
 pub struct DeriveAccount {
-	/// A bridge instance to initalize.
+	/// A bridge instance to initialize.
 	#[structopt(possible_values = &FullBridge::variants(), case_insensitive = true)]
 	bridge: FullBridge,
 	/// Source-chain address to derive Target-chain address from.

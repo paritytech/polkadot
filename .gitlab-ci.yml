@@ -113,13 +113,13 @@ default:
       file:                        false
     GITHUB_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_TOKEN@kv
-      file:                        false    
+      file:                        false
     MATRIX_ACCESS_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ACCESS_TOKEN@kv
       file:                        false
     MATRIX_ROOM_ID:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ROOM_ID@kv
-      file:                        false   
+      file:                        false
     PARITYPR_USER:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/PARITYPR_USER@kv
       file:                        false
@@ -268,6 +268,23 @@ build-adder-collator:
     - cp -r scripts/docker/* ./artifacts
 
 #### stage:                        build
+
+check-transaction-versions:
+  # image must be ubuntu:20.04 based to match the linkers, this image has npm installed
+  image:                           paritytech/contracts-ci-linux:production
+  stage:                           build
+  <<:                              *rules-test
+  <<:                              *docker-env
+  <<:                              *vault-secrets
+  needs:
+    - job:                         test-build-linux-stable
+      artifacts:                   true
+  before_script:
+    - apt-get -y update; apt-get -y install jq lsof
+    - npm install --ignore-scripts -g @polkadot/metadata-cmp
+    - git fetch origin release
+  script:
+    - scripts/gitlab/check_extrinsics_ordering.sh
 
 generate-impl-guide:
   stage:                           build

@@ -10,7 +10,7 @@ Implementation of a <https://polkadot.network> node in Rust based on the Substra
 This repo contains runtimes for the Polkadot, Kusama, and Westend networks. The README provides
 information about installing the `polkadot` binary and developing on the codebase. For more
 specific guides, like how to be a validator, see the
-[Polkadot Wiki](https://wiki.polkadot.network/docs/en/).
+[Polkadot Wiki](https://wiki.polkadot.network/docs/getting-started).
 
 ## Installation
 
@@ -170,7 +170,7 @@ If you want to do anything on Polkadot, Kusama, or Westend, then you'll need to 
 some DOT, KSM, or WND tokens, respectively. See the
 [claims instructions](https://claims.polkadot.network/) for Polkadot if you have DOTs to claim. For
 Westend's WND tokens, see the faucet
-[instructions](https://wiki.polkadot.network/docs/en/learn-DOT#getting-westies) on the Wiki.
+[instructions](https://wiki.polkadot.network/docs/learn-DOT#getting-westies) on the Wiki.
 
 ## Hacking on Polkadot
 
