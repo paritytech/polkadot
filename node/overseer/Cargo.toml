@@ -17,8 +17,9 @@ polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-overseer-gen = { path = "./overseer-gen" }
 polkadot-overseer-all-subsystems-gen = { path = "./all-subsystems-gen" }
-tracing = "0.1.27"
+tracing = "0.1.28"
 lru = "0.6"
+parity-util-mem = { version = ">= 0.10.1", default-features = false }
 
 [dev-dependencies]
 metered-channel = { path = "../metered-channel" }
@@ -29,4 +30,3 @@ assert_matches = "1.4.0"
 
 [features]
 default = []
-memory-stats = ["polkadot-node-metrics/memory-stats"]

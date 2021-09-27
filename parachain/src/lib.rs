@@ -47,6 +47,7 @@
 
 pub mod primitives;
 
+#[cfg(all(not(feature = "std"), feature = "wasm-api"))]
 mod wasm_api;
 
 #[cfg(all(not(feature = "std"), feature = "wasm-api"))]

@@ -59,7 +59,7 @@ pub trait SubstrateMessageLane: MessageLane {
 	const INBOUND_LANE_LATEST_RECEIVED_NONCE_METHOD: &'static str;
 	/// Name of the runtime method that returns latest confirmed (reward-paid) nonce at the target chain.
 	const INBOUND_LANE_LATEST_CONFIRMED_NONCE_METHOD: &'static str;
-	/// Numebr of the runtime method that returns state of "unrewarded relayers" set at the target chain.
+	/// Number of the runtime method that returns state of "unrewarded relayers" set at the target chain.
 	const INBOUND_LANE_UNREWARDED_RELAYERS_STATE: &'static str;
 
 	/// Name of the runtime method that returns id of best finalized source header at target chain.
