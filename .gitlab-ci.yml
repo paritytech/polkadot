@@ -270,7 +270,8 @@ build-adder-collator:
 #### stage:                        build
 
 check-transaction-versions:
-  image:                           node:15
+  # image must be ubuntu:20.04 based to match the linkers, this image has npm installed
+  image:                           paritytech/contracts-ci-linux:production
   stage:                           build
   <<:                              *rules-test
   <<:                              *docker-env

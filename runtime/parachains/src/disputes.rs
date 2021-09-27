@@ -23,6 +23,7 @@ use crate::{
 };
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, traits::Get, weights::Weight};
+use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash, CompactStatement,
@@ -36,6 +37,11 @@ use sp_runtime::{
 	DispatchError, RuntimeDebug, SaturatedConversion,
 };
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+pub use crate::Origin as ParachainOrigin;
 
 /// Whether the dispute is local or remote.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
@@ -212,6 +218,17 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 	}
 }
 
+pub trait WeightInfo {
+	fn force_unfreeze() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn force_unfreeze() -> Weight {
+		0
+	}
+}
+
 pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
@@ -223,6 +240,9 @@ pub mod pallet {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type RewardValidators: RewardValidators;
 		type PunishValidators: PunishValidators;
+
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::pallet]
@@ -304,6 +324,19 @@ pub mod pallet {
 		DuplicateStatement,
 		/// Too many spam slots used by some specific validator.
 		PotentialSpam,
+	}
+
+	#[pallet::origin]
+	pub type Origin = ParachainOrigin;
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
+		#[pallet::weight(<T as Config>::WeightInfo::force_unfreeze())]
+		pub fn force_unfreeze(origin: OriginFor<T>) -> DispatchResult {
+			ensure_root(origin)?;
+			Frozen::<T>::set(None);
+			Ok(())
+		}
 	}
 }
 

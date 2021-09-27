@@ -10,7 +10,7 @@ async-trait = "0.1.51"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3.0", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 strum = { version = "0.21", features = ["derive"] }

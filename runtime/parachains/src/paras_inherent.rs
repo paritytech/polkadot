@@ -123,7 +123,7 @@ pub mod pallet {
 						target: LOG_TARGET,
 						"dropping signed_bitfields and backed_candidates because they produced \
 						an invalid paras inherent: {:?}",
-						err,
+						err.error,
 					);
 
 						ParachainsInherentData {

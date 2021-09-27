@@ -17,7 +17,7 @@ sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 [dev-dependencies]
 futures = { version = "0.3.17", features = ["thread-pool"] }
 maplit = "1.0.2"
-parity-scale-codec = "2.0.0"
+parity-scale-codec = "2.3.0"
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
