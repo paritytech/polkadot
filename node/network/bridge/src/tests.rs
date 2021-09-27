@@ -37,7 +37,8 @@ use polkadot_primitives::v1::AuthorityDiscoveryId;
 use polkadot_subsystem::{
 	jaeger,
 	messages::{
-		ApprovalDistributionMessage, BitfieldDistributionMessage, StatementDistributionMessage,
+		ApprovalDistributionMessage, BitfieldDistributionMessage, GossipSupportMessage,
+		StatementDistributionMessage,
 	},
 	ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal,
 };
@@ -335,6 +336,13 @@ async fn assert_sends_validation_event_to_all(
 		virtual_overseer.recv().await,
 		AllMessages::ApprovalDistribution(
 			ApprovalDistributionMessage::NetworkBridgeUpdateV1(e)
+		) if e == event.focus().expect("could not focus message")
+	);
+
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::GossipSupport(
+			GossipSupportMessage::NetworkBridgeUpdateV1(e)
 		) if e == event.focus().expect("could not focus message")
 	);
 }
@@ -1189,7 +1197,7 @@ fn send_messages_to_peers() {
 fn spread_event_to_subsystems_is_up_to_date() {
 	// Number of subsystems expected to be interested in a network event,
 	// and hence the network event broadcasted to.
-	const EXPECTED_COUNT: usize = 3;
+	const EXPECTED_COUNT: usize = 4;
 
 	let mut cnt = 0_usize;
 	for msg in AllMessages::dispatch_iter(NetworkBridgeEvent::PeerDisconnected(PeerId::random())) {
@@ -1219,7 +1227,9 @@ fn spread_event_to_subsystems_is_up_to_date() {
 			AllMessages::ApprovalDistribution(_) => {
 				cnt += 1;
 			},
-			AllMessages::GossipSupport(_) => unreachable!("Not interested in network events"),
+			AllMessages::GossipSupport(_) => {
+				cnt += 1;
+			},
 			AllMessages::DisputeCoordinator(_) => unreachable!("Not interested in network events"),
 			AllMessages::DisputeParticipation(_) =>
 				unreachable!("Not interested in network events"),
