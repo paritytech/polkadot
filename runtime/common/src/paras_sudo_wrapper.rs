@@ -27,7 +27,7 @@ use runtime_parachains::{
 	paras::{self, ParaGenesisArgs},
 	ump, ParaLifecycle,
 };
-use sp_std::prelude::*;
+use sp_std::boxed::Box;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -69,6 +69,9 @@ pub mod pallet {
 		/// Cannot downgrade parachain.
 		CannotDowngrade,
 	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
