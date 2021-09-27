@@ -102,9 +102,7 @@ pub async fn start_work(
 		// Wait for the result from the worker, keeping in mind that there may be a timeout, the
 		// worker may get killed, or something along these lines.
 		//
-		// In that case we should handle these gracefully by writing the artifact file by ourselves.
-		// We may potentially overwrite the artifact in rare cases where the worker didn't make
-		// it to report back the result.
+		// In that case we should propagate the error to the pool.
 
 		#[derive(Debug)]
 		enum Selected {

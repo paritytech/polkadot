@@ -31,7 +31,7 @@ pub enum ToQueue {
 	/// This schedules preparation of the given PVF.
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
-	/// [`FromQueue::Prepared`] response. In case there is a need to bump the priority, use
+	/// [`FromQueue`] response. In case there is a need to bump the priority, use
 	/// [`ToQueue::Amend`].
 	Enqueue { priority: Priority, pvf: Pvf },
 	/// Amends the priority for the given [`ArtifactId`] if it is running. If it's not, then it's noop.

@@ -79,8 +79,9 @@ pub enum FromPool {
 	/// The given worker was just spawned and is ready to be used.
 	Spawned(Worker),
 
-	/// The given worker either succeeded or failed the given job. Under any circumstances the
-	/// artifact file has been written. The `bool` says whether the worker ripped.
+	/// The given worker either succeeded or failed the given job.
+	/// The artifact file has only been written if the preparation was successful.
+	/// The `bool` says whether the worker ripped.
 	Concluded {
 		worker: Worker,
 		rip: bool,

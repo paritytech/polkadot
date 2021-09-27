@@ -51,8 +51,8 @@ pub enum Outcome {
 	/// PVF execution completed successfully and the result is returned. The worker is ready for
 	/// another job.
 	Ok { result_descriptor: ValidationResult, duration_ms: u64, idle_worker: IdleWorker },
-	/// The candidate validation failed. It may be for example because the preparation process
-	/// produced an error or the wasm execution triggered a trap.
+	/// The candidate validation failed. It may be for example because the wasm execution triggered a trap.
+	/// Errors related to the preparation process are not expected to be encountered by the execution workers.
 	InvalidCandidate { err: String, idle_worker: IdleWorker },
 	/// An internal error happened during the validation. Such an error is most likely related to
 	/// some transient glitch.
