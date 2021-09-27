@@ -36,20 +36,15 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},
-	request_from_runtime, request_persisted_validation_data, request_session_index_for_child,
-	request_validator_groups, request_validators, FromJobCommand, JobSender, Validator,
+	request_from_runtime, request_session_index_for_child, request_validator_groups,
+	request_validators, FromJobCommand, JobSender, Validator,
 };
-use polkadot_primitives::{
-	v0::BlockData,
-	v1::{
-		BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
-		CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash,
-		Id as ParaId, OccupiedCoreAssumption, SessionIndex, SigningContext, ValidatorId,
-		ValidatorIndex, ValidatorSignature, ValidityAttestation,
-	},
+use polkadot_primitives::v1::{
+	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
+	CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
+	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use polkadot_subsystem::{
-	errors::RuntimeApiError,
 	jaeger,
 	messages::{
 		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
@@ -100,12 +95,9 @@ pub enum Error {
 	BackgroundValidationMpsc(#[from] mpsc::SendError),
 	#[error(transparent)]
 	UtilError(#[from] util::Error),
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
 }
 
 /// PoV data to validate.
-#[allow(dead_code)]
 enum PoVData {
 	/// Already available (from candidate selection).
 	Ready(Arc<PoV>),
@@ -117,7 +109,6 @@ enum PoVData {
 	},
 }
 
-#[allow(dead_code)]
 enum ValidatedCandidateCommand {
 	// We were instructed to second the candidate that has been already validated.
 	Second(BackgroundValidationResult),
@@ -683,7 +674,6 @@ impl CandidateBackingJob {
 	}
 
 	/// Kick off background validation with intent to second.
-	#[allow(dead_code)]
 	async fn validate_and_second(
 		&mut self,
 		parent_span: &jaeger::Span,
@@ -939,7 +929,7 @@ impl CandidateBackingJob {
 			CandidateBackingMessage::Second(relay_parent, candidate, pov) => {
 				let _timer = self.metrics.time_process_second();
 
-				let _span = root_span
+				let span = root_span
 					.child("second")
 					.with_stage(jaeger::Stage::CandidateBacking)
 					.with_pov(&pov)
@@ -955,109 +945,13 @@ impl CandidateBackingJob {
 				// Seconded statement only if we have not seconded any other candidate and
 				// have not signed a Valid statement for the requested candidate.
 				if self.seconded.is_none() {
-					tracing::warn!(target: LOG_TARGET, "😈 Seconding a garbage candidate",);
+					// This job has not seconded a candidate yet.
+					let candidate_hash = candidate.hash();
 
-					let validation_data = match request_persisted_validation_data(
-						relay_parent,
-						candidate.descriptor().para_id,
-						OccupiedCoreAssumption::Free,
-						sender,
-					)
-					.await
-					.await
-					.map_err(|err| Error::ValidateFromChainState(err))??
-					{
-						Some(v) => v,
-						None => {
-							tracing::debug!(
-								target: LOG_TARGET,
-								"😈 couldn't fetch validation data",
-							);
-
-							return Ok(())
-						},
-					};
-					let pov = Arc::new(PoV { block_data: BlockData(vec![0; 256]) });
-					let available_data = AvailableData {
-						pov: pov.clone(),
-						validation_data: validation_data.clone(),
-					};
-
-					let pov_hash = pov.hash();
-					let validation_data_hash = validation_data.hash();
-					let validation_code_hash = candidate.descriptor().validation_code_hash;
-
-					let erasure_root = {
-						let chunks = erasure_coding::obtain_chunks_v1(
-							self.table_context.validators.len(),
-							&available_data,
-						)?;
-
-						let branches = erasure_coding::branches(chunks.as_ref());
-						branches.root()
-					};
-					let (collator_id, collator_signature) = {
-						use polkadot_primitives::v1::CollatorPair;
-						use sp_core::crypto::Pair;
-
-						let collator_pair = CollatorPair::generate().0;
-						let signature_payload = polkadot_primitives::v1::collator_signature_payload(
-							&relay_parent,
-							&candidate.descriptor().para_id,
-							&validation_data_hash,
-							&pov_hash,
-							&validation_code_hash,
-						);
-
-						(collator_pair.public(), collator_pair.sign(&signature_payload))
-					};
-					let malicious_commitments = CandidateCommitments {
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
-						new_validation_code: None,
-						head_data: vec![1, 2, 3, 4, 5].into(),
-						processed_downward_messages: 0,
-						hrmp_watermark: validation_data.relay_parent_number,
-					};
-					let malicious_candidate = CommittedCandidateReceipt {
-						descriptor: CandidateDescriptor {
-							para_id: candidate.descriptor().para_id,
-							relay_parent,
-							collator: collator_id,
-							persisted_validation_data_hash: validation_data_hash,
-							pov_hash,
-							erasure_root,
-							signature: collator_signature,
-							para_head: malicious_commitments.head_data.hash(),
-							validation_code_hash,
-						},
-						commitments: malicious_commitments,
-					};
-					let malicious_candidate_hash = malicious_candidate.hash();
-
-					let erasure_valid = make_pov_available(
-						sender,
-						self.table_context.validator.as_ref().map(|v| v.index()),
-						self.table_context.validators.len(),
-						pov.clone(),
-						malicious_candidate_hash,
-						validation_data,
-						malicious_candidate.descriptor().erasure_root,
-						Some(root_span),
-					)
-					.await?;
-					let statement = Statement::Seconded(malicious_candidate);
-
-					self.sign_import_and_distribute_statement(sender, statement, root_span).await?;
-
-					match erasure_valid {
-						Ok(()) => {},
-						Err(InvalidErasureRoot) => {
-							tracing::warn!(
-								target: LOG_TARGET,
-								"😈 Erasure root doesn't match the announced by the candidate receipt",
-							);
-						},
+					if !self.issued_statements.contains(&candidate_hash) {
+						let pov = Arc::new(pov);
+						self.validate_and_second(&span, &root_span, sender, &candidate, pov)
+							.await?;
 					}
 				}
 			},
