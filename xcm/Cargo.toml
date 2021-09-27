@@ -16,6 +16,7 @@ xcm-procedural = { path = "procedural" }
 [features]
 default = ["std"]
 wasm-api = []
+runtime-benchmarks = []
 std = [
 	"parity-scale-codec/std",
 	"scale-info/std",

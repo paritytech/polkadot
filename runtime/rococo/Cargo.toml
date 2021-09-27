@@ -44,6 +44,7 @@ pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -150,6 +151,7 @@ std = [
 	"xcm-builder/std",
 	"pallet-xcm/std",
 	"log/std",
+	"pallet-multisig/std",
 ]
 # When enabled, the runtime API will not be build.
 #
@@ -173,6 +175,7 @@ runtime-benchmarks = [
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-xcm/runtime-benchmarks",
 	"xcm-builder/runtime-benchmarks",
+	"pallet-multisig/runtime-benchmarks",
 	"frame-benchmarking",
 	"hex-literal"
 ]
@@ -197,4 +200,5 @@ try-runtime = [
 	"pallet-timestamp/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"runtime-common/try-runtime",
+	"pallet-multisig/try-runtime",
 ]

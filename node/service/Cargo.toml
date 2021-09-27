@@ -62,7 +62,7 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 # External Crates
 futures = "0.3.17"
 hex-literal = "0.3.3"
-tracing = "0.1.27"
+tracing = "0.1.28"
 serde = { version = "1.0.130", features = ["derive"] }
 thiserror = "1.0.26"
 kvdb = "0.10.0"
