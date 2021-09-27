@@ -173,7 +173,6 @@ impl MockClockInner {
 	}
 
 	fn has_wakeup(&self, tick: Tick) -> bool {
-		println!("WAKEUPS {:?}", self.wakeups);
 		self.wakeups.binary_search_by_key(&tick, |w| w.0).is_ok()
 	}
 
