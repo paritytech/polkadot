@@ -320,7 +320,7 @@ where
 	pub(crate) async fn finality_target_with_fallback(
 		&self,
 		target_hash: Hash,
-		best_leaf: Option<Hash>,
+		best_leaf: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Hash, ConsensusError> {
 		let mut overseer = self.overseer.clone();
@@ -345,9 +345,10 @@ where
 				Some(best) => best,
 			}
 		} else {
-			match best_leaf {
-				None => return Ok(target_hash),
-				Some(best_leaf) => best_leaf,
+			if best_leaf == target_hash {
+				return Ok(target_hash)
+			} else {
+				best_leaf
 			}
 		};
 
