@@ -16,7 +16,7 @@
 
 use super::worker::{self, Outcome};
 use crate::{
-	artifacts::PrepareError,
+	error::PrepareError,
 	metrics::Metrics,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,

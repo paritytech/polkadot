@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::error::PrepareError;
 use always_assert::always;
 use async_std::path::{Path, PathBuf};
 use parity_scale_codec::{Decode, Encode};
@@ -22,18 +23,6 @@ use std::{
 	collections::HashMap,
 	time::{Duration, SystemTime},
 };
-
-/// An error that occurred during the prepare part of the PVF pipeline.
-#[derive(Debug, Clone, Encode, Decode)]
-pub enum PrepareError {
-	/// During the prevalidation stage of preparation an issue was found with the PVF.
-	Prevalidation(String),
-	/// Compilation failed for the given PVF.
-	Preparation(String),
-	/// This state indicates that the process assigned to prepare the artifact wasn't responsible
-	/// or were killed. This state is reported by the validation host (not by the worker).
-	DidNotMakeIt,
-}
 
 /// A wrapper for the compiled PVF code.
 #[derive(Encode, Decode)]

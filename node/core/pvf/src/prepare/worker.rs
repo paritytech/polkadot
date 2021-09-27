@@ -15,7 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	artifacts::{CompiledArtifact, PrepareError},
+	artifacts::CompiledArtifact,
+	error::PrepareError,
 	worker_common::{
 		bytes_to_path, framed_recv, framed_send, path_to_bytes, spawn_with_program_path,
 		tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,

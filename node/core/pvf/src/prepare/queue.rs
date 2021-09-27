@@ -18,9 +18,7 @@
 
 use super::pool::{self, Worker};
 use crate::{
-	artifacts::{ArtifactId, PrepareError},
-	metrics::Metrics,
-	Priority, Pvf, LOG_TARGET,
+	artifacts::ArtifactId, error::PrepareError, metrics::Metrics, Priority, Pvf, LOG_TARGET,
 };
 use always_assert::{always, never};
 use async_std::path::PathBuf;
