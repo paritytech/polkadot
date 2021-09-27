@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::barriers::AllowSubscriptionsFrom;
 pub use crate::{
 	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
@@ -35,6 +36,7 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::prelude::*;
+use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
 	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
 	Assets, Config,
@@ -51,7 +53,7 @@ pub enum TestOrigin {
 ///
 /// Each item contains the amount of weight that it *wants* to consume as the first item, and the actual amount (if
 /// different from the former) in the second option.
-#[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, Copy, scale_info::TypeInfo)]
 pub enum TestCall {
 	OnlyRoot(Weight, Option<Weight>),
 	OnlyParachain(Weight, Option<Weight>, Option<u32>),
@@ -107,7 +109,7 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> XcmResult {
+	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> SendResult {
 		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
 		Ok(())
 	}
@@ -222,9 +224,10 @@ impl OnResponse for TestResponseHandler {
 		})
 	}
 	fn on_response(
-		_origin: MultiLocation,
+		_origin: &MultiLocation,
 		query_id: u64,
 		response: xcm::latest::Response,
+		_max_weight: Weight,
 	) -> Weight {
 		QUERIES.with(|q| {
 			q.borrow_mut().entry(query_id).and_modify(|v| {
@@ -256,8 +259,10 @@ parameter_types! {
 	// Nothing is allowed to be paid/unpaid by default.
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
+	pub static AllowSubsFrom: Vec<MultiLocation> = vec![];
 	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
 	pub static WeightPrice: (AssetId, u128) = (From::from(Here), 1_000_000_000_000);
+	pub static MaxInstructions: u32 = 100;
 }
 
 pub type TestBarrier = (
@@ -265,7 +270,59 @@ pub type TestBarrier = (
 	AllowKnownQueryResponses<TestResponseHandler>,
 	AllowTopLevelPaidExecutionFrom<IsInVec<AllowPaidFrom>>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>,
+	AllowSubscriptionsFrom<IsInVec<AllowSubsFrom>>,
 );
+
+parameter_types! {
+	pub static TrappedAssets: Vec<(MultiLocation, MultiAssets)> = vec![];
+}
+
+pub struct TestAssetTrap;
+
+impl DropAssets for TestAssetTrap {
+	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
+		t.push((origin.clone(), assets.into()));
+		TrappedAssets::set(t);
+		5
+	}
+}
+
+impl ClaimAssets for TestAssetTrap {
+	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool {
+		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
+		if let (0, X1(GeneralIndex(i))) = (ticket.parents, &ticket.interior) {
+			if let Some((l, a)) = t.get(*i as usize) {
+				if l == origin && a == what {
+					t.swap_remove(*i as usize);
+					TrappedAssets::set(t);
+					return true
+				}
+			}
+		}
+		false
+	}
+}
+
+parameter_types! {
+	pub static SubscriptionRequests: Vec<(MultiLocation, Option<(QueryId, u64)>)> = vec![];
+}
+pub struct TestSubscriptionService;
+
+impl VersionChangeNotifier for TestSubscriptionService {
+	fn start(location: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult {
+		let mut r = SubscriptionRequests::get();
+		r.push((location.clone(), Some((query_id, max_weight))));
+		SubscriptionRequests::set(r);
+		Ok(())
+	}
+	fn stop(location: &MultiLocation) -> XcmResult {
+		let mut r = SubscriptionRequests::get();
+		r.push((location.clone(), None));
+		SubscriptionRequests::set(r);
+		Ok(())
+	}
+}
 
 pub struct TestConfig;
 impl Config for TestConfig {
@@ -277,7 +334,10 @@ impl Config for TestConfig {
 	type IsTeleporter = TestIsTeleporter;
 	type LocationInverter = LocationInverter<TestAncestry>;
 	type Barrier = TestBarrier;
-	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall>;
+	type Weigher = FixedWeightBounds<UnitWeightCost, TestCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = TestResponseHandler;
+	type AssetTrap = TestAssetTrap;
+	type AssetClaims = TestAssetTrap;
+	type SubscriptionService = TestSubscriptionService;
 }

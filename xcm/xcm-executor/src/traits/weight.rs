@@ -17,37 +17,17 @@
 use crate::Assets;
 use frame_support::weights::Weight;
 use sp_std::result::Result;
-use xcm::latest::{Error, MultiAsset, MultiLocation, Xcm};
+use xcm::latest::prelude::*;
 
 /// Determine the weight of an XCM message.
 pub trait WeightBounds<Call> {
-	/// Return the minimum amount of weight that an attempted execution of this message would definitely
+	/// Return the maximum amount of weight that an attempted execution of this message could
 	/// consume.
-	///
-	/// This is useful to gauge how many fees should be paid up front to begin execution of the message.
-	/// It is not useful for determining whether execution should begin lest it result in surpassing weight
-	/// limits - in that case `deep` is the function to use.
-	fn shallow(message: &mut Xcm<Call>) -> Result<Weight, ()>;
+	fn weight(message: &mut Xcm<Call>) -> Result<Weight, ()>;
 
-	/// Return the deep amount of weight, over `shallow` that complete, successful and worst-case execution of
-	/// `message` would incur.
-	///
-	/// This is perhaps overly pessimistic for determining how many fees should be paid for up-front since
-	/// fee payment (or any other way of offsetting the execution costs such as an voucher-style NFT) may
-	/// happen in stages throughout execution of the XCM.
-	///
-	/// A reminder: if it is possible that `message` may have alternative means of successful completion
-	/// (perhaps a conditional path), then the *worst case* weight must be reported.
-	///
-	/// This is guaranteed equal to the eventual sum of all `shallow` XCM messages that get executed through
-	/// any internal effects. Inner XCM messages may be executed by:
-	/// - `Order::BuyExecution`
-	fn deep(message: &mut Xcm<Call>) -> Result<Weight, ()>;
-
-	/// Return the total weight for executing `message`.
-	fn weight(message: &mut Xcm<Call>) -> Result<Weight, ()> {
-		Self::shallow(message)?.checked_add(Self::deep(message)?).ok_or(())
-	}
+	/// Return the maximum amount of weight that an attempted execution of this instruction could
+	/// consume.
+	fn instr_weight(instruction: &Instruction<Call>) -> Result<Weight, ()>;
 }
 
 /// A means of getting approximate weight consumption for a given destination message executor and a
@@ -70,7 +50,7 @@ pub trait WeightTrader: Sized {
 	/// Purchase execution weight credit in return for up to a given `fee`. If less of the fee is required
 	/// then the surplus is returned. If the `fee` cannot be used to pay for the `weight`, then an error is
 	/// returned.
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error>;
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError>;
 
 	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight was
 	/// purchased using `buy_weight`.
@@ -87,7 +67,7 @@ impl WeightTrader for Tuple {
 		for_tuples!( ( #( Tuple::new() ),* ) )
 	}
 
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, Error> {
+	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		let mut last_error = None;
 		for_tuples!( #(
 			match Tuple.buy_weight(weight, payment.clone()) {
@@ -95,7 +75,7 @@ impl WeightTrader for Tuple {
 				Err(e) => { last_error = Some(e) }
 			}
 		)* );
-		let last_error = last_error.unwrap_or(Error::TooExpensive);
+		let last_error = last_error.unwrap_or(XcmError::TooExpensive);
 		log::trace!(target: "xcm::buy_weight", "last_error: {:?}", last_error);
 		Err(last_error)
 	}

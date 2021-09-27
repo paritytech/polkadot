@@ -19,30 +19,35 @@
 use super::Junction;
 use core::{convert::TryFrom, mem, result};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// A relative path between state-bearing consensus systems.
 ///
-/// A location in a consensus system is defined as an *isolatable state machine* held within global consensus. The
-/// location in question need not have a sophisticated consensus algorithm of its own; a single account within
-/// Ethereum, for example, could be considered a location.
+/// A location in a consensus system is defined as an *isolatable state machine* held within global
+/// consensus. The location in question need not have a sophisticated consensus algorithm of its
+/// own; a single account within Ethereum, for example, could be considered a location.
 ///
 /// A very-much non-exhaustive list of types of location include:
 /// - A (normal, layer-1) block chain, e.g. the Bitcoin mainnet or a parachain.
 /// - A layer-0 super-chain, e.g. the Polkadot Relay chain.
 /// - A layer-2 smart contract, e.g. an ERC-20 on Ethereum.
-/// - A logical functional component of a chain, e.g. a single instance of a pallet on a Frame-based Substrate chain.
+/// - A logical functional component of a chain, e.g. a single instance of a pallet on a Frame-based
+///   Substrate chain.
 /// - An account.
 ///
-/// A `MultiLocation` is a *relative identifier*, meaning that it can only be used to define the relative path
-/// between two locations, and cannot generally be used to refer to a location universally. It is comprised of a
-/// number of *junctions*, each morphing the previous location, either diving down into one of its internal locations,
-/// called a *sub-consensus*, or going up into its parent location.
+/// A `MultiLocation` is a *relative identifier*, meaning that it can only be used to define the
+/// relative path between two locations, and cannot generally be used to refer to a location
+/// universally. It is comprised of an integer number of parents specifying the number of times to
+/// "escape" upwards into the containing consensus system and then a number of *junctions*, each
+/// diving down and specifying some interior portion of state (which may be considered a
+/// "sub-consensus" system).
 ///
-/// The `parents` field of this struct indicates the number of parent junctions that exist at the
-/// beginning of this `MultiLocation`. A corollary of such a property is that no parent junctions
-/// can be added in the middle or at the end of a `MultiLocation`, thus ensuring well-formedness
-/// of each and every `MultiLocation` that can be constructed.
-#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+/// This specific `MultiLocation` implementation uses a `Junctions` datatype which is a Rust `enum`
+/// in order to make pattern matching easier. There are occasions where it is important to ensure
+/// that a value is strictly an interior location, in those cases, `Junctions` may be used.
+///
+/// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo)]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
 	pub parents: u8,
@@ -52,14 +57,24 @@ pub struct MultiLocation {
 
 impl Default for MultiLocation {
 	fn default() -> Self {
-		Self::here()
+		Self { parents: 0, interior: Junctions::Here }
 	}
 }
+
+/// A relative location which is constrained to be an interior location of the context.
+///
+/// See also `MultiLocation`.
+pub type InteriorMultiLocation = Junctions;
 
 impl MultiLocation {
 	/// Creates a new `MultiLocation` with the given number of parents and interior junctions.
 	pub fn new(parents: u8, junctions: Junctions) -> MultiLocation {
 		MultiLocation { parents, interior: junctions }
+	}
+
+	/// Consume `self` and return the equivalent `VersionedMultiLocation` value.
+	pub fn versioned(self) -> crate::VersionedMultiLocation {
+		self.into()
 	}
 
 	/// Creates a new `MultiLocation` with 0 parents and a `Here` interior.
@@ -356,7 +371,7 @@ const MAX_JUNCTIONS: usize = 8;
 ///
 /// Parent junctions cannot be constructed with this type. Refer to `MultiLocation` for
 /// instructions on constructing parent junctions.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
 pub enum Junctions {
 	/// The interpreting consensus system.
 	Here,
@@ -724,7 +739,7 @@ impl Junctions {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::latest::{Junctions::*, Junction::*};
+	/// # use xcm::v1::{Junctions::*, Junction::*};
 	/// # fn main() {
 	/// let mut m = X3(Parachain(2), PalletInstance(3), OnlyChild);
 	/// assert_eq!(m.match_and_split(&X2(Parachain(2), PalletInstance(3))), Some(&OnlyChild));

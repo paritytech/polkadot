@@ -170,6 +170,7 @@ where
 		),
 		availability_recovery: AvailabilityRecoverySubsystem::with_chunks_only(
 			available_data_req_receiver,
+			Metrics::register(registry)?,
 		),
 		availability_store: AvailabilityStoreSubsystem::new(
 			parachains_db.clone(),
@@ -240,6 +241,7 @@ where
 			parachains_db.clone(),
 			dispute_coordinator_config,
 			keystore.clone(),
+			Metrics::register(registry)?,
 		),
 		dispute_participation: DisputeParticipationSubsystem::new(),
 		dispute_distribution: DisputeDistributionSubsystem::new(

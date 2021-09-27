@@ -28,6 +28,9 @@ variables:
   CI_SERVER_NAME:                  "GitLab CI"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
+  VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
+  VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
+  VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
 
 default:
   cache:                           {}
@@ -84,6 +87,55 @@ default:
       when: never
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
 
+#### Vault secrets
+.vault-secrets:                    &vault-secrets
+  secrets:
+    AWS_ACCESS_KEY_ID:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_ACCESS_KEY_ID@kv
+      file:                        false
+    AWS_SECRET_ACCESS_KEY:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/AWS_SECRET_ACCESS_KEY@kv
+      file:                        false
+    DOCKER_HUB_USER:
+      vault:                       cicd/gitlab/parity/DOCKER_HUB_USER@kv
+      file:                        false
+    DOCKER_HUB_PASS:
+      vault:                       cicd/gitlab/parity/DOCKER_HUB_PASS@kv
+      file:                        false
+    GITHUB_PR_TOKEN:
+      vault:                       cicd/gitlab/parity/GITHUB_PR_TOKEN@kv
+      file:                        false
+    GITHUB_USER:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_USER@kv
+      file:                        false
+    GITHUB_RELEASE_TOKEN:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_RELEASE_TOKEN@kv
+      file:                        false
+    GITHUB_TOKEN:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_TOKEN@kv
+      file:                        false
+    MATRIX_ACCESS_TOKEN:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ACCESS_TOKEN@kv
+      file:                        false
+    MATRIX_ROOM_ID:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ROOM_ID@kv
+      file:                        false
+    PARITYPR_USER:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/PARITYPR_USER@kv
+      file:                        false
+    PARITYPR_PASS:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/PARITYPR_PASS@kv
+      file:                        false
+    PIPELINE_TOKEN:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/PIPELINE_TOKEN@kv
+      file:                        false
+    REL_MAN_ROOM_ID:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/REL_MAN_ROOM_ID@kv
+      file:                        false
+    SSH_PRIVATE_KEY:
+      vault:                       cicd/gitlab/$CI_PROJECT_PATH/SSH_PRIVATE_KEY@kv
+      file:                        false
+
 #### stage:                        test
 
 check-runtime:
@@ -91,6 +143,7 @@ check-runtime:
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
   <<:                              *rules-pr-only
+  <<:                              *vault-secrets
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
@@ -120,6 +173,7 @@ test-deterministic-wasm:
   <<:                              *rules-test
   <<:                              *docker-env
   <<:                              *compiler-info
+  <<:                              *vault-secrets
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
 
@@ -128,6 +182,7 @@ test-build-linux-stable:
   <<:                              *docker-env
   <<:                              *compiler-info
   <<:                              *collect-artifacts
+  <<:                              *vault-secrets
   variables:
     RUST_TOOLCHAIN: stable
     # Enable debug assertions since we are running optimized builds for testing
@@ -162,9 +217,21 @@ check-runtime-benchmarks:
   <<:                              *rules-test
   <<:                              *docker-env
   <<:                              *compiler-info
+  <<:                              *vault-secrets
   script:
     # Check that the node will compile with `runtime-benchmarks` feature flag.
     - ./scripts/gitlab/check_runtime_benchmarks.sh
+    - sccache -s
+
+check-no-default-features:
+  stage:                           test
+  <<:                              *rules-test
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *vault-secrets
+  script:
+    # Check that polkadot-cli will compile no default features.
+    - ./scripts/gitlab/check_no_default_features.sh
     - sccache -s
 
 spellcheck:
@@ -203,10 +270,12 @@ build-adder-collator:
 #### stage:                        build
 
 check-transaction-versions:
-  image:                           node:15
+  # image must be ubuntu:20.04 based to match the linkers, this image has npm installed
+  image:                           paritytech/contracts-ci-linux:production
   stage:                           build
   <<:                              *rules-test
   <<:                              *docker-env
+  <<:                              *vault-secrets
   needs:
     - job:                         test-build-linux-stable
       artifacts:                   true
@@ -251,6 +320,7 @@ build-rustdoc:
 
 .build-push-image:                 &build-push-image
   <<:                              *kubernetes-env
+  <<:                              *vault-secrets
   image:                           quay.io/buildah/stable
   variables:                       &image-variables
     GIT_STRATEGY:                  none
@@ -281,7 +351,7 @@ build-rustdoc:
     - buildah push --format=v2s2 "$IMAGE_NAME:$VERSION"
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
   after_script:
-    - buildah logout "$IMAGE_NAME"
+    - buildah logout --all
 
 publish-polkadot-image:
   stage:                           build
@@ -303,8 +373,8 @@ publish-polkadot-image:
       variables:
         <<:                        *image-variables
         IMAGE_NAME:                docker.io/parity/rococo
-        DOCKER_USER:               ${Docker_Hub_User_Parity}
-        DOCKER_PASS:               ${Docker_Hub_Pass_Parity}
+        DOCKER_USER:               ${DOCKER_HUB_USER}
+        DOCKER_PASS:               ${DOCKER_HUB_PASS}
   needs:
     - job:                         test-build-linux-stable
       artifacts:                   true
@@ -336,7 +406,7 @@ publish-adder-collator-image:
     - job:                         build-adder-collator
       artifacts:                   true
   after_script:
-    - buildah logout "$IMAGE_NAME"
+    - buildah logout --all
     # pass artifacts to the simnet-tests job
     - echo "COLLATOR_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/collator.env
     - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
@@ -380,6 +450,7 @@ publish-s3-release:                &publish-s3
     - job:                         test-build-linux-stable
       artifacts:                   true
   <<:                              *kubernetes-env
+  <<:                              *vault-secrets
   image:                           paritytech/awscli:latest
   variables:
     GIT_STRATEGY:                  none
@@ -415,6 +486,7 @@ publish-s3-release:                &publish-s3
 publish-rustdoc:
   stage:                           publish
   <<:                              *kubernetes-env
+  <<:                              *vault-secrets
   image:                           paritytech/tools:latest
   variables:
     GIT_DEPTH:                     100

@@ -102,8 +102,11 @@ impl SubstrateCli for Cli {
 			name if name.starts_with("kusama-") && !name.ends_with(".json") =>
 				Err(format!("`{}` only supported with `kusama-native` feature enabled.", name))?,
 			"polkadot" => Box::new(service::chain_spec::polkadot_config()?),
+			#[cfg(feature = "polkadot-native")]
 			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
+			#[cfg(feature = "polkadot-native")]
 			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
+			#[cfg(feature = "polkadot-native")]
 			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()?),
 			"rococo" => Box::new(service::chain_spec::rococo_config()?),
 			#[cfg(feature = "rococo-native")]
@@ -177,7 +180,13 @@ impl SubstrateCli for Cli {
 		)))]
 		let _ = spec;
 
-		&service::polkadot_runtime::VERSION
+		#[cfg(feature = "polkadot-native")]
+		{
+			return &service::polkadot_runtime::VERSION
+		}
+
+		#[cfg(not(feature = "polkadot-native"))]
+		panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 	}
 }
 
@@ -394,12 +403,17 @@ pub fn run() -> Result<()> {
 			}
 
 			// else we assume it is polkadot.
-			Ok(runner.sync_run(|config| {
-				cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
-					config,
-				)
-				.map_err(|e| Error::SubstrateCli(e))
-			})?)
+			#[cfg(feature = "polkadot-native")]
+			{
+				return Ok(runner.sync_run(|config| {
+					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
+						config,
+					)
+					.map_err(|e| Error::SubstrateCli(e))
+				})?)
+			}
+			#[cfg(not(feature = "polkadot-native"))]
+			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
@@ -410,9 +424,8 @@ pub fn run() -> Result<()> {
 
 			use sc_service::TaskManager;
 			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
-			let task_manager =
-				TaskManager::new(runner.config().task_executor.clone(), *registry)
-					.map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
+			let task_manager = TaskManager::new(runner.config().tokio_handle.clone(), *registry)
+				.map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
 
 			ensure_dev(chain_spec).map_err(Error::Other)?;
 
@@ -420,8 +433,10 @@ pub fn run() -> Result<()> {
 			if chain_spec.is_kusama() {
 				return runner.async_run(|config| {
 					Ok((
-						cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
-							.map_err(Error::SubstrateCli),
+						cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(
+							config,
+						)
+						.map_err(Error::SubstrateCli),
 						task_manager,
 					))
 				})
@@ -431,7 +446,7 @@ pub fn run() -> Result<()> {
 			if chain_spec.is_westend() {
 				return runner.async_run(|config| {
 					Ok((
-						cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(
+						cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(
 							config,
 						)
 						.map_err(Error::SubstrateCli),
@@ -440,13 +455,20 @@ pub fn run() -> Result<()> {
 				})
 			}
 			// else we assume it is polkadot.
-			runner.async_run(|config| {
-				Ok((
-					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
+			#[cfg(feature = "polkadot-native")]
+			{
+				return runner.async_run(|config| {
+					Ok((
+						cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
+							config,
+						)
 						.map_err(Error::SubstrateCli),
-					task_manager,
-				))
-			})
+						task_manager,
+					))
+				})
+			}
+			#[cfg(not(feature = "polkadot-native"))]
+			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
 		#[cfg(not(feature = "try-runtime"))]
 		Some(Subcommand::TryRuntime) => Err(Error::Other(

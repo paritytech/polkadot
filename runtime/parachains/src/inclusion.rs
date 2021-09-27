@@ -28,6 +28,7 @@ use primitives::v1::{
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, HeadData,
 	Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
 };
+use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{One, Saturating},
 	DispatchError,
@@ -43,7 +44,7 @@ pub use pallet::*;
 ///
 /// The bitfield's signature should be checked at the point of submission. Afterwards it can be
 /// dropped.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub struct AvailabilityBitfieldRecord<N> {
 	bitfield: AvailabilityBitfield, // one bit per core.
@@ -51,7 +52,7 @@ pub struct AvailabilityBitfieldRecord<N> {
 }
 
 /// A backed candidate pending availability.
-#[derive(Encode, Decode, PartialEq)]
+#[derive(Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
@@ -134,7 +135,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::Hash = "Hash")]
 	pub enum Event<T: Config> {
 		/// A candidate was backed. `[candidate, head_data]`
 		CandidateBacked(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
@@ -194,6 +194,9 @@ pub mod pallet {
 		InvalidOutboundHrmp,
 		/// The validation code hash of the candidate is not valid.
 		InvalidValidationCodeHash,
+		/// The `para_head` hash in the candidate descriptor doesn't match the hash of the actual para head in the
+		/// commitments.
+		ParaHeadMismatch,
 	}
 
 	/// The latest bitfield for each validator, referred to by their index in the validator set.
@@ -463,6 +466,12 @@ impl<T: Config> Pallet<T> {
 				ensure!(
 					candidate.descriptor().validation_code_hash == validation_code_hash,
 					Error::<T>::InvalidValidationCodeHash,
+				);
+
+				ensure!(
+					candidate.descriptor().para_head ==
+						candidate.candidate.commitments.head_data.hash(),
+					Error::<T>::ParaHeadMismatch,
 				);
 
 				if let Err(err) = check_cx.check_validation_outputs(
@@ -1169,6 +1178,7 @@ mod tests {
 	struct TestCandidateBuilder {
 		para_id: ParaId,
 		head_data: HeadData,
+		para_head_hash: Option<Hash>,
 		pov_hash: Hash,
 		relay_parent: Hash,
 		persisted_validation_data_hash: Hash,
@@ -1186,6 +1196,7 @@ mod tests {
 					relay_parent: self.relay_parent,
 					persisted_validation_data_hash: self.persisted_validation_data_hash,
 					validation_code_hash: self.validation_code.hash(),
+					para_head: self.para_head_hash.unwrap_or_else(|| self.head_data.hash()),
 					..Default::default()
 				},
 				commitments: CandidateCommitments {
@@ -2212,6 +2223,41 @@ mod tests {
 						&group_validators,
 					),
 					Err(Error::<Test>::InvalidValidationCodeHash.into()),
+				);
+			}
+
+			// Para head hash in descriptor doesn't match head data
+			{
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_hash: Hash::repeat_byte(1),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
+					para_head_hash: Some(Hash::random()),
+					..Default::default()
+				}
+				.build();
+
+				collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
+
+				let backed = block_on(back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&keystore,
+					&signing_context,
+					BackingKind::Threshold,
+				));
+
+				assert_eq!(
+					ParaInclusion::process_candidates(
+						Default::default(),
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::ParaHeadMismatch.into()),
 				);
 			}
 		});

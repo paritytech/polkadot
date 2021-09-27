@@ -14,5 +14,7 @@ updates:
       - dependency-name: "pallet-*"
       - dependency-name: "beefy-*"
       - dependency-name: "try-runtime-*"
+      - dependency-name: "test-runner"
+      - dependency-name: "generate-bags"
     schedule:
       interval: "daily"
