@@ -945,6 +945,18 @@ pub struct SessionInfo {
 	pub needed_approvals: u32,
 }
 
+#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
+pub struct ScrapedImportDisputesAndBackingVotes {
+	/// The sesssion in which the block was included.
+	session: SessionIndex,
+	/// Set of backing validators for each candidate, represented by it's candidate
+	/// receipt.
+	backing_validators: Vec<(CandidateReceipt, Vec<ValidatorIndex>)>,
+	/// On-chain-recorded set of disputes.
+	disputes: MultiDisputeStatementSet,
+}
+
 /// A vote of approval on a candidate.
 #[derive(Clone, RuntimeDebug)]
 pub struct ApprovalVote(pub CandidateHash);

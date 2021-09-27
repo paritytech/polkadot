@@ -110,6 +110,16 @@ pub trait RewardValidators {
 	fn reward_bitfields(validators: impl IntoIterator<Item = ValidatorIndex>);
 }
 
+
+/// Helper return type for `process_candidates`.
+#[derive(Encode, Decode, PartialEq, TypeInfo)]
+#[cfg_attr(test, derive(Debug))]
+pub(crate) struct ProcessedCandidates {
+	pub(crate) core_indices: Vec<CoreIndex>,
+	pub(crate) candidate_receipt_with_backing_validator_indices: Vec<(CandidateReceipt, Vec<ValidatorIndex>)>,
+}
+
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -400,11 +410,11 @@ impl<T: Config> Pallet<T> {
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
-	) -> Result<Vec<CoreIndex>, DispatchError> {
+	) -> Result<ProcessedCandidates, DispatchError> {
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
-			return Ok(Vec::new())
+			return Ok(ProcessedCandidates::default())
 		}
 
 		let validators = shared::Pallet::<T>::active_validator_keys();
@@ -416,7 +426,10 @@ impl<T: Config> Pallet<T> {
 		let relay_parent_number = now - One::one();
 		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
-		// do all checks before writing storage.
+		// Collect candidate receipts with backers.
+		let mut candidate_receipt_with_backer_indices = Vec::with_capacity(candidates.len());
+
+		// Do all checks before writing storage.
 		let core_indices_and_backers = {
 			let mut skip = 0;
 			let mut core_indices_and_backers = Vec::with_capacity(candidates.len());
@@ -517,7 +530,7 @@ impl<T: Config> Pallet<T> {
 										// We don't want to error out here because it will
 										// brick the relay-chain. So we return early without
 										// doing anything.
-										return Ok(Vec::new())
+										return Ok(ProcessedCandidates::default())
 									},
 								};
 
@@ -565,6 +578,7 @@ impl<T: Config> Pallet<T> {
 								},
 							}
 
+							let mut explicit_backer_indices = Vec::with_capacity(candidate.validator_indices.count_ones());
 							for (bit_idx, _) in candidate
 								.validator_indices
 								.iter()
@@ -572,10 +586,13 @@ impl<T: Config> Pallet<T> {
 								.filter(|(_, signed)| **signed)
 							{
 								let val_idx =
-									group_vals.get(bit_idx).expect("this query done above; qed");
+									group_vals.get(bit_idx).expect("this query succeeded above; qed");
+
+								explicit_backer_indices.push(val_idx);
 
 								backers.set(val_idx.0 as _, true);
 							}
+							candidate_receipt_with_backer_indices.push((candidate.receipt(), explicit_backer_indices));
 						}
 
 						core_indices_and_backers.push((
@@ -633,7 +650,7 @@ impl<T: Config> Pallet<T> {
 					descriptor,
 					availability_votes,
 					relay_parent_number,
-					backers,
+					backers: *backers,
 					backed_in_number: check_cx.now,
 					backing_group: group,
 				},
@@ -641,7 +658,10 @@ impl<T: Config> Pallet<T> {
 			<PendingAvailabilityCommitments<T>>::insert(&para_id, commitments);
 		}
 
-		Ok(core_indices)
+		Ok(ProcessedCandidates {
+			core_indices,
+			candidate_receipt_with_backing_validator_indices: candidate_receipt_with_backer_indices,
+		})
 	}
 
 	/// Run the acceptance criteria checks on the given candidate commitments.
@@ -2393,7 +2413,7 @@ mod tests {
 				BackingKind::Threshold,
 			));
 
-			let occupied_cores = ParaInclusion::process_candidates(
+			let ProcessedCandidates{ core_indices: occupied_cores , .. } = ParaInclusion::process_candidates(
 				Default::default(),
 				vec![backed_a, backed_b, backed_c],
 				vec![
@@ -2537,7 +2557,7 @@ mod tests {
 				BackingKind::Threshold,
 			));
 
-			let occupied_cores = ParaInclusion::process_candidates(
+			let ProcessedCandidates { core_indices: occupied_cores, .. } = ParaInclusion::process_candidates(
 				Default::default(),
 				vec![backed_a],
 				vec![chain_a_assignment.clone()],

@@ -165,10 +165,6 @@ pub mod pallet {
 			ensure_none(origin)?;
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 
-			// The number of disputes included in a block is
-			// limited by the weight.
-			ImportedDisputes::<T>::put(&disputes);
-
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
 			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 			ensure!(
@@ -256,12 +252,21 @@ pub mod pallet {
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
-			let occupied = <inclusion::Pallet<T>>::process_candidates(
+			let ProcessedCandidates { core_indices: occupied, candidate_receipt_with_backing_validator_indices } = <inclusion::Pallet<T>>::process_candidates(
 				parent_storage_root,
-				backed_candidates,
+				&backed_candidates,
 				<scheduler::Pallet<T>>::scheduled(),
 				<scheduler::Pallet<T>>::group_validators,
 			)?;
+
+			// The number of disputes included in a block is
+			// limited by the weight.
+			ImportedDisputes::<T>::put(ScrapedImportDisputesAndBackingVotes {
+					session: current_session,
+					candidate_receipt_with_backing_validator_indices,
+					disputes,
+				}
+			);
 
 			// Note which of the scheduled cores were actually occupied by a backed candidate.
 			<scheduler::Pallet<T>>::occupied(&occupied);

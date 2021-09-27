@@ -331,7 +331,7 @@ pub fn validation_code_by_hash<T: paras::Config>(
 }
 
 /// Disputes imported via means of on-chain imports.
-/// XXX figure out return type
-pub fn imported_on_chain_disputes<T: initializer::Config>() -> MultiDisputeStatementSet {
+pub fn imported_on_chain_disputes<T: initializer::Config>() -> Option<ScrapedImportDisputesAndBackingVotes>
+{
 	<paras::Pallet<T>>::imported_on_chain_disputes()
 }

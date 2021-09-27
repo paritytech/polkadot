@@ -520,7 +520,7 @@ async fn handle_new_activations(
 			_ => {},
 		}
 
-		let disputes = {
+		let on_chain_scraped: ScrapedImportDisputesAndBackingVotes = {
 			let (tx, rx) = oneshot::channel();
 			ctx.send_message(RuntimeApiMessage::Request(
 				new_leaf,
@@ -529,25 +529,37 @@ async fn handle_new_activations(
 
 			rx.await??
 		};
-		for DisputeStatementSet { candidate_hash, session, statements } in disputes {
+
+		let session_info: SessionInfo = {
+			let (tx, rx) = oneshot::channel();
+			ctx.send_message(RuntimeApiRequest::SessionInfo(session_index, tx)).await;
+
+			match rx.await?? {
+				None => continue,
+				Some(session_info) => session_info,
+			}
+		};
+
+		for DisputeStatementSet { candidate_hash, session, statements } in on_chain_scraped.disputes.iter() {
 			let statements = statements
 				.into_iter()
 				.map(|(dispute_statement, validator_idx, validator_signature)| {
 					(SignedDisputeStatement {
 						dispute_statement,
 						candidate_hash,
-						validator_public: todo!("Obtain validator ID"),
+						validator_public: session_info.validators[validator_idx],
 						validator_signature,
-						session_index: todo!("Obtain session index"),
+						session_index: session,
 					}, validator_idx)
 				}).collect::<Vec<(SignedDisputeStatement, ValidatorIndex)>>();
 
+			let candidate_receipt = todo!("Obtain the candidate_receipt");
 			let _ = dbg!(handle_import_statements(
 				ctx,
 				overlay_db,
 				state,
 				candidate_hash,
-				todo!("Obtain the candidate_receipt"),
+				candidate_receipt,
 				session,
 				statements,
 				now,

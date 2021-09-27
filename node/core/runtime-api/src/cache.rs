@@ -24,8 +24,8 @@ use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
 	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
 	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex,
+	PersistedValidationData, ScrapedImportDisputesAndBackingVotes, SessionIndex, SessionInfo,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 
 const AUTHORITIES_CACHE_SIZE: usize = 128 * 1024;
@@ -344,5 +344,5 @@ pub(crate) enum RequestResult {
 		BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>,
 	),
 	CurrentBabeEpoch(Hash, Epoch),
-	ImportedOnChainDisputes(MultiDisputeStatementSet),
+	ImportedOnChainDisputes(ScrapedImportDisputesAndBackingVotes),
 }
