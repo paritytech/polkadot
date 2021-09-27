@@ -72,7 +72,7 @@ pub mod pallet {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// Origin for assigning slots
-        type AssignSlotOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		type AssignSlotOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
 
 		/// The type representing the leasing system.
 		type Leaser: Leaser<AccountId = Self::AccountId, LeasePeriod = Self::BlockNumber>;
