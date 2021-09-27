@@ -30,9 +30,10 @@ use primitives::v1::{
 	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper, slots, xcm_sender,
-	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate,
+	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
+	slots, xcm_sender, BlockHashCount, BlockLength, BlockWeights, CurrencyToVote,
+	OffchainSolutionLengthLimit, OffchainSolutionWeightLimit, RocksDbWeight,
+	SlowAdjustingFeeUpdate,
 };
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
@@ -852,15 +853,18 @@ impl parachains_initializer::Config for Runtime {
 	type ForceOrigin = EnsureRoot<AccountId>;
 }
 
+impl paras_sudo_wrapper::Config for Runtime {}
+
 parameter_types! {
-	pub const PermanentSlotLeasePeriodLength: u32 = 13;
+	pub const PermanentSlotLeasePeriodLength: u32 = 26;
 	pub const TemporarySlotLeasePeriodLength: u32 = 1;
 	pub const MaxPermanentSlots: u32 = 5;
 	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
 }
 
-impl paras_sudo_wrapper::Config for Runtime {
+impl assigned_slots::Config for Runtime {
 	type Event = Event;
+	type AssignSlotOrigin = EnsureRoot<AccountId>;
 	type Leaser = Slots;
 	type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
 	type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
@@ -1111,9 +1115,10 @@ construct_runtime! {
 		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		Slots: slots::{Pallet, Call, Storage, Event<T>} = 61,
-		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call, Event<T>} = 62,
+		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 62,
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 63,
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 64,
+		AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>} = 65,
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,

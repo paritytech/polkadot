@@ -42,8 +42,9 @@ use primitives::v1::{
 	Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper, slots, xcm_sender,
-	BlockHashCount, BlockLength, BlockWeights, RocksDbWeight, SlowAdjustingFeeUpdate,
+	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
+	slots, xcm_sender, BlockHashCount, BlockLength, BlockWeights, RocksDbWeight,
+	SlowAdjustingFeeUpdate,
 };
 use runtime_parachains::{self, runtime_api_impl::v1 as runtime_api_impl};
 use scale_info::TypeInfo;
@@ -219,7 +220,8 @@ construct_runtime! {
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>},
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>},
 		Slots: slots::{Pallet, Call, Storage, Event<T>},
-		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call, Storage, Event<T>},
+		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
+		AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>},
 
 		// Sudo
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>},
@@ -753,6 +755,8 @@ impl parachains_initializer::Config for Runtime {
 	type ForceOrigin = EnsureRoot<AccountId>;
 }
 
+impl paras_sudo_wrapper::Config for Runtime {}
+
 parameter_types! {
 	pub const PermanentSlotLeasePeriodLength: u32 = 26;
 	pub const TemporarySlotLeasePeriodLength: u32 = 1;
@@ -760,8 +764,9 @@ parameter_types! {
 	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
 }
 
-impl paras_sudo_wrapper::Config for Runtime {
+impl assigned_slots::Config for Runtime {
 	type Event = Event;
+	type AssignSlotOrigin = EnsureRoot<AccountId>;
 	type Leaser = Slots;
 	type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
 	type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
@@ -1089,8 +1094,9 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			ProxyType::CancelProxy =>
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. })),
+			ProxyType::CancelProxy => {
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
+			},
 			ProxyType::Auction => matches!(
 				c,
 				Call::Auctions { .. } |
