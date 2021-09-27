@@ -16,8 +16,10 @@
 
 //! A simple wrapper allowing `Sudo` to call into `paras` routines.
 
-use crate::slots::{self, Pallet as Slots};
-use crate::traits::{Leaser, Registrar};
+use crate::{
+	slots::{self, Pallet as Slots},
+	traits::{Leaser, Registrar},
+};
 use frame_support::{pallet_prelude::*, traits::Currency};
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
@@ -374,9 +376,8 @@ pub mod pallet {
 			let config = <configuration::Pallet<T>>::config();
 			<dmp::Pallet<T>>::queue_downward_message(&config, id, xcm.encode()).map_err(|e| match e
 			{
-				dmp::QueueDownwardMessageError::ExceedsMaxMessageSize => {
-					Error::<T>::ExceedsMaxMessageSize.into()
-				}
+				dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
+					Error::<T>::ExceedsMaxMessageSize.into(),
 			})
 		}
 
@@ -414,34 +415,34 @@ impl<T: Config> Pallet<T> {
 			if let Some(slot) = maybe_slot {
 				match slot.last_lease {
 					Some(last_lease)
-						if last_lease <= lease_period_index
-							&& lease_period_index
-								< (last_lease.saturating_add(slot.period_count)) =>
+						if last_lease <= lease_period_index &&
+							lease_period_index <
+								(last_lease.saturating_add(slot.period_count)) =>
 					{
 						// Active slot lease
 						active_temp_slots += 1;
 					}
 					Some(last_lease) => {
 						// Slot w/ past lease, only consider it every other slot lease period (times period_count)
-						if last_lease
-							<= lease_period_index - (slot.period_count.saturating_mul(2u32.into()))
+						if last_lease <=
+							lease_period_index - (slot.period_count.saturating_mul(2u32.into()))
 						{
 							pending_temp_slots.push((para, slot));
 						}
-					}
+					},
 					None if slot.period_begin <= lease_period_index => {
 						// Slot hasn't had a lease yet
 						pending_temp_slots.insert(0, (para, slot));
-					}
+					},
 					_ => {
 						// Slot not being considered for this lease period (will be for a subsequent one)
-					}
+					},
 				}
 			}
 		});
 
-		if active_temp_slots < T::MaxTemporarySlotPerLeasePeriod::get()
-			&& !pending_temp_slots.is_empty()
+		if active_temp_slots < T::MaxTemporarySlotPerLeasePeriod::get() &&
+			!pending_temp_slots.is_empty()
 		{
 			// Sort by lease_count, favoring slots that had no or less turns first
 			pending_temp_slots.sort_unstable_by_key(|(_id, s)| s.lease_count);
