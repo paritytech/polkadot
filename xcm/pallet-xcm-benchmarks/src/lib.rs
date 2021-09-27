@@ -25,6 +25,7 @@ use xcm::latest::prelude::*;
 use xcm_executor::{traits::Convert, Assets};
 
 pub mod fungible;
+pub mod generic;
 
 #[cfg(test)]
 mod mock;
