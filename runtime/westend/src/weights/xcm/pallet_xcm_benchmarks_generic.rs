@@ -66,4 +66,8 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	pub fn initiate_reserve_withdraw() -> Weight {
 		1_000_000_000
 	}
+
+	pub fn report_error() -> Weight {
+		1_000_000_000
+	}
 }

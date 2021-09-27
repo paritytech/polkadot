@@ -115,9 +115,9 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	fn report_error(
 		_query_id: &QueryId,
 		_dest: &MultiLocation,
-		max_response_weight: &u64,
+		_max_response_weight: &u64,
 	) -> Weight {
-		*max_response_weight
+		XcmGeneric::<Runtime>::report_error()
 	}
 	fn relayed_from(_who: &Junctions, _message: &Box<Xcm<Call>>) -> Weight {
 		XcmGeneric::<Runtime>::relayed_from()
