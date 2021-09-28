@@ -15,8 +15,6 @@ stages:
   - publish
   - deploy
 
-image:                             paritytech/ci-linux:production
-
 workflow:
   rules:
     - if: $CI_COMMIT_TAG
@@ -26,6 +24,7 @@ variables:
   GIT_STRATEGY:                    fetch
   GIT_DEPTH:                       100
   CI_SERVER_NAME:                  "GitLab CI"
+  CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
@@ -55,6 +54,7 @@ default:
     - kubernetes-parity-build
 
 .docker-env:                       &docker-env
+  image:                           "${CI_IMAGE}"
   retry:
     max: 2
     when:
@@ -153,7 +153,7 @@ check-runtime:
 
 cargo-fmt:
   stage:                           test
-  <<:                              *kubernetes-env
+  <<:                              *docker-env
   <<:                              *rules-test
   script:
     - cargo +nightly fmt --all -- --check
@@ -257,11 +257,11 @@ build-adder-collator:
 #### stage:                        build
 
 check-transaction-versions:
-  image:                           node:15
   stage:                           build
   <<:                              *rules-test
   <<:                              *docker-env
   <<:                              *vault-secrets
+  image:                           node:15
   needs:
     - job:                         test-build-linux-stable
       artifacts:                   true
@@ -396,8 +396,9 @@ publish-adder-collator-image:
       # this artifact is used in simnet-tests job
       dotenv: ./artifacts/collator.env
 
-.update_weights:                   &update-weights
+update_polkadot_weights:           &update-weights
   stage:                           build
+  # TODO: rewrite
   when:                            manual
   tags:
     - weights
@@ -406,12 +407,9 @@ publish-adder-collator-image:
   artifacts:
     paths:
       - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
-  script: |
-    ./scripts/run_benches_for_runtime.sh $RUNTIME
-    git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
-
-update_polkadot_weights:
-  <<:                              *update-weights
+  script:
+    - ./scripts/run_benches_for_runtime.sh $RUNTIME
+    - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
 
 update_kusama_weights:
   <<:                              *update-weights
