@@ -226,6 +226,7 @@ Simnet/MS
 spawn/SR
 spawner
 sr25519
+SSL
 startup/MS
 stateful
 str
@@ -281,6 +282,7 @@ versa
 version/DMSG
 versioned
 VMP/SM
+VPS
 VRF/SM
 w3f/MS
 wakeups
