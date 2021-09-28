@@ -1,19 +1,18 @@
 FROM docker.io/paritytech/ci-linux:production as builder
-LABEL description="This is the build stage for Polkadot. Here we create the binary."
+LABEL io.parity.image.description="This is the build stage for Polkadot. Here we create the binary."
 
-ARG PROFILE=release
 WORKDIR /polkadot
 
 COPY . /polkadot
 
-RUN cargo build --$PROFILE
+RUN cargo build --release --locked
 
 # ===== SECOND STAGE ======
 
 FROM docker.io/library/ubuntu:20.04
-LABEL description="This is the 2nd stage: a very small image where we copy the Polkadot binary."
-ARG PROFILE=release
-COPY --from=builder /polkadot/target/$PROFILE/polkadot /usr/local/bin
+LABEL io.parity.image.description="Polkadot: a platform for web3. This is a self-buit multistage image."
+
+COPY --from=builder /polkadot/target/release/polkadot /usr/local/bin
 
 RUN useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
 	mkdir -p /polkadot/.local/share && \
@@ -23,7 +22,7 @@ RUN useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
 	rm -rf /usr/bin /usr/sbin
 
 USER polkadot
-EXPOSE 30333 9933 9944
+EXPOSE 30333 9933 9944 9615
 VOLUME ["/data"]
 
-CMD ["/usr/local/bin/polkadot"]
+ENTRYPOINT ["/usr/local/bin/polkadot"]
