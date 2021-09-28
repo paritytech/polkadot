@@ -775,7 +775,7 @@ pub(crate) mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(c_tx),
 				)) => {
-					assert_eq!(h, header.parent_hash);
+					assert_eq!(h, hash);
 					let _ = c_tx.send(Ok(session));
 				}
 			);
@@ -878,7 +878,7 @@ pub(crate) mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(c_tx),
 				)) => {
-					assert_eq!(h, header.parent_hash);
+					assert_eq!(h, hash);
 					let _ = c_tx.send(Ok(session));
 				}
 			);
@@ -976,7 +976,7 @@ pub(crate) mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(c_tx),
 				)) => {
-					assert_eq!(h, header.parent_hash);
+					assert_eq!(h, hash);
 					let _ = c_tx.send(Ok(session));
 				}
 			);
@@ -1081,7 +1081,7 @@ pub(crate) mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(c_tx),
 				)) => {
-					assert_eq!(h, header.parent_hash);
+					assert_eq!(h, hash);
 					let _ = c_tx.send(Ok(session));
 				}
 			);
@@ -1236,7 +1236,7 @@ pub(crate) mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(c_tx),
 				)) => {
-					assert_eq!(h, parent_hash.clone());
+					assert_eq!(h, hash);
 					let _ = c_tx.send(Ok(session));
 				}
 			);
@@ -1260,7 +1260,7 @@ pub(crate) mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(c_tx),
 				)) => {
-					assert_eq!(h, parent_hash.clone());
+					assert_eq!(h, hash);
 					let _ = c_tx.send(Ok(session));
 				}
 			);
