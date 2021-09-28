@@ -949,7 +949,7 @@ pub struct SessionInfo {
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
 pub struct ScrapedImportDisputesAndBackingVotes<H: Encode + Decode = Hash> {
-	/// The sesssion in which the block was included.
+	/// The session in which the block was included.
 	pub session: SessionIndex,
 	/// Set of backing validators for each candidate, represented by it's candidate
 	/// receipt.
