@@ -37,7 +37,7 @@ use polkadot_cli::{
 use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CandidateValidationMessage},
-	overseer::{self, OverseerHandle},
+	overseer::{self, OverseerConnector, OverseerHandle},
 	FromOverseer,
 };
 
@@ -86,6 +86,7 @@ struct BehaveMaleficient;
 impl OverseerGen for BehaveMaleficient {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
+		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
@@ -113,7 +114,7 @@ impl OverseerGen for BehaveMaleficient {
 			},
 		);
 
-		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)
+		Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner, connector)
 			.map_err(|e| e.into())
 	}
 }

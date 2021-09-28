@@ -19,47 +19,9 @@
 //! In the future, everything should be set up using the generated
 //! overseer builder pattern instead.
 
-use crate::{AllMessages, OverseerSignal};
-use polkadot_node_subsystem_types::errors::SubsystemError;
+use crate::dummy::DummySubsystem;
 use polkadot_overseer_all_subsystems_gen::AllSubsystemsGen;
-use polkadot_overseer_gen::{
-	FromOverseer, MapSubsystem, SpawnedSubsystem, Subsystem, SubsystemContext,
-};
-
-/// A dummy subsystem that implements [`Subsystem`] for all
-/// types of messages. Used for tests or as a placeholder.
-#[derive(Clone, Copy, Debug)]
-pub struct DummySubsystem;
-
-impl<Context> Subsystem<Context, SubsystemError> for DummySubsystem
-where
-	Context: SubsystemContext<
-		Signal = OverseerSignal,
-		Error = SubsystemError,
-		AllMessages = AllMessages,
-	>,
-{
-	fn start(self, mut ctx: Context) -> SpawnedSubsystem<SubsystemError> {
-		let future = Box::pin(async move {
-			loop {
-				match ctx.recv().await {
-					Err(_) => return Ok(()),
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
-					Ok(overseer_msg) => {
-						tracing::debug!(
-							target: "dummy-subsystem",
-							"Discarding a message sent from overseer {:?}",
-							overseer_msg
-						);
-						continue
-					},
-				}
-			}
-		});
-
-		SpawnedSubsystem { name: "dummy-subsystem", future }
-	}
-}
+use polkadot_overseer_gen::MapSubsystem;
 
 /// This struct is passed as an argument to create a new instance of an [`Overseer`].
 ///
