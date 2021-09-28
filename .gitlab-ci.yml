@@ -270,8 +270,7 @@ build-adder-collator:
 #### stage:                        build
 
 check-transaction-versions:
-  # image must be ubuntu:20.04 based to match the linkers, this image has npm installed
-  image:                           paritytech/contracts-ci-linux:production
+  image:                           node:15
   stage:                           build
   <<:                              *rules-test
   <<:                              *docker-env
@@ -523,6 +522,7 @@ publish-rustdoc:
     - git commit -m "Updated docs for ${CI_COMMIT_REF_NAME}" ||
         echo "___Nothing to commit___"
     - git push origin gh-pages --force
+    - echo "___Rustdoc was successfully published to https://paritytech.github.io/polkadot/___"
   after_script:
     - rm -rf .git/ ./*
 
