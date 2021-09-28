@@ -31,6 +31,9 @@ use std::{
 	time::{SystemTime, UNIX_EPOCH},
 };
 
+use futures::{channel::oneshot, prelude::*};
+use kvdb::KeyValueDB;
+use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
 	DISPUTE_WINDOW,
@@ -38,9 +41,8 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		RuntimeApiMessage, RuntimeApiRequest,
 		BlockDescription, ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
-		DisputeParticipationMessage, ImportStatementsResult,
+		DisputeParticipationMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
@@ -48,13 +50,9 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate,
 };
 use polkadot_primitives::v1::{
-	DisputeStatementSet,
-	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, Hash, SessionIndex,
-	SessionInfo, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, DisputeStatementSet, Hash,
+	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
-use futures::{channel::oneshot, prelude::*};
-use kvdb::KeyValueDB;
-use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use sc_keystore::LocalKeystore;
 
 use crate::metrics::Metrics;
@@ -524,8 +522,9 @@ async fn handle_new_activations(
 			let (tx, rx) = oneshot::channel();
 			ctx.send_message(RuntimeApiMessage::Request(
 				new_leaf,
-				RuntimeApiRequest::ImportedOnChainDisputes(tx)
-			)).await;
+				RuntimeApiRequest::ImportedOnChainDisputes(tx),
+			))
+			.await;
 
 			rx.await??
 		};
@@ -540,31 +539,40 @@ async fn handle_new_activations(
 			}
 		};
 
-		for DisputeStatementSet { candidate_hash, session, statements } in on_chain_scraped.disputes.iter() {
+		for DisputeStatementSet { candidate_hash, session, statements } in
+			on_chain_scraped.disputes.iter()
+		{
 			let statements = statements
 				.into_iter()
 				.map(|(dispute_statement, validator_idx, validator_signature)| {
-					(SignedDisputeStatement {
-						dispute_statement,
-						candidate_hash,
-						validator_public: session_info.validators[validator_idx],
-						validator_signature,
-						session_index: session,
-					}, validator_idx)
-				}).collect::<Vec<(SignedDisputeStatement, ValidatorIndex)>>();
+					(
+						SignedDisputeStatement {
+							dispute_statement,
+							candidate_hash,
+							validator_public: session_info.validators[validator_idx],
+							validator_signature,
+							session_index: session,
+						},
+						validator_idx,
+					)
+				})
+				.collect::<Vec<(SignedDisputeStatement, ValidatorIndex)>>();
 
 			let candidate_receipt = todo!("Obtain the candidate_receipt");
-			let _ = dbg!(handle_import_statements(
-				ctx,
-				overlay_db,
-				state,
-				candidate_hash,
-				candidate_receipt,
-				session,
-				statements,
-				now,
-				metrics,
-			).await?);
+			let _ = dbg!(
+				handle_import_statements(
+					ctx,
+					overlay_db,
+					state,
+					candidate_hash,
+					candidate_receipt,
+					session,
+					statements,
+					now,
+					metrics,
+				)
+				.await?
+			);
 		}
 	}
 

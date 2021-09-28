@@ -28,8 +28,8 @@ use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
-	ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead, UpgradeRestriction,
-	ValidationCode, ValidationCodeHash, CandidateReceipt,
+	CandidateReceipt, ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead,
+	UpgradeRestriction, ValidationCode, ValidationCodeHash,
 };
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;

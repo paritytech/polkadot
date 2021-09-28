@@ -110,15 +110,14 @@ pub trait RewardValidators {
 	fn reward_bitfields(validators: impl IntoIterator<Item = ValidatorIndex>);
 }
 
-
 /// Helper return type for `process_candidates`.
 #[derive(Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub(crate) struct ProcessedCandidates {
 	pub(crate) core_indices: Vec<CoreIndex>,
-	pub(crate) candidate_receipt_with_backing_validator_indices: Vec<(CandidateReceipt, Vec<ValidatorIndex>)>,
+	pub(crate) candidate_receipt_with_backing_validator_indices:
+		Vec<(CandidateReceipt, Vec<ValidatorIndex>)>,
 }
-
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -578,21 +577,24 @@ impl<T: Config> Pallet<T> {
 								},
 							}
 
-							let mut explicit_backer_indices = Vec::with_capacity(candidate.validator_indices.count_ones());
+							let mut explicit_backer_indices =
+								Vec::with_capacity(candidate.validator_indices.count_ones());
 							for (bit_idx, _) in candidate
 								.validator_indices
 								.iter()
 								.enumerate()
 								.filter(|(_, signed)| **signed)
 							{
-								let val_idx =
-									group_vals.get(bit_idx).expect("this query succeeded above; qed");
+								let val_idx = group_vals
+									.get(bit_idx)
+									.expect("this query succeeded above; qed");
 
 								explicit_backer_indices.push(val_idx);
 
 								backers.set(val_idx.0 as _, true);
 							}
-							candidate_receipt_with_backer_indices.push((candidate.receipt(), explicit_backer_indices));
+							candidate_receipt_with_backer_indices
+								.push((candidate.receipt(), explicit_backer_indices));
 						}
 
 						core_indices_and_backers.push((
@@ -2413,17 +2415,18 @@ mod tests {
 				BackingKind::Threshold,
 			));
 
-			let ProcessedCandidates{ core_indices: occupied_cores , .. } = ParaInclusion::process_candidates(
-				Default::default(),
-				vec![backed_a, backed_b, backed_c],
-				vec![
-					chain_a_assignment.clone(),
-					chain_b_assignment.clone(),
-					thread_a_assignment.clone(),
-				],
-				&group_validators,
-			)
-			.expect("candidates scheduled, in order, and backed");
+			let ProcessedCandidates { core_indices: occupied_cores, .. } =
+				ParaInclusion::process_candidates(
+					Default::default(),
+					vec![backed_a, backed_b, backed_c],
+					vec![
+						chain_a_assignment.clone(),
+						chain_b_assignment.clone(),
+						thread_a_assignment.clone(),
+					],
+					&group_validators,
+				)
+				.expect("candidates scheduled, in order, and backed");
 
 			assert_eq!(
 				occupied_cores,
@@ -2557,13 +2560,14 @@ mod tests {
 				BackingKind::Threshold,
 			));
 
-			let ProcessedCandidates { core_indices: occupied_cores, .. } = ParaInclusion::process_candidates(
-				Default::default(),
-				vec![backed_a],
-				vec![chain_a_assignment.clone()],
-				&group_validators,
-			)
-			.expect("candidates scheduled, in order, and backed");
+			let ProcessedCandidates { core_indices: occupied_cores, .. } =
+				ParaInclusion::process_candidates(
+					Default::default(),
+					vec![backed_a],
+					vec![chain_a_assignment.clone()],
+					&group_validators,
+				)
+				.expect("candidates scheduled, in order, and backed");
 
 			assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
 
