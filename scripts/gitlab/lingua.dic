@@ -198,6 +198,7 @@ proxy/G
 proxying
 PRs
 PVF/S
+p2p
 README/MS
 redhat/M
 register/CD
@@ -293,9 +294,11 @@ Westend/M
 wildcard/MS
 WND/S
 Wococo
+WS
 XCM/S
 XCMP/M
 yeet
+yml
 decrement
 DM
 ParaId
