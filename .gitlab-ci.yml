@@ -6,7 +6,7 @@
 # setting DEPLOY_TAG will only deploy the tagged image
 #
 # please do not add new jobs without "rules:" and "*-env". There are &rules-test for everything,
-# &rules-pr-only preset. And "kubernetes-env" with "docker-env" to set a runner
+# &rules-test-and-rococo preset. And "kubernetes-env" with "docker-env" to set a runner
 # which executes the job.
 
 stages:
@@ -76,16 +76,16 @@ default:
   rules:
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
-    - when: always
-
-.pr-only:                          &rules-pr-only
-  # these jobs run only on PRs
-  rules:
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: never
+    - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+
+.rules-test-and-rococo:            &rules-test-and-rococo
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
 
 #### Vault secrets
 .vault-secrets:                    &vault-secrets
@@ -142,7 +142,7 @@ check-runtime:
   stage:                           test
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
+  <<:                              *rules-test
   <<:                              *vault-secrets
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
@@ -154,7 +154,7 @@ check-runtime:
 cargo-fmt:
   stage:                           test
   <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
+  <<:                              *rules-test
   script:
     - cargo +nightly fmt --all -- --check
   allow_failure:                   true
@@ -228,7 +228,7 @@ check-no-default-features:
 spellcheck:
   stage:                           test
   <<:                              *docker-env
-  <<:                              *rules-pr-only
+  <<:                              *rules-test
   script:
     - cargo spellcheck --version
     # compare with the commit parent to the PR, given it's from a default branch
@@ -242,11 +242,7 @@ build-adder-collator:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  <<:                              *rules-test-and-rococo
   script:
     - time cargo build --release --verbose -p test-parachain-adder-collator
     - sccache -s
@@ -381,16 +377,12 @@ publish-adder-collator-image:
   # service image for Simnet
   stage:                           build
   <<:                              *build-push-image
+  <<:                              *rules-test-and-rococo
   variables:
     <<:                            *image-variables
     # scripts/dockerfiles/collator_injected.Dockerfile
     DOCKERFILE:                    dockerfiles/collator_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         build-adder-collator
       artifacts:                   true
@@ -536,11 +528,7 @@ simnet-tests:
   stage:                           deploy
   image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
   <<:                              *kubernetes-env
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  <<:                              *rules-test-and-rococo
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-adder-collator-image
