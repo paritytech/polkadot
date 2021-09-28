@@ -69,6 +69,7 @@ use statement_table::{
 	Context as TableContextTrait, Table,
 };
 use thiserror::Error;
+use parity_scale_codec::Encode;
 
 #[cfg(test)]
 mod tests;
@@ -531,6 +532,16 @@ async fn validate_and_make_available(
 	tx_command.send(make_command(res)).await.map_err(Into::into)
 }
 
+/// Head data for the adder-collator parachain.
+#[derive(Default, Clone, Hash, Eq, PartialEq, Encode, Debug)]
+pub struct HeadData {
+	/// Block number
+	pub number: u64,
+	/// parent block keccak256
+	pub parent_hash: [u8; 32],
+	/// hash of post-execution state.
+	pub post_state: [u8; 32],
+}
 struct ValidatorIndexOutOfBounds;
 
 impl CandidateBackingJob {
@@ -1015,7 +1026,7 @@ impl CandidateBackingJob {
 						upward_messages: Vec::new(),
 						horizontal_messages: Vec::new(),
 						new_validation_code: None,
-						head_data: vec![1, 2, 3, 4, 5].into(),
+						head_data: HeadData::default().encode().into(),
 						processed_downward_messages: 0,
 						hrmp_watermark: validation_data.relay_parent_number,
 					};
