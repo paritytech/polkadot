@@ -478,20 +478,9 @@ async fn handle_new_activations(
 	new_activations: impl IntoIterator<Item = Hash>,
 ) -> Result<(), Error> {
 	for new_leaf in new_activations {
-		let block_header = {
-			let (tx, rx) = oneshot::channel();
-
-			ctx.send_message(ChainApiMessage::BlockHeader(new_leaf, tx)).await;
-
-			match rx.await?? {
-				None => continue,
-				Some(header) => header,
-			}
-		};
-
 		match state
 			.rolling_session_window
-			.cache_session_info_for_head(ctx, new_leaf, &block_header)
+			.cache_session_info_for_head(ctx, new_leaf)
 			.await
 		{
 			Err(e) => {

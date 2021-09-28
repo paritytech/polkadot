@@ -19,7 +19,7 @@
 //! This is useful for consensus components which need to stay up-to-date about recent sessions but don't
 //! care about the state of particular blocks.
 
-use polkadot_primitives::v1::{Hash, Header, SessionIndex, SessionInfo};
+use polkadot_primitives::v1::{Hash, SessionIndex, SessionInfo};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{
@@ -141,7 +141,6 @@ impl RollingSessionWindow {
 		&mut self,
 		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 		block_hash: Hash,
-		_block_header: &Header, // TODO: remove
 	) -> Result<SessionWindowUpdate, SessionsUnavailable> {
 		if self.window_size == 0 {
 			return Ok(SessionWindowUpdate::Unchanged)
@@ -285,6 +284,7 @@ async fn load_all_sessions(
 mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
+	use polkadot_primitives::v1::Header;
 	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use sp_core::testing::TaskExecutor;
@@ -327,9 +327,8 @@ mod tests {
 		let hash = header.hash();
 
 		let test_fut = {
-			let header = header.clone();
 			Box::pin(async move {
-				window.cache_session_info_for_head(&mut ctx, hash, &header).await.unwrap();
+				window.cache_session_info_for_head(&mut ctx, hash).await.unwrap();
 
 				assert_eq!(window.earliest_session, Some(expected_start_session));
 				assert_eq!(
@@ -495,9 +494,8 @@ mod tests {
 		let hash = header.hash();
 
 		let test_fut = {
-			let header = header.clone();
 			Box::pin(async move {
-				let res = window.cache_session_info_for_head(&mut ctx, hash, &header).await;
+				let res = window.cache_session_info_for_head(&mut ctx, hash).await;
 
 				assert!(res.is_err());
 			})
@@ -557,9 +555,8 @@ mod tests {
 		let hash = header.hash();
 
 		let test_fut = {
-			let header = header.clone();
 			Box::pin(async move {
-				window.cache_session_info_for_head(&mut ctx, hash, &header).await.unwrap();
+				window.cache_session_info_for_head(&mut ctx, hash).await.unwrap();
 
 				assert_eq!(window.earliest_session, Some(session));
 				assert_eq!(window.session_info, vec![dummy_session_info(session)]);
