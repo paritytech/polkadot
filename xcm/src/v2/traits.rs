@@ -18,10 +18,11 @@
 
 use core::result;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
-use super::{MultiLocation, Xcm};
+use super::*;
 
-#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
 pub enum Error {
 	Undefined,
 	/// An arithmetic overflow happened.
@@ -99,6 +100,8 @@ pub enum Error {
 	Trap(u64),
 	/// The given claim could not be recognized/found.
 	UnknownClaim,
+	/// The location given was invalid for some reason specific to the operation at hand.
+	InvalidLocation,
 }
 
 impl From<()> for Error {
@@ -124,7 +127,7 @@ pub type Result = result::Result<(), Error>;
 pub type Weight = u64;
 
 /// Outcome of an XCM execution.
-#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
 	Complete(Weight),
@@ -204,7 +207,7 @@ impl<C> ExecuteXcm<C> for () {
 }
 
 /// Error result value when attempting to send an XCM message.
-#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug, scale_info::TypeInfo)]
 pub enum SendError {
 	/// The message and destination combination was not recognized as being reachable.
 	///
@@ -315,4 +318,64 @@ impl SendXcm for Tuple {
 		)* );
 		Err(SendError::CannotReachDestination(destination.into(), message))
 	}
+}
+
+/// The info needed to weight an XCM.
+// TODO: Automate Generation
+pub trait XcmWeightInfo<Call> {
+	fn withdraw_asset(assets: &MultiAssets) -> Weight;
+	fn reserve_asset_deposited(assets: &MultiAssets) -> Weight;
+	fn receive_teleported_asset(assets: &MultiAssets) -> Weight;
+	fn query_response(query_id: &u64, response: &Response, max_weight: &u64) -> Weight;
+	fn transfer_asset(assets: &MultiAssets, beneficiary: &MultiLocation) -> Weight;
+	fn transfer_reserve_asset(assets: &MultiAssets, dest: &MultiLocation, xcm: &Xcm<()>) -> Weight;
+	fn transact(
+		origin_type: &OriginKind,
+		require_weight_at_most: &u64,
+		call: &DoubleEncoded<Call>,
+	) -> Weight;
+	fn hrmp_new_channel_open_request(
+		sender: &u32,
+		max_message_size: &u32,
+		max_capacity: &u32,
+	) -> Weight;
+	fn hrmp_channel_accepted(recipient: &u32) -> Weight;
+	fn hrmp_channel_closing(initiator: &u32, sender: &u32, recipient: &u32) -> Weight;
+	fn clear_origin() -> Weight;
+	fn descend_origin(who: &InteriorMultiLocation) -> Weight;
+	fn report_error(query_id: &QueryId, dest: &MultiLocation, max_response_weight: &u64) -> Weight;
+	fn relayed_from(who: &Junctions, message: &alloc::boxed::Box<Xcm<Call>>) -> Weight;
+	fn deposit_asset(
+		assets: &MultiAssetFilter,
+		max_assets: &u32,
+		beneficiary: &MultiLocation,
+	) -> Weight;
+	fn deposit_reserve_asset(
+		assets: &MultiAssetFilter,
+		max_assets: &u32,
+		dest: &MultiLocation,
+		xcm: &Xcm<()>,
+	) -> Weight;
+	fn exchange_asset(give: &MultiAssetFilter, receive: &MultiAssets) -> Weight;
+	fn initiate_reserve_withdraw(
+		assets: &MultiAssetFilter,
+		reserve: &MultiLocation,
+		xcm: &Xcm<()>,
+	) -> Weight;
+	fn initiate_teleport(assets: &MultiAssetFilter, dest: &MultiLocation, xcm: &Xcm<()>) -> Weight;
+	fn query_holding(
+		query_id: &u64,
+		dest: &MultiLocation,
+		assets: &MultiAssetFilter,
+		max_response_weight: &u64,
+	) -> Weight;
+	fn buy_execution(fees: &MultiAsset, weight_limit: &WeightLimit) -> Weight;
+	fn refund_surplus() -> Weight;
+	fn set_error_handler(xcm: &Xcm<Call>) -> Weight;
+	fn set_appendix(xcm: &Xcm<Call>) -> Weight;
+	fn clear_error() -> Weight;
+	fn claim_asset(assets: &MultiAssets, ticket: &MultiLocation) -> Weight;
+	fn trap(code: &u64) -> Weight;
+	fn subscribe_version(query_id: &QueryId, max_response_weight: &u64) -> Weight;
+	fn unsubscribe_version() -> Weight;
 }

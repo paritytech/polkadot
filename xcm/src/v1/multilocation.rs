@@ -19,6 +19,7 @@
 use super::Junction;
 use core::{convert::TryFrom, mem, result};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 /// A relative path between state-bearing consensus systems.
 ///
@@ -46,7 +47,7 @@ use parity_scale_codec::{Decode, Encode};
 /// that a value is strictly an interior location, in those cases, `Junctions` may be used.
 ///
 /// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
-#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo)]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
 	pub parents: u8,
@@ -54,21 +55,26 @@ pub struct MultiLocation {
 	pub interior: Junctions,
 }
 
+impl Default for MultiLocation {
+	fn default() -> Self {
+		Self { parents: 0, interior: Junctions::Here }
+	}
+}
+
 /// A relative location which is constrained to be an interior location of the context.
 ///
 /// See also `MultiLocation`.
 pub type InteriorMultiLocation = Junctions;
 
-impl Default for MultiLocation {
-	fn default() -> Self {
-		Self::here()
-	}
-}
-
 impl MultiLocation {
 	/// Creates a new `MultiLocation` with the given number of parents and interior junctions.
 	pub fn new(parents: u8, junctions: Junctions) -> MultiLocation {
 		MultiLocation { parents, interior: junctions }
+	}
+
+	/// Consume `self` and return the equivalent `VersionedMultiLocation` value.
+	pub fn versioned(self) -> crate::VersionedMultiLocation {
+		self.into()
 	}
 
 	/// Creates a new `MultiLocation` with 0 parents and a `Here` interior.
@@ -365,7 +371,7 @@ const MAX_JUNCTIONS: usize = 8;
 ///
 /// Parent junctions cannot be constructed with this type. Refer to `MultiLocation` for
 /// instructions on constructing parent junctions.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
 pub enum Junctions {
 	/// The interpreting consensus system.
 	Here,

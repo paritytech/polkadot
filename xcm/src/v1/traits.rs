@@ -18,10 +18,11 @@
 
 use core::result;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 use super::{MultiLocation, Xcm};
 
-#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
 pub enum Error {
 	Undefined,
 	/// An arithmetic overflow happened.
@@ -105,7 +106,7 @@ pub type Result = result::Result<(), Error>;
 pub type Weight = u64;
 
 /// Outcome of an XCM execution.
-#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
 pub enum Outcome {
 	/// Execution completed successfully; given weight was used.
 	Complete(Weight),

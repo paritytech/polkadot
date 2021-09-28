@@ -142,6 +142,7 @@ impl<
 	}
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
+		log::trace!("xcm::currency_adapter deposit_asset {:?} {:?}", what, who);
 		// Check we handle this asset.
 		let amount: u128 =
 			Matcher::matches_fungible(&what).ok_or(Error::AssetNotFound)?.saturated_into();

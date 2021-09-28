@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = "0.3.15"
+futures = "0.3.17"
 futures-timer = "3.0.2"
 parking_lot = "0.11.1"
 polkadot-node-network-protocol = { path = "../network/protocol" }
@@ -17,16 +17,16 @@ polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-overseer-gen = { path = "./overseer-gen" }
 polkadot-overseer-all-subsystems-gen = { path = "./all-subsystems-gen" }
-tracing = "0.1.26"
+tracing = "0.1.27"
 lru = "0.6"
+parity-util-mem = { version = ">= 0.10.1", default-features = false }
 
 [dev-dependencies]
 metered-channel = { path = "../metered-channel" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.15", features = ["thread-pool"] }
+futures = { version = "0.3.17", features = ["thread-pool"] }
 femme = "2.1.1"
 assert_matches = "1.4.0"
 
 [features]
 default = []
-memory-stats = ["polkadot-node-metrics/memory-stats"]

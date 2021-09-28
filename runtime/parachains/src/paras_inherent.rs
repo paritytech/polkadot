@@ -123,7 +123,7 @@ pub mod pallet {
 						target: LOG_TARGET,
 						"dropping signed_bitfields and backed_candidates because they produced \
 						an invalid paras inherent: {:?}",
-						err,
+						err.error,
 					);
 
 						ParachainsInherentData {
@@ -135,11 +135,11 @@ pub mod pallet {
 					},
 				};
 
-			Some(Call::enter(inherent_data))
+			Some(Call::enter { data: inherent_data })
 		}
 
 		fn is_inherent(call: &Self::Call) -> bool {
-			matches!(call, Call::enter(..))
+			matches!(call, Call::enter { .. })
 		}
 	}
 
@@ -429,12 +429,14 @@ mod tests {
 				System::set_block_consumed_resources(used_block_weight, 0);
 
 				// execute the paras inherent
-				let post_info = Call::<Test>::enter(ParachainsInherentData {
-					bitfields: signed_bitfields,
-					backed_candidates,
-					disputes: Vec::new(),
-					parent_header: default_header(),
-				})
+				let post_info = Call::<Test>::enter {
+					data: ParachainsInherentData {
+						bitfields: signed_bitfields,
+						backed_candidates,
+						disputes: Vec::new(),
+						parent_header: default_header(),
+					},
+				}
 				.dispatch_bypass_filter(None.into())
 				.unwrap_err()
 				.post_info;
@@ -477,12 +479,14 @@ mod tests {
 				System::set_block_consumed_resources(used_block_weight, 0);
 
 				// execute the paras inherent
-				let post_info = Call::<Test>::enter(ParachainsInherentData {
-					bitfields: signed_bitfields,
-					backed_candidates,
-					disputes: Vec::new(),
-					parent_header: header,
-				})
+				let post_info = Call::<Test>::enter {
+					data: ParachainsInherentData {
+						bitfields: signed_bitfields,
+						backed_candidates,
+						disputes: Vec::new(),
+						parent_header: header,
+					},
+				}
 				.dispatch_bypass_filter(None.into())
 				.unwrap();
 

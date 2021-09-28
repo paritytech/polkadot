@@ -29,6 +29,7 @@ use core::{
 };
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
+use scale_info::TypeInfo;
 
 mod junction;
 mod multiasset;
@@ -75,10 +76,12 @@ pub mod prelude {
 }
 
 /// Response data to a query.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
 pub enum Response {
 	/// Some assets.
 	Assets(MultiAssets),
+	/// An XCM version.
+	Version(super::Version),
 }
 
 /// Cross-Consensus Message: A message from one consensus system to another.
@@ -89,10 +92,11 @@ pub enum Response {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub enum Xcm<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
@@ -270,6 +274,25 @@ pub enum Xcm<Call> {
 	/// Errors:
 	#[codec(index = 10)]
 	RelayedFrom { who: InteriorMultiLocation, message: alloc::boxed::Box<Xcm<Call>> },
+
+	/// Ask the destination system to respond with the most recent version of XCM that they
+	/// support in a `QueryResponse` instruction. Any changes to this should also elicit similar
+	/// responses when they happen.
+	///
+	/// Kind: *Instruction*
+	#[codec(index = 11)]
+	SubscribeVersion {
+		#[codec(compact)]
+		query_id: u64,
+		#[codec(compact)]
+		max_response_weight: u64,
+	},
+
+	/// Cancel the effect of a previous `SubscribeVersion` instruction.
+	///
+	/// Kind: *Instruction*
+	#[codec(index = 12)]
+	UnsubscribeVersion,
 }
 
 impl<Call> Xcm<Call> {
@@ -302,6 +325,9 @@ impl<Call> Xcm<Call> {
 				Transact { origin_type, require_weight_at_most, call: call.into() },
 			RelayedFrom { who, message } =>
 				RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
+			SubscribeVersion { query_id, max_response_weight } =>
+				SubscribeVersion { query_id, max_response_weight },
+			UnsubscribeVersion => UnsubscribeVersion,
 		}
 	}
 }
@@ -427,6 +453,9 @@ impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
 				HrmpChannelClosing { initiator, sender, recipient },
 			Instruction::Transact { origin_type, require_weight_at_most, call } =>
 				Transact { origin_type, require_weight_at_most, call },
+			Instruction::SubscribeVersion { query_id, max_response_weight } =>
+				SubscribeVersion { query_id, max_response_weight },
+			Instruction::UnsubscribeVersion => UnsubscribeVersion,
 			_ => return Err(()),
 		})
 	}
@@ -438,6 +467,7 @@ impl TryFrom<NewResponse> for Response {
 	fn try_from(response: NewResponse) -> result::Result<Self, ()> {
 		match response {
 			NewResponse::Assets(assets) => Ok(Self::Assets(assets)),
+			NewResponse::Version(version) => Ok(Self::Version(version)),
 			_ => Err(()),
 		}
 	}

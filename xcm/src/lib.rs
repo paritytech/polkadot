@@ -30,6 +30,7 @@ use core::{
 };
 use derivative::Derivative;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use scale_info::TypeInfo;
 
 pub mod v0;
 pub mod v1;
@@ -45,6 +46,9 @@ pub use double_encoded::DoubleEncoded;
 /// Maximum nesting level for XCM decoding.
 pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 
+/// A version of XCM.
+pub type Version = u32;
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Unsupported {}
 impl Encode for Unsupported {}
@@ -54,14 +58,35 @@ impl Decode for Unsupported {
 	}
 }
 
+/// Attempt to convert `self` into a particular version of itself.
+pub trait IntoVersion: Sized {
+	/// Consume `self` and return same value expressed in some particular `version` of XCM.
+	fn into_version(self, version: Version) -> Result<Self, ()>;
+
+	/// Consume `self` and return same value expressed the latest version of XCM.
+	fn into_latest(self) -> Result<Self, ()> {
+		self.into_version(latest::VERSION)
+	}
+}
+
 /// A single `MultiLocation` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum VersionedMultiLocation {
 	V0(v0::MultiLocation),
 	V1(v1::MultiLocation),
+}
+
+impl IntoVersion for VersionedMultiLocation {
+	fn into_version(self, n: Version) -> Result<Self, ()> {
+		Ok(match n {
+			0 => Self::V0(self.try_into()?),
+			1 | 2 => Self::V1(self.try_into()?),
+			_ => return Err(()),
+		})
+	}
 }
 
 impl From<v0::MultiLocation> for VersionedMultiLocation {
@@ -99,7 +124,7 @@ impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
 }
 
 /// A single `Response` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -107,6 +132,17 @@ pub enum VersionedResponse {
 	V0(v0::Response),
 	V1(v1::Response),
 	V2(v2::Response),
+}
+
+impl IntoVersion for VersionedResponse {
+	fn into_version(self, n: Version) -> Result<Self, ()> {
+		Ok(match n {
+			0 => Self::V0(self.try_into()?),
+			1 => Self::V1(self.try_into()?),
+			2 => Self::V2(self.try_into()?),
+			_ => return Err(()),
+		})
+	}
 }
 
 impl From<v0::Response> for VersionedResponse {
@@ -164,13 +200,23 @@ impl TryFrom<VersionedResponse> for v2::Response {
 }
 
 /// A single `MultiAsset` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
 pub enum VersionedMultiAsset {
 	V0(v0::MultiAsset),
 	V1(v1::MultiAsset),
+}
+
+impl IntoVersion for VersionedMultiAsset {
+	fn into_version(self, n: Version) -> Result<Self, ()> {
+		Ok(match n {
+			0 => Self::V0(self.try_into()?),
+			1 | 2 => Self::V1(self.try_into()?),
+			_ => return Err(()),
+		})
+	}
 }
 
 impl From<v0::MultiAsset> for VersionedMultiAsset {
@@ -208,7 +254,7 @@ impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
 }
 
 /// A single `MultiAssets` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -217,8 +263,8 @@ pub enum VersionedMultiAssets {
 	V1(v1::MultiAssets),
 }
 
-impl VersionedMultiAssets {
-	pub fn into_version(self, n: u32) -> Result<Self, ()> {
+impl IntoVersion for VersionedMultiAssets {
+	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
 			0 => Self::V0(self.try_into()?),
 			1 | 2 => Self::V1(self.try_into()?),
@@ -262,14 +308,26 @@ impl TryFrom<VersionedMultiAssets> for v1::MultiAssets {
 }
 
 /// A single XCM message, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub enum VersionedXcm<Call> {
 	V0(v0::Xcm<Call>),
 	V1(v1::Xcm<Call>),
 	V2(v2::Xcm<Call>),
+}
+
+impl<C> IntoVersion for VersionedXcm<C> {
+	fn into_version(self, n: Version) -> Result<Self, ()> {
+		Ok(match n {
+			0 => Self::V0(self.try_into()?),
+			1 => Self::V1(self.try_into()?),
+			2 => Self::V2(self.try_into()?),
+			_ => return Err(()),
+		})
+	}
 }
 
 impl<Call> From<v0::Xcm<Call>> for VersionedXcm<Call> {
@@ -366,7 +424,7 @@ impl WrapVersion for AlwaysV1 {
 	}
 }
 
-/// `WrapVersion` implementation which attempts to always convert the XCM to version 1 before wrapping it.
+/// `WrapVersion` implementation which attempts to always convert the XCM to version 2 before wrapping it.
 pub struct AlwaysV2;
 impl WrapVersion for AlwaysV2 {
 	fn wrap_version<Call>(
@@ -382,6 +440,14 @@ pub type AlwaysLatest = AlwaysV1;
 
 /// `WrapVersion` implementation which attempts to always convert the XCM to the release version before wrapping it.
 pub type AlwaysRelease = AlwaysV0;
+
+pub mod prelude {
+	pub use super::{
+		latest::prelude::*, AlwaysLatest, AlwaysRelease, AlwaysV0, AlwaysV1, AlwaysV2, IntoVersion,
+		Unsupported, Version as XcmVersion, VersionedMultiAsset, VersionedMultiAssets,
+		VersionedMultiLocation, VersionedResponse, VersionedXcm, WrapVersion,
+	};
+}
 
 pub mod opaque {
 	pub mod v0 {
@@ -409,4 +475,9 @@ pub mod opaque {
 
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
 	pub type VersionedXcm = super::VersionedXcm<()>;
+}
+
+// A simple trait to get the weight of some object.
+pub trait GetWeight<W> {
+	fn weight(&self) -> latest::Weight;
 }

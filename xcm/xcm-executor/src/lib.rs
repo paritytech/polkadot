@@ -32,7 +32,7 @@ use xcm::latest::{
 pub mod traits;
 use traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, WeightBounds, WeightTrader,
+	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -42,22 +42,23 @@ pub use config::Config;
 
 /// The XCM executor.
 pub struct XcmExecutor<Config: config::Config> {
-	holding: Assets,
-	origin: Option<MultiLocation>,
-	trader: Config::Trader,
+	pub holding: Assets,
+	pub origin: Option<MultiLocation>,
+	pub original_origin: MultiLocation,
+	pub trader: Config::Trader,
 	/// The most recent error result and instruction index into the fragment in which it occurred,
 	/// if any.
-	error: Option<(u32, XcmError)>,
+	pub error: Option<(u32, XcmError)>,
 	/// The surplus weight, defined as the amount by which `max_weight` is
 	/// an over-estimate of the actual weight consumed. We do it this way to avoid needing the
 	/// execution engine to keep track of all instructions' weights (it only needs to care about
 	/// the weight of dynamically determined instructions such as `Transact`).
-	total_surplus: u64,
-	total_refunded: u64,
-	error_handler: Xcm<Config::Call>,
-	error_handler_weight: u64,
-	appendix: Xcm<Config::Call>,
-	appendix_weight: u64,
+	pub total_surplus: u64,
+	pub total_refunded: u64,
+	pub error_handler: Xcm<Config::Call>,
+	pub error_handler_weight: u64,
+	pub appendix: Xcm<Config::Call>,
+	pub appendix_weight: u64,
 	_config: PhantomData<Config>,
 }
 
@@ -88,24 +89,20 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			return Outcome::Error(XcmError::WeightLimitReached(xcm_weight))
 		}
 
-		if let Err(_) = Config::Barrier::should_execute(
-			&origin,
-			true,
-			&mut message,
-			xcm_weight,
-			&mut weight_credit,
-		) {
+		if let Err(_) =
+			Config::Barrier::should_execute(&origin, &mut message, xcm_weight, &mut weight_credit)
+		{
 			return Outcome::Error(XcmError::Barrier)
 		}
 
-		let mut vm = Self::new(origin.clone());
+		let mut vm = Self::new(origin);
 
 		while !message.0.is_empty() {
 			let result = vm.execute(message);
 			log::trace!(target: "xcm::execute_xcm_in_credit", "result: {:?}", result);
-			message = if let Err((i, e, w)) = result {
-				vm.total_surplus.saturating_accrue(w);
-				vm.error = Some((i, e));
+			message = if let Err(error) = result {
+				vm.total_surplus.saturating_accrue(error.weight);
+				vm.error = Some((error.index, error.xcm_error));
 				vm.take_error_handler().or_else(|| vm.take_appendix())
 			} else {
 				vm.drop_error_handler();
@@ -119,7 +116,8 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		let mut weight_used = xcm_weight.saturating_sub(vm.total_surplus);
 
 		if !vm.holding.is_empty() {
-			weight_used.saturating_accrue(Config::AssetTrap::drop_assets(&origin, vm.holding));
+			let trap_weight = Config::AssetTrap::drop_assets(&vm.original_origin, vm.holding);
+			weight_used.saturating_accrue(trap_weight);
 		};
 
 		match vm.error {
@@ -131,11 +129,32 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	}
 }
 
+#[derive(Debug)]
+pub struct ExecutorError {
+	pub index: u32,
+	pub xcm_error: XcmError,
+	pub weight: u64,
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+impl From<ExecutorError> for frame_benchmarking::BenchmarkError {
+	fn from(error: ExecutorError) -> Self {
+		log::error!(
+			"XCM ERROR >> Index: {:?}, Error: {:?}, Weight: {:?}",
+			error.index,
+			error.xcm_error,
+			error.weight
+		);
+		Self::Stop("xcm executor error: see error logs")
+	}
+}
+
 impl<Config: config::Config> XcmExecutor<Config> {
-	fn new(origin: MultiLocation) -> Self {
+	pub fn new(origin: MultiLocation) -> Self {
 		Self {
 			holding: Assets::new(),
-			origin: Some(origin),
+			origin: Some(origin.clone()),
+			original_origin: origin,
 			trader: Config::Trader::new(),
 			error: None,
 			total_surplus: 0,
@@ -150,7 +169,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 	/// Execute the XCM program fragment and report back the error and which instruction caused it,
 	/// or `Ok` if there was no error.
-	fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), (u32, XcmError, u64)> {
+	pub fn execute(&mut self, xcm: Xcm<Config::Call>) -> Result<(), ExecutorError> {
 		log::trace!(
 			target: "xcm::execute",
 			"origin: {:?}, total_surplus/refunded: {:?}/{:?}, error_handler_weight: {:?}",
@@ -164,11 +183,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			match &mut result {
 				r @ Ok(()) =>
 					if let Err(e) = self.process_instruction(instr) {
-						*r = Err((i as u32, e, 0));
+						*r = Err(ExecutorError { index: i as u32, xcm_error: e, weight: 0 });
 					},
-				Err((_, _, ref mut w)) =>
+				Err(ref mut error) =>
 					if let Ok(x) = Config::Weigher::instr_weight(&instr) {
-						w.saturating_accrue(x)
+						error.weight.saturating_accrue(x)
 					},
 			}
 		}
@@ -420,6 +439,18 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			Trap(code) => Err(XcmError::Trap(code)),
+			SubscribeVersion { query_id, max_response_weight } => {
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				// We don't allow derivative origins to subscribe since it would otherwise pose a
+				// DoS risk.
+				ensure!(self.original_origin == origin, XcmError::BadOrigin);
+				Config::SubscriptionService::start(&origin, query_id, max_response_weight)
+			},
+			UnsubscribeVersion => {
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				ensure!(&self.original_origin == origin, XcmError::BadOrigin);
+				Config::SubscriptionService::stop(origin)
+			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),

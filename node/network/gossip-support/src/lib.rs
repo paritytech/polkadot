@@ -54,7 +54,6 @@ const BACKOFF_DURATION: Duration = Duration::from_secs(5);
 /// should be fine:
 ///
 /// https://github.com/paritytech/substrate/blob/fc49802f263529160635471c8a17888846035f5d/client/authority-discovery/src/lib.rs#L88
-///
 const LOW_CONNECTIVITY_WARN_DELAY: Duration = Duration::from_secs(600);
 
 /// The Gossip Support subsystem.
@@ -292,14 +291,19 @@ impl State {
 					);
 				}
 
-				let authorities = determine_relevant_authorities(ctx, relay_parent).await?;
-				let our_index = ensure_i_am_an_authority(keystore, &authorities).await?;
+				let all_authorities = determine_relevant_authorities(ctx, relay_parent).await?;
+				let our_index = ensure_i_am_an_authority(keystore, &all_authorities).await?;
+				let other_authorities = {
+					let mut authorities = all_authorities.clone();
+					authorities.swap_remove(our_index);
+					authorities
+				};
 
-				self.issue_connection_request(ctx, authorities.clone()).await?;
+				self.issue_connection_request(ctx, other_authorities).await?;
 
 				if is_new_session {
 					self.last_session_index = Some(session_index);
-					update_gossip_topology(ctx, our_index, authorities, relay_parent).await?;
+					update_gossip_topology(ctx, our_index, all_authorities, relay_parent).await?;
 				}
 			}
 		}

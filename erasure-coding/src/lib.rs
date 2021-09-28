@@ -298,10 +298,10 @@ where
 
 /// Verify a merkle branch, yielding the chunk hash meant to be present at that
 /// index.
-pub fn branch_hash(root: &H256, branch_nodes: &[Vec<u8>], index: usize) -> Result<H256, Error> {
+pub fn branch_hash(root: &H256, branch_nodes: &Proof, index: usize) -> Result<H256, Error> {
 	let mut trie_storage: MemoryDB<Blake2Hasher> = MemoryDB::default();
 	for node in branch_nodes.iter() {
-		(&mut trie_storage as &mut trie::HashDB<_>).insert(EMPTY_PREFIX, node.as_slice());
+		(&mut trie_storage as &mut trie::HashDB<_>).insert(EMPTY_PREFIX, node);
 	}
 
 	let trie = TrieDB::new(&trie_storage, &root).map_err(|_| Error::InvalidBranchProof)?;
@@ -372,6 +372,10 @@ mod tests {
 	use super::*;
 	use polkadot_primitives::v0::{AvailableData, BlockData, PoVBlock};
 
+	// In order to adequately compute the number of entries in the Merkle
+	// trie, we must account for the fixed 16-ary trie structure.
+	const KEY_INDEX_NIBBLE_SIZE: usize = 4;
+
 	#[test]
 	fn field_order_is_right_size() {
 		assert_eq!(MAX_VALIDATORS, 65536);
@@ -404,28 +408,36 @@ mod tests {
 		assert_eq!(reconstructed, Err(Error::NotEnoughValidators));
 	}
 
-	#[test]
-	fn construct_valid_branches() {
-		let pov_block = PoVBlock { block_data: BlockData(vec![2; 256]) };
+	fn generate_trie_and_generate_proofs(magnitude: u32) {
+		let n_validators = 2_u32.pow(magnitude) as usize;
+		let pov_block =
+			PoVBlock { block_data: BlockData(vec![2; n_validators / KEY_INDEX_NIBBLE_SIZE]) };
 
 		let available_data = AvailableData { pov_block, omitted_validation: Default::default() };
 
-		let chunks = obtain_chunks(10, &available_data).unwrap();
+		let chunks = obtain_chunks(magnitude as usize, &available_data).unwrap();
 
-		assert_eq!(chunks.len(), 10);
+		assert_eq!(chunks.len() as u32, magnitude);
 
 		let branches = branches(chunks.as_ref());
 		let root = branches.root();
 
 		let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
-
-		assert_eq!(proofs.len(), 10);
-
+		assert_eq!(proofs.len() as u32, magnitude);
 		for (i, proof) in proofs.into_iter().enumerate() {
-			assert_eq!(
-				branch_hash(&root, &proof.as_vec(), i).unwrap(),
-				BlakeTwo256::hash(&chunks[i])
-			);
+			let encode = Encode::encode(&proof);
+			let decode = Decode::decode(&mut &encode[..]).unwrap();
+			assert_eq!(proof, decode);
+			assert_eq!(encode, Encode::encode(&decode));
+
+			assert_eq!(branch_hash(&root, &proof, i).unwrap(), BlakeTwo256::hash(&chunks[i]));
+		}
+	}
+
+	#[test]
+	fn roundtrip_proof_encoding() {
+		for i in 2..16 {
+			generate_trie_and_generate_proofs(i);
 		}
 	}
 }

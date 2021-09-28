@@ -17,7 +17,7 @@
 //! Version 1 of the Cross-Consensus Message format data structures.
 
 use super::v1::{Order as OldOrder, Response as OldResponse, Xcm as OldXcm};
-use crate::DoubleEncoded;
+use crate::{DoubleEncoded, GetWeight};
 use alloc::{vec, vec::Vec};
 use core::{
 	convert::{TryFrom, TryInto},
@@ -26,10 +26,13 @@ use core::{
 };
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
+use scale_info::TypeInfo;
 
 mod traits;
 
-pub use traits::{Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm};
+pub use traits::{
+	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
+};
 // These parts of XCM v1 have been unchanged in XCM v2, and are re-imported here.
 pub use super::v1::{
 	Ancestor, AncestorThen, AssetId, AssetInstance, BodyId, BodyPart, Fungibility,
@@ -37,10 +40,17 @@ pub use super::v1::{
 	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WildFungibility, WildMultiAsset,
 };
 
-#[derive(Derivative, Default, Encode, Decode)]
+/// This module's XCM version.
+pub const VERSION: super::Version = 2;
+
+/// An identifier for a query.
+pub type QueryId = u64;
+
+#[derive(Derivative, Default, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub struct Xcm<Call>(pub Vec<Instruction<Call>>);
 
 impl<Call> Xcm<Call> {
@@ -116,11 +126,12 @@ pub mod prelude {
 			MultiAssetFilter::{self, *},
 			MultiAssets, MultiLocation,
 			NetworkId::{self, *},
-			OriginKind, Outcome, Parent, ParentThen, Response, Result as XcmResult, SendError,
-			SendResult, SendXcm,
+			OriginKind, Outcome, Parent, ParentThen, QueryId, Response, Result as XcmResult,
+			SendError, SendResult, SendXcm,
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
+			XcmWeightInfo, VERSION as XCM_VERSION,
 		};
 	}
 	pub use super::{Instruction, Xcm};
@@ -134,7 +145,7 @@ pub mod prelude {
 }
 
 /// Response data to a query.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
 pub enum Response {
 	/// No response. Serves as a neutral default.
 	Null,
@@ -142,6 +153,8 @@ pub enum Response {
 	Assets(MultiAssets),
 	/// The outcome of an XCM instruction.
 	ExecutionResult(result::Result<(), (u32, Error)>),
+	/// An XCM version.
+	Version(super::Version),
 }
 
 impl Default for Response {
@@ -151,7 +164,7 @@ impl Default for Response {
 }
 
 /// An optional weight limit.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
 pub enum WeightLimit {
 	/// No weight limit imposed.
 	Unlimited,
@@ -185,10 +198,11 @@ impl From<WeightLimit> for Option<u64> {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub enum Instruction<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into the Holding
 	/// Register.
@@ -239,7 +253,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	QueryResponse {
 		#[codec(compact)]
-		query_id: u64,
+		query_id: QueryId,
 		response: Response,
 		#[codec(compact)]
 		max_weight: u64,
@@ -291,7 +305,12 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	Transact { origin_type: OriginKind, require_weight_at_most: u64, call: DoubleEncoded<Call> },
+	Transact {
+		origin_type: OriginKind,
+		#[codec(compact)]
+		require_weight_at_most: u64,
+		call: DoubleEncoded<Call>,
+	},
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.
@@ -377,7 +396,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	ReportError {
 		#[codec(compact)]
-		query_id: u64,
+		query_id: QueryId,
 		dest: MultiLocation,
 		#[codec(compact)]
 		max_response_weight: u64,
@@ -395,7 +414,12 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	DepositAsset { assets: MultiAssetFilter, max_assets: u32, beneficiary: MultiLocation },
+	DepositAsset {
+		assets: MultiAssetFilter,
+		#[codec(compact)]
+		max_assets: u32,
+		beneficiary: MultiLocation,
+	},
 
 	/// Remove the asset(s) (`assets`) from the Holding Register and place equivalent assets under
 	/// the ownership of `dest` within this consensus system (i.e. deposit them into its sovereign
@@ -418,6 +442,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	DepositReserveAsset {
 		assets: MultiAssetFilter,
+		#[codec(compact)]
 		max_assets: u32,
 		dest: MultiLocation,
 		xcm: Xcm<()>,
@@ -487,7 +512,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	QueryHolding {
 		#[codec(compact)]
-		query_id: u64,
+		query_id: QueryId,
 		dest: MultiLocation,
 		assets: MultiAssetFilter,
 		#[codec(compact)]
@@ -571,7 +596,24 @@ pub enum Instruction<Call> {
 	///
 	/// Errors:
 	/// - `Trap`: All circumstances, whose inner value is the same as this item's inner value.
-	Trap(u64),
+	Trap(#[codec(compact)] u64),
+
+	/// Ask the destination system to respond with the most recent version of XCM that they
+	/// support in a `QueryResponse` instruction. Any changes to this should also elicit similar
+	/// responses when they happen.
+	///
+	/// Kind: *Instruction*
+	SubscribeVersion {
+		#[codec(compact)]
+		query_id: QueryId,
+		#[codec(compact)]
+		max_response_weight: u64,
+	},
+
+	/// Cancel the effect of a previous `SubscribeVersion` instruction.
+	///
+	/// Kind: *Instruction*
+	UnsubscribeVersion,
 }
 
 impl<Call> Xcm<Call> {
@@ -626,6 +668,57 @@ impl<Call> Instruction<Call> {
 			ClearError => ClearError,
 			ClaimAsset { assets, ticket } => ClaimAsset { assets, ticket },
 			Trap(code) => Trap(code),
+			SubscribeVersion { query_id, max_response_weight } =>
+				SubscribeVersion { query_id, max_response_weight },
+			UnsubscribeVersion => UnsubscribeVersion,
+		}
+	}
+}
+
+// TODO: Automate Generation
+impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
+	fn weight(&self) -> Weight {
+		use Instruction::*;
+		match self {
+			WithdrawAsset(assets) => W::withdraw_asset(assets),
+			ReserveAssetDeposited(assets) => W::reserve_asset_deposited(assets),
+			ReceiveTeleportedAsset(assets) => W::receive_teleported_asset(assets),
+			QueryResponse { query_id, response, max_weight } =>
+				W::query_response(query_id, response, max_weight),
+			TransferAsset { assets, beneficiary } => W::transfer_asset(assets, beneficiary),
+			TransferReserveAsset { assets, dest, xcm } =>
+				W::transfer_reserve_asset(&assets, dest, xcm),
+			Transact { origin_type, require_weight_at_most, call } =>
+				W::transact(origin_type, require_weight_at_most, call),
+			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				W::hrmp_new_channel_open_request(sender, max_message_size, max_capacity),
+			HrmpChannelAccepted { recipient } => W::hrmp_channel_accepted(recipient),
+			HrmpChannelClosing { initiator, sender, recipient } =>
+				W::hrmp_channel_closing(initiator, sender, recipient),
+			ClearOrigin => W::clear_origin(),
+			DescendOrigin(who) => W::descend_origin(who),
+			ReportError { query_id, dest, max_response_weight } =>
+				W::report_error(query_id, dest, max_response_weight),
+			DepositAsset { assets, max_assets, beneficiary } =>
+				W::deposit_asset(assets, max_assets, beneficiary),
+			DepositReserveAsset { assets, max_assets, dest, xcm } =>
+				W::deposit_reserve_asset(assets, max_assets, dest, xcm),
+			ExchangeAsset { give, receive } => W::exchange_asset(give, receive),
+			InitiateReserveWithdraw { assets, reserve, xcm } =>
+				W::initiate_reserve_withdraw(assets, reserve, xcm),
+			InitiateTeleport { assets, dest, xcm } => W::initiate_teleport(assets, dest, xcm),
+			QueryHolding { query_id, dest, assets, max_response_weight } =>
+				W::query_holding(query_id, dest, assets, max_response_weight),
+			BuyExecution { fees, weight_limit } => W::buy_execution(fees, weight_limit),
+			RefundSurplus => W::refund_surplus(),
+			SetErrorHandler(xcm) => W::set_error_handler(xcm),
+			SetAppendix(xcm) => W::set_appendix(xcm),
+			ClearError => W::clear_error(),
+			ClaimAsset { assets, ticket } => W::claim_asset(assets, ticket),
+			Trap(code) => W::trap(code),
+			SubscribeVersion { query_id, max_response_weight } =>
+				W::subscribe_version(query_id, max_response_weight),
+			UnsubscribeVersion => W::unsubscribe_version(),
 		}
 	}
 }
@@ -646,6 +739,7 @@ impl TryFrom<OldResponse> for Response {
 	fn try_from(old_response: OldResponse) -> result::Result<Self, ()> {
 		match old_response {
 			OldResponse::Assets(assets) => Ok(Self::Assets(assets)),
+			OldResponse::Version(version) => Ok(Self::Version(version)),
 		}
 	}
 }
@@ -695,6 +789,9 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 				vec![Transact { origin_type, require_weight_at_most, call }],
 			// We don't handle this one at all due to nested XCM.
 			OldXcm::RelayedFrom { .. } => return Err(()),
+			OldXcm::SubscribeVersion { query_id, max_response_weight } =>
+				vec![SubscribeVersion { query_id, max_response_weight }],
+			OldXcm::UnsubscribeVersion => vec![UnsubscribeVersion],
 		}))
 	}
 }

@@ -69,8 +69,10 @@ pub struct Config {
 
 /// The candidate validation subsystem.
 pub struct CandidateValidationSubsystem {
-	metrics: Metrics,
-	pvf_metrics: polkadot_node_core_pvf::Metrics,
+	#[allow(missing_docs)]
+	pub metrics: Metrics,
+	#[allow(missing_docs)]
+	pub pvf_metrics: polkadot_node_core_pvf::Metrics,
 	config: Config,
 }
 

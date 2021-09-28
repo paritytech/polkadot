@@ -161,8 +161,8 @@ fn overseer_works() {
 		let mut s2_rx = s2_rx.fuse();
 
 		let all_subsystems = AllSubsystems::<()>::dummy()
-			.replace_candidate_validation(TestSubsystem1(s1_tx))
-			.replace_candidate_backing(TestSubsystem2(s2_tx));
+			.replace_candidate_validation(move |_| TestSubsystem1(s1_tx))
+			.replace_candidate_backing(move |_| TestSubsystem2(s2_tx));
 
 		let (overseer, handle) =
 			Overseer::new(vec![], all_subsystems, None, MockSupportsParachains, spawner).unwrap();
@@ -278,7 +278,8 @@ fn overseer_ends_on_subsystem_exit() {
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	executor::block_on(async move {
-		let all_subsystems = AllSubsystems::<()>::dummy().replace_candidate_backing(ReturnOnStart);
+		let all_subsystems =
+			AllSubsystems::<()>::dummy().replace_candidate_backing(|_| ReturnOnStart);
 		let (overseer, _handle) =
 			Overseer::new(vec![], all_subsystems, None, MockSupportsParachains, spawner).unwrap();
 
@@ -379,8 +380,8 @@ fn overseer_start_stop_works() {
 		let (tx_5, mut rx_5) = metered::channel(64);
 		let (tx_6, mut rx_6) = metered::channel(64);
 		let all_subsystems = AllSubsystems::<()>::dummy()
-			.replace_candidate_validation(TestSubsystem5(tx_5))
-			.replace_candidate_backing(TestSubsystem6(tx_6));
+			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
+			.replace_candidate_backing(move |_| TestSubsystem6(tx_6));
 		let (overseer, handle) =
 			Overseer::new(vec![first_block], all_subsystems, None, MockSupportsParachains, spawner)
 				.unwrap();
@@ -475,8 +476,8 @@ fn overseer_finalize_works() {
 		let (tx_6, mut rx_6) = metered::channel(64);
 
 		let all_subsystems = AllSubsystems::<()>::dummy()
-			.replace_candidate_validation(TestSubsystem5(tx_5))
-			.replace_candidate_backing(TestSubsystem6(tx_6));
+			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
+			.replace_candidate_backing(move |_| TestSubsystem6(tx_6));
 
 		// start with two forks of different height.
 		let (overseer, handle) = Overseer::new(
@@ -570,7 +571,7 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 		let (tx_5, mut rx_5) = metered::channel(64);
 
 		let all_subsystems =
-			AllSubsystems::<()>::dummy().replace_candidate_backing(TestSubsystem6(tx_5));
+			AllSubsystems::<()>::dummy().replace_candidate_backing(move |_| TestSubsystem6(tx_5));
 
 		let (overseer, handle) =
 			Overseer::new(Vec::new(), all_subsystems, None, MockSupportsParachains, spawner)

@@ -88,4 +88,5 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = super::Xcm;
 	type AssetTrap = super::Xcm;
 	type AssetClaims = super::Xcm;
+	type SubscriptionService = super::Xcm;
 }

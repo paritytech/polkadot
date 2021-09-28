@@ -1,4 +1,4 @@
-FROM ubuntu:xenial AS builder
+FROM docker.io/library/ubuntu:xenial AS builder
 
 # show backtraces
 ENV RUST_BACKTRACE 1
@@ -60,7 +60,7 @@ WORKDIR /openethereum
 RUN cargo build --release --verbose
 RUN strip ./target/release/openethereum
 
-FROM ubuntu:xenial
+FROM docker.io/library/ubuntu:xenial
 
 # show backtraces
 ENV RUST_BACKTRACE 1
