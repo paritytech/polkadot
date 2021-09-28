@@ -480,14 +480,12 @@ struct ApprovalStatus {
 }
 
 #[derive(Copy, Clone)]
-#[allow(dead_code)]
 enum ApprovalOutcome {
 	Approved,
 	Failed,
 	TimedOut,
 }
 
-#[allow(dead_code)]
 struct ApprovalState {
 	validator_index: ValidatorIndex,
 	candidate_hash: CandidateHash,
@@ -495,7 +493,6 @@ struct ApprovalState {
 }
 
 impl ApprovalState {
-	#[allow(dead_code)]
 	fn approved(validator_index: ValidatorIndex, candidate_hash: CandidateHash) -> Self {
 		Self { validator_index, candidate_hash, approval_outcome: ApprovalOutcome::Approved }
 	}
@@ -2218,27 +2215,33 @@ async fn launch_approval(
 
 		match val_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
-			Ok(Ok(ValidationResult::Valid(_commitments, _))) => {
+			Ok(Ok(ValidationResult::Valid(commitments, _))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
 				tracing::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Candidate Valid");
 
-				// issue a dispute regardless
-				sender
-					.send_message(
-						DisputeCoordinatorMessage::IssueLocalStatement(
-							session_index,
-							candidate_hash,
-							candidate.clone(),
-							false,
+				let expected_commitments_hash = candidate.commitments_hash;
+				if commitments.hash() == expected_commitments_hash {
+					let _ = metrics_guard.take();
+					return ApprovalState::approved(validator_index, candidate_hash)
+				} else {
+					// Commitments mismatch - issue a dispute.
+					sender
+						.send_message(
+							DisputeCoordinatorMessage::IssueLocalStatement(
+								session_index,
+								candidate_hash,
+								candidate.clone(),
+								false,
+							)
+							.into(),
 						)
-						.into(),
-					)
-					.await;
+						.await;
 
-				metrics_guard.take().on_approval_invalid();
-				return ApprovalState::failed(validator_index, candidate_hash)
+					metrics_guard.take().on_approval_invalid();
+					return ApprovalState::failed(validator_index, candidate_hash)
+				}
 			},
 			Ok(Ok(ValidationResult::Invalid(reason))) => {
 				tracing::warn!(
