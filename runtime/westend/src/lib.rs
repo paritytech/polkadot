@@ -1133,10 +1133,38 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(StakingBagsListMigrationV8,),
+	(SessionHistoricalModulePrefixMigration, StakingBagsListMigrationV8),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+const SESSION_HISTORICAL_OLD_PREFIX: &str = "Session";
+/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
+pub struct SessionHistoricalModulePrefixMigration;
+
+impl OnRuntimeUpgrade for SessionHistoricalModulePrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_session::migrations::v1::migrate::<Runtime, Historical, _>(
+			SESSION_HISTORICAL_OLD_PREFIX,
+		)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical, _>(
+			SESSION_HISTORICAL_OLD_PREFIX,
+		);
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::post_migrate::<Runtime, Historical, _>(
+			SESSION_HISTORICAL_OLD_PREFIX,
+		);
+		Ok(())
+	}
+}
 
 // Migration to generate pallet staking's `SortedListProvider` from pre-existing nominators.
 pub struct StakingBagsListMigrationV8;
