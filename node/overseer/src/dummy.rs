@@ -15,8 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	prometheus::Registry, AllMessages, HeadSupportsParachains, OverseerMetrics, MetricsTrait, Overseer,
-	OverseerBuilder, OverseerSignal, OverseerSubsystemContext, SpawnNamed, KNOWN_LEAVES_CACHE_SIZE,
+	prometheus::Registry, AllMessages, HeadSupportsParachains, MetricsTrait, Overseer,
+	OverseerBuilder, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
+	KNOWN_LEAVES_CACHE_SIZE,
 };
 use lru::LruCache;
 use polkadot_node_subsystem_types::{errors::SubsystemError, messages::*};
