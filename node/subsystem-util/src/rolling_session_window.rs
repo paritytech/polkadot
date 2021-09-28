@@ -141,7 +141,7 @@ impl RollingSessionWindow {
 		&mut self,
 		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 		block_hash: Hash,
-		block_header: &Header,
+		_block_header: &Header, // TODO: remove
 	) -> Result<SessionWindowUpdate, SessionsUnavailable> {
 		if self.window_size == 0 {
 			return Ok(SessionWindowUpdate::Unchanged)
@@ -150,11 +150,9 @@ impl RollingSessionWindow {
 		let session_index = {
 			let (s_tx, s_rx) = oneshot::channel();
 
-			// The genesis is guaranteed to be at the beginning of the session and its parent state
-			// is non-existent. Therefore if we're at the genesis, we request using its state and
-			// not the parent.
+			// We're requesting session index of a child to populate the cache in advance.
 			ctx.send_message(RuntimeApiMessage::Request(
-				if block_header.number == 0 { block_hash } else { block_header.parent_hash },
+				block_hash,
 				RuntimeApiRequest::SessionIndexForChild(s_tx),
 			))
 			.await;
