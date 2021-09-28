@@ -1285,6 +1285,11 @@ sp_api::impl_runtime_apis! {
 		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
 			runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
 		}
+
+
+		fn imported_on_chain_disputes() -> Option<ScrapedImportDisputesAndBackingVotes> {
+			runtime_api_impl::imported_on_chain_disputes::<Runtime>()
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
