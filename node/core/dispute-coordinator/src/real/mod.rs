@@ -526,12 +526,38 @@ async fn handle_new_activations(
 			))
 			.await;
 
-			rx.await??
+			match rx.await {
+				Ok(Ok(Some(val))) => val,
+				Ok(Ok(None)) => {
+					tracing::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?new_leaf,
+						"No data stored for relay parent");
+					continue
+				},
+				Ok(Err(e)) => {
+					tracing::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?new_leaf,
+						error = ?e,
+						"Could not retrieve relay parent since the API returned an error");
+					continue
+				},
+				Err(e) => {
+					tracing::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?new_leaf,
+						error = ?e,
+						"Could not retrieve relay parent due to ");
+					continue
+				},
+			}
 		};
 
 		let session_info: SessionInfo = {
 			let (tx, rx) = oneshot::channel();
-			ctx.send_message(RuntimeApiRequest::SessionInfo(session_index, tx)).await;
+			ctx.send_message(RuntimeApiRequest::SessionInfo(on_chain_scraped.session_index, tx))
+				.await;
 
 			match rx.await?? {
 				None => continue,
@@ -539,40 +565,59 @@ async fn handle_new_activations(
 			}
 		};
 
-		for DisputeStatementSet { candidate_hash, session, statements } in
+		// scraped on-chain backing votes
+		for (candidate_receipt, backers) in on_chain_scraped.backing_validators.iter() {
+			let statements = backers.iter().map(|validator_idx| {
+				DisputeStatement::Valid(DisputeStatementKind::Backing(new_leaf))
+			});
+			let _import_result = handle_import_statements(
+				ctx,
+				overlay_db,
+				state,
+				candidate_hash,
+				candidate_receipt,
+				on_chain_scraped.session_index,
+				statements,
+				now,
+				metrics,
+			)
+			.await?;
+		}
+
+		let candidate_backings = {
+			let backings = ctx
+				.send_message(CandidateBackingMessage::GetBackedCandidates(
+					new_leaf, candidates, tx,
+				))
+				.await?;
+			// FIXME XXX double check all those `?`s
+			let backings = rx.await??;
+			backings.into_iter().collect::<HashMap<_, _>>()
+		};
+
+		// concluded disputes from on-chain, this already went through a vote so it's assumed
+		// as verified and no gossip is needed, and hence.
+		'dss: for DisputeStatementSet { candidate_hash, session, statements } in
 			on_chain_scraped.disputes.iter()
 		{
-			let statements = statements
-				.into_iter()
-				.map(|(dispute_statement, validator_idx, validator_signature)| {
-					(
-						SignedDisputeStatement {
-							dispute_statement,
-							candidate_hash,
-							validator_public: session_info.validators[validator_idx],
-							validator_signature,
-							session_index: session,
-						},
-						validator_idx,
-					)
-				})
-				.collect::<Vec<(SignedDisputeStatement, ValidatorIndex)>>();
-
-			let candidate_receipt = todo!("Obtain the candidate_receipt");
-			let _ = dbg!(
-				handle_import_statements(
-					ctx,
-					overlay_db,
-					state,
-					candidate_hash,
-					candidate_receipt,
-					session,
-					statements,
-					now,
-					metrics,
-				)
-				.await?
-			);
+			let candidate_receipt = if let Some(candidate_receipt) =
+				backings.get(candidate_hash).map(|(_, backing_vote)| backing_vote.receipt())
+			{
+				candidate_receipt
+			} else {
+				tracing::warn!("Missing backing vote for disputed candidate {}", &candidate_hash);
+				continue 'dss
+			};
+			let mut votes =
+				CandidateVotes { candidate_receipt, valid: Vec::new(), invalid: Vec::new() };
+			let statements =
+				statements.into_iter().for_each(|dispute_statement: DisputeStatement| {
+					match dispute_statement {
+						DisputeStatement::Valid(valid) => votes.valid.push(valid),
+						DisputeStatement::Invalid(invalid) => votes.invalid.push(invalid),
+					}
+				});
+			overlay_db.write_candidate_votes(session, candidate_hash, votes);
 		}
 	}
 
@@ -702,7 +747,7 @@ async fn handle_import_statements(
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
-	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
+	statements: impl IntoIter<Item = (SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
 	metrics: &Metrics,
 ) -> Result<ImportStatementsResult, Error> {

@@ -34,7 +34,8 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
+	BackedCandidate, InherentData as ParachainsInherentData, ScrapedImportDisputesAndBackingVotes,
+	PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_runtime::traits::Header as HeaderT;
 use sp_std::prelude::*;
@@ -175,7 +176,8 @@ pub mod pallet {
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
 			let freed_disputed: Vec<(_, FreedReason)> = {
-				let fresh_disputes = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				let fresh_disputes =
+					T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
@@ -252,21 +254,23 @@ pub mod pallet {
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
-			let ProcessedCandidates {
+			let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
 				core_indices: occupied,
 				candidate_receipt_with_backing_validator_indices,
 			} = <inclusion::Pallet<T>>::process_candidates(
 				parent_storage_root,
-				&backed_candidates,
+				backed_candidates,
 				<scheduler::Pallet<T>>::scheduled(),
 				<scheduler::Pallet<T>>::group_validators,
 			)?;
 
 			// The number of disputes included in a block is
-			// limited by the weight.
-			ImportedDisputes::<T>::put(ScrapedImportDisputesAndBackingVotes {
+			// limited by the weight as well as the number of candidate blocks.
+			ImportedDisputes::<T>::put(ScrapedImportDisputesAndBackingVotes::<
+				<T::Header as HeaderT>::Hash,
+			> {
 				session: current_session,
-				candidate_receipt_with_backing_validator_indices,
+				backing_validators: candidate_receipt_with_backing_validator_indices,
 				disputes,
 			});
 

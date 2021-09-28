@@ -638,7 +638,7 @@ pub enum RuntimeApiRequest {
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 	/// Get all desputes in relation to a relay parent.
 	ImportedOnChainDisputes(
-		RuntimeApiSender<polkadot_primitives::v1::ScrapedImportDisputesAndBackingVotes>,
+		RuntimeApiSender<Option<polkadot_primitives::v1::ScrapedImportDisputesAndBackingVotes>>,
 	),
 }
 

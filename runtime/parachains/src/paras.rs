@@ -28,8 +28,8 @@ use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
-	CandidateReceipt, ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead,
-	UpgradeRestriction, ValidationCode, ValidationCodeHash,
+	ConsensusLog, HeadData, Id as ParaId, ScrapedImportDisputesAndBackingVotes, SessionIndex,
+	UpgradeGoAhead, UpgradeRestriction, ValidationCode, ValidationCodeHash,
 };
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
@@ -281,8 +281,6 @@ pub trait WeightInfo {
 
 #[frame_support::pallet]
 pub mod pallet {
-	use primitives::v1::MultiDisputeStatementSet;
-
 	use super::*;
 
 	#[pallet::pallet]
@@ -459,11 +457,11 @@ pub mod pallet {
 	pub(super) type CodeByHash<T: Config> =
 		StorageMap<_, Identity, ValidationCodeHash, ValidationCode>;
 
-	// FIXME adjust stored value
+	/// Scraped on chain data for extracting resolved disputes as well as backing votes.
 	#[pallet::storage]
 	#[pallet::getter(fn imported_on_chain_disputes)]
-	pub(super) type ImportedDisputes<T: Config> =
-		StorageValue<_, ScrapedImportDisputesAndBackingVotes, OptionQuery>;
+	pub(crate) type ImportedDisputes<T: Config> =
+		StorageValue<_, ScrapedImportDisputesAndBackingVotes<T::Hash>, OptionQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {

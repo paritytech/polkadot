@@ -23,7 +23,7 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_primitives::v1::{Block, BlockId, Hash, MultiDisputeStatementSet, ParachainHost};
+use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
 use polkadot_subsystem::{
 	errors::RuntimeApiError,
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
@@ -143,8 +143,8 @@ where
 				.cache_inbound_hrmp_channel_contents((relay_parent, para_id), contents),
 			CurrentBabeEpoch(relay_parent, epoch) =>
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
-			ImportedOnChainDisputes(disputes) =>
-				self.requests_cache.cache_current_babe_epoch(relay_parent, disputes),
+			ImportedOnChainDisputes(relay_parent, scraped) =>
+				self.requests_cache.cache_imported_on_chain_disputes(relay_parent, scraped),
 		}
 	}
 

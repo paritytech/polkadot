@@ -25,8 +25,8 @@ use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
-	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, HeadData,
-	Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
+	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
+	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -111,12 +111,12 @@ pub trait RewardValidators {
 }
 
 /// Helper return type for `process_candidates`.
-#[derive(Encode, Decode, PartialEq, TypeInfo)]
+#[derive(Encode, Decode, PartialEq, TypeInfo, Default)]
 #[cfg_attr(test, derive(Debug))]
-pub(crate) struct ProcessedCandidates {
+pub(crate) struct ProcessedCandidates<H = Hash> {
 	pub(crate) core_indices: Vec<CoreIndex>,
 	pub(crate) candidate_receipt_with_backing_validator_indices:
-		Vec<(CandidateReceipt, Vec<ValidatorIndex>)>,
+		Vec<(CandidateReceipt<H>, Vec<ValidatorIndex>)>,
 }
 
 #[frame_support::pallet]
@@ -409,7 +409,7 @@ impl<T: Config> Pallet<T> {
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
-	) -> Result<ProcessedCandidates, DispatchError> {
+	) -> Result<ProcessedCandidates<T::Hash>, DispatchError> {
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
@@ -577,8 +577,9 @@ impl<T: Config> Pallet<T> {
 								},
 							}
 
-							let mut explicit_backer_indices =
-								Vec::with_capacity(candidate.validator_indices.count_ones());
+							let mut explicit_backer_indices = Vec::<ValidatorIndex>::with_capacity(
+								candidate.validator_indices.count_ones(),
+							);
 							for (bit_idx, _) in candidate
 								.validator_indices
 								.iter()
@@ -589,7 +590,7 @@ impl<T: Config> Pallet<T> {
 									.get(bit_idx)
 									.expect("this query succeeded above; qed");
 
-								explicit_backer_indices.push(val_idx);
+								explicit_backer_indices.push(*val_idx);
 
 								backers.set(val_idx.0 as _, true);
 							}
@@ -652,7 +653,7 @@ impl<T: Config> Pallet<T> {
 					descriptor,
 					availability_votes,
 					relay_parent_number,
-					backers: *backers,
+					backers: backers.to_bitvec(),
 					backed_in_number: check_cx.now,
 					backing_group: group,
 				},
@@ -660,7 +661,7 @@ impl<T: Config> Pallet<T> {
 			<PendingAvailabilityCommitments<T>>::insert(&para_id, commitments);
 		}
 
-		Ok(ProcessedCandidates {
+		Ok(ProcessedCandidates::<T::Hash> {
 			core_indices,
 			candidate_receipt_with_backing_validator_indices: candidate_receipt_with_backer_indices,
 		})

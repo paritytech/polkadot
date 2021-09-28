@@ -23,8 +23,8 @@ use crate::{
 use primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCore, OccupiedCoreAssumption,
-	PersistedValidationData, ScheduledCore, SessionIndex, SessionInfo, ValidationCode,
+	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
+	ScheduledCore, ScrapedImportDisputesAndBackingVotes, SessionIndex, SessionInfo, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_runtime::traits::One;
@@ -332,6 +332,6 @@ pub fn validation_code_by_hash<T: paras::Config>(
 
 /// Disputes imported via means of on-chain imports.
 pub fn imported_on_chain_disputes<T: initializer::Config>(
-) -> Option<ScrapedImportDisputesAndBackingVotes> {
+) -> Option<ScrapedImportDisputesAndBackingVotes<T::Hash>> {
 	<paras::Pallet<T>>::imported_on_chain_disputes()
 }

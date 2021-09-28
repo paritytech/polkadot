@@ -846,7 +846,7 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 
-		fn imported_on_chain_disputes() -> Option<ScrapedImportDisputesAndBackingVotes> {
+		fn imported_on_chain_disputes() -> Option<ScrapedImportDisputesAndBackingVotes<T::Hash>> {
 			runtime_impl::imported_on_chain_disputes::<Runtime>()
 		}
 	}

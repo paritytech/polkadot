@@ -54,8 +54,9 @@ use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, SessionInfo, Signature,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
+	ScrapedImportDisputesAndBackingVotes, SessionInfo, Signature, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_core::{
 	u32_trait::{_1, _2, _3, _4, _5},
@@ -1687,7 +1688,7 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 
-		fn imported_on_chain_disputes() -> Option<ScrapedImportDisputesAndBackingVotes> {
+		fn imported_on_chain_disputes() -> Option<ScrapedImportDisputesAndBackingVotes<Hash>> {
 			parachains_runtime_api_impl::imported_on_chain_disputes::<Runtime>()
 		}
 	}

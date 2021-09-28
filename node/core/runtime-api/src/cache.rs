@@ -23,9 +23,9 @@ use sp_consensus_babe::Epoch;
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
 	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedImportDisputesAndBackingVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
+	ScrapedImportDisputesAndBackingVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 
 const AUTHORITIES_CACHE_SIZE: usize = 128 * 1024;
@@ -99,7 +99,8 @@ pub(crate) struct RequestResultCache {
 		ResidentSizeOf<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
 	>,
 	current_babe_epoch: MemoryLruCache<Hash, DoesNotAllocate<Epoch>>,
-	imported_on_chain_disputes: MemoryLruCache<Hash, MultiDisputeStatementSet>,
+	imported_on_chain_disputes:
+		MemoryLruCache<Hash, ResidentSizeOf<Option<ScrapedImportDisputesAndBackingVotes>>>,
 }
 
 impl Default for RequestResultCache {
@@ -122,6 +123,7 @@ impl Default for RequestResultCache {
 			dmq_contents: MemoryLruCache::new(DMQ_CONTENTS_CACHE_SIZE),
 			inbound_hrmp_channels_contents: MemoryLruCache::new(INBOUND_HRMP_CHANNELS_CACHE_SIZE),
 			current_babe_epoch: MemoryLruCache::new(CURRENT_BABE_EPOCH_CACHE_SIZE),
+			imported_on_chain_disputes: MemoryLruCache::new(3),
 		}
 	}
 }
@@ -322,6 +324,21 @@ impl RequestResultCache {
 	pub(crate) fn cache_current_babe_epoch(&mut self, relay_parent: Hash, epoch: Epoch) {
 		self.current_babe_epoch.insert(relay_parent, DoesNotAllocate(epoch));
 	}
+
+	pub(crate) fn imported_on_chain_disputes(
+		&mut self,
+		relay_parent: &Hash,
+	) -> Option<&Option<ScrapedImportDisputesAndBackingVotes>> {
+		self.imported_on_chain_disputes.get(relay_parent).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_imported_on_chain_disputes(
+		&mut self,
+		relay_parent: Hash,
+		scraped: Option<ScrapedImportDisputesAndBackingVotes>,
+	) {
+		self.imported_on_chain_disputes.insert(relay_parent, ResidentSizeOf(scraped));
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -344,5 +361,5 @@ pub(crate) enum RequestResult {
 		BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>,
 	),
 	CurrentBabeEpoch(Hash, Epoch),
-	ImportedOnChainDisputes(ScrapedImportDisputesAndBackingVotes),
+	ImportedOnChainDisputes(Hash, Option<ScrapedImportDisputesAndBackingVotes>),
 }
