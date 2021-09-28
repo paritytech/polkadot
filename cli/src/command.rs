@@ -191,15 +191,15 @@ impl SubstrateCli for Cli {
 }
 
 fn set_default_ss58_version(spec: &Box<dyn service::ChainSpec>) {
-	use sp_core::crypto::Ss58AddressFormat;
+	use sp_core::crypto::KnownSs58AddressFormat;
 
 	let ss58_version = if spec.is_kusama() {
-		Ss58AddressFormat::KusamaAccount
+		KnownSs58AddressFormat::KusamaAccount
 	} else if spec.is_westend() {
-		Ss58AddressFormat::SubstrateAccount
+		KnownSs58AddressFormat::SubstrateAccount
 	} else {
-		Ss58AddressFormat::PolkadotAccount
-	};
+		KnownSs58AddressFormat::PolkadotAccount
+	}.into();
 
 	sp_core::crypto::set_default_ss58_version(ss58_version);
 }
