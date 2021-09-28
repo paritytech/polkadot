@@ -478,11 +478,7 @@ async fn handle_new_activations(
 	new_activations: impl IntoIterator<Item = Hash>,
 ) -> Result<(), Error> {
 	for new_leaf in new_activations {
-		match state
-			.rolling_session_window
-			.cache_session_info_for_head(ctx, new_leaf)
-			.await
-		{
+		match state.rolling_session_window.cache_session_info_for_head(ctx, new_leaf).await {
 			Err(e) => {
 				tracing::warn!(
 					target: LOG_TARGET,
