@@ -398,10 +398,7 @@ publish-adder-collator-image:
 
 update_polkadot_weights:           &update-weights
   stage:                           build
-  # TODO: rewrite
   when:                            manual
-  tags:
-    - weights
   variables:
     RUNTIME:                       polkadot
   artifacts:
@@ -410,6 +407,9 @@ update_polkadot_weights:           &update-weights
   script:
     - ./scripts/run_benches_for_runtime.sh $RUNTIME
     - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  # uses the "shell" executors
+  tags:
+    - weights
 
 update_kusama_weights:
   <<:                              *update-weights
@@ -511,7 +511,6 @@ publish-rustdoc:
 deploy-polkasync-kusama:
   stage:                           deploy
   rules:
-    # former .rules-build
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
