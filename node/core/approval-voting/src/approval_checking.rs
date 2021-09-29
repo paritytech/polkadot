@@ -484,7 +484,7 @@ mod tests {
 				clock_drift: 0,
 			},
 		)
-		.is_approved());
+		.is_approved(Tick::max_value()));
 	}
 
 	#[test]
@@ -527,21 +527,36 @@ mod tests {
 		assert!(check_approval(
 			&candidate,
 			&approval_entry,
-			RequiredTranches::Exact { needed: 0, tolerated_missing: 0, next_no_show: None },
+			RequiredTranches::Exact {
+				needed: 0,
+				tolerated_missing: 0,
+				next_no_show: None,
+				last_assignment_tick: None
+			},
 		)
-		.is_approved());
+		.is_approved(Tick::max_value()));
 		assert!(!check_approval(
 			&candidate,
 			&approval_entry,
-			RequiredTranches::Exact { needed: 1, tolerated_missing: 0, next_no_show: None },
+			RequiredTranches::Exact {
+				needed: 1,
+				tolerated_missing: 0,
+				next_no_show: None,
+				last_assignment_tick: None
+			},
 		)
-		.is_approved());
+		.is_approved(Tick::max_value()));
 		assert!(check_approval(
 			&candidate,
 			&approval_entry,
-			RequiredTranches::Exact { needed: 1, tolerated_missing: 2, next_no_show: None },
+			RequiredTranches::Exact {
+				needed: 1,
+				tolerated_missing: 2,
+				next_no_show: None,
+				last_assignment_tick: None
+			},
 		)
-		.is_approved());
+		.is_approved(Tick::max_value()));
 	}
 
 	#[test]
@@ -581,8 +596,12 @@ mod tests {
 		}
 		.into();
 
-		let exact_all =
-			RequiredTranches::Exact { needed: 10, tolerated_missing: 0, next_no_show: None };
+		let exact_all = RequiredTranches::Exact {
+			needed: 10,
+			tolerated_missing: 0,
+			next_no_show: None,
+			last_assignment_tick: None,
+		};
 
 		let pending_all = RequiredTranches::Pending {
 			considered: 5,
@@ -591,20 +610,27 @@ mod tests {
 			clock_drift: 12,
 		};
 
-		assert!(!check_approval(&candidate, &approval_entry, RequiredTranches::All,).is_approved());
+		assert!(!check_approval(&candidate, &approval_entry, RequiredTranches::All,)
+			.is_approved(Tick::max_value()));
 
-		assert!(!check_approval(&candidate, &approval_entry, exact_all.clone(),).is_approved());
+		assert!(!check_approval(&candidate, &approval_entry, exact_all.clone(),)
+			.is_approved(Tick::max_value()));
 
-		assert!(!check_approval(&candidate, &approval_entry, pending_all.clone(),).is_approved());
+		assert!(!check_approval(&candidate, &approval_entry, pending_all.clone(),)
+			.is_approved(Tick::max_value()));
 
 		// This creates a set of 4/10 approvals, which is always an approval.
 		candidate.mark_approval(ValidatorIndex(3));
 
-		assert!(check_approval(&candidate, &approval_entry, RequiredTranches::All,).is_approved());
+		assert!(check_approval(&candidate, &approval_entry, RequiredTranches::All,)
+			.is_approved(Tick::max_value()));
 
-		assert!(check_approval(&candidate, &approval_entry, exact_all,).is_approved());
+		assert!(
+			check_approval(&candidate, &approval_entry, exact_all,).is_approved(Tick::max_value())
+		);
 
-		assert!(check_approval(&candidate, &approval_entry, pending_all,).is_approved());
+		assert!(check_approval(&candidate, &approval_entry, pending_all,)
+			.is_approved(Tick::max_value()));
 	}
 
 	#[test]
@@ -642,7 +668,12 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Exact { needed: 1, tolerated_missing: 0, next_no_show: None },
+			RequiredTranches::Exact {
+				needed: 1,
+				tolerated_missing: 0,
+				next_no_show: None,
+				last_assignment_tick: Some(1)
+			},
 		);
 	}
 
@@ -845,6 +876,7 @@ mod tests {
 				needed: 1,
 				tolerated_missing: 0,
 				next_no_show: Some(block_tick + no_show_duration + 1),
+				last_assignment_tick: Some(block_tick + 1),
 			},
 		);
 
@@ -863,6 +895,7 @@ mod tests {
 				needed: 2,
 				tolerated_missing: 1,
 				next_no_show: Some(block_tick + 2 * no_show_duration + 2),
+				last_assignment_tick: Some(block_tick + no_show_duration + 2),
 			},
 		);
 
@@ -930,7 +963,12 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Exact { needed: 2, tolerated_missing: 1, next_no_show: None },
+			RequiredTranches::Exact {
+				needed: 2,
+				tolerated_missing: 1,
+				next_no_show: None,
+				last_assignment_tick: Some(block_tick + no_show_duration + 2)
+			},
 		);
 
 		// Even though tranche 2 has 2 validators, it only covers 1 no-show.
@@ -968,7 +1006,12 @@ mod tests {
 				no_show_duration,
 				needed_approvals,
 			),
-			RequiredTranches::Exact { needed: 3, tolerated_missing: 2, next_no_show: None },
+			RequiredTranches::Exact {
+				needed: 3,
+				tolerated_missing: 2,
+				next_no_show: None,
+				last_assignment_tick: Some(block_tick + no_show_duration + 2),
+			},
 		);
 	}
 
@@ -1281,43 +1324,50 @@ mod tests {
 			exp_next_no_show: None,
 		})
 	}
-}
 
-#[test]
-fn depth_0_covering_not_treated_as_such() {
-	let state = State {
-		assignments: 0,
-		depth: 0,
-		covered: 0,
-		covering: 10,
-		uncovered: 0,
-		next_no_show: None,
-	};
-
-	assert_eq!(
-		state.output(0, 10, 10, 20),
-		RequiredTranches::Pending {
-			considered: 0,
+	#[test]
+	fn depth_0_covering_not_treated_as_such() {
+		let state = State {
+			assignments: 0,
+			depth: 0,
+			covered: 0,
+			covering: 10,
+			uncovered: 0,
 			next_no_show: None,
-			maximum_broadcast: DelayTranche::max_value(),
-			clock_drift: 0,
-		},
-	);
-}
+			last_assignment_tick: None,
+		};
 
-#[test]
-fn depth_0_issued_as_exact_even_when_all() {
-	let state = State {
-		assignments: 10,
-		depth: 0,
-		covered: 0,
-		covering: 0,
-		uncovered: 0,
-		next_no_show: None,
-	};
+		assert_eq!(
+			state.output(0, 10, 10, 20),
+			RequiredTranches::Pending {
+				considered: 0,
+				next_no_show: None,
+				maximum_broadcast: DelayTranche::max_value(),
+				clock_drift: 0,
+			},
+		);
+	}
 
-	assert_eq!(
-		state.output(0, 10, 10, 20),
-		RequiredTranches::Exact { needed: 0, tolerated_missing: 0, next_no_show: None },
-	);
+	#[test]
+	fn depth_0_issued_as_exact_even_when_all() {
+		let state = State {
+			assignments: 10,
+			depth: 0,
+			covered: 0,
+			covering: 0,
+			uncovered: 0,
+			next_no_show: None,
+			last_assignment_tick: None,
+		};
+
+		assert_eq!(
+			state.output(0, 10, 10, 20),
+			RequiredTranches::Exact {
+				needed: 0,
+				tolerated_missing: 0,
+				next_no_show: None,
+				last_assignment_tick: None
+			},
+		);
+	}
 }
