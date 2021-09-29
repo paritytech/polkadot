@@ -603,7 +603,8 @@ impl<T: Config> Pallet<T> {
 									.get(bit_idx)
 									.expect("this query succeeded above; qed");
 
-								backer_idx_and_signature.push((*val_idx, attestation.signature().clone()));
+								backer_idx_and_signature
+									.push((*val_idx, attestation.signature().clone()));
 
 								backers.set(val_idx.0 as _, true);
 							}
