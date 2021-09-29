@@ -69,7 +69,8 @@ pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
 /// On Polkadot this is 1 day, and on Kusama it's 6 hours.
 ///
 /// Number of sessions we want to consider in disputes.
-pub const DISPUTE_WINDOW: SessionIndex = 6;
+/// + 1 for the child's session.
+pub const DISPUTE_WINDOW: SessionIndex = 6 + 1;
 
 /// The cumulative weight of a block in a fork-choice rule.
 pub type BlockWeight = u32;
