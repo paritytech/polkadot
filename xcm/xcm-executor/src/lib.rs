@@ -150,7 +150,8 @@ impl From<ExecutorError> for frame_benchmarking::BenchmarkError {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	pub fn new(origin: MultiLocation) -> Self {
+	pub fn new(origin: impl Into<MultiLocation>) -> Self {
+		let origin = origin.into();
 		Self {
 			holding: Assets::new(),
 			origin: Some(origin.clone()),
