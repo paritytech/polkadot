@@ -1130,6 +1130,7 @@ impl<T: Config> Pallet<T> {
 				// `now` is only used for registering pruning as part of `fn note_past_code`
 				let now = <frame_system::Pallet<T>>::block_number();
 
+				// TODO: `expected_at` is no longer a thing.
 				let weight = Self::note_past_code(id, expected_at, now, prior_code_hash);
 
 				// add 1 to writes due to heads update.
