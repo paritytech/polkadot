@@ -49,6 +49,7 @@ struct MockRuntimeApi {
 	dmq_contents: HashMap<ParaId, Vec<InboundDownwardMessage>>,
 	hrmp_channels: HashMap<ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage>>>,
 	babe_epoch: Option<BabeEpoch>,
+	on_chain_votes: Option<ScrapedImportDisputesAndBackingVotes>,
 }
 
 impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -150,8 +151,8 @@ sp_api::mock_impl_runtime_apis! {
 			self.validation_code_by_hash.get(&hash).map(|c| c.clone())
 		}
 
-		fn imported_on_chain_disputes(&self) -> Option<ScrapedImportDisputesAndBackingVotes> {
-			None
+		fn on_chain_votes(&self) -> Option<ScrapedImportDisputesAndBackingVotes> {
+			self.on_chain_votes.clone()
 		}
 	}
 
