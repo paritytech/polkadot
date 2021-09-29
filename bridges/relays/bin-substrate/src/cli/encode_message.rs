@@ -40,7 +40,7 @@ pub enum MessagePayload {
 /// A `MessagePayload` to encode.
 #[derive(StructOpt)]
 pub struct EncodeMessage {
-	/// A bridge instance to initalize.
+	/// A bridge instance to initialize.
 	#[structopt(possible_values = &FullBridge::variants(), case_insensitive = true)]
 	bridge: FullBridge,
 	#[structopt(flatten)]

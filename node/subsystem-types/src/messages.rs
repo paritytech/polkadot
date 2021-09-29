@@ -23,6 +23,7 @@
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
 use futures::channel::oneshot;
+use sc_network::Multiaddr;
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
@@ -345,6 +346,14 @@ pub enum NetworkBridgeMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
+	/// Alternative to `ConnectToValidators` in case you already know the `Multiaddrs` you want to be
+	/// connected to.
+	ConnectToResolvedValidators {
+		/// Each entry corresponds to the addresses of an already resolved validator.
+		validator_addrs: Vec<Vec<Multiaddr>>,
+		/// The peer set we want the connection on.
+		peer_set: PeerSet,
+	},
 	/// Inform the distribution subsystems about the new
 	/// gossip network topology formed.
 	NewGossipTopology {
@@ -365,6 +374,7 @@ impl NetworkBridgeMessage {
 			Self::SendValidationMessages(_) => None,
 			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
+			Self::ConnectToResolvedValidators { .. } => None,
 			Self::SendRequests { .. } => None,
 			Self::NewGossipTopology { .. } => None,
 		}
@@ -850,5 +860,9 @@ pub enum ApprovalDistributionMessage {
 }
 
 /// Message to the Gossip Support subsystem.
-#[derive(Debug)]
-pub enum GossipSupportMessage {}
+#[derive(Debug, derive_more::From)]
+pub enum GossipSupportMessage {
+	/// Dummy constructor, so we can receive networking events.
+	#[from]
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
+}
