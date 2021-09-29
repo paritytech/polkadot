@@ -11,7 +11,6 @@ futures-timer = "3.0.2"
 derive_more = "0.99"
 tracing = "0.1.28"
 thiserror = "1.0.29"
-num_enum = "0.5.4"
 
 [dev-dependencies]
 futures = { version = "0.3.17", features = ["thread-pool"] }
