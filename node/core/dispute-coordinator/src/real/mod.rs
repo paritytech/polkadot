@@ -490,7 +490,7 @@ async fn handle_new_activations(
 					err = ?e,
 					"Failed to update session cache for disputes",
 				);
-				continue;
+				continue
 			},
 			Ok(SessionWindowUpdate::Initialized { window_end, .. }) |
 			Ok(SessionWindowUpdate::Advanced { new_window_end: window_end, .. }) => {
@@ -565,21 +565,22 @@ async fn scrape_on_chain_votes(
 		return Ok(())
 	}
 
-	let session_info: SessionInfo = if let Some(session_info) = state.rolling_session_window.session_info(session) {
-		session_info.clone()
-	} else {
-		let (tx, rx) = oneshot::channel();
-		ctx.send_message(RuntimeApiMessage::Request(
-			new_leaf,
-			RuntimeApiRequest::SessionInfo(session, tx),
-		))
-		.await;
+	let session_info: SessionInfo =
+		if let Some(session_info) = state.rolling_session_window.session_info(session) {
+			session_info.clone()
+		} else {
+			let (tx, rx) = oneshot::channel();
+			ctx.send_message(RuntimeApiMessage::Request(
+				new_leaf,
+				RuntimeApiRequest::SessionInfo(session, tx),
+			))
+			.await;
 
-		match rx.await?? {
-			None => return Ok(()),
-			Some(session_info) => session_info,
-		}
-	};
+			match rx.await?? {
+				None => return Ok(()),
+				Some(session_info) => session_info,
+			}
+		};
 
 	// scraped on-chain backing votes for the candidates with
 	// the new active leaf
