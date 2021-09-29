@@ -180,7 +180,7 @@ pub mod pallet {
 					.map(|s| (s.session, s.candidate_hash))
 					.collect();
 
-				T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
