@@ -522,7 +522,7 @@ async fn handle_incoming(
 			statements,
 			pending_confirmation,
 		} => {
-			let outcome = handle_import_statements(
+			handle_import_statements(
 				ctx,
 				overlay_db,
 				state,
@@ -531,10 +531,10 @@ async fn handle_incoming(
 				session,
 				statements,
 				now,
+				pending_confirmation,
 				metrics,
 			)
 			.await?;
-			pending_confirmation.send(outcome).map_err(|_| Error::OneshotSend)?;
 		},
 		DisputeCoordinatorMessage::RecentDisputes(rx) => {
 			let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
@@ -633,10 +633,14 @@ async fn handle_import_statements(
 	now: Timestamp,
 	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
 	metrics: &Metrics,
-) -> Result<ImportStatementsResult, Error> {
+) -> Result<(), Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
 		// It is not valid to participate in an ancient dispute (spam?).
-		return Ok(ImportStatementsResult::InvalidImport)
+		pending_confirmation
+			.send(ImportStatementsResult::InvalidImport)
+			.map_err(|_| Error::OneshotSend)?;
+
+		return Ok(())
 	}
 
 	let validators = match state.rolling_session_window.session_info(session) {
@@ -647,7 +651,11 @@ async fn handle_import_statements(
 				"Missing info for session which has an active dispute",
 			);
 
-			return Ok(ImportStatementsResult::InvalidImport)
+			pending_confirmation
+				.send(ImportStatementsResult::InvalidImport)
+				.map_err(|_| Error::OneshotSend)?;
+
+			return Ok(())
 		},
 		Some(info) => info.validators.clone(),
 	};
@@ -772,12 +780,15 @@ async fn handle_import_statements(
 				//
 				// We expect that if the candidate is truly disputed that the higher-level network
 				// code will retry.
+				pending_confirmation
+					.send(ImportStatementsResult::InvalidImport)
+					.map_err(|_| Error::OneshotSend)?;
 
 				tracing::debug!(
 					target: LOG_TARGET,
 					"Recovering availability failed - invalid import."
 				);
-				return Ok(ImportStatementsResult::InvalidImport)
+				return Ok(())
 			}
 			metrics.on_open();
 
@@ -795,7 +806,11 @@ async fn handle_import_statements(
 
 	overlay_db.write_candidate_votes(session, candidate_hash, votes.into());
 
-	Ok(ImportStatementsResult::ValidImport)
+	pending_confirmation
+		.send(ImportStatementsResult::ValidImport)
+		.map_err(|_| Error::OneshotSend)?;
+
+	Ok(())
 }
 
 fn find_controlled_validator_indices(
@@ -902,7 +917,8 @@ async fn issue_local_statement(
 
 	// Do import
 	if !statements.is_empty() {
-		match handle_import_statements(
+		let (pending_confirmation, rx) = oneshot::channel();
+		handle_import_statements(
 			ctx,
 			overlay_db,
 			state,
@@ -911,10 +927,11 @@ async fn issue_local_statement(
 			session,
 			statements,
 			now,
+			pending_confirmation,
 			metrics,
 		)
-		.await?
-		{
+		.await?;
+		match rx.await {
 			Err(_) => {
 				tracing::error!(
 					target: LOG_TARGET,
