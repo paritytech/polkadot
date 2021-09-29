@@ -289,7 +289,7 @@ mod tests {
 	use polkadot_primitives::v1::Header;
 	use sp_core::testing::TaskExecutor;
 
-	const TEST_WINDOW_SIZE: SessionIndex = 6;
+	const TEST_WINDOW_SIZE: SessionIndex = 6 + 1;
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
@@ -345,7 +345,7 @@ mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(s_tx),
 				)) => {
-					assert_eq!(h, header.parent_hash);
+					assert_eq!(h, hash);
 					let _ = s_tx.send(Ok(session));
 				}
 			);
@@ -508,7 +508,7 @@ mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(s_tx),
 				)) => {
-					assert_eq!(h, header.parent_hash);
+					assert_eq!(h, hash);
 					let _ = s_tx.send(Ok(session));
 				}
 			);
