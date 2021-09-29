@@ -66,8 +66,6 @@ pub mod pallet {
 		/// The hash of the submitted parent header doesn't correspond to the saved block hash of
 		/// the parent.
 		InvalidParentHeader,
-		/// Potentially invalid candidate.
-		CandidateCouldBeInvalid,
 		/// Disputed candidate that was concluded invalid.
 		CandidateConcludedInvalid,
 	}
