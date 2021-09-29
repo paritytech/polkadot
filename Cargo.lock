@@ -6553,23 +6553,12 @@ dependencies = [
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem-types",
- "polkadot-overseer-all-subsystems-gen",
  "polkadot-overseer-gen",
  "polkadot-primitives",
  "sc-client-api",
  "sp-api",
  "sp-core",
  "tracing",
-]
-
-[[package]]
-name = "polkadot-overseer-all-subsystems-gen"
-version = "0.9.9"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
- "trybuild",
 ]
 
 [[package]]
