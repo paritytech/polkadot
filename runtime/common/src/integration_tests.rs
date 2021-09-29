@@ -203,6 +203,8 @@ impl auctions::Config for Test {
 
 parameter_types! {
 	pub const LeasePeriod: BlockNumber = 100;
+	pub const LeaseOffset: BlockNumber = 0;
+	// TODO [now]: test with non-zero offset
 }
 
 impl slots::Config for Test {
@@ -210,6 +212,7 @@ impl slots::Config for Test {
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
+	type LeaseOffset = LeaseOffset;
 	type WeightInfo = crate::slots::TestWeightInfo;
 }
 

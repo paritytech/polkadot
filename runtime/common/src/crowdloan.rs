@@ -374,6 +374,8 @@ pub mod pallet {
 			ensure!(end > <frame_system::Pallet<T>>::block_number(), Error::<T>::CannotEndInPast);
 			let last_possible_win_date = (first_period.saturating_add(One::one()))
 				.saturating_mul(T::Auctioneer::lease_period());
+
+			// TODO [now]: sanity check doesn't seem to account for lease offset.
 			ensure!(end <= last_possible_win_date, Error::<T>::EndTooFarInFuture);
 			ensure!(
 				first_period >= T::Auctioneer::lease_period_index(),

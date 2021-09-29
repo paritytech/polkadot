@@ -83,6 +83,10 @@ pub mod pallet {
 		#[pallet::constant]
 		type LeasePeriod: Get<Self::BlockNumber>;
 
+		/// The number of blocks to offset each lease period by.
+		#[pallet::constant]
+		type LeaseOffset: Get<Self::BlockNumber>;
+
 		/// Weight Information for the Extrinsics in the Pallet
 		type WeightInfo: WeightInfo;
 	}
@@ -140,7 +144,9 @@ pub mod pallet {
 		fn on_initialize(n: T::BlockNumber) -> Weight {
 			// If we're beginning a new lease period then handle that.
 			let lease_period = T::LeasePeriod::get();
-			if (n % lease_period).is_zero() {
+			let lease_offset = T::LeaseOffset::get();
+
+			if n >= lease_offset && ((n - lease_offset) % lease_period).is_zero() {
 				let lease_period_index = n / lease_period;
 				Self::manage_lease_period_start(lease_period_index)
 			} else {
@@ -432,7 +438,12 @@ impl<T: Config> Leaser for Pallet<T> {
 	}
 
 	fn lease_period_index() -> Self::LeasePeriod {
-		<frame_system::Pallet<T>>::block_number() / T::LeasePeriod::get()
+		// TODO [now]: perhaps this should be an 'Option'? Lease period
+		// 0 is artificially extended by this implementation.
+		let offset_block_now = <frame_system::Pallet<T>>::block_number()
+			.saturating_sub(T::LeaseOffset::get());
+
+		offset_block_now / T::LeasePeriod::get()
 	}
 
 	fn already_leased(
@@ -545,6 +556,8 @@ mod tests {
 
 	parameter_types! {
 		pub const LeasePeriod: BlockNumber = 10;
+		pub const LeaseOffset: BlockNumber = 0;
+		// TODO [now]: test with non-zero offset.
 		pub const ParaDeposit: u64 = 1;
 	}
 
@@ -553,6 +566,7 @@ mod tests {
 		type Currency = Balances;
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
+		type LeaseOffset = LeaseOffset;
 		type WeightInfo = crate::slots::TestWeightInfo;
 	}
 
