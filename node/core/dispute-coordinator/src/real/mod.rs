@@ -631,7 +631,6 @@ async fn handle_import_statements(
 	session: SessionIndex,
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
-	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
 	metrics: &Metrics,
 ) -> Result<ImportStatementsResult, Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
@@ -913,7 +912,7 @@ async fn issue_local_statement(
 			now,
 			metrics,
 		)
-		.await?
+		.await
 		{
 			Err(_) => {
 				tracing::error!(
