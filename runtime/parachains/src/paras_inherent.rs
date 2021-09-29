@@ -34,7 +34,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	BackedCandidate, InherentData as ParachainsInherentData, ScrapedImportDisputesAndBackingVotes,
+	BackedCandidate, InherentData as ParachainsInherentData, ScrapedOnChainVotes,
 	PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_runtime::traits::Header as HeaderT;
@@ -266,9 +266,7 @@ pub mod pallet {
 
 			// The number of disputes included in a block is
 			// limited by the weight as well as the number of candidate blocks.
-			ImportedDisputes::<T>::put(ScrapedImportDisputesAndBackingVotes::<
-				<T::Header as HeaderT>::Hash,
-			> {
+			ImportedDisputes::<T>::put(ScrapedOnChainVotes::<<T::Header as HeaderT>::Hash> {
 				session: current_session,
 				backing_validators: candidate_receipt_with_backing_validator_indices,
 				disputes,

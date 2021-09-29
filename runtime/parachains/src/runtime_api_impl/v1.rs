@@ -24,7 +24,7 @@ use primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	ScheduledCore, ScrapedImportDisputesAndBackingVotes, SessionIndex, SessionInfo, ValidationCode,
+	ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_runtime::traits::One;
@@ -331,7 +331,6 @@ pub fn validation_code_by_hash<T: paras::Config>(
 }
 
 /// Disputes imported via means of on-chain imports.
-pub fn on_chain_votes<T: initializer::Config>(
-) -> Option<ScrapedImportDisputesAndBackingVotes<T::Hash>> {
+pub fn on_chain_votes<T: initializer::Config>() -> Option<ScrapedOnChainVotes<T::Hash>> {
 	<paras::Pallet<T>>::on_chain_votes()
 }

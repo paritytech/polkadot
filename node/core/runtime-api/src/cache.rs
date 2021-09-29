@@ -24,8 +24,8 @@ use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
 	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
 	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
-	ScrapedImportDisputesAndBackingVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex,
 };
 
 const AUTHORITIES_CACHE_SIZE: usize = 128 * 1024;
@@ -99,8 +99,7 @@ pub(crate) struct RequestResultCache {
 		ResidentSizeOf<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
 	>,
 	current_babe_epoch: MemoryLruCache<Hash, DoesNotAllocate<Epoch>>,
-	on_chain_votes:
-		MemoryLruCache<Hash, ResidentSizeOf<Option<ScrapedImportDisputesAndBackingVotes>>>,
+	on_chain_votes: MemoryLruCache<Hash, ResidentSizeOf<Option<ScrapedOnChainVotes>>>,
 }
 
 impl Default for RequestResultCache {
@@ -328,14 +327,14 @@ impl RequestResultCache {
 	pub(crate) fn on_chain_votes(
 		&mut self,
 		relay_parent: &Hash,
-	) -> Option<&Option<ScrapedImportDisputesAndBackingVotes>> {
+	) -> Option<&Option<ScrapedOnChainVotes>> {
 		self.on_chain_votes.get(relay_parent).map(|v| &v.0)
 	}
 
 	pub(crate) fn cache_on_chain_votes(
 		&mut self,
 		relay_parent: Hash,
-		scraped: Option<ScrapedImportDisputesAndBackingVotes>,
+		scraped: Option<ScrapedOnChainVotes>,
 	) {
 		self.on_chain_votes.insert(relay_parent, ResidentSizeOf(scraped));
 	}
@@ -361,5 +360,5 @@ pub(crate) enum RequestResult {
 		BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>,
 	),
 	CurrentBabeEpoch(Hash, Epoch),
-	ImportedOnChainDisputes(Hash, Option<ScrapedImportDisputesAndBackingVotes>),
+	FetchOnChainVotes(Hash, Option<ScrapedOnChainVotes>),
 }

@@ -22,8 +22,8 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, GroupRotationInfo,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedImportDisputesAndBackingVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_core::testing::TaskExecutor;
 use std::{
@@ -49,7 +49,7 @@ struct MockRuntimeApi {
 	dmq_contents: HashMap<ParaId, Vec<InboundDownwardMessage>>,
 	hrmp_channels: HashMap<ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage>>>,
 	babe_epoch: Option<BabeEpoch>,
-	on_chain_votes: Option<ScrapedImportDisputesAndBackingVotes>,
+	on_chain_votes: Option<ScrapedOnChainVotes>,
 }
 
 impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -151,7 +151,7 @@ sp_api::mock_impl_runtime_apis! {
 			self.validation_code_by_hash.get(&hash).map(|c| c.clone())
 		}
 
-		fn on_chain_votes(&self) -> Option<ScrapedImportDisputesAndBackingVotes> {
+		fn on_chain_votes(&self) -> Option<ScrapedOnChainVotes> {
 			self.on_chain_votes.clone()
 		}
 	}

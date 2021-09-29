@@ -143,7 +143,7 @@ where
 				.cache_inbound_hrmp_channel_contents((relay_parent, para_id), contents),
 			CurrentBabeEpoch(relay_parent, epoch) =>
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
-			ImportedOnChainDisputes(relay_parent, scraped) =>
+			FetchOnChainVotes(relay_parent, scraped) =>
 				self.requests_cache.cache_on_chain_votes(relay_parent, scraped),
 		}
 	}
@@ -211,8 +211,8 @@ where
 					.map(|sender| Request::InboundHrmpChannelsContents(id, sender)),
 			Request::CurrentBabeEpoch(sender) =>
 				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
-			Request::ImportedOnChainDisputes(sender) => query!(on_chain_votes(), sender)
-				.map(|sender| Request::ImportedOnChainDisputes(sender)),
+			Request::FetchOnChainVotes(sender) =>
+				query!(on_chain_votes(), sender).map(|sender| Request::FetchOnChainVotes(sender)),
 		}
 	}
 
@@ -346,8 +346,7 @@ where
 		Request::InboundHrmpChannelsContents(id, sender) =>
 			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
 		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
-		Request::ImportedOnChainDisputes(sender) =>
-			query!(ImportedOnChainDisputes, on_chain_votes(), sender),
+		Request::FetchOnChainVotes(sender) => query!(FetchOnChainVotes, on_chain_votes(), sender),
 	}
 }
 

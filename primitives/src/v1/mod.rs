@@ -948,7 +948,7 @@ pub struct SessionInfo {
 /// Scraped runtime backing votes and resolved disputes.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
-pub struct ScrapedImportDisputesAndBackingVotes<H: Encode + Decode = Hash> {
+pub struct ScrapedOnChainVotes<H: Encode + Decode = Hash> {
 	/// The session in which the block was included.
 	pub session: SessionIndex,
 	/// Set of backing validators for each candidate, represented by it's candidate
@@ -1034,7 +1034,7 @@ sp_api::decl_runtime_apis! {
 		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode>;
 
 		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
-		fn on_chain_votes() -> Option<ScrapedImportDisputesAndBackingVotes<H>>;
+		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
 	}
 }
 

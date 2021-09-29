@@ -28,8 +28,8 @@ use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
-	ConsensusLog, HeadData, Id as ParaId, ScrapedImportDisputesAndBackingVotes, SessionIndex,
-	UpgradeGoAhead, UpgradeRestriction, ValidationCode, ValidationCodeHash,
+	ConsensusLog, HeadData, Id as ParaId, ScrapedOnChainVotes, SessionIndex, UpgradeGoAhead,
+	UpgradeRestriction, ValidationCode, ValidationCodeHash,
 };
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
@@ -461,7 +461,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn on_chain_votes)]
 	pub(crate) type ImportedDisputes<T: Config> =
-		StorageValue<_, ScrapedImportDisputesAndBackingVotes<T::Hash>, OptionQuery>;
+		StorageValue<_, ScrapedOnChainVotes<T::Hash>, OptionQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {

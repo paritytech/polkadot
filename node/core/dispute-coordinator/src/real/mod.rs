@@ -52,8 +52,8 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 };
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, DisputeStatementSet, Hash,
-	ScrapedImportDisputesAndBackingVotes, SessionIndex, SessionInfo, ValidDisputeStatementKind,
-	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 
@@ -505,130 +505,160 @@ async fn handle_new_activations(
 			_ => {},
 		}
 
-		let ScrapedImportDisputesAndBackingVotes { session, backing_validators, disputes } = {
-			let (tx, rx) = oneshot::channel();
-			ctx.send_message(RuntimeApiMessage::Request(
-				new_leaf,
-				RuntimeApiRequest::ImportedOnChainDisputes(tx),
-			))
-			.await;
+		scrape_on_chain_votes(ctx, overlay_db, state, new_leaf, now, metrics).await?;
+	}
 
-			match rx.await {
-				Ok(Ok(Some(val))) => val,
-				Ok(Ok(None)) => {
-					tracing::trace!(
-						target: LOG_TARGET,
-						relay_parent = ?new_leaf,
-						"No data stored for relay parent");
-					continue
-				},
-				Ok(Err(e)) => {
-					tracing::trace!(
-						target: LOG_TARGET,
-						relay_parent = ?new_leaf,
-						error = ?e,
-						"Could not retrieve relay parent since the API returned an error");
-					continue
-				},
-				Err(e) => {
-					tracing::trace!(
-						target: LOG_TARGET,
-						relay_parent = ?new_leaf,
-						error = ?e,
-						"Could not retrieve relay parent due to ");
-					continue
-				},
-			}
-		};
+	Ok(())
+}
 
-		let session_info: SessionInfo = {
-			let (tx, rx) = oneshot::channel();
-			ctx.send_message(RuntimeApiMessage::Request(
-				new_leaf,
-				RuntimeApiRequest::SessionInfo(session, tx),
-			))
-			.await;
+/// Scrapes on-chain votes for a newly active leaf.
+async fn scrape_on_chain_votes(
+	ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
+	          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
+	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
+	state: &mut State,
+	new_leaf: Hash,
+	now: u64,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	let ScrapedOnChainVotes { session, backing_validators, disputes } = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(RuntimeApiMessage::Request(
+			new_leaf,
+			RuntimeApiRequest::FetchOnChainVotes(tx),
+		))
+		.await;
 
-			match rx.await?? {
-				None => continue,
-				Some(session_info) => session_info,
-			}
-		};
-
-		// scraped on-chain backing votes
-		for (candidate_receipt, backers) in backing_validators {
-			let candidate_hash = candidate_receipt.hash();
-			let statements =
-				backers.into_iter().filter_map(|(validator_idx, validator_signature)| {
-					let validator_public: ValidatorId =
-						session_info.validators.get(validator_idx.0 as usize)?.clone();
-					let signed_dispute_statement = SignedDisputeStatement::new_checked(
-						DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(new_leaf)),
-						candidate_hash,
-						session,
-						validator_public,
-						validator_signature,
-					)
-					.ok()?;
-					Some((signed_dispute_statement, validator_idx))
-				});
-			let _import_result = handle_import_statements(
-				ctx,
-				overlay_db,
-				state,
-				candidate_hash,
-				candidate_receipt,
-				session,
-				statements,
-				now,
-				metrics,
-			)
-			.await?;
+		match rx.await {
+			Ok(Ok(Some(val))) => val,
+			Ok(Ok(None)) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					relay_parent = ?new_leaf,
+					"No data stored for relay parent");
+				return Ok(())
+			},
+			Ok(Err(e)) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					relay_parent = ?new_leaf,
+					error = ?e,
+					"Could not retrieve relay parent since the API returned an error");
+				return Ok(())
+			},
+			Err(e) => {
+				tracing::trace!(
+					target: LOG_TARGET,
+					relay_parent = ?new_leaf,
+					error = ?e,
+					"Could not retrieve relay parent");
+				return Ok(())
+			},
 		}
+	};
 
-		// concluded disputes from on-chain, this already went through a vote so it's assumed
-		// as verified and no gossip is needed, and hence.
+	let session_info: SessionInfo = {
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(RuntimeApiMessage::Request(
+			new_leaf,
+			RuntimeApiRequest::SessionInfo(session, tx),
+		))
+		.await;
 
-		// First try to obtain all the backings which ultimately contain the candidate
-		// receipt which we need.
-		let candidate_receipts = {
-			let disputed_candidates = disputes
-				.iter()
-				.map(|DisputeStatementSet { candidate_hash, .. }| *candidate_hash)
-				.collect::<Vec<_>>();
-			let (tx, rx) = oneshot::channel();
-			ctx.send_message(CandidateBackingMessage::GetBackedCandidates(
-				new_leaf,
-				disputed_candidates,
-				tx,
-			))
-			.await;
+		match rx.await?? {
+			None => return Ok(()),
+			Some(session_info) => session_info,
+		}
+	};
 
-			if let Ok(backings) = rx.await {
-				backings
-					.into_iter()
-					.map(|backed_disputed_candidate| {
-						(backed_disputed_candidate.hash(), backed_disputed_candidate.receipt())
-					})
-					.collect::<HashMap<CandidateHash, CandidateReceipt>>()
-			} else {
-				tracing::warn!("Missing backed candidates for new leaf {:?}", new_leaf);
-				continue
-			}
+	// scraped on-chain backing votes for the candidates with
+	// the new active leaf
+	for (candidate_receipt, backers) in backing_validators {
+		let candidate_hash = candidate_receipt.hash();
+		let statements = backers.into_iter().filter_map(|(validator_idx, validator_signature)| {
+			let validator_public: ValidatorId =
+				session_info.validators.get(validator_idx.0 as usize)?.clone();
+			let signed_dispute_statement = SignedDisputeStatement::new_checked(
+				DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(new_leaf)),
+				candidate_hash,
+				session,
+				validator_public,
+				validator_signature,
+			)
+			.ok()?;
+			Some((signed_dispute_statement, validator_idx))
+		});
+		let import_result = handle_import_statements(
+			ctx,
+			overlay_db,
+			state,
+			candidate_hash,
+			candidate_receipt,
+			session,
+			statements,
+			now,
+			metrics,
+		)
+		.await?;
+		match import_result {
+			ImportStatementsResult::ValidImport => tracing::trace!(target: LOG_TARGET,
+				relay_parent = ?new_leaf,
+				"Imported backing vote from on-chain"),
+			ImportStatementsResult::InvalidImport => tracing::warn!(target: LOG_TARGET,
+					relay_parent = ?new_leaf,
+					"Attempted import of on-chain backing votes failed"),
+		}
+	}
+
+	if disputes.is_empty() {
+		return Ok(())
+	}
+
+	// concluded disputes from on-chain, this already went through a vote so it's assumed
+	// as verified and no gossip is needed, and hence.
+
+	// First try to obtain all the backings which ultimately contain the candidate
+	// receipt which we need.
+	let candidate_receipts = {
+		let disputed_candidates = disputes
+			.iter()
+			.map(|DisputeStatementSet { candidate_hash, .. }| *candidate_hash)
+			.collect::<Vec<_>>();
+		let (tx, rx) = oneshot::channel();
+		ctx.send_message(CandidateBackingMessage::GetBackedCandidates(
+			new_leaf,
+			disputed_candidates,
+			tx,
+		))
+		.await;
+
+		if let Ok(backings) = rx.await {
+			backings
+				.into_iter()
+				.map(|backed_disputed_candidate| {
+					(backed_disputed_candidate.hash(), backed_disputed_candidate.receipt())
+				})
+				.collect::<HashMap<CandidateHash, CandidateReceipt>>()
+		} else {
+			tracing::warn!(target: LOG_TARGET,relay_parent = ?new_leaf, "Missing backed candidates for new leaf {:?}", new_leaf);
+			return Ok(())
+		}
+	};
+
+	for DisputeStatementSet { candidate_hash, session, statements } in disputes {
+		let candidate_receipt: CandidateReceipt = if let Some(candidate_receipt) =
+			candidate_receipts.get(&candidate_hash)
+		{
+			candidate_receipt.clone()
+		} else {
+			tracing::warn!(target: LOG_TARGET,relay_parent = ?new_leaf, "Missing backing vote for disputed candidate {}", &candidate_hash);
+			return Ok(())
 		};
-
-		for DisputeStatementSet { candidate_hash, session, statements } in disputes {
-			let candidate_receipt: CandidateReceipt = if let Some(candidate_receipt) =
-				candidate_receipts.get(&candidate_hash)
-			{
-				candidate_receipt.clone()
-			} else {
-				tracing::warn!("Missing backing vote for disputed candidate {}", &candidate_hash);
-				continue
-			};
-			let mut votes =
-				CandidateVotes { candidate_receipt, valid: Vec::new(), invalid: Vec::new() };
-			statements.into_iter().for_each(
+		let mut votes =
+			CandidateVotes { candidate_receipt, valid: Vec::new(), invalid: Vec::new() };
+		statements
+			.into_iter()
+			.for_each(
 				|(dispute_statement, validator_idx, validator_public)| match dispute_statement {
 					DisputeStatement::Valid(valid) =>
 						votes.valid.push((valid, validator_idx, validator_public)),
@@ -636,10 +666,8 @@ async fn handle_new_activations(
 						votes.invalid.push((invalid, validator_idx, validator_public)),
 				},
 			);
-			overlay_db.write_candidate_votes(session, candidate_hash, votes.into());
-		}
+		overlay_db.write_candidate_votes(session, candidate_hash, votes.into());
 	}
-
 	Ok(())
 }
 
