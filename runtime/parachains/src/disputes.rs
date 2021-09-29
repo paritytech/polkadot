@@ -129,9 +129,8 @@ pub trait DisputesHandler<BlockNumber> {
 		included_in: BlockNumber,
 	);
 
-	/// Whether the given candidate could be invalid, i.e. there is an ongoing
-	/// or concluded dispute with supermajority-against.
-	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool;
+	/// Whether the given candidate concluded invalid in a dispute with supermajority.
+	fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool;
 
 	/// Called by the initializer to initialize the configuration module.
 	fn initializer_initialize(now: BlockNumber) -> Weight;
@@ -165,7 +164,7 @@ impl<BlockNumber> DisputesHandler<BlockNumber> for () {
 	) {
 	}
 
-	fn could_be_invalid(_session: SessionIndex, _candidate_hash: CandidateHash) -> bool {
+	fn concluded_invalid(_session: SessionIndex, _candidate_hash: CandidateHash) -> bool {
 		false
 	}
 
@@ -201,8 +200,8 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 		pallet::Pallet::<T>::note_included(session, candidate_hash, included_in)
 	}
 
-	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
-		pallet::Pallet::<T>::could_be_invalid(session, candidate_hash)
+	fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
+		pallet::Pallet::<T>::concluded_invalid(session, candidate_hash)
 	}
 
 	fn initializer_initialize(now: T::BlockNumber) -> Weight {
@@ -1114,10 +1113,10 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub(crate) fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
+	pub(crate) fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
 		<Disputes<T>>::get(&session, &candidate_hash).map_or(false, |dispute| {
-			// A dispute that is ongoing or has concluded with supermajority-against.
-			dispute.concluded_at.is_none() || has_supermajority_against(&dispute)
+			// A dispute that has concluded with supermajority-against.
+			has_supermajority_against(&dispute)
 		})
 	}
 
@@ -2207,9 +2206,9 @@ mod tests {
 				]
 			);
 
-			assert_eq!(Pallet::<Test>::could_be_invalid(3, candidate_hash.clone()), false); // It has 5 votes for
-			assert_eq!(Pallet::<Test>::could_be_invalid(4, candidate_hash.clone()), true);
-			assert_eq!(Pallet::<Test>::could_be_invalid(5, candidate_hash.clone()), true);
+			assert!(!Pallet::<Test>::concluded_invalid(3, candidate_hash.clone()));
+			assert!(!Pallet::<Test>::concluded_invalid(4, candidate_hash.clone()));
+			assert!(Pallet::<Test>::concluded_invalid(5, candidate_hash.clone()));
 
 			// Ensure inclusion removes spam slots
 			assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));

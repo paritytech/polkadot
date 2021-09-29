@@ -66,8 +66,8 @@ pub mod pallet {
 		/// The hash of the submitted parent header doesn't correspond to the saved block hash of
 		/// the parent.
 		InvalidParentHeader,
-		/// Potentially invalid candidate.
-		CandidateCouldBeInvalid,
+		/// Disputed candidate that was concluded invalid.
+		CandidateConcludedInvalid,
 	}
 
 	/// Whether the paras inherent was included within this block.
@@ -238,14 +238,14 @@ pub mod pallet {
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
 
-			// Refuse to back any candidates that are disputed or invalid.
+			// Refuse to back any candidates that were disputed and are concluded invalid.
 			for candidate in &backed_candidates {
 				ensure!(
-					!T::DisputesHandler::could_be_invalid(
+					!T::DisputesHandler::concluded_invalid(
 						current_session,
 						candidate.candidate.hash(),
 					),
-					Error::<T>::CandidateCouldBeInvalid,
+					Error::<T>::CandidateConcludedInvalid,
 				);
 			}
 
