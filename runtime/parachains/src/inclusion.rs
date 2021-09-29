@@ -27,6 +27,7 @@ use primitives::v1::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
 	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
+	ValidatorSignature,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -111,12 +112,21 @@ pub trait RewardValidators {
 }
 
 /// Helper return type for `process_candidates`.
-#[derive(Encode, Decode, PartialEq, TypeInfo, Default)]
+#[derive(Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub(crate) struct ProcessedCandidates<H = Hash> {
 	pub(crate) core_indices: Vec<CoreIndex>,
 	pub(crate) candidate_receipt_with_backing_validator_indices:
 		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidatorSignature)>)>,
+}
+
+impl<H> Default for ProcessedCandidates<H> {
+	fn default() -> Self {
+		Self {
+			core_indices: Vec::new(),
+			candidate_receipt_with_backing_validator_indices: Vec::new(),
+		}
+	}
 }
 
 #[frame_support::pallet]
@@ -593,7 +603,7 @@ impl<T: Config> Pallet<T> {
 									.get(bit_idx)
 									.expect("this query succeeded above; qed");
 
-								backer_idx_and_signature.push((*val_idx, attestation.signature()));
+								backer_idx_and_signature.push((*val_idx, attestation.signature().clone()));
 
 								backers.set(val_idx.0 as _, true);
 							}
