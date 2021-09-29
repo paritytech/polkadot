@@ -99,7 +99,7 @@ pub(crate) struct RequestResultCache {
 		ResidentSizeOf<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
 	>,
 	current_babe_epoch: MemoryLruCache<Hash, DoesNotAllocate<Epoch>>,
-	imported_on_chain_disputes:
+	on_chain_votes:
 		MemoryLruCache<Hash, ResidentSizeOf<Option<ScrapedImportDisputesAndBackingVotes>>>,
 }
 
@@ -123,7 +123,7 @@ impl Default for RequestResultCache {
 			dmq_contents: MemoryLruCache::new(DMQ_CONTENTS_CACHE_SIZE),
 			inbound_hrmp_channels_contents: MemoryLruCache::new(INBOUND_HRMP_CHANNELS_CACHE_SIZE),
 			current_babe_epoch: MemoryLruCache::new(CURRENT_BABE_EPOCH_CACHE_SIZE),
-			imported_on_chain_disputes: MemoryLruCache::new(3),
+			on_chain_votes: MemoryLruCache::new(3),
 		}
 	}
 }
@@ -325,19 +325,19 @@ impl RequestResultCache {
 		self.current_babe_epoch.insert(relay_parent, DoesNotAllocate(epoch));
 	}
 
-	pub(crate) fn imported_on_chain_disputes(
+	pub(crate) fn on_chain_votes(
 		&mut self,
 		relay_parent: &Hash,
 	) -> Option<&Option<ScrapedImportDisputesAndBackingVotes>> {
-		self.imported_on_chain_disputes.get(relay_parent).map(|v| &v.0)
+		self.on_chain_votes.get(relay_parent).map(|v| &v.0)
 	}
 
-	pub(crate) fn cache_imported_on_chain_disputes(
+	pub(crate) fn cache_on_chain_votes(
 		&mut self,
 		relay_parent: Hash,
 		scraped: Option<ScrapedImportDisputesAndBackingVotes>,
 	) {
-		self.imported_on_chain_disputes.insert(relay_parent, ResidentSizeOf(scraped));
+		self.on_chain_votes.insert(relay_parent, ResidentSizeOf(scraped));
 	}
 }
 

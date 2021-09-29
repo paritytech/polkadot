@@ -459,7 +459,7 @@ pub mod pallet {
 
 	/// Scraped on chain data for extracting resolved disputes as well as backing votes.
 	#[pallet::storage]
-	#[pallet::getter(fn imported_on_chain_disputes)]
+	#[pallet::getter(fn on_chain_votes)]
 	pub(crate) type ImportedDisputes<T: Config> =
 		StorageValue<_, ScrapedImportDisputesAndBackingVotes<T::Hash>, OptionQuery>;
 

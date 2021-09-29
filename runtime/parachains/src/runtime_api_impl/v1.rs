@@ -331,7 +331,7 @@ pub fn validation_code_by_hash<T: paras::Config>(
 }
 
 /// Disputes imported via means of on-chain imports.
-pub fn imported_on_chain_disputes<T: initializer::Config>(
+pub fn on_chain_votes<T: initializer::Config>(
 ) -> Option<ScrapedImportDisputesAndBackingVotes<T::Hash>> {
-	<paras::Pallet<T>>::imported_on_chain_disputes()
+	<paras::Pallet<T>>::on_chain_votes()
 }

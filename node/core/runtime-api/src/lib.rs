@@ -144,7 +144,7 @@ where
 			CurrentBabeEpoch(relay_parent, epoch) =>
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
 			ImportedOnChainDisputes(relay_parent, scraped) =>
-				self.requests_cache.cache_imported_on_chain_disputes(relay_parent, scraped),
+				self.requests_cache.cache_on_chain_votes(relay_parent, scraped),
 		}
 	}
 
@@ -212,7 +212,7 @@ where
 			Request::CurrentBabeEpoch(sender) =>
 				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
 			Request::ImportedOnChainDisputes(sender) =>
-				query!(imported_on_chain_disputes(), sender)
+				query!(on_chain_votes(), sender)
 					.map(|sender| Request::ImportedOnChainDisputes(sender)),
 		}
 	}
@@ -348,7 +348,7 @@ where
 			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
 		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
 		Request::ImportedOnChainDisputes(sender) =>
-			query!(ImportedOnChainDisputes, imported_on_chain_disputes(), sender),
+			query!(ImportedOnChainDisputes, on_chain_votes(), sender),
 	}
 }
 

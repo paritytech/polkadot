@@ -1284,8 +1284,8 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
 		}
 
-		fn imported_on_chain_disputes() -> Option<ScrapedImportDisputesAndBackingVotes<Hash>> {
-			parachains_runtime_api_impl::imported_on_chain_disputes::<Runtime>()
+		fn on_chain_votes() -> Option<ScrapedImportDisputesAndBackingVotes<Hash>> {
+			parachains_runtime_api_impl::on_chain_votes::<Runtime>()
 		}
 	}
 

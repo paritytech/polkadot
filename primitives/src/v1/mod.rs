@@ -1032,7 +1032,7 @@ sp_api::decl_runtime_apis! {
 		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode>;
 
 		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
-		fn imported_on_chain_disputes() -> Option<ScrapedImportDisputesAndBackingVotes<H>>;
+		fn on_chain_votes() -> Option<ScrapedImportDisputesAndBackingVotes<H>>;
 	}
 }
 
