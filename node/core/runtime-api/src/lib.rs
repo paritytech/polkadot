@@ -211,9 +211,8 @@ where
 					.map(|sender| Request::InboundHrmpChannelsContents(id, sender)),
 			Request::CurrentBabeEpoch(sender) =>
 				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
-			Request::ImportedOnChainDisputes(sender) =>
-				query!(on_chain_votes(), sender)
-					.map(|sender| Request::ImportedOnChainDisputes(sender)),
+			Request::ImportedOnChainDisputes(sender) => query!(on_chain_votes(), sender)
+				.map(|sender| Request::ImportedOnChainDisputes(sender)),
 		}
 	}
 

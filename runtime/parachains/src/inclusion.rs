@@ -116,7 +116,7 @@ pub trait RewardValidators {
 pub(crate) struct ProcessedCandidates<H = Hash> {
 	pub(crate) core_indices: Vec<CoreIndex>,
 	pub(crate) candidate_receipt_with_backing_validator_indices:
-		Vec<(CandidateReceipt<H>, Vec<ValidatorIndex>)>,
+		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidatorSignature)>)>,
 }
 
 #[frame_support::pallet]
@@ -457,17 +457,17 @@ impl<T: Config> Pallet<T> {
 			//
 			// In the meantime, we do certain sanity checks on the candidates and on the scheduled
 			// list.
-			'a: for (candidate_idx, candidate) in candidates.iter().enumerate() {
-				let para_id = candidate.descriptor().para_id;
+			'a: for (candidate_idx, backed_candidate) in candidates.iter().enumerate() {
+				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
 
 				// we require that the candidate is in the context of the parent block.
 				ensure!(
-					candidate.descriptor().relay_parent == parent_hash,
+					backed_candidate.descriptor().relay_parent == parent_hash,
 					Error::<T>::CandidateNotInParentContext,
 				);
 				ensure!(
-					candidate.descriptor().check_collator_signature().is_ok(),
+					backed_candidate.descriptor().check_collator_signature().is_ok(),
 					Error::<T>::NotCollatorSigned,
 				);
 
@@ -476,24 +476,24 @@ impl<T: Config> Pallet<T> {
 						// A candidate for a parachain without current validation code is not scheduled.
 						.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
 				ensure!(
-					candidate.descriptor().validation_code_hash == validation_code_hash,
+					backed_candidate.descriptor().validation_code_hash == validation_code_hash,
 					Error::<T>::InvalidValidationCodeHash,
 				);
 
 				ensure!(
-					candidate.descriptor().para_head ==
-						candidate.candidate.commitments.head_data.hash(),
+					backed_candidate.descriptor().para_head ==
+						backed_candidate.candidate.commitments.head_data.hash(),
 					Error::<T>::ParaHeadMismatch,
 				);
 
 				if let Err(err) = check_cx.check_validation_outputs(
 					para_id,
-					&candidate.candidate.commitments.head_data,
-					&candidate.candidate.commitments.new_validation_code,
-					candidate.candidate.commitments.processed_downward_messages,
-					&candidate.candidate.commitments.upward_messages,
-					T::BlockNumber::from(candidate.candidate.commitments.hrmp_watermark),
-					&candidate.candidate.commitments.horizontal_messages,
+					&backed_candidate.candidate.commitments.head_data,
+					&backed_candidate.candidate.commitments.new_validation_code,
+					backed_candidate.candidate.commitments.processed_downward_messages,
+					&backed_candidate.candidate.commitments.upward_messages,
+					T::BlockNumber::from(backed_candidate.candidate.commitments.hrmp_watermark),
+					&backed_candidate.candidate.commitments.horizontal_messages,
 				) {
 					log::debug!(
 						target: LOG_TARGET,
@@ -511,7 +511,7 @@ impl<T: Config> Pallet<T> {
 					if para_id == assignment.para_id {
 						if let Some(required_collator) = assignment.required_collator() {
 							ensure!(
-								required_collator == &candidate.descriptor().collator,
+								required_collator == &backed_candidate.descriptor().collator,
 								Error::<T>::WrongCollator,
 							);
 						}
@@ -536,7 +536,8 @@ impl<T: Config> Pallet<T> {
 							let expected = persisted_validation_data.hash();
 
 							ensure!(
-								expected == candidate.descriptor().persisted_validation_data_hash,
+								expected ==
+									backed_candidate.descriptor().persisted_validation_data_hash,
 								Error::<T>::ValidationDataHashMismatch,
 							);
 						}
@@ -556,7 +557,7 @@ impl<T: Config> Pallet<T> {
 						// check the signatures in the backing and that it is a majority.
 						{
 							let maybe_amount_validated = primitives::v1::check_candidate_backing(
-								&candidate,
+								&backed_candidate,
 								&signing_context,
 								group_vals.len(),
 								|idx| {
@@ -577,25 +578,27 @@ impl<T: Config> Pallet<T> {
 								},
 							}
 
-							let mut explicit_backer_indices = Vec::<ValidatorIndex>::with_capacity(
-								candidate.validator_indices.count_ones(),
-							);
-							for (bit_idx, _) in candidate
+							let mut backer_idx_and_signature =
+								Vec::<(ValidatorIndex, ValidatorSignature)>::with_capacity(
+									backed_candidate.validator_indices.count_ones(),
+								);
+							for ((bit_idx, _), attestation) in backed_candidate
 								.validator_indices
 								.iter()
 								.enumerate()
 								.filter(|(_, signed)| **signed)
+								.zip(backed_candidate.validity_votes.iter())
 							{
 								let val_idx = group_vals
 									.get(bit_idx)
 									.expect("this query succeeded above; qed");
 
-								explicit_backer_indices.push(*val_idx);
+								backer_idx_and_signature.push((*val_idx, attestation.signature()));
 
 								backers.set(val_idx.0 as _, true);
 							}
 							candidate_receipt_with_backer_indices
-								.push((candidate.receipt(), explicit_backer_indices));
+								.push((backed_candidate.receipt(), backer_idx_and_signature));
 						}
 
 						core_indices_and_backers.push((

@@ -26,7 +26,7 @@
 //! back to this subsystem.
 
 use std::{
-	collections::HashSet,
+	collections::{HashMap, HashSet},
 	sync::Arc,
 	time::{SystemTime, UNIX_EPOCH},
 };
@@ -41,8 +41,9 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
-		DisputeParticipationMessage, ImportStatementsResult,
+		BlockDescription, CandidateBackingMessage, DisputeCoordinatorMessage,
+		DisputeDistributionMessage, DisputeParticipationMessage, ImportStatementsResult,
+		RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
@@ -51,7 +52,8 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 };
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, DisputeStatementSet, Hash,
-	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ScrapedImportDisputesAndBackingVotes, SessionIndex, SessionInfo, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 
@@ -503,7 +505,7 @@ async fn handle_new_activations(
 			_ => {},
 		}
 
-		let on_chain_scraped: ScrapedImportDisputesAndBackingVotes = {
+		let ScrapedImportDisputesAndBackingVotes { session, backing_validators, disputes } = {
 			let (tx, rx) = oneshot::channel();
 			ctx.send_message(RuntimeApiMessage::Request(
 				new_leaf,
@@ -541,8 +543,11 @@ async fn handle_new_activations(
 
 		let session_info: SessionInfo = {
 			let (tx, rx) = oneshot::channel();
-			ctx.send_message(RuntimeApiRequest::SessionInfo(on_chain_scraped.session_index, tx))
-				.await;
+			ctx.send_message(RuntimeApiMessage::Request(
+				new_leaf,
+				RuntimeApiRequest::SessionInfo(session, tx),
+			))
+			.await;
 
 			match rx.await?? {
 				None => continue,
@@ -551,17 +556,29 @@ async fn handle_new_activations(
 		};
 
 		// scraped on-chain backing votes
-		for (candidate_receipt, backers) in on_chain_scraped.backing_validators.iter() {
-			let statements = backers.iter().map(|validator_idx| {
-				DisputeStatement::Valid(DisputeStatementKind::Backing(new_leaf))
-			});
+		for (candidate_receipt, backers) in backing_validators {
+			let candidate_hash = candidate_receipt.hash();
+			let statements =
+				backers.into_iter().filter_map(|(validator_idx, validator_signature)| {
+					let validator_public: ValidatorId =
+						session_info.validators.get(validator_idx.0 as usize)?.clone();
+					let signed_dispute_statement = SignedDisputeStatement::new_checked(
+						DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(new_leaf)),
+						candidate_hash,
+						session,
+						validator_public,
+						validator_signature,
+					)
+					.ok()?;
+					Some((signed_dispute_statement, validator_idx))
+				});
 			let _import_result = handle_import_statements(
 				ctx,
 				overlay_db,
 				state,
 				candidate_hash,
 				candidate_receipt,
-				on_chain_scraped.session_index,
+				session,
 				statements,
 				now,
 				metrics,
@@ -569,40 +586,57 @@ async fn handle_new_activations(
 			.await?;
 		}
 
-		let candidate_backings = {
-			let backings = ctx
-				.send_message(CandidateBackingMessage::GetBackedCandidates(
-					new_leaf, candidates, tx,
-				))
-				.await?;
-			// FIXME XXX double check all those `?`s
-			let backings = rx.await??;
-			backings.into_iter().collect::<HashMap<_, _>>()
-		};
-
 		// concluded disputes from on-chain, this already went through a vote so it's assumed
 		// as verified and no gossip is needed, and hence.
-		'dss: for DisputeStatementSet { candidate_hash, session, statements } in
-			on_chain_scraped.disputes.iter()
-		{
-			let candidate_receipt = if let Some(candidate_receipt) =
-				backings.get(candidate_hash).map(|(_, backing_vote)| backing_vote.receipt())
+
+		// First try to obtain all the backings which ultimately contain the candidate
+		// receipt which we need.
+		let candidate_receipts = {
+			let disputed_candidates = disputes
+				.iter()
+				.map(|DisputeStatementSet { candidate_hash, .. }| *candidate_hash)
+				.collect::<Vec<_>>();
+			let (tx, rx) = oneshot::channel();
+			ctx.send_message(CandidateBackingMessage::GetBackedCandidates(
+				new_leaf,
+				disputed_candidates,
+				tx,
+			))
+			.await;
+
+			if let Ok(backings) = rx.await {
+				backings
+					.into_iter()
+					.map(|backed_disputed_candidate| {
+						(backed_disputed_candidate.hash(), backed_disputed_candidate.receipt())
+					})
+					.collect::<HashMap<CandidateHash, CandidateReceipt>>()
+			} else {
+				tracing::warn!("Missing backed candidates for new leaf {:?}", new_leaf);
+				continue
+			}
+		};
+
+		for DisputeStatementSet { candidate_hash, session, statements } in disputes {
+			let candidate_receipt: CandidateReceipt = if let Some(candidate_receipt) =
+				candidate_receipts.get(&candidate_hash)
 			{
-				candidate_receipt
+				candidate_receipt.clone()
 			} else {
 				tracing::warn!("Missing backing vote for disputed candidate {}", &candidate_hash);
-				continue 'dss
+				continue
 			};
 			let mut votes =
 				CandidateVotes { candidate_receipt, valid: Vec::new(), invalid: Vec::new() };
-			let statements =
-				statements.into_iter().for_each(|dispute_statement: DisputeStatement| {
-					match dispute_statement {
-						DisputeStatement::Valid(valid) => votes.valid.push(valid),
-						DisputeStatement::Invalid(invalid) => votes.invalid.push(invalid),
-					}
-				});
-			overlay_db.write_candidate_votes(session, candidate_hash, votes);
+			statements.into_iter().for_each(
+				|(dispute_statement, validator_idx, validator_public)| match dispute_statement {
+					DisputeStatement::Valid(valid) =>
+						votes.valid.push((valid, validator_idx, validator_public)),
+					DisputeStatement::Invalid(invalid) =>
+						votes.invalid.push((invalid, validator_idx, validator_public)),
+				},
+			);
+			overlay_db.write_candidate_votes(session, candidate_hash, votes.into());
 		}
 	}
 
@@ -732,7 +766,7 @@ async fn handle_import_statements(
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
-	statements: impl IntoIter<Item = (SignedDisputeStatement, ValidatorIndex)>,
+	statements: impl IntoIterator<Item = (SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
 	metrics: &Metrics,
 ) -> Result<ImportStatementsResult, Error> {
