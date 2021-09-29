@@ -490,6 +490,7 @@ async fn handle_new_activations(
 					err = ?e,
 					"Failed to update session cache for disputes",
 				);
+				continue;
 			},
 			Ok(SessionWindowUpdate::Initialized { window_end, .. }) |
 			Ok(SessionWindowUpdate::Advanced { new_window_end: window_end, .. }) => {
@@ -502,9 +503,8 @@ async fn handle_new_activations(
 					db::v1::note_current_session(overlay_db, session)?;
 				}
 			},
-			_ => {},
-		}
-
+			Ok(SessionWindowUpdate::Unchanged) => {},
+		};
 		scrape_on_chain_votes(ctx, overlay_db, state, new_leaf, now, metrics).await?;
 	}
 
@@ -521,15 +521,19 @@ async fn scrape_on_chain_votes(
 	now: u64,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
+	println!("fooo");
 	let ScrapedOnChainVotes { session, backing_validators, disputes } = {
 		let (tx, rx) = oneshot::channel();
+		println!("xxx");
 		ctx.send_message(RuntimeApiMessage::Request(
 			new_leaf,
 			RuntimeApiRequest::FetchOnChainVotes(tx),
 		))
 		.await;
-
-		match rx.await {
+		println!("bar");
+		let res = rx.await;
+		println!("yyy");
+		match res {
 			Ok(Ok(Some(val))) => val,
 			Ok(Ok(None)) => {
 				tracing::trace!(
@@ -561,7 +565,9 @@ async fn scrape_on_chain_votes(
 		return Ok(())
 	}
 
-	let session_info: SessionInfo = {
+	let session_info: SessionInfo = if let Some(session_info) = state.rolling_session_window.session_info(session) {
+		session_info.clone()
+	} else {
 		let (tx, rx) = oneshot::channel();
 		ctx.send_message(RuntimeApiMessage::Request(
 			new_leaf,
@@ -807,7 +813,7 @@ async fn handle_import_statements(
 		return Ok(ImportStatementsResult::InvalidImport)
 	}
 
-	let validators = match state.rolling_session_window.session_info(session) {
+	let session_info = match state.rolling_session_window.session_info(session) {
 		None => {
 			tracing::warn!(
 				target: LOG_TARGET,
@@ -817,8 +823,9 @@ async fn handle_import_statements(
 
 			return Ok(ImportStatementsResult::InvalidImport)
 		},
-		Some(info) => info.validators.clone(),
+		Some(info) => info,
 	};
+	let validators = session_info.validators.clone();
 
 	let n_validators = validators.len();
 
