@@ -38,7 +38,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		BlockDescription, ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		DisputeParticipationMessage, ImportStatementsResult,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,

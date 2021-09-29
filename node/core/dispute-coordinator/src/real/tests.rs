@@ -27,7 +27,7 @@ use parity_scale_codec::Encode;
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		AllMessages, BlockDescription, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
+		AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
@@ -170,7 +170,7 @@ impl TestState {
 			)))
 			.await;
 
-		self.handle_sync_queries(virtual_overseer, block_hash, block_header, session)
+		self.handle_sync_queries(virtual_overseer, block_hash, session)
 			.await;
 	}
 
@@ -178,25 +178,15 @@ impl TestState {
 		&self,
 		virtual_overseer: &mut VirtualOverseer,
 		block_hash: Hash,
-		block_header: Header,
 		session: SessionIndex,
 	) {
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
-				assert_eq!(h, block_hash);
-				let _ = tx.send(Ok(Some(block_header)));
-			}
-		);
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				h,
 				RuntimeApiRequest::SessionIndexForChild(tx),
 			)) => {
-				let parent_hash = session_to_hash(session, b"parent");
-				assert_eq!(h, parent_hash);
+				assert_eq!(h, block_hash);
 				let _ = tx.send(Ok(session));
 			}
 		);
@@ -236,8 +226,7 @@ impl TestState {
 				)))
 				.await;
 
-			let header = self.headers.get(leaf).unwrap().clone();
-			self.handle_sync_queries(virtual_overseer, *leaf, header, session).await;
+			self.handle_sync_queries(virtual_overseer, *leaf, session).await;
 		}
 	}
 
