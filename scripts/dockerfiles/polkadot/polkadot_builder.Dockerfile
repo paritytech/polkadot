@@ -2,20 +2,16 @@
 FROM docker.io/paritytech/ci-linux:production as builder
 
 WORKDIR /polkadot
-
 COPY . /polkadot
 
 RUN cargo build --locked --release
-# RUN mkdir -p /polkadot/target/release/ && \
-# 	echo "#!/usr/bin/bash\nprintf 'Hello'\n" > /polkadot/target/release/polkadot && \
-# 	chmod +x /polkadot/target/release/polkadot
 
 # This is the 2nd stage: a very small image where we copy the Polkadot binary."
 FROM docker.io/library/ubuntu:20.04
 
 LABEL description="Multistage Docker image for Polkadot: a platform for web3" \
-    io.parity.image.type="builder" \
-    io.parity.image.authors="chevdor@gmail.com, devops-team@parity.io" \
+	io.parity.image.type="builder" \
+	io.parity.image.authors="chevdor@gmail.com, devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
 	io.parity.image.description="Polkadot: a platform for web3" \
 	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/docker/Dockerfile" \
