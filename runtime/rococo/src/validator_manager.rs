@@ -20,7 +20,7 @@ use frame_support::{decl_error, decl_event, decl_module, decl_storage, traits::E
 use sp_staking::SessionIndex;
 use sp_std::vec::Vec;
 
-type Session<T> = pallet_session::Module<T>;
+type Session<T> = pallet_session::Pallet<T>;
 
 /// Configuration for the parachain proposer.
 pub trait Config: pallet_session::Config {

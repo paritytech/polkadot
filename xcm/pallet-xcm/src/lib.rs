@@ -79,7 +79,7 @@ pub mod pallet {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-		/// Required origin for sending XCM messages. If successful, the it resolves to `MultiLocation`
+		/// Required origin for sending XCM messages. If successful, it resolves to `MultiLocation`
 		/// which exists as an interior location within this chain's XCM context.
 		type SendXcmOrigin: EnsureOrigin<<Self as SysConfig>::Origin, Success = MultiLocation>;
 
@@ -328,7 +328,7 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type SafeXcmVersion<T: Config> = StorageValue<_, XcmVersion, OptionQuery>;
 
-	/// Latest versions that we know various locations support.
+	/// The Latest versions that we know various locations support.
 	#[pallet::storage]
 	pub(super) type SupportedVersion<T: Config> = StorageDoubleMap<
 		_,
