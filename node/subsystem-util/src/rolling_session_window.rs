@@ -289,7 +289,7 @@ mod tests {
 	use polkadot_primitives::v1::Header;
 	use sp_core::testing::TaskExecutor;
 
-	const TEST_WINDOW_SIZE: SessionIndex = 6 + 1;
+	const TEST_WINDOW_SIZE: SessionIndex = 6;
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
