@@ -36,7 +36,7 @@ pub type LocalOriginToLocation = (
 
 pub struct DoNothingRouter;
 impl SendXcm for DoNothingRouter {
-	fn send_xcm(_dest: MultiLocation, _msg: Xcm<()>) -> SendResult {
+	fn send_xcm(_dest: impl Into<MultiLocation>, _msg: Xcm<()>) -> SendResult {
 		Ok(())
 	}
 }
