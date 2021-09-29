@@ -62,7 +62,6 @@
 use std::{
 	collections::{hash_map, HashMap},
 	fmt::{self, Debug},
-	iter::FromIterator,
 	pin::Pin,
 	sync::Arc,
 	time::Duration,
@@ -70,7 +69,6 @@ use std::{
 
 use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, StreamExt};
 use lru::LruCache;
-use parking_lot::RwLock;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use polkadot_primitives::v1::{Block, BlockId, BlockNumber, Hash, ParachainHost};
@@ -91,15 +89,14 @@ pub use polkadot_node_subsystem_types::{
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
 };
 
-// TODO legacy, to be deleted, left for easier integration
-// TODO https://github.com/paritytech/polkadot/issues/3427
-mod subsystems;
-pub use self::subsystems::{AllSubsystems, DummySubsystem};
+pub mod metrics;
+pub use self::metrics::Metrics as OverseerMetrics;
 
-mod metrics;
-use self::metrics::Metrics;
+/// A dummy subsystem, mostly useful for placeholders and tests.
+pub mod dummy;
+pub use self::dummy::DummySubsystem;
 
-use polkadot_node_metrics::{
+pub use polkadot_node_metrics::{
 	metrics::{prometheus, Metrics as MetricsTrait},
 	Metronome,
 };
@@ -115,7 +112,7 @@ pub use polkadot_overseer_gen::{
 
 /// Store 2 days worth of blocks, not accounting for forks,
 /// in the LRU cache. Assumes a 6-second block time.
-const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
+pub const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
 
 #[cfg(test)]
 mod tests;
@@ -141,18 +138,12 @@ where
 ///
 /// [`Overseer`]: struct.Overseer.html
 #[derive(Clone)]
-pub enum Handle {
-	/// Used only at initialization to break the cyclic dependency.
-	// TODO: refactor in https://github.com/paritytech/polkadot/issues/3427
-	Disconnected(Arc<RwLock<Option<OverseerHandle>>>),
-	/// A handle to the overseer.
-	Connected(OverseerHandle),
-}
+pub struct Handle(OverseerHandle);
 
 impl Handle {
-	/// Create a new disconnected [`Handle`].
-	pub fn new_disconnected() -> Self {
-		Self::Disconnected(Arc::new(RwLock::new(None)))
+	/// Create a new [`Handle`].
+	pub fn new(raw: OverseerHandle) -> Self {
+		Self(raw)
 	}
 
 	/// Inform the `Overseer` that that some block was imported.
@@ -201,58 +192,8 @@ impl Handle {
 
 	/// Most basic operation, to stop a server.
 	async fn send_and_log_error(&mut self, event: Event) {
-		self.try_connect();
-		if let Self::Connected(ref mut handle) = self {
-			if handle.send(event).await.is_err() {
-				tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
-			}
-		} else {
-			tracing::warn!(target: LOG_TARGET, "Using a disconnected Handle to send to Overseer");
-		}
-	}
-
-	/// Whether the handle is disconnected.
-	pub fn is_disconnected(&self) -> bool {
-		match self {
-			Self::Disconnected(ref x) => x.read().is_none(),
-			_ => false,
-		}
-	}
-
-	/// Connect this handle and all disconnected clones of it to the overseer.
-	pub fn connect_to_overseer(&mut self, handle: OverseerHandle) {
-		match self {
-			Self::Disconnected(ref mut x) => {
-				let mut maybe_handle = x.write();
-				if maybe_handle.is_none() {
-					tracing::info!(target: LOG_TARGET, "🖇️ Connecting all Handles to Overseer");
-					*maybe_handle = Some(handle);
-				} else {
-					tracing::warn!(
-						target: LOG_TARGET,
-						"Attempting to connect a clone of a connected Handle",
-					);
-				}
-			},
-			_ => {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"Attempting to connect an already connected Handle",
-				);
-			},
-		}
-	}
-
-	/// Try upgrading from `Self::Disconnected` to `Self::Connected` state
-	/// after calling `connect_to_overseer` on `self` or a clone of `self`.
-	fn try_connect(&mut self) {
-		if let Self::Disconnected(ref mut x) = self {
-			let guard = x.write();
-			if let Some(ref h) = *guard {
-				let handle = h.clone();
-				drop(guard);
-				*self = Self::Connected(handle);
-			}
+		if self.0.send(event).await.is_err() {
+			tracing::info!(target: LOG_TARGET, "Failed to send an event to Overseer");
 		}
 	}
 }
@@ -346,7 +287,119 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	}
 }
 
-/// The `Overseer` itself.
+/// Create a new instance of the [`Overseer`] with a fixed set of [`Subsystem`]s.
+///
+/// This returns the overseer along with an [`OverseerHandle`] which can
+/// be used to send messages from external parts of the codebase.
+///
+/// The [`OverseerHandle`] returned from this function is connected to
+/// the returned [`Overseer`].
+///
+/// ```text
+///                  +------------------------------------+
+///                  |            Overseer                |
+///                  +------------------------------------+
+///                    /            |             |      \
+///      ................. subsystems...................................
+///      . +-----------+    +-----------+   +----------+   +---------+ .
+///      . |           |    |           |   |          |   |         | .
+///      . +-----------+    +-----------+   +----------+   +---------+ .
+///      ...............................................................
+///                              |
+///                        probably `spawn`
+///                            a `job`
+///                              |
+///                              V
+///                         +-----------+
+///                         |           |
+///                         +-----------+
+///
+/// ```
+///
+/// [`Subsystem`]: trait.Subsystem.html
+///
+/// # Example
+///
+/// The [`Subsystems`] may be any type as long as they implement an expected interface.
+/// Here, we create a mock validation subsystem and a few dummy ones and start the `Overseer` with them.
+/// For the sake of simplicity the termination of the example is done with a timeout.
+/// ```
+/// # use std::time::Duration;
+/// # use futures::{executor, pin_mut, select, FutureExt};
+/// # use futures_timer::Delay;
+/// # use polkadot_primitives::v1::Hash;
+/// # use polkadot_overseer::{
+/// # 	self as overseer,
+/// #   OverseerSignal,
+/// # 	SubsystemSender as _,
+/// # 	AllMessages,
+/// # 	HeadSupportsParachains,
+/// # 	Overseer,
+/// # 	SubsystemError,
+/// # 	gen::{
+/// # 		SubsystemContext,
+/// # 		FromOverseer,
+/// # 		SpawnedSubsystem,
+/// # 	},
+/// # };
+/// # use polkadot_node_subsystem_types::messages::{
+/// # 	CandidateValidationMessage, CandidateBackingMessage,
+/// # 	NetworkBridgeMessage,
+/// # };
+///
+/// struct ValidationSubsystem;
+///
+/// impl<Ctx> overseer::Subsystem<Ctx, SubsystemError> for ValidationSubsystem
+/// where
+///     Ctx: overseer::SubsystemContext<
+///				Message=CandidateValidationMessage,
+///				AllMessages=AllMessages,
+///				Signal=OverseerSignal,
+///				Error=SubsystemError,
+///			>,
+/// {
+///     fn start(
+///         self,
+///         mut ctx: Ctx,
+///     ) -> SpawnedSubsystem<SubsystemError> {
+///         SpawnedSubsystem {
+///             name: "validation-subsystem",
+///             future: Box::pin(async move {
+///                 loop {
+///                     Delay::new(Duration::from_secs(1)).await;
+///                 }
+///             }),
+///         }
+///     }
+/// }
+///
+/// # fn main() { executor::block_on(async move {
+///
+/// struct AlwaysSupportsParachains;
+/// impl HeadSupportsParachains for AlwaysSupportsParachains {
+///      fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
+/// }
+/// let spawner = sp_core::testing::TaskExecutor::new();
+/// let (overseer, _handle) = dummy_overseer_builder(spawner, AlwaysSupportsParachains, None)
+///		.unwrap()
+///		.replace_candidate_validation(|_| ValidationSubsystem)
+///		.build()
+///		.unwrap();
+///
+/// let timer = Delay::new(Duration::from_millis(50)).fuse();
+///
+/// let overseer_fut = overseer.run().fuse();
+/// pin_mut!(timer);
+/// pin_mut!(overseer_fut);
+///
+/// select! {
+///     _ = overseer_fut => (),
+///     _ = timer => (),
+/// }
+/// #
+/// # 	});
+/// # }
+/// ```
 #[overlord(
 	gen=AllMessages,
 	event=Event,
@@ -439,7 +492,60 @@ pub struct Overseer<SupportsParachains> {
 	pub known_leaves: LruCache<Hash, ()>,
 
 	/// Various Prometheus metrics.
-	pub metrics: Metrics,
+	pub metrics: OverseerMetrics,
+}
+
+/// Spawn the metrics metronome task.
+pub fn spawn_metronome_metrics<S, SupportsParachains>(
+	overseer: &mut Overseer<S, SupportsParachains>,
+	metronome_metrics: OverseerMetrics,
+) -> Result<(), SubsystemError>
+where
+	S: SpawnNamed,
+	SupportsParachains: HeadSupportsParachains,
+{
+	struct ExtractNameAndMeters;
+
+	impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
+		type Output = Option<(&'static str, SubsystemMeters)>;
+
+		fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
+			subsystem
+				.instance
+				.as_ref()
+				.map(|instance| (instance.name, instance.meters.clone()))
+		}
+	}
+	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
+
+	let memory_stats =
+		MemoryAllocationTracker::new().expect("Jemalloc is the default allocator. qed");
+
+	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
+		match memory_stats.snapshot() {
+			Ok(memory_stats_snapshot) => {
+				tracing::trace!(target: LOG_TARGET, "memory_stats: {:?}", &memory_stats_snapshot);
+				metronome_metrics.memory_stats_snapshot(memory_stats_snapshot);
+			},
+
+			Err(e) => tracing::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
+		}
+
+		// We combine the amount of messages from subsystems to the overseer
+		// as well as the amount of messages from external sources to the overseer
+		// into one `to_overseer` value.
+		metronome_metrics.channel_fill_level_snapshot(
+			subsystem_meters
+				.iter()
+				.cloned()
+				.filter_map(|x| x)
+				.map(|(name, ref meters)| (name, meters.read())),
+		);
+
+		futures::future::ready(())
+	});
+	overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
+	Ok(())
 }
 
 impl<S, SupportsParachains> Overseer<S, SupportsParachains>
@@ -447,310 +553,6 @@ where
 	SupportsParachains: HeadSupportsParachains,
 	S: SpawnNamed,
 {
-	/// Create a new instance of the [`Overseer`] with a fixed set of [`Subsystem`]s.
-	///
-	/// This returns the overseer along with an [`OverseerHandle`] which can
-	/// be used to send messages from external parts of the codebase.
-	///
-	/// The [`OverseerHandle`] returned from this function is connected to
-	/// the returned [`Overseer`].
-	///
-	/// ```text
-	///                  +------------------------------------+
-	///                  |            Overseer                |
-	///                  +------------------------------------+
-	///                    /            |             |      \
-	///      ................. subsystems...................................
-	///      . +-----------+    +-----------+   +----------+   +---------+ .
-	///      . |           |    |           |   |          |   |         | .
-	///      . +-----------+    +-----------+   +----------+   +---------+ .
-	///      ...............................................................
-	///                              |
-	///                        probably `spawn`
-	///                            a `job`
-	///                              |
-	///                              V
-	///                         +-----------+
-	///                         |           |
-	///                         +-----------+
-	///
-	/// ```
-	///
-	/// [`Subsystem`]: trait.Subsystem.html
-	///
-	/// # Example
-	///
-	/// The [`Subsystems`] may be any type as long as they implement an expected interface.
-	/// Here, we create a mock validation subsystem and a few dummy ones and start the `Overseer` with them.
-	/// For the sake of simplicity the termination of the example is done with a timeout.
-	/// ```
-	/// # use std::time::Duration;
-	/// # use futures::{executor, pin_mut, select, FutureExt};
-	/// # use futures_timer::Delay;
-	/// # use polkadot_primitives::v1::Hash;
-	/// # use polkadot_overseer::{
-	/// # 	self as overseer,
-	/// #   OverseerSignal,
-	/// # 	SubsystemSender as _,
-	/// # 	AllMessages,
-	/// # 	AllSubsystems,
-	/// # 	HeadSupportsParachains,
-	/// # 	Overseer,
-	/// # 	SubsystemError,
-	/// # 	gen::{
-	/// # 		SubsystemContext,
-	/// # 		FromOverseer,
-	/// # 		SpawnedSubsystem,
-	/// # 	},
-	/// # };
-	/// # use polkadot_node_subsystem_types::messages::{
-	/// # 	CandidateValidationMessage, CandidateBackingMessage,
-	/// # 	NetworkBridgeMessage,
-	/// # };
-	///
-	/// struct ValidationSubsystem;
-	///
-	/// impl<Ctx> overseer::Subsystem<Ctx, SubsystemError> for ValidationSubsystem
-	/// where
-	///     Ctx: overseer::SubsystemContext<
-	///				Message=CandidateValidationMessage,
-	///				AllMessages=AllMessages,
-	///				Signal=OverseerSignal,
-	///				Error=SubsystemError,
-	///			>,
-	/// {
-	///     fn start(
-	///         self,
-	///         mut ctx: Ctx,
-	///     ) -> SpawnedSubsystem<SubsystemError> {
-	///         SpawnedSubsystem {
-	///             name: "validation-subsystem",
-	///             future: Box::pin(async move {
-	///                 loop {
-	///                     Delay::new(Duration::from_secs(1)).await;
-	///                 }
-	///             }),
-	///         }
-	///     }
-	/// }
-	///
-	/// # fn main() { executor::block_on(async move {
-	///
-	/// struct AlwaysSupportsParachains;
-	/// impl HeadSupportsParachains for AlwaysSupportsParachains {
-	///      fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
-	/// }
-	/// let spawner = sp_core::testing::TaskExecutor::new();
-	/// let all_subsystems = AllSubsystems::<()>::dummy()
-	///		.replace_candidate_validation(|_| ValidationSubsystem);
-	/// let (overseer, _handle) = Overseer::new(
-	///     vec![],
-	///     all_subsystems,
-	///     None,
-	///     AlwaysSupportsParachains,
-	///     spawner,
-	/// ).unwrap();
-	///
-	/// let timer = Delay::new(Duration::from_millis(50)).fuse();
-	///
-	/// let overseer_fut = overseer.run().fuse();
-	/// pin_mut!(timer);
-	/// pin_mut!(overseer_fut);
-	///
-	/// select! {
-	///     _ = overseer_fut => (),
-	///     _ = timer => (),
-	/// }
-	/// #
-	/// # 	});
-	/// # }
-	/// ```
-	pub fn new<
-		CV,
-		CB,
-		SD,
-		AD,
-		AR,
-		BS,
-		BD,
-		P,
-		RA,
-		AS,
-		NB,
-		CA,
-		CG,
-		CP,
-		ApD,
-		ApV,
-		GS,
-		DC,
-		DP,
-		DD,
-		CS,
-	>(
-		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<
-			CV,
-			CB,
-			SD,
-			AD,
-			AR,
-			BS,
-			BD,
-			P,
-			RA,
-			AS,
-			NB,
-			CA,
-			CG,
-			CP,
-			ApD,
-			ApV,
-			GS,
-			DC,
-			DP,
-			DD,
-			CS,
-		>,
-		prometheus_registry: Option<&prometheus::Registry>,
-		supports_parachains: SupportsParachains,
-		s: S,
-	) -> SubsystemResult<(Self, OverseerHandle)>
-	where
-		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError> + Send,
-		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, SubsystemError> + Send,
-		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, SubsystemError>
-			+ Send,
-		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>, SubsystemError>
-			+ Send,
-		AR: Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>, SubsystemError> + Send,
-		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>, SubsystemError> + Send,
-		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>, SubsystemError> + Send,
-		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>, SubsystemError> + Send,
-		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, SubsystemError> + Send,
-		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>, SubsystemError> + Send,
-		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>, SubsystemError> + Send,
-		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>, SubsystemError> + Send,
-		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>, SubsystemError> + Send,
-		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, SubsystemError> + Send,
-		ApD:
-			Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>, SubsystemError> + Send,
-		ApV: Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, SubsystemError> + Send,
-		GS: Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError> + Send,
-		DC: Subsystem<OverseerSubsystemContext<DisputeCoordinatorMessage>, SubsystemError> + Send,
-		DP: Subsystem<OverseerSubsystemContext<DisputeParticipationMessage>, SubsystemError> + Send,
-		DD: Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError> + Send,
-		CS: Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError> + Send,
-		S: SpawnNamed,
-	{
-		let metrics: Metrics = <Metrics as MetricsTrait>::register(prometheus_registry)?;
-
-		let (mut overseer, handle) = Self::builder()
-			.candidate_validation(all_subsystems.candidate_validation)
-			.candidate_backing(all_subsystems.candidate_backing)
-			.statement_distribution(all_subsystems.statement_distribution)
-			.availability_distribution(all_subsystems.availability_distribution)
-			.availability_recovery(all_subsystems.availability_recovery)
-			.bitfield_signing(all_subsystems.bitfield_signing)
-			.bitfield_distribution(all_subsystems.bitfield_distribution)
-			.provisioner(all_subsystems.provisioner)
-			.runtime_api(all_subsystems.runtime_api)
-			.availability_store(all_subsystems.availability_store)
-			.network_bridge(all_subsystems.network_bridge)
-			.chain_api(all_subsystems.chain_api)
-			.collation_generation(all_subsystems.collation_generation)
-			.collator_protocol(all_subsystems.collator_protocol)
-			.approval_distribution(all_subsystems.approval_distribution)
-			.approval_voting(all_subsystems.approval_voting)
-			.gossip_support(all_subsystems.gossip_support)
-			.dispute_coordinator(all_subsystems.dispute_coordinator)
-			.dispute_participation(all_subsystems.dispute_participation)
-			.dispute_distribution(all_subsystems.dispute_distribution)
-			.chain_selection(all_subsystems.chain_selection)
-			.leaves(Vec::from_iter(
-				leaves
-					.into_iter()
-					.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number)),
-			))
-			.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
-			.active_leaves(Default::default())
-			.span_per_active_leaf(Default::default())
-			.activation_external_listeners(Default::default())
-			.supports_parachains(supports_parachains)
-			.metrics(metrics.clone())
-			.spawner(s)
-			.build()?;
-
-		// spawn the metrics metronome task
-		{
-			struct ExtractNameAndMeters;
-
-			impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
-				type Output = Option<(&'static str, SubsystemMeters)>;
-
-				fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
-					subsystem
-						.instance
-						.as_ref()
-						.map(|instance| (instance.name, instance.meters.clone()))
-				}
-			}
-			let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
-
-			let memory_stats = match MemoryAllocationTracker::new() {
-				Ok(memory_stats) => Some(memory_stats),
-				Err(error) => {
-					tracing::debug!(
-						target: LOG_TARGET,
-						"Failed to initialize memory allocation tracker: {:?}",
-						error
-					);
-
-					None
-				},
-			};
-
-			let metronome_metrics = metrics.clone();
-			let metronome =
-				Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
-					if let Some(ref memory_stats) = memory_stats {
-						match memory_stats.snapshot() {
-							Ok(memory_stats_snapshot) => {
-								tracing::trace!(
-									target: LOG_TARGET,
-									"memory_stats: {:?}",
-									&memory_stats_snapshot
-								);
-								metronome_metrics.memory_stats_snapshot(memory_stats_snapshot);
-							},
-
-							Err(e) => tracing::debug!(
-								target: LOG_TARGET,
-								"Failed to obtain memory stats: {:?}",
-								e
-							),
-						}
-					}
-
-					// We combine the amount of messages from subsystems to the overseer
-					// as well as the amount of messages from external sources to the overseer
-					// into one `to_overseer` value.
-					metronome_metrics.channel_fill_level_snapshot(
-						subsystem_meters
-							.iter()
-							.cloned()
-							.filter_map(|x| x)
-							.map(|(name, ref meters)| (name, meters.read())),
-					);
-
-					async move { () }
-				});
-			overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
-		}
-
-		Ok((overseer, handle))
-	}
-
 	/// Stop the overseer.
 	async fn stop(mut self) {
 		let _ = self.wait_terminate(OverseerSignal::Conclude, Duration::from_secs(1_u64)).await;
@@ -758,6 +560,9 @@ where
 
 	/// Run the `Overseer`.
 	pub async fn run(mut self) -> SubsystemResult<()> {
+		let metrics = self.metrics.clone();
+		spawn_metronome_metrics(&mut self, metrics)?;
+
 		// Notify about active leaves on startup before starting the loop
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
