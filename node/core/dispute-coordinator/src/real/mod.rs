@@ -557,6 +557,10 @@ async fn scrape_on_chain_votes(
 		}
 	};
 
+	if backing_validators.is_empty() && disputes.is_empty() {
+		return Ok(())
+	}
+
 	let session_info: SessionInfo = {
 		let (tx, rx) = oneshot::channel();
 		ctx.send_message(RuntimeApiMessage::Request(
