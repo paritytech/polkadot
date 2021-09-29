@@ -174,24 +174,27 @@ pub mod pallet {
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
 			let freed_disputed: Vec<(_, FreedReason)> = {
-				let fresh_disputes = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				let new_current_dispute_sets: Vec<_> = disputes
+					.iter()
+					.filter(|s| s.session == current_session)
+					.map(|s| (s.session, s.candidate_hash))
+					.collect();
+
+				T::DisputesHandler::provide_multi_dispute_data(disputes)?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
 					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
 				}
 
-				let any_current_session_disputes =
-					fresh_disputes.iter().any(|(s, _)| s == &current_session);
-
-				if any_current_session_disputes {
-					let current_session_disputes: Vec<_> = fresh_disputes
+				if !new_current_dispute_sets.is_empty() {
+					let concluded_invalid_disputes: Vec<_> = new_current_dispute_sets
 						.iter()
-						.filter(|(s, _)| s == &current_session)
+						.filter(|(s, c)| T::DisputesHandler::concluded_invalid(*s, *c))
 						.map(|(_, c)| *c)
 						.collect();
 
-					<inclusion::Pallet<T>>::collect_disputed(current_session_disputes)
+					<inclusion::Pallet<T>>::collect_disputed(concluded_invalid_disputes)
 						.into_iter()
 						.map(|core| (core, FreedReason::Concluded))
 						.collect()
