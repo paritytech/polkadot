@@ -4,15 +4,20 @@ Polkadot Release Process
 ### Branches
 * release-candidate branch: The branch used for staging of the next release.
   Named like `release-v0.8.26`
-* release branch: The branch to which successful release-candidates are merged
-  and tagged with the new version. Named literally `release`.
-
+  
 ### Notes
 * The release-candidate branch *must* be made in the paritytech/polkadot repo in
 order for release automation to work correctly
 * Any new pushes/merges to the release-candidate branch (for example,
-refs/heads/release-v0.8.26) will result in the rc index being bumped (e.g., v0.8.26-rc1
-to v0.8.26-rc2) and new wasms built.
+  refs/heads/release-v0.8.26) will result in the rc index being bumped (e.g., v0.8.26-rc1
+  to v0.8.26-rc2) and new wasms built. If you need to merge several changes into
+a new release-candidate, it's advised to do this as a single PR against the rc branch
+* There is a step on the auto-created github issue checklist that specifies we should
+  push the new runtime to Westend. This can be done either before or after publishing
+  the release, but if there are new host functions in the client, it is advisable to 
+  do this *after* releasing, so node operators have a chance to upgrade their nodes
+  prior to the new runtime going live (new host functions can cause chains to stop
+  syncing on nodes that have not been updated)
 
 ### Release workflow
 
@@ -38,12 +43,9 @@ automated and require no human action.
   candidate
   4. Depending on the cherry-picked changes, it may be necessary to perform some
   or all of the manual tests again.
-7. Once happy with the release-candidate, perform the release using the release
-  script located at `scripts/release.sh` (or perform the steps in that script
-  manually):
-  - `./scripts/release.sh v0.8.26`
-8. NOACTION: The HEAD of the `release` branch will be tagged with `v0.8.26`,
-  and a final draft release will be created on Github.
+7. Once happy with the release-candidate (i.e., the checks in the auto-created
+  checklist are completed) tag the tip of the release-candidate branch:
+  - `git tag -s -m 'v0.8.26' v0.8.26; git push --tags`
 
 ### Security releases
 
@@ -52,5 +54,6 @@ released version of Polkadot, without taking *every* change to `master` since
 the last release. For example, in the event of a security vulnerability being
 found, where releasing a fixed version is a matter of some expediency. In cases
 like this, the fix should first be merged with master, cherry-picked to a branch
-forked from `release`, tested, and then finally merged with `release`. A
-sensible versioning scheme for changes like this is `vX.Y.Z-1`.
+forked from the last release-candidate branch, tested, and then finally merged
+with the release-candidate branch. A sensible versioning scheme for changes like
+this is `vX.Y.Z-1`, though this can cause problems with the RPM packaging.
