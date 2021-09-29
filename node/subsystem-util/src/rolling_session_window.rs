@@ -131,7 +131,7 @@ impl RollingSessionWindow {
 	}
 
 	/// When inspecting a new import notification, updates the session info cache to match
-	/// the session of the imported block.
+	/// the session of the imported block's child.
 	///
 	/// this only needs to be called on heads where we are directly notified about import, as sessions do
 	/// not change often and import notifications are expected to be typically increasing in session number.
