@@ -542,7 +542,7 @@ where
 				.map(|(name, ref meters)| (name, meters.read())),
 		);
 
-		async move { () }
+		futures::future::ready(())
 	});
 	overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
 	Ok(())
