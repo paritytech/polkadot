@@ -26,9 +26,7 @@ use overseer::TimeoutExt;
 use parity_scale_codec::Encode;
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{
-		AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest,
-	},
+	messages::{AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
@@ -170,8 +168,7 @@ impl TestState {
 			)))
 			.await;
 
-		self.handle_sync_queries(virtual_overseer, block_hash, session)
-			.await;
+		self.handle_sync_queries(virtual_overseer, block_hash, session).await;
 	}
 
 	async fn handle_sync_queries(
