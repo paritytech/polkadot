@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.17"
-tracing = "0.1.27"
-parity-scale-codec = { version = "2.0.0", features = ["std"] }
+tracing = "0.1.28"
+parity-scale-codec = { version = "2.3.1", features = ["std"] }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }

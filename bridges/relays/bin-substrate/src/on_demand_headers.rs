@@ -248,7 +248,7 @@ async fn background_task<SourceChain, TargetChain, TargetSign>(
 	}
 }
 
-/// Returns `Some()` with inclusive range of headers which must be scanned for manadatory headers
+/// Returns `Some()` with inclusive range of headers which must be scanned for mandatory headers
 /// and the first of such headers must be submitted to the target node.
 async fn mandatory_headers_scan_range<C: Chain>(
 	best_finalized_source_header_at_source: Option<C::BlockNumber>,

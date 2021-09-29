@@ -16,4 +16,4 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.26"
 log = "0.4.13"
-parity-scale-codec = { version = "2.0.0", default-features = false }
+parity-scale-codec = { version = "2.3.1", default-features = false }
