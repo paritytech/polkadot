@@ -28,6 +28,10 @@ use xcm::latest::Outcome;
 
 pub use pallet::*;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+//pub mod weights;
+
 /// All upward messages coming from parachains will be funneled into an implementation of this trait.
 ///
 /// The message is opaque from the perspective of UMP. The message size can range from 0 to
@@ -163,6 +167,10 @@ impl fmt::Debug for AcceptanceCheckErr {
 	}
 }
 
+pub trait WeightInfo {
+	fn service_overweight() -> Weight;
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -189,6 +197,9 @@ pub mod pallet {
 
 		/// Origin which is allowed to execute overweight messages.
 		type ExecuteOverweightOrigin: EnsureOrigin<Self::Origin>;
+
+//		/// Weight information for extrinsics in this pallet
+//		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -714,7 +725,7 @@ pub(crate) mod tests {
 	use frame_support::{assert_noop, assert_ok, weights::Weight};
 	use std::collections::HashSet;
 
-	struct GenesisConfigBuilder {
+	pub(super) struct GenesisConfigBuilder {
 		max_upward_message_size: u32,
 		max_upward_message_num_per_candidate: u32,
 		max_upward_queue_count: u32,
@@ -737,7 +748,7 @@ pub(crate) mod tests {
 	}
 
 	impl GenesisConfigBuilder {
-		fn build(self) -> crate::mock::MockGenesisConfig {
+		pub(super) fn build(self) -> crate::mock::MockGenesisConfig {
 			let mut genesis = default_genesis_config();
 			let config = &mut genesis.configuration.config;
 
@@ -763,7 +774,7 @@ pub(crate) mod tests {
 		}
 	}
 
-	fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
+	pub(super) fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
 		let msgs = vec![msg];
 		assert!(Ump::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
 		let _ = Ump::receive_upward_messages(para, msgs);
@@ -1043,18 +1054,4 @@ pub(crate) mod tests {
 	}
 }
 
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking {
-	use super::{Pallet as Ump, *};
-
-	frame_benchmarking::benchmarks! {
-		service_overweight {}: {} verify {}
-	}
-
-	frame_benchmarking::impl_benchmark_test_suite!(
-		Ump,
-		crate::mock::new_test_ext(Default::default()),
-		crate::mock::Test
-	);
-}
 
