@@ -40,7 +40,6 @@ use polkadot_node_subsystem_util::{
 	request_validator_groups, request_validators, FromJobCommand, JobSender, Validator,
 };
 use polkadot_primitives::{
-	v0::BlockData,
 	v1::{
 		BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash,
 		CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash,
@@ -966,11 +965,12 @@ impl CandidateBackingJob {
 				// Seconded statement only if we have not seconded any other candidate and
 				// have not signed a Valid statement for the requested candidate.
 				if self.seconded.is_none() {
-					tracing::warn!(target: LOG_TARGET, "😈 Seconding a garbage candidate",);
+					let descriptor = candidate.descriptor().clone();
+					tracing::info!(target: LOG_TARGET, "😈 Requesting Validation Data");
 
 					let validation_data = match request_persisted_validation_data(
 						relay_parent,
-						candidate.descriptor().para_id,
+						descriptor.para_id,
 						OccupiedCoreAssumption::Free,
 						sender,
 					)
@@ -984,11 +984,11 @@ impl CandidateBackingJob {
 								target: LOG_TARGET,
 								"😈 couldn't fetch validation data",
 							);
-
 							return Ok(())
 						},
 					};
-					let pov = Arc::new(PoV { block_data: BlockData(vec![0; 256]) });
+
+					let pov = Arc::new(pov);
 					let available_data = AvailableData {
 						pov: pov.clone(),
 						validation_data: validation_data.clone(),
@@ -998,15 +998,21 @@ impl CandidateBackingJob {
 					let validation_data_hash = validation_data.hash();
 					let validation_code_hash = candidate.descriptor().validation_code_hash;
 
+					tracing::info!(target: LOG_TARGET, "😈 Replacing Erasure Chunk");
+
 					let erasure_root = {
-						let chunks = erasure_coding::obtain_chunks_v1(
+						let mut chunks = erasure_coding::obtain_chunks_v1(
 							self.table_context.validators.len(),
 							&available_data,
 						)?;
 
+						if let Some(last) = chunks.last_mut() {
+							*last = vec![2, 3, 9];
+						}
 						let branches = erasure_coding::branches(chunks.as_ref());
 						branches.root()
 					};
+
 					let (collator_id, collator_signature) = {
 						use polkadot_primitives::v1::CollatorPair;
 						use sp_core::crypto::Pair;
@@ -1022,6 +1028,7 @@ impl CandidateBackingJob {
 
 						(collator_pair.public(), collator_pair.sign(&signature_payload))
 					};
+
 					let malicious_commitments = CandidateCommitments {
 						upward_messages: Vec::new(),
 						horizontal_messages: Vec::new(),
@@ -1030,6 +1037,7 @@ impl CandidateBackingJob {
 						processed_downward_messages: 0,
 						hrmp_watermark: validation_data.relay_parent_number,
 					};
+
 					let malicious_candidate = CommittedCandidateReceipt {
 						descriptor: CandidateDescriptor {
 							para_id: candidate.descriptor().para_id,
@@ -1046,30 +1054,18 @@ impl CandidateBackingJob {
 					};
 					let malicious_candidate_hash = malicious_candidate.hash();
 
-					let erasure_valid = make_pov_available(
+					store_available_data(
 						sender,
 						self.table_context.validator.as_ref().map(|v| v.index()),
-						self.table_context.validators.len(),
-						pov.clone(),
+						self.table_context.validators.len() as u32,
 						malicious_candidate_hash,
-						validation_data,
-						malicious_candidate.descriptor().erasure_root,
-						Some(root_span),
+						available_data,
 					)
 					.await?;
+
+					tracing::info!(target: LOG_TARGET, "😈 Seconding and distributing statement");
 					let statement = Statement::Seconded(malicious_candidate);
-
 					self.sign_import_and_distribute_statement(sender, statement, root_span).await?;
-
-					match erasure_valid {
-						Ok(()) => {},
-						Err(InvalidErasureRoot) => {
-							tracing::warn!(
-								target: LOG_TARGET,
-								"😈 Erasure root doesn't match the announced by the candidate receipt",
-							);
-						},
-					}
 				}
 			},
 			CandidateBackingMessage::Statement(_relay_parent, statement) => {
