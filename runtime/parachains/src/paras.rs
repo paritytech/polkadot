@@ -24,6 +24,7 @@
 //! only occur at session boundaries.
 
 use crate::{configuration, initializer::SessionChangeNotification, shared};
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
@@ -271,6 +272,40 @@ pub struct ParaGenesisArgs {
 	pub parachain: bool,
 }
 
+enum FinalizePreCheck {
+	Initialize(ParaId), // <- rename to onboarding?
+	Upgrade(ParaId),
+}
+
+enum PrecheckOutcome {
+	Accepted,
+	Rejected,
+}
+
+struct PreCheckVotingState {
+	code_hash: ValidationCodeHash,
+	votes_valid: BitVec<BitOrderLsb0, u8>,
+	votes_invalid: BitVec<BitOrderLsb0, u8>,
+	age: SessionIndex,
+	finalization: Vec<FinalizePreCheck>, // <- consider splitting that onto two vectors.
+}
+
+impl PreCheckVotingState {
+	fn new(code_hash: ValidationCodeHash, finalizer: FinalizePreCheck) -> Self {
+		Self {
+			code_hash,
+			votes_valid: BitVec::new(),
+			votes_invalid: BitVec::new(),
+			age: 0,
+			finalization: {
+				let v = Vec::with_capacity(1);
+				v.push(finalizer);
+				v
+			},
+		}
+	}
+}
+
 pub trait WeightInfo {
 	fn force_set_current_code(c: u32) -> Weight;
 	fn force_set_current_head(s: u32) -> Weight;
@@ -328,6 +363,17 @@ pub mod pallet {
 		/// Para cannot be downgraded to a parathread.
 		CannotDowngrade,
 	}
+
+	#[pallet::storage]
+	pub(super) type PvfVotingMap<T: Config> =
+		StorageMap<_, Twox64Concat, ValidationCodeHash, PreCheckVotingState, OptionQuery>;
+
+	// TODO:
+	//
+	// If this is true, then on the next noted head the pending code upgrade will be enacted.
+	#[pallet::storage]
+	pub(super) type EnactCodeUpgradeOnNextHead<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, (), OptionQuery>;
 
 	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
 	#[pallet::storage]
@@ -639,6 +685,8 @@ impl<T: Config> Pallet<T> {
 				},
 				// Onboard a new parathread or parachain.
 				Some(ParaLifecycle::Onboarding) => {
+					// TODO: Not sure if this should handle this case.
+
 					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
 						if genesis_data.parachain {
 							if let Err(i) = parachains.binary_search(&para) {
@@ -837,6 +885,68 @@ impl<T: Config> Pallet<T> {
 		T::DbWeight::get().reads_writes(2, upgrades_signaled as u64 + cooldowns_expired as u64)
 	}
 
+	fn process_pvf_prechecking_results() -> Weight {
+		let mut weight = T::DbWeight::get().reads(1);
+		for code_hash in PvfVotingPassed::<T>::take() {
+			weight += T::DbWeight::get().reads_writes(1, 1);
+
+			let voting_state = PvfVotingMap::<T>::take(&code_hash);
+		}
+
+		// TODO: Age handling and pruning
+		weight
+	}
+
+	fn enact_pvf_accepted(state: PreCheckVotingState) -> Weight {
+		for finalizer in state.finalization {
+			match finalizer {
+				FinalizePreCheck::Initialize(para) => {
+					/// Finalize onboarding.
+					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
+						if genesis_data.parachain {
+							if let Err(i) = parachains.binary_search(&para) {
+								parachains.insert(i, para);
+							}
+							ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parachain);
+						} else {
+							ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parathread);
+						}
+
+						let code_hash = genesis_data.validation_code.hash();
+						<Self as Store>::Heads::insert(&para, genesis_data.genesis_head);
+						Self::increase_code_ref(&code_hash, &genesis_data.validation_code);
+						<Self as Store>::CurrentCodeHash::insert(&para, code_hash);
+					}
+				},
+				FinalizePreCheck::Upgrade(para) => {
+				},
+			}
+		}
+
+		todo!()
+	}
+
+	fn enact_pvf_rejected(state: PreCheckVotingState) -> Weight {
+		for finalizer in state.finalization {
+			match finalizer {
+				FinalizePreCheck::Initialize(para) => {
+					// TODO: Removing code really depends on what we decide in `schedule_para_initialize`
+					// if we decide that we insert code there
+
+					// Self::decrease_code_ref(&state.code_hash);
+
+					ParaLifecycles::<T>::remove(&para);
+				},
+				FinalizePreCheck::Upgrade(para) => {
+					// TODO: Roll back the effects of upgrading.
+					// E.g. `UpgradeRestrictionSignal`
+				},
+			}
+		}
+
+		todo!()
+	}
+
 	/// Verify that `schedule_para_initialize` can be called successfully.
 	///
 	/// Returns false if para is already registered in the system.
@@ -849,18 +959,29 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Will return error if para is already registered in the system.
 	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
-		let scheduled_session = Self::scheduled_session();
-
 		// Make sure parachain isn't already in our system.
 		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
-
 		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
-		UpcomingParasGenesis::<T>::insert(&id, genesis);
-		ActionsQueue::<T>::mutate(scheduled_session, |v| {
-			if let Err(i) = v.binary_search(&id) {
-				v.insert(i, id);
-			}
-		});
+
+		// Register the new PVF pre-checking run for the given validation hash.
+		//
+		// We make sure that the code is stored in the code repository right away, so that if a
+		// revert happens using the code it will be still likely available.
+		let code_hash = genesis.validation_code.hash();
+		let voting_state =
+			PreCheckVotingState::new(code_hash.clone(), FinalizePreCheck::Initialize(id));
+		PvfVotingMap::<T>::insert(&code_hash, voting_state);
+		Self::increase_code_ref(&code_hash, &genesis.validation_code);
+
+		// TODO: Code below needs to be moved after the PVF pre-checking completes.
+
+		// let scheduled_session = Self::scheduled_session();
+		// UpcomingParasGenesis::<T>::insert(&id, genesis);
+		// ActionsQueue::<T>::mutate(scheduled_session, |v| {
+		// 	if let Err(i) = v.binary_search(&id) {
+		// 		v.insert(i, id);
+		// 	}
+		// });
 
 		Ok(())
 	}
@@ -1056,6 +1177,11 @@ impl<T: Config> Pallet<T> {
 					<Self as Store>::PastCodeHash::get(&(id, replaced)),
 			}
 		}
+	}
+
+	/// Returns the list of PVFs (aka validation code) that require pre-checking votes.
+	pub(crate) fn pvfs_require_precheck() -> Vec<()> {
+		todo!()
 	}
 
 	/// Returns the current lifecycle state of the para.
