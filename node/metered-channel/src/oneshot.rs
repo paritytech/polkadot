@@ -101,8 +101,8 @@ pub enum Error {
 	HardTimeout(Duration, Measurements),
 }
 
-impl Error {
-	pub fn measurements(&self) -> Measurements {
+impl Measurable for Error {
+	fn measurements(&self) -> Measurements {
 		match self {
 			Self::Canceled(_, measurements) => measurements.clone(),
 			Self::HardTimeout(_, measurements) => measurements.clone(),
@@ -255,6 +255,7 @@ impl<T> Future for MeteredReceiver<T> {
 
 /// A dummy trait that allows implementing `measurements` for `Result<_,_>`.
 pub trait Measurable {
+	/// Obtain a set of measurements represented by the `Measurements` type.
 	fn measurements(&self) -> Measurements;
 }
 
@@ -267,18 +268,24 @@ impl<T> Measurable for Result<OutputWithMeasurements<T>, Error> {
 	}
 }
 
+/// A wrapping type for the actual type `T` that is sent with the
+/// oneshot yet allow to attach `Measurements` to it.
+///
+/// Implements `AsRef` besides others for easier access to the inner,
+/// wrapped type.
 #[derive(Clone, Debug)]
 pub struct OutputWithMeasurements<T> {
 	value: T,
 	measurements: Measurements,
 }
 
-impl<T> OutputWithMeasurements<T> {
-	/// Access the measurements
-	pub fn measurements(&self) -> Measurements {
+impl<T> Measurable for OutputWithMeasurements<T> {
+	fn measurements(&self) -> Measurements {
 		self.measurements.clone()
 	}
+}
 
+impl<T> OutputWithMeasurements<T> {
 	/// Converts the wrapper type into it's inner value.
 	///
 	/// `trait Into` cannot be implemented due to conflicts.
