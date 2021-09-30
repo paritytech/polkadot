@@ -1006,8 +1006,8 @@ impl CandidateBackingJob {
 						&available_data,
 					)?;
 
-					if let Some(last) = chunks.first_mut() {
-						*last = vec![2, 3, 9];
+					if let Some(first) = chunks.first_mut() {
+						first.fill(42);
 					}
 					let mut branches = erasure_coding::branches(chunks.as_ref());
 					let erasure_root = branches.root();
