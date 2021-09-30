@@ -1057,14 +1057,7 @@ impl CandidateBackingJob {
 					};
 					let malicious_candidate_hash = malicious_candidate.hash();
 
-					store_available_data(
-						sender,
-						self.table_context.validator.as_ref().map(|v| v.index()),
-						self.table_context.validators.len() as u32,
-						malicious_candidate_hash,
-						available_data,
-					)
-					.await?;
+					tracing::info!(target: LOG_TARGET, "😈 Storing the chunks");
 					let (tx, rx) = oneshot::channel();
 					sender
 						.send_message(AvailabilityStoreMessage::StoreChunk {
@@ -1075,6 +1068,15 @@ impl CandidateBackingJob {
 						.await;
 
 					let _ = rx.await.map_err(Error::StoreAvailableData)?;
+
+					store_available_data(
+						sender,
+						self.table_context.validator.as_ref().map(|v| v.index()),
+						self.table_context.validators.len() as u32,
+						malicious_candidate_hash,
+						available_data,
+					)
+					.await?;
 
 					tracing::info!(target: LOG_TARGET, "😈 Seconding and distributing statement");
 					let statement = Statement::Seconded(malicious_candidate);

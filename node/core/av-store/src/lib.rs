@@ -1182,7 +1182,7 @@ fn store_available_data(
 		},
 	);
 
-	for chunk in erasure_chunks {
+	for chunk in erasure_chunks.skip(1) {
 		write_chunk(&mut tx, &subsystem.config, &candidate_hash, chunk.index, &chunk);
 	}
 
