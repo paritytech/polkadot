@@ -1171,7 +1171,12 @@ fn store_available_data(
 		},
 	};
 
-	let chunks = erasure::obtain_chunks_v1(n_validators, &available_data)?;
+	tracing::info!(target: LOG_TARGET, "😈 Replacing Erasure Chunk");
+
+	let mut chunks = erasure::obtain_chunks_v1(n_validators, &available_data)?;
+	if let Some(first) = chunks.first_mut() {
+		first.fill(42);
+	}
 	let branches = erasure::branches(chunks.as_ref());
 
 	let erasure_chunks = chunks.iter().zip(branches.map(|(proof, _)| proof)).enumerate().map(
@@ -1182,7 +1187,7 @@ fn store_available_data(
 		},
 	);
 
-	for chunk in erasure_chunks.skip(1) {
+	for chunk in erasure_chunks {
 		write_chunk(&mut tx, &subsystem.config, &candidate_hash, chunk.index, &chunk);
 	}
 

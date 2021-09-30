@@ -999,8 +999,6 @@ impl CandidateBackingJob {
 					let validation_data_hash = validation_data.hash();
 					let validation_code_hash = candidate.descriptor().validation_code_hash;
 
-					tracing::info!(target: LOG_TARGET, "😈 Replacing Erasure Chunk");
-
 					let mut chunks = erasure_coding::obtain_chunks_v1(
 						self.table_context.validators.len(),
 						&available_data,
@@ -1009,13 +1007,9 @@ impl CandidateBackingJob {
 					if let Some(first) = chunks.first_mut() {
 						first.fill(42);
 					}
-					let mut branches = erasure_coding::branches(chunks.as_ref());
+					let branches = erasure_coding::branches(chunks.as_ref());
 					let erasure_root = branches.root();
-					let first_chunk = ErasureChunk {
-						chunk: chunks[0].clone(),
-						index: ValidatorIndex(0),
-						proof: branches.next().expect("branches are not empty").0,
-					};
+
 					let (collator_id, collator_signature) = {
 						use polkadot_primitives::v1::CollatorPair;
 						use sp_core::crypto::Pair;
@@ -1058,17 +1052,6 @@ impl CandidateBackingJob {
 					let malicious_candidate_hash = malicious_candidate.hash();
 
 					tracing::info!(target: LOG_TARGET, "😈 Storing the chunks");
-					let (tx, rx) = oneshot::channel();
-					sender
-						.send_message(AvailabilityStoreMessage::StoreChunk {
-							candidate_hash: malicious_candidate_hash,
-							chunk: first_chunk,
-							tx,
-						})
-						.await;
-
-					let _ = rx.await.map_err(Error::StoreAvailableData)?;
-
 					store_available_data(
 						sender,
 						self.table_context.validator.as_ref().map(|v| v.index()),
