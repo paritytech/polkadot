@@ -2068,7 +2068,7 @@ mod test_fees {
 		// much it is going to cost.
 		use pallet_elections_phragmen::WeightInfo;
 
-		// Loser candidate lose a lot of money; sybil attack by candidates is even more expensive,
+		// Loser candidate lose a lot of money; sibyl attack by candidates is even more expensive,
 		// and we don't care about it here. For now, we assume no extra candidates, and only
 		// superfluous voters.
 		let candidates = DesiredMembers::get() + DesiredRunnersUp::get();

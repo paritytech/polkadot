@@ -511,7 +511,7 @@ async fn handle_new_activations(
 	Ok(())
 }
 
-/// Scrapes on-chain votes for a newly active leaf.
+/// Scrapes on-chain votes (backing votes and concluded disputes) for a active leaf of the relay chain.
 async fn scrape_on_chain_votes(
 	ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
 	          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
@@ -626,7 +626,7 @@ async fn scrape_on_chain_votes(
 	}
 
 	// Import concluded disputes from on-chain, this already went through a vote so it's assumed
-	// as verified. This will onle be stored, gossiping it is not necessary.
+	// as verified. This will only be stored, gossiping it is not necessary.
 
 	// First try to obtain all the backings which ultimately contain the candidate
 	// receipt which we need.
