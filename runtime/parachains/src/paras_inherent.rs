@@ -24,7 +24,7 @@
 use crate::{
 	disputes::DisputesHandler,
 	inclusion,
-	paras::ImportedDisputes,
+	paras::OnChainVotes,
 	scheduler::{self, FreedReason},
 	shared, ump,
 };
@@ -268,7 +268,7 @@ pub mod pallet {
 
 			// The number of disputes included in a block is
 			// limited by the weight as well as the number of candidate blocks.
-			ImportedDisputes::<T>::put(ScrapedOnChainVotes::<<T::Header as HeaderT>::Hash> {
+			OnChainVotes::<T>::put(ScrapedOnChainVotes::<<T::Header as HeaderT>::Hash> {
 				session: current_session,
 				backing_validators: candidate_receipt_with_backing_validator_indices,
 				disputes,
