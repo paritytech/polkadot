@@ -219,7 +219,7 @@ where
 					authorities
 				};
 
-				self.issue_connection_request(ctx, other_authorities).await?;
+				self.issue_connection_request(ctx, other_authorities).await;
 
 				if is_new_session {
 					update_gossip_topology(ctx, our_index, all_authorities, relay_parent).await?;
@@ -234,7 +234,7 @@ where
 		&mut self,
 		ctx: &mut Context,
 		authorities: Vec<AuthorityDiscoveryId>,
-	) -> Result<(), util::Error>
+	)
 	where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
@@ -295,8 +295,6 @@ where
 			self.last_failure = None;
 			self.failure_start = None;
 		};
-
-		Ok(())
 	}
 
 	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSuppportNetworkMessage>) {
