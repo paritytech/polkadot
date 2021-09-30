@@ -79,7 +79,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let (finality_target_tx, finality_target_rx) = oneshot::channel::<Option<Hash>>();
 
-	let select_relay_chain = SelectRelayChain::<TestChainStorage, TestSubsystemSender>::new(
+	let select_relay_chain = SelectRelayChainInner::<TestChainStorage, TestSubsystemSender>::new(
 		Arc::new(case_vars.chain.clone()),
 		context.sender().clone(),
 		Default::default(),
@@ -88,10 +88,10 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let target_hash = case_vars.target_block.clone();
 	let selection_process = async move {
 		let best = select_relay_chain
-			.finality_target_with_fallback(target_hash, Some(target_hash), None)
+			.finality_target_with_longest_chain(target_hash, target_hash, None)
 			.await
 			.unwrap();
-		finality_target_tx.send(best).unwrap();
+		finality_target_tx.send(Some(best)).unwrap();
 		()
 	};
 

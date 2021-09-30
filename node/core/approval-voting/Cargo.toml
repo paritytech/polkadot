@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-approval-voting"
-version = "0.9.9"
+version = "0.9.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -8,8 +8,8 @@ edition = "2018"
 rand = "0.5"
 futures = "0.3.17"
 futures-timer = "3.0.2"
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["bit-vec", "derive"] }
-tracing = "0.1.27"
+parity-scale-codec = { version = "2.3.1", default-features = false, features = ["bit-vec", "derive"] }
+tracing = "0.1.28"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 lru = "0.6"
 merlin = "2.0"

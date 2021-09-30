@@ -223,7 +223,7 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	pub hrmp_watermark: BlockNumber,
 }
 
-/// Signal that is being returned back when a collation was seconded by a validator.
+/// Signal that is being returned when a collation was seconded by a validator.
 #[derive(Debug)]
 pub struct CollationSecondedSignal {
 	/// The hash of the relay chain block that was used as context to sign [`Self::statement`].

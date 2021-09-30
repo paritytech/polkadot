@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-collator-protocol"
-version = "0.9.9"
+version = "0.9.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -10,7 +10,7 @@ derive_more = "0.99.14"
 futures = "0.3.17"
 futures-timer = "3"
 thiserror = "1.0.26"
-tracing = "0.1.27"
+tracing = "0.1.28"
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -30,6 +30,6 @@ assert_matches = "1.4.0"
 sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-parity-scale-codec = { version = "2.0.0", features = ["std"]  }
+parity-scale-codec = { version = "2.3.1", features = ["std"]  }
 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }

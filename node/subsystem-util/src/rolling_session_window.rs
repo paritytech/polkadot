@@ -19,7 +19,7 @@
 //! This is useful for consensus components which need to stay up-to-date about recent sessions but don't
 //! care about the state of particular blocks.
 
-use polkadot_primitives::v1::{Hash, Header, SessionIndex, SessionInfo};
+use polkadot_primitives::v1::{Hash, SessionIndex, SessionInfo};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{
@@ -133,7 +133,7 @@ impl RollingSessionWindow {
 	}
 
 	/// When inspecting a new import notification, updates the session info cache to match
-	/// the session of the imported block.
+	/// the session of the imported block's child.
 	///
 	/// this only needs to be called on heads where we are directly notified about import, as sessions do
 	/// not change often and import notifications are expected to be typically increasing in session number.
@@ -143,7 +143,6 @@ impl RollingSessionWindow {
 		&mut self,
 		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),
 		block_hash: Hash,
-		block_header: &Header,
 	) -> Result<SessionWindowUpdate, SessionsUnavailable> {
 		if self.window_size == 0 {
 			tracing::debug!(target: DEBUG_LOG_TARGET, "Rolling Window Session Window Size is 0",);
@@ -153,11 +152,9 @@ impl RollingSessionWindow {
 		let session_index = {
 			let (s_tx, s_rx) = oneshot::channel();
 
-			// The genesis is guaranteed to be at the beginning of the session and its parent state
-			// is non-existent. Therefore if we're at the genesis, we request using its state and
-			// not the parent.
+			// We're requesting session index of a child to populate the cache in advance.
 			ctx.send_message(RuntimeApiMessage::Request(
-				if block_header.number == 0 { block_hash } else { block_header.parent_hash },
+				block_hash,
 				RuntimeApiRequest::SessionIndexForChild(s_tx),
 			))
 			.await;
@@ -349,6 +346,7 @@ mod tests {
 	use assert_matches::assert_matches;
 	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+	use polkadot_primitives::v1::Header;
 	use sp_core::testing::TaskExecutor;
 
 	const TEST_WINDOW_SIZE: SessionIndex = 6;
@@ -389,9 +387,8 @@ mod tests {
 		let hash = header.hash();
 
 		let test_fut = {
-			let header = header.clone();
 			Box::pin(async move {
-				window.cache_session_info_for_head(&mut ctx, hash, &header).await.unwrap();
+				window.cache_session_info_for_head(&mut ctx, hash).await.unwrap();
 
 				assert_eq!(window.earliest_session, Some(expected_start_session));
 				assert_eq!(
@@ -408,7 +405,7 @@ mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(s_tx),
 				)) => {
-					assert_eq!(h, header.parent_hash);
+					assert_eq!(h, hash);
 					let _ = s_tx.send(Ok(session));
 				}
 			);
@@ -557,9 +554,8 @@ mod tests {
 		let hash = header.hash();
 
 		let test_fut = {
-			let header = header.clone();
 			Box::pin(async move {
-				let res = window.cache_session_info_for_head(&mut ctx, hash, &header).await;
+				let res = window.cache_session_info_for_head(&mut ctx, hash).await;
 
 				assert!(res.is_err());
 			})
@@ -572,7 +568,7 @@ mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(s_tx),
 				)) => {
-					assert_eq!(h, header.parent_hash);
+					assert_eq!(h, hash);
 					let _ = s_tx.send(Ok(session));
 				}
 			);
@@ -619,9 +615,8 @@ mod tests {
 		let hash = header.hash();
 
 		let test_fut = {
-			let header = header.clone();
 			Box::pin(async move {
-				window.cache_session_info_for_head(&mut ctx, hash, &header).await.unwrap();
+				window.cache_session_info_for_head(&mut ctx, hash).await.unwrap();
 
 				assert_eq!(window.earliest_session, Some(session));
 				assert_eq!(window.session_info, vec![dummy_session_info(session)]);
