@@ -17,8 +17,10 @@
 //! WASM validation for adder parachain.
 
 use crate::{BlockData, HeadData};
+use core::panic;
 use parachain::primitives::{HeadData as GenericHeadData, ValidationResult};
 use parity_scale_codec::{Decode, Encode};
+use sp_std::vec::Vec;
 
 #[no_mangle]
 pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
