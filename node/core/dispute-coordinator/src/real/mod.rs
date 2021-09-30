@@ -521,25 +521,22 @@ async fn scrape_on_chain_votes(
 	now: u64,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
-	println!("fooo");
+	// obtain the concluded disputes as well as the candidate backing votes
+	// from the new leaf
 	let ScrapedOnChainVotes { session, backing_validators, disputes } = {
 		let (tx, rx) = oneshot::channel();
-		println!("xxx");
 		ctx.send_message(RuntimeApiMessage::Request(
 			new_leaf,
 			RuntimeApiRequest::FetchOnChainVotes(tx),
 		))
 		.await;
-		println!("bar");
-		let res = rx.await;
-		println!("yyy");
-		match res {
+		match rx.await {
 			Ok(Ok(Some(val))) => val,
 			Ok(Ok(None)) => {
 				tracing::trace!(
 					target: LOG_TARGET,
 					relay_parent = ?new_leaf,
-					"No data stored for relay parent");
+					"No on chain votes stored for relay chain leaf");
 				return Ok(())
 			},
 			Ok(Err(e)) => {
@@ -547,7 +544,7 @@ async fn scrape_on_chain_votes(
 					target: LOG_TARGET,
 					relay_parent = ?new_leaf,
 					error = ?e,
-					"Could not retrieve relay parent since the API returned an error");
+					"Could not retrieve on chain votes due to an API error");
 				return Ok(())
 			},
 			Err(e) => {
@@ -555,7 +552,7 @@ async fn scrape_on_chain_votes(
 					target: LOG_TARGET,
 					relay_parent = ?new_leaf,
 					error = ?e,
-					"Could not retrieve relay parent");
+					"Could not retrieve onchain votes due to oneshot cancellation");
 				return Ok(())
 			},
 		}
@@ -565,6 +562,9 @@ async fn scrape_on_chain_votes(
 		return Ok(())
 	}
 
+	// Obtain the session info, for sake of `ValidatorId`s
+	// either from the rolling session window or query from
+	// the on chain state directly
 	let session_info: SessionInfo =
 		if let Some(session_info) = state.rolling_session_window.session_info(session) {
 			session_info.clone()
@@ -582,8 +582,8 @@ async fn scrape_on_chain_votes(
 			}
 		};
 
-	// scraped on-chain backing votes for the candidates with
-	// the new active leaf
+	// Scraped on-chain backing votes for the candidates with
+	// the new active leaf as if we received them via gossip.
 	for (candidate_receipt, backers) in backing_validators {
 		let candidate_hash = candidate_receipt.hash();
 		let statements = backers.into_iter().filter_map(|(validator_idx, validator_signature)| {
@@ -625,8 +625,8 @@ async fn scrape_on_chain_votes(
 		return Ok(())
 	}
 
-	// concluded disputes from on-chain, this already went through a vote so it's assumed
-	// as verified and no gossip is needed, and hence.
+	// Import concluded disputes from on-chain, this already went through a vote so it's assumed
+	// as verified. This will onle be stored, gossiping it is not necessary.
 
 	// First try to obtain all the backings which ultimately contain the candidate
 	// receipt which we need.
@@ -651,7 +651,7 @@ async fn scrape_on_chain_votes(
 				})
 				.collect::<HashMap<CandidateHash, CandidateReceipt>>()
 		} else {
-			tracing::warn!(target: LOG_TARGET,relay_parent = ?new_leaf, "Missing backed candidates for new leaf {:?}", new_leaf);
+			tracing::warn!(target: LOG_TARGET, relay_parent = ?new_leaf, "Missing backed candidates for new leaf");
 			return Ok(())
 		}
 	};
@@ -662,7 +662,7 @@ async fn scrape_on_chain_votes(
 		{
 			candidate_receipt.clone()
 		} else {
-			tracing::warn!(target: LOG_TARGET,relay_parent = ?new_leaf, "Missing backing vote for disputed candidate {}", &candidate_hash);
+			tracing::warn!(target: LOG_TARGET, relay_parent = ?new_leaf, "Missing backing vote for disputed candidate {}", &candidate_hash);
 			return Ok(())
 		};
 		let mut votes =
