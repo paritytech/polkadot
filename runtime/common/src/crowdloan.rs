@@ -65,9 +65,7 @@ use parity_scale_codec::{Decode, Encode};
 use primitives::v1::Id as ParaId;
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{
-		AccountIdConversion, CheckedAdd, Hash, IdentifyAccount, One, Saturating, Verify, Zero,
-	},
+	traits::{AccountIdConversion, CheckedAdd, Hash, IdentifyAccount, Saturating, Verify, Zero},
 	MultiSignature, MultiSigner, RuntimeDebug,
 };
 use sp_std::vec::Vec;
@@ -378,10 +376,8 @@ pub mod pallet {
 			ensure!(end > now, Error::<T>::CannotEndInPast);
 			let lease_period_at_end = T::Auctioneer::lease_period_index(end);
 
-			println!("{:?} {:?}", lease_period_at_end, first_period);
-
-			// Here we check the lease period on the ending block
-			// TODO: FIX
+			// Here we check the lease period on the ending block is at most the first lease period
+			// we are bidding for. If it would be larger, there is no way we could win this auction.
 			ensure!(lease_period_at_end <= first_period, Error::<T>::EndTooFarInFuture);
 			ensure!(
 				first_period >= T::Auctioneer::lease_period_index(now),
@@ -1362,7 +1358,7 @@ mod tests {
 
 			// If a crowdloan has already won, it should not allow contributions.
 			let para_2 = new_para();
-			assert_ok!(Crowdloan::create(Origin::signed(1), para_2, 1000, 1, 4, 40, None));
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_2, 1000, 1, 4, 39, None));
 			// Emulate a win by leasing out and putting a deposit. Slots pallet would normally do this.
 			let crowdloan_account = Crowdloan::fund_account_id(para_2);
 			set_winner(para_2, crowdloan_account, true);
@@ -1374,7 +1370,7 @@ mod tests {
 			// Move past lease period 1, should not be allowed to have further contributions with a crowdloan
 			// that has starting period 1.
 			let para_3 = new_para();
-			assert_ok!(Crowdloan::create(Origin::signed(1), para_3, 1000, 1, 4, 40, None));
+			assert_ok!(Crowdloan::create(Origin::signed(1), para_3, 1000, 1, 4, 39, None));
 			run_to_block(40);
 			let now = System::block_number();
 			assert_eq!(TestAuctioneer::lease_period_index(now), 2);
