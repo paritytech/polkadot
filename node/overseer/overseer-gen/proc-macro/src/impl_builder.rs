@@ -19,6 +19,39 @@ use syn::Ident;
 
 use super::*;
 
+/// Returns all combinations for a single replacement:
+/// 1. generic args with `NEW` in place
+/// 2. subsystem type to be replaced
+/// 3. the subsystem name to be replaced by a new type and value
+/// 4. all other subsystems that are supposed to be kept
+fn derive_replacable_generic_lists(
+	info: &OverseerInfo,
+) -> Vec<(TokenStream, Ident, Ident, Vec<Ident>)> {
+	// subsystem generic types
+	let builder_generic_ty = info.builder_generic_types();
+
+	let to_be_replaced_name = info.subsystem_names_without_wip();
+	let baggage_generic_ty = &info.baggage_generic_types();
+
+	builder_generic_ty
+		.iter()
+		.enumerate()
+		.map(|(idx, to_be_replaced_ty)| {
+			let mut to_keep_name = to_be_replaced_name.clone();
+			let to_be_replaced_name: Ident = to_keep_name.remove(idx);
+
+			let mut builder_generic_ty = builder_generic_ty.clone();
+			builder_generic_ty[idx] = format_ident!("NEW");
+
+			let generics_ts = quote! {
+				<S, #( #baggage_generic_ty, )* #( #builder_generic_ty, )* >
+			};
+
+			(generics_ts, to_be_replaced_ty.clone(), to_be_replaced_name, to_keep_name)
+		})
+		.collect::<Vec<(_, _, _, _)>>()
+}
+
 /// Implement a builder pattern for the `Overseer`-type,
 /// which acts as the gateway to constructing the overseer.
 ///
@@ -35,6 +68,12 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		.iter()
 		.map(|subsystem_name| format_ident!("{}_with", subsystem_name))
 		.collect::<Vec<_>>();
+	let subsystem_name_replace_with = &info
+		.subsystem_names_without_wip()
+		.iter()
+		.map(|subsystem_name| format_ident!("replace_{}", subsystem_name))
+		.collect::<Vec<_>>();
+
 	let builder_generic_ty = &info.builder_generic_types();
 
 	let channel_name = &info.channel_names_without_wip("");
@@ -49,6 +88,8 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let baggage_generic_ty = &info.baggage_generic_types();
 	let baggage_name = &info.baggage_names();
 	let baggage_ty = &info.baggage_types();
+
+	let subsystem_ctx_name = format_ident!("{}SubsystemContext", overseer_name);
 
 	let error_ty = &info.extern_error_ty;
 
@@ -155,7 +196,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		/// Convenience alias.
 		type SubsystemInitFn<T> = Box<dyn FnOnce(#handle) -> ::std::result::Result<T, #error_ty> >;
 
-		/// Init kind of a field of the overseer.
+		/// Initialization type to be used for a field of the overseer.
 		enum FieldInitMethod<T> {
 			/// Defer initialization to a point where the `handle` is available.
 			Fn(SubsystemInitFn<T>),
@@ -242,13 +283,13 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			)*
 
 			/// Complete the construction and create the overseer type.
-			pub fn build(mut self) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty> {
+			pub fn build(self) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty> {
 				let connector = #connector ::default();
 				self.build_with_connector(connector)
 			}
 
 			/// Complete the construction and create the overseer type based on an existing `connector`.
-			pub fn build_with_connector(mut self, connector: #connector) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty>
+			pub fn build_with_connector(self, connector: #connector) -> ::std::result::Result<(#overseer_name #generics, #handle), #error_ty>
 			{
 				let #connector {
 					handle: events_tx,
@@ -321,7 +362,6 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 							#channel_name_tx,
 							signal_tx,
 							unbounded_meter,
-							channels_out.clone(),
 							ctx,
 							#subsystem_name,
 							&mut running_subsystems,
@@ -330,9 +370,9 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 
 				#(
 					let #baggage_name = self. #baggage_name .expect(
-						&format!("Baggage variable `{1}` of `{0}` ",
-							stringify!(#overseer_name),
-							stringify!( #baggage_name )
+						&format!("Baggage variable `{0}` of `{1}` must be set by the user!",
+							stringify!(#baggage_name),
+							stringify!(#overseer_name)
 						)
 					);
 				)*
@@ -359,6 +399,83 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			}
 		}
 	};
+
+	let mut acc = TokenStream::new();
+
+	for (
+		(
+			(
+				ref modified_generics,
+				ref to_be_replaced_ty,
+				ref to_be_replaced_name,
+				ref to_keep_name,
+			),
+			subsystem_name_replace_with,
+		),
+		consumes,
+	) in derive_replacable_generic_lists(info)
+		.into_iter()
+		.zip(subsystem_name_replace_with.iter())
+		.zip(consumes.iter())
+	{
+		let replace1 = quote! {
+			/// Replace a subsystem by another implementation for the
+			/// consumable message type.
+			pub fn #subsystem_name_replace_with < NEW, F >
+			(self, gen_replacement_fn: F) -> #builder #modified_generics
+			where
+				#to_be_replaced_ty: 'static,
+				F: 'static + FnOnce(#to_be_replaced_ty) -> NEW,
+				NEW: #support_crate ::Subsystem<#subsystem_ctx_name< #consumes >, #error_ty>,
+			{
+
+				let Self {
+					#to_be_replaced_name,
+					#(
+						#to_keep_name,
+					)*
+					#(
+						#baggage_name,
+					)*
+					spawner,
+				} = self;
+
+				// Some cases require that parts of the original are copied
+				// over, since they include a one time initialization.
+				let replacement: FieldInitMethod<NEW> = match #to_be_replaced_name {
+					FieldInitMethod::Fn(fx) => FieldInitMethod::Fn(
+						Box::new(move |handle: #handle| {
+							let orig = fx(handle)?;
+							Ok(gen_replacement_fn(orig))
+						})
+					),
+					FieldInitMethod::Value(val) => FieldInitMethod::Value(gen_replacement_fn(val)),
+					FieldInitMethod::Uninitialized => panic!("Must have a value before it can be replaced. qed"),
+				};
+
+				#builder :: #modified_generics {
+					#to_be_replaced_name: replacement,
+					#(
+						#to_keep_name,
+					)*
+					#(
+						#baggage_name,
+					)*
+					spawner,
+				}
+			}
+		};
+		acc.extend(replace1);
+	}
+
+	ts.extend(quote! {
+		impl #builder_generics #builder #builder_generics
+			#builder_where_clause
+		{
+			#acc
+		}
+	});
+
 	ts.extend(impl_task_kind(info));
 	ts
 }
@@ -369,9 +486,6 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let support_crate = info.support_crate_name();
 
 	let ts = quote! {
-
-		use #support_crate ::FutureExt as _;
-
 		/// Task kind to launch.
 		pub trait TaskKind {
 			/// Spawn a task, it depends on the implementer if this is blocking or not.
@@ -401,8 +515,6 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			signal_tx: #support_crate ::metered::MeteredSender< #signal >,
 			// meter for the unbounded channel
 			unbounded_meter: #support_crate ::metered::Meter,
-			// connection to the subsystems
-			channels_out: ChannelsOut,
 			ctx: Ctx,
 			s: SubSys,
 			futures: &mut #support_crate ::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,

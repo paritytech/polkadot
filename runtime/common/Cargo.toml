@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 impl-trait-for-tuples = "0.2.0"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "2.3.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.13", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }

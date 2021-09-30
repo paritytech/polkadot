@@ -67,11 +67,12 @@ pub const MAX_RECURSION_LIMIT: u32 = 8;
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	fn execute_xcm_in_credit(
-		origin: MultiLocation,
+		origin: impl Into<MultiLocation>,
 		mut message: Xcm<Config::Call>,
 		weight_limit: Weight,
 		mut weight_credit: Weight,
 	) -> Outcome {
+		let origin = origin.into();
 		log::trace!(
 			target: "xcm::execute_xcm_in_credit",
 			"origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?}",
@@ -149,7 +150,8 @@ impl From<ExecutorError> for frame_benchmarking::BenchmarkError {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	pub fn new(origin: MultiLocation) -> Self {
+	pub fn new(origin: impl Into<MultiLocation>) -> Self {
+		let origin = origin.into();
 		Self {
 			holding: Assets::new(),
 			origin: Some(origin.clone()),

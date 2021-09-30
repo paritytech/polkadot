@@ -786,8 +786,8 @@ async fn import_block(
 				RuntimeApiRequest::SessionIndexForChild(s_tx)
 			)
 		) => {
-			let hash = &hashes[number.saturating_sub(1) as usize];
-			assert_eq!(req_block_hash, hash.0.clone());
+			let hash = &hashes[number as usize];
+			assert_eq!(req_block_hash, hash.0);
 			s_tx.send(Ok(number.into())).unwrap();
 		}
 	);

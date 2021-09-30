@@ -340,12 +340,13 @@ where
 				"Connectivity seems low, we are only connected to {}% of available validators (see debug logs for details)", connected_ratio
 			);
 		}
+		let pretty = PrettyAuthorities(unconnected_authorities);
 		tracing::debug!(
 			target: LOG_TARGET,
 			?connected_ratio,
 			?absolute_connected,
 			?absolute_resolved,
-			unconnected_authorities = %PrettyAuthorities(unconnected_authorities),
+			unconnected_authorities = %pretty,
 			"Connectivity Report"
 		);
 	}
