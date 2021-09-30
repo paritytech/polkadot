@@ -32,6 +32,7 @@ use futures::{
 
 use polkadot_node_primitives::{
 	AvailableData, PoV, SignedDisputeStatement, SignedFullStatement, Statement, ValidationResult,
+	ErasureChunk,
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -1000,19 +1001,21 @@ impl CandidateBackingJob {
 
 					tracing::info!(target: LOG_TARGET, "😈 Replacing Erasure Chunk");
 
-					let erasure_root = {
-						let mut chunks = erasure_coding::obtain_chunks_v1(
-							self.table_context.validators.len(),
-							&available_data,
-						)?;
+					let mut chunks = erasure_coding::obtain_chunks_v1(
+						self.table_context.validators.len(),
+						&available_data,
+					)?;
 
-						if let Some(last) = chunks.last_mut() {
-							*last = vec![2, 3, 9];
-						}
-						let branches = erasure_coding::branches(chunks.as_ref());
-						branches.root()
+					if let Some(last) = chunks.first_mut() {
+						*last = vec![2, 3, 9];
+					}
+					let mut branches = erasure_coding::branches(chunks.as_ref());
+					let erasure_root = branches.root();
+					let first_chunk = ErasureChunk {
+						chunk: chunks[0].clone(),
+						index: ValidatorIndex(0),
+						proof: branches.next().expect("branches are not empty").0,
 					};
-
 					let (collator_id, collator_signature) = {
 						use polkadot_primitives::v1::CollatorPair;
 						use sp_core::crypto::Pair;
@@ -1062,6 +1065,16 @@ impl CandidateBackingJob {
 						available_data,
 					)
 					.await?;
+					let (tx, rx) = oneshot::channel();
+					sender
+						.send_message(AvailabilityStoreMessage::StoreChunk {
+							candidate_hash: malicious_candidate_hash,
+							chunk: first_chunk,
+							tx,
+						})
+						.await;
+
+					let _ = rx.await.map_err(Error::StoreAvailableData)?;
 
 					tracing::info!(target: LOG_TARGET, "😈 Seconding and distributing statement");
 					let statement = Statement::Seconded(malicious_candidate);
