@@ -234,8 +234,7 @@ where
 		&mut self,
 		ctx: &mut Context,
 		authorities: Vec<AuthorityDiscoveryId>,
-	)
-	where
+	) where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
 	{
