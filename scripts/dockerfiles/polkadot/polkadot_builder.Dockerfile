@@ -27,7 +27,7 @@ RUN useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
 # check if executable works in this container
 RUN /usr/local/bin/polkadot --version
 
-RUN	rm -rf /usr/bin /usr/sbin
+RUN rm -rf /usr/bin /usr/sbin
 USER polkadot
 
 EXPOSE 30333 9933 9944 9615
