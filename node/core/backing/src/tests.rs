@@ -282,8 +282,8 @@ async fn test_dispute_coordinator_notifications(
 
 // Test that a `CandidateBackingMessage::Second` issues validation work
 // and in case validation is successful issues a `StatementDistributionMessage`.
-//#[test]
-/*fn backing_second_works() {
+#[test]
+fn backing_second_works() {
 	let test_state = TestState::default();
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		test_startup(&mut virtual_overseer, &test_state).await;
@@ -375,7 +375,7 @@ async fn test_dispute_coordinator_notifications(
 			.await;
 		virtual_overseer
 	});
-}*/
+}
 
 // Test that the candidate reaches quorum succesfully.
 #[test]
@@ -1184,12 +1184,11 @@ fn backing_second_after_first_fails_works() {
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromChainState(
 					_,
-					_,
+					pov,
 					_,
 				)
 			) => {
-				assert!(true);
-				//assert_eq!(&*pov, &pov_to_second);
+				assert_eq!(&*pov, &pov_to_second);
 			}
 		);
 		virtual_overseer
