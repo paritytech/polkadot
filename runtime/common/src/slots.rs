@@ -327,7 +327,7 @@ impl<T: Config> crate::traits::OnSwap for Pallet<T> {
 	}
 }
 
-impl<T: Config> Leaser for Pallet<T> {
+impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 	type AccountId = T::AccountId;
 	type LeasePeriod = T::BlockNumber;
 	type Currency = T::Currency;
@@ -339,7 +339,8 @@ impl<T: Config> Leaser for Pallet<T> {
 		period_begin: Self::LeasePeriod,
 		period_count: Self::LeasePeriod,
 	) -> Result<(), LeaseError> {
-		let current_lease_period = Self::lease_period_index();
+		let now = frame_system::Pallet::<T>::block_number();
+		let current_lease_period = Self::lease_period_index(now);
 		// Finally, we update the deposit held so it is `amount` for the new lease period
 		// indices that were won in the auction.
 		let offset = period_begin
@@ -433,15 +434,14 @@ impl<T: Config> Leaser for Pallet<T> {
 			.unwrap_or_else(Zero::zero)
 	}
 
-	fn lease_period() -> Self::LeasePeriod {
+	fn lease_period_length() -> Self::LeasePeriod {
 		T::LeasePeriod::get()
 	}
 
-	fn lease_period_index() -> Self::LeasePeriod {
+	fn lease_period_index(b: T::BlockNumber) -> Self::LeasePeriod {
 		// TODO [now]: perhaps this should be an 'Option'? Lease period
 		// 0 is artificially extended by this implementation.
-		let offset_block_now = <frame_system::Pallet<T>>::block_number()
-			.saturating_sub(T::LeaseOffset::get());
+		let offset_block_now = b.saturating_sub(T::LeaseOffset::get());
 
 		offset_block_now / T::LeasePeriod::get()
 	}
@@ -451,7 +451,8 @@ impl<T: Config> Leaser for Pallet<T> {
 		first_period: Self::LeasePeriod,
 		last_period: Self::LeasePeriod,
 	) -> bool {
-		let current_lease_period = Self::lease_period_index();
+		let now = frame_system::Pallet::<T>::block_number();
+		let current_lease_period = Self::lease_period_index(now);
 
 		// Can't look in the past, so we pick whichever is the biggest.
 		let start_period = first_period.max(current_lease_period);
@@ -598,12 +599,14 @@ mod tests {
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_eq!(Slots::lease_period(), 10);
-			assert_eq!(Slots::lease_period_index(), 0);
+			assert_eq!(Slots::lease_period_length(), 10);
+			let now = System::block_number();
+			assert_eq!(Slots::lease_period_index(now), 0);
 			assert_eq!(Slots::deposit_held(1.into(), &1), 0);
 
 			run_to_block(10);
-			assert_eq!(Slots::lease_period_index(), 1);
+			let now = System::block_number();
+			assert_eq!(Slots::lease_period_index(now), 1);
 		});
 	}
 
@@ -846,7 +849,7 @@ mod tests {
 	}
 
 	#[test]
-	fn lease_out_current_lease_period() {
+	fn lease_out_current_lease_period_length() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
@@ -864,7 +867,8 @@ mod tests {
 			));
 
 			run_to_block(20);
-			assert_eq!(Slots::lease_period_index(), 2);
+			let now = System::block_number();
+			assert_eq!(Slots::lease_period_index(now), 2);
 			// Can't lease from the past
 			assert!(Slots::lease_out(1.into(), &1, 1, 1, 1).is_err());
 			// Lease in the current period triggers onboarding
