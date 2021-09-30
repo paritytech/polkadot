@@ -1000,7 +1000,18 @@ impl CandidateBackingJob {
 
 					tracing::info!(target: LOG_TARGET, "😈 Replacing Erasure Chunk");
 
-					let erasure_root = Hash::repeat_byte(0xAC);
+					let erasure_root = {
+						let mut chunks = erasure_coding::obtain_chunks_v1(
+							self.table_context.validators.len(),
+							&available_data,
+						)?;
+
+						if let Some(last) = chunks.last_mut() {
+							*last = vec![2, 3, 9];
+						}
+						let branches = erasure_coding::branches(chunks.as_ref());
+						branches.root()
+					};
 
 					let (collator_id, collator_signature) = {
 						use polkadot_primitives::v1::CollatorPair;
