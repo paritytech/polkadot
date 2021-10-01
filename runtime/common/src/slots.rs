@@ -441,7 +441,14 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 		let offset_block_now = b.saturating_sub(T::LeaseOffset::get());
 
 		let lease_period = offset_block_now / T::LeasePeriod::get();
-		let first_block = (offset_block_now % T::LeasePeriod::get()).is_zero();
+
+		// Special logic to handle lease period 0 being extended by the offset.
+		let first_block = if lease_period.is_zero() {
+			// Lease period 0 has their first block on only block 0.
+			b.is_zero()
+		} else {
+			(offset_block_now % T::LeasePeriod::get()).is_zero()
+		};
 
 		(lease_period, first_block)
 	}
@@ -937,6 +944,7 @@ mod tests {
 			let (lpl, offset) = Slots::lease_period_length();
 			assert_eq!(offset, 0);
 			assert_eq!(Slots::lease_period_index(0), (0, true));
+			assert_eq!(Slots::lease_period_index(1), (0, false));
 			assert_eq!(Slots::lease_period_index(lpl - 1), (0, false));
 			assert_eq!(Slots::lease_period_index(lpl), (1, true));
 			assert_eq!(Slots::lease_period_index(lpl + 1), (1, false));
@@ -949,6 +957,7 @@ mod tests {
 			let (lpl, offset) = Slots::lease_period_length();
 			assert_eq!(offset, 5);
 			assert_eq!(Slots::lease_period_index(0), (0, true));
+			assert_eq!(Slots::lease_period_index(1), (0, false));
 			assert_eq!(Slots::lease_period_index(lpl), (0, false));
 			assert_eq!(Slots::lease_period_index(lpl - 1 + offset), (0, false));
 			assert_eq!(Slots::lease_period_index(lpl + offset), (1, true));
