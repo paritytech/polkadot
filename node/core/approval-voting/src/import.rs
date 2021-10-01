@@ -324,7 +324,7 @@ pub(crate) async fn handle_new_head(
 		}
 	};
 
-	match state.session_window.cache_session_info_for_head(ctx, head, &header).await {
+	match state.session_window.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
 			tracing::debug!(
 				target: LOG_TARGET,
@@ -1236,7 +1236,7 @@ pub(crate) mod tests {
 					h,
 					RuntimeApiRequest::SessionIndexForChild(c_tx),
 				)) => {
-					assert_eq!(h, parent_hash.clone());
+					assert_eq!(h, hash);
 					let _ = c_tx.send(Ok(session));
 				}
 			);

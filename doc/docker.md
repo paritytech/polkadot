@@ -4,9 +4,9 @@
 
 The easiest/faster option to run Polkadot in Docker is to use the latest release images. These are small images that use the latest official release of the Polkadot binary, pulled from our package repository.
 
-**_Following examples are running on westend chain and without SSL. They can be used to quick start and learn how Polkadot needs to be configured. Please find out how to secure your node, if you want to operate it on the internet. Do not expose rpc and ws ports, if they are not correctly configured._**
+**_Following examples are running on westend chain and without SSL. They can be used to quick start and learn how Polkadot needs to be configured. Please find out how to secure your node, if you want to operate it on the internet. Do not expose RPC and WS ports, if they are not correctly configured._**
 
-Let´s first check the version we have. The first time you run this command, the Polkadot docker image will be downloaded. This takes a bit of time and bandwidth, be patient:
+Let's first check the version we have. The first time you run this command, the Polkadot docker image will be downloaded. This takes a bit of time and bandwidth, be patient:
 
 ```bash
 docker run --rm -it parity/polkadot:latest --version
@@ -65,7 +65,7 @@ services:
     ]
 ```
 
-With following docker-compose.yml you can set up a node and use polkadot-js-apps as the front end on port 80. After starting the node use a browser and enter your Docker host ip in the url field: _<http://[YOUR_DOCKER_HOST_IP>_
+With following docker-compose.yml you can set up a node and use polkadot-js-apps as the front end on port 80. After starting the node use a browser and enter your Docker host IP in the URL field: _<http://[YOUR_DOCKER_HOST_IP>_
 
 ```bash
 version: '2'
@@ -118,7 +118,7 @@ To get up and running with the smallest footprint on your system, you may use th
 You can build it yourself (it takes a while...) in the shell session of the daemon:
 
 ```bash
-cd docker
+cd scripts/docker/polkadot
 ./build.sh
 ```
 
