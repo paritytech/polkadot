@@ -596,14 +596,15 @@ async fn scrape_on_chain_votes(
 					e
 				})
 				.cloned()?;
-			let signed_dispute_statement = SignedDisputeStatement::new_checked(
-				DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(new_leaf)),
-				candidate_hash,
-				session,
-				validator_public,
-				validator_signature,
-			)
-			.ok()?;
+			let signed_dispute_statement =
+				SignedDisputeStatement::new_unchecked_from_trusted_source(
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(new_leaf)),
+					candidate_hash,
+					session,
+					validator_public,
+					validator_signature,
+				)
+				.ok()?;
 			Some((signed_dispute_statement, validator_idx))
 		});
 		let import_result = handle_import_statements(
