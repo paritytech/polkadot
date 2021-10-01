@@ -848,7 +848,7 @@ mod tests {
 	}
 
 	#[test]
-	fn lease_out_current_lease_period_length() {
+	fn lease_out_current_lease_period() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
