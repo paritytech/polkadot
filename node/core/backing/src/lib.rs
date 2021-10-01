@@ -294,7 +294,6 @@ fn table_attested_to_backed(
 
 async fn store_available_data(
 	sender: &mut JobSender<impl SubsystemSender>,
-	id: Option<ValidatorIndex>,
 	n_validators: u32,
 	candidate_hash: CandidateHash,
 	available_data: AvailableData,
@@ -303,7 +302,6 @@ async fn store_available_data(
 	sender
 		.send_message(AvailabilityStoreMessage::StoreAvailableData(
 			candidate_hash,
-			id,
 			n_validators,
 			available_data,
 			tx,
@@ -321,7 +319,6 @@ async fn store_available_data(
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
 async fn make_pov_available(
 	sender: &mut JobSender<impl SubsystemSender>,
-	validator_index: Option<ValidatorIndex>,
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
@@ -349,7 +346,6 @@ async fn make_pov_available(
 
 		store_available_data(
 			sender,
-			validator_index,
 			n_validators as u32,
 			candidate_hash,
 			available_data,
@@ -409,7 +405,6 @@ struct BackgroundValidationParams<S: overseer::SubsystemSender<AllMessages>, F> 
 	candidate: CandidateReceipt,
 	relay_parent: Hash,
 	pov: PoVData,
-	validator_index: Option<ValidatorIndex>,
 	n_validators: usize,
 	span: Option<jaeger::Span>,
 	make_command: F,
@@ -427,7 +422,6 @@ async fn validate_and_make_available(
 		candidate,
 		relay_parent,
 		pov,
-		validator_index,
 		n_validators,
 		span,
 		make_command,
@@ -484,7 +478,6 @@ async fn validate_and_make_available(
 			} else {
 				let erasure_valid = make_pov_available(
 					&mut sender,
-					validator_index,
 					n_validators,
 					pov.clone(),
 					candidate.hash(),
@@ -719,7 +712,6 @@ impl CandidateBackingJob {
 				candidate: candidate.clone(),
 				relay_parent: self.parent,
 				pov: PoVData::Ready(pov),
-				validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 				n_validators: self.table_context.validators.len(),
 				span,
 				make_command: ValidatedCandidateCommand::Second,
@@ -1033,7 +1025,6 @@ impl CandidateBackingJob {
 				candidate: attesting.candidate,
 				relay_parent: self.parent,
 				pov,
-				validator_index: self.table_context.validator.as_ref().map(|v| v.index()),
 				n_validators: self.table_context.validators.len(),
 				span,
 				make_command: ValidatedCandidateCommand::Attest,

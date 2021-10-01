@@ -422,7 +422,6 @@ fn store_block_works() {
 		let (tx, rx) = oneshot::channel();
 		let block_msg = AvailabilityStoreMessage::StoreAvailableData(
 			candidate_hash,
-			Some(validator_index),
 			n_validators,
 			available_data.clone(),
 			tx,
@@ -476,7 +475,6 @@ fn store_pov_and_query_chunk_works() {
 		let (tx, rx) = oneshot::channel();
 		let block_msg = AvailabilityStoreMessage::StoreAvailableData(
 			candidate_hash,
-			None,
 			n_validators,
 			available_data,
 			tx,
@@ -523,7 +521,6 @@ fn query_all_chunks_works() {
 			let (tx, rx) = oneshot::channel();
 			let block_msg = AvailabilityStoreMessage::StoreAvailableData(
 				candidate_hash_1,
-				None,
 				n_validators,
 				available_data,
 				tx,
@@ -612,7 +609,6 @@ fn stored_but_not_included_data_is_pruned() {
 		let (tx, rx) = oneshot::channel();
 		let block_msg = AvailabilityStoreMessage::StoreAvailableData(
 			candidate_hash,
-			None,
 			n_validators,
 			available_data.clone(),
 			tx,
@@ -665,7 +661,6 @@ fn stored_data_kept_until_finalized() {
 		let (tx, rx) = oneshot::channel();
 		let block_msg = AvailabilityStoreMessage::StoreAvailableData(
 			candidate_hash,
-			None,
 			n_validators,
 			available_data.clone(),
 			tx,
@@ -901,7 +896,6 @@ fn forkfullness_works() {
 		let (tx, rx) = oneshot::channel();
 		let msg = AvailabilityStoreMessage::StoreAvailableData(
 			candidate_1_hash,
-			None,
 			n_validators,
 			available_data_1.clone(),
 			tx,
@@ -914,7 +908,6 @@ fn forkfullness_works() {
 		let (tx, rx) = oneshot::channel();
 		let msg = AvailabilityStoreMessage::StoreAvailableData(
 			candidate_2_hash,
-			None,
 			n_validators,
 			available_data_2.clone(),
 			tx,

@@ -486,13 +486,11 @@ pub enum AvailabilityStoreMessage {
 		tx: oneshot::Sender<Result<(), ()>>,
 	},
 
-	/// Store a `AvailableData` in the AV store.
-	/// If `ValidatorIndex` is present store corresponding chunk also.
+	/// Store a `AvailableData` and all of its chunks in the AV store.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
 	StoreAvailableData(
 		CandidateHash,
-		Option<ValidatorIndex>,
 		u32,
 		AvailableData,
 		oneshot::Sender<Result<(), ()>>,

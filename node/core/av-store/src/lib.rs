@@ -1076,7 +1076,6 @@ fn process_message(
 		},
 		AvailabilityStoreMessage::StoreAvailableData(
 			candidate,
-			_our_index,
 			n_validators,
 			available_data,
 			tx,

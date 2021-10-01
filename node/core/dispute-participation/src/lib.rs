@@ -250,7 +250,6 @@ async fn participate(
 	// in the dispute
 	ctx.send_message(AvailabilityStoreMessage::StoreAvailableData(
 		candidate_hash,
-		None,
 		n_validators,
 		available_data.clone(),
 		store_available_data_tx,

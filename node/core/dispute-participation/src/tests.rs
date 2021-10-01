@@ -154,7 +154,6 @@ async fn store_available_data(virtual_overseer: &mut VirtualOverseer, success: b
 			_,
 			_,
 			_,
-			_,
 			tx,
 		)) => {
 			if success {
