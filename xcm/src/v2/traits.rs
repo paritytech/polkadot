@@ -26,60 +26,80 @@ use super::*;
 pub enum Error {
 	// Errors that happen due to instructions being executed. These alone are defined in the
 	// XCM specification.
-	
 	/// An arithmetic overflow happened.
-	#[codec(index = 0)] Overflow,
+	#[codec(index = 0)]
+	Overflow,
 	/// The instruction is intentionally unsupported.
-	#[codec(index = 1)] Unimplemented,
+	#[codec(index = 1)]
+	Unimplemented,
 	/// Origin Register does not contain a value value for a reserve transfer notification.
-	#[codec(index = 2)] UntrustedReserveLocation,
+	#[codec(index = 2)]
+	UntrustedReserveLocation,
 	/// Origin Register does not contain a value value for a teleport notification.
-	#[codec(index = 3)] UntrustedTeleportLocation,
+	#[codec(index = 3)]
+	UntrustedTeleportLocation,
 	/// `MultiLocation` value too large to descend further.
-	#[codec(index = 4)] MultiLocationFull,
+	#[codec(index = 4)]
+	MultiLocationFull,
 	/// `MultiLocation` value ascend more parents than known ancestors of local location.
-	#[codec(index = 5)] MultiLocationNotInvertible,
+	#[codec(index = 5)]
+	MultiLocationNotInvertible,
 	/// The Origin Register does not contain a valid value for instruction.
-	#[codec(index = 6)] BadOrigin,
+	#[codec(index = 6)]
+	BadOrigin,
 	/// The location parameter is not a valid value for the instruction.
-	#[codec(index = 7)] InvalidLocation,
+	#[codec(index = 7)]
+	InvalidLocation,
 	/// The given asset is not handled.
-	#[codec(index = 8)] AssetNotFound,
+	#[codec(index = 8)]
+	AssetNotFound,
 	/// An asset transaction (like withdraw or deposit) failed (typically due to type conversions).
-	#[codec(index = 9)] FailedToTransactAsset(#[codec(skip)] &'static str),
+	#[codec(index = 9)]
+	FailedToTransactAsset(#[codec(skip)] &'static str),
 	/// An asset cannot be withdrawn, potentially due to lack of ownership, availability or rights.
-	#[codec(index = 10)] NotWithdrawable,
+	#[codec(index = 10)]
+	NotWithdrawable,
 	/// An asset cannot be deposited under the ownership of a particular location.
-	#[codec(index = 11)] LocationCannotHold,
+	#[codec(index = 11)]
+	LocationCannotHold,
 	/// Attempt to send a message greater than the maximum supported by the transport protocol.
-	#[codec(index = 12)] ExceedsMaxMessageSize,
+	#[codec(index = 12)]
+	ExceedsMaxMessageSize,
 	/// The given message cannot be translated into a format supported by the destination.
-	#[codec(index = 13)] DestinationUnsupported,
+	#[codec(index = 13)]
+	DestinationUnsupported,
 	/// Destination is routable, but there is some issue with the transport mechanism.
-	#[codec(index = 14)] Transport(#[codec(skip)] &'static str),
+	#[codec(index = 14)]
+	Transport(#[codec(skip)] &'static str),
 	/// Destination is known to be unroutable.
-	#[codec(index = 15)] Unroutable,
+	#[codec(index = 15)]
+	Unroutable,
 	/// Used by `ClaimAsset` when the given claim could not be recognized/found.
-	#[codec(index = 16)] UnknownClaim,
+	#[codec(index = 16)]
+	UnknownClaim,
 	/// Used by `Transact` when the functor cannot be decoded.
-	#[codec(index = 17)] FailedToDecode,
+	#[codec(index = 17)]
+	FailedToDecode,
 	/// Used by `Transact` to indicate that the given weight limit could be breached by the functor.
-	#[codec(index = 18)] TooMuchWeightRequired,
+	#[codec(index = 18)]
+	TooMuchWeightRequired,
 	/// Used by `BuyExecution` when the Holding Register does not contain payable fees.
-	#[codec(index = 19)] NotHoldingFees,
+	#[codec(index = 19)]
+	NotHoldingFees,
 	/// Used by `BuyExecution` when the fees declared to purchase weight are insufficient.
-	#[codec(index = 20)] TooExpensive,
+	#[codec(index = 20)]
+	TooExpensive,
 	/// Used by the `Trap` instruction to force an error intentionally. Its code is included.
-	#[codec(index = 21)] Trap(u64),
+	#[codec(index = 21)]
+	Trap(u64),
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
-	
 	/// XCM version not able to be handled.
 	UnhandledXcmVersion,
 	/// Execution of the XCM would potentially result in a greater weight used than weight limit.
 	WeightLimitReached(Weight),
 	/// The XCM did not pass the barrier condition for execution.
-	/// 
+	///
 	/// The barrier condition differs on different chains and in different circumstances, but
 	/// generally it means that the conditions surrounding the message were not such that the chain
 	/// considers the message worth spending time executing. Since most chains lift the barrier to
