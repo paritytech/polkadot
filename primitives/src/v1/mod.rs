@@ -1334,6 +1334,23 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub parent_header: HDR,
 }
 
+#[derive(Encode, Decode, RuntimeDebug, TypeInfo)]
+pub struct PvfCheckStatement {
+	pub accept: bool,
+	pub subject: ValidationCodeHash,
+	pub session_index: SessionIndex,
+	pub validator_index: ValidatorIndex,
+	pub signature: ValidatorSignature,
+}
+
+impl PvfCheckStatement {
+	pub fn signing_payload(&self) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
+
+		(MAGIC, self.accept, self.subject, self.session_index, self.validation_index).encode()
+	}
+}
+
 /// The maximum number of validators `f` which may safely be faulty.
 ///
 /// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.

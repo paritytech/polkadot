@@ -920,13 +920,10 @@ impl<T: Config> CandidateCheckContext<T> {
 
 		// if any, the code upgrade attempt is allowed.
 		if let Some(new_validation_code) = new_validation_code {
-			let valid_upgrade_attempt = <paras::Pallet<T>>::last_code_upgrade(para_id, true)
-				.map_or(true, |last| {
-					last <= self.relay_parent_number &&
-						self.relay_parent_number.saturating_sub(last) >=
-							self.config.validation_upgrade_frequency
-				});
-			ensure!(valid_upgrade_attempt, AcceptanceCheckErr::PrematureCodeUpgrade);
+			ensure!(
+				<paras::Pallet<T>>::can_upgrade_validation_code(para_id),
+				AcceptanceCheckErr::PrematureCodeUpgrade,
+			);
 			ensure!(
 				new_validation_code.0.len() <= self.config.max_code_size as _,
 				AcceptanceCheckErr::NewCodeTooLarge,

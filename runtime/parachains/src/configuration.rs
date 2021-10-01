@@ -177,6 +177,8 @@ pub struct HostConfiguration<BlockNumber> {
 	/// The maximum amount of weight any individual upward message may consume. Messages above this
 	/// weight go into the overweight queue and may only be serviced explicitly.
 	pub ump_max_individual_weight: Weight,
+	// TODO: Add soaking period config
+	// TODO: Add voting TTL
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
