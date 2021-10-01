@@ -518,23 +518,33 @@ where
 	}
 	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
-	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> = match MemoryAllocationTracker::new() {
-		Ok(memory_stats) => Box::new(move |metrics: &OverseerMetrics| match memory_stats.snapshot() {
-			Ok(memory_stats_snapshot) => {
-				tracing::trace!(target: LOG_TARGET, "memory_stats: {:?}", &memory_stats_snapshot);
-				metrics.memory_stats_snapshot(memory_stats_snapshot);
-			},
-			Err(e) => tracing::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
-		}),
-		Err(_) => {
-			tracing::debug!(
-				target: LOG_TARGET,
-				"Jemalloc not set as allocator, so memory allocations will not be tracked",
-			);
+	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> =
+		match MemoryAllocationTracker::new() {
+			Ok(memory_stats) =>
+				Box::new(move |metrics: &OverseerMetrics| match memory_stats.snapshot() {
+					Ok(memory_stats_snapshot) => {
+						tracing::trace!(
+							target: LOG_TARGET,
+							"memory_stats: {:?}",
+							&memory_stats_snapshot
+						);
+						metrics.memory_stats_snapshot(memory_stats_snapshot);
+					},
+					Err(e) => tracing::debug!(
+						target: LOG_TARGET,
+						"Failed to obtain memory stats: {:?}",
+						e
+					),
+				}),
+			Err(_) => {
+				tracing::debug!(
+					target: LOG_TARGET,
+					"Jemalloc not set as allocator, so memory allocations will not be tracked",
+				);
 
-			Box::new(|_| {})
-		},
-	};
+				Box::new(|_| {})
+			},
+		};
 
 	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
 		collect_memory_stats(&metronome_metrics);
