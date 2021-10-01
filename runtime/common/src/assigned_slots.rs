@@ -24,7 +24,7 @@
 
 use crate::{
 	slots::{self, Pallet as Slots},
-	traits::{Leaser, Registrar},
+	traits::{LeaseError, Leaser, Registrar},
 };
 use frame_support::{pallet_prelude::*, traits::Currency};
 use frame_system::pallet_prelude::*;
@@ -192,7 +192,7 @@ pub mod pallet {
 			);
 
 			ensure!(
-				PermanentSlotCount::<T>::get() + 1 < T::MaxPermanentSlots::get(),
+				PermanentSlotCount::<T>::get() + 1 <= T::MaxPermanentSlots::get(),
 				Error::<T>::MaxPermanentSlotsExceeded
 			);
 
@@ -202,7 +202,8 @@ pub mod pallet {
 					manager,
 					current_lease_period,
 					T::PermanentSlotLeasePeriodLength::get().into(),
-				)?;
+				)
+				.map_err(|_| Error::<T>::CannotUpgrade)?;
 				PermanentSlots::<T>::insert(id, Some(current_lease_period));
 				*count = count.checked_add(One::one()).ok_or(ArithmeticError::Overflow)?;
 				Ok(())
@@ -316,13 +317,10 @@ impl<T: Config> Pallet<T> {
 						// Active slot lease
 						active_temp_slots += 1;
 					}
-					Some(last_lease) => {
+					Some(last_lease)
 						// Slot w/ past lease, only consider it every other slot lease period (times period_count)
-						if last_lease <=
-							lease_period_index - (slot.period_count.saturating_mul(2u32.into()))
-						{
+						if last_lease.saturating_add(slot.period_count.saturating_mul(2u32.into())) <= lease_period_index => {
 							pending_temp_slots.push((para, slot));
-						}
 					},
 					None if slot.period_begin <= lease_period_index => {
 						// Slot hasn't had a lease yet
@@ -339,7 +337,13 @@ impl<T: Config> Pallet<T> {
 			!pending_temp_slots.is_empty()
 		{
 			// Sort by lease_count, favoring slots that had no or less turns first
-			pending_temp_slots.sort_unstable_by_key(|(_id, s)| s.lease_count);
+			// (then by last_lease index, and then Para ID)
+			pending_temp_slots.sort_by(|a, b| {
+				a.1.lease_count
+					.cmp(&b.1.lease_count)
+					.then_with(|| a.1.last_lease.cmp(&b.1.last_lease))
+					.then_with(|| a.0.cmp(&b.0))
+			});
 
 			let slots_to_be_upgraded = pending_temp_slots
 				.iter()
@@ -349,10 +353,9 @@ impl<T: Config> Pallet<T> {
 			for (id, temp_slot) in slots_to_be_upgraded.iter() {
 				TemporarySlots::<T>::try_mutate::<_, _, Error<T>, _>(id, |s| {
 					// Configure temp slot lease
-					T::Leaser::lease_out(
+					Self::configure_slot_lease(
 						*id,
-						&temp_slot.manager,
-						BalanceOf::<T>::zero(),
+						temp_slot.manager.clone(),
 						lease_period_index,
 						temp_slot.period_count,
 					)
@@ -383,11 +386,8 @@ impl<T: Config> Pallet<T> {
 		manager: T::AccountId,
 		lease_period: LeasePeriodOf<T>,
 		lease_duration: LeasePeriodOf<T>,
-	) -> DispatchResult {
+	) -> Result<(), LeaseError> {
 		T::Leaser::lease_out(para, &manager, BalanceOf::<T>::zero(), lease_period, lease_duration)
-			.map_err(|_| Error::<T>::CannotUpgrade)?;
-
-		Ok(())
 	}
 
 	fn has_permanent_slot(id: ParaId) -> bool {
@@ -411,5 +411,676 @@ impl<T: Config> Pallet<T> {
 		// should have been cleaned in slots pallet.
 		let _ = Self::allocate_temporary_slot_leases(lease_period_index);
 		0
+	}
+}
+
+/// tests for this pallet
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use crate::{assigned_slots, mock::TestRegistrar, slots};
+	use frame_support::{assert_noop, assert_ok, parameter_types};
+	use frame_system::EnsureRoot;
+	use pallet_balances;
+	use primitives::v1::{BlockNumber, Header};
+	use runtime_parachains::{
+		configuration as parachains_configuration, paras as parachains_paras,
+		shared as parachains_shared,
+	};
+	use sp_core::H256;
+	use sp_runtime::{
+		traits::{BlakeTwo256, IdentityLookup},
+		DispatchError::BadOrigin,
+	};
+
+	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+	type Block = frame_system::mocking::MockBlock<Test>;
+
+	frame_support::construct_runtime!(
+		pub enum Test where
+			Block = Block,
+			NodeBlock = Block,
+			UncheckedExtrinsic = UncheckedExtrinsic,
+		{
+			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+			Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
+			ParasShared: parachains_shared::{Pallet, Call, Storage},
+			Parachains: parachains_paras::{Pallet, Origin, Call, Storage, Config, Event},
+			Slots: slots::{Pallet, Call, Storage, Event<T>},
+			AssignedSlots: assigned_slots::{Pallet, Call, Storage, Event<T>},
+		}
+	);
+
+	parameter_types! {
+		pub const BlockHashCount: u32 = 250;
+	}
+	impl frame_system::Config for Test {
+		type BaseCallFilter = frame_support::traits::Everything;
+		type BlockWeights = ();
+		type BlockLength = ();
+		type Origin = Origin;
+		type Call = Call;
+		type Index = u64;
+		type BlockNumber = BlockNumber;
+		type Hash = H256;
+		type Hashing = BlakeTwo256;
+		type AccountId = u64;
+		type Lookup = IdentityLookup<Self::AccountId>;
+		type Header = Header;
+		type Event = Event;
+		type BlockHashCount = BlockHashCount;
+		type DbWeight = ();
+		type Version = ();
+		type PalletInfo = PalletInfo;
+		type AccountData = pallet_balances::AccountData<u64>;
+		type OnNewAccount = ();
+		type OnKilledAccount = ();
+		type SystemWeightInfo = ();
+		type SS58Prefix = ();
+		type OnSetCode = ();
+	}
+
+	parameter_types! {
+		pub const ExistentialDeposit: u64 = 1;
+	}
+
+	impl pallet_balances::Config for Test {
+		type Balance = u64;
+		type Event = Event;
+		type DustRemoval = ();
+		type ExistentialDeposit = ExistentialDeposit;
+		type AccountStore = System;
+		type WeightInfo = ();
+		type MaxLocks = ();
+		type MaxReserves = ();
+		type ReserveIdentifier = [u8; 8];
+	}
+
+	impl parachains_configuration::Config for Test {
+		type WeightInfo = parachains_configuration::weights::WeightInfo<Test>;
+	}
+
+	impl parachains_paras::Config for Test {
+		type Origin = Origin;
+		type Event = Event;
+		type WeightInfo = parachains_paras::weights::WeightInfo<Test>;
+	}
+
+	impl parachains_shared::Config for Test {}
+
+	parameter_types! {
+		pub const LeasePeriod: BlockNumber = 3;
+		pub const ParaDeposit: u64 = 1;
+	}
+
+	impl slots::Config for Test {
+		type Event = Event;
+		type Currency = Balances;
+		type Registrar = TestRegistrar<Test>;
+		type LeasePeriod = LeasePeriod;
+		type WeightInfo = crate::slots::TestWeightInfo;
+	}
+
+	parameter_types! {
+		pub const PermanentSlotLeasePeriodLength: u32 = 3;
+		pub const TemporarySlotLeasePeriodLength: u32 = 2;
+		pub const MaxPermanentSlots: u32 = 2;
+		pub const MaxTemporarySlotPerLeasePeriod: u32 = 2;
+	}
+
+	impl assigned_slots::Config for Test {
+		type Event = Event;
+		type AssignSlotOrigin = EnsureRoot<Self::AccountId>;
+		type Leaser = Slots;
+		type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
+		type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
+		type MaxPermanentSlots = MaxPermanentSlots;
+		type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
+	}
+
+	// This function basically just builds a genesis storage key/value store according to
+	// our desired mock up.
+	pub fn new_test_ext() -> sp_io::TestExternalities {
+		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		pallet_balances::GenesisConfig::<Test> {
+			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
+		}
+		.assimilate_storage(&mut t)
+		.unwrap();
+		t.into()
+	}
+
+	fn run_to_block(n: BlockNumber) {
+		while System::block_number() < n {
+			let mut block = System::block_number();
+			// on_finalize hooks
+			AssignedSlots::on_finalize(block);
+			Slots::on_finalize(block);
+			Parachains::on_finalize(block);
+			ParasShared::on_finalize(block);
+			Configuration::on_finalize(block);
+			Balances::on_finalize(block);
+			System::on_finalize(block);
+			// Set next block
+			System::set_block_number(block + 1);
+			block = System::block_number();
+			// on_initialize hooks
+			System::on_initialize(block);
+			Balances::on_initialize(block);
+			Configuration::on_initialize(block);
+			ParasShared::on_initialize(block);
+			Parachains::on_initialize(block);
+			Slots::on_initialize(block);
+			AssignedSlots::on_initialize(block);
+		}
+	}
+
+	#[test]
+	fn basic_setup_works() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+			assert_eq!(Slots::lease_period(), 3);
+			assert_eq!(Slots::lease_period_index(), 0);
+			assert_eq!(Slots::deposit_held(1.into(), &1), 0);
+
+			run_to_block(3);
+			assert_eq!(Slots::lease_period_index(), 1);
+		});
+	}
+
+	#[test]
+	fn assign_perm_slot_fails_for_unknown_para() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_noop!(
+				AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),),
+				Error::<Test>::ParaDoesntExist
+			);
+		});
+	}
+
+	#[test]
+	fn assign_perm_slot_fails_for_invalid_origin() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_noop!(
+				AssignedSlots::assign_perm_parachain_slot(Origin::signed(1), ParaId::from(1),),
+				BadOrigin
+			);
+		});
+	}
+
+	#[test]
+	fn assign_perm_slot_fails_when_not_parathread() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(
+				1,
+				ParaId::from(1),
+				Default::default(),
+				Default::default()
+			));
+			assert_ok!(TestRegistrar::<Test>::make_parachain(ParaId::from(1)));
+
+			assert_noop!(
+				AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),),
+				Error::<Test>::NotParathread
+			);
+		});
+	}
+
+	#[test]
+	fn assign_perm_slot_fails_when_existing_lease() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(
+				1,
+				ParaId::from(1),
+				Default::default(),
+				Default::default()
+			));
+
+			// Register lease in current lease period
+			assert_ok!(Slots::lease_out(ParaId::from(1), &1, 1, 1, 1));
+			// Try to assign a perm slot in current period fails
+			assert_noop!(
+				AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),),
+				Error::<Test>::OngoingLeaseExists
+			);
+
+			// Cleanup
+			assert_ok!(Slots::clear_all_leases(Origin::root(), 1.into()));
+
+			// Register lease for next lease period
+			assert_ok!(Slots::lease_out(ParaId::from(1), &1, 1, 2, 1));
+			// Should be detected and also fail
+			assert_noop!(
+				AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),),
+				Error::<Test>::OngoingLeaseExists
+			);
+		});
+	}
+
+	#[test]
+	fn assign_perm_slot_fails_when_max_perm_slots_exceeded() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(
+				1,
+				ParaId::from(1),
+				Default::default(),
+				Default::default()
+			));
+
+			assert_ok!(TestRegistrar::<Test>::register(
+				2,
+				ParaId::from(2),
+				Default::default(),
+				Default::default()
+			));
+
+			assert_ok!(TestRegistrar::<Test>::register(
+				3,
+				ParaId::from(3),
+				Default::default(),
+				Default::default()
+			));
+
+			assert_ok!(AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),));
+			assert_ok!(AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(2),));
+			assert_eq!(AssignedSlots::permanent_slot_count(), 2);
+
+			assert_noop!(
+				AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(3),),
+				Error::<Test>::MaxPermanentSlotsExceeded
+			);
+		});
+	}
+
+	#[test]
+	fn assign_perm_slot_succeeds_for_parathread() {
+		new_test_ext().execute_with(|| {
+			let mut block = 1;
+			run_to_block(block);
+			assert_ok!(TestRegistrar::<Test>::register(
+				1,
+				ParaId::from(1),
+				Default::default(),
+				Default::default()
+			));
+
+			assert_eq!(AssignedSlots::permanent_slot_count(), 0);
+			assert_eq!(AssignedSlots::permanent_slots(ParaId::from(1)), None);
+
+			assert_ok!(AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),));
+
+			// Para is a parachain for PermanentSlotLeasePeriodLength * LeasePeriod blocks
+			while block < 9 {
+				println!("block #{}", block);
+
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
+
+				assert_eq!(AssignedSlots::permanent_slot_count(), 1);
+				assert_eq!(AssignedSlots::has_permanent_slot(ParaId::from(1)), true);
+				assert_eq!(AssignedSlots::permanent_slots(ParaId::from(1)), Some(0));
+
+				assert_eq!(Slots::already_leased(ParaId::from(1), 0, 2), true);
+
+				block += 1;
+				run_to_block(block);
+			}
+
+			// Para lease ended, downgraded back to parathread
+			assert_eq!(TestRegistrar::<Test>::is_parathread(ParaId::from(1)), true);
+			assert_eq!(Slots::already_leased(ParaId::from(1), 0, 5), false);
+		});
+	}
+
+	#[test]
+	fn assign_temp_slot_fails_for_unknown_para() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_noop!(
+				AssignedSlots::assign_temp_parachain_slot(
+					Origin::root(),
+					ParaId::from(1),
+					SlotLeasePeriodStart::Current
+				),
+				Error::<Test>::ParaDoesntExist
+			);
+		});
+	}
+
+	#[test]
+	fn assign_temp_slot_fails_for_invalid_origin() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_noop!(
+				AssignedSlots::assign_temp_parachain_slot(
+					Origin::signed(1),
+					ParaId::from(1),
+					SlotLeasePeriodStart::Current
+				),
+				BadOrigin
+			);
+		});
+	}
+
+	#[test]
+	fn assign_temp_slot_fails_when_not_parathread() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(
+				1,
+				ParaId::from(1),
+				Default::default(),
+				Default::default()
+			));
+			assert_ok!(TestRegistrar::<Test>::make_parachain(ParaId::from(1)));
+
+			assert_noop!(
+				AssignedSlots::assign_temp_parachain_slot(
+					Origin::root(),
+					ParaId::from(1),
+					SlotLeasePeriodStart::Current
+				),
+				Error::<Test>::NotParathread
+			);
+		});
+	}
+
+	#[test]
+	fn assign_temp_slot_fails_when_existing_lease() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(
+				1,
+				ParaId::from(1),
+				Default::default(),
+				Default::default()
+			));
+
+			// Register lease in current lease period
+			assert_ok!(Slots::lease_out(ParaId::from(1), &1, 1, 1, 1));
+			// Try to assign a perm slot in current period fails
+			assert_noop!(
+				AssignedSlots::assign_temp_parachain_slot(
+					Origin::root(),
+					ParaId::from(1),
+					SlotLeasePeriodStart::Current
+				),
+				Error::<Test>::OngoingLeaseExists
+			);
+
+			// Cleanup
+			assert_ok!(Slots::clear_all_leases(Origin::root(), 1.into()));
+
+			// Register lease for next lease period
+			assert_ok!(Slots::lease_out(ParaId::from(1), &1, 1, 2, 1));
+			// Should be detected and also fail
+			assert_noop!(
+				AssignedSlots::assign_temp_parachain_slot(
+					Origin::root(),
+					ParaId::from(1),
+					SlotLeasePeriodStart::Current
+				),
+				Error::<Test>::OngoingLeaseExists
+			);
+		});
+	}
+
+	#[test]
+	fn assign_temp_slot_succeeds_for_single_parathread() {
+		new_test_ext().execute_with(|| {
+			let mut block = 1;
+			run_to_block(block);
+			assert_ok!(TestRegistrar::<Test>::register(
+				1,
+				ParaId::from(1),
+				Default::default(),
+				Default::default()
+			));
+
+			assert_eq!(AssignedSlots::temporary_slots(ParaId::from(1)), None);
+
+			assert_ok!(AssignedSlots::assign_temp_parachain_slot(
+				Origin::root(),
+				ParaId::from(1),
+				SlotLeasePeriodStart::Current
+			));
+
+			// Block 1-5
+			// Para is a parachain for TemporarySlotLeasePeriodLength * LeasePeriod blocks
+			while block < 6 {
+				println!("block #{}", block);
+				println!("lease period #{}", Slots::lease_period_index());
+				println!("lease {:?}", Slots::lease(ParaId::from(1)));
+
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
+
+				assert_eq!(AssignedSlots::has_temporary_slot(ParaId::from(1)), true);
+				assert_eq!(
+					AssignedSlots::temporary_slots(ParaId::from(1)),
+					Some(ParachainTemporarySlot {
+						manager: 1,
+						period_begin: 0,
+						period_count: 2, // TemporarySlotLeasePeriodLength
+						last_lease: Some(0),
+						lease_count: 1
+					})
+				);
+
+				assert_eq!(Slots::already_leased(ParaId::from(1), 0, 1), true);
+
+				block += 1;
+				run_to_block(block);
+			}
+
+			// Block 6
+			println!("block #{}", block);
+			println!("lease period #{}", Slots::lease_period_index());
+			println!("lease {:?}", Slots::lease(ParaId::from(1)));
+
+			// Para lease ended, downgraded back to parathread
+			assert_eq!(TestRegistrar::<Test>::is_parathread(ParaId::from(1)), true);
+			assert_eq!(Slots::already_leased(ParaId::from(1), 0, 3), false);
+
+			// Block 12
+			// Para should get a turn after TemporarySlotLeasePeriodLength * LeasePeriod blocks
+			run_to_block(12);
+			println!("block #{}", block);
+			println!("lease period #{}", Slots::lease_period_index());
+			println!("lease {:?}", Slots::lease(ParaId::from(1)));
+
+			assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
+			assert_eq!(Slots::already_leased(ParaId::from(1), 4, 5), true);
+		});
+	}
+
+	#[test]
+	fn assign_temp_slot_succeeds_for_multiple_parathreads() {
+		new_test_ext().execute_with(|| {
+			// Block 1, Period 0
+			run_to_block(1);
+
+			// Register 6 paras & a temp slot for each
+			// (3 slots in current lease period, 3 in the next one)
+			for n in 0..=5 {
+				assert_ok!(TestRegistrar::<Test>::register(
+					n,
+					ParaId::from(n as u32),
+					Default::default(),
+					Default::default()
+				));
+
+				assert_ok!(AssignedSlots::assign_temp_parachain_slot(
+					Origin::root(),
+					ParaId::from(n as u32),
+					if (n % 2).is_zero() {
+						SlotLeasePeriodStart::Current
+					} else {
+						SlotLeasePeriodStart::Next
+					}
+				));
+			}
+
+			// Block 1-5, Period 0-1
+			for n in 1..=5 {
+				if n > 1 {
+					run_to_block(n);
+				}
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(0)), true);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(2)), true);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), false);
+			}
+
+			// Block 6-11, Period 2-3
+			for n in 6..=11 {
+				run_to_block(n);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(0)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(2)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), true);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), false);
+			}
+
+			// Block 12-17, Period 4-5
+			for n in 12..=17 {
+				run_to_block(n);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(0)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(2)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), true);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), true);
+			}
+
+			// Block 18-23, Period 6-7
+			for n in 18..=23 {
+				run_to_block(n);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(0)), true);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(2)), true);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), false);
+			}
+
+			// Block 24-29, Period 8-9
+			for n in 24..=29 {
+				run_to_block(n);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(0)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(2)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), true);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), false);
+			}
+
+			// Block 30-35, Period 10-11
+			for n in 30..=35 {
+				run_to_block(n);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(0)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(2)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), false);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), true);
+				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), true);
+			}
+		});
+	}
+
+	#[test]
+	fn unassign_slot_fails_for_unknown_para() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_noop!(
+				AssignedSlots::unassign_parachain_slot(Origin::root(), ParaId::from(1),),
+				Error::<Test>::SlotNotAssigned
+			);
+		});
+	}
+
+	#[test]
+	fn unassign_slot_fails_for_invalid_origin() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_noop!(
+				AssignedSlots::assign_perm_parachain_slot(Origin::signed(1), ParaId::from(1),),
+				BadOrigin
+			);
+		});
+	}
+
+	#[test]
+	fn unassign_perm_slot_succeeds() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(
+				1,
+				ParaId::from(1),
+				Default::default(),
+				Default::default()
+			));
+
+			assert_ok!(AssignedSlots::assign_perm_parachain_slot(Origin::root(), ParaId::from(1),));
+
+			assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
+
+			assert_ok!(AssignedSlots::unassign_parachain_slot(Origin::root(), ParaId::from(1),));
+
+			assert_eq!(AssignedSlots::permanent_slot_count(), 0);
+			assert_eq!(AssignedSlots::has_permanent_slot(ParaId::from(1)), false);
+			assert_eq!(AssignedSlots::permanent_slots(ParaId::from(1)), None);
+
+			assert_eq!(Slots::already_leased(ParaId::from(1), 0, 2), false);
+		});
+	}
+
+	#[test]
+	fn unassign_temp_slot_succeeds() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(TestRegistrar::<Test>::register(
+				1,
+				ParaId::from(1),
+				Default::default(),
+				Default::default()
+			));
+
+			assert_ok!(AssignedSlots::assign_temp_parachain_slot(
+				Origin::root(),
+				ParaId::from(1),
+				SlotLeasePeriodStart::Current
+			));
+
+			assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
+
+			assert_ok!(AssignedSlots::unassign_parachain_slot(Origin::root(), ParaId::from(1),));
+
+			assert_eq!(AssignedSlots::has_temporary_slot(ParaId::from(1)), false);
+			assert_eq!(AssignedSlots::temporary_slots(ParaId::from(1)), None);
+
+			assert_eq!(Slots::already_leased(ParaId::from(1), 0, 1), false);
+		});
 	}
 }
