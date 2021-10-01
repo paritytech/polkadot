@@ -10,7 +10,7 @@ path = "bin/puppet_worker.rs"
 
 [dependencies]
 always-assert = "0.1"
-async-std = { version = "1.8.0", features = ["attributes"] }
+async-std = { version = "1.10.0", features = ["attributes"] }
 async-process = "1.1.0"
 assert_matches = "1.4.0"
 futures = "0.3.17"
