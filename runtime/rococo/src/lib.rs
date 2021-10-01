@@ -998,6 +998,7 @@ impl slots::Config for Runtime {
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
+	type LeaseOffset = ();
 	type WeightInfo = slots::TestWeightInfo;
 }
 
