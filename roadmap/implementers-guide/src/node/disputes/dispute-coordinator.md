@@ -98,8 +98,79 @@ Exit gracefully.
 
 Do nothing.
 
-### On `DisputeCoordinatorMessage::ImportStatement`
+### On `DisputeCoordinatorMessage::ImportStatements`
 
+#### Ordering/filtering
+
+Before actually acting upon a statements import we do check a few things and
+order incoming imports.
+
+First we check whether the incoming votes concern a candidate we already have
+in recent disputes, if that is the case then there is no work todo from our side
+(no availability recovery, no validity checking) and it is safe to import the
+candidate right away (see next section).
+
+If the candidate is not within recent disputes, but all queues are empty, we
+also go to importing the candidate, as we don't have anything better to do right
+now.
+
+If queues are non empty, we check whether we have any record of the candidate
+gotten included on some chain we have seen in the past. If so, we know the
+statements are not pure spam and put the votes on the priority queue ordered by
+age (explained below).
+
+If we have not seen the candidate gotten included somewhere, then we either have
+been offline/or missed the fork for some reason - in any case, such a candidate
+might be spam so we put it on the low priority queue which gets processed on a
+best effort basis.
+
+If we have seen the candidate included, but the candidate has a relay parent
+that has been already finalized, also put the candidate on the best effort
+queue. (We can't prevent any potential harm anymore, so we should prioritize
+disputes concerning non finalized blocks.)
+
+##### High priority queue
+
+For statements concerning a candiate that we have seen included, we put those
+statements on a high priority queue, which is conceptually organized like this:
+
+```rust
+BTreeMap<(BlockNumber, ParaId), Vec<(Candidate, HashSet<(SignedDisputeStatement,
+      ValidatorIndex)>)>>
+```
+
+So we order first by block number of the relay parent of the candidate, and then
+by `ParaId`. This way we get a deterministic ordering that should be the same on
+all validators. The size of that map will be limited to some reasonable value.
+The number of votes for each candidate can easily be limited to twice the number
+validators, so everyone can equivocate, if they desire to do so.
+
+Note that we not order based on the relay parent hash (forks), instead the value
+of the `BTreeMap` is a vec, to account for multiple relay parents at that
+height. This is, because there is no good ordering of forks and the best thing
+we can do with forks, is treat them in a round robin fashion - so no single fork
+can stall any other fork of getting its disputes processed. So instead of
+ordering by relay parent hash in case of the same block number, we will make
+sure in code to treat multiple relay parent at the same height fairly (round
+robin).
+
+We then process this "queue" in order of the oldest block first to make sure we
+will conclude earlier disputes first, before taking care of any younger ones.
+
+
+##### Reasoning / Considerations of this setup
+
+- Responses might be late
+- Explain network effects
+- Slashing for false negative
+- Forks: Disputes might technically be older, but on an abandoned fork -
+  shouldn't we de-prioritize those?
+
+  Unrelated:
+    In case of block producers - we don't participate, do we still try to
+    recover availability - NOOOOOOO! Harmfull?! - Could fill up disk.
+
+#### Processing
 1. Deconstruct into parts `{ candidate_hash, candidate_receipt, session, statements }`.
 2. If the session is earlier than `state.highest_session - DISPUTE_WINDOW`,
    respond with `ImportStatementsResult::InvalidImport` and return.
