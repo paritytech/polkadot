@@ -28,49 +28,49 @@ pub enum Error {
 	// XCM specification.
 	
 	/// An arithmetic overflow happened.
-	Overflow = 0,
+	#[codec(index = 0)] Overflow,
 	/// The instruction is intentionally unsupported.
-	Unimplemented = 1,
+	#[codec(index = 1)] Unimplemented,
 	/// Origin Register does not contain a value value for a reserve transfer notification.
-	UntrustedReserveLocation = 2,
+	#[codec(index = 2)] UntrustedReserveLocation,
 	/// Origin Register does not contain a value value for a teleport notification.
-	UntrustedTeleportLocation = 3,
+	#[codec(index = 3)] UntrustedTeleportLocation,
 	/// `MultiLocation` value too large to descend further.
-	MultiLocationFull = 4,
+	#[codec(index = 4)] MultiLocationFull,
 	/// `MultiLocation` value ascend more parents than known ancestors of local location.
-	MultiLocationNotInvertible = 5,
+	#[codec(index = 5)] MultiLocationNotInvertible,
 	/// The Origin Register does not contain a valid value for instruction.
-	BadOrigin = 6,
+	#[codec(index = 6)] BadOrigin,
 	/// The location parameter is not a valid value for the instruction.
-	InvalidLocation = 7,
+	#[codec(index = 7)] InvalidLocation,
 	/// The given asset is not handled.
-	AssetNotFound = 8,
+	#[codec(index = 8)] AssetNotFound,
 	/// An asset transaction (like withdraw or deposit) failed (typically due to type conversions).
-	FailedToTransactAsset(#[codec(skip)] &'static str) = 9,
+	#[codec(index = 9)] FailedToTransactAsset(#[codec(skip)] &'static str),
 	/// An asset cannot be withdrawn, potentially due to lack of ownership, availability or rights.
-	NotWithdrawable = 10,
+	#[codec(index = 10)] NotWithdrawable,
 	/// An asset cannot be deposited under the ownership of a particular location.
-	LocationCannotHold = 11,
+	#[codec(index = 11)] LocationCannotHold,
 	/// Attempt to send a message greater than the maximum supported by the transport protocol.
-	ExceedsMaxMessageSize = 12,
+	#[codec(index = 12)] ExceedsMaxMessageSize,
 	/// The given message cannot be translated into a format supported by the destination.
-	DestinationUnsupported = 13,
+	#[codec(index = 13)] DestinationUnsupported,
 	/// Destination is routable, but there is some issue with the transport mechanism.
-	Transport(#[codec(skip)] &'static str) = 14,
+	#[codec(index = 14)] Transport(#[codec(skip)] &'static str),
 	/// Destination is known to be unroutable.
-	Unroutable = 15,
+	#[codec(index = 15)] Unroutable,
 	/// Used by `ClaimAsset` when the given claim could not be recognized/found.
-	UnknownClaim = 16,
+	#[codec(index = 16)] UnknownClaim,
 	/// Used by `Transact` when the functor cannot be decoded.
-	FailedToDecode = 17,
+	#[codec(index = 17)] FailedToDecode,
 	/// Used by `Transact` to indicate that the given weight limit could be breached by the functor.
-	TooMuchWeightRequired = 18,
+	#[codec(index = 18)] TooMuchWeightRequired,
 	/// Used by `BuyExecution` when the Holding Register does not contain payable fees.
-	NotHoldingFees = 19,
+	#[codec(index = 19)] NotHoldingFees,
 	/// Used by `BuyExecution` when the fees declared to purchase weight are insufficient.
-	TooExpensive = 20,
+	#[codec(index = 20)] TooExpensive,
 	/// Used by the `Trap` instruction to force an error intentionally. Its code is included.
-	Trap(u64) = 21,
+	#[codec(index = 21)] Trap(u64),
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	
