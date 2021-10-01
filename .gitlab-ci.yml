@@ -233,8 +233,11 @@ spellcheck:
     - cargo spellcheck --version
     # compare with the commit parent to the PR, given it's from a default branch
     - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
+    - echo "___Spellcheck is going to check your diff___"
+    - git_diff_parent () { git diff --name-only ${CI_COMMIT_SHA} $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH}); }
+    - git_diff_parent
     - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
-        -r $(git diff --name-only ${CI_COMMIT_SHA} $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH}))
+        -r $(git_diff_parent)
   allow_failure:                   true
 
 build-adder-collator:
@@ -267,6 +270,8 @@ check-transaction-versions:
       artifacts:                   true
   before_script:
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
+    # Set git config
+    - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
     - git fetch origin release
   script:
     - scripts/gitlab/check_extrinsics_ordering.sh

@@ -1,6 +1,6 @@
 # Shell completion
 
-The Polkadot cli command supports shell auto-completion. For this to work, you will need to run the completion script matching you build and system.
+The Polkadot CLI command supports shell auto-completion. For this to work, you will need to run the completion script matching you build and system.
 
 Assuming you built a release version using `cargo build --release` and use `bash` run the following:
 
