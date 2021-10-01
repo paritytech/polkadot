@@ -344,13 +344,7 @@ async fn make_pov_available(
 	{
 		let _span = span.as_ref().map(|s| s.child("store-data").with_candidate(candidate_hash));
 
-		store_available_data(
-			sender,
-			n_validators as u32,
-			candidate_hash,
-			available_data,
-		)
-		.await?;
+		store_available_data(sender, n_validators as u32, candidate_hash, available_data).await?;
 	}
 
 	Ok(Ok(()))

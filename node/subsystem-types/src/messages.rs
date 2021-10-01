@@ -489,12 +489,7 @@ pub enum AvailabilityStoreMessage {
 	/// Store a `AvailableData` and all of its chunks in the AV store.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreAvailableData(
-		CandidateHash,
-		u32,
-		AvailableData,
-		oneshot::Sender<Result<(), ()>>,
-	),
+	StoreAvailableData(CandidateHash, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
 }
 
 impl AvailabilityStoreMessage {
