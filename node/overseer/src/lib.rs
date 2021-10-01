@@ -539,7 +539,7 @@ where
 			Err(_) => {
 				tracing::debug!(
 					target: LOG_TARGET,
-					"Jemalloc not set as allocator, so memory allocations will not be tracked",
+					"Memory allocation tracking is not supported by the allocator.",
 				);
 
 				Box::new(|_| {})
