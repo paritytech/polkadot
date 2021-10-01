@@ -518,32 +518,52 @@ where
 	}
 	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
-	let memory_stats =
-		MemoryAllocationTracker::new().expect("Jemalloc is the default allocator. qed");
+	let memory_stats = match MemoryAllocationTracker::new() {
+		Ok(memory_stats) => Some(memory_stats),
+		Err(error) => {
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Failed to initialize memory allocation tracker: {:?}",
+				error
+			);
 
-	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
-		match memory_stats.snapshot() {
-			Ok(memory_stats_snapshot) => {
-				tracing::trace!(target: LOG_TARGET, "memory_stats: {:?}", &memory_stats_snapshot);
-				metronome_metrics.memory_stats_snapshot(memory_stats_snapshot);
-			},
+			None
+		},
+	};
 
-			Err(e) => tracing::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
-		}
+	let metronome_metrics = metronome_metrics.clone();
+	let metronome = Metronome::new(std::time::Duration::from_millis(950))
+		.for_each(move |_| {
+			if let Some(ref memory_stats) = memory_stats {
+				match memory_stats.snapshot() {
+					Ok(memory_stats_snapshot) => {
+						tracing::trace!(
+							target: LOG_TARGET,
+							"memory_stats: {:?}",
+							&memory_stats_snapshot
+						);
+						metronome_metrics.memory_stats_snapshot(memory_stats_snapshot);
+					},
 
-		// We combine the amount of messages from subsystems to the overseer
-		// as well as the amount of messages from external sources to the overseer
-		// into one `to_overseer` value.
-		metronome_metrics.channel_fill_level_snapshot(
-			subsystem_meters
-				.iter()
-				.cloned()
-				.filter_map(|x| x)
-				.map(|(name, ref meters)| (name, meters.read())),
-		);
+					Err(e) =>
+						tracing::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
+				}
+			}
 
-		futures::future::ready(())
-	});
+			// We combine the amount of messages from subsystems to the overseer
+			// as well as the amount of messages from external sources to the overseer
+			// into one `to_overseer` value.
+			metronome_metrics.channel_fill_level_snapshot(
+				subsystem_meters
+					.iter()
+					.cloned()
+					.filter_map(|x| x)
+					.map(|(name, ref meters)| (name, meters.read())),
+			);
+
+			futures::future::ready(())
+		});
+
 	overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
 	Ok(())
 }
