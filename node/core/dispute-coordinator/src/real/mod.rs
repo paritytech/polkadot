@@ -540,7 +540,7 @@ async fn scrape_on_chain_votes(
 				return Ok(())
 			},
 			Ok(Err(e)) => {
-				tracing::trace!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					relay_parent = ?new_leaf,
 					error = ?e,
@@ -548,7 +548,7 @@ async fn scrape_on_chain_votes(
 				return Ok(())
 			},
 			Err(e) => {
-				tracing::trace!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					relay_parent = ?new_leaf,
 					error = ?e,
@@ -563,23 +563,20 @@ async fn scrape_on_chain_votes(
 	}
 
 	// Obtain the session info, for sake of `ValidatorId`s
-	// either from the rolling session window or query from
-	// the on chain state directly
+	// either from the rolling session window.
+	// Must be called _after_ `fn cache_session_info_for_head`
+	// which guarantees that the session info is available
+	// for the current session.
 	let session_info: SessionInfo =
 		if let Some(session_info) = state.rolling_session_window.session_info(session) {
 			session_info.clone()
 		} else {
-			let (tx, rx) = oneshot::channel();
-			ctx.send_message(RuntimeApiMessage::Request(
-				new_leaf,
-				RuntimeApiRequest::SessionInfo(session, tx),
-			))
-			.await;
-
-			match rx.await?? {
-				None => return Ok(()),
-				Some(session_info) => session_info,
-			}
+			tracing::warn!(
+				target: LOG_TARGET,
+				relay_parent = ?new_leaf,
+				error = ?e,
+				"Could not retrieve session info from rolling session window");
+			return Ok(())
 		};
 
 	// Scraped on-chain backing votes for the candidates with
