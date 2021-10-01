@@ -210,7 +210,7 @@ test-build-linux-stable:
     - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
     - echo -n ${VERSION} > ./artifacts/VERSION
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
-    - cp -r scripts/docker/* ./artifacts
+    - cp -r scripts/* ./artifacts
 
 check-runtime-benchmarks:
   stage:                           test
@@ -265,12 +265,13 @@ build-adder-collator:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/docker/* ./artifacts
+    - cp -r scripts/* ./artifacts
 
 #### stage:                        build
 
 check-transaction-versions:
-  image:                           node:15
+  # image must be ubuntu:20.04 based to match the linkers, this image has npm installed
+  image:                           paritytech/contracts-ci-linux:production
   stage:                           build
   <<:                              *rules-test
   <<:                              *docker-env
@@ -357,8 +358,8 @@ publish-polkadot-image:
   <<:                              *build-push-image
   variables:
     <<:                            *image-variables
-    # scripts/docker/Dockerfile
-    DOCKERFILE:                    Dockerfile
+    # scripts/dockerfiles/polkadot_injected_debug.Dockerfile
+    DOCKERFILE:                    dockerfiles/polkadot_injected_debug.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/synth-wave
   rules:
     # Don't run on releases - this is handled by the Github Action here:
@@ -393,8 +394,8 @@ publish-adder-collator-image:
   <<:                              *build-push-image
   variables:
     <<:                            *image-variables
-    # scripts/docker/collator.Dockerfile
-    DOCKERFILE:                    collator.Dockerfile
+    # scripts/dockerfiles/collator_injected.Dockerfile
+    DOCKERFILE:                    dockerfiles/collator_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"

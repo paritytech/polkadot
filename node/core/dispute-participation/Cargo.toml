@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-node-core-dispute-participation"
-version = "0.9.9"
+version = "0.9.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 futures = "0.3.17"
 thiserror = "1.0.26"
-tracing = "0.1.27"
+tracing = "0.1.28"
 
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
@@ -15,6 +15,6 @@ polkadot-primitives = { path = "../../../primitives" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"
-parity-scale-codec = "2.0.0"
+parity-scale-codec = "2.3.1"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers"}
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

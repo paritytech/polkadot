@@ -47,8 +47,8 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> SendResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
+	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
+		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
 		Ok(())
 	}
 }

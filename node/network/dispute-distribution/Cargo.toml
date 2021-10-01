@@ -1,14 +1,14 @@
 [package]
 name = "polkadot-dispute-distribution"
-version = "0.9.9"
+version = "0.9.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 futures = "0.3.17"
-tracing = "0.1.27"
+tracing = "0.1.28"
 derive_more = "0.99.14"
-parity-scale-codec = { version = "2.0.0", features = ["std"] }
+parity-scale-codec = { version = "2.3.1", features = ["std"] }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
