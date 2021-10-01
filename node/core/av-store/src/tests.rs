@@ -420,12 +420,12 @@ fn store_block_works() {
 		};
 
 		let (tx, rx) = oneshot::channel();
-		let block_msg = AvailabilityStoreMessage::StoreAvailableData(
+		let block_msg = AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
 			n_validators,
-			available_data.clone(),
+			available_data: available_data.clone(),
 			tx,
-		);
+		};
 
 		virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
 		assert_eq!(rx.await.unwrap(), Ok(()));
@@ -473,12 +473,12 @@ fn store_pov_and_query_chunk_works() {
 			erasure::obtain_chunks_v1(n_validators as _, &available_data).unwrap();
 
 		let (tx, rx) = oneshot::channel();
-		let block_msg = AvailabilityStoreMessage::StoreAvailableData(
+		let block_msg = AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
 			n_validators,
 			available_data,
 			tx,
-		);
+		};
 
 		virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
 
@@ -519,12 +519,12 @@ fn query_all_chunks_works() {
 
 		{
 			let (tx, rx) = oneshot::channel();
-			let block_msg = AvailabilityStoreMessage::StoreAvailableData(
-				candidate_hash_1,
+			let block_msg = AvailabilityStoreMessage::StoreAvailableData {
+				candidate_hash: candidate_hash_1,
 				n_validators,
 				available_data,
 				tx,
-			);
+			};
 
 			virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
 			assert_eq!(rx.await.unwrap(), Ok(()));
@@ -607,12 +607,12 @@ fn stored_but_not_included_data_is_pruned() {
 		};
 
 		let (tx, rx) = oneshot::channel();
-		let block_msg = AvailabilityStoreMessage::StoreAvailableData(
+		let block_msg = AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
 			n_validators,
-			available_data.clone(),
+			available_data: available_data.clone(),
 			tx,
-		);
+		};
 
 		virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
 
@@ -659,12 +659,12 @@ fn stored_data_kept_until_finalized() {
 		let block_number = 10;
 
 		let (tx, rx) = oneshot::channel();
-		let block_msg = AvailabilityStoreMessage::StoreAvailableData(
+		let block_msg = AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
 			n_validators,
-			available_data.clone(),
+			available_data: available_data.clone(),
 			tx,
-		);
+		};
 
 		virtual_overseer.send(FromOverseer::Communication { msg: block_msg }).await;
 
@@ -894,24 +894,24 @@ fn forkfullness_works() {
 		};
 
 		let (tx, rx) = oneshot::channel();
-		let msg = AvailabilityStoreMessage::StoreAvailableData(
-			candidate_1_hash,
+		let msg = AvailabilityStoreMessage::StoreAvailableData {
+			candidate_hash: candidate_1_hash,
 			n_validators,
-			available_data_1.clone(),
+			available_data: available_data_1.clone(),
 			tx,
-		);
+		};
 
 		virtual_overseer.send(FromOverseer::Communication { msg }).await;
 
 		rx.await.unwrap().unwrap();
 
 		let (tx, rx) = oneshot::channel();
-		let msg = AvailabilityStoreMessage::StoreAvailableData(
-			candidate_2_hash,
+		let msg = AvailabilityStoreMessage::StoreAvailableData {
+			candidate_hash: candidate_2_hash,
 			n_validators,
-			available_data_2.clone(),
+			available_data: available_data_2.clone(),
 			tx,
-		);
+		};
 
 		virtual_overseer.send(FromOverseer::Communication { msg }).await;
 

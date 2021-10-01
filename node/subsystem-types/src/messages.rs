@@ -489,7 +489,16 @@ pub enum AvailabilityStoreMessage {
 	/// Store a `AvailableData` and all of its chunks in the AV store.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreAvailableData(CandidateHash, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
+	StoreAvailableData {
+		/// A hash of the candidate this `available_data` belongs to.
+		candidate_hash: CandidateHash,
+		/// The number of validators in the session.
+		n_validators: u32,
+		/// The `AvailableData` itself.
+		available_data: AvailableData,
+		/// Sending side of the channel to send result to.
+		tx: oneshot::Sender<Result<(), ()>>,
+	},
 }
 
 impl AvailabilityStoreMessage {

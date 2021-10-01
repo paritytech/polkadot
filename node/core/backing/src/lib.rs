@@ -300,12 +300,12 @@ async fn store_available_data(
 ) -> Result<(), Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(AvailabilityStoreMessage::StoreAvailableData(
+		.send_message(AvailabilityStoreMessage::StoreAvailableData {
 			candidate_hash,
 			n_validators,
 			available_data,
 			tx,
-		))
+		})
 		.await;
 
 	let _ = rx.await.map_err(Error::StoreAvailableData)?;
