@@ -621,10 +621,12 @@ async fn scrape_on_chain_votes(
 		match import_result {
 			ImportStatementsResult::ValidImport => tracing::trace!(target: LOG_TARGET,
 				relay_parent = ?new_leaf,
+				?session,
 				"Imported backing vote from on-chain"),
 			ImportStatementsResult::InvalidImport => tracing::warn!(target: LOG_TARGET,
-					relay_parent = ?new_leaf,
-					"Attempted import of on-chain backing votes failed"),
+				relay_parent = ?new_leaf,
+				?session,
+				"Attempted import of on-chain backing votes failed"),
 		}
 	}
 
@@ -650,6 +652,7 @@ async fn scrape_on_chain_votes(
 					tracing::warn!(
 					target: LOG_TARGET,
 					relay_parent = ?new_leaf,
+					?session,
 					"Could not retrieve session info from rolling session window for concluded dispute");
 					return None
 				};
@@ -661,6 +664,7 @@ async fn scrape_on_chain_votes(
 						tracing::error!(
 						target: LOG_TARGET,
 						relay_parent = ?new_leaf,
+						?session,
 						"Missing public key for validator {:?} that participated in concluded dispute",
 						&validator_index);
 						None
@@ -694,10 +698,14 @@ async fn scrape_on_chain_votes(
 		match import_result {
 			ImportStatementsResult::ValidImport => tracing::trace!(target: LOG_TARGET,
 				relay_parent = ?new_leaf,
-				"Imported backing vote from on-chain"),
+				?candidate_hash,
+				?session,
+				"Imported statement of conlcuded dispute from on-chain"),
 			ImportStatementsResult::InvalidImport => tracing::warn!(target: LOG_TARGET,
-					relay_parent = ?new_leaf,
-					"Attempted import of on-chain backing votes failed"),
+				relay_parent = ?new_leaf,
+				?candidate_hash,
+				?session,
+				"Attempted import of on-chain statement of concluded dispute failed"),
 		}
 	}
 	Ok(())
