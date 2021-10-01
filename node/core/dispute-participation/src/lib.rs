@@ -248,13 +248,12 @@ async fn participate(
 	// we dispatch a request to store the available data for the candidate. we
 	// want to maximize data availability for other potential checkers involved
 	// in the dispute
-	ctx.send_message(AvailabilityStoreMessage::StoreAvailableData(
+	ctx.send_message(AvailabilityStoreMessage::StoreAvailableData {
 		candidate_hash,
-		None,
 		n_validators,
-		available_data.clone(),
-		store_available_data_tx,
-	))
+		available_data: available_data.clone(),
+		tx: store_available_data_tx,
+	})
 	.await;
 
 	match store_available_data_rx.await? {

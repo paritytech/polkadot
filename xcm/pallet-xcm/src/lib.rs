@@ -426,7 +426,7 @@ pub mod pallet {
 			weight_used += T::DbWeight::get().read + T::DbWeight::get().write;
 			q.sort_by_key(|i| i.1);
 			while let Some((versioned_dest, _)) = q.pop() {
-				if let Ok(dest) = versioned_dest.try_into() {
+				if let Ok(dest) = MultiLocation::try_from(versioned_dest) {
 					if Self::request_version_notify(dest).is_ok() {
 						// TODO: correct weights.
 						weight_used += T::DbWeight::get().read + T::DbWeight::get().write;
@@ -458,7 +458,7 @@ pub mod pallet {
 			message: Box<VersionedXcm<()>>,
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
-			let interior =
+			let interior: Junctions =
 				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
 			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
 			let message: Xcm<()> = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
@@ -688,7 +688,8 @@ pub mod pallet {
 			location: Box<VersionedMultiLocation>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let location = (*location).try_into().map_err(|()| Error::<T>::BadLocation)?;
+			let location: MultiLocation =
+				(*location).try_into().map_err(|()| Error::<T>::BadLocation)?;
 			Self::request_version_notify(location).map_err(|e| {
 				match e {
 					XcmError::InvalidLocation => Error::<T>::AlreadySubscribed,
@@ -710,7 +711,8 @@ pub mod pallet {
 			location: Box<VersionedMultiLocation>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let location = (*location).try_into().map_err(|()| Error::<T>::BadLocation)?;
+			let location: MultiLocation =
+				(*location).try_into().map_err(|()| Error::<T>::BadLocation)?;
 			Self::unrequest_version_notify(location).map_err(|e| {
 				match e {
 					XcmError::InvalidLocation => Error::<T>::NoSubscription,
@@ -867,7 +869,8 @@ pub mod pallet {
 		}
 
 		/// Request that `dest` informs us of its version.
-		pub fn request_version_notify(dest: MultiLocation) -> XcmResult {
+		pub fn request_version_notify(dest: impl Into<MultiLocation>) -> XcmResult {
+			let dest = dest.into();
 			let versioned_dest = VersionedMultiLocation::from(dest.clone());
 			let already = VersionNotifiers::<T>::contains_key(XCM_VERSION, &versioned_dest);
 			ensure!(!already, XcmError::InvalidLocation);
@@ -887,7 +890,8 @@ pub mod pallet {
 		}
 
 		/// Request that `dest` ceases informing us of its version.
-		pub fn unrequest_version_notify(dest: MultiLocation) -> XcmResult {
+		pub fn unrequest_version_notify(dest: impl Into<MultiLocation>) -> XcmResult {
+			let dest = dest.into();
 			let versioned_dest = LatestVersionedMultiLocation(&dest);
 			let query_id = VersionNotifiers::<T>::take(XCM_VERSION, versioned_dest)
 				.ok_or(XcmError::InvalidLocation)?;
@@ -899,10 +903,12 @@ pub mod pallet {
 		/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
 		/// location. A null `dest` is not handled.
 		pub fn send_xcm(
-			interior: Junctions,
-			dest: MultiLocation,
+			interior: impl Into<Junctions>,
+			dest: impl Into<MultiLocation>,
 			mut message: Xcm<()>,
 		) -> Result<(), SendError> {
+			let interior = interior.into();
+			let dest = dest.into();
 			if interior != Junctions::Here {
 				message.0.insert(0, DescendOrigin(interior))
 			};
@@ -916,7 +922,7 @@ pub mod pallet {
 		}
 
 		fn do_new_query(
-			responder: MultiLocation,
+			responder: impl Into<MultiLocation>,
 			maybe_notify: Option<(u8, u8)>,
 			timeout: T::BlockNumber,
 		) -> u64 {
@@ -925,7 +931,11 @@ pub mod pallet {
 				q.saturating_inc();
 				Queries::<T>::insert(
 					r,
-					QueryStatus::Pending { responder: responder.into(), maybe_notify, timeout },
+					QueryStatus::Pending {
+						responder: responder.into().into(),
+						maybe_notify,
+						timeout,
+					},
 				);
 				r
 			})
@@ -945,9 +955,10 @@ pub mod pallet {
 		/// value.
 		pub fn report_outcome(
 			message: &mut Xcm<()>,
-			responder: MultiLocation,
+			responder: impl Into<MultiLocation>,
 			timeout: T::BlockNumber,
 		) -> Result<QueryId, XcmError> {
+			let responder = responder.into();
 			let dest = T::LocationInverter::invert_location(&responder)
 				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 			let query_id = Self::new_query(responder, timeout);
@@ -978,10 +989,11 @@ pub mod pallet {
 		/// may be put in the overweight queue and need to be manually executed.
 		pub fn report_outcome_notify(
 			message: &mut Xcm<()>,
-			responder: MultiLocation,
+			responder: impl Into<MultiLocation>,
 			notify: impl Into<<T as Config>::Call>,
 			timeout: T::BlockNumber,
 		) -> Result<(), XcmError> {
+			let responder = responder.into();
 			let dest = T::LocationInverter::invert_location(&responder)
 				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 			let notify: <T as Config>::Call = notify.into();
@@ -993,14 +1005,14 @@ pub mod pallet {
 		}
 
 		/// Attempt to create a new query ID and register it as a query that is yet to respond.
-		pub fn new_query(responder: MultiLocation, timeout: T::BlockNumber) -> u64 {
+		pub fn new_query(responder: impl Into<MultiLocation>, timeout: T::BlockNumber) -> u64 {
 			Self::do_new_query(responder, None, timeout)
 		}
 
 		/// Attempt to create a new query ID and register it as a query that is yet to respond, and
 		/// which will call a dispatchable when a response happens.
 		pub fn new_notify_query(
-			responder: MultiLocation,
+			responder: impl Into<MultiLocation>,
 			notify: impl Into<<T as Config>::Call>,
 			timeout: T::BlockNumber,
 		) -> u64 {
@@ -1368,7 +1380,11 @@ where
 /// this crate's `Origin::Xcm` value.
 pub struct XcmPassthrough<Origin>(PhantomData<Origin>);
 impl<Origin: From<crate::Origin>> ConvertOrigin<Origin> for XcmPassthrough<Origin> {
-	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
+		let origin = origin.into();
 		match kind {
 			OriginKind::Xcm => Ok(crate::Origin::Xcm(origin).into()),
 			_ => Err(origin),
