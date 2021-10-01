@@ -22,12 +22,12 @@ COPY --from=builder /polkadot/target/release/polkadot /usr/local/bin
 RUN useradd -m -u 1000 -U -s /bin/sh -d /polkadot polkadot && \
 	mkdir -p /data /polkadot/.local/share && \
 	chown -R polkadot:polkadot /data && \
-	ln -s /data /polkadot/.local/share/polkadot
-
+	ln -s /data /polkadot/.local/share/polkadot && \
+# unclutter and minimize the attack surface
+	rm -rf /usr/bin /usr/sbin && \
 # check if executable works in this container
-RUN /usr/local/bin/polkadot --version
+	/usr/local/bin/polkadot --version
 
-RUN rm -rf /usr/bin /usr/sbin
 USER polkadot
 
 EXPOSE 30333 9933 9944 9615
