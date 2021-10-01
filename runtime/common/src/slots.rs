@@ -439,7 +439,6 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 	fn lease_period_index(b: T::BlockNumber) -> (Self::LeasePeriod, bool) {
 		// Note that lease lease period 0 is artificially extended by the lease offset.
 		let offset_block_now = b.saturating_sub(T::LeaseOffset::get());
-
 		let lease_period = offset_block_now / T::LeasePeriod::get();
 
 		// Special logic to handle lease period 0 being extended by the offset.
