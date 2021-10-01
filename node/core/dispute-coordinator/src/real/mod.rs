@@ -574,7 +574,6 @@ async fn scrape_on_chain_votes(
 			tracing::warn!(
 				target: LOG_TARGET,
 				relay_parent = ?new_leaf,
-				error = ?e,
 				"Could not retrieve session info from rolling session window");
 			return Ok(())
 		};
@@ -587,13 +586,13 @@ async fn scrape_on_chain_votes(
 			let validator_public: ValidatorId = session_info
 				.validators
 				.get(validator_idx.0 as usize)
-				.map_err(|e| {
+				.or_else(|| {
 					tracing::error!(
 						target: LOG_TARGET,
 						relay_parent = ?new_leaf,
 						"Missing public key for validator {:?}",
 						&validator_idx);
-					e
+					None
 				})
 				.cloned()?;
 			let signed_dispute_statement =
@@ -603,8 +602,7 @@ async fn scrape_on_chain_votes(
 					session,
 					validator_public,
 					validator_signature,
-				)
-				.ok()?;
+				);
 			Some((signed_dispute_statement, validator_idx))
 		});
 		let import_result = handle_import_statements(
