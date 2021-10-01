@@ -253,9 +253,11 @@ construct_runtime! {
 
 		Utility: pallet_utility::{Pallet, Call, Event} = 90,
 		Proxy: pallet_proxy::{Pallet, Call, Storage, Event<T>} = 91,
+		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>},
 
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
+
 	}
 }
 
@@ -753,6 +755,7 @@ impl parachains_scheduler::Config for Runtime {}
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type ForceOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = ();
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}
@@ -1102,7 +1105,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Auctions { .. } |
 					Call::Crowdloan { .. } |
 					Call::Registrar { .. } |
-					Call::Slots { .. }
+					Call::Multisig(..) | Call::Slots { .. }
 			),
 		}
 	}
@@ -1156,6 +1159,24 @@ impl pallet_membership::Config for Runtime {
 	type MembershipInitialized = Collective;
 	type MembershipChanged = Collective;
 	type MaxMembers = MaxMembers;
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	// One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
+	pub const DepositBase: Balance = deposit(1, 88);
+	// Additional storage item size of 32 bytes.
+	pub const DepositFactor: Balance = deposit(0, 32);
+	pub const MaxSignatories: u16 = 100;
+}
+
+impl pallet_multisig::Config for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type DepositBase = DepositBase;
+	type DepositFactor = DepositFactor;
+	type MaxSignatories = MaxSignatories;
 	type WeightInfo = ();
 }
 

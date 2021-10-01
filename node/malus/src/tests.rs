@@ -20,8 +20,8 @@ use polkadot_node_subsystem_test_helpers::*;
 
 use polkadot_node_subsystem::{
 	messages::{AllMessages, AvailabilityStoreMessage},
-	overseer::{gen::TimeoutExt, Subsystem},
-	DummySubsystem,
+	overseer::{dummy::DummySubsystem, gen::TimeoutExt, Subsystem},
+	SubsystemError,
 };
 
 #[derive(Clone, Debug)]
@@ -48,34 +48,38 @@ where
 	}
 }
 
+#[derive(Clone, Debug)]
+struct PassInterceptor;
+
+impl<Sender> MessageInterceptor<Sender> for PassInterceptor
+where
+	Sender: overseer::SubsystemSender<AllMessages>
+		+ overseer::SubsystemSender<AvailabilityStoreMessage>
+		+ Clone
+		+ 'static,
+{
+	type Message = AvailabilityStoreMessage;
+}
+
 async fn overseer_send<T: Into<AllMessages>>(overseer: &mut TestSubsystemContextHandle<T>, msg: T) {
 	overseer.send(FromOverseer::Communication { msg }).await;
 }
 
-#[test]
-fn integrity_test() {
+fn launch_harness<F, M, Sub, G>(test_gen: G)
+where
+	F: Future<Output = TestSubsystemContextHandle<M>> + Send,
+	M: Into<AllMessages> + std::fmt::Debug + Send + 'static,
+	AllMessages: From<M>,
+	Sub: Subsystem<TestSubsystemContext<M, sp_core::testing::TaskExecutor>, SubsystemError>,
+	G: Fn(TestSubsystemContextHandle<M>) -> (F, Sub),
+{
 	let pool = sp_core::testing::TaskExecutor::new();
-	let (context, mut overseer) = make_subsystem_context(pool);
+	let (context, overseer) = make_subsystem_context(pool);
 
-	let sub = DummySubsystem;
-
-	let sub_intercepted = InterceptedSubsystem::new(sub, BlackHoleInterceptor);
-
-	// Try to send a message we know is going to be filtered.
-	let test_fut = async move {
-		let (tx, rx) = futures::channel::oneshot::channel();
-		overseer_send(
-			&mut overseer,
-			AvailabilityStoreMessage::QueryChunk(Default::default(), 0.into(), tx),
-		)
-		.await;
-		let _ = rx.timeout(std::time::Duration::from_millis(100)).await.unwrap();
-		overseer
-	};
+	let (test_fut, subsystem) = test_gen(overseer);
 	let subsystem = async move {
-		sub_intercepted.start(context).future.await.unwrap();
+		subsystem.start(context).future.await.unwrap();
 	};
-
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(subsystem);
 
@@ -87,4 +91,50 @@ fn integrity_test() {
 		subsystem,
 	))
 	.1;
+}
+
+#[test]
+fn integrity_test_intercept() {
+	launch_harness(|mut overseer| {
+		let sub = DummySubsystem;
+
+		let sub_intercepted = InterceptedSubsystem::new(sub, BlackHoleInterceptor);
+
+		(
+			async move {
+				let (tx, rx) = futures::channel::oneshot::channel();
+				overseer_send(
+					&mut overseer,
+					AvailabilityStoreMessage::QueryChunk(Default::default(), 0.into(), tx),
+				)
+				.await;
+				let _ = rx.timeout(std::time::Duration::from_millis(100)).await.unwrap();
+				overseer
+			},
+			sub_intercepted,
+		)
+	})
+}
+
+#[test]
+fn integrity_test_pass() {
+	launch_harness(|mut overseer| {
+		let sub = DummySubsystem;
+
+		let sub_intercepted = InterceptedSubsystem::new(sub, PassInterceptor);
+
+		(
+			async move {
+				let (tx, rx) = futures::channel::oneshot::channel();
+				overseer_send(
+					&mut overseer,
+					AvailabilityStoreMessage::QueryChunk(Default::default(), 0.into(), tx),
+				)
+				.await;
+				let _ = rx.timeout(std::time::Duration::from_millis(100)).await.unwrap();
+				overseer
+			},
+			sub_intercepted,
+		)
+	})
 }
