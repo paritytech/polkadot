@@ -1142,13 +1142,13 @@ mod tests {
 	#[test]
 	fn count_no_shows_two_validators_next_no_show_ordered_first() {
 		test_count_no_shows(NoShowTest {
-			assignments: vec![(ValidatorIndex(1), 11), (ValidatorIndex(2), 12)],
+			assignments: vec![(ValidatorIndex(1), 31), (ValidatorIndex(2), 32)],
 			approvals: vec![],
 			clock_drift: 10,
 			no_show_duration: 10,
 			drifted_tick_now: 20,
-			exp_no_shows: 2,
-			exp_next_no_show: None,
+			exp_no_shows: 0,
+			exp_next_no_show: Some(41),
 		})
 	}
 
