@@ -345,10 +345,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ReportError { query_id, dest, max_response_weight: max_weight } => {
 				// Report the given result by sending a QueryResponse XCM to a previously given outcome
 				// destination if one was registered.
-				let response = Response::ExecutionResult(match self.error {
-					None => Ok(()),
-					Some(e) => Err(e),
-				});
+				let response = Response::ExecutionResult(self.error);
 				let message = QueryResponse { query_id, response, max_weight };
 				Config::XcmSender::send_xcm(dest, Xcm(vec![message]))?;
 				Ok(())

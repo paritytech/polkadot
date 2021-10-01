@@ -152,7 +152,7 @@ pub enum Response {
 	/// Some assets.
 	Assets(MultiAssets),
 	/// The outcome of an XCM instruction.
-	ExecutionResult(result::Result<(), (u32, Error)>),
+	ExecutionResult(Option<(u32, Error)>),
 	/// An XCM version.
 	Version(super::Version),
 }
