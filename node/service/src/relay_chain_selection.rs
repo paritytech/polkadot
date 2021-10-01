@@ -340,7 +340,7 @@ where
 				.map_err(Error::OverseerDisconnected)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
-			tracing::trace!(target: LOG_TARGET, "Best leaf containing is {:?}", &best);
+			tracing::trace!(target: LOG_TARGET, ?best, "Best leaf containing");
 
 			match best {
 				// No viable leaves containing the block.
@@ -348,7 +348,7 @@ where
 				Some(best) => best,
 			}
 		} else {
-			tracing::trace!(target: LOG_TARGET, "Dummy disputes active, skipping dispute votes resolve, using longest chain as best leaf: {:?}", &best_leaf);
+			tracing::trace!(target: LOG_TARGET, ?best_leaf, "Dummy disputes active");
 			if best_leaf == target_hash {
 				return Ok(target_hash)
 			} else {
@@ -377,11 +377,7 @@ where
 				let subchain_header = self.block_header(subchain_head)?;
 
 				if subchain_header.number <= max {
-					tracing::trace!(
-						target: LOG_TARGET,
-						"Constrained sub-chain head: {:?}",
-						&best_leaf
-					);
+					tracing::trace!(target: LOG_TARGET, ?best_leaf, "Constrained sub-chain head",);
 					subchain_head
 				} else {
 					let (ancestor_hash, _) =
@@ -393,8 +389,8 @@ where
 						.map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
 					tracing::trace!(
 						target: LOG_TARGET,
-						"Grandpa walk backwards sub-chain head: {:?}",
-						&ancestor_hash
+						?ancestor_hash,
+						"Grandpa walk backwards sub-chain head"
 					);
 					ancestor_hash
 				}
@@ -428,8 +424,8 @@ where
 
 		tracing::trace!(
 			target: LOG_TARGET,
-			"Ancestor approval restriction applied: {:?}",
-			&subchain_head
+			?subchain_head,
+			"Ancestor approval restriction applied",
 		);
 
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
@@ -476,8 +472,8 @@ where
 
 		tracing::trace!(
 			target: LOG_TARGET,
-			"Disputed blocks in ancestry restriction applied: {:?}",
-			&subchain_head
+			?subchain_head,
+			"Disputed blocks in ancestry restriction applied",
 		);
 
 		// 4. Apply the maximum safeguard to the finality lag.
@@ -487,11 +483,7 @@ where
 			let safe_target = initial_leaf_number - MAX_FINALITY_LAG;
 
 			if safe_target <= target_number {
-				tracing::warn!(
-					target: LOG_TARGET,
-					"Safeguard enforces finalization of target hash: {:?}",
-					&target_hash
-				);
+				tracing::warn!(target: LOG_TARGET, ?target_hash, "Safeguard enforced finalization");
 				// Minimal vote needs to be on the target number.
 				Ok(target_hash)
 			} else {
@@ -506,8 +498,8 @@ where
 
 				tracing::warn!(
 					target: LOG_TARGET,
-					"Safeguard enforces finalization of child of target hash: {:?}",
-					&forced_target
+					?forced_target,
+					"Safeguard enforced finalization of child"
 				);
 
 				Ok(forced_target)
