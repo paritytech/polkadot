@@ -24,90 +24,70 @@ use super::*;
 
 #[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
 pub enum Error {
-	Undefined,
+	// Errors that happen due to instructions being executed. These alone are defined in the
+	// XCM specification.
+	
 	/// An arithmetic overflow happened.
-	Overflow,
-	/// The operation is intentionally unsupported.
-	Unimplemented,
-	UnhandledXcmVersion,
-	/// The implementation does not handle a given XCM.
-	UnhandledXcmMessage,
-	/// The implementation does not handle an effect present in an XCM.
-	UnhandledEffect,
-	EscalationOfPrivilege,
-	UntrustedReserveLocation,
-	UntrustedTeleportLocation,
-	DestinationBufferOverflow,
-	MultiLocationFull,
-	MultiLocationNotInvertible,
-	FailedToDecode,
-	BadOrigin,
-	ExceedsMaxMessageSize,
-	/// An asset transaction (like withdraw or deposit) failed.
-	/// See implementers of the `TransactAsset` trait for sources.
-	/// Causes can include type conversion failures between id or balance types.
-	FailedToTransactAsset(#[codec(skip)] &'static str),
-	/// Execution of the XCM would potentially result in a greater weight used than the pre-specified
-	/// weight limit. The amount that is potentially required is the parameter.
-	WeightLimitReached(Weight),
-	/// An asset wildcard was passed where it was not expected (e.g. as the asset to withdraw in a
-	/// `WithdrawAsset` XCM).
-	Wildcard,
-	/// The case where an XCM message has specified a optional weight limit and the weight required for
-	/// processing is too great.
-	///
-	/// Used by:
-	/// - `Transact`
-	TooMuchWeightRequired,
-	/// The fees specified by the XCM message were not found in the holding register.
-	///
-	/// Used by:
-	/// - `BuyExecution`
-	NotHoldingFees,
-	/// The weight of an XCM message is not computable ahead of execution. This generally means at least part
-	/// of the message is invalid, which could be due to it containing overly nested structures or an invalid
-	/// nested data segment (e.g. for the call in `Transact`).
-	WeightNotComputable,
-	/// The XCM did not pass the barrier condition for execution. The barrier condition differs on different
-	/// chains and in different circumstances, but generally it means that the conditions surrounding the message
-	/// were not such that the chain considers the message worth spending time executing. Since most chains
-	/// lift the barrier to execution on appropriate payment, presentation of an NFT voucher, or based on the
-	/// message origin, it means that none of those were the case.
-	Barrier,
-	/// Indicates that it is not possible for a location to have an asset be withdrawn or transferred from its
-	/// ownership. This probably means it doesn't own (enough of) it, but may also indicate that it is under a
-	/// lock, hold, freeze or is otherwise unavailable.
-	NotWithdrawable,
-	/// Indicates that the consensus system cannot deposit an asset under the ownership of a particular location.
-	LocationCannotHold,
-	/// The assets given to purchase weight is are insufficient for the weight desired.
-	TooExpensive,
+	Overflow = 0,
+	/// The instruction is intentionally unsupported.
+	Unimplemented = 1,
+	/// Origin Register does not contain a value value for a reserve transfer notification.
+	UntrustedReserveLocation = 2,
+	/// Origin Register does not contain a value value for a teleport notification.
+	UntrustedTeleportLocation = 3,
+	/// `MultiLocation` value too large to descend further.
+	MultiLocationFull = 4,
+	/// `MultiLocation` value ascend more parents than known ancestors of local location.
+	MultiLocationNotInvertible = 5,
+	/// The Origin Register does not contain a valid value for instruction.
+	BadOrigin = 7,
+	/// The location parameter is not a valid value for the instruction.
+	InvalidLocation = 16,
 	/// The given asset is not handled.
-	AssetNotFound,
-	/// The given message cannot be translated into a format that the destination can be expected to interpret.
-	DestinationUnsupported,
-	/// `execute_xcm` has been called too many times recursively.
-	RecursionLimitReached,
+	AssetNotFound = 11,
+	/// An asset transaction (like withdraw or deposit) failed (typically due to type conversions).
+	FailedToTransactAsset(#[codec(skip)] &'static str) = 8,
+	/// An asset cannot be withdrawn, potentially due to lack of ownership, availability or rights.
+	NotWithdrawable = 9,
+	/// An asset cannot be deposited under the ownership of a particular location.
+	LocationCannotHold = 10,
+	/// Attempt to send a message greater than the maximum supported by the transport protocol.
+	ExceedsMaxMessageSize = 12,
+	/// The given message cannot be translated into a format supported by the destination.
+	DestinationUnsupported = 13,
 	/// Destination is routable, but there is some issue with the transport mechanism.
-	///
-	/// A human-readable explanation of the specific issue is provided.
-	Transport(#[codec(skip)] &'static str),
+	Transport(#[codec(skip)] &'static str) = 14,
 	/// Destination is known to be unroutable.
-	Unroutable,
-	/// The weight required was not specified when it should have been.
-	UnknownWeightRequired,
-	/// An error was intentionally forced. A code is included.
-	Trap(u64),
-	/// The given claim could not be recognized/found.
-	UnknownClaim,
-	/// The location given was invalid for some reason specific to the operation at hand.
-	InvalidLocation,
-}
+	Unroutable = 15,
+	/// Used by `ClaimAsset` when the given claim could not be recognized/found.
+	UnknownClaim = 17,
+	/// Used by `Transact` when the functor cannot be decoded.
+	FailedToDecode = 18,
+	/// Used by `Transact` to indicate that the given weight limit could be breached by the functor.
+	TooMuchWeightRequired = 19,
+	/// Used by `BuyExecution` when the Holding Register does not contain payable fees.
+	NotHoldingFees = 20,
+	/// Used by `BuyExecution` when the fees declared to purchase weight are insufficient.
+	TooExpensive = 21,
+	/// Used by the `Trap` instruction to force an error intentionally. Its code is included.
+	Trap(u64) = 22,
 
-impl From<()> for Error {
-	fn from(_: ()) -> Self {
-		Self::Undefined
-	}
+	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
+	
+	/// XCM version not able to be handled.
+	UnhandledXcmVersion,
+	/// Execution of the XCM would potentially result in a greater weight used than weight limit.
+	WeightLimitReached(Weight),
+	/// The XCM did not pass the barrier condition for execution.
+	/// 
+	/// The barrier condition differs on different chains and in different circumstances, but
+	/// generally it means that the conditions surrounding the message were not such that the chain
+	/// considers the message worth spending time executing. Since most chains lift the barrier to
+	/// execution on appropriate payment, presentation of an NFT voucher, or based on the message
+	/// origin, it means that none of those were the case.
+	Barrier,
+	/// The weight of an XCM message is not computable ahead of execution.
+	WeightNotComputable,
 }
 
 impl From<SendError> for Error {
