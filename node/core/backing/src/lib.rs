@@ -32,7 +32,6 @@ use futures::{
 
 use polkadot_node_primitives::{
 	AvailableData, PoV, SignedDisputeStatement, SignedFullStatement, Statement, ValidationResult,
-	ErasureChunk,
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -314,6 +313,27 @@ async fn store_available_data(
 		.send_message(AvailabilityStoreMessage::StoreAvailableData(
 			candidate_hash,
 			id,
+			n_validators,
+			available_data,
+			tx,
+		))
+		.await;
+
+	let _ = rx.await.map_err(Error::StoreAvailableData)?;
+
+	Ok(())
+}
+
+async fn store_malicious_available_data(
+	sender: &mut JobSender<impl SubsystemSender>,
+	n_validators: u32,
+	candidate_hash: CandidateHash,
+	available_data: AvailableData,
+) -> Result<(), Error> {
+	let (tx, rx) = oneshot::channel();
+	sender
+		.send_message(AvailabilityStoreMessage::StoreMaliciousAvailableData(
+			candidate_hash,
 			n_validators,
 			available_data,
 			tx,
@@ -1004,8 +1024,8 @@ impl CandidateBackingJob {
 						&available_data,
 					)?;
 
-					if let Some(first) = chunks.first_mut() {
-						first.fill(42);
+					if let Some(last) = chunks.last_mut() {
+						last.fill(42);
 					}
 					let branches = erasure_coding::branches(chunks.as_ref());
 					let erasure_root = branches.root();
@@ -1052,9 +1072,8 @@ impl CandidateBackingJob {
 					let malicious_candidate_hash = malicious_candidate.hash();
 
 					tracing::info!(target: LOG_TARGET, "😈 Storing the chunks");
-					store_available_data(
+					store_malicious_available_data(
 						sender,
-						self.table_context.validator.as_ref().map(|v| v.index()),
 						self.table_context.validators.len() as u32,
 						malicious_candidate_hash,
 						available_data,

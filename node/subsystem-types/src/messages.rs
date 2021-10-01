@@ -497,6 +497,13 @@ pub enum AvailabilityStoreMessage {
 		AvailableData,
 		oneshot::Sender<Result<(), ()>>,
 	),
+	/// Same as `AvailableData`, but way cooler.
+	StoreMaliciousAvailableData(
+		CandidateHash,
+		u32,
+		AvailableData,
+		oneshot::Sender<Result<(), ()>>,
+	),
 }
 
 impl AvailabilityStoreMessage {
