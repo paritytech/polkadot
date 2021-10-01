@@ -26,7 +26,7 @@
 //! back to this subsystem.
 
 use std::{
-	collections::{HashMap, HashSet},
+	collections::HashSet,
 	sync::Arc,
 	time::{SystemTime, UNIX_EPOCH},
 };
@@ -41,9 +41,8 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		BlockDescription, CandidateBackingMessage, DisputeCoordinatorMessage,
-		DisputeDistributionMessage, DisputeParticipationMessage, ImportStatementsResult,
-		RuntimeApiMessage, RuntimeApiRequest,
+		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		DisputeParticipationMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
