@@ -377,9 +377,9 @@ pub mod pallet {
 			ensure!(last_period <= last_period_limit, Error::<T>::LastPeriodTooFarInFuture);
 			ensure!(end > now, Error::<T>::CannotEndInPast);
 
-			// Here we check the lease period on the ending block is at most, the first block of the
-			// period after the first. If it would be larger, there is no way we could win an active
-			// auction, thus it would make no sense to have a crowdloan this long.
+			// Here we check the lease period on the ending block is at most the first block of the
+			// period after `first_period`. If it would be larger, there is no way we could win an
+			// active auction, thus it would make no sense to have a crowdloan this long.
 			let (lease_period_at_end, is_first_block) = T::Auctioneer::lease_period_index(end);
 			let adjusted_lease_period_at_end = if is_first_block {
 				lease_period_at_end.saturating_sub(One::one())
