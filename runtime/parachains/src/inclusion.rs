@@ -2433,9 +2433,11 @@ mod tests {
 			let backed_candidates = vec![backed_a, backed_b, backed_c];
 			let get_backing_group_idx = {
 				// the order defines the group implicitly for this test case
-				let backed_candidates_with_groups = backed_candidates.iter().enumerate().map(|(idx, backed_candidate)| {
-					(backed_candidate.hash(), GroupIndex(idx as _))
-				}).collect::<Vec<_>>();
+				let backed_candidates_with_groups = backed_candidates
+					.iter()
+					.enumerate()
+					.map(|(idx, backed_candidate)| (backed_candidate.hash(), GroupIndex(idx as _)))
+					.collect::<Vec<_>>();
 
 				move |candidate_hash_x: CandidateHash| -> Option<GroupIndex> {
 					backed_candidates_with_groups.iter().find_map(|(candidate_hash, grp)| {
@@ -2452,16 +2454,16 @@ mod tests {
 				core_indices: occupied_cores,
 				candidate_receipt_with_backing_validator_indices,
 			} = ParaInclusion::process_candidates(
-					Default::default(),
-					backed_candidates.clone(),
-					vec![
-						chain_a_assignment.clone(),
-						chain_b_assignment.clone(),
-						thread_a_assignment.clone(),
-					],
-					&group_validators,
-				)
-				.expect("candidates scheduled, in order, and backed");
+				Default::default(),
+				backed_candidates.clone(),
+				vec![
+					chain_a_assignment.clone(),
+					chain_b_assignment.clone(),
+					thread_a_assignment.clone(),
+				],
+				&group_validators,
+			)
+			.expect("candidates scheduled, in order, and backed");
 
 			assert_eq!(
 				occupied_cores,
@@ -2470,47 +2472,56 @@ mod tests {
 
 			// Transform the votes into the setup we expect
 			let expected = {
-				let mut intermediate = std::collections::HashMap::<CandidateHash, (CandidateReceipt, Vec<(ValidatorIndex, ValidatorSignature)>)>::new();
-				backed_candidates
-					.into_iter()
-					.for_each(|backed_candidate| {
-						let candidate_receipt_with_backers = intermediate
+				let mut intermediate = std::collections::HashMap::<
+					CandidateHash,
+					(CandidateReceipt, Vec<(ValidatorIndex, ValidatorSignature)>),
+				>::new();
+				backed_candidates.into_iter().for_each(|backed_candidate| {
+					let candidate_receipt_with_backers = intermediate
 						.entry(backed_candidate.hash())
-						.or_insert_with(|| {
-							(backed_candidate.receipt(), Vec::new())
-						});
+						.or_insert_with(|| (backed_candidate.receipt(), Vec::new()));
 
-						assert_eq!(backed_candidate.validity_votes.len(), backed_candidate.validator_indices.count_ones());
-						dbg!(&backed_candidate
-							.validator_indices);
-						candidate_receipt_with_backers.1.extend(
-							backed_candidate
-								.validator_indices
-								.iter()
-								.enumerate()
-								.filter(|(_, signed)| **signed)
-								.zip(backed_candidate.validity_votes.iter())
-								.filter_map(|((validator_index_within_group, _), attestation)| {
-									let grp_idx = get_backing_group_idx(backed_candidate.hash()).unwrap();
-									group_validators(grp_idx)
-										.map(|validator_indices|(
-											validator_indices[validator_index_within_group],
-											attestation.signature().clone()
-										))
+					assert_eq!(
+						backed_candidate.validity_votes.len(),
+						backed_candidate.validator_indices.count_ones()
+					);
+					dbg!(&backed_candidate.validator_indices);
+					candidate_receipt_with_backers.1.extend(
+						backed_candidate
+							.validator_indices
+							.iter()
+							.enumerate()
+							.filter(|(_, signed)| **signed)
+							.zip(backed_candidate.validity_votes.iter())
+							.filter_map(|((validator_index_within_group, _), attestation)| {
+								let grp_idx =
+									get_backing_group_idx(backed_candidate.hash()).unwrap();
+								group_validators(grp_idx).map(|validator_indices| {
+									(
+										validator_indices[validator_index_within_group],
+										attestation.signature().clone(),
+									)
 								})
-							);
-						});
+							}),
+					);
+				});
 				intermediate.into_values().collect::<Vec<_>>()
 			};
 
 			// sort, since we use a hashmap above
-			let assure_candidate_sorting = |mut candidate_receipts_with_backers: Vec<(CandidateReceipt, Vec<(ValidatorIndex, ValidatorSignature)>)>| {
+			let assure_candidate_sorting = |mut candidate_receipts_with_backers: Vec<(
+				CandidateReceipt,
+				Vec<(ValidatorIndex, ValidatorSignature)>,
+			)>| {
 				candidate_receipts_with_backers.sort_by(|(cr1, _), (cr2, _)| {
 					cr1.descriptor().para_id.cmp(&cr2.descriptor().para_id)
 				});
 				candidate_receipts_with_backers
 			};
-			assert_eq!(assure_candidate_sorting(expected), assure_candidate_sorting(candidate_receipt_with_backing_validator_indices));
+			assert_eq!(
+				assure_candidate_sorting(expected),
+				assure_candidate_sorting(candidate_receipt_with_backing_validator_indices)
+			);
 
 			assert_eq!(
 				<PendingAvailability<Test>>::get(&chain_a),
