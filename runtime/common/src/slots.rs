@@ -142,13 +142,10 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(n: T::BlockNumber) -> Weight {
+			let (lease_period, first_block) = Self::lease_period_index(n);
 			// If we're beginning a new lease period then handle that.
-			let lease_period = T::LeasePeriod::get();
-			let lease_offset = T::LeaseOffset::get();
-
-			if n >= lease_offset && ((n - lease_offset) % lease_period).is_zero() {
-				let lease_period_index = n / lease_period;
-				Self::manage_lease_period_start(lease_period_index)
+			if first_block {
+				Self::manage_lease_period_start(lease_period)
 			} else {
 				0
 			}
@@ -340,7 +337,7 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 		period_count: Self::LeasePeriod,
 	) -> Result<(), LeaseError> {
 		let now = frame_system::Pallet::<T>::block_number();
-		let current_lease_period = Self::lease_period_index(now);
+		let current_lease_period = Self::lease_period_index(now).0;
 		// Finally, we update the deposit held so it is `amount` for the new lease period
 		// indices that were won in the auction.
 		let offset = period_begin
@@ -438,12 +435,14 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 		T::LeasePeriod::get()
 	}
 
-	fn lease_period_index(b: T::BlockNumber) -> Self::LeasePeriod {
-		// TODO [now]: perhaps this should be an 'Option'? Lease period
-		// 0 is artificially extended by this implementation.
+	fn lease_period_index(b: T::BlockNumber) -> (Self::LeasePeriod, bool) {
+		// Note that lease lease period 0 is artificially extended by the lease offset.
 		let offset_block_now = b.saturating_sub(T::LeaseOffset::get());
 
-		offset_block_now / T::LeasePeriod::get()
+		let lease_period = offset_block_now / T::LeasePeriod::get();
+		let first_block = (offset_block_now % T::LeasePeriod::get()).is_zero();
+
+		(lease_period, first_block)
 	}
 
 	fn already_leased(
@@ -452,7 +451,7 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 		last_period: Self::LeasePeriod,
 	) -> bool {
 		let now = frame_system::Pallet::<T>::block_number();
-		let current_lease_period = Self::lease_period_index(now);
+		let current_lease_period = Self::lease_period_index(now).0;
 
 		// Can't look in the past, so we pick whichever is the biggest.
 		let start_period = first_period.max(current_lease_period);
@@ -557,8 +556,7 @@ mod tests {
 
 	parameter_types! {
 		pub const LeasePeriod: BlockNumber = 10;
-		pub const LeaseOffset: BlockNumber = 0;
-		// TODO [now]: test with non-zero offset.
+		pub static LeaseOffset: BlockNumber = 0;
 		pub const ParaDeposit: u64 = 1;
 	}
 
@@ -601,12 +599,12 @@ mod tests {
 			run_to_block(1);
 			assert_eq!(Slots::lease_period_length(), 10);
 			let now = System::block_number();
-			assert_eq!(Slots::lease_period_index(now), 0);
+			assert_eq!(Slots::lease_period_index(now).0, 0);
 			assert_eq!(Slots::deposit_held(1.into(), &1), 0);
 
 			run_to_block(10);
 			let now = System::block_number();
-			assert_eq!(Slots::lease_period_index(now), 1);
+			assert_eq!(Slots::lease_period_index(now).0, 1);
 		});
 	}
 
@@ -868,7 +866,7 @@ mod tests {
 
 			run_to_block(20);
 			let now = System::block_number();
-			assert_eq!(Slots::lease_period_index(now), 2);
+			assert_eq!(Slots::lease_period_index(now).0, 2);
 			// Can't lease from the past
 			assert!(Slots::lease_out(1.into(), &1, 1, 1, 1).is_err());
 			// Lease in the current period triggers onboarding
@@ -929,6 +927,33 @@ mod tests {
 			assert!(Slots::trigger_onboard(Origin::signed(1), 2.into()).is_err());
 
 			assert_eq!(TestRegistrar::<Test>::operations(), vec![(2.into(), 1, true),]);
+		});
+	}
+
+	#[test]
+	fn lease_period_offset_works() {
+		new_test_ext().execute_with(|| {
+			let lpl = Slots::lease_period_length();
+			assert_eq!(Slots::lease_period_index(0), (0, true));
+			assert_eq!(Slots::lease_period_index(lpl - 1), (0, false));
+			assert_eq!(Slots::lease_period_index(lpl), (1, true));
+			assert_eq!(Slots::lease_period_index(lpl + 1), (1, false));
+			assert_eq!(Slots::lease_period_index(2 * lpl - 1), (1, false));
+			assert_eq!(Slots::lease_period_index(2 * lpl), (2, true));
+			assert_eq!(Slots::lease_period_index(2 * lpl + 1), (2, false));
+
+			// Lease period is 10, and we add an offset of 5.
+			let offset = 5;
+			LeaseOffset::set(offset);
+
+			assert_eq!(Slots::lease_period_index(0), (0, true));
+			assert_eq!(Slots::lease_period_index(lpl), (0, false));
+			assert_eq!(Slots::lease_period_index(lpl - 1 + offset), (0, false));
+			assert_eq!(Slots::lease_period_index(lpl + offset), (1, true));
+			assert_eq!(Slots::lease_period_index(lpl + offset + 1), (1, false));
+			assert_eq!(Slots::lease_period_index(2 * lpl - 1 + offset), (1, false));
+			assert_eq!(Slots::lease_period_index(2 * lpl + offset), (2, true));
+			assert_eq!(Slots::lease_period_index(2 * lpl + offset + 1), (2, false));
 		});
 	}
 }

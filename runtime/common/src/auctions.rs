@@ -352,7 +352,7 @@ impl<T: Config> Auctioneer<T::BlockNumber> for Pallet<T> {
 		Self::handle_bid(bidder, para, AuctionCounter::<T>::get(), first_slot, last_slot, amount)
 	}
 
-	fn lease_period_index(b: T::BlockNumber) -> Self::LeasePeriod {
+	fn lease_period_index(b: T::BlockNumber) -> (Self::LeasePeriod, bool) {
 		T::Leaser::lease_period_index(b)
 	}
 
@@ -382,7 +382,7 @@ impl<T: Config> Pallet<T> {
 		ensure!(maybe_auction.is_none(), Error::<T>::AuctionInProgress);
 		let now = frame_system::Pallet::<T>::block_number();
 		ensure!(
-			lease_period_index >= T::Leaser::lease_period_index(now),
+			lease_period_index >= T::Leaser::lease_period_index(now).0,
 			Error::<T>::LeasePeriodInPast
 		);
 
@@ -757,7 +757,7 @@ mod tests {
 			LEASES.with(|l| {
 				let mut leases = l.borrow_mut();
 				let now = System::block_number();
-				if period_begin < Self::lease_period_index(now) {
+				if period_begin < Self::lease_period_index(now).0 {
 					return Err(LeaseError::AlreadyEnded)
 				}
 				for period in period_begin..(period_begin + period_count) {
@@ -791,8 +791,12 @@ mod tests {
 			10
 		}
 
-		fn lease_period_index(b: BlockNumber) -> Self::LeasePeriod {
-			(b / Self::lease_period_length()).into()
+		fn lease_period_index(b: BlockNumber) -> (Self::LeasePeriod, bool) {
+			let lease_period_length = Self::lease_period_length();
+			let lease_period = b / lease_period_length;
+			let first_block = (b % lease_period_length).is_zero();
+
+			(lease_period, first_block)
 		}
 
 		fn already_leased(

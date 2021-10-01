@@ -137,8 +137,8 @@ pub trait Leaser<BlockNumber> {
 	/// runtime configurable quantity.
 	fn lease_period_length() -> Self::LeasePeriod;
 
-	/// Returns the lease period at `block`.
-	fn lease_period_index(block: BlockNumber) -> Self::LeasePeriod;
+	/// Returns the lease period at `block`, and if this is the first block of a new lease period.
+	fn lease_period_index(block: BlockNumber) -> (Self::LeasePeriod, bool);
 
 	/// Returns true if the parachain already has a lease in any of lease periods in the inclusive
 	/// range `[first_period, last_period]`, intersected with the unbounded range [`current_lease_period`..] .
@@ -229,8 +229,8 @@ pub trait Auctioneer<BlockNumber> {
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 	) -> DispatchResult;
 
-	/// Returns the lease period at `block`.
-	fn lease_period_index(block: BlockNumber) -> Self::LeasePeriod;
+	/// Returns the lease period at `block`, and if this is the first block of a new lease period.
+	fn lease_period_index(block: BlockNumber) -> (Self::LeasePeriod, bool);
 
 	/// Returns the length of a lease period.
 	fn lease_period_length() -> Self::LeasePeriod;

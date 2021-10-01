@@ -374,13 +374,13 @@ pub mod pallet {
 				.ok_or(Error::<T>::FirstPeriodTooFarInFuture)?;
 			ensure!(last_period <= last_period_limit, Error::<T>::LastPeriodTooFarInFuture);
 			ensure!(end > now, Error::<T>::CannotEndInPast);
-			let lease_period_at_end = T::Auctioneer::lease_period_index(end);
+			let lease_period_at_end = T::Auctioneer::lease_period_index(end).0;
 
 			// Here we check the lease period on the ending block is at most the first lease period
 			// we are bidding for. If it would be larger, there is no way we could win this auction.
 			ensure!(lease_period_at_end <= first_period, Error::<T>::EndTooFarInFuture);
 			ensure!(
-				first_period >= T::Auctioneer::lease_period_index(now),
+				first_period >= T::Auctioneer::lease_period_index(now).0,
 				Error::<T>::FirstPeriodInPast
 			);
 
@@ -444,7 +444,7 @@ pub mod pallet {
 
 			// Make sure crowdloan is in a valid lease period
 			let now = frame_system::Pallet::<T>::block_number();
-			let current_lease_period = T::Auctioneer::lease_period_index(now);
+			let current_lease_period = T::Auctioneer::lease_period_index(now).0;
 			ensure!(current_lease_period <= fund.first_period, Error::<T>::ContributionPeriodOver);
 
 			// Make sure crowdloan has not already won.
@@ -756,7 +756,7 @@ impl<T: Config> Pallet<T> {
 		// `fund.end` can represent the end of a failed crowdloan or the beginning of retirement
 		// If the current lease period is past the first period they are trying to bid for, then
 		// it is already too late to win the bid.
-		let current_lease_period = T::Auctioneer::lease_period_index(now);
+		let current_lease_period = T::Auctioneer::lease_period_index(now).0;
 		ensure!(
 			now >= fund.end || current_lease_period > fund.first_period,
 			Error::<T>::FundNotEnded
@@ -943,7 +943,7 @@ mod tests {
 
 		fn new_auction(duration: u64, lease_period_index: u64) -> DispatchResult {
 			let now = System::block_number();
-			assert!(lease_period_index >= Self::lease_period_index(now));
+			assert!(lease_period_index >= Self::lease_period_index(now).0);
 
 			let ending = System::block_number().saturating_add(duration);
 			AUCTION.with(|p| *p.borrow_mut() = Some((lease_period_index, ending)));
@@ -996,8 +996,11 @@ mod tests {
 			Ok(())
 		}
 
-		fn lease_period_index(b: BlockNumber) -> u64 {
-			b / Self::lease_period_length()
+		fn lease_period_index(b: BlockNumber) -> (u64, bool) {
+			let lease_period_length = Self::lease_period_length();
+			let lease_period = b / lease_period_length;
+			let first_block = (b % lease_period_length).is_zero();
+			(lease_period, first_block)
 		}
 
 		fn lease_period_length() -> u64 {
@@ -1373,7 +1376,7 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para_3, 1000, 1, 4, 39, None));
 			run_to_block(40);
 			let now = System::block_number();
-			assert_eq!(TestAuctioneer::lease_period_index(now), 2);
+			assert_eq!(TestAuctioneer::lease_period_index(now).0, 2);
 			assert_noop!(
 				Crowdloan::contribute(Origin::signed(1), para_3, 49, None),
 				Error::<Test>::ContributionPeriodOver
@@ -1849,7 +1852,7 @@ mod benchmarking {
 	fn create_fund<T: Config>(id: u32, end: T::BlockNumber) -> ParaId {
 		let cap = BalanceOf::<T>::max_value();
 		let now = frame_system::Pallet::<T>::block_number();
-		let lease_period_index = T::Auctioneer::lease_period_index(now);
+		let lease_period_index = T::Auctioneer::lease_period_index(now).0;
 		let first_period = lease_period_index;
 		let last_period =
 			lease_period_index + ((SlotRange::LEASE_PERIODS_PER_SLOT as u32) - 1).into();
@@ -2051,7 +2054,7 @@ mod benchmarking {
 			}
 
 			let now = frame_system::Pallet::<T>::block_number();
-			let lease_period_index = T::Auctioneer::lease_period_index(now);
+			let lease_period_index = T::Auctioneer::lease_period_index(now).0;
 			let duration = end_block
 				.checked_sub(&frame_system::Pallet::<T>::block_number())
 				.ok_or("duration of auction less than zero")?;
