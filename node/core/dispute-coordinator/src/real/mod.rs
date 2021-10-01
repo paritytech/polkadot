@@ -587,8 +587,18 @@ async fn scrape_on_chain_votes(
 	for (candidate_receipt, backers) in backing_validators {
 		let candidate_hash = candidate_receipt.hash();
 		let statements = backers.into_iter().filter_map(|(validator_idx, validator_signature)| {
-			let validator_public: ValidatorId =
-				session_info.validators.get(validator_idx.0 as usize)?.clone();
+			let validator_public: ValidatorId = session_info
+				.validators
+				.get(validator_idx.0 as usize)
+				.map_err(|e| {
+					tracing::error!(
+						target: LOG_TARGET,
+						relay_parent = ?new_leaf,
+						"Missing public key for validator {:?}",
+						&validator_idx);
+					e
+				})
+				.cloned()?;
 			let signed_dispute_statement = SignedDisputeStatement::new_checked(
 				DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(new_leaf)),
 				candidate_hash,
