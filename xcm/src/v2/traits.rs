@@ -40,17 +40,17 @@ pub enum Error {
 	/// `MultiLocation` value ascend more parents than known ancestors of local location.
 	MultiLocationNotInvertible = 5,
 	/// The Origin Register does not contain a valid value for instruction.
-	BadOrigin = 7,
+	BadOrigin = 6,
 	/// The location parameter is not a valid value for the instruction.
-	InvalidLocation = 16,
+	InvalidLocation = 7,
 	/// The given asset is not handled.
-	AssetNotFound = 11,
+	AssetNotFound = 8,
 	/// An asset transaction (like withdraw or deposit) failed (typically due to type conversions).
-	FailedToTransactAsset(#[codec(skip)] &'static str) = 8,
+	FailedToTransactAsset(#[codec(skip)] &'static str) = 9,
 	/// An asset cannot be withdrawn, potentially due to lack of ownership, availability or rights.
-	NotWithdrawable = 9,
+	NotWithdrawable = 10,
 	/// An asset cannot be deposited under the ownership of a particular location.
-	LocationCannotHold = 10,
+	LocationCannotHold = 11,
 	/// Attempt to send a message greater than the maximum supported by the transport protocol.
 	ExceedsMaxMessageSize = 12,
 	/// The given message cannot be translated into a format supported by the destination.
@@ -60,17 +60,17 @@ pub enum Error {
 	/// Destination is known to be unroutable.
 	Unroutable = 15,
 	/// Used by `ClaimAsset` when the given claim could not be recognized/found.
-	UnknownClaim = 17,
+	UnknownClaim = 16,
 	/// Used by `Transact` when the functor cannot be decoded.
-	FailedToDecode = 18,
+	FailedToDecode = 17,
 	/// Used by `Transact` to indicate that the given weight limit could be breached by the functor.
-	TooMuchWeightRequired = 19,
+	TooMuchWeightRequired = 18,
 	/// Used by `BuyExecution` when the Holding Register does not contain payable fees.
-	NotHoldingFees = 20,
+	NotHoldingFees = 19,
 	/// Used by `BuyExecution` when the fees declared to purchase weight are insufficient.
-	TooExpensive = 21,
+	TooExpensive = 20,
 	/// Used by the `Trap` instruction to force an error intentionally. Its code is included.
-	Trap(u64) = 22,
+	Trap(u64) = 21,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	
