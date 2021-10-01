@@ -29,7 +29,7 @@ use crate::{sender, LOG_TARGET};
 pub enum Error {
 	/// Fatal errors of dispute distribution.
 	Fatal(Fatal),
-	/// Non fatal errors of dispute distribution.
+	/// Non-fatal errors of dispute distribution.
 	NonFatal(NonFatal),
 }
 

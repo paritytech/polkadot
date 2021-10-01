@@ -340,9 +340,10 @@ fn test_log_output() {
 		m.insert(bob, addrs);
 		m
 	};
+	let pretty = PrettyAuthorities(unconnected_authorities.iter());
 	tracing::debug!(
 		target: LOG_TARGET,
-		unconnected_authorities = %PrettyAuthorities(unconnected_authorities.iter()),
+		unconnected_authorities = %pretty,
 		"Connectivity Report"
 	);
 }
