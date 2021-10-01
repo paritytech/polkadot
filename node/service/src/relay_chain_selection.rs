@@ -289,9 +289,14 @@ where
 			.send_msg(ChainSelectionMessage::Leaves(tx), std::any::type_name::<Self>())
 			.await;
 
-		rx.await
+		let leaves = rx
+			.await
 			.map_err(Error::OverseerDisconnected)
-			.map_err(|e| ConsensusError::Other(Box::new(e)))
+			.map_err(|e| ConsensusError::Other(Box::new(e)))?;
+
+		tracing::trace!(target: LOG_TARGET, ?leaves, "Chain selection leaves");
+
+		Ok(leaves)
 	}
 
 	/// Among all leaves, pick the one which is the best chain to build upon.
@@ -305,6 +310,8 @@ where
 			.first()
 			.ok_or_else(|| ConsensusError::Other(Box::new(Error::EmptyLeaves)))?
 			.clone();
+
+		tracing::trace!(target: LOG_TARGET, ?best_leaf, "Best chain");
 
 		self.block_header(best_leaf)
 	}
@@ -325,6 +332,7 @@ where
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Hash, ConsensusError> {
 		let mut overseer = self.overseer.clone();
+		tracing::trace!(target: LOG_TARGET, ?best_leaf, "Longest chain");
 
 		let subchain_head = if cfg!(feature = "disputes") {
 			let (tx, rx) = oneshot::channel();
