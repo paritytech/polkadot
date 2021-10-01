@@ -135,7 +135,7 @@ pub trait Leaser<BlockNumber> {
 
 	/// The length of a lease period, and any offset which may be introduced.
 	/// This is only used in benchmarking to automate certain calls.
-	#[cfg(any(features = "runtime-benchmarks", test))]
+	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn lease_period_length() -> (BlockNumber, BlockNumber);
 
 	/// Returns the lease period at `block`, and if this is the first block of a new lease period.
@@ -232,7 +232,7 @@ pub trait Auctioneer<BlockNumber> {
 
 	/// The length of a lease period, and any offset which may be introduced.
 	/// This is only used in benchmarking to automate certain calls.
-	#[cfg(any(features = "runtime-benchmarks", test))]
+	#[cfg(any(feature = "runtime-benchmarks", test))]
 	fn lease_period_length() -> (BlockNumber, BlockNumber);
 
 	/// Returns the lease period at `block`, and if this is the first block of a new lease period.

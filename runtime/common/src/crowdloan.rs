@@ -1906,7 +1906,8 @@ mod benchmarking {
 			let cap = BalanceOf::<T>::max_value();
 			let first_period = 0u32.into();
 			let last_period = 3u32.into();
-			let end = T::Auctioneer::lease_period_length();
+			let (lpl, offset) = T::Auctioneer::lease_period_length();
+			let end = lpl + offset - 1u32.into();
 
 			let caller: T::AccountId = whitelisted_caller();
 			let head_data = T::Registrar::worst_head_data();
@@ -1925,7 +1926,9 @@ mod benchmarking {
 
 		// Contribute has two arms: PreEnding and Ending, but both are equal complexity.
 		contribute {
-			let fund_index = create_fund::<T>(1, 100u32.into());
+			let (lpl, offset) = T::Auctioneer::lease_period_length();
+			let end = lpl + offset - 1u32.into();
+			let fund_index = create_fund::<T>(1, end);
 			let caller: T::AccountId = whitelisted_caller();
 			let contribution = T::MinContribution::get();
 			CurrencyOf::<T>::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
@@ -1943,7 +1946,9 @@ mod benchmarking {
 		}
 
 		withdraw {
-			let fund_index = create_fund::<T>(1337, 100u32.into());
+			let (lpl, offset) = T::Auctioneer::lease_period_length();
+			let end = lpl + offset - 1u32.into();
+			let fund_index = create_fund::<T>(1337, end);
 			let caller: T::AccountId = whitelisted_caller();
 			let contributor = account("contributor", 0, 0);
 			contribute_fund::<T>(&contributor, fund_index);
@@ -1957,7 +1962,9 @@ mod benchmarking {
 		#[skip_meta]
 		refund {
 			let k in 0 .. T::RemoveKeysLimit::get();
-			let fund_index = create_fund::<T>(1337, 100u32.into());
+			let (lpl, offset) = T::Auctioneer::lease_period_length();
+			let end = lpl + offset - 1u32.into();
+			let fund_index = create_fund::<T>(1337, end);
 
 			// Dissolve will remove at most `RemoveKeysLimit` at once.
 			for i in 0 .. k {
@@ -1972,7 +1979,9 @@ mod benchmarking {
 		}
 
 		dissolve {
-			let fund_index = create_fund::<T>(1337, 100u32.into());
+			let (lpl, offset) = T::Auctioneer::lease_period_length();
+			let end = lpl + offset - 1u32.into();
+			let fund_index = create_fund::<T>(1337, end);
 			let caller: T::AccountId = whitelisted_caller();
 			frame_system::Pallet::<T>::set_block_number(T::BlockNumber::max_value());
 		}: _(RawOrigin::Signed(caller.clone()), fund_index)
@@ -1985,7 +1994,8 @@ mod benchmarking {
 			let cap = BalanceOf::<T>::max_value();
 			let first_period = 0u32.into();
 			let last_period = 3u32.into();
-			let end = T::Auctioneer::lease_period_length();
+			let (lpl, offset) = T::Auctioneer::lease_period_length();
+			let end = lpl + offset - 1u32.into();
 
 			let caller: T::AccountId = whitelisted_caller();
 			let head_data = T::Registrar::worst_head_data();
@@ -2009,7 +2019,9 @@ mod benchmarking {
 		}
 
 		add_memo {
-			let fund_index = create_fund::<T>(1, 100u32.into());
+			let (lpl, offset) = T::Auctioneer::lease_period_length();
+			let end = lpl + offset - 1u32.into();
+			let fund_index = create_fund::<T>(1, end);
 			let caller: T::AccountId = whitelisted_caller();
 			contribute_fund::<T>(&caller, fund_index);
 			let worst_memo = vec![42; T::MaxMemoLength::get().into()];
@@ -2023,7 +2035,9 @@ mod benchmarking {
 		}
 
 		poke {
-			let fund_index = create_fund::<T>(1, 100u32.into());
+			let (lpl, offset) = T::Auctioneer::lease_period_length();
+			let end = lpl + offset - 1u32.into();
+			let fund_index = create_fund::<T>(1, end);
 			let caller: T::AccountId = whitelisted_caller();
 			contribute_fund::<T>(&caller, fund_index);
 			NewRaise::<T>::kill();
@@ -2040,7 +2054,8 @@ mod benchmarking {
 		on_initialize {
 			// We test the complexity over different number of new raise
 			let n in 2 .. 100;
-			let end_block: T::BlockNumber = 100u32.into();
+			let (lpl, offset) = T::Auctioneer::lease_period_length();
+			let end_block = lpl + offset - 1u32.into();
 
 			let pubkey = crypto::create_ed25519_pubkey(b"//verifier".to_vec());
 
