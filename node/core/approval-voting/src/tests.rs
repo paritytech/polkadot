@@ -2429,15 +2429,15 @@ fn subsystem_assignment_triggered_solo_zero_tranche() {
 #[test]
 fn subsystem_assignment_triggered_by_all_with_less_than_threshold() {
 	triggers_assignment_test(TriggersAssignmentConfig {
-		our_assigned_tranche: 11,
+		our_assigned_tranche: 21,
 		assign_validator_tranche: |_| Ok(0),
 		no_show_slots: 2,
 		assignments_to_import: vec![1, 2, 3, 4, 5],
 		approvals_to_import: vec![2, 4],
 		ticks: vec![
-			21, // Check for no shows
+			30, // Check for no shows
 		],
-		should_be_triggered: |_| false,
+		should_be_triggered: |_| true,
 	});
 }
 
@@ -2491,16 +2491,16 @@ fn subsystem_assignment_not_triggered_more_than_maximum() {
 #[test]
 fn subsystem_assignment_triggered_if_at_maximum() {
 	triggers_assignment_test(TriggersAssignmentConfig {
-		our_assigned_tranche: 11,
+		our_assigned_tranche: 21,
 		assign_validator_tranche: |_| Ok(2),
 		no_show_slots: 2,
 		assignments_to_import: vec![1],
 		approvals_to_import: vec![],
 		ticks: vec![
 			12, // Bob wakeup
-			21, // Check no shows
+			30, // Check no shows
 		],
-		should_be_triggered: |v| v >= 21,
+		should_be_triggered: |_| false,
 	});
 }
 
