@@ -356,7 +356,8 @@ impl<T: Config> Auctioneer<T::BlockNumber> for Pallet<T> {
 		T::Leaser::lease_period_index(b)
 	}
 
-	fn lease_period_length() -> Self::LeasePeriod {
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn lease_period_length() -> (T::BlockNumber, T::BlockNumber) {
 		T::Leaser::lease_period_length()
 	}
 
@@ -787,12 +788,14 @@ mod tests {
 				.unwrap_or_default()
 		}
 
-		fn lease_period_length() -> Self::LeasePeriod {
-			10
+		fn lease_period_length() -> (BlockNumber, BlockNumber) {
+			(10, 0)
 		}
 
 		fn lease_period_index(b: BlockNumber) -> (Self::LeasePeriod, bool) {
-			let lease_period_length = Self::lease_period_length();
+			let (lease_period_length, offset) = Self::lease_period_length();
+			let b = b.saturating_sub(offset);
+
 			let lease_period = b / lease_period_length;
 			let first_block = (b % lease_period_length).is_zero();
 

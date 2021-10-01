@@ -431,8 +431,9 @@ impl<T: Config> Leaser<T::BlockNumber> for Pallet<T> {
 			.unwrap_or_else(Zero::zero)
 	}
 
-	fn lease_period_length() -> Self::LeasePeriod {
-		T::LeasePeriod::get()
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn lease_period_length() -> (T::BlockNumber, T::BlockNumber) {
+		(T::LeasePeriod::get(), T::LeaseOffset::get())
 	}
 
 	fn lease_period_index(b: T::BlockNumber) -> (Self::LeasePeriod, bool) {
@@ -597,7 +598,7 @@ mod tests {
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_eq!(Slots::lease_period_length(), 10);
+			assert_eq!(Slots::lease_period_length(), (10, 0));
 			let now = System::block_number();
 			assert_eq!(Slots::lease_period_index(now).0, 0);
 			assert_eq!(Slots::deposit_held(1.into(), &1), 0);
@@ -933,7 +934,8 @@ mod tests {
 	#[test]
 	fn lease_period_offset_works() {
 		new_test_ext().execute_with(|| {
-			let lpl = Slots::lease_period_length();
+			let (lpl, offset) = Slots::lease_period_length();
+			assert_eq!(offset, 0);
 			assert_eq!(Slots::lease_period_index(0), (0, true));
 			assert_eq!(Slots::lease_period_index(lpl - 1), (0, false));
 			assert_eq!(Slots::lease_period_index(lpl), (1, true));
@@ -943,9 +945,9 @@ mod tests {
 			assert_eq!(Slots::lease_period_index(2 * lpl + 1), (2, false));
 
 			// Lease period is 10, and we add an offset of 5.
-			let offset = 5;
-			LeaseOffset::set(offset);
-
+			LeaseOffset::set(5);
+			let (lpl, offset) = Slots::lease_period_length();
+			assert_eq!(offset, 5);
 			assert_eq!(Slots::lease_period_index(0), (0, true));
 			assert_eq!(Slots::lease_period_index(lpl), (0, false));
 			assert_eq!(Slots::lease_period_index(lpl - 1 + offset), (0, false));

@@ -997,14 +997,16 @@ mod tests {
 		}
 
 		fn lease_period_index(b: BlockNumber) -> (u64, bool) {
-			let lease_period_length = Self::lease_period_length();
+			let (lease_period_length, offset) = Self::lease_period_length();
+			let b = b.saturating_sub(offset);
+
 			let lease_period = b / lease_period_length;
 			let first_block = (b % lease_period_length).is_zero();
 			(lease_period, first_block)
 		}
 
-		fn lease_period_length() -> u64 {
-			20
+		fn lease_period_length() -> (u64, u64) {
+			(20, 0)
 		}
 
 		fn has_won_an_auction(para: ParaId, bidder: &u64) -> bool {

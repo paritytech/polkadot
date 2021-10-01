@@ -133,9 +133,10 @@ pub trait Leaser<BlockNumber> {
 		leaser: &Self::AccountId,
 	) -> <Self::Currency as Currency<Self::AccountId>>::Balance;
 
-	/// The length of a lease period. This is constant, but can't be a `const` due to it being a
-	/// runtime configurable quantity.
-	fn lease_period_length() -> Self::LeasePeriod;
+	/// The length of a lease period, and any offset which may be introduced.
+	/// This is only used in benchmarking to automate certain calls.
+	#[cfg(any(features = "runtime-benchmarks", test))]
+	fn lease_period_length() -> (BlockNumber, BlockNumber);
 
 	/// Returns the lease period at `block`, and if this is the first block of a new lease period.
 	fn lease_period_index(block: BlockNumber) -> (Self::LeasePeriod, bool);
@@ -229,11 +230,13 @@ pub trait Auctioneer<BlockNumber> {
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 	) -> DispatchResult;
 
+	/// The length of a lease period, and any offset which may be introduced.
+	/// This is only used in benchmarking to automate certain calls.
+	#[cfg(any(features = "runtime-benchmarks", test))]
+	fn lease_period_length() -> (BlockNumber, BlockNumber);
+
 	/// Returns the lease period at `block`, and if this is the first block of a new lease period.
 	fn lease_period_index(block: BlockNumber) -> (Self::LeasePeriod, bool);
-
-	/// Returns the length of a lease period.
-	fn lease_period_length() -> Self::LeasePeriod;
 
 	/// Check if the para and user combination has won an auction in the past.
 	fn has_won_an_auction(para: ParaId, bidder: &Self::AccountId) -> bool;
