@@ -150,13 +150,7 @@ async fn fetch_validation_code(virtual_overseer: &mut VirtualOverseer) {
 async fn store_available_data(virtual_overseer: &mut VirtualOverseer, success: bool) {
 	assert_matches!(
 		virtual_overseer.recv().await,
-		AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreAvailableData(
-			_,
-			_,
-			_,
-			_,
-			tx,
-		)) => {
+		AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreAvailableData { tx, .. }) => {
 			if success {
 				tx.send(Ok(())).unwrap();
 			} else {
