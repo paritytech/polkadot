@@ -240,10 +240,9 @@ impl<T: Config> Pallet<T> {
 		for _ in <AvailabilityBitfields<T>>::drain() {}
 	}
 
-	/// Process a set of incoming bitfields. Return a `vec` of cores freed by candidates
-	/// becoming available.
+	/// Process a set of incoming bitfields.
 	///
-	/// Returns a set of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
+	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
 	/// and cores free.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
