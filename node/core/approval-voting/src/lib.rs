@@ -102,6 +102,7 @@ const APPROVAL_SESSIONS: SessionIndex = 6;
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
+const APPROVAL_DELAY: Tick = 2;
 const LOG_TARGET: &str = "parachain::approval-voting";
 const DEBUG_LOG_TARGET: &str = "parachain::ladi-debug-approval-voting";
 const MALICIOUS_BASE_MIN: u64 = 10_000u64;
@@ -1481,13 +1482,21 @@ fn schedule_wakeup_action(
 	block_number: BlockNumber,
 	candidate_hash: CandidateHash,
 	block_tick: Tick,
+	tick_now: Tick,
 	required_tranches: RequiredTranches,
 ) -> Option<Action> {
 	let maybe_action = match required_tranches {
 		_ if approval_entry.is_approved() => None,
 		RequiredTranches::All => None,
-		RequiredTranches::Exact { next_no_show, .. } => next_no_show
-			.map(|tick| Action::ScheduleWakeup { block_hash, block_number, candidate_hash, tick }),
+		RequiredTranches::Exact { next_no_show, last_assignment_tick, .. } => {
+			// Take the earlier of the next no show or the last assignment tick + required delay,
+			// only considering the latter if it is after the current moment.
+			min_prefer_some(
+				last_assignment_tick.map(|l| l + APPROVAL_DELAY).filter(|t| t > &tick_now),
+				next_no_show,
+			)
+			.map(|tick| Action::ScheduleWakeup { block_hash, block_number, candidate_hash, tick })
+		},
 		RequiredTranches::Pending { considered, next_no_show, clock_drift, .. } => {
 			// select the minimum of `next_no_show`, or the tick of the next non-empty tranche
 			// after `considered`, including any tranche that might contain our own untriggered
@@ -1668,6 +1677,7 @@ fn check_and_import_assignment(
 			block_entry.block_number(),
 			assigned_candidate_hash,
 			status.block_tick,
+			tick_now,
 			status.required_tranches,
 		));
 	}
@@ -1872,6 +1882,8 @@ fn advance_approval_state(
 	let block_hash = block_entry.block_hash();
 	let block_number = block_entry.block_number();
 
+	let tick_now = state.clock.tick_now();
+
 	let (is_approved, status) = if let Some((approval_entry, status)) =
 		state.approval_status(&block_entry, &candidate_entry)
 	{
@@ -1881,7 +1893,10 @@ fn advance_approval_state(
 			status.required_tranches.clone(),
 		);
 
-		let is_approved = check.is_approved();
+		// Check whether this is approved, while allowing a maximum
+		// assignment tick of `now - APPROVAL_DELAY` - that is, that
+		// all counted assignments are at least `APPROVAL_DELAY` ticks old.
+		let is_approved = check.is_approved(tick_now.saturating_sub(APPROVAL_DELAY));
 
 		if is_approved {
 			tracing::trace!(
@@ -1946,6 +1961,7 @@ fn advance_approval_state(
 			block_number,
 			candidate_hash,
 			status.block_tick,
+			tick_now,
 			status.required_tranches,
 		));
 
@@ -1975,6 +1991,7 @@ fn should_trigger_assignment(
 	match approval_entry.our_assignment() {
 		None => false,
 		Some(ref assignment) if assignment.triggered() => false,
+		Some(ref assignment) if assignment.tranche() == 0 => true,
 		Some(ref assignment) => {
 			match required_tranches {
 				RequiredTranches::All => !approval_checking::check_approval(
@@ -1982,7 +1999,7 @@ fn should_trigger_assignment(
 					&approval_entry,
 					RequiredTranches::All,
 				)
-				.is_approved(),
+				.is_approved(Tick::max_value()), // when all are required, we are just waiting for the first 1/3+
 				RequiredTranches::Pending { maximum_broadcast, clock_drift, .. } => {
 					let drifted_tranche_now =
 						tranche_now.saturating_sub(clock_drift as DelayTranche);

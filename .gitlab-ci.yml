@@ -575,4 +575,4 @@ simnet-tests:
   allow_failure:                   true
   retry: 2
   tags:
-    - parity-simnet
+    - polkadot-simnet
