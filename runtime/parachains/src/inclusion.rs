@@ -242,6 +242,9 @@ impl<T: Config> Pallet<T> {
 
 	/// Process a set of incoming bitfields. Return a `vec` of cores freed by candidates
 	/// becoming available.
+	///
+	/// Returns a set of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
+	/// and cores free.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
 		unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
@@ -250,10 +253,12 @@ impl<T: Config> Pallet<T> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 
-		let mut assigned_paras_record: Vec<_> = (0..expected_bits)
+		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
-			.map(|core_para| core_para.map(|p| (p, PendingAvailability::<T>::get(&p))))
-			.collect();
+			.map(|opt_para_id| {
+				opt_para_id.map(|para_id| (para_id, PendingAvailability::<T>::get(&para_id)))
+			})
+			.collect::<Vec<_>>();
 
 		// do sanity checks on the bitfields:
 		// 1. no more than one bitfield per validator
@@ -333,10 +338,10 @@ impl<T: Config> Pallet<T> {
 				// defensive check - this is constructed by loading the availability bitfield record,
 				// which is always `Some` if the core is occupied - that's why we're here.
 				let val_idx = signed_bitfield.validator_index().0 as usize;
-				if let Some(mut bit) = pending_availability
-					.as_mut()
-					.and_then(|r| r.availability_votes.get_mut(val_idx))
-				{
+				if let Some(mut bit) =
+					pending_availability.as_mut().and_then(|candidate_pending_availability| {
+						candidate_pending_availability.availability_votes.get_mut(val_idx)
+					}) {
 					*bit = true;
 				} else if cfg!(debug_assertions) {
 					ensure!(false, Error::<T>::InternalError);
