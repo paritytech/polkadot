@@ -320,14 +320,14 @@ impl<T: Config> Pallet<T> {
 			for (bit_idx, _) in
 				signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
 			{
-				let pending_availability = if let Some((_, pending_availability)) = assigned_paras_record[bit_idx]
-					.as_mut()
+				let pending_availability = if let Some((_, pending_availability)) =
+					assigned_paras_record[bit_idx].as_mut()
 				{
 					pending_availability
 				} else {
 					// only happens in case of unoccupied cores, which in turn happens in case
 					// of disputes.
-					continue;
+					continue
 				};
 
 				// defensive check - this is constructed by loading the availability bitfield record,
