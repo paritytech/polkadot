@@ -611,7 +611,7 @@ async fn scrape_on_chain_votes(
 			overlay_db,
 			state,
 			candidate_hash,
-			MaybeCandidateReceipt::AssumeBackingVotePresent,
+			MaybeCandidateReceipt::Provides(candidate_receipt),
 			session,
 			statements,
 			now,
