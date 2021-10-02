@@ -653,7 +653,7 @@ async fn scrape_on_chain_votes(
 					target: LOG_TARGET,
 					relay_parent = ?new_leaf,
 					?session,
-					"Could not retrieve session info from rolling session window for concluded dispute");
+					"Could not retrieve session info from rolling session window for recently concluded dispute");
 					return None
 				};
 
