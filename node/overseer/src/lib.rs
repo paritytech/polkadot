@@ -674,7 +674,9 @@ where
 		let mut update = ActiveLeavesUpdate::default();
 
 		self.active_leaves.retain(|h, n| {
-			if *n <= block.number {
+			// prune all orphaned leaves, but don't prune
+			// the finalized block if it is itself a leaf.
+			if *n <= block.number && *h != block.hash {
 				update.deactivated.push(*h);
 				false
 			} else {
