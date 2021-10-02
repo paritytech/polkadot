@@ -1049,7 +1049,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
 		hrmp: Default::default(),
 		configuration: rococo_runtime::ConfigurationConfig {
-			config: default_parachains_host_configuration(),
+			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+				max_validators_per_core: Some(1),
+				..default_parachains_host_configuration()
+			},
 		},
 		registrar: rococo_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
@@ -1820,13 +1823,18 @@ pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
 fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
-		vec![get_authority_keys_from_seed("Alice"), get_authority_keys_from_seed("Bob")],
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+			get_authority_keys_from_seed("Charlie"),
+			get_authority_keys_from_seed("Dave"),
+		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 	)
 }
 
-/// Rococo local testnet config (multivalidator Alice + Bob)
+/// Rococo local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 	let wasm_binary = rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?;
