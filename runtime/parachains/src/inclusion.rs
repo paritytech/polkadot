@@ -329,8 +329,10 @@ impl<T: Config> Pallet<T> {
 				{
 					pending_availability
 				} else {
-					// only happens in case of unoccupied cores, which in turn happens in case
-					// of disputes.
+					// For honest validators, this happens in case of unoccupied cores,
+					// which in turn happens in case of a disputed candidate.
+					// A malicious one might include arbitrary indices, but they are represented
+					// by `None` values and will be sorted out in the next if case.
 					continue
 				};
 
