@@ -294,6 +294,8 @@ pub mod v1 {
 		UncheckedSignedFullStatement,
 	};
 
+	use crate::WrongVariant;
+
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum BitfieldDistributionMessage {
@@ -386,6 +388,10 @@ pub mod v1 {
 		Approvals(Vec<IndirectSignedApprovalVote>),
 	}
 
+	/// Dummy network message type, so we will receive connect/disconnect events.
+	#[derive(Debug, Clone, PartialEq, Eq)]
+	pub enum GossipSuppportNetworkMessage {}
+
 	/// Network messages used by the collator protocol subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum CollatorProtocolMessage {
@@ -419,6 +425,20 @@ pub mod v1 {
 	impl_try_from!(ValidationProtocol, BitfieldDistribution, BitfieldDistributionMessage);
 	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);
 	impl_try_from!(ValidationProtocol, ApprovalDistribution, ApprovalDistributionMessage);
+
+	impl TryFrom<ValidationProtocol> for GossipSuppportNetworkMessage {
+		type Error = WrongVariant;
+		fn try_from(_: ValidationProtocol) -> Result<Self, Self::Error> {
+			Err(WrongVariant)
+		}
+	}
+
+	impl<'a> TryFrom<&'a ValidationProtocol> for &'a GossipSuppportNetworkMessage {
+		type Error = WrongVariant;
+		fn try_from(_: &'a ValidationProtocol) -> Result<Self, Self::Error> {
+			Err(WrongVariant)
+		}
+	}
 
 	/// All network messages on the collation peer-set.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
