@@ -1334,7 +1334,7 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub parent_header: HDR,
 }
 
-#[derive(Encode, Decode, RuntimeDebug, TypeInfo)]
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct PvfCheckStatement {
 	pub accept: bool,
 	pub subject: ValidationCodeHash,
@@ -1347,7 +1347,7 @@ impl PvfCheckStatement {
 	pub fn signing_payload(&self) -> Vec<u8> {
 		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
 
-		(MAGIC, self.accept, self.subject, self.session_index, self.validation_index).encode()
+		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
 	}
 }
 

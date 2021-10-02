@@ -205,7 +205,7 @@ construct_runtime! {
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		ParaScheduler: parachains_scheduler::{Pallet, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config},
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config, ValidateUnsigned},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
 		Dmp: parachains_dmp::{Pallet, Call, Storage},
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
@@ -588,10 +588,16 @@ impl parachains_inclusion::Config for Runtime {
 	type RewardValidators = RewardValidators;
 }
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = parachains_paras::weights::WeightInfo<Runtime>;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = Babe;
 }
 
 parameter_types! {

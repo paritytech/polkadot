@@ -745,6 +745,7 @@ impl<T: Config> Pallet<T> {
 				receipt.descriptor.para_id,
 				commitments.head_data,
 				relay_parent_number,
+				&config,
 			)
 	}
 

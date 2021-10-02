@@ -178,7 +178,9 @@ pub struct HostConfiguration<BlockNumber> {
 	/// weight go into the overweight queue and may only be serviced explicitly.
 	pub ump_max_individual_weight: Weight,
 	// TODO: Add soaking period config
+	// TODO: Minimum scheduled delay
 	// TODO: Add voting TTL
+	// TODO: remove validation_upgrade_delay ?
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
