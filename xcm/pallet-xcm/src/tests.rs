@@ -74,7 +74,7 @@ fn report_outcome_notify_works() {
 			Parachain(PARA_ID).into(),
 			Xcm(vec![QueryResponse {
 				query_id: 0,
-				response: Response::ExecutionResult(Ok(())),
+				response: Response::ExecutionResult(None),
 				max_weight: 1_000_000,
 			}]),
 			1_000_000_000,
@@ -86,7 +86,7 @@ fn report_outcome_notify_works() {
 				Event::TestNotifier(pallet_test_notifier::Event::ResponseReceived(
 					Parachain(PARA_ID).into(),
 					0,
-					Response::ExecutionResult(Ok(())),
+					Response::ExecutionResult(None),
 				)),
 				Event::XcmPallet(crate::Event::Notified(0, 4, 2)),
 			]
@@ -128,7 +128,7 @@ fn report_outcome_works() {
 			Parachain(PARA_ID).into(),
 			Xcm(vec![QueryResponse {
 				query_id: 0,
-				response: Response::ExecutionResult(Ok(())),
+				response: Response::ExecutionResult(None),
 				max_weight: 0,
 			}]),
 			1_000_000_000,
@@ -136,10 +136,10 @@ fn report_outcome_works() {
 		assert_eq!(r, Outcome::Complete(1_000));
 		assert_eq!(
 			last_event(),
-			Event::XcmPallet(crate::Event::ResponseReady(0, Response::ExecutionResult(Ok(())),))
+			Event::XcmPallet(crate::Event::ResponseReady(0, Response::ExecutionResult(None),))
 		);
 
-		let response = Some((Response::ExecutionResult(Ok(())), 1));
+		let response = Some((Response::ExecutionResult(None), 1));
 		assert_eq!(XcmPallet::take_response(0), response);
 	});
 }

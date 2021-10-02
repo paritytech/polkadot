@@ -275,7 +275,7 @@ pub mod pallet {
 		FirstPeriodTooFarInFuture,
 		/// Last lease period must be greater than first lease period.
 		LastPeriodBeforeFirstPeriod,
-		/// The last lease period cannot be more then 3 periods after the first period.
+		/// The last lease period cannot be more than 3 periods after the first period.
 		LastPeriodTooFarInFuture,
 		/// The campaign ends before the current block number. The end must be in the future.
 		CannotEndInPast,
@@ -1942,6 +1942,7 @@ mod benchmarking {
 		}
 
 		// Worst case: Refund removes `RemoveKeysLimit` keys, and is fully refunded.
+		#[skip_meta]
 		refund {
 			let k in 0 .. T::RemoveKeysLimit::get();
 			let fund_index = create_fund::<T>(1337, 100u32.into());
