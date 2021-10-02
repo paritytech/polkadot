@@ -53,7 +53,7 @@ pub enum TestOrigin {
 ///
 /// Each item contains the amount of weight that it *wants* to consume as the first item, and the actual amount (if
 /// different from the former) in the second option.
-#[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Encode, Decode, Eq, PartialEq, Clone, Copy, scale_info::TypeInfo)]
 pub enum TestCall {
 	OnlyRoot(Weight, Option<Weight>),
 	OnlyParachain(Weight, Option<Weight>, Option<u32>),
@@ -109,8 +109,8 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> SendResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
+	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
+		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
 		Ok(())
 	}
 }
@@ -164,11 +164,11 @@ pub fn to_account(l: MultiLocation) -> Result<u64, MultiLocation> {
 pub struct TestOriginConverter;
 impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 	fn convert_origin(
-		origin: MultiLocation,
+		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<TestOrigin, MultiLocation> {
 		use OriginKind::*;
-		match (kind, origin) {
+		match (kind, origin.into()) {
 			(Superuser, _) => Ok(TestOrigin::Root),
 			(SovereignAccount, l) => Ok(TestOrigin::Signed(to_account(l)?)),
 			(Native, MultiLocation { parents: 0, interior: X1(Parachain(id)) }) =>

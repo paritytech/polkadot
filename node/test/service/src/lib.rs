@@ -41,8 +41,7 @@ use sc_network::{
 };
 use service::{
 	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskExecutor, TaskManager,
-	TransactionStorageMode,
+	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager, TransactionStorageMode,
 };
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_blockchain::HeaderBackend;
@@ -112,7 +111,7 @@ impl ClientHandle for TestClient {
 /// and can be used to make adjustments to the runtime genesis storage.
 pub fn node_config(
 	storage_update_func: impl Fn(),
-	task_executor: TaskExecutor,
+	tokio_handle: tokio::runtime::Handle,
 	key: Sr25519Keyring,
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 	is_validator: bool,
@@ -149,7 +148,7 @@ pub fn node_config(
 		impl_name: "polkadot-test-node".to_string(),
 		impl_version: "0.1".to_string(),
 		role,
-		task_executor,
+		tokio_handle,
 		transaction_pool: Default::default(),
 		network: network_config,
 		keystore: KeystoreConfig::InMemory,
@@ -171,7 +170,6 @@ pub fn node_config(
 			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
 		},
-		rpc_http_threads: None,
 		rpc_http: None,
 		rpc_ws: None,
 		rpc_ipc: None,
@@ -204,13 +202,13 @@ pub fn node_config(
 /// The `storage_update_func` function will be executed in an externalities provided environment
 /// and can be used to make adjustments to the runtime genesis storage.
 pub fn run_validator_node(
-	task_executor: TaskExecutor,
+	tokio_handle: tokio::runtime::Handle,
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 	worker_program_path: Option<PathBuf>,
 ) -> PolkadotTestNode {
-	let config = node_config(storage_update_func, task_executor, key, boot_nodes, true);
+	let config = node_config(storage_update_func, tokio_handle, key, boot_nodes, true);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
 		new_full(config, IsCollator::No, worker_program_path)
@@ -236,13 +234,13 @@ pub fn run_validator_node(
 /// The collator functionality still needs to be registered at the node! This can be done using
 /// [`PolkadotTestNode::register_collator`].
 pub fn run_collator_node(
-	task_executor: TaskExecutor,
+	tokio_handle: tokio::runtime::Handle,
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 	collator_pair: CollatorPair,
 ) -> PolkadotTestNode {
-	let config = node_config(storage_update_func, task_executor, key, boot_nodes, false);
+	let config = node_config(storage_update_func, tokio_handle, key, boot_nodes, false);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
 		new_full(config, IsCollator::Yes(collator_pair), None)
@@ -288,16 +286,16 @@ impl PolkadotTestNode {
 		validation_code: impl Into<ValidationCode>,
 		genesis_head: impl Into<HeadData>,
 	) -> Result<(), RpcTransactionError> {
-		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize(
+		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize {
 			id,
-			ParaGenesisArgs {
+			genesis: ParaGenesisArgs {
 				genesis_head: genesis_head.into(),
 				validation_code: validation_code.into(),
 				parachain: true,
 			},
-		);
+		};
 
-		self.send_extrinsic(SudoCall::sudo(Box::new(call.into())), Sr25519Keyring::Alice)
+		self.send_extrinsic(SudoCall::sudo { call: Box::new(call.into()) }, Sr25519Keyring::Alice)
 			.await
 			.map(drop)
 	}
@@ -379,10 +377,10 @@ pub fn construct_transfer_extrinsic(
 	dest: sp_keyring::AccountKeyring,
 	value: Balance,
 ) -> UncheckedExtrinsic {
-	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer(
-		MultiSigner::from(dest.public()).into_account().into(),
+	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer {
+		dest: MultiSigner::from(dest.public()).into_account().into(),
 		value,
-	));
+	});
 
 	construct_extrinsic(client, function, origin, 0)
 }
