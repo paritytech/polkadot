@@ -320,9 +320,15 @@ impl<T: Config> Pallet<T> {
 			for (bit_idx, _) in
 				signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
 			{
-				let (_, pending_availability) = assigned_paras_record[bit_idx]
+				let pending_availability = if let Some((_, pending_availability)) = assigned_paras_record[bit_idx]
 					.as_mut()
-					.expect("validator bitfields checked not to contain bits corresponding to unoccupied cores; qed");
+				{
+					pending_availability
+				} else {
+					// only happens in case of unoccupied cores, which in turn happens in case
+					// of disputes.
+					continue;
+				};
 
 				// defensive check - this is constructed by loading the availability bitfield record,
 				// which is always `Some` if the core is occupied - that's why we're here.
