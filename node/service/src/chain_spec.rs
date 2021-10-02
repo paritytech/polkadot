@@ -1049,10 +1049,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
 		hrmp: Default::default(),
 		configuration: rococo_runtime::ConfigurationConfig {
-			config: polkadot_runtime_parachains::configuration::HostConfiguration {
-				max_validators_per_core: Some(1),
-				..default_parachains_host_configuration()
-			},
+			config: default_parachains_host_configuration(),
 		},
 		registrar: rococo_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
@@ -1561,7 +1558,10 @@ pub fn rococo_testnet_genesis(
 		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig { keys: vec![] },
 		sudo: rococo_runtime::SudoConfig { key: root_key.clone() },
 		configuration: rococo_runtime::ConfigurationConfig {
-			config: default_parachains_host_configuration(),
+			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+				max_validators_per_core: Some(1),
+				..default_parachains_host_configuration()
+			},
 		},
 		hrmp: Default::default(),
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
