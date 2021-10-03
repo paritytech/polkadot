@@ -140,13 +140,13 @@ where
 					let bg = {
 						let mut sender = ctx.sender().clone();
 						let metrics = metrics.clone();
-						let mut validation_host = validation_host.clone();
+						let validation_host = validation_host.clone();
 
 						async move {
 							let _timer = metrics.time_validate_from_chain_state();
 							let res = validate_from_chain_state(
 								&mut sender,
-								&mut validation_host,
+								validation_host,
 								descriptor,
 								pov,
 								&metrics,
@@ -169,12 +169,12 @@ where
 				) => {
 					let bg = {
 						let metrics = metrics.clone();
-						let mut validation_host = validation_host.clone();
+						let validation_host = validation_host.clone();
 
 						async move {
 							let _timer = metrics.time_validate_from_exhaustive();
 							let res = validate_candidate_exhaustive(
-								&mut validation_host,
+								validation_host,
 								persisted_validation_data,
 								validation_code,
 								descriptor,
@@ -319,7 +319,7 @@ where
 
 async fn validate_from_chain_state<Sender>(
 	sender: &mut Sender,
-	validation_host: &mut ValidationHost,
+	validation_host: ValidationHost,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	metrics: &Metrics,
@@ -371,7 +371,7 @@ where
 }
 
 async fn validate_candidate_exhaustive(
-	validation_backend: &mut impl ValidationBackend,
+	mut validation_backend: impl ValidationBackend,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,

@@ -19,6 +19,7 @@ use assert_matches::assert_matches;
 use futures::executor;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
+use polkadot_node_subsystem_util::reexports::SubsystemContext;
 use polkadot_primitives::v1::{HeadData, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
@@ -52,10 +53,10 @@ fn correctly_checks_included_assumption() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
 	let (check_fut, check_result) =
-		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
+		check_assumption_validation_data(ctx.sender(), &candidate, OccupiedCoreAssumption::Included)
 			.remote_handle();
 
 	let test_fut = async move {
@@ -89,7 +90,7 @@ fn correctly_checks_included_assumption() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
+		assert_matches!(check_result.await, AssumptionCheckOutcome::Matches(o, v) => {
 			assert_eq!(o, validation_data);
 			assert_eq!(v, validation_code);
 		});
@@ -114,10 +115,10 @@ fn correctly_checks_timed_out_assumption() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
 	let (check_fut, check_result) =
-		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::TimedOut)
+		check_assumption_validation_data(ctx.sender(), &candidate, OccupiedCoreAssumption::TimedOut)
 			.remote_handle();
 
 	let test_fut = async move {
@@ -151,7 +152,7 @@ fn correctly_checks_timed_out_assumption() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
+		assert_matches!(check_result.await, AssumptionCheckOutcome::Matches(o, v) => {
 			assert_eq!(o, validation_data);
 			assert_eq!(v, validation_code);
 		});
@@ -174,10 +175,10 @@ fn check_is_bad_request_if_no_validation_data() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
 	let (check_fut, check_result) =
-		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
+		check_assumption_validation_data(ctx.sender(), &candidate, OccupiedCoreAssumption::Included)
 			.remote_handle();
 
 	let test_fut = async move {
@@ -198,7 +199,7 @@ fn check_is_bad_request_if_no_validation_data() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::BadRequest);
+		assert_matches!(check_result.await, AssumptionCheckOutcome::BadRequest);
 	};
 
 	let test_fut = future::join(test_fut, check_fut);
@@ -218,10 +219,10 @@ fn check_is_bad_request_if_no_validation_code() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
 	let (check_fut, check_result) =
-		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::TimedOut)
+		check_assumption_validation_data(ctx.sender(), &candidate, OccupiedCoreAssumption::TimedOut)
 			.remote_handle();
 
 	let test_fut = async move {
@@ -255,7 +256,7 @@ fn check_is_bad_request_if_no_validation_code() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::BadRequest);
+		assert_matches!(check_result.await, AssumptionCheckOutcome::BadRequest);
 	};
 
 	let test_fut = future::join(test_fut, check_fut);
@@ -274,10 +275,10 @@ fn check_does_not_match() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
 	let (check_fut, check_result) =
-		check_assumption_validation_data(&mut ctx, &candidate, OccupiedCoreAssumption::Included)
+		check_assumption_validation_data(ctx.sender(), &candidate, OccupiedCoreAssumption::Included)
 			.remote_handle();
 
 	let test_fut = async move {
@@ -298,7 +299,7 @@ fn check_does_not_match() {
 			}
 		);
 
-		assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::DoesNotMatch);
+		assert_matches!(check_result.await, AssumptionCheckOutcome::DoesNotMatch);
 	};
 
 	let test_fut = future::join(test_fut, check_fut);
@@ -365,7 +366,6 @@ fn candidate_validation_ok_is_ok() {
 		Arc::new(pov),
 		&Default::default(),
 	))
-	.unwrap()
 	.unwrap();
 
 	assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
@@ -408,7 +408,6 @@ fn candidate_validation_bad_return_is_invalid() {
 		Arc::new(pov),
 		&Default::default(),
 	))
-	.unwrap()
 	.unwrap();
 
 	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::ExecutionError(_)));
@@ -443,8 +442,7 @@ fn candidate_validation_timeout_is_internal_error() {
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),
-	))
-	.unwrap();
+	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
 }
@@ -479,7 +477,6 @@ fn candidate_validation_code_mismatch_is_invalid() {
 		Arc::new(pov),
 		&Default::default(),
 	))
-	.unwrap()
 	.unwrap();
 
 	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::CodeHashMismatch));
@@ -518,8 +515,7 @@ fn compressed_code_works() {
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),
-	))
-	.unwrap();
+	));
 
 	assert_matches!(v, Ok(ValidationResult::Valid(_, _)));
 }
@@ -558,8 +554,7 @@ fn code_decompression_failure_is_invalid() {
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),
-	))
-	.unwrap();
+	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)));
 }
@@ -599,8 +594,7 @@ fn pov_decompression_failure_is_invalid() {
 		descriptor,
 		Arc::new(pov),
 		&Default::default(),
-	))
-	.unwrap();
+	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)));
 }
