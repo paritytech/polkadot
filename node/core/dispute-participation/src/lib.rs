@@ -22,7 +22,7 @@
 
 use futures::{channel::oneshot, prelude::*};
 
-use polkadot_node_primitives::{APPROVAL_EXECUTION_TIMEOUT, ValidationResult};
+use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
 	errors::{RecoveryError, RuntimeApiError},
 	messages::{
