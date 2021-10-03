@@ -170,8 +170,6 @@ pub mod pallet {
 		NewCodeTooLarge,
 		/// Candidate not in parent context.
 		CandidateNotInParentContext,
-		/// The bitfield contains a bit relating to an unassigned availability core.
-		UnoccupiedBitInBitfield,
 		/// Invalid group index in core assignment.
 		InvalidGroupIndex,
 		/// Insufficient (non-majority) backing.
@@ -265,14 +263,6 @@ impl<T: Config> Pallet<T> {
 		// 3. each bitfield has exactly `expected_bits`
 		// 4. signature is valid.
 		let signed_bitfields = {
-			let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras_record
-				.iter()
-				.map(|p| {
-					p.as_ref()
-						.map_or(false, |(_id, pending_availability)| pending_availability.is_some())
-				})
-				.collect();
-
 			let mut last_index = None;
 
 			let signing_context = SigningContext {
@@ -297,12 +287,6 @@ impl<T: Config> Pallet<T> {
 				ensure!(
 					(unchecked_bitfield.unchecked_validator_index().0 as usize) < validators.len(),
 					Error::<T>::ValidatorIndexOutOfBounds,
-				);
-
-				ensure!(
-					occupied_bitmask.clone() & unchecked_bitfield.unchecked_payload().0.clone() ==
-						unchecked_bitfield.unchecked_payload().0,
-					Error::<T>::UnoccupiedBitInBitfield,
 				);
 
 				let validator_public =
