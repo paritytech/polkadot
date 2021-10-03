@@ -1187,12 +1187,11 @@ impl<T: Config> Pallet<T> {
 	fn enact_pvf_rejected(code_hash: &ValidationCodeHash, causes: Vec<PvfCheckCause>) -> Weight {
 		let mut weight = T::DbWeight::get().writes(1);
 
-		// PVF pre-checking retained the code by bumping the RC by one. All further onboardings and
-		// upgrades using the same code do not increase the reference count. Hence the reference
-		// count is only decreased once per reject.
-		weight += Self::decrease_code_ref(code_hash);
-
 		for cause in causes {
+			// Whenever PVF pre-checking is started or a new cause is added to it, the RC is bumped.
+			// Now we need to unbump it.
+			weight += Self::decrease_code_ref(code_hash);
+
 			match cause {
 				PvfCheckCause::Onboarding(para) => {
 					weight += T::DbWeight::get().writes(2);
