@@ -279,7 +279,6 @@ build-malus:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   script:
     - time cargo build --release --verbose -p polkadot-test-malus --features disputes
     - sccache -s
@@ -445,14 +444,13 @@ publish-malus-image:
   <<:                              *build-push-image
   variables:
     <<:                            *image-variables
-    # scripts/docker/malus.Dockerfile
-    DOCKERFILE:                    malus.Dockerfile
+    # scripts/dockerfiles/malus.Dockerfile
+    DOCKERFILE:                    dockerfiles/malus.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/malus
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         build-malus
       artifacts:                   true
@@ -673,7 +671,7 @@ simnet-tests-malus-dispute-valid:
     - echo "${GH_DIR}"
     - echo "${NETWORK_CONFIG}"
     - echo "${FEATURES}"
-        
+
   script:
     - /home/nonroot/simnet/scripts/run-test-environment-manager.sh
         --github-remote-dir="${GH_DIR}"
