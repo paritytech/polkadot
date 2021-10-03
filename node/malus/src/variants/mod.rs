@@ -17,12 +17,8 @@
 //! Collection of behavior variants.
 
 mod back_garbage_candidate;
-mod dispute_ancestor;
-mod dispute_unavailable_block;
-mod suggest_garbage_candidate;
+// mod dispute_ancestor;
+// mod dispute_unavailable_block;
+// mod suggest_garbage_candidate;
 
-pub(crate) use self::{
-	back_garbage_candidate::BackGarbageCandidate, dispute_ancestor::DisputeAncestor,
-	dispute_unavailable_block::DisputeUnavailable,
-	suggest_garbage_candidate::SuggestGarbageCandidate,
-};
+pub(crate) use self::back_garbage_candidate::BackGarbageCandidate;

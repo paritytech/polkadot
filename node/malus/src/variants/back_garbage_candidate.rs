@@ -20,10 +20,11 @@
 #![allow(missing_docs)]
 
 use polkadot_cli::{
-	create_default_subsystems,
+	prepared_overseer_builder,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
+		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
+		ProvideRuntimeApi, SpawnNamed,
 	},
 };
 
@@ -193,6 +194,7 @@ pub(crate) struct BackGarbageCandidate;
 impl OverseerGen for BackGarbageCandidate {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
+		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
@@ -200,32 +202,26 @@ impl OverseerGen for BackGarbageCandidate {
 		RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
-		let spawner = args.spawner.clone();
-		let leaves = args.leaves.clone();
-		let runtime_client = args.runtime_client.clone();
-		let registry = args.registry.clone();
 		let candidate_validation_config = args.candidate_validation_config.clone();
+		let spawner = args.spawner.clone();
 
-		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.replace_candidate_validation(|cv|
-			// create the filtered subsystem
-			FilteredSubsystem::new(
-				CandidateValidationSubsystem::with_config(
-					candidate_validation_config,
-					cv.metrics,
-					cv.pvf_metrics,
-				),
-				BribedPassage::<Spawner> {
-					inner: Arc::new(Mutex::new(BribedPassageInner {
-						spawner: spawner.clone(),
-						cache: Default::default(),
-					})),
-				},
-			));
-
-		let (overseer, handle) =
-			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner)?;
-
-		Ok((overseer, handle))
+		prepared_overseer_builder(args)?
+			.replace_candidate_validation(|cv| {
+				InterceptedSubsystem::new(
+					CandidateValidationSubsystem::with_config(
+						candidate_validation_config,
+						cv.metrics,
+						cv.pvf_metrics,
+					),
+					BribedPassage::<Spawner> {
+						inner: Arc::new(Mutex::new(BribedPassageInner {
+							spawner,
+							cache: Default::default(),
+						})),
+					},
+				)
+			})
+			.build_with_connector(connector)
+			.map_err(|e| e.into())
 	}
 }

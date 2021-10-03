@@ -26,6 +26,7 @@ use polkadot_cli::{
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
 		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
+		OverseerConnector,
 	},
 };
 
@@ -114,8 +115,8 @@ impl OverseerGen for DisputeUnavailable {
 
 		// modify the subsystem(s) as needed:
 		let all_subsystems = create_default_subsystems(args)?.replace_candidate_backing(|cb|
-			// create the filtered subsystem
-			FilteredSubsystem::new(
+			// create the intercepted subsystem
+			InterceptedSubsystem::new(
 				CandidateBackingSubsystem::new(spawner.clone(), crypto_store_ptr, cb.params.metrics),
 				coll,
 			));

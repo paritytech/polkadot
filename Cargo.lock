@@ -7071,15 +7071,23 @@ dependencies = [
  "async-trait",
  "color-eyre",
  "futures 0.3.17",
+ "futures-timer 3.0.2",
  "parity-util-mem",
  "polkadot-cli",
+ "polkadot-node-core-backing",
  "polkadot-node-core-candidate-validation",
+ "polkadot-node-core-dispute-coordinator",
  "polkadot-node-core-pvf",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-types",
  "polkadot-node-subsystem-util",
+ "polkadot-primitives",
  "sp-core",
+ "sp-keystore",
  "structopt",
+ "tracing",
 ]
 
 [[package]]

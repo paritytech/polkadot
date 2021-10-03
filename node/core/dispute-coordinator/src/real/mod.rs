@@ -62,7 +62,6 @@ use db::v1::{DbBackend, RecentDisputes};
 
 mod backend;
 mod db;
-mod metrics;
 
 #[cfg(test)]
 mod tests;
