@@ -320,6 +320,7 @@ impl ValidationBackend for MockValidatorBackend {
 	async fn validate_candidate(
 		&mut self,
 		_raw_validation_code: Vec<u8>,
+		_timeout: Duration,
 		_params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		self.result.clone()
@@ -363,6 +364,7 @@ fn candidate_validation_ok_is_ok() {
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
 	))
 	.unwrap()
@@ -406,6 +408,7 @@ fn candidate_validation_bad_return_is_invalid() {
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
 	))
 	.unwrap()
@@ -442,6 +445,7 @@ fn candidate_validation_timeout_is_internal_error() {
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
 	))
 	.unwrap();
@@ -477,6 +481,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
 	))
 	.unwrap()
@@ -517,6 +522,7 @@ fn compressed_code_works() {
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
 	))
 	.unwrap();
@@ -557,6 +563,7 @@ fn code_decompression_failure_is_invalid() {
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
 	))
 	.unwrap();
@@ -598,6 +605,7 @@ fn pov_decompression_failure_is_invalid() {
 		validation_code,
 		descriptor,
 		Arc::new(pov),
+		Duration::from_secs(0),
 		&Default::default(),
 	))
 	.unwrap();

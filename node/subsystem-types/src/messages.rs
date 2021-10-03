@@ -51,6 +51,7 @@ use polkadot_statement_table::v1::Misbehavior;
 use std::{
 	collections::{BTreeMap, HashSet},
 	sync::Arc,
+	time::Duration,
 };
 
 /// Network events as transmitted to other subsystems, wrapped in their message types.
@@ -114,6 +115,7 @@ pub enum CandidateValidationMessage {
 	ValidateFromChainState(
 		CandidateDescriptor,
 		Arc<PoV>,
+		Duration, /// Execution timeout
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
@@ -130,6 +132,7 @@ pub enum CandidateValidationMessage {
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
+		Duration, /// Execution timeout
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 }
@@ -138,8 +141,8 @@ impl CandidateValidationMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::ValidateFromChainState(_, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
+			Self::ValidateFromChainState(_, _,  _, _) => None,
+			Self::ValidateFromExhaustive(_, _,  _, _, _, _) => None,
 		}
 	}
 }
