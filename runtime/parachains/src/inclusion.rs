@@ -170,8 +170,6 @@ pub mod pallet {
 		NewCodeTooLarge,
 		/// Candidate not in parent context.
 		CandidateNotInParentContext,
-		/// The bitfield contains a bit relating to an unassigned availability core.
-		UnoccupiedBitInBitfield,
 		/// Invalid group index in core assignment.
 		InvalidGroupIndex,
 		/// Insufficient (non-majority) backing.
@@ -297,12 +295,6 @@ impl<T: Config> Pallet<T> {
 				ensure!(
 					(unchecked_bitfield.unchecked_validator_index().0 as usize) < validators.len(),
 					Error::<T>::ValidatorIndexOutOfBounds,
-				);
-
-				ensure!(
-					occupied_bitmask.clone() & unchecked_bitfield.unchecked_payload().0.clone() ==
-						unchecked_bitfield.unchecked_payload().0,
-					Error::<T>::UnoccupiedBitInBitfield,
 				);
 
 				let validator_public =
