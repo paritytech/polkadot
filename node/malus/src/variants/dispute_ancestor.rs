@@ -113,11 +113,7 @@ impl OverseerGen for DisputeAncestor {
 		let result = prepared_overseer_builder(args)?
 			.replace_candidate_backing(move |cb| {
 				InterceptedSubsystem::new(
-					CandidateBackingSubsystem::new(
-						spawner2,
-						crypto_store_ptr,
-						cb.params.metrics,
-					),
+					CandidateBackingSubsystem::new(spawner2, crypto_store_ptr, cb.params.metrics),
 					track_collations,
 				)
 			})

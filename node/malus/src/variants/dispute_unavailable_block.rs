@@ -25,8 +25,8 @@ use polkadot_cli::{
 	prepared_overseer_builder,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
-		OverseerConnector,
+		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
+		ProvideRuntimeApi, SpawnNamed,
 	},
 };
 
@@ -109,12 +109,13 @@ impl OverseerGen for DisputeUnavailable {
 
 		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
 		let spawner2 = spawner.clone();
-		let result = prepared_overseer_builder(args)?.replace_candidate_backing(|cb|
-			InterceptedSubsystem::new(
-				CandidateBackingSubsystem::new(spawner2, crypto_store_ptr, cb.params.metrics),
-				track_collations,
-			)
-		)
+		let result = prepared_overseer_builder(args)?
+			.replace_candidate_backing(|cb| {
+				InterceptedSubsystem::new(
+					CandidateBackingSubsystem::new(spawner2, crypto_store_ptr, cb.params.metrics),
+					track_collations,
+				)
+			})
 			.build_with_connector(connector)
 			.map_err(|e| e.into());
 

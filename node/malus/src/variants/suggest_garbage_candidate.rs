@@ -26,8 +26,8 @@ use polkadot_cli::{
 	prepared_overseer_builder,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
-		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
-		OverseerConnector,
+		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
+		ProvideRuntimeApi, SpawnNamed,
 	},
 };
 
@@ -117,16 +117,13 @@ impl OverseerGen for SuggestGarbageCandidate {
 		let keystore2 = keystore.clone();
 		let spawner2 = spawner.clone();
 
-		let result = prepared_overseer_builder(args)?.replace_candidate_backing(move |cb|
-			InterceptedSubsystem::new(
-				CandidateBackingSubsystem::new(
-					spawner2,
-					keystore2,
-					cb.params.metrics,
-				),
-				filter,
-			)
-		)
+		let result = prepared_overseer_builder(args)?
+			.replace_candidate_backing(move |cb| {
+				InterceptedSubsystem::new(
+					CandidateBackingSubsystem::new(spawner2, keystore2, cb.params.metrics),
+					filter,
+				)
+			})
 			.build_with_connector(connector)
 			.map_err(|e| e.into());
 

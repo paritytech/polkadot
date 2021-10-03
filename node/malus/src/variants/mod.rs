@@ -21,7 +21,8 @@ mod dispute_ancestor;
 mod dispute_unavailable_block;
 mod suggest_garbage_candidate;
 
-pub(crate) use self::back_garbage_candidate::BackGarbageCandidate;
-pub(crate) use self::suggest_garbage_candidate::SuggestGarbageCandidate;
-pub(crate) use self::dispute_ancestor::DisputeAncestor;
-pub(crate) use self::dispute_unavailable_block::DisputeUnavailable;
+pub(crate) use self::{
+	back_garbage_candidate::BackGarbageCandidate, dispute_ancestor::DisputeAncestor,
+	dispute_unavailable_block::DisputeUnavailable,
+	suggest_garbage_candidate::SuggestGarbageCandidate,
+};
