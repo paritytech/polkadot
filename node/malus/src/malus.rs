@@ -32,14 +32,14 @@ use variants::*;
 #[structopt(about = "Malus - the nemesis of polkadot.")]
 #[structopt(rename_all = "kebab-case")]
 enum NemesisVariant {
-	// /// Suggest a candidate with an invalid proof of validity.
-	// SuggestGarabageCandidate(RunCmd),
+	/// Suggest a candidate with an invalid proof of validity.
+	SuggestGarabageCandidate(RunCmd),
 	/// Back a candidate with a specifically crafted proof of validity.
 	BackGarbageCandidate(RunCmd),
-	// /// Delayed disputing of ancestors that are perfectly fine.
-	// DisputeAncestor(RunCmd),
-	// /// Instant disputing of a block that was never made available.
-	// DisputeUnavailable(RunCmd),
+	/// Delayed disputing of ancestors that are perfectly fine.
+	DisputeAncestor(RunCmd),
+	/// Instant disputing of a block that was never made available.
+	DisputeUnavailable(RunCmd),
 }
 
 #[derive(Debug, StructOpt)]
@@ -55,11 +55,11 @@ impl MalusCli {
 		match self.variant {
 			NemesisVariant::BackGarbageCandidate(run) =>
 				polkadot_cli::run_node(run, BackGarbageCandidate)?,
-			// NemesisVariant::SuggestGarabageCandidate(run) =>
-			// polkadot_cli::run_node(run, SuggestGarbageCandidate)?,
-			// NemesisVariant::DisputeAncestor(run) => polkadot_cli::run_node(run, DisputeAncestor)?,
-			// NemesisVariant::DisputeUnavailable(run) =>
-			// 	polkadot_cli::run_node(run, DisputeUnavailable)?,
+			NemesisVariant::SuggestGarabageCandidate(run) =>
+				polkadot_cli::run_node(run, SuggestGarbageCandidate)?,
+			NemesisVariant::DisputeAncestor(run) => polkadot_cli::run_node(run, DisputeAncestor)?,
+			NemesisVariant::DisputeUnavailable(run) =>
+				polkadot_cli::run_node(run, DisputeUnavailable)?,
 		}
 		Ok(())
 	}
@@ -80,12 +80,12 @@ mod tests {
 	fn subcommand_works() {
 		let cli = MalusCli::from_iter_safe(IntoIterator::into_iter([
 			"malus",
-			"back-garbage-candidate",
+			"dispute-ancestor",
 			"--bob",
 		]))
 		.unwrap();
 		assert_matches::assert_matches!(cli, MalusCli {
-			variant: NemesisVariant::BackGarbageCandidate(run),
+			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
 			assert!(run.base.bob);

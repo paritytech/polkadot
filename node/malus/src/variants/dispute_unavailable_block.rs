@@ -22,7 +22,7 @@
 #![allow(missing_docs)]
 
 use polkadot_cli::{
-	create_default_subsystems,
+	prepared_overseer_builder,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
 		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
@@ -95,6 +95,7 @@ pub(crate) struct DisputeUnavailable;
 impl OverseerGen for DisputeUnavailable {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
+		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
@@ -103,26 +104,19 @@ impl OverseerGen for DisputeUnavailable {
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
 		let spawner = args.spawner.clone();
-		let leaves = args.leaves.clone();
-		let runtime_client = args.runtime_client.clone();
-		let registry = args.registry.clone();
-
 		let (sink, source) = metered::unbounded();
-
-		let coll = TrackCollations { sink };
+		let track_collations = TrackCollations { sink };
 
 		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
-
-		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.replace_candidate_backing(|cb|
-			// create the intercepted subsystem
+		let spawner2 = spawner.clone();
+		let result = prepared_overseer_builder(args)?.replace_candidate_backing(|cb|
 			InterceptedSubsystem::new(
-				CandidateBackingSubsystem::new(spawner.clone(), crypto_store_ptr, cb.params.metrics),
-				coll,
-			));
-
-		let (overseer, handle) =
-			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner.clone())?;
+				CandidateBackingSubsystem::new(spawner2, crypto_store_ptr, cb.params.metrics),
+				track_collations,
+			)
+		)
+			.build_with_connector(connector)
+			.map_err(|e| e.into());
 
 		launch_processing_task(
 			&spawner,
@@ -157,6 +151,6 @@ impl OverseerGen for DisputeUnavailable {
 			},
 		);
 
-		Ok((overseer, handle))
+		result
 	}
 }

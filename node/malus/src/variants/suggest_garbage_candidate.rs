@@ -23,10 +23,11 @@
 #![allow(missing_docs)]
 
 use polkadot_cli::{
-	create_default_subsystems,
+	prepared_overseer_builder,
 	service::{
 		AuthorityDiscoveryApi, AuxStore, BabeApi, Block, Error, HeaderBackend, Overseer,
 		OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost, ProvideRuntimeApi, SpawnNamed,
+		OverseerConnector,
 	},
 };
 
@@ -99,6 +100,7 @@ pub(crate) struct SuggestGarbageCandidate;
 impl OverseerGen for SuggestGarbageCandidate {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
+		connector: OverseerConnector,
 		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
 	) -> Result<(Overseer<Spawner, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
@@ -107,29 +109,26 @@ impl OverseerGen for SuggestGarbageCandidate {
 		Spawner: 'static + SpawnNamed + Clone + Unpin,
 	{
 		let spawner = args.spawner.clone();
-		let leaves = args.leaves.clone();
-		let runtime_client = args.runtime_client.clone();
-		let registry = args.registry.clone();
-
 		let (sink, source) = metered::unbounded();
-
 		let keystore = args.keystore.clone() as SyncCryptoStorePtr;
 
 		let filter = ReplacePoVBytes { keystore: keystore.clone(), queue: sink };
-		// modify the subsystem(s) as needed:
-		let all_subsystems = create_default_subsystems(args)?.replace_candidate_backing(|cb|
-			// create the filtered subsystem
-			FilteredSubsystem::new(
+
+		let keystore2 = keystore.clone();
+		let spawner2 = spawner.clone();
+
+		let result = prepared_overseer_builder(args)?.replace_candidate_backing(move |cb|
+			InterceptedSubsystem::new(
 				CandidateBackingSubsystem::new(
-					spawner.clone(),
-					keystore.clone(),
+					spawner2,
+					keystore2,
 					cb.params.metrics,
 				),
-				filter.clone(),
-			));
-
-		let (overseer, handle) =
-			Overseer::new(leaves, all_subsystems, registry, runtime_client, spawner.clone())?;
+				filter,
+			)
+		)
+			.build_with_connector(connector)
+			.map_err(|e| e.into());
 
 		launch_processing_task(
 			&spawner,
@@ -171,6 +170,6 @@ impl OverseerGen for SuggestGarbageCandidate {
 			},
 		);
 
-		Ok((overseer, handle))
+		result
 	}
 }

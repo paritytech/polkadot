@@ -109,6 +109,21 @@ impl OverseerGen for DisputeAncestor {
 		let track_collations = TrackCollations { sink };
 		let crypto_store_ptr = args.keystore.clone() as SyncCryptoStorePtr;
 
+		let spawner2 = spawner.clone();
+		let result = prepared_overseer_builder(args)?
+			.replace_candidate_backing(move |cb| {
+				InterceptedSubsystem::new(
+					CandidateBackingSubsystem::new(
+						spawner2,
+						crypto_store_ptr,
+						cb.params.metrics,
+					),
+					track_collations,
+				)
+			})
+			.build_with_connector(connector)
+			.map_err(|e| e.into());
+
 		launch_processing_task(
 			&spawner,
 			source,
@@ -138,22 +153,10 @@ impl OverseerGen for DisputeAncestor {
 					false,
 				);
 
-				subsystem_sender.send_message(msg.into()).await;
+				subsystem_sender.send_message(msg).await;
 			},
 		);
 
-		prepared_overseer_builder(args)?
-			.replace_candidate_backing(|cb| {
-				InterceptedSubsystem::new(
-					CandidateBackingSubsystem::new(
-						spawner.clone(),
-						crypto_store_ptr,
-						cb.params.metrics,
-					),
-					track_collations,
-				)
-			})
-			.build_with_connector(connector)
-			.map_err(|e| e.into())
+		result
 	}
 }
