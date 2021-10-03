@@ -21,15 +21,15 @@ frame_benchmarking::benchmarks! {
     service_overweight {
 		let a = ParaId::from(1991);
 		let msg = (300u32, "a_msg_1").encode();
-	    //tests::queue_upward_msg(a, msg.clone());
-		//Ump::process_pending_upward_messages();
+        crate::ump::tests::queue_upward_msg(a, msg.clone());
+		Ump::process_pending_upward_messages();
     }: _(RawOrigin::Root, 0, 500)  verify {}
 }
 
 frame_benchmarking::impl_benchmark_test_suite!(
     Ump,
     crate::mock::new_test_ext(
-			GenesisConfigBuilder {
+			crate::ump::tests::GenesisConfigBuilder {
                 ump_service_total_weight: 500,
                 ump_max_individual_weight: 300,
                 ..Default::default()
