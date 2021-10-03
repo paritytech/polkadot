@@ -263,14 +263,6 @@ impl<T: Config> Pallet<T> {
 		// 3. each bitfield has exactly `expected_bits`
 		// 4. signature is valid.
 		let signed_bitfields = {
-			let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras_record
-				.iter()
-				.map(|p| {
-					p.as_ref()
-						.map_or(false, |(_id, pending_availability)| pending_availability.is_some())
-				})
-				.collect();
-
 			let mut last_index = None;
 
 			let signing_context = SigningContext {
