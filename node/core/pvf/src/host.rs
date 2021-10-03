@@ -863,9 +863,15 @@ mod tests {
 		.await;
 
 		let (result_tx, _result_rx) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(1), TEST_EXECUTION_TIMEOUT, vec![], Priority::Critical, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			vec![],
+			Priority::Critical,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		run_until(
 			&mut test.run,
@@ -885,9 +891,15 @@ mod tests {
 		let mut host = test.host_handle();
 
 		let (result_tx, result_rx_pvf_1_1) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(1), TEST_EXECUTION_TIMEOUT, b"pvf1".to_vec(), Priority::Normal, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf1".to_vec(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		let (result_tx, result_rx_pvf_1_2) = oneshot::channel();
 		host.execute_pvf(
@@ -901,9 +913,15 @@ mod tests {
 		.unwrap();
 
 		let (result_tx, result_rx_pvf_2) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(2), TEST_EXECUTION_TIMEOUT, b"pvf2".to_vec(), Priority::Normal, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Pvf::from_discriminator(2),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf2".to_vec(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,
@@ -971,9 +989,15 @@ mod tests {
 		let mut host = test.host_handle();
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(1), TEST_EXECUTION_TIMEOUT, b"pvf1".to_vec(), Priority::Normal, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf1".to_vec(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,
