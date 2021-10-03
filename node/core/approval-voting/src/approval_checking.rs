@@ -315,6 +315,11 @@ fn filled_tranche_iterator<'a>(
 /// and tick parameters. This method also returns the next tick at which a `no_show` will occur
 /// amongst the set of validators that have not submitted an approval.
 ///
+/// This also bounds the earliest tick of all assignments to be equal to the
+/// block tick for the purposes of the calculation, so no assignment can be treated
+/// as being received before the block itself. This is unlikely if not impossible
+/// in practice, but can occur during test code.
+///
 /// If the returned `next_no_show` is not None, there are two possible cases for the value of
 /// based on the earliest assignment `tick` of a non-approving, yet-to-be-no-show validator:
 ///  - if `tick` <= `clock_drift`: the value will always be `clock_drift` + `no_show_duration`.
@@ -323,13 +328,16 @@ fn count_no_shows(
 	assignments: &[(ValidatorIndex, Tick)],
 	approvals: &BitSlice<BitOrderLsb0, u8>,
 	clock_drift: Tick,
+	block_tick: Tick,
 	no_show_duration: Tick,
 	drifted_tick_now: Tick,
 ) -> (usize, Option<u64>) {
 	let mut next_no_show = None;
 	let no_shows = assignments
 		.iter()
-		.map(|(v_index, tick)| (v_index, tick.saturating_sub(clock_drift) + no_show_duration))
+		.map(|(v_index, tick)| {
+			(v_index, tick.max(&block_tick).saturating_sub(clock_drift) + no_show_duration)
+		})
 		.filter(|&(v_index, no_show_at)| {
 			let has_approved = if let Some(approved) = approvals.get(v_index.0 as usize) {
 				*approved
@@ -418,6 +426,7 @@ pub fn tranches_to_approve(
 				assignments,
 				approvals,
 				clock_drift,
+				block_tick,
 				no_show_duration,
 				drifted_tick_now,
 			);
@@ -635,7 +644,7 @@ mod tests {
 
 	#[test]
 	fn tranches_to_approve_everyone_present() {
-		let block_tick = 0;
+		let block_tick = 20;
 		let no_show_duration = 10;
 		let needed_approvals = 4;
 
@@ -672,7 +681,7 @@ mod tests {
 				needed: 1,
 				tolerated_missing: 0,
 				next_no_show: None,
-				last_assignment_tick: Some(1)
+				last_assignment_tick: Some(21)
 			},
 		);
 	}
@@ -1127,6 +1136,7 @@ mod tests {
 
 	fn test_count_no_shows(test: NoShowTest) {
 		let n_validators = 4;
+		let block_tick = 20;
 
 		let mut approvals = bitvec![BitOrderLsb0, u8; 0; n_validators];
 		for &v_index in &test.approvals {
@@ -1137,6 +1147,7 @@ mod tests {
 			&test.assignments,
 			&approvals,
 			test.clock_drift,
+			block_tick,
 			test.no_show_duration,
 			test.drifted_tick_now,
 		);
@@ -1160,13 +1171,13 @@ mod tests {
 	#[test]
 	fn count_no_shows_single_validator_is_next_no_show() {
 		test_count_no_shows(NoShowTest {
-			assignments: vec![(ValidatorIndex(1), 21)],
+			assignments: vec![(ValidatorIndex(1), 31)],
 			approvals: vec![],
 			clock_drift: 10,
 			no_show_duration: 10,
 			drifted_tick_now: 20,
 			exp_no_shows: 0,
-			exp_next_no_show: Some(31),
+			exp_next_no_show: Some(41),
 		})
 	}
 
@@ -1199,26 +1210,26 @@ mod tests {
 	#[test]
 	fn count_no_shows_two_validators_next_no_show_ordered_first() {
 		test_count_no_shows(NoShowTest {
-			assignments: vec![(ValidatorIndex(1), 21), (ValidatorIndex(2), 22)],
+			assignments: vec![(ValidatorIndex(1), 31), (ValidatorIndex(2), 32)],
 			approvals: vec![],
 			clock_drift: 10,
 			no_show_duration: 10,
 			drifted_tick_now: 20,
 			exp_no_shows: 0,
-			exp_next_no_show: Some(31),
+			exp_next_no_show: Some(41),
 		})
 	}
 
 	#[test]
 	fn count_no_shows_two_validators_next_no_show_ordered_last() {
 		test_count_no_shows(NoShowTest {
-			assignments: vec![(ValidatorIndex(1), 22), (ValidatorIndex(2), 21)],
+			assignments: vec![(ValidatorIndex(1), 32), (ValidatorIndex(2), 31)],
 			approvals: vec![],
 			clock_drift: 10,
 			no_show_duration: 10,
 			drifted_tick_now: 20,
 			exp_no_shows: 0,
-			exp_next_no_show: Some(31),
+			exp_next_no_show: Some(41),
 		})
 	}
 
@@ -1226,16 +1237,16 @@ mod tests {
 	fn count_no_shows_three_validators_one_almost_late_one_no_show_one_approving() {
 		test_count_no_shows(NoShowTest {
 			assignments: vec![
-				(ValidatorIndex(1), 21),
-				(ValidatorIndex(2), 20),
-				(ValidatorIndex(3), 20),
+				(ValidatorIndex(1), 31),
+				(ValidatorIndex(2), 19),
+				(ValidatorIndex(3), 19),
 			],
 			approvals: vec![3],
 			clock_drift: 10,
 			no_show_duration: 10,
 			drifted_tick_now: 20,
 			exp_no_shows: 1,
-			exp_next_no_show: Some(31),
+			exp_next_no_show: Some(41),
 		})
 	}
 
@@ -1282,7 +1293,7 @@ mod tests {
 			no_show_duration: 20,
 			drifted_tick_now: 0,
 			exp_no_shows: 0,
-			exp_next_no_show: Some(30),
+			exp_next_no_show: Some(40),
 		})
 	}
 
@@ -1295,7 +1306,7 @@ mod tests {
 			no_show_duration: 20,
 			drifted_tick_now: 0,
 			exp_no_shows: 0,
-			exp_next_no_show: Some(30),
+			exp_next_no_show: Some(40),
 		})
 	}
 
