@@ -1370,10 +1370,21 @@ async fn handle_approved_ancestor(
 							);
 						},
 						Some(a_entry) => {
-							let n_assignments = a_entry.n_assignments();
-							let n_approvals = c_entry.approvals().count_ones();
-
 							let status = || {
+								let n_assignments = a_entry.n_assignments();
+
+								// Take the approvals, filtered by the assignments
+								// for this block.
+								let n_approvals = c_entry
+									.approvals()
+									.iter()
+									.by_val()
+									.enumerate()
+									.filter(|(i, approved)| {
+										*approved && a_entry.is_assigned(ValidatorIndex(*i as _))
+									})
+									.count();
+
 								format!(
 									"{}/{}/{}",
 									n_assignments,
