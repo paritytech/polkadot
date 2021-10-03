@@ -38,7 +38,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		BlockDescription, ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		DisputeParticipationMessage, ImportStatementsResult,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
@@ -479,22 +479,7 @@ async fn handle_new_activations(
 	new_activations: impl IntoIterator<Item = Hash>,
 ) -> Result<(), Error> {
 	for new_leaf in new_activations {
-		let block_header = {
-			let (tx, rx) = oneshot::channel();
-
-			ctx.send_message(ChainApiMessage::BlockHeader(new_leaf, tx)).await;
-
-			match rx.await?? {
-				None => continue,
-				Some(header) => header,
-			}
-		};
-
-		match state
-			.rolling_session_window
-			.cache_session_info_for_head(ctx, new_leaf, &block_header)
-			.await
-		{
+		match state.rolling_session_window.cache_session_info_for_head(ctx, new_leaf).await {
 			Err(e) => {
 				tracing::warn!(
 					target: LOG_TARGET,
@@ -538,7 +523,7 @@ async fn handle_incoming(
 			statements,
 			pending_confirmation,
 		} => {
-			handle_import_statements(
+			let outcome = handle_import_statements(
 				ctx,
 				overlay_db,
 				state,
@@ -547,10 +532,10 @@ async fn handle_incoming(
 				session,
 				statements,
 				now,
-				pending_confirmation,
 				metrics,
 			)
 			.await?;
+			pending_confirmation.send(outcome).map_err(|_| Error::OneshotSend)?;
 		},
 		DisputeCoordinatorMessage::RecentDisputes(rx) => {
 			let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
@@ -647,16 +632,11 @@ async fn handle_import_statements(
 	session: SessionIndex,
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
-	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
 	metrics: &Metrics,
-) -> Result<(), Error> {
+) -> Result<ImportStatementsResult, Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
 		// It is not valid to participate in an ancient dispute (spam?).
-		pending_confirmation
-			.send(ImportStatementsResult::InvalidImport)
-			.map_err(|_| Error::OneshotSend)?;
-
-		return Ok(())
+		return Ok(ImportStatementsResult::InvalidImport)
 	}
 
 	let validators = match state.rolling_session_window.session_info(session) {
@@ -667,11 +647,7 @@ async fn handle_import_statements(
 				"Missing info for session which has an active dispute",
 			);
 
-			pending_confirmation
-				.send(ImportStatementsResult::InvalidImport)
-				.map_err(|_| Error::OneshotSend)?;
-
-			return Ok(())
+			return Ok(ImportStatementsResult::InvalidImport)
 		},
 		Some(info) => info.validators.clone(),
 	};
@@ -796,15 +772,12 @@ async fn handle_import_statements(
 				//
 				// We expect that if the candidate is truly disputed that the higher-level network
 				// code will retry.
-				pending_confirmation
-					.send(ImportStatementsResult::InvalidImport)
-					.map_err(|_| Error::OneshotSend)?;
 
 				tracing::debug!(
 					target: LOG_TARGET,
 					"Recovering availability failed - invalid import."
 				);
-				return Ok(())
+				return Ok(ImportStatementsResult::InvalidImport)
 			}
 			metrics.on_open();
 
@@ -822,11 +795,7 @@ async fn handle_import_statements(
 
 	overlay_db.write_candidate_votes(session, candidate_hash, votes.into());
 
-	pending_confirmation
-		.send(ImportStatementsResult::ValidImport)
-		.map_err(|_| Error::OneshotSend)?;
-
-	Ok(())
+	Ok(ImportStatementsResult::ValidImport)
 }
 
 fn find_controlled_validator_indices(
@@ -933,8 +902,7 @@ async fn issue_local_statement(
 
 	// Do import
 	if !statements.is_empty() {
-		let (pending_confirmation, rx) = oneshot::channel();
-		handle_import_statements(
+		match handle_import_statements(
 			ctx,
 			overlay_db,
 			state,
@@ -943,11 +911,10 @@ async fn issue_local_statement(
 			session,
 			statements,
 			now,
-			pending_confirmation,
 			metrics,
 		)
-		.await?;
-		match rx.await {
+		.await
+		{
 			Err(_) => {
 				tracing::error!(
 					target: LOG_TARGET,

@@ -115,13 +115,13 @@ default:
       file:                        false
     GITHUB_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_TOKEN@kv
-      file:                        false    
+      file:                        false
     MATRIX_ACCESS_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ACCESS_TOKEN@kv
       file:                        false
     MATRIX_ROOM_ID:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ROOM_ID@kv
-      file:                        false   
+      file:                        false
     PARITYPR_USER:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/PARITYPR_USER@kv
       file:                        false
@@ -213,7 +213,7 @@ test-build-linux-stable:
     - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
     - echo -n ${VERSION} > ./artifacts/VERSION
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
-    - cp -r scripts/docker/* ./artifacts
+    - cp -r scripts/* ./artifacts
 
 check-runtime-benchmarks:
   stage:                           test
@@ -268,7 +268,7 @@ build-adder-collator:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/docker/* ./artifacts
+    - cp -r scripts/* ./artifacts
 
 build-malus:
   stage:                           test
@@ -297,6 +297,23 @@ build-malus:
     - cp -r scripts/docker/* ./artifacts
 
 #### stage:                        build
+
+check-transaction-versions:
+  # image must be ubuntu:20.04 based to match the linkers, this image has npm installed
+  image:                           paritytech/contracts-ci-linux:production
+  stage:                           build
+  <<:                              *rules-test
+  <<:                              *docker-env
+  <<:                              *vault-secrets
+  needs:
+    - job:                         test-build-linux-stable
+      artifacts:                   true
+  before_script:
+    - apt-get -y update; apt-get -y install jq lsof
+    - npm install --ignore-scripts -g @polkadot/metadata-cmp
+    - git fetch origin release
+  script:
+    - scripts/gitlab/check_extrinsics_ordering.sh
 
 generate-impl-guide:
   stage:                           build
@@ -370,8 +387,8 @@ publish-polkadot-image:
   <<:                              *build-push-image
   variables:
     <<:                            *image-variables
-    # scripts/docker/Dockerfile
-    DOCKERFILE:                    Dockerfile
+    # scripts/dockerfiles/polkadot_injected_debug.Dockerfile
+    DOCKERFILE:                    dockerfiles/polkadot_injected_debug.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/synth-wave
   rules:
     # Don't run on releases - this is handled by the Github Action here:
@@ -406,8 +423,8 @@ publish-adder-collator-image:
   <<:                              *build-push-image
   variables:
     <<:                            *image-variables
-    # scripts/docker/collator.Dockerfile
-    DOCKERFILE:                    collator.Dockerfile
+    # scripts/dockerfiles/collator_injected.Dockerfile
+    DOCKERFILE:                    dockerfiles/collator_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -675,4 +692,4 @@ simnet-tests-malus-dispute-valid:
   allow_failure:                   true
   retry: 2
   tags:
-    - parity-simnet
+    - polkadot-simnet

@@ -157,7 +157,12 @@ pub fn wococo_config() -> Result<RococoChainSpec, String> {
 }
 
 /// The default parachains host configuration.
-#[cfg(any(feature = "rococo-native", feature = "kusama-native", feature = "westend-native"))]
+#[cfg(any(
+	feature = "rococo-native",
+	feature = "kusama-native",
+	feature = "westend-native",
+	feature = "polkadot-native"
+))]
 fn default_parachains_host_configuration(
 ) -> polkadot_runtime_parachains::configuration::HostConfiguration<
 	polkadot_primitives::v1::BlockNumber,
@@ -365,6 +370,10 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: polkadot::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
+		configuration: polkadot::ConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
+		paras: Default::default(),
 	}
 }
 
@@ -1311,6 +1320,10 @@ pub fn polkadot_testnet_genesis(
 		claims: polkadot::ClaimsConfig { claims: vec![], vesting: vec![] },
 		vesting: polkadot::VestingConfig { vesting: vec![] },
 		treasury: Default::default(),
+		configuration: polkadot::ConfigurationConfig {
+			config: default_parachains_host_configuration(),
+		},
+		paras: Default::default(),
 	}
 }
 
@@ -1546,7 +1559,10 @@ pub fn rococo_testnet_genesis(
 		authority_discovery: rococo_runtime::AuthorityDiscoveryConfig { keys: vec![] },
 		sudo: rococo_runtime::SudoConfig { key: root_key.clone() },
 		configuration: rococo_runtime::ConfigurationConfig {
-			config: default_parachains_host_configuration(),
+			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+				max_validators_per_core: Some(1),
+				..default_parachains_host_configuration()
+			},
 		},
 		hrmp: Default::default(),
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
@@ -1836,18 +1852,23 @@ pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
-/// Wococo is a temporary testnet that uses the same runtime as rococo.
+/// Wococo is a temporary testnet that uses almost the same runtime as rococo.
 #[cfg(feature = "rococo-native")]
 fn wococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
-		vec![get_authority_keys_from_seed("Alice"), get_authority_keys_from_seed("Bob")],
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+			get_authority_keys_from_seed("Charlie"),
+			get_authority_keys_from_seed("Dave"),
+		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 	)
 }
 
-/// Wococo local testnet config (multivalidator Alice + Bob)
+/// Wococo local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
 pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 	let wasm_binary = rococo::WASM_BINARY.ok_or("Wococo development wasm not available")?;

@@ -24,12 +24,10 @@ mod parachains_db;
 mod relay_chain_selection;
 
 #[cfg(feature = "full-node")]
-mod overseer;
+pub mod overseer;
 
 #[cfg(feature = "full-node")]
-pub use self::overseer::{
-	create_default_subsystems, OverseerGen, OverseerGenArgs, RealOverseerGen,
-};
+pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
 
 #[cfg(all(test, feature = "disputes"))]
 mod tests;
@@ -54,8 +52,9 @@ use {
 pub use sp_core::traits::SpawnNamed;
 #[cfg(feature = "full-node")]
 pub use {
-	polkadot_overseer::{Handle, Overseer, OverseerHandle},
+	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
 	polkadot_primitives::v1::ParachainHost,
+	relay_chain_selection::SelectRelayChain,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
 	sp_blockchain::HeaderBackend,
@@ -68,6 +67,8 @@ use polkadot_subsystem::jaeger;
 use std::{sync::Arc, time::Duration};
 
 use prometheus_endpoint::Registry;
+#[cfg(feature = "full-node")]
+use service::KeystoreContainer;
 use service::RpcHandlers;
 use telemetry::TelemetryWorker;
 #[cfg(feature = "full-node")]
@@ -302,14 +303,15 @@ fn jaeger_launch_collector_with_agent(
 }
 
 #[cfg(feature = "full-node")]
-type FullSelectChain = relay_chain_selection::SelectRelayChainWithFallback<FullBackend>;
+type FullSelectChain = relay_chain_selection::SelectRelayChain<FullBackend>;
 #[cfg(feature = "full-node")]
-type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch> = grandpa::GrandpaBlockImport<
-	FullBackend,
-	Block,
-	FullClient<RuntimeApi, ExecutorDispatch>,
-	FullSelectChain,
->;
+type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullSelectChain> =
+	grandpa::GrandpaBlockImport<
+		FullBackend,
+		Block,
+		FullClient<RuntimeApi, ExecutorDispatch>,
+		ChainSelection,
+	>;
 
 #[cfg(feature = "light-node")]
 type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::BlakeTwo256>;
@@ -319,36 +321,29 @@ type LightClient<RuntimeApi, ExecutorDispatch> =
 	service::TLightClientWithBackend<Block, RuntimeApi, ExecutorDispatch, LightBackend>;
 
 #[cfg(feature = "full-node")]
-fn new_partial<RuntimeApi, ExecutorDispatch>(
+struct Basics<RuntimeApi, ExecutorDispatch>
+where
+	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
+		+ Send
+		+ Sync
+		+ 'static,
+	RuntimeApi::RuntimeApi:
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+	ExecutorDispatch: NativeExecutionDispatch + 'static,
+{
+	task_manager: TaskManager,
+	client: Arc<FullClient<RuntimeApi, ExecutorDispatch>>,
+	backend: Arc<FullBackend>,
+	keystore_container: KeystoreContainer,
+	telemetry: Option<Telemetry>,
+}
+
+#[cfg(feature = "full-node")]
+fn new_partial_basics<RuntimeApi, ExecutorDispatch>(
 	config: &mut Configuration,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
-) -> Result<
-	service::PartialComponents<
-		FullClient<RuntimeApi, ExecutorDispatch>,
-		FullBackend,
-		FullSelectChain,
-		sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
-		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
-		(
-			impl service::RpcExtensionBuilder,
-			(
-				babe::BabeBlockImport<
-					Block,
-					FullClient<RuntimeApi, ExecutorDispatch>,
-					FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch>,
-				>,
-				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, FullSelectChain>,
-				babe::BabeLink<Block>,
-				beefy_gadget::notification::BeefySignedCommitmentSender<Block>,
-			),
-			grandpa::SharedVoterState,
-			std::time::Duration, // slot-duration
-			Option<Telemetry>,
-		),
-	>,
-	Error,
->
+) -> Result<Basics<RuntimeApi, ExecutorDispatch>, Error>
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
 		+ Send
@@ -400,12 +395,53 @@ where
 
 	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
 
-	let select_chain = relay_chain_selection::SelectRelayChainWithFallback::new(
-		backend.clone(),
-		Handle::new_disconnected(),
-		polkadot_node_subsystem_util::metrics::Metrics::register(config.prometheus_registry())?,
-	);
+	Ok(Basics { task_manager, client, backend, keystore_container, telemetry })
+}
 
+#[cfg(feature = "full-node")]
+fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
+	config: &mut Configuration,
+	Basics { task_manager, backend, client, keystore_container, telemetry }: Basics<
+		RuntimeApi,
+		ExecutorDispatch,
+	>,
+	select_chain: ChainSelection,
+) -> Result<
+	service::PartialComponents<
+		FullClient<RuntimeApi, ExecutorDispatch>,
+		FullBackend,
+		ChainSelection,
+		sc_consensus::DefaultImportQueue<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
+		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, ExecutorDispatch>>,
+		(
+			impl service::RpcExtensionBuilder,
+			(
+				babe::BabeBlockImport<
+					Block,
+					FullClient<RuntimeApi, ExecutorDispatch>,
+					FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection>,
+				>,
+				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
+				babe::BabeLink<Block>,
+				beefy_gadget::notification::BeefySignedCommitmentSender<Block>,
+			),
+			grandpa::SharedVoterState,
+			std::time::Duration, // slot-duration
+			Option<Telemetry>,
+		),
+	>,
+	Error,
+>
+where
+	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
+		+ Send
+		+ Sync
+		+ 'static,
+	RuntimeApi::RuntimeApi:
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+	ExecutorDispatch: NativeExecutionDispatch + 'static,
+	ChainSelection: 'static + SelectChain<Block>,
+{
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
 		config.role.is_authority().into(),
@@ -674,22 +710,52 @@ where
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
-	let service::PartialComponents {
-		client,
-		backend,
-		mut task_manager,
-		keystore_container,
-		mut select_chain,
-		import_queue,
-		transaction_pool,
-		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry),
-	} = new_partial::<RuntimeApi, ExecutorDispatch>(
+	let basics = new_partial_basics::<RuntimeApi, ExecutorDispatch>(
 		&mut config,
 		jaeger_agent,
 		telemetry_worker_handle,
 	)?;
 
 	let prometheus_registry = config.prometheus_registry().cloned();
+
+	let overseer_connector = OverseerConnector::default();
+	let overseer_handle = Handle::new(overseer_connector.handle());
+
+	let chain_spec = config.chain_spec.cloned_box();
+
+	// we should remove this check before we deploy parachains on polkadot
+	// TODO: https://github.com/paritytech/polkadot/issues/3326
+	let is_relay_chain = chain_spec.is_kusama() ||
+		chain_spec.is_westend() ||
+		chain_spec.is_rococo() ||
+		chain_spec.is_wococo();
+
+	let local_keystore = basics.keystore_container.local_keystore();
+	let requires_overseer_for_chain_sel = local_keystore.is_some() &&
+		is_relay_chain &&
+		(role.is_authority() || is_collator.is_collator());
+
+	let select_chain = SelectRelayChain::new(
+		basics.backend.clone(),
+		overseer_handle.clone(),
+		requires_overseer_for_chain_sel,
+		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
+	);
+
+	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
+		client,
+		backend,
+		mut task_manager,
+		keystore_container,
+		select_chain,
+		import_queue,
+		transaction_pool,
+		other: (rpc_extensions_builder, import_setup, rpc_setup, slot_duration, mut telemetry),
+	} = new_partial::<RuntimeApi, ExecutorDispatch, SelectRelayChain<_>>(
+		&mut config,
+		basics,
+		select_chain,
+	)?;
 
 	let shared_voter_state = rpc_setup;
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
@@ -699,7 +765,7 @@ where
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 
-	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
+	if chain_spec.is_rococo() || chain_spec.is_wococo() {
 		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
 	}
 
@@ -784,7 +850,6 @@ where
 		col_data: crate::parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
 	};
 
-	let chain_spec = config.chain_spec.cloned_box();
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -804,7 +869,10 @@ where
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
-	let active_leaves = futures::executor::block_on(active_leaves(&select_chain, &*client))?;
+	// Cannot use the `RelayChainSelection`, since that'd require a setup _and running_ overseer
+	// which we are about to setup.
+	let active_leaves =
+		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
 	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
 		use futures::StreamExt;
@@ -841,7 +909,6 @@ where
 		None
 	};
 
-	let local_keystore = keystore_container.local_keystore();
 	if local_keystore.is_none() {
 		tracing::info!("Cannot run as validator without local keystore.");
 	}
@@ -852,6 +919,7 @@ where
 	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
 		let (overseer, overseer_handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
+				overseer_connector,
 				OverseerGenArgs {
 					leaves: active_leaves,
 					keystore,
@@ -879,43 +947,37 @@ where
 				tracing::error!("Failed to init overseer: {}", e);
 				e
 			})?;
-		let handle = Handle::Connected(overseer_handle.clone());
-		let handle_clone = handle.clone();
+		let handle = Handle::new(overseer_handle.clone());
 
-		task_manager.spawn_essential_handle().spawn_blocking(
-			"overseer",
-			Box::pin(async move {
-				use futures::{pin_mut, select, FutureExt};
+		{
+			let handle = handle.clone();
+			task_manager.spawn_essential_handle().spawn_blocking(
+				"overseer",
+				Box::pin(async move {
+					use futures::{pin_mut, select, FutureExt};
 
-				let forward = polkadot_overseer::forward_events(overseer_client, handle_clone);
+					let forward = polkadot_overseer::forward_events(overseer_client, handle);
 
-				let forward = forward.fuse();
-				let overseer_fut = overseer.run().fuse();
+					let forward = forward.fuse();
+					let overseer_fut = overseer.run().fuse();
 
-				pin_mut!(overseer_fut);
-				pin_mut!(forward);
+					pin_mut!(overseer_fut);
+					pin_mut!(forward);
 
-				select! {
-					_ = forward => (),
-					_ = overseer_fut => (),
-					complete => (),
-				}
-			}),
-		);
-		// we should remove this check before we deploy parachains on polkadot
-		// TODO: https://github.com/paritytech/polkadot/issues/3326
-		let should_connect_overseer = chain_spec.is_kusama() ||
-			chain_spec.is_westend() ||
-			chain_spec.is_rococo() ||
-			chain_spec.is_wococo();
-
-		if should_connect_overseer {
-			select_chain.connect_to_overseer(overseer_handle.clone());
-		} else {
-			tracing::info!("Overseer is running in the disconnected state");
+					select! {
+						_ = forward => (),
+						_ = overseer_fut => (),
+						complete => (),
+					}
+				}),
+			);
 		}
 		Some(handle)
 	} else {
+		assert!(
+			!requires_overseer_for_chain_sel,
+			"Precondition congruence (false) is guaranteed by manual checking. qed"
+		);
 		None
 	};
 
@@ -1232,6 +1294,32 @@ where
 	Ok((task_manager, rpc_handlers))
 }
 
+#[cfg(feature = "full-node")]
+macro_rules! chain_ops {
+	($config:expr, $jaeger_agent:expr, $telemetry_worker_handle:expr; $scope:ident, $executor:ident, $variant:ident) => {{
+		let telemetry_worker_handle = $telemetry_worker_handle;
+		let jaeger_agent = $jaeger_agent;
+		let mut config = $config;
+		let basics = new_partial_basics::<$scope::RuntimeApi, $executor>(
+			config,
+			jaeger_agent,
+			telemetry_worker_handle,
+		)?;
+
+		use ::sc_consensus::LongestChain;
+		// use the longest chain selection, since there is no overseer available
+		let chain_selection = LongestChain::new(basics.backend.clone());
+
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
+			new_partial::<$scope::RuntimeApi, $executor, LongestChain<_, Block>>(
+				&mut config,
+				basics,
+				chain_selection,
+			)?;
+		Ok((Arc::new(Client::$variant(client)), backend, import_queue, task_manager))
+	}};
+}
+
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
 pub fn new_chain_ops(
@@ -1248,50 +1336,27 @@ pub fn new_chain_ops(
 > {
 	config.keystore = service::config::KeystoreConfig::InMemory;
 
+	let telemetry_worker_handle = None;
+
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
-		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
-			new_partial::<rococo_runtime::RuntimeApi, RococoExecutorDispatch>(
-				config,
-				jaeger_agent,
-				None,
-			)?;
-		return Ok((Arc::new(Client::Rococo(client)), backend, import_queue, task_manager))
+		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; rococo_runtime, RococoExecutorDispatch, Rococo)
 	}
 
 	#[cfg(feature = "kusama-native")]
 	if config.chain_spec.is_kusama() {
-		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
-			new_partial::<kusama_runtime::RuntimeApi, KusamaExecutorDispatch>(
-				config,
-				jaeger_agent,
-				None,
-			)?;
-		return Ok((Arc::new(Client::Kusama(client)), backend, import_queue, task_manager))
+		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; kusama_runtime, KusamaExecutorDispatch, Kusama)
 	}
 
 	#[cfg(feature = "westend-native")]
 	if config.chain_spec.is_westend() {
-		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
-			new_partial::<westend_runtime::RuntimeApi, WestendExecutorDispatch>(
-				config,
-				jaeger_agent,
-				None,
-			)?;
-		return Ok((Arc::new(Client::Westend(client)), backend, import_queue, task_manager))
+		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; westend_runtime, WestendExecutorDispatch, Westend)
 	}
 
 	#[cfg(feature = "polkadot-native")]
 	{
-		let service::PartialComponents { client, backend, import_queue, task_manager, .. } =
-			new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(
-				config,
-				jaeger_agent,
-				None,
-			)?;
-		return Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager))
+		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
 	}
-
 	#[cfg(not(feature = "polkadot-native"))]
 	Err(Error::NoRuntime)
 }

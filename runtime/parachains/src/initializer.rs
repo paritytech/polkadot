@@ -24,11 +24,18 @@ use crate::{
 	disputes::DisputesHandler,
 	dmp, hrmp, inclusion, paras, scheduler, session_info, shared, ump,
 };
-use frame_support::traits::{OneSessionHandler, Randomness};
+use frame_support::{
+	traits::{OneSessionHandler, Randomness},
+	weights::Weight,
+};
+use frame_system::limits::BlockWeights;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
+
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 
 pub use pallet::*;
 
@@ -69,6 +76,16 @@ struct BufferedSessionChange {
 	session_index: SessionIndex,
 }
 
+pub trait WeightInfo {
+	fn force_approve(d: u32) -> Weight;
+}
+
+impl WeightInfo for () {
+	fn force_approve(_: u32) -> Weight {
+		BlockWeights::default().max_block
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -96,6 +113,8 @@ pub mod pallet {
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		/// An origin which is allowed to force updates to parachains.
 		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	/// Whether the parachains modules have been initialized within this block.
@@ -181,7 +200,12 @@ pub mod pallet {
 		/// Issue a signal to the consensus engine to forcibly act as though all parachain
 		/// blocks in all relay chain blocks up to and including the given number in the current
 		/// chain are valid and should be finalized.
-		#[pallet::weight((0, DispatchClass::Operational))]
+		#[pallet::weight((
+			<T as Config>::WeightInfo::force_approve(
+				frame_system::Pallet::<T>::digest().logs.len() as u32,
+			),
+			DispatchClass::Operational,
+		))]
 		pub fn force_approve(origin: OriginFor<T>, up_to: BlockNumber) -> DispatchResult {
 			T::ForceOrigin::ensure_origin(origin)?;
 

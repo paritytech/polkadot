@@ -108,6 +108,7 @@ parameter_types! {
 	pub const EpochDuration: u64 = 10;
 	pub const ExpectedBlockTime: Moment = 6_000;
 	pub const ReportLongevity: u64 = 10;
+	pub const MaxAuthorities: u32 = 100_000;
 }
 
 impl pallet_babe::Config for Test {
@@ -126,6 +127,7 @@ impl pallet_babe::Config for Test {
 	)>>::IdentificationTuple;
 	type HandleEquivocation = ();
 	type WeightInfo = ();
+	type MaxAuthorities = MaxAuthorities;
 }
 
 parameter_types! {
@@ -165,6 +167,7 @@ impl shared::Config for Test {}
 impl paras::Config for Test {
 	type Origin = Origin;
 	type Event = Event;
+	type WeightInfo = paras::weights::WeightInfo<Test>;
 }
 
 parameter_types! {
