@@ -55,7 +55,7 @@ pub struct DisputeCoordinatorSubsystem {}
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
 	pub fn new(_: Arc<dyn KeyValueDB>, _: Config, _: Arc<LocalKeystore>, _: Metrics) -> Self {
-		Self {}
+		DisputeCoordinatorSubsystem {}
 	}
 }
 
