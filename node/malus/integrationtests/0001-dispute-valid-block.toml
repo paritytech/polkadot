@@ -63,6 +63,7 @@ extra-args = ["--charlie", "-lparachain=debug"]
 validator = true
 image = "{{get_env(name="MALUSIMAGE") | safe }}"
 command = "/usr/local/bin/malus"
+subcommand = "dispute-ancestor"
 extra-args = ["--dave","-lparachain=debug"]
 
 [nodes.eve]
