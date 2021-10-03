@@ -1609,7 +1609,7 @@ fn subsystem_process_wakeup_schedules_wakeup() {
 		futures_timer::Delay::new(Duration::from_millis(100)).await;
 
 		// The wakeup should have been rescheduled.
-		assert!(clock.inner.lock().current_wakeup_is(30));
+		assert!(clock.inner.lock().current_wakeup_is(20));
 
 		virtual_overseer
 	});
