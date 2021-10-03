@@ -289,7 +289,7 @@ build-malus:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/docker/* ./artifacts
+    - cp -r scripts/* ./artifacts
 
 #### stage:                        build
 
