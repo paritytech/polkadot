@@ -181,6 +181,7 @@ pub struct HostConfiguration<BlockNumber> {
 	// TODO: Minimum scheduled delay
 	// TODO: Add voting TTL
 	// TODO: remove validation_upgrade_delay ?
+	// TODO: enable disable pre-checking.
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {

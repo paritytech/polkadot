@@ -277,6 +277,7 @@ enum PvfCheckCause {
 	Upgrade(ParaId),
 }
 
+#[derive(Copy, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 enum PvfCheckOutcome {
 	Accepted,
 	Rejected,
@@ -731,7 +732,7 @@ pub mod pallet {
 						Self::enact_pvf_accepted(
 							<frame_system::Pallet<T>>::block_number(),
 							&stmt.subject,
-							voting.causes,
+							&voting.causes,
 							voting.age,
 							voting.created_at,
 						);
@@ -1113,66 +1114,94 @@ impl<T: Config> Pallet<T> {
 	fn enact_pvf_accepted(
 		now: T::BlockNumber,
 		code_hash: &ValidationCodeHash,
-		causes: Vec<PvfCheckCause>,
+		causes: &[PvfCheckCause],
 		sessions_observed: SessionIndex,
-		created_at: T::BlockNumber,
-	) {
-		const SOAKING_PERIOD: u32 = 600;
-		const MINIMUM_SCHEDULE_UPGRADE_DELAY: u32 = 60;
-
+		code_inserted_at: T::BlockNumber,
+	) -> Weight {
+		let mut weight = 0;
 		for cause in causes {
 			match cause {
-				PvfCheckCause::Onboarding(para) => {
-					let onboard_at: SessionIndex =
-						// we cannot onboard at the current session, so it must be at least one
-						// session ahead.
-						shared::Pallet::<T>::session_index() + 1
-						// we should onboard only after `SESSION_DELAY` sessions but we should take
-						// into account the number of sessions the PVF pre-checking occupied.
-						+ shared::SESSION_DELAY.saturating_sub(sessions_observed);
-
-					ActionsQueue::<T>::mutate(onboard_at, |v| {
-						if let Err(i) = v.binary_search(&para) {
-							v.insert(i, para);
-						}
-					});
+				PvfCheckCause::Onboarding(id) => {
+					weight += Self::proceed_with_onboarding(*id, sessions_observed);
 				},
-				PvfCheckCause::Upgrade(para) => {
-					// Schedule upgrade to happen after a mandatory PVF code soaking period, but
-					// make sure it is no earlier than the minimum schedule delay.
-					let expected_at = cmp::max(
-						created_at + SOAKING_PERIOD.into(),
-						now + MINIMUM_SCHEDULE_UPGRADE_DELAY.into(),
-					);
-
-					FutureCodeUpgrades::<T>::insert(&para, expected_at);
-
-					// TODO: This is wrong.
-					UpgradeGoAheadSignal::<T>::insert(&para, UpgradeGoAhead::GoAhead);
-
-					let expected_at = expected_at.saturated_into();
-					let log = ConsensusLog::ParaScheduleUpgradeCode(para, *code_hash, expected_at);
-					<frame_system::Pallet<T>>::deposit_log(log.into());
+				PvfCheckCause::Upgrade(id) => {
+					weight += Self::proceed_with_upgrade(*id, code_hash, now, code_inserted_at);
 				},
 			}
 		}
+		weight
+	}
+
+	fn proceed_with_onboarding(id: ParaId, sessions_observed: SessionIndex) -> Weight {
+		let mut weight = T::DbWeight::get().reads_writes(2, 1);
+
+		// we should onboard only after `SESSION_DELAY` sessions but we should take
+		// into account the number of sessions the PVF pre-checking occupied.
+		//
+		// we cannot onboard at the current session, so it must be at least one
+		// session ahead.
+		let onboard_at: SessionIndex = shared::Pallet::<T>::session_index() +
+			cmp::max(shared::SESSION_DELAY.saturating_sub(sessions_observed), 1);
+
+		ActionsQueue::<T>::mutate(onboard_at, |v| {
+			if let Err(i) = v.binary_search(&id) {
+				v.insert(i, id);
+			}
+		});
+
+		weight
+	}
+
+	fn proceed_with_upgrade(
+		id: ParaId,
+		code_hash: &ValidationCodeHash,
+		now: T::BlockNumber,
+		code_inserted_at: T::BlockNumber,
+	) -> Weight {
+		const SOAKING_PERIOD: u32 = 600;
+		const MINIMUM_SCHEDULE_UPGRADE_DELAY: u32 = 60;
+
+		let mut weight = 0;
+
+		// Schedule upgrade to happen after a mandatory PVF code soaking period, but
+		// make sure it is no earlier than the minimum schedule delay.
+		let expected_at = cmp::max(
+			code_inserted_at + SOAKING_PERIOD.into(),
+			now + MINIMUM_SCHEDULE_UPGRADE_DELAY.into(),
+		);
+
+		weight += T::DbWeight::get().writes(3);
+
+		FutureCodeUpgrades::<T>::insert(&id, expected_at);
+
+		// TODO: This is wrong.
+		UpgradeGoAheadSignal::<T>::insert(&id, UpgradeGoAhead::GoAhead);
+
+		let expected_at = expected_at.saturated_into();
+		let log = ConsensusLog::ParaScheduleUpgradeCode(id, *code_hash, expected_at);
+		<frame_system::Pallet<T>>::deposit_log(log.into());
+
+		weight
 	}
 
 	fn enact_pvf_rejected(code_hash: &ValidationCodeHash, causes: Vec<PvfCheckCause>) -> Weight {
-		let mut weight = 0;
+		let mut weight = T::DbWeight::get().writes(1);
+
+		// PVF pre-checking retained the code by bumping the RC by one. All further onboardings and
+		// upgrades using the same code do not increase the reference count. Hence the reference
+		// count is only decreased once per reject.
+		weight += Self::decrease_code_ref(code_hash);
 
 		for cause in causes {
 			match cause {
 				PvfCheckCause::Onboarding(para) => {
-					weight += T::DbWeight::get().reads_writes(2, 4);
+					weight += T::DbWeight::get().writes(2);
 					UpcomingParasGenesis::<T>::remove(&para);
 					ParaLifecycles::<T>::remove(&para);
-					Self::decrease_code_ref(code_hash);
 				},
 				PvfCheckCause::Upgrade(para) => {
-					weight += T::DbWeight::get().reads_writes(1, 4);
+					weight += T::DbWeight::get().writes(1);
 					UpgradeGoAheadSignal::<T>::insert(&para, UpgradeGoAhead::Abort);
-					Self::decrease_code_ref(code_hash);
 				},
 			}
 		}
@@ -1183,9 +1212,8 @@ impl<T: Config> Pallet<T> {
 	/// Verify that `schedule_para_initialize` can be called successfully.
 	///
 	/// Returns false if para is already registered in the system.
-	pub fn can_schedule_para_initialize(id: &ParaId, _: &ParaGenesisArgs) -> bool {
-		let lifecycle = ParaLifecycles::<T>::get(id);
-		lifecycle.is_none()
+	pub fn can_schedule_para_initialize(id: &ParaId) -> bool {
+		ParaLifecycles::<T>::get(id).is_none()
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
@@ -1196,13 +1224,13 @@ impl<T: Config> Pallet<T> {
 		mut genesis: ParaGenesisArgs,
 	) -> DispatchResult {
 		// Make sure parachain isn't already in our system.
-		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
+		ensure!(Self::can_schedule_para_initialize(&id), Error::<T>::CannotOnboard);
 		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
 
 		// Register the new PVF pre-checking run for the given validation hash.
-
 		let code = mem::take(&mut genesis.validation_code); // TODO: hack
 		let code_hash = code.hash();
+
 		Self::kick_off_pvf_check(PvfCheckCause::Onboarding(id), code_hash, code);
 		UpcomingParasGenesis::<T>::insert(&id, genesis);
 
@@ -1300,6 +1328,7 @@ impl<T: Config> Pallet<T> {
 		let code_hash = new_code.hash();
 		UpgradeRestrictionSignal::<T>::insert(&id, UpgradeRestriction::Present);
 		FutureCodeHash::<T>::insert(&id, &code_hash);
+
 		weight += Self::kick_off_pvf_check(PvfCheckCause::Upgrade(id), code_hash, new_code);
 
 		weight
@@ -1310,25 +1339,49 @@ impl<T: Config> Pallet<T> {
 		code_hash: ValidationCodeHash,
 		code: ValidationCode,
 	) -> Weight {
-		let mut weight = T::DbWeight::get().reads(1);
+		let mut weight = 0;
 
+		// TODO: account for the configuration parameter that disables pvf-checks.
+
+		// We increase the code RC here in any case. Intuitively the parachain that requested this
+		// action is now a user of that PVF.
+		//
+		// If the result of the pre-checking is reject, then we would decrease the RC for each cause,
+		// including the current.
+		//
+		// If the result of the pre-checking is accept, then we do nothing to the RC because the PVF
+		// will continue be used by the same users.
+		//
+		// If the PVF was fast-tracked (i.e. there is already non zero RC) and there is no
+		// pre-checking, we also do not change the RC then.
+		weight += Self::increase_code_ref(&code_hash, &code);
+
+		weight += T::DbWeight::get().reads(1);
 		match PvfVotingMap::<T>::get(&code_hash) {
 			None => {
-				// The base case: the PVF being upgraded to is not going through PVF pre-checking
-				// process. Kick off one.
-				weight += Self::increase_code_ref(&code_hash, &code);
-				weight += T::DbWeight::get().reads_writes(2, 2);
-				let now = <frame_system::Pallet<T>>::block_number();
-				let n_validators = shared::Pallet::<T>::active_validator_keys().len();
-				PvfVotingMap::<T>::insert(
-					&code_hash,
-					PvfCheckVotingState::new(now, n_validators, cause),
-				);
-				PvfVotingList::<T>::mutate(|l| {
-					if let Err(idx) = l.binary_search(&code_hash) {
-						l.insert(idx, code_hash);
-					}
-				});
+				let known_code = CodeByHash::<T>::contains_key(&code_hash);
+
+				if known_code {
+					// The code is known and there is no voting. That means the code already is
+					// checked. Fast track.
+					let now = <frame_system::Pallet<T>>::block_number();
+					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, now);
+				} else {
+					// PVF is not being pre-checked and it is not known. Start a new pre-checking
+					// process.
+					weight += T::DbWeight::get().reads_writes(3, 2);
+					let now = <frame_system::Pallet<T>>::block_number();
+					let n_validators = shared::Pallet::<T>::active_validator_keys().len();
+					PvfVotingMap::<T>::insert(
+						&code_hash,
+						PvfCheckVotingState::new(now, n_validators, cause),
+					);
+					PvfVotingList::<T>::mutate(|l| {
+						if let Err(idx) = l.binary_search(&code_hash) {
+							l.insert(idx, code_hash);
+						}
+					});
+				}
 			},
 			Some(mut voting) => {
 				// Coalescing: the PVF is already being pre-checked so we just need to piggy back
@@ -1517,14 +1570,18 @@ impl<T: Config> Pallet<T> {
 
 	/// Decrease the number of reference ofthe validation code and remove it from storage if zero
 	/// is reached.
-	fn decrease_code_ref(code_hash: &ValidationCodeHash) {
+	fn decrease_code_ref(code_hash: &ValidationCodeHash) -> Weight {
+		let mut weight = T::DbWeight::get().reads(1);
 		let refs = <Self as Store>::CodeByHashRefs::get(code_hash);
 		if refs <= 1 {
+			weight += T::DbWeight::get().writes(2);
 			<Self as Store>::CodeByHash::remove(code_hash);
 			<Self as Store>::CodeByHashRefs::remove(code_hash);
 		} else {
+			weight += T::DbWeight::get().writes(1);
 			<Self as Store>::CodeByHashRefs::insert(code_hash, refs - 1);
 		}
+		weight
 	}
 
 	/// Test function for triggering a new session in this pallet.
