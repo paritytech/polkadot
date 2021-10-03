@@ -53,11 +53,15 @@ fn correctly_checks_included_assumption() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) =
-		check_assumption_validation_data(ctx.sender(), &candidate, OccupiedCoreAssumption::Included)
-			.remote_handle();
+	let (check_fut, check_result) = check_assumption_validation_data(
+		ctx.sender(),
+		&candidate,
+		OccupiedCoreAssumption::Included,
+	)
+	.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -115,11 +119,15 @@ fn correctly_checks_timed_out_assumption() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) =
-		check_assumption_validation_data(ctx.sender(), &candidate, OccupiedCoreAssumption::TimedOut)
-			.remote_handle();
+	let (check_fut, check_result) = check_assumption_validation_data(
+		ctx.sender(),
+		&candidate,
+		OccupiedCoreAssumption::TimedOut,
+	)
+	.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -175,11 +183,15 @@ fn check_is_bad_request_if_no_validation_data() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) =
-		check_assumption_validation_data(ctx.sender(), &candidate, OccupiedCoreAssumption::Included)
-			.remote_handle();
+	let (check_fut, check_result) = check_assumption_validation_data(
+		ctx.sender(),
+		&candidate,
+		OccupiedCoreAssumption::Included,
+	)
+	.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -219,11 +231,15 @@ fn check_is_bad_request_if_no_validation_code() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) =
-		check_assumption_validation_data(ctx.sender(), &candidate, OccupiedCoreAssumption::TimedOut)
-			.remote_handle();
+	let (check_fut, check_result) = check_assumption_validation_data(
+		ctx.sender(),
+		&candidate,
+		OccupiedCoreAssumption::TimedOut,
+	)
+	.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
@@ -275,11 +291,15 @@ fn check_does_not_match() {
 	candidate.para_id = para_id;
 
 	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) =
-		check_assumption_validation_data(ctx.sender(), &candidate, OccupiedCoreAssumption::Included)
-			.remote_handle();
+	let (check_fut, check_result) = check_assumption_validation_data(
+		ctx.sender(),
+		&candidate,
+		OccupiedCoreAssumption::Included,
+	)
+	.remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(

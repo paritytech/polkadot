@@ -210,26 +210,25 @@ where
 		.send_message(RuntimeApiMessage::Request(relay_parent, request).into())
 		.await;
 
-	receiver.await
+	receiver
+		.await
 		.map_err(|_| {
-			tracing::debug!(
-				target: LOG_TARGET,
-				?relay_parent,
-				"Runtime API request dropped"
-			);
+			tracing::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
 
 			RuntimeRequestFailed
 		})
-		.and_then(|res| res.map_err(|e| {
-			tracing::debug!(
-				target: LOG_TARGET,
-				?relay_parent,
-				err = ?e,
-				"Runtime API request internal error"
-			);
+		.and_then(|res| {
+			res.map_err(|e| {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?relay_parent,
+					err = ?e,
+					"Runtime API request internal error"
+				);
 
-			RuntimeRequestFailed
-		}))
+				RuntimeRequestFailed
+			})
+		})
 }
 
 #[derive(Debug)]
@@ -272,7 +271,8 @@ where
 			descriptor.relay_parent,
 			RuntimeApiRequest::ValidationCode(descriptor.para_id, assumption, code_tx),
 			code_rx,
-		).await;
+		)
+		.await;
 
 		match validation_code {
 			Ok(None) | Err(RuntimeRequestFailed) => AssumptionCheckOutcome::BadRequest,
@@ -358,7 +358,8 @@ where
 			descriptor.relay_parent,
 			RuntimeApiRequest::CheckValidationOutputs(descriptor.para_id, outputs.clone(), tx),
 			rx,
-		).await
+		)
+		.await
 		{
 			Ok(true) => {},
 			Ok(false) => return Ok(ValidationResult::Invalid(InvalidCandidate::InvalidOutputs)),
