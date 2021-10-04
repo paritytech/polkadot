@@ -72,10 +72,8 @@ impl MalusCli {
 			NemesisVariant::PvfPrepareWorker(cmd) => {
 				#[cfg(target_os = "android")]
 				{
-					return Err(
-						"PVF preparation workers are not supported under this platform"
-					)
-					.into()
+					return Err("PVF preparation workers are not supported under this platform")
+						.into()
 				}
 
 				#[cfg(not(target_os = "android"))]
@@ -86,10 +84,7 @@ impl MalusCli {
 			NemesisVariant::PvfExecuteWorker(cmd) => {
 				#[cfg(target_os = "android")]
 				{
-					return Err(
-						"PVF execution workers are not supported under this platform",
-					)
-					.into()
+					return Err("PVF execution workers are not supported under this platform").into()
 				}
 
 				#[cfg(not(target_os = "android"))]
