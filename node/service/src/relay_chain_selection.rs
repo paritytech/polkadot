@@ -136,6 +136,11 @@ where
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
 	pub fn new(backend: Arc<B>, overseer: Handle, is_relay_chain: bool, metrics: Metrics) -> Self {
+		tracing::debug!(
+			target: LOG_TARGET,
+			"Using {} as chain selection algorithm",
+			if is_relay_chain { "dispute aware relay" } else { "longest" }
+		);
 		SelectRelayChain {
 			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
 			selection: SelectRelayChainInner::new(backend, overseer, metrics),
@@ -173,7 +178,7 @@ where
 		&self,
 		target_hash: Hash,
 		maybe_max_number: Option<BlockNumber>,
-	) -> Result<Option<Hash>, ConsensusError> {
+	) -> Result<Hash, ConsensusError> {
 		let longest_chain_best =
 			self.longest_chain.finality_target(target_hash, maybe_max_number).await?;
 
@@ -284,9 +289,14 @@ where
 			.send_msg(ChainSelectionMessage::Leaves(tx), std::any::type_name::<Self>())
 			.await;
 
-		rx.await
+		let leaves = rx
+			.await
 			.map_err(Error::OverseerDisconnected)
-			.map_err(|e| ConsensusError::Other(Box::new(e)))
+			.map_err(|e| ConsensusError::Other(Box::new(e)))?;
+
+		tracing::trace!(target: LOG_TARGET, ?leaves, "Chain selection leaves");
+
+		Ok(leaves)
 	}
 
 	/// Among all leaves, pick the one which is the best chain to build upon.
@@ -300,6 +310,8 @@ where
 			.first()
 			.ok_or_else(|| ConsensusError::Other(Box::new(Error::EmptyLeaves)))?
 			.clone();
+
+		tracing::trace!(target: LOG_TARGET, ?best_leaf, "Best chain");
 
 		self.block_header(best_leaf)
 	}
@@ -316,10 +328,11 @@ where
 	pub(crate) async fn finality_target_with_longest_chain(
 		&self,
 		target_hash: Hash,
-		best_leaf: Option<Hash>,
+		best_leaf: Hash,
 		maybe_max_number: Option<BlockNumber>,
-	) -> Result<Option<Hash>, ConsensusError> {
+	) -> Result<Hash, ConsensusError> {
 		let mut overseer = self.overseer.clone();
+		tracing::trace!(target: LOG_TARGET, ?best_leaf, "Longest chain");
 
 		let subchain_head = if cfg!(feature = "disputes") {
 			let (tx, rx) = oneshot::channel();
@@ -335,15 +348,19 @@ where
 				.map_err(Error::OverseerDisconnected)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
+			tracing::trace!(target: LOG_TARGET, ?best, "Best leaf containing");
+
 			match best {
 				// No viable leaves containing the block.
-				None => return Ok(Some(target_hash)),
+				None => return Ok(target_hash),
 				Some(best) => best,
 			}
 		} else {
-			match best_leaf {
-				None => return Ok(Some(target_hash)),
-				Some(best_leaf) => best_leaf,
+			tracing::trace!(target: LOG_TARGET, ?best_leaf, "Dummy disputes active");
+			if best_leaf == target_hash {
+				return Ok(target_hash)
+			} else {
+				best_leaf
 			}
 		};
 
@@ -362,12 +379,13 @@ where
 							"`finality_target` max number is less than target number",
 						);
 					}
-					return Ok(Some(target_hash))
+					return Ok(target_hash)
 				}
 				// find the current number.
 				let subchain_header = self.block_header(subchain_head)?;
 
 				if subchain_header.number <= max {
+					tracing::trace!(target: LOG_TARGET, ?best_leaf, "Constrained sub-chain head",);
 					subchain_head
 				} else {
 					let (ancestor_hash, _) =
@@ -377,7 +395,11 @@ where
 							&subchain_header,
 						)
 						.map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
-
+					tracing::trace!(
+						target: LOG_TARGET,
+						?ancestor_hash,
+						"Grandpa walk backwards sub-chain head"
+					);
 					ancestor_hash
 				}
 			},
@@ -408,6 +430,12 @@ where
 			}
 		};
 
+		tracing::trace!(
+			target: LOG_TARGET,
+			?subchain_head,
+			"Ancestor approval restriction applied",
+		);
+
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
 
@@ -423,7 +451,7 @@ where
 					subchain_number,
 					"Mismatch of anticipated block descriptions and block number difference.",
 				);
-				return Ok(Some(target_hash))
+				return Ok(target_hash)
 			}
 			// 3. Constrain according to disputes:
 			let (tx, rx) = oneshot::channel();
@@ -450,6 +478,12 @@ where
 			(lag, subchain_head)
 		};
 
+		tracing::trace!(
+			target: LOG_TARGET,
+			?subchain_head,
+			"Disputed blocks in ancestry restriction applied",
+		);
+
 		// 4. Apply the maximum safeguard to the finality lag.
 		if lag > MAX_FINALITY_LAG {
 			// We need to constrain our vote as a safety net to
@@ -457,8 +491,9 @@ where
 			let safe_target = initial_leaf_number - MAX_FINALITY_LAG;
 
 			if safe_target <= target_number {
+				tracing::warn!(target: LOG_TARGET, ?target_hash, "Safeguard enforced finalization");
 				// Minimal vote needs to be on the target number.
-				Ok(Some(target_hash))
+				Ok(target_hash)
 			} else {
 				// Otherwise we're looking for a descendant.
 				let initial_leaf_header = self.block_header(initial_leaf)?;
@@ -469,10 +504,16 @@ where
 				)
 				.map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
 
-				Ok(Some(forced_target))
+				tracing::warn!(
+					target: LOG_TARGET,
+					?forced_target,
+					"Safeguard enforced finalization of child"
+				);
+
+				Ok(forced_target)
 			}
 		} else {
-			Ok(Some(subchain_head))
+			Ok(subchain_head)
 		}
 	}
 }

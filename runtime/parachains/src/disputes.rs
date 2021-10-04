@@ -129,9 +129,8 @@ pub trait DisputesHandler<BlockNumber> {
 		included_in: BlockNumber,
 	);
 
-	/// Whether the given candidate could be invalid, i.e. there is an ongoing
-	/// or concluded dispute with supermajority-against.
-	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool;
+	/// Whether the given candidate concluded invalid in a dispute with supermajority.
+	fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool;
 
 	/// Called by the initializer to initialize the configuration module.
 	fn initializer_initialize(now: BlockNumber) -> Weight;
@@ -165,7 +164,7 @@ impl<BlockNumber> DisputesHandler<BlockNumber> for () {
 	) {
 	}
 
-	fn could_be_invalid(_session: SessionIndex, _candidate_hash: CandidateHash) -> bool {
+	fn concluded_invalid(_session: SessionIndex, _candidate_hash: CandidateHash) -> bool {
 		false
 	}
 
@@ -201,8 +200,8 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 		pallet::Pallet::<T>::note_included(session, candidate_hash, included_in)
 	}
 
-	fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
-		pallet::Pallet::<T>::could_be_invalid(session, candidate_hash)
+	fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
+		pallet::Pallet::<T>::concluded_invalid(session, candidate_hash)
 	}
 
 	fn initializer_initialize(now: T::BlockNumber) -> Weight {
@@ -305,8 +304,8 @@ pub mod pallet {
 		DisputeTimedOut(CandidateHash),
 		/// A dispute has concluded with supermajority against a candidate.
 		/// Block authors should no longer build on top of this head and should
-		/// instead revert to the block at the given height which is the last
-		/// known valid block in this chain.
+		/// instead revert the block at the given height. This should be the
+		/// number of the child of the last known valid block in the chain.
 		Revert(T::BlockNumber),
 	}
 
@@ -1114,10 +1113,10 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub(crate) fn could_be_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
+	pub(crate) fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
 		<Disputes<T>>::get(&session, &candidate_hash).map_or(false, |dispute| {
-			// A dispute that is ongoing or has concluded with supermajority-against.
-			dispute.concluded_at.is_none() || has_supermajority_against(&dispute)
+			// A dispute that has concluded with supermajority-against.
+			has_supermajority_against(&dispute)
 		})
 	}
 
@@ -1128,9 +1127,14 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
 		if Self::last_valid_block().map_or(true, |last| last > revert_to) {
 			Frozen::<T>::set(Some(revert_to));
-			Self::deposit_event(Event::Revert(revert_to));
+
+			// The `Revert` log is about reverting a block, not reverting to a block.
+			// If we want to revert to block X in the current chain, we need to revert
+			// block X+1.
+			let revert = revert_to + One::one();
+			Self::deposit_event(Event::Revert(revert));
 			frame_system::Pallet::<T>::deposit_log(
-				ConsensusLog::Revert(revert_to.saturated_into()).into(),
+				ConsensusLog::Revert(revert.saturated_into()).into(),
 			);
 		}
 	}
@@ -2207,9 +2211,9 @@ mod tests {
 				]
 			);
 
-			assert_eq!(Pallet::<Test>::could_be_invalid(3, candidate_hash.clone()), false); // It has 5 votes for
-			assert_eq!(Pallet::<Test>::could_be_invalid(4, candidate_hash.clone()), true);
-			assert_eq!(Pallet::<Test>::could_be_invalid(5, candidate_hash.clone()), true);
+			assert!(!Pallet::<Test>::concluded_invalid(3, candidate_hash.clone()));
+			assert!(!Pallet::<Test>::concluded_invalid(4, candidate_hash.clone()));
+			assert!(Pallet::<Test>::concluded_invalid(5, candidate_hash.clone()));
 
 			// Ensure inclusion removes spam slots
 			assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
@@ -2285,8 +2289,8 @@ mod tests {
 			Pallet::<Test>::revert_and_freeze(0);
 
 			assert_eq!(Frozen::<Test>::get(), Some(0));
-			assert_eq!(System::digest().logs[0], ConsensusLog::Revert(0).into());
-			System::assert_has_event(Event::Revert(0).into());
+			assert_eq!(System::digest().logs[0], ConsensusLog::Revert(1).into());
+			System::assert_has_event(Event::Revert(1).into());
 		})
 	}
 
