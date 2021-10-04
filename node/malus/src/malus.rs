@@ -62,7 +62,6 @@ fn run_cmd(run: RunCmd) -> Cli {
 impl MalusCli {
 	/// Launch a malus node.
 	fn launch(self) -> eyre::Result<()> {
-		const HACK: &[&str] = &[];
 		match self.variant {
 			NemesisVariant::BackGarbageCandidate(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
@@ -70,20 +69,34 @@ impl MalusCli {
 				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
 			NemesisVariant::DisputeAncestor(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), DisputeValidCandidates)?,
-			NemesisVariant::PvfPrepareWorker(cmd) => polkadot_cli::run_node(
-				Cli {
-					subcommand: Some(polkadot_cli::Subcommand::PvfPrepareWorker(cmd)),
-					run: RunCmd::from_iter(HACK),
-				},
-				DisputeValidCandidates,
-			)?,
-			NemesisVariant::PvfExecuteWorker(cmd) => polkadot_cli::run_node(
-				Cli {
-					subcommand: Some(polkadot_cli::Subcommand::PvfExecuteWorker(cmd)),
-					run: RunCmd::from_iter(HACK),
-				},
-				DisputeValidCandidates,
-			)?,
+			NemesisVariant::PvfPrepareWorker(cmd) => {
+				#[cfg(target_os = "android")]
+				{
+					return Err(
+						"PVF preparation workers are not supported under this platform"
+					)
+					.into()
+				}
+
+				#[cfg(not(target_os = "android"))]
+				{
+					polkadot_node_core_pvf::prepare_worker_entrypoint(&cmd.socket_path);
+				}
+			},
+			NemesisVariant::PvfExecuteWorker(cmd) => {
+				#[cfg(target_os = "android")]
+				{
+					return Err(
+						"PVF execution workers are not supported under this platform",
+					)
+					.into()
+				}
+
+				#[cfg(not(target_os = "android"))]
+				{
+					polkadot_node_core_pvf::execute_worker_entrypoint(&cmd.socket_path);
+				}
+			},
 		}
 		Ok(())
 	}
