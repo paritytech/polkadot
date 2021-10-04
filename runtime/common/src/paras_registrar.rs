@@ -499,10 +499,7 @@ impl<T: Config> Pallet<T> {
 			ensure!(!ensure_reserved, Error::<T>::NotReserved);
 			Default::default()
 		};
-		ensure!(
-			paras::Pallet::<T>::can_schedule_para_initialize(id).is_none(),
-			Error::<T>::AlreadyRegistered
-		);
+		ensure!(paras::Pallet::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 		let (genesis, deposit) =
 			Self::validate_onboarding_data(genesis_head, validation_code, false)?;
 		let deposit = deposit_override.unwrap_or(deposit);

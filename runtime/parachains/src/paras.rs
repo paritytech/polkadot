@@ -480,7 +480,7 @@ pub mod pallet {
 	/// Upcoming paras instantiation arguments.
 	#[pallet::storage]
 	pub(super) type UpcomingParasGenesis<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, ParaGenesisArgs>;
+		StorageMap<_, Twox64Concat, ParaId, (HeadData, ValidationCodeHash, bool)>;
 
 	/// The number of reference on the validation code in [`CodeByHash`] storage.
 	#[pallet::storage]
@@ -816,8 +816,10 @@ impl<T: Config> Pallet<T> {
 				None | Some(ParaLifecycle::Parathread) | Some(ParaLifecycle::Parachain) => { /* Nothing to do... */
 				},
 				Some(ParaLifecycle::Onboarding) => {
-					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
-						if genesis_data.parachain {
+					if let Some((genesis_head, validation_code_hash, parachain)) =
+						<Self as Store>::UpcomingParasGenesis::take(&para)
+					{
+						if parachain {
 							if let Err(i) = parachains.binary_search(&para) {
 								parachains.insert(i, para);
 							}
@@ -825,9 +827,8 @@ impl<T: Config> Pallet<T> {
 						} else {
 							ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parathread);
 						}
-						let code_hash = genesis_data.validation_code.hash();
-						<Self as Store>::Heads::insert(&para, genesis_data.genesis_head);
-						<Self as Store>::CurrentCodeHash::insert(&para, code_hash);
+						<Self as Store>::Heads::insert(&para, genesis_head);
+						<Self as Store>::CurrentCodeHash::insert(&para, validation_code_hash);
 					}
 				},
 				// Upgrade a parathread to a parachain
@@ -1161,19 +1162,25 @@ impl<T: Config> Pallet<T> {
 	/// Will return error if para is already registered in the system.
 	pub(crate) fn schedule_para_initialize(
 		id: ParaId,
-		mut genesis: ParaGenesisArgs,
+		genesis_args: ParaGenesisArgs,
 	) -> DispatchResult {
 		// Make sure parachain isn't already in our system.
 		ensure!(Self::can_schedule_para_initialize(&id), Error::<T>::CannotOnboard);
 		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
 
 		// Register the new PVF pre-checking run for the given validation hash.
-		let code = mem::take(&mut genesis.validation_code); // TODO: hack
-		let code_hash = code.hash();
-
+		let validation_code_hash = genesis_args.validation_code.hash();
 		let cfg = configuration::Pallet::<T>::config();
-		Self::kick_off_pvf_check(PvfCheckCause::Onboarding(id), code_hash, code, &cfg);
-		UpcomingParasGenesis::<T>::insert(&id, genesis);
+		Self::kick_off_pvf_check(
+			PvfCheckCause::Onboarding(id),
+			validation_code_hash,
+			genesis_args.validation_code,
+			&cfg,
+		);
+		UpcomingParasGenesis::<T>::insert(
+			&id,
+			(genesis_args.genesis_head, validation_code_hash, genesis_args.parachain),
+		);
 
 		Ok(())
 	}
