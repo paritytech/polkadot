@@ -15,7 +15,7 @@ Feature: Disputes
     And charlie reports block height is greater than 2
     And charlie reports peers count is at least 2
     Then david is up
-    Then sleep 12 seconds
+    Then sleep 121 seconds
     And alice reports polkadot_parachain_candidate_open_disputes is 1
     And bob reports polkadot_parachain_candidate_open_disputes is 1
     And charlie reports polkadot_parachain_candidate_open_disputes is 1
