@@ -73,6 +73,8 @@ pub struct HostConfiguration<BlockNumber> {
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_max_message_num_per_candidate: u32,
 	/// The minimum frequency at which parachains can update their validation code.
+	/// TODO: This should mention the relationships to other parameters.
+	/// FOr example, (unchecked) this should be bigger than the PVF pre-checking time and so on.
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,

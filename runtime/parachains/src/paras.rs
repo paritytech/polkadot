@@ -77,16 +77,6 @@ pub struct ParaPastCodeMeta<N> {
 	last_pruned: Option<N>,
 }
 
-#[cfg_attr(test, derive(Debug, PartialEq))]
-enum UseCodeAt<N> {
-	/// Use the current code.
-	Current,
-	/// Use the code that was replaced at the given block number.
-	/// This is an inclusive endpoint - a parablock in the context of a relay-chain block on this fork
-	/// with number N should use the code that is replaced at N.
-	ReplacedAt(N),
-}
-
 /// The possible states of a para, to take into account delayed lifecycle changes.
 ///
 /// If the para is in a "transition state", it is expected that the parachain is
@@ -163,69 +153,6 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
 	fn note_replacement(&mut self, activated_at: N) {
 		self.upgrade_times.push(ReplacementTimes { activated_at })
-	}
-
-	// Yields an identifier that should be used for validating a
-	// parablock in the context of a particular relay-chain block number in this chain.
-	//
-	// a return value of `None` means that there is no code we are aware of that
-	// should be used to validate at the given height.
-	fn code_at(&self, para_at: N) -> Option<UseCodeAt<N>> {
-		// Find out
-		// a) if there is a point where code was replaced in the current chain after the context
-		//    we are finding out code for.
-		// b) what the index of that point is.
-		//
-		// The reason we use `activated_at` instead of `expected_at` is that a gap may occur
-		// between expectation and actual activation. Any block executed in a context from
-		// `expected_at..activated_at` is expected to activate the code upgrade and therefore should
-		// use the previous code.
-		//
-		// A block executed in the context of `activated_at` should use the new code.
-		//
-		// Cases where `expected_at` and `activated_at` are the same, that is, zero-delay code upgrades
-		// are also handled by this rule correctly.
-		let replaced_after_pos = self.upgrade_times.iter().position(|t| {
-			// example: code replaced at (5, 5)
-			//
-			// context #4 should use old code
-			// context #5 should use new code
-			//
-			// example: code replaced at (10, 20)
-			// context #9 should use the old code
-			// context #10 should use the old code
-			// context #19 should use the old code
-			// context #20 should use the new code
-			para_at < t.activated_at
-		});
-
-		if let Some(replaced_after_pos) = replaced_after_pos {
-			// The earliest stored code replacement needs to be special-cased, since we need to check
-			// against the pruning state to see if this replacement represents the correct code, or
-			// is simply after a replacement that actually represents the correct code, but has been pruned.
-			let was_pruned =
-				replaced_after_pos == 0 && self.last_pruned.map_or(false, |t| t >= para_at);
-
-			if was_pruned {
-				None
-			} else {
-				Some(UseCodeAt::ReplacedAt(self.upgrade_times[replaced_after_pos].activated_at))
-			}
-		} else {
-			// No code replacements after this context.
-			// This means either that the current code is valid, or `para_at` is so old that
-			// we don't know the code necessary anymore. Compare against `last_pruned` to determine.
-			self.last_pruned.as_ref().map_or(
-				Some(UseCodeAt::Current), // nothing pruned, use current
-				|earliest_activation| {
-					if &para_at < earliest_activation {
-						None
-					} else {
-						Some(UseCodeAt::Current)
-					}
-				},
-			)
-		}
 	}
 
 	// The block at which the most recently tracked code change occurred, from the perspective
@@ -458,6 +385,7 @@ pub mod pallet {
 	///
 	/// Corresponding code can be retrieved with [`CodeByHash`].
 	#[pallet::storage]
+	#[pallet::getter(fn current_code_hash)]
 	pub(super) type CurrentCodeHash<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ValidationCodeHash>;
 
@@ -671,8 +599,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let now = frame_system::Pallet::<T>::block_number();
-			let config = configuration::Pallet::<T>::config();
-			Self::note_new_head(para, new_head, now, &config);
+			Self::note_new_head(para, new_head, now);
 			Self::deposit_event(Event::NewHeadNoted(para));
 			Ok(())
 		}
@@ -727,14 +654,21 @@ pub mod pallet {
 
 			if let Some(outcome) = voting.quorum(validators.len()) {
 				PvfVotingMap::<T>::remove(&stmt.subject);
+				PvfVotingList::<T>::mutate(|l| {
+					if let Ok(i) = l.binary_search(&stmt.subject) {
+						l.remove(i);
+					}
+				});
 				match outcome {
 					PvfCheckOutcome::Accepted => {
+						let cfg = configuration::Pallet::<T>::config();
 						Self::enact_pvf_accepted(
 							<frame_system::Pallet<T>>::block_number(),
 							&stmt.subject,
 							&voting.causes,
 							voting.age,
 							voting.created_at,
+							&cfg,
 						);
 					},
 					PvfCheckOutcome::Rejected => {
@@ -1083,7 +1017,7 @@ impl<T: Config> Pallet<T> {
 
 		let mut weight = T::DbWeight::get().reads(1);
 
-		let mut all_votings = PvfVotingList::<T>::get();
+		let all_votings = PvfVotingList::<T>::get();
 		let mut keep = Vec::with_capacity(all_votings.len());
 
 		for pvf_hash in all_votings {
@@ -1096,13 +1030,14 @@ impl<T: Config> Pallet<T> {
 			};
 
 			if voting.age < PVF_CHECK_TTL {
+				weight += T::DbWeight::get().writes(1);
 				voting.age += 1;
 				voting.reinitialize_ballots(new_n_validators);
 				PvfVotingMap::<T>::insert(&pvf_hash, voting);
 				keep.push(pvf_hash);
 			} else {
 				// TTL is reached. Reject.
-				Self::enact_pvf_rejected(&pvf_hash, voting.causes);
+				weight += Self::enact_pvf_rejected(&pvf_hash, voting.causes);
 			}
 		}
 
@@ -1117,6 +1052,7 @@ impl<T: Config> Pallet<T> {
 		causes: &[PvfCheckCause],
 		sessions_observed: SessionIndex,
 		code_inserted_at: T::BlockNumber,
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
 		let mut weight = 0;
 		for cause in causes {
@@ -1125,7 +1061,8 @@ impl<T: Config> Pallet<T> {
 					weight += Self::proceed_with_onboarding(*id, sessions_observed);
 				},
 				PvfCheckCause::Upgrade(id) => {
-					weight += Self::proceed_with_upgrade(*id, code_hash, now, code_inserted_at);
+					weight +=
+						Self::proceed_with_upgrade(*id, code_hash, now, code_inserted_at, cfg);
 				},
 			}
 		}
@@ -1133,7 +1070,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn proceed_with_onboarding(id: ParaId, sessions_observed: SessionIndex) -> Weight {
-		let mut weight = T::DbWeight::get().reads_writes(2, 1);
+		let weight = T::DbWeight::get().reads_writes(2, 1);
 
 		// we should onboard only after `SESSION_DELAY` sessions but we should take
 		// into account the number of sessions the PVF pre-checking occupied.
@@ -1157,6 +1094,7 @@ impl<T: Config> Pallet<T> {
 		code_hash: &ValidationCodeHash,
 		now: T::BlockNumber,
 		code_inserted_at: T::BlockNumber,
+		_cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
 		const SOAKING_PERIOD: u32 = 600;
 		const MINIMUM_SCHEDULE_UPGRADE_DELAY: u32 = 60;
@@ -1170,12 +1108,15 @@ impl<T: Config> Pallet<T> {
 			now + MINIMUM_SCHEDULE_UPGRADE_DELAY.into(),
 		);
 
-		weight += T::DbWeight::get().writes(3);
-
+		weight += T::DbWeight::get().reads_writes(1, 4);
 		FutureCodeUpgrades::<T>::insert(&id, expected_at);
 
-		// TODO: This is wrong.
-		UpgradeGoAheadSignal::<T>::insert(&id, UpgradeGoAhead::GoAhead);
+		<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
+			let insert_idx = upcoming_upgrades
+				.binary_search_by_key(&expected_at, |&(_, b)| b)
+				.unwrap_or_else(|idx| idx);
+			upcoming_upgrades.insert(insert_idx, (id, expected_at));
+		});
 
 		let expected_at = expected_at.saturated_into();
 		let log = ConsensusLog::ParaScheduleUpgradeCode(id, *code_hash, expected_at);
@@ -1230,7 +1171,8 @@ impl<T: Config> Pallet<T> {
 		let code = mem::take(&mut genesis.validation_code); // TODO: hack
 		let code_hash = code.hash();
 
-		Self::kick_off_pvf_check(PvfCheckCause::Onboarding(id), code_hash, code);
+		let cfg = configuration::Pallet::<T>::config();
+		Self::kick_off_pvf_check(PvfCheckCause::Onboarding(id), code_hash, code, &cfg);
 		UpcomingParasGenesis::<T>::insert(&id, genesis);
 
 		Ok(())
@@ -1314,7 +1256,7 @@ impl<T: Config> Pallet<T> {
 		relay_parent_number: T::BlockNumber,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		// Check if there is an upgrade upcoming.
+		// Enacting this should be prevented by the `can_schedule_upgrade`
 		if UpgradeRestrictionSignal::<T>::contains_key(&id) {
 			// TODO: Something went wrong. The acceptance criteria should've made sure parachain
 			// cannot signal an upgrade while one is pending.
@@ -1325,10 +1267,20 @@ impl<T: Config> Pallet<T> {
 
 		// This is the start of the upgrade process. Prevent any further attempts at upgrading.
 		let code_hash = new_code.hash();
-		UpgradeRestrictionSignal::<T>::insert(&id, UpgradeRestriction::Present);
 		FutureCodeHash::<T>::insert(&id, &code_hash);
 
-		weight += Self::kick_off_pvf_check(PvfCheckCause::Upgrade(id), code_hash, new_code);
+		weight += T::DbWeight::get().reads_writes(2, 2);
+		let now = <frame_system::Pallet<T>>::block_number();
+		let next_possible_upgrade_at = now + cfg.validation_upgrade_frequency;
+		<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
+			let insert_idx = upgrade_cooldowns
+				.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
+				.unwrap_or_else(|idx| idx);
+			upgrade_cooldowns.insert(insert_idx, (id, next_possible_upgrade_at));
+		});
+		UpgradeRestrictionSignal::<T>::insert(&id, UpgradeRestriction::Present);
+
+		weight += Self::kick_off_pvf_check(PvfCheckCause::Upgrade(id), code_hash, new_code, cfg);
 
 		weight
 	}
@@ -1337,23 +1289,11 @@ impl<T: Config> Pallet<T> {
 		cause: PvfCheckCause,
 		code_hash: ValidationCodeHash,
 		code: ValidationCode,
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
 		let mut weight = 0;
 
 		// TODO: account for the configuration parameter that disables pvf-checks.
-
-		// We increase the code RC here in any case. Intuitively the parachain that requested this
-		// action is now a user of that PVF.
-		//
-		// If the result of the pre-checking is reject, then we would decrease the RC for each cause,
-		// including the current.
-		//
-		// If the result of the pre-checking is accept, then we do nothing to the RC because the PVF
-		// will continue be used by the same users.
-		//
-		// If the PVF was fast-tracked (i.e. there is already non zero RC) and there is no
-		// pre-checking, we also do not change the RC then.
-		weight += Self::increase_code_ref(&code_hash, &code);
 
 		weight += T::DbWeight::get().reads(1);
 		match PvfVotingMap::<T>::get(&code_hash) {
@@ -1364,7 +1304,7 @@ impl<T: Config> Pallet<T> {
 					// The code is known and there is no voting. That means the code already is
 					// checked. Fast track.
 					let now = <frame_system::Pallet<T>>::block_number();
-					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, now);
+					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, now, cfg);
 				} else {
 					// PVF is not being pre-checked and it is not known. Start a new pre-checking
 					// process.
@@ -1391,6 +1331,19 @@ impl<T: Config> Pallet<T> {
 			},
 		}
 
+		// We increase the code RC here in any case. Intuitively the parachain that requested this
+		// action is now a user of that PVF.
+		//
+		// If the result of the pre-checking is reject, then we would decrease the RC for each cause,
+		// including the current.
+		//
+		// If the result of the pre-checking is accept, then we do nothing to the RC because the PVF
+		// will continue be used by the same users.
+		//
+		// If the PVF was fast-tracked (i.e. there is already non zero RC) and there is no
+		// pre-checking, we also do not change the RC then.
+		weight += Self::increase_code_ref(&code_hash, &code);
+
 		weight
 	}
 
@@ -1401,7 +1354,6 @@ impl<T: Config> Pallet<T> {
 		id: ParaId,
 		new_head: HeadData,
 		execution_context: T::BlockNumber,
-		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
 		Heads::<T>::insert(&id, new_head);
 
@@ -1409,14 +1361,6 @@ impl<T: Config> Pallet<T> {
 			if expected_at <= execution_context {
 				FutureCodeUpgrades::<T>::remove(&id);
 				UpgradeGoAheadSignal::<T>::remove(&id);
-
-				let next_possible_upgrade_at = execution_context + cfg.validation_upgrade_frequency;
-				<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
-					let insert_idx = upgrade_cooldowns
-						.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
-						.unwrap_or_else(|idx| idx);
-					upgrade_cooldowns.insert(insert_idx, (id, next_possible_upgrade_at));
-				});
 
 				// Both should always be `Some` in this case, since a code upgrade is scheduled.
 				let new_code_hash = FutureCodeHash::<T>::take(&id).unwrap_or_default();
@@ -1430,8 +1374,6 @@ impl<T: Config> Pallet<T> {
 				let now = <frame_system::Pallet<T>>::block_number();
 				let weight = Self::note_past_code(id, now, prior_code_hash);
 
-				// TODO: arm upgrade cooldown
-
 				// add 1 to writes due to heads update.
 				weight + T::DbWeight::get().reads_writes(3, 1 + 3)
 			} else {
@@ -1444,43 +1386,6 @@ impl<T: Config> Pallet<T> {
 			// the `Abort` signal.
 			UpgradeGoAheadSignal::<T>::remove(&id);
 			T::DbWeight::get().reads_writes(1, 1)
-		}
-	}
-
-	/// Fetches the validation code hash for the validation code to be used when validating a block
-	/// in the context of the given relay-chain height. A second block number parameter may be used
-	/// to tell the lookup to proceed as if an intermediate parablock has been with the given
-	/// relay-chain height as its context. This may return the hash for the past, current, or
-	/// (with certain choices of `assume_intermediate`) future code.
-	///
-	/// `assume_intermediate`, if provided, must be before `at`. This will return `None` if the validation
-	/// code has been pruned.
-	///
-	/// To get associated code see [`Self::validation_code_at`].
-	pub(crate) fn validation_code_hash_at(
-		id: ParaId,
-		at: T::BlockNumber,
-		assume_intermediate: Option<T::BlockNumber>,
-	) -> Option<ValidationCodeHash> {
-		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
-			return None
-		}
-
-		let planned_upgrade = <Self as Store>::FutureCodeUpgrades::get(&id);
-		let upgrade_applied_intermediate = match assume_intermediate {
-			Some(a) => planned_upgrade.as_ref().map_or(false, |u| u <= &a),
-			None => false,
-		};
-
-		if upgrade_applied_intermediate {
-			FutureCodeHash::<T>::get(&id)
-		} else {
-			match Self::past_code_meta(&id).code_at(at) {
-				None => None,
-				Some(UseCodeAt::Current) => CurrentCodeHash::<T>::get(&id),
-				Some(UseCodeAt::ReplacedAt(replaced)) =>
-					<Self as Store>::PastCodeHash::get(&(id, replaced)),
-			}
 		}
 	}
 
@@ -1652,8 +1557,7 @@ mod tests {
 		at: BlockNumber,
 		assume_intermediate: Option<BlockNumber>,
 	) -> Option<ValidationCode> {
-		Paras::validation_code_hash_at(para_id, at, assume_intermediate)
-			.and_then(Paras::code_by_hash)
+		Paras::validation_code_hash(para_id, at, assume_intermediate).and_then(Paras::code_by_hash)
 	}
 
 	#[test]

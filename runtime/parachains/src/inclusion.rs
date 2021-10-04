@@ -459,10 +459,9 @@ impl<T: Config> Pallet<T> {
 					Error::<T>::NotCollatorSigned,
 				);
 
-				let validation_code_hash =
-					<paras::Pallet<T>>::validation_code_hash_at(para_id, now, None)
-						// A candidate for a parachain without current validation code is not scheduled.
-						.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
+				let validation_code_hash = <paras::Pallet<T>>::current_code_hash(&para_id)
+					// A candidate for a parachain without current validation code is not scheduled.
+					.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
 				ensure!(
 					candidate.descriptor().validation_code_hash == validation_code_hash,
 					Error::<T>::InvalidValidationCodeHash,
@@ -745,7 +744,6 @@ impl<T: Config> Pallet<T> {
 				receipt.descriptor.para_id,
 				commitments.head_data,
 				relay_parent_number,
-				&config,
 			)
 	}
 
