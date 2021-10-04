@@ -25,9 +25,9 @@ use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
-	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CompactStatement, CoreIndex,
-	GroupIndex, Hash, HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields,
-	ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
+	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
+	ValidityAttestation,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -117,7 +117,7 @@ pub trait RewardValidators {
 pub(crate) struct ProcessedCandidates<H = Hash> {
 	pub(crate) core_indices: Vec<CoreIndex>,
 	pub(crate) candidate_receipt_with_backing_validator_indices:
-		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidatorSignature)>)>,
+		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidityAttestation)>)>,
 }
 
 impl<H> Default for ProcessedCandidates<H> {
@@ -593,7 +593,6 @@ impl<T: Config> Pallet<T> {
 									backed_candidate.validator_indices.count_ones(),
 								);
 							let candidate_receipt = backed_candidate.receipt();
-							let candidate_hash = candidate_receipt.hash();
 
 							for ((bit_idx, _), attestation) in backed_candidate
 								.validator_indices
@@ -2475,7 +2474,7 @@ mod tests {
 			let expected = {
 				let mut intermediate = std::collections::HashMap::<
 					CandidateHash,
-					(CandidateReceipt, Vec<(ValidatorIndex, ValidatorSignature)>),
+					(CandidateReceipt, Vec<(ValidatorIndex, ValidityAttestation)>),
 				>::new();
 				backed_candidates.into_iter().for_each(|backed_candidate| {
 					let candidate_receipt_with_backers = intermediate
@@ -2493,15 +2492,12 @@ mod tests {
 							.iter()
 							.enumerate()
 							.filter(|(_, signed)| **signed)
-							.zip(backed_candidate.validity_votes.iter())
+							.zip(backed_candidate.validity_votes.iter().cloned())
 							.filter_map(|((validator_index_within_group, _), attestation)| {
 								let grp_idx =
 									get_backing_group_idx(backed_candidate.hash()).unwrap();
 								group_validators(grp_idx).map(|validator_indices| {
-									(
-										validator_indices[validator_index_within_group],
-										attestation.signature().clone(),
-									)
+									(validator_indices[validator_index_within_group], attestation)
 								})
 							}),
 					);
@@ -2512,7 +2508,7 @@ mod tests {
 			// sort, since we use a hashmap above
 			let assure_candidate_sorting = |mut candidate_receipts_with_backers: Vec<(
 				CandidateReceipt,
-				Vec<(ValidatorIndex, ValidatorSignature)>,
+				Vec<(ValidatorIndex, ValidityAttestation)>,
 			)>| {
 				candidate_receipts_with_backers.sort_by(|(cr1, _), (cr2, _)| {
 					cr1.descriptor().para_id.cmp(&cr2.descriptor().para_id)

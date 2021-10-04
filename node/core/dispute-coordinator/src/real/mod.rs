@@ -50,9 +50,9 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate,
 };
 use polkadot_primitives::v1::{
-	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, DisputeStatementSet, Hash,
-	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
+	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 
@@ -522,7 +522,7 @@ async fn scrape_on_chain_votes(
 ) -> Result<(), Error> {
 	// obtain the concluded disputes as well as the candidate backing votes
 	// from the new leaf
-	let ScrapedOnChainVotes { session, backing_validators, disputes } = {
+	let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = {
 		let (tx, rx) = oneshot::channel();
 		ctx.send_message(RuntimeApiMessage::Request(
 			new_leaf,
@@ -557,7 +557,7 @@ async fn scrape_on_chain_votes(
 		}
 	};
 
-	if backing_validators.is_empty() && disputes.is_empty() {
+	if backing_validators_per_candidate.is_empty() && disputes.is_empty() {
 		return Ok(())
 	}
 
@@ -579,37 +579,37 @@ async fn scrape_on_chain_votes(
 
 	// Scraped on-chain backing votes for the candidates with
 	// the new active leaf as if we received them via gossip.
-	for (candidate_receipt, backers) in backing_validators {
+	for (candidate_receipt, backers) in backing_validators_per_candidate {
 		let candidate_hash = candidate_receipt.hash();
-		let statements =
-			backers.into_iter().filter_map(|(validator_index, validator_signature)| {
-				let validator_public: ValidatorId = session_info
-					.validators
-					.get(validator_index.0 as usize)
-					.or_else(|| {
-						tracing::error!(
+		let statements = backers.into_iter().filter_map(|(validator_index, attestation)| {
+			let validator_public: ValidatorId = session_info
+				.validators
+				.get(validator_index.0 as usize)
+				.or_else(|| {
+					tracing::error!(
 						target: LOG_TARGET,
 						relay_parent = ?new_leaf,
 						"Missing public key for validator {:?}",
 						&validator_index);
-						None
-					})
-					.cloned()?;
-				let valid_statement_kind = match attestation.to_compact_statement(candidate_hash) {
-					CompactStatement::Seconded(_) =>
-						ValidDisputeStatementKind::BackingSeconded(new_leaf),
-					CompactStatement::Valid(_) => ValidDisputeStatementKind::BackingValid(new_leaf),
-				};
-				let signed_dispute_statement =
-					SignedDisputeStatement::new_unchecked_from_trusted_source(
-						DisputeStatement::Valid(valid_statement_kind),
-						candidate_hash,
-						session,
-						validator_public,
-						validator_signature,
-					);
-				Some((signed_dispute_statement, validator_index))
-			});
+					None
+				})
+				.cloned()?;
+			let validator_signature = attestation.signature().clone();
+			let valid_statement_kind = match attestation.to_compact_statement(candidate_hash) {
+				CompactStatement::Seconded(_) =>
+					ValidDisputeStatementKind::BackingSeconded(new_leaf),
+				CompactStatement::Valid(_) => ValidDisputeStatementKind::BackingValid(new_leaf),
+			};
+			let signed_dispute_statement =
+				SignedDisputeStatement::new_unchecked_from_trusted_source(
+					DisputeStatement::Valid(valid_statement_kind),
+					candidate_hash,
+					session,
+					validator_public,
+					validator_signature,
+				);
+			Some((signed_dispute_statement, validator_index))
+		});
 		let import_result = handle_import_statements(
 			ctx,
 			overlay_db,

@@ -33,7 +33,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	BackedCandidate, InherentData as ParachainsInherentData, ScrapedOnChainVotes, ValidatorIndex,
+	BackedCandidate, InherentData as ParachainsInherentData, ScrapedOnChainVotes,
 	PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_runtime::traits::Header as HeaderT;
