@@ -371,9 +371,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
-	pub(crate) fn free_cores(
-		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
-	) {
+	pub(crate) fn free_cores(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
 		let config = <configuration::Pallet<T>>::config();
 
 		AvailabilityCores::<T>::mutate(|cores| {

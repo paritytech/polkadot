@@ -203,6 +203,8 @@ pub mod pallet {
 				};
 
 				if !freed_disputed.is_empty() {
+					// unstable sort is fine, because core indices are unique
+					// i.e. the same candidate can't occupy 2 cores at once.
 					freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 					<scheduler::Pallet<T>>::free_cores(freed_disputed);
 				}
@@ -238,6 +240,7 @@ pub mod pallet {
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
 				.collect::<Vec<_>>();
 
+			// unstable sort is fine, because core indices are unique.
 			freed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 
 			<scheduler::Pallet<T>>::clear();
