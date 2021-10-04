@@ -17,7 +17,10 @@
 //! A mock runtime for xcm benchmarking.
 
 use crate::{generic, mock::*, *};
-use frame_support::{parameter_types, traits::Everything};
+use frame_support::{
+	parameter_types,
+	traits::{Everything, OriginTrait},
+};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -94,7 +97,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
 	type XcmSender = DevNull;
 	type AssetTransactor = NoAssetTransactor;
-	type OriginConverter = AlwaysSignedByDefault;
+	type OriginConverter = AlwaysSignedByDefault<Origin>;
 	type IsReserve = AllAssetLocationsPass;
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
@@ -133,9 +136,16 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	t.into()
 }
 
-pub struct AlwaysSignedByDefault;
-impl ConvertOrigin<Origin> for AlwaysSignedByDefault {
-	fn convert_origin(_origin: MultiLocation, _kind: OriginKind) -> Result<Origin, MultiLocation> {
+pub struct AlwaysSignedByDefault<Origin>(core::marker::PhantomData<Origin>);
+impl<Origin> ConvertOrigin<Origin> for AlwaysSignedByDefault<Origin>
+where
+	Origin: OriginTrait,
+	<Origin as OriginTrait>::AccountId: Default,
+{
+	fn convert_origin(
+		_origin: impl Into<MultiLocation>,
+		_kind: OriginKind,
+	) -> Result<Origin, MultiLocation> {
 		Ok(Origin::signed(Default::default()))
 	}
 }

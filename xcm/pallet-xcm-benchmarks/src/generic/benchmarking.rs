@@ -204,7 +204,7 @@ benchmarks! {
 
 	clear_error {
 		let mut executor = new_executor::<T>(Default::default());
-		executor.error = Some((5u32, XcmError::Undefined));
+		executor.error = Some((5u32, XcmError::Overflow));
 		let instruction = Instruction::<XcmCallOf<T>>::ClearError;
 		let xcm = Xcm(vec![instruction]);
 	} : {
