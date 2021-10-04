@@ -747,6 +747,18 @@ pub enum ValidityAttestation {
 }
 
 impl ValidityAttestation {
+	/// Produce the underlying signed payload of the attestation, given the hash of the candidate,
+	/// which should be known in context.
+	pub fn to_compact_statement<H: Encode>(
+		&self,
+		candidate_hash: CandidateHash,
+	) -> CompactStatement {
+		match *self {
+			ValidityAttestation::Implicit(_) => CompactStatement::Seconded(candidate_hash),
+			ValidityAttestation::Explicit(_) => CompactStatement::Valid(candidate_hash),
+		}
+	}
+
 	/// Get a reference to the signature.
 	pub fn signature(&self) -> &ValidatorSignature {
 		match *self {

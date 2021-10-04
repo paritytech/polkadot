@@ -17,7 +17,10 @@
 //! Runtimes implementing the v1 runtime API are recommended to forward directly to these
 //! functions.
 
-use crate::{configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler, session_info, shared};
+use crate::{
+	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
+	session_info, shared,
+};
 use primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,

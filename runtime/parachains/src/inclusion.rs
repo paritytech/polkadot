@@ -25,9 +25,9 @@ use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
-	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
-	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
-	ValidatorSignature,
+	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CompactStatement, CoreIndex,
+	GroupIndex, Hash, HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields,
+	ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -588,29 +588,29 @@ impl<T: Config> Pallet<T> {
 								},
 							}
 
-							let mut backer_idx_and_signature =
-								Vec::<(ValidatorIndex, ValidatorSignature)>::with_capacity(
+							let mut backer_idx_and_attestation =
+								Vec::<(ValidatorIndex, ValidityAttestation)>::with_capacity(
 									backed_candidate.validator_indices.count_ones(),
 								);
 							let candidate_receipt = backed_candidate.receipt();
-							for ((bit_idx, _), signature) in backed_candidate
+							let candidate_hash = candidate_receipt.hash();
+
+							for ((bit_idx, _), attestation) in backed_candidate
 								.validator_indices
 								.iter()
 								.enumerate()
 								.filter(|(_, signed)| **signed)
-								.zip(backed_candidate.validity_votes.iter())
+								.zip(backed_candidate.validity_votes.iter().cloned())
 							{
 								let val_idx = group_vals
 									.get(bit_idx)
 									.expect("this query succeeded above; qed");
-
-								backer_idx_and_signature
-									.push((*val_idx, attestation.signature().clone()));
+								backer_idx_and_attestation.push((*val_idx, attestation));
 
 								backers.set(val_idx.0 as _, true);
 							}
 							candidate_receipt_with_backer_indices
-								.push((candidate_receipt, backer_idx_and_signature));
+								.push((candidate_receipt, backer_idx_and_attestation));
 						}
 
 						core_indices_and_backers.push((

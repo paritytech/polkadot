@@ -595,10 +595,14 @@ async fn scrape_on_chain_votes(
 						None
 					})
 					.cloned()?;
+				let valid_statement_kind = match attestation.to_compact_statement(candidate_hash) {
+					CompactStatement::Seconded(_) =>
+						ValidDisputeStatementKind::BackingSeconded(new_leaf),
+					CompactStatement::Valid(_) => ValidDisputeStatementKind::BackingValid(new_leaf),
+				};
 				let signed_dispute_statement =
 					SignedDisputeStatement::new_unchecked_from_trusted_source(
-						// TODO verify this is the correct statement
-						DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(new_leaf)),
+						DisputeStatement::Valid(valid_statement_kind),
 						candidate_hash,
 						session,
 						validator_public,
