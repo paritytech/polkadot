@@ -4,13 +4,13 @@ timeout = 300
 [settings.defaults]
 image = "{{get_env(name="SYNTHIMAGE") | safe }}"
 command = "polkadot"
-chain-spec = "rococo-local.json"
-chain-name = "rococo-local"
+chain-spec = "wococo-local.json"
+chain-name = "wococo-local"
 timeout = 300
 
 [init_nodes.chainspec]
 image = "{{get_env(name="SYNTHIMAGE") | safe }}"
-command = "polkadot build-spec --chain rococo-local --disable-default-bootnode --raw > /cfg/rococo-local.json"
+command = "polkadot build-spec --chain wococo-local --disable-default-bootnode --raw > /cfg/wococo-local.json"
 fetch-files = [ "/cfg/rococo-local.json" ]
 timeout = 300
 
@@ -66,14 +66,3 @@ command = "/usr/local/bin/malus"
 subcommand = "dispute-ancestor"
 extra-args = ["--dave","-lparachain=debug"]
 
-[nodes.eve]
-validator = true
-image = "{{get_env(name="SYNTHIMAGE") | safe }}"
-command = "polkadot"
-extra-args = ["--eve", "-lparachain=debug"]
-
-[nodes.ferdie]
-validator = true
-image = "{{get_env(name="SYNTHIMAGE") | safe }}"
-command = "polkadot"
-extra-args = ["--ferdie", "-lparachain=debug"]
