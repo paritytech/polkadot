@@ -33,19 +33,27 @@ use variants::*;
 #[structopt(rename_all = "kebab-case")]
 enum NemesisVariant {
 	/// Suggest a candidate with an invalid proof of validity.
-	SuggestGarbageCandidate,
+	SuggestGarbageCandidate(RunCmd),
 	/// Back a candidate with a specifically crafted proof of validity.
-	BackGarbageCandidate,
+	BackGarbageCandidate(RunCmd),
 	/// Delayed disputing of ancestors that are perfectly fine.
-	DisputeAncestor,
+	DisputeAncestor(RunCmd),
 
 	#[allow(missing_docs)]
 	#[structopt(name = "prepare-worker", setting = structopt::clap::AppSettings::Hidden)]
-	PvfPrepareWorker(polkadot_cli::ValidationWorkerCommand),
+	PvfPrepareWorker(Wrapper),
 
 	#[allow(missing_docs)]
 	#[structopt(name = "execute-worker", setting = structopt::clap::AppSettings::Hidden)]
-	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
+	PvfExecuteWorker(Wrapper),
+}
+
+#[derive(Debug, StructOpt)]
+struct Wrapper {
+	#[structopt(flatten)]
+	cmd: polkadot_cli::ValidationWorkerCommand,
+	#[structopt(flatten)]
+	run: RunCmd,
 }
 
 #[derive(Debug, StructOpt)]
@@ -53,8 +61,6 @@ enum NemesisVariant {
 struct MalusCli {
 	#[structopt(subcommand)]
 	pub variant: NemesisVariant,
-	#[structopt(flatten)]
-	pub run: RunCmd,
 }
 
 fn run_cmd(run: RunCmd) -> Cli {
@@ -65,23 +71,23 @@ impl MalusCli {
 	/// Launch a malus node.
 	fn launch(self) -> eyre::Result<()> {
 		match self.variant {
-			NemesisVariant::BackGarbageCandidate =>
-				polkadot_cli::run_node(run_cmd(self.run), BackGarbageCandidate)?,
-			NemesisVariant::SuggestGarbageCandidate =>
-				polkadot_cli::run_node(run_cmd(self.run), SuggestGarbageCandidate)?,
-			NemesisVariant::DisputeAncestor =>
-				polkadot_cli::run_node(run_cmd(self.run), DisputeValidCandidates)?,
-			NemesisVariant::PvfPrepareWorker(cmd) => polkadot_cli::run_node(
+			NemesisVariant::BackGarbageCandidate(cmd) =>
+				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
+			NemesisVariant::SuggestGarbageCandidate(cmd) =>
+				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
+			NemesisVariant::DisputeAncestor(cmd) =>
+				polkadot_cli::run_node(run_cmd(cmd), DisputeValidCandidates)?,
+			NemesisVariant::PvfPrepareWorker(wrapper) => polkadot_cli::run_node(
 				Cli {
-					subcommand: Some(polkadot_cli::Subcommand::PvfPrepareWorker(cmd)),
-					run: self.run,
+					subcommand: Some(polkadot_cli::Subcommand::PvfPrepareWorker(wrapper.cmd)),
+					run: wrapper.run,
 				},
 				DisputeValidCandidates,
 			)?,
-			NemesisVariant::PvfExecuteWorker(cmd) => polkadot_cli::run_node(
+			NemesisVariant::PvfExecuteWorker(wrapper) => polkadot_cli::run_node(
 				Cli {
-					subcommand: Some(polkadot_cli::Subcommand::PvfExecuteWorker(cmd)),
-					run: self.run,
+					subcommand: Some(polkadot_cli::Subcommand::PvfExecuteWorker(wrapper.cmd)),
+					run: wrapper.run,
 				},
 				DisputeValidCandidates,
 			)?,
@@ -110,8 +116,7 @@ mod tests {
 		]))
 		.unwrap();
 		assert_matches::assert_matches!(cli, MalusCli {
-			variant: NemesisVariant::DisputeAncestor,
-			run,
+			variant: NemesisVariant::DisputeAncestor(run),
 			..
 		} => {
 			assert!(run.base.bob);
