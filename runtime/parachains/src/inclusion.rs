@@ -180,8 +180,6 @@ pub mod pallet {
 		NotCollatorSigned,
 		/// The validation data hash does not match expected.
 		ValidationDataHashMismatch,
-		/// Internal error only returned when compiled with debug assertions.
-		InternalError,
 		/// The downward message queue is not processed correctly.
 		IncorrectDownwardMessageHandling,
 		/// At least one upward message sent does not pass the acceptance criteria.
@@ -328,8 +326,6 @@ impl<T: Config> Pallet<T> {
 						candidate_pending_availability.availability_votes.get_mut(val_idx)
 					}) {
 					*bit = true;
-				} else if cfg!(debug_assertions) {
-					ensure!(false, Error::<T>::InternalError);
 				}
 			}
 
@@ -1412,13 +1408,14 @@ mod tests {
 					bare_bitfield,
 					&signing_context,
 				));
-
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					&core_lookup,
-				)
-				.is_err());
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						&core_lookup,
+					),
+					Ok(vec![])
+				);
 			}
 
 			// empty bitfield signed: always OK, but kind of useless.
