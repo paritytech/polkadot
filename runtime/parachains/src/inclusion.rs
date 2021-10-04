@@ -1416,6 +1416,27 @@ mod tests {
 				.is_err());
 			}
 
+			// non-pending bit set.
+			{
+				let mut bare_bitfield = default_bitfield();
+				*bare_bitfield.0.get_mut(0).unwrap() = true;
+				let signed = block_on(sign_bitfield(
+					&keystore,
+					&validators[0],
+					ValidatorIndex(0),
+					bare_bitfield,
+					&signing_context,
+				));
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						&core_lookup,
+					),
+					Ok(vec![])
+				);
+			}
+
 			// empty bitfield signed: always OK, but kind of useless.
 			{
 				let bare_bitfield = default_bitfield();
