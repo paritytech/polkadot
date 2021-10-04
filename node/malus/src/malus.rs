@@ -41,19 +41,11 @@ enum NemesisVariant {
 
 	#[allow(missing_docs)]
 	#[structopt(name = "prepare-worker", setting = structopt::clap::AppSettings::Hidden)]
-	PvfPrepareWorker(Wrapper),
+	PvfPrepareWorker(polkadot_cli::ValidationWorkerCommand),
 
 	#[allow(missing_docs)]
 	#[structopt(name = "execute-worker", setting = structopt::clap::AppSettings::Hidden)]
-	PvfExecuteWorker(Wrapper),
-}
-
-#[derive(Debug, StructOpt)]
-struct Wrapper {
-	#[structopt(flatten)]
-	cmd: polkadot_cli::ValidationWorkerCommand,
-	#[structopt(flatten)]
-	run: RunCmd,
+	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
 }
 
 #[derive(Debug, StructOpt)]
@@ -70,6 +62,7 @@ fn run_cmd(run: RunCmd) -> Cli {
 impl MalusCli {
 	/// Launch a malus node.
 	fn launch(self) -> eyre::Result<()> {
+		const HACK: &[&str] = &[];
 		match self.variant {
 			NemesisVariant::BackGarbageCandidate(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), BackGarbageCandidate)?,
@@ -77,17 +70,17 @@ impl MalusCli {
 				polkadot_cli::run_node(run_cmd(cmd), SuggestGarbageCandidate)?,
 			NemesisVariant::DisputeAncestor(cmd) =>
 				polkadot_cli::run_node(run_cmd(cmd), DisputeValidCandidates)?,
-			NemesisVariant::PvfPrepareWorker(wrapper) => polkadot_cli::run_node(
+			NemesisVariant::PvfPrepareWorker(cmd) => polkadot_cli::run_node(
 				Cli {
-					subcommand: Some(polkadot_cli::Subcommand::PvfPrepareWorker(wrapper.cmd)),
-					run: wrapper.run,
+					subcommand: Some(polkadot_cli::Subcommand::PvfPrepareWorker(cmd)),
+					run: RunCmd::from_iter(HACK),
 				},
 				DisputeValidCandidates,
 			)?,
-			NemesisVariant::PvfExecuteWorker(wrapper) => polkadot_cli::run_node(
+			NemesisVariant::PvfExecuteWorker(cmd) => polkadot_cli::run_node(
 				Cli {
-					subcommand: Some(polkadot_cli::Subcommand::PvfExecuteWorker(wrapper.cmd)),
-					run: wrapper.run,
+					subcommand: Some(polkadot_cli::Subcommand::PvfExecuteWorker(cmd)),
+					run: RunCmd::from_iter(HACK),
 				},
 				DisputeValidCandidates,
 			)?,
