@@ -180,8 +180,6 @@ pub mod pallet {
 		NotCollatorSigned,
 		/// The validation data hash does not match expected.
 		ValidationDataHashMismatch,
-		/// Internal error only returned when compiled with debug assertions.
-		InternalError,
 		/// The downward message queue is not processed correctly.
 		IncorrectDownwardMessageHandling,
 		/// At least one upward message sent does not pass the acceptance criteria.
@@ -263,14 +261,6 @@ impl<T: Config> Pallet<T> {
 		// 3. each bitfield has exactly `expected_bits`
 		// 4. signature is valid.
 		let signed_bitfields = {
-			let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras_record
-				.iter()
-				.map(|p| {
-					p.as_ref()
-						.map_or(false, |(_id, pending_availability)| pending_availability.is_some())
-				})
-				.collect();
-
 			let mut last_index = None;
 
 			let signing_context = SigningContext {
@@ -296,13 +286,6 @@ impl<T: Config> Pallet<T> {
 					(unchecked_bitfield.unchecked_validator_index().0 as usize) < validators.len(),
 					Error::<T>::ValidatorIndexOutOfBounds,
 				);
-
-				// If there is a bit set that shouldn't bet set, we ignore it.
-				if occupied_bitmask.clone() & unchecked_bitfield.unchecked_payload().0.clone() !=
-					unchecked_bitfield.unchecked_payload().0
-				{
-					continue
-				}
 
 				let validator_public =
 					&validators[unchecked_bitfield.unchecked_validator_index().0 as usize];
@@ -343,8 +326,6 @@ impl<T: Config> Pallet<T> {
 						candidate_pending_availability.availability_votes.get_mut(val_idx)
 					}) {
 					*bit = true;
-				} else if cfg!(debug_assertions) {
-					return Err(Error::<T>::InternalError.into())
 				}
 			}
 
