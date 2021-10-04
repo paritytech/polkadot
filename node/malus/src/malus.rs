@@ -17,7 +17,7 @@
 //! A malus or nemesis node launch code.
 
 use color_eyre::eyre;
-use polkadot_cli::RunCmd;
+use polkadot_cli::{Cli, RunCmd};
 use structopt::StructOpt;
 
 pub(crate) mod interceptor;
@@ -33,11 +33,19 @@ use variants::*;
 #[structopt(rename_all = "kebab-case")]
 enum NemesisVariant {
 	/// Suggest a candidate with an invalid proof of validity.
-	SuggestGarabageCandidate(RunCmd),
+	SuggestGarabageCandidate,
 	/// Back a candidate with a specifically crafted proof of validity.
-	BackGarbageCandidate(RunCmd),
+	BackGarbageCandidate,
 	/// Delayed disputing of ancestors that are perfectly fine.
-	DisputeAncestor(RunCmd),
+	DisputeAncestor,
+
+	#[allow(missing_docs)]
+	#[structopt(name = "prepare-worker", setting = structopt::clap::AppSettings::Hidden)]
+	PvfPrepareWorker(polkadot_cli::ValidationWorkerCommand),
+
+	#[allow(missing_docs)]
+	#[structopt(name = "execute-worker", setting = structopt::clap::AppSettings::Hidden)]
+	PvfExecuteWorker(polkadot_cli::ValidationWorkerCommand),
 }
 
 #[derive(Debug, StructOpt)]
@@ -45,18 +53,43 @@ enum NemesisVariant {
 struct MalusCli {
 	#[structopt(subcommand)]
 	pub variant: NemesisVariant,
+	#[structopt(flatten)]
+	pub run: RunCmd,
+}
+
+fn run_cmd(run: RunCmd) -> Cli {
+	Cli {
+		subcommand: None,
+		run
+	}
 }
 
 impl MalusCli {
 	/// Launch a malus node.
 	fn launch(self) -> eyre::Result<()> {
 		match self.variant {
-			NemesisVariant::BackGarbageCandidate(run) =>
-				polkadot_cli::run_node(run, BackGarbageCandidate)?,
-			NemesisVariant::SuggestGarabageCandidate(run) =>
-				polkadot_cli::run_node(run, SuggestGarbageCandidate)?,
-			NemesisVariant::DisputeAncestor(run) =>
-				polkadot_cli::run_node(run, DisputeValidCandidates)?,
+			NemesisVariant::BackGarbageCandidate =>
+				polkadot_cli::run_node(run_cmd(self.run), BackGarbageCandidate)?,
+			NemesisVariant::SuggestGarabageCandidate =>
+				polkadot_cli::run_node(run_cmd(self.run), SuggestGarbageCandidate)?,
+			NemesisVariant::DisputeAncestor =>
+				polkadot_cli::run_node(run_cmd(self.run), DisputeValidCandidates)?,
+			NemesisVariant::PvfPrepareWorker(cmd) =>
+				polkadot_cli::run_node(
+					Cli {
+						subcommand: Some(polkadot_cli::Subcommand::PvfPrepareWorker(cmd)),
+						run: self.run,
+					},
+					DisputeValidCandidates,
+				)?,
+			NemesisVariant::PvfExecuteWorker(cmd) =>
+				polkadot_cli::run_node(
+					Cli {
+						subcommand: Some(polkadot_cli::Subcommand::PvfExecuteWorker(cmd)),
+						run: self.run,
+					},
+					DisputeValidCandidates,
+				)?,
 		}
 		Ok(())
 	}
