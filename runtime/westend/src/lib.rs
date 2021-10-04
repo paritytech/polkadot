@@ -1615,7 +1615,6 @@ sp_api::impl_runtime_apis! {
 			// NOTE: Make sure you point to the individual modules below.
 			add_benchmark!(params, batches, pallet_xcm_benchmarks::fungible, XcmBalances);
 
-			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
 	}
