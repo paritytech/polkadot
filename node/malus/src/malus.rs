@@ -38,8 +38,6 @@ enum NemesisVariant {
 	BackGarbageCandidate(RunCmd),
 	/// Delayed disputing of ancestors that are perfectly fine.
 	DisputeAncestor(RunCmd),
-	/// Instant disputing of a block that was never made available.
-	DisputeUnavailable(RunCmd),
 }
 
 #[derive(Debug, StructOpt)]
@@ -57,9 +55,8 @@ impl MalusCli {
 				polkadot_cli::run_node(run, BackGarbageCandidate)?,
 			NemesisVariant::SuggestGarabageCandidate(run) =>
 				polkadot_cli::run_node(run, SuggestGarbageCandidate)?,
-			NemesisVariant::DisputeAncestor(run) => polkadot_cli::run_node(run, DisputeAncestor)?,
-			NemesisVariant::DisputeUnavailable(run) =>
-				polkadot_cli::run_node(run, DisputeUnavailable)?,
+			NemesisVariant::DisputeAncestor(run) =>
+				polkadot_cli::run_node(run, DisputeInsteadOfApproving)?,
 		}
 		Ok(())
 	}
