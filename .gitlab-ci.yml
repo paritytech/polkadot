@@ -269,6 +269,7 @@ check-transaction-versions:
     - job:                         test-build-linux-stable
       artifacts:                   true
   before_script:
+    - apt-get -y update; apt-get -y install jq lsof
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
     # Set git config
     - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
