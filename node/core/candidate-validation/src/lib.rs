@@ -48,7 +48,7 @@ use parity_scale_codec::Encode;
 
 use futures::{channel::oneshot, prelude::*};
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 
@@ -135,6 +135,7 @@ where
 				CandidateValidationMessage::ValidateFromChainState(
 					descriptor,
 					pov,
+					timeout,
 					response_sender,
 				) => {
 					let bg = {
@@ -149,6 +150,7 @@ where
 								validation_host,
 								descriptor,
 								pov,
+								timeout,
 								&metrics,
 							)
 							.await;
@@ -165,6 +167,7 @@ where
 					validation_code,
 					descriptor,
 					pov,
+					timeout,
 					response_sender,
 				) => {
 					let bg = {
@@ -179,6 +182,7 @@ where
 								validation_code,
 								descriptor,
 								pov,
+								timeout,
 								&metrics,
 							)
 							.await;
@@ -322,6 +326,7 @@ async fn validate_from_chain_state<Sender>(
 	validation_host: ValidationHost,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
+	timeout: Duration,
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed>
 where
@@ -347,6 +352,7 @@ where
 		validation_code,
 		descriptor.clone(),
 		pov,
+		timeout,
 		metrics,
 	)
 	.await;
@@ -377,6 +383,7 @@ async fn validate_candidate_exhaustive(
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
+	timeout: Duration,
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed> {
 	let _timer = metrics.time_validate_candidate_exhaustive();
@@ -430,7 +437,7 @@ async fn validate_candidate_exhaustive(
 	};
 
 	let result = validation_backend
-		.validate_candidate(raw_validation_code.to_vec(), params)
+		.validate_candidate(raw_validation_code.to_vec(), timeout, params)
 		.await;
 
 	if let Err(ref e) = result {
@@ -475,6 +482,7 @@ trait ValidationBackend {
 	async fn validate_candidate(
 		&mut self,
 		raw_validation_code: Vec<u8>,
+		timeout: Duration,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError>;
 }
@@ -484,12 +492,14 @@ impl ValidationBackend for ValidationHost {
 	async fn validate_candidate(
 		&mut self,
 		raw_validation_code: Vec<u8>,
+		timeout: Duration,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self
 			.execute_pvf(
 				Pvf::from_code(raw_validation_code),
+				timeout,
 				params.encode(),
 				polkadot_node_core_pvf::Priority::Normal,
 				tx,
