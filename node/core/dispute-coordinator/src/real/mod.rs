@@ -692,6 +692,7 @@ async fn scrape_on_chain_votes(
 			overlay_db,
 			state,
 			candidate_hash,
+			// TODO <https://github.com/paritytech/polkadot/issues/4011>
 			MaybeCandidateReceipt::AssumeBackingVotePresent,
 			session,
 			statements,
