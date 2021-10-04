@@ -112,6 +112,7 @@ where
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
 							Default::default(),
 							PoV { block_data: BlockData(Vec::new()) }.into(),
+							Default::default(),
 							tx,
 						))
 						.await;
@@ -791,7 +792,12 @@ where
 fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	let (sender, _) = oneshot::channel();
 	let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
-	CandidateValidationMessage::ValidateFromChainState(Default::default(), pov, sender)
+	CandidateValidationMessage::ValidateFromChainState(
+		Default::default(),
+		pov,
+		Default::default(),
+		sender,
+	)
 }
 
 fn test_candidate_backing_msg() -> CandidateBackingMessage {

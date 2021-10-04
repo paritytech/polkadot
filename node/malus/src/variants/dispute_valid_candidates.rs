@@ -91,9 +91,9 @@ where
 }
 
 /// Generates an overseer that disputes instead of approving valid candidates.
-pub(crate) struct DisputeInsteadOfApproving;
+pub(crate) struct DisputeValidCandidates;
 
-impl OverseerGen for DisputeInsteadOfApproving {
+impl OverseerGen for DisputeValidCandidates {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,

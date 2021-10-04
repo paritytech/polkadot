@@ -109,6 +109,7 @@ where
 						validation_code,
 						candidate_descriptor,
 						pov,
+						_duration,
 						response_sender,
 					),
 			} if pov.block_data.0.as_slice() == MALICIOUS_POV => {
@@ -126,6 +127,7 @@ where
 					CandidateValidationMessage::ValidateFromChainState(
 						candidate_descriptor,
 						pov,
+						_duration,
 						response_sender,
 					),
 			} if pov.block_data.0.as_slice() == MALICIOUS_POV => {
