@@ -1074,19 +1074,18 @@ fn process_message(
 				},
 			}
 		},
-		AvailabilityStoreMessage::StoreAvailableData(
-			candidate,
-			_our_index,
+		AvailabilityStoreMessage::StoreAvailableData {
+			candidate_hash,
 			n_validators,
 			available_data,
 			tx,
-		) => {
+		} => {
 			subsystem.metrics.on_chunks_received(n_validators as _);
 
 			let _timer = subsystem.metrics.time_store_available_data();
 
 			let res =
-				store_available_data(&subsystem, candidate, n_validators as _, available_data);
+				store_available_data(&subsystem, candidate_hash, n_validators as _, available_data);
 
 			match res {
 				Ok(()) => {

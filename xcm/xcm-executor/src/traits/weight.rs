@@ -34,7 +34,7 @@ pub trait WeightBounds<Call> {
 /// message.
 pub trait UniversalWeigher {
 	/// Get the upper limit of weight required for `dest` to execute `message`.
-	fn weigh(dest: MultiLocation, message: Xcm<()>) -> Result<Weight, ()>;
+	fn weigh(dest: impl Into<MultiLocation>, message: Xcm<()>) -> Result<Weight, ()>;
 }
 
 /// Charge for weight in order to execute XCM.

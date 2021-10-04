@@ -24,6 +24,7 @@ use std::sync::{
 use derive_more::{Add, Display};
 
 mod bounded;
+pub mod oneshot;
 mod unbounded;
 
 pub use self::{bounded::*, unbounded::*};
