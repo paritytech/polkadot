@@ -19,7 +19,7 @@ use crate::{new_executor, worst_case_holding, XcmCallOf};
 use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
-use sp_std::vec;
+use sp_std::vec::Vec;
 use xcm::{latest::prelude::*, DoubleEncoded};
 
 const MAX_ASSETS: u32 = 100;
