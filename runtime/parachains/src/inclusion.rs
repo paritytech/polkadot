@@ -592,7 +592,8 @@ impl<T: Config> Pallet<T> {
 								Vec::<(ValidatorIndex, ValidatorSignature)>::with_capacity(
 									backed_candidate.validator_indices.count_ones(),
 								);
-							for ((bit_idx, _), attestation) in backed_candidate
+							let candidate_receipt = backed_candidate.receipt();
+							for ((bit_idx, _), signature) in backed_candidate
 								.validator_indices
 								.iter()
 								.enumerate()
@@ -609,7 +610,7 @@ impl<T: Config> Pallet<T> {
 								backers.set(val_idx.0 as _, true);
 							}
 							candidate_receipt_with_backer_indices
-								.push((backed_candidate.receipt(), backer_idx_and_signature));
+								.push((candidate_receipt, backer_idx_and_signature));
 						}
 
 						core_indices_and_backers.push((

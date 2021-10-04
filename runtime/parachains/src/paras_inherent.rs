@@ -24,7 +24,6 @@
 use crate::{
 	disputes::DisputesHandler,
 	inclusion,
-	paras::OnChainVotes,
 	scheduler::{self, FreedReason},
 	shared, ump,
 };
@@ -34,6 +33,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
+	ValidatorIndex,
 	BackedCandidate, InherentData as ParachainsInherentData, ScrapedOnChainVotes,
 	PARACHAINS_INHERENT_IDENTIFIER,
 };
@@ -80,6 +80,12 @@ pub mod pallet {
 	/// If this is `None` at the end of the block, we panic and render the block invalid.
 	#[pallet::storage]
 	pub(crate) type Included<T> = StorageValue<_, ()>;
+
+	/// Scraped on chain data for extracting resolved disputes as well as backing votes.
+	#[pallet::storage]
+	#[pallet::getter(fn on_chain_votes)]
+	pub(crate) type OnChainVotes<T: Config> =
+		StorageValue<_, ScrapedOnChainVotes<T::Hash>, OptionQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -270,7 +276,7 @@ pub mod pallet {
 			// limited by the weight as well as the number of candidate blocks.
 			OnChainVotes::<T>::put(ScrapedOnChainVotes::<<T::Header as HeaderT>::Hash> {
 				session: current_session,
-				backing_validators: candidate_receipt_with_backing_validator_indices,
+				backing_validators_per_candidate: candidate_receipt_with_backing_validator_indices,
 				disputes,
 			});
 

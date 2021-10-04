@@ -17,9 +17,7 @@
 //! Runtimes implementing the v1 runtime API are recommended to forward directly to these
 //! functions.
 
-use crate::{
-	configuration, dmp, hrmp, inclusion, initializer, paras, scheduler, session_info, shared,
-};
+use crate::{configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler, session_info, shared};
 use primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
@@ -332,5 +330,5 @@ pub fn validation_code_by_hash<T: paras::Config>(
 
 /// Disputes imported via means of on-chain imports.
 pub fn on_chain_votes<T: initializer::Config>() -> Option<ScrapedOnChainVotes<T::Hash>> {
-	<paras::Pallet<T>>::on_chain_votes()
+	<paras_inherent::Pallet<T>>::on_chain_votes()
 }

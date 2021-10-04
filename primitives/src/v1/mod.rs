@@ -953,7 +953,7 @@ pub struct ScrapedOnChainVotes<H: Encode + Decode = Hash> {
 	pub session: SessionIndex,
 	/// Set of backing validators for each candidate, represented by it's candidate
 	/// receipt.
-	pub backing_validators: Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidatorSignature)>)>,
+	pub backing_validators_per_candidate: Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidatorSignature, ValidDisputeStatementKind)>)>,
 	/// On-chain-recorded set of disputes.
 	/// Note that the above `backing_validators` are
 	/// unrelated to the backers of the disputes candidates.

@@ -28,7 +28,7 @@ use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
-	ConsensusLog, HeadData, Id as ParaId, ScrapedOnChainVotes, SessionIndex, UpgradeGoAhead,
+	ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead,
 	UpgradeRestriction, ValidationCode, ValidationCodeHash,
 };
 use scale_info::TypeInfo;
@@ -456,12 +456,6 @@ pub mod pallet {
 	#[pallet::getter(fn code_by_hash)]
 	pub(super) type CodeByHash<T: Config> =
 		StorageMap<_, Identity, ValidationCodeHash, ValidationCode>;
-
-	/// Scraped on chain data for extracting resolved disputes as well as backing votes.
-	#[pallet::storage]
-	#[pallet::getter(fn on_chain_votes)]
-	pub(crate) type OnChainVotes<T: Config> =
-		StorageValue<_, ScrapedOnChainVotes<T::Hash>, OptionQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
