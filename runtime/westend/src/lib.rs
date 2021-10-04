@@ -1467,6 +1467,7 @@ sp_api::impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
 
 			let mut list = Vec::<BenchmarkList>::new();
 
@@ -1502,6 +1503,7 @@ sp_api::impl_runtime_apis! {
 			// XCM Benchmarks
 			// NOTE: Make sure you point to the individual modules below.
 			list_benchmark!(list, extra, pallet_xcm_benchmarks::fungible, XcmBalances);
+			list_benchmark!(list, extra, pallet_xcm_benchmarks::generic, XcmGeneric);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1556,7 +1558,16 @@ sp_api::impl_runtime_apis! {
 				}
 			}
 
+			impl pallet_xcm_benchmarks::generic::Config for Runtime {
+				type Call = Call;
+
+				fn worst_case_response() -> (u64, Response) {
+					(0u64, Default::default())
+				}
+			}
+
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
+			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
 				// Block Number
@@ -1614,6 +1625,7 @@ sp_api::impl_runtime_apis! {
 			// XCM Benchmarks
 			// NOTE: Make sure you point to the individual modules below.
 			add_benchmark!(params, batches, pallet_xcm_benchmarks::fungible, XcmBalances);
+			add_benchmark!(params, batches, pallet_xcm_benchmarks::generic, XcmGeneric);
 
 			Ok(batches)
 		}

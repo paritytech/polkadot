@@ -19,7 +19,7 @@ use crate::{new_executor, worst_case_holding, XcmCallOf};
 use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
-use sp_std::vec::Vec;
+use sp_std::vec;
 use xcm::{latest::prelude::*, DoubleEncoded};
 
 const MAX_ASSETS: u32 = 100;
@@ -78,7 +78,7 @@ benchmarks! {
 			id: Abstract(i.encode()),
 			fun: Fungible(i as u128),
 
-		}).collect::<Vec<_>>();
+		}).collect::<vec::Vec<_>>();
 		let multiassets: MultiAssets = assets.into();
 
 		let instruction = Instruction::ReserveAssetDeposited(multiassets.clone());
