@@ -75,6 +75,7 @@ impl Subsystem1 {
 			let msg = CandidateValidationMessage::ValidateFromChainState(
 				Default::default(),
 				PoV { block_data: BlockData(Vec::new()) }.into(),
+				Default::default(),
 				tx,
 			);
 			ctx.send_message(<Ctx as overseer::SubsystemContext>::AllMessages::from(msg))

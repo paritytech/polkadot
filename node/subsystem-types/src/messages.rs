@@ -115,8 +115,8 @@ pub enum CandidateValidationMessage {
 	ValidateFromChainState(
 		CandidateDescriptor,
 		Arc<PoV>,
-		Duration,
 		/// Execution timeout
+		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
@@ -133,8 +133,8 @@ pub enum CandidateValidationMessage {
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
-		Duration,
 		/// Execution timeout
+		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 }
