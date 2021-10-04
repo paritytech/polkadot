@@ -173,7 +173,7 @@ pub mod pallet {
 
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
-			let freed_disputed: Vec<(_, FreedReason)> = {
+			{
 				let new_current_dispute_sets: Vec<_> = disputes
 					.iter()
 					.filter(|s| s.session == current_session)
@@ -187,7 +187,7 @@ pub mod pallet {
 					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
 				}
 
-				if !new_current_dispute_sets.is_empty() {
+				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
 					let concluded_invalid_disputes: Vec<_> = new_current_dispute_sets
 						.iter()
 						.filter(|(s, c)| T::DisputesHandler::concluded_invalid(*s, *c))
@@ -200,6 +200,11 @@ pub mod pallet {
 						.collect()
 				} else {
 					Vec::new()
+				};
+
+				if !freed_disputed.is_empty() {
+					freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+					<scheduler::Pallet<T>>::free_cores(freed_disputed);
 				}
 			};
 
@@ -227,9 +232,9 @@ pub mod pallet {
 			};
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
-			let mut freed = freed_disputed
+			let mut freed = freed_concluded
 				.into_iter()
-				.chain(freed_concluded.into_iter().map(|(c, _hash)| (c, FreedReason::Concluded)))
+				.map(|(c, _hash)| (c, FreedReason::Concluded))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
 				.collect::<Vec<_>>();
 
