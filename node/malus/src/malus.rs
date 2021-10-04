@@ -58,10 +58,7 @@ struct MalusCli {
 }
 
 fn run_cmd(run: RunCmd) -> Cli {
-	Cli {
-		subcommand: None,
-		run
-	}
+	Cli { subcommand: None, run }
 }
 
 impl MalusCli {
@@ -74,22 +71,20 @@ impl MalusCli {
 				polkadot_cli::run_node(run_cmd(self.run), SuggestGarbageCandidate)?,
 			NemesisVariant::DisputeAncestor =>
 				polkadot_cli::run_node(run_cmd(self.run), DisputeValidCandidates)?,
-			NemesisVariant::PvfPrepareWorker(cmd) =>
-				polkadot_cli::run_node(
-					Cli {
-						subcommand: Some(polkadot_cli::Subcommand::PvfPrepareWorker(cmd)),
-						run: self.run,
-					},
-					DisputeValidCandidates,
-				)?,
-			NemesisVariant::PvfExecuteWorker(cmd) =>
-				polkadot_cli::run_node(
-					Cli {
-						subcommand: Some(polkadot_cli::Subcommand::PvfExecuteWorker(cmd)),
-						run: self.run,
-					},
-					DisputeValidCandidates,
-				)?,
+			NemesisVariant::PvfPrepareWorker(cmd) => polkadot_cli::run_node(
+				Cli {
+					subcommand: Some(polkadot_cli::Subcommand::PvfPrepareWorker(cmd)),
+					run: self.run,
+				},
+				DisputeValidCandidates,
+			)?,
+			NemesisVariant::PvfExecuteWorker(cmd) => polkadot_cli::run_node(
+				Cli {
+					subcommand: Some(polkadot_cli::Subcommand::PvfExecuteWorker(cmd)),
+					run: self.run,
+				},
+				DisputeValidCandidates,
+			)?,
 		}
 		Ok(())
 	}
