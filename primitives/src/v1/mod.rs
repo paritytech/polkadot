@@ -951,7 +951,7 @@ pub struct SessionInfo {
 pub struct ScrapedOnChainVotes<H: Encode + Decode = Hash> {
 	/// The session in which the block was included.
 	pub session: SessionIndex,
-	/// Set of backing validators for each candidate, represented by it's candidate
+	/// Set of backing validators for each candidate, represented by its candidate
 	/// receipt.
 	pub backing_validators_per_candidate:
 		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidityAttestation)>)>,
