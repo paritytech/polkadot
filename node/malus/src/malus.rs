@@ -115,7 +115,8 @@ mod tests {
 		]))
 		.unwrap();
 		assert_matches::assert_matches!(cli, MalusCli {
-			variant: NemesisVariant::DisputeAncestor(run),
+			variant: NemesisVariant::DisputeAncestor,
+			run,
 			..
 		} => {
 			assert!(run.base.bob);
