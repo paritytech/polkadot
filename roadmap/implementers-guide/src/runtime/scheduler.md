@@ -209,11 +209,13 @@ No finalization routine runs for this module.
   - The core used for the parathread claim is the `next_core` field of the `ParathreadQueue` and adding `Paras::parachains().len()` to it.
   - `next_core` is then updated by adding 1 and taking it modulo `config.parathread_cores`.
   - The claim is then added to the claim index.
-- `schedule(Vec<(CoreIndex, FreedReason)>, now: BlockNumber)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned and why they are being returned.
+- `free_cores(Vec<(CoreIndex, FreedReason)>)`: indicate previosuly-occupied cores which are to be considered returned and why they are being returned.
   - All freed parachain cores should be assigned to their respective parachain
   - All freed parathread cores whose reason for freeing was `FreedReason::Concluded` should have the claim removed from the claim index.
   - All freed parathread cores whose reason for freeing was `FreedReason::TimedOut` should have the claim added to the parathread queue again without retries incremented
   - All freed parathread cores should take the next parathread entry from the queue.
+- `schedule(Vec<(CoreIndex, FreedReason)>, now: BlockNumber)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned and why they are being returned.
+  - Invoke `free_cores(freed_cores)`
   - The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable. Rotations are based off of `now`.
 - `scheduled() -> Vec<CoreAssignment>`: Get currently scheduled core assignments.
 - `occupied(Vec<CoreIndex>)`. Note that the given cores have become occupied.
