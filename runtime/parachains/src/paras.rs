@@ -777,7 +777,7 @@ impl<T: Config> Pallet<T> {
 		notification: &SessionChangeNotification<T::BlockNumber>,
 	) -> Vec<ParaId> {
 		let outgoing_paras = Self::apply_actions_queue(notification.session_index);
-		Self::process_pvf_prechecking_results(notification.validators.len());
+		Self::groom_ongoing_pvf_voting(notification.validators.len());
 		outgoing_paras
 	}
 
@@ -1011,7 +1011,7 @@ impl<T: Config> Pallet<T> {
 		T::DbWeight::get().reads_writes(2, upgrades_signaled as u64 + cooldowns_expired as u64)
 	}
 
-	fn process_pvf_prechecking_results(new_n_validators: usize) -> Weight {
+	fn groom_ongoing_pvf_voting(new_n_validators: usize) -> Weight {
 		// TODO: Move in the config
 		const PVF_CHECK_TTL: SessionIndex = 3;
 
