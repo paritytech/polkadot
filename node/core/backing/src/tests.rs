@@ -336,7 +336,7 @@ fn backing_second_works() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				AvailabilityStoreMessage::StoreAvailableData { candidate_hash, tx, .. }
 			) if candidate_hash == candidate.hash() => {
 				tx.send(Ok(())).unwrap();
 			}
@@ -495,7 +495,7 @@ fn backing_works() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				AvailabilityStoreMessage::StoreAvailableData { candidate_hash, tx, .. }
 			) if candidate_hash == candidate_a.hash() => {
 				tx.send(Ok(())).unwrap();
 			}
@@ -853,7 +853,7 @@ fn backing_misbehavior_works() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				AvailabilityStoreMessage::StoreAvailableData { candidate_hash, tx, .. }
 			) if candidate_hash == candidate_a.hash() => {
 					tx.send(Ok(())).unwrap();
 				}
@@ -1027,7 +1027,7 @@ fn backing_dont_second_invalid() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				AvailabilityStoreMessage::StoreAvailableData { candidate_hash, tx, .. }
 			) if candidate_hash == candidate_b.hash() => {
 				tx.send(Ok(())).unwrap();
 			}

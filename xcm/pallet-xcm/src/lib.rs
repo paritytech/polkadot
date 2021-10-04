@@ -1098,6 +1098,7 @@ pub mod pallet {
 			Ok(())
 		}
 	}
+
 	impl<T: Config> DropAssets for Pallet<T> {
 		fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
 			if assets.is_empty() {
