@@ -17,7 +17,7 @@
 use super::*;
 use crate::{new_executor, worst_case_holding, XcmCallOf};
 use codec::Encode;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, BenchmarkError};
+use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
 use xcm::{latest::prelude::*, DoubleEncoded};
@@ -263,10 +263,10 @@ benchmarks! {
 
 	unsubscribe_version {} : {} verify {}
 
-}
+	impl_benchmark_test_suite!(
+		Pallet,
+		crate::generic::mock::new_test_ext(),
+		crate::generic::mock::Test
+	);
 
-impl_benchmark_test_suite!(
-	Pallet,
-	crate::generic::mock::new_test_ext(),
-	crate::generic::mock::Test
-);
+}
