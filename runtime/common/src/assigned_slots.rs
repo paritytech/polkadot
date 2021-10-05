@@ -395,7 +395,7 @@ pub mod pallet {
 
 impl<T: Config> Pallet<T> {
 	/// Allocate temporary slot leases up to `MaxTemporarySlotPerLeasePeriod` per lease period.
-	/// Beyong the already active temporary slot leases, this function will activate more leases
+	/// Beyond the already active temporary slot leases, this function will activate more leases
 	/// in the following order of preference:
 	/// - Assigned slots that didn't have a turn yet, though their `period_begin` has passed.
 	/// - Assigned slots that already had one (or more) turn(s): they will be considered for the
