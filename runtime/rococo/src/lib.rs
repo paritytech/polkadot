@@ -105,7 +105,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v1.8"),
 	authoring_version: 0,
-	spec_version: 9103,
+	spec_version: 9106,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -212,7 +212,7 @@ construct_runtime! {
 		Ump: parachains_ump::{Pallet, Call, Storage, Event},
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config},
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
-		ParasDisputes: parachains_disputes::{Pallet, Storage, Event<T>},
+		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>},
 
 		// Parachain Onboarding Pallets
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config},
@@ -452,11 +452,15 @@ impl pallet_timestamp::Config for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
+	/// This value increases the priority of `Operational` transactions by adding
+	/// a "virtual tip" that's equal to the `OperationalFeeMultiplier * final_fee`.
+	pub const OperationalFeeMultiplier: u8 = 5;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, ToAuthor<Runtime>>;
 	type TransactionByteFee = TransactionByteFee;
+	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
@@ -753,6 +757,7 @@ impl parachains_scheduler::Config for Runtime {}
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type ForceOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = ();
 }
 
 impl paras_sudo_wrapper::Config for Runtime {}

@@ -66,8 +66,8 @@ pub mod pallet {
 		/// The hash of the submitted parent header doesn't correspond to the saved block hash of
 		/// the parent.
 		InvalidParentHeader,
-		/// Potentially invalid candidate.
-		CandidateCouldBeInvalid,
+		/// Disputed candidate that was concluded invalid.
+		CandidateConcludedInvalid,
 	}
 
 	/// Whether the paras inherent was included within this block.
@@ -173,30 +173,40 @@ pub mod pallet {
 
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
-			let freed_disputed: Vec<(_, FreedReason)> = {
-				let fresh_disputes = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+			{
+				let new_current_dispute_sets: Vec<_> = disputes
+					.iter()
+					.filter(|s| s.session == current_session)
+					.map(|s| (s.session, s.candidate_hash))
+					.collect();
+
+				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
 					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
 				}
 
-				let any_current_session_disputes =
-					fresh_disputes.iter().any(|(s, _)| s == &current_session);
-
-				if any_current_session_disputes {
-					let current_session_disputes: Vec<_> = fresh_disputes
+				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
+					let concluded_invalid_disputes: Vec<_> = new_current_dispute_sets
 						.iter()
-						.filter(|(s, _)| s == &current_session)
+						.filter(|(s, c)| T::DisputesHandler::concluded_invalid(*s, *c))
 						.map(|(_, c)| *c)
 						.collect();
 
-					<inclusion::Pallet<T>>::collect_disputed(current_session_disputes)
+					<inclusion::Pallet<T>>::collect_disputed(concluded_invalid_disputes)
 						.into_iter()
 						.map(|core| (core, FreedReason::Concluded))
 						.collect()
 				} else {
 					Vec::new()
+				};
+
+				if !freed_disputed.is_empty() {
+					// unstable sort is fine, because core indices are unique
+					// i.e. the same candidate can't occupy 2 cores at once.
+					freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+					<scheduler::Pallet<T>>::free_cores(freed_disputed);
 				}
 			};
 
@@ -224,12 +234,13 @@ pub mod pallet {
 			};
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
-			let mut freed = freed_disputed
+			let mut freed = freed_concluded
 				.into_iter()
-				.chain(freed_concluded.into_iter().map(|(c, _hash)| (c, FreedReason::Concluded)))
+				.map(|(c, _hash)| (c, FreedReason::Concluded))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
 				.collect::<Vec<_>>();
 
+			// unstable sort is fine, because core indices are unique.
 			freed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 
 			<scheduler::Pallet<T>>::clear();
@@ -238,14 +249,14 @@ pub mod pallet {
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
 
-			// Refuse to back any candidates that are disputed or invalid.
+			// Refuse to back any candidates that were disputed and are concluded invalid.
 			for candidate in &backed_candidates {
 				ensure!(
-					!T::DisputesHandler::could_be_invalid(
+					!T::DisputesHandler::concluded_invalid(
 						current_session,
 						candidate.candidate.hash(),
 					),
-					Error::<T>::CandidateCouldBeInvalid,
+					Error::<T>::CandidateConcludedInvalid,
 				);
 			}
 

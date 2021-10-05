@@ -98,5 +98,28 @@ pub(crate) fn impl_overseer_gen(
 	additive.extend(impl_message_wrapper_enum(&info)?);
 	additive.extend(impl_dispatch(&info));
 
+	#[cfg(feature = "expansion")]
+	{
+		use std::io::Write;
+
+		let cwd = std::env::current_dir().unwrap();
+		let path: std::path::PathBuf = cwd.join("overlord-expansion.rs");
+		let mut f = std::fs::OpenOptions::new()
+			.write(true)
+			.create(true)
+			.truncate(true)
+			.open(&path)
+			.expect("File exists. qed");
+		f.write_all(
+			&mut format!("// {:?} \n{}", std::time::SystemTime::now(), additive).as_bytes(),
+		)
+		.expect("Got permissions to write to file. qed");
+		std::process::Command::new("rustfmt")
+			.arg("--edition=2018")
+			.arg(&path)
+			.current_dir(cwd)
+			.spawn()
+			.expect("Running rustfmt works. qed");
+	}
 	Ok(additive)
 }

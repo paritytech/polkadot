@@ -38,7 +38,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		BlockDescription, ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		DisputeParticipationMessage, ImportStatementsResult,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
@@ -478,22 +478,7 @@ async fn handle_new_activations(
 	new_activations: impl IntoIterator<Item = Hash>,
 ) -> Result<(), Error> {
 	for new_leaf in new_activations {
-		let block_header = {
-			let (tx, rx) = oneshot::channel();
-
-			ctx.send_message(ChainApiMessage::BlockHeader(new_leaf, tx)).await;
-
-			match rx.await?? {
-				None => continue,
-				Some(header) => header,
-			}
-		};
-
-		match state
-			.rolling_session_window
-			.cache_session_info_for_head(ctx, new_leaf, &block_header)
-			.await
-		{
+		match state.rolling_session_window.cache_session_info_for_head(ctx, new_leaf).await {
 			Err(e) => {
 				tracing::warn!(
 					target: LOG_TARGET,
@@ -646,7 +631,6 @@ async fn handle_import_statements(
 	session: SessionIndex,
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
-	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
 	metrics: &Metrics,
 ) -> Result<ImportStatementsResult, Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
@@ -928,7 +912,7 @@ async fn issue_local_statement(
 			now,
 			metrics,
 		)
-		.await?
+		.await
 		{
 			Err(_) => {
 				tracing::error!(

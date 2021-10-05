@@ -219,7 +219,7 @@ pub mod mock_msg_queue {
 			let hash = Encode::using_encoded(&xcm, T::Hashing::hash);
 			let (result, event) = match Xcm::<T::Call>::try_from(xcm) {
 				Ok(xcm) => {
-					let location = MultiLocation::new(1, X1(Parachain(sender.into())));
+					let location = (1, Parachain(sender.into()));
 					match T::XcmExecutor::execute_xcm(location, xcm, max_weight) {
 						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
 						Outcome::Complete(w) => (Ok(w), Event::Success(Some(hash))),
@@ -275,7 +275,7 @@ pub mod mock_msg_queue {
 						Self::deposit_event(Event::UnsupportedVersion(id));
 					},
 					Ok(Ok(x)) => {
-						let outcome = T::XcmExecutor::execute_xcm(Parent.into(), x.clone(), limit);
+						let outcome = T::XcmExecutor::execute_xcm(Parent, x.clone(), limit);
 						<ReceivedDmp<T>>::append(x);
 						Self::deposit_event(Event::ExecutedDownward(id, outcome));
 					},
