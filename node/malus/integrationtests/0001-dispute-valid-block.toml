@@ -11,7 +11,7 @@ timeout = 300
 [init_nodes.chainspec]
 image = "{{get_env(name="SYNTHIMAGE") | safe }}"
 command = "polkadot build-spec --chain wococo-local --disable-default-bootnode --raw > /cfg/wococo-local.json"
-fetch-files = [ "/cfg/rococo-local.json" ]
+fetch-files = [ "/cfg/wococo-local.json" ]
 timeout = 300
 
 [init_nodes.parachain-specs]
@@ -25,7 +25,7 @@ timeout = 300
 
 [nodes.collator01]
 image = "{{get_env(name="COLIMAGE") | safe }}"
-command-with-args = "/usr/local/bin/adder-collator -lparachain=debug --chain /cfg/rococo-local.json --port 30333 --no-mdns --bootnodes /dns/bootnode/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp"
+command-with-args = "/usr/local/bin/adder-collator -lparachain=debug --chain /cfg/wococo-local.json --port 30333 --no-mdns --bootnodes /dns/bootnode/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp"
 
 [nodes.nodejs]
 image = "{{get_env(name="SCRIPTSIMAGE") | safe }}"
