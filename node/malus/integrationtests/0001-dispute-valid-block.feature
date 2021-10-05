@@ -17,13 +17,13 @@ Feature: Disputes
     And charlie reports block height is at least 2
     And charlie reports peers count is at least 2
     Then sleep 121 seconds
-    And alice reports polkadot_parachain_candidate_disputes_total is at least 1
-    And bob reports polkadot_parachain_candidate_disputes_total is at least 1
-    And charlie reports polkadot_parachain_candidate_disputes_total is at least 1
-    Then alice polkadot_parachain_candidate_dispute_votes{validity="valid"} is at least 1
-    And bob polkadot_parachain_candidate_dispute_votes{validity="valid"} is at least 2
-    And charlie polkadot_parachain_candidate_dispute_votes{validity="valid"} is at least 2
-    Then alice polkadot_parachain_candidate_dispute_concluded{validity="valid"} is at least 1
-    Then alice polkadot_parachain_candidate_dispute_concluded{validity="invalid"} is 0
-    Then bob polkadot_parachain_candidate_dispute_concluded{validity="valid"} is at least 1
-    And charlie polkadot_parachain_candidate_dispute_concluded{validity="valid"} is at least 1
+    And alice reports parachain_candidate_disputes_total is at least 1
+    And bob reports parachain_candidate_disputes_total is at least 1
+    And charlie reports parachain_candidate_disputes_total is at least 1
+    Then alice reports parachain_candidate_dispute_votes{validity="valid"} is at least 1
+    And bob reports parachain_candidate_dispute_votes{validity="valid"} is at least 2
+    And charlie reports parachain_candidate_dispute_votes{validity="valid"} is at least 2
+    Then alice reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
+    Then alice reports parachain_candidate_dispute_concluded{validity="invalid"} is 0
+    Then bob reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
+    And charlie reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
