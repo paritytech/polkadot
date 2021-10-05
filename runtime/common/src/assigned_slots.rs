@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,10 +20,11 @@
 //! in a fair (though best-effort) manner.
 //! The dispatchables must be called from the configured origin
 //! (typically `Sudo` or a governance origin).
-//! This pallet is mostly to be used on test relay chain (e.g. Rococo).
+//! This pallet should not be used on a production relay chain,
+//! only on a test relay chain (e.g. Rococo).
 
 use crate::{
-	slots::{self, Pallet as Slots},
+	slots::{self, Pallet as Slots, WeightInfo},
 	traits::{LeaseError, Leaser, Registrar},
 };
 use frame_support::{pallet_prelude::*, traits::Currency};
@@ -34,7 +35,6 @@ use primitives::v1::Id as ParaId;
 use runtime_parachains::{
 	configuration,
 	paras::{self},
-	ParaLifecycle,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -43,19 +43,30 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 
+/// Lease period an assigned slot should start from (current, or next one).
 #[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum SlotLeasePeriodStart {
 	Current,
 	Next,
 }
 
+/// Information about a temporary parachain slot.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug, TypeInfo)]
 pub struct ParachainTemporarySlot<AccountId, LeasePeriod> {
-	manager: AccountId,
-	period_begin: LeasePeriod,
-	period_count: LeasePeriod,
-	last_lease: Option<LeasePeriod>,
-	lease_count: u32,
+	/// Manager account of the para.
+	pub manager: AccountId,
+	/// Lease period the parachain slot should ideally start from,
+	/// As slot are allocated in a best-effort manner, this could be later,
+	/// but not earlier than the specified period.
+	pub period_begin: LeasePeriod,
+	/// Number of lease period the slot lease will last.
+	/// This is set to the value configured in `TemporarySlotLeasePeriodLength`.
+	pub period_count: LeasePeriod,
+	/// Last lease period this slot had a turn in (incl. current).
+	/// This is set to the beginning period of a slot.
+	pub last_lease: Option<LeasePeriod>,
+	/// Number of leases this temporary slot had (incl. current).
+	pub lease_count: u32,
 }
 
 type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<
@@ -77,38 +88,45 @@ pub mod pallet {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
-		/// Origin for assigning slots
+		/// Origin for assigning slots.
 		type AssignSlotOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
 
 		/// The type representing the leasing system.
 		type Leaser: Leaser<AccountId = Self::AccountId, LeasePeriod = Self::BlockNumber>;
 
-		/// The number of lease periods a permanent parachain slot lasts
+		/// The number of lease periods a permanent parachain slot lasts.
 		#[pallet::constant]
 		type PermanentSlotLeasePeriodLength: Get<u32>;
 
-		/// The number of lease periods a temporary parachain slot lasts
+		/// The number of lease periods a temporary parachain slot lasts.
 		#[pallet::constant]
 		type TemporarySlotLeasePeriodLength: Get<u32>;
 
-		/// The max number of permanent slots that can be assigned
+		/// The max number of permanent slots that can be assigned.
 		#[pallet::constant]
 		type MaxPermanentSlots: Get<u32>;
 
-		/// The max number of temporary slots to be scheduled per lease periods
+		/// The max number of temporary slots that can be assigned.
+		#[pallet::constant]
+		type MaxTemporarySlots: Get<u32>;
+
+		/// The max number of temporary slots to be scheduled per lease periods.
 		#[pallet::constant]
 		type MaxTemporarySlotPerLeasePeriod: Get<u32>;
 	}
 
+	/// Assigned permanent slots, with their start lease period.
 	#[pallet::storage]
 	#[pallet::getter(fn permanent_slots)]
 	pub type PermanentSlots<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, Option<LeasePeriodOf<T>>, ValueQuery>;
 
+	/// Number of assigned (and active) permanent slots.
 	#[pallet::storage]
 	#[pallet::getter(fn permanent_slot_count)]
 	pub type PermanentSlotCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+	/// Assigned temporary slots.
 	#[pallet::storage]
 	#[pallet::getter(fn temporary_slots)]
 	pub type TemporarySlots<T: Config> = StorageMap<
@@ -118,6 +136,16 @@ pub mod pallet {
 		Option<ParachainTemporarySlot<T::AccountId, LeasePeriodOf<T>>>,
 		ValueQuery,
 	>;
+
+	/// Number of assigned temporary slots.
+	#[pallet::storage]
+	#[pallet::getter(fn temporary_slot_count)]
+	pub type TemporarySlotCount<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+	/// Number of active temporary slots in current slot lease period.
+	#[pallet::storage]
+	#[pallet::getter(fn active_temporary_slot_count)]
+	pub type ActiveTemporarySlotCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -146,6 +174,8 @@ pub mod pallet {
 		OngoingLeaseExists,
 		// Maximum number of permanent slots exceeded
 		MaxPermanentSlotsExceeded,
+		// Maximum number of temporary slots exceeded
+		MaxTemporarySlotsExceeded,
 	}
 
 	#[pallet::hooks]
@@ -163,8 +193,8 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Assign a permanent parachain slot
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		/// Assign a permanent parachain slot and immediately create a lease for it.
+		#[pallet::weight((1_000 + <T as slots::Config>::WeightInfo::force_lease(), DispatchClass::Operational))]
 		pub fn assign_perm_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			T::AssignSlotOrigin::ensure_origin(origin)?;
 
@@ -192,11 +222,12 @@ pub mod pallet {
 			);
 
 			ensure!(
-				PermanentSlotCount::<T>::get() + 1 <= T::MaxPermanentSlots::get(),
+				PermanentSlotCount::<T>::get() < T::MaxPermanentSlots::get(),
 				Error::<T>::MaxPermanentSlotsExceeded
 			);
 
 			<PermanentSlotCount<T>>::try_mutate(|count| -> DispatchResult {
+				// Permanent slot assignment fails if a lease cannot be created
 				Self::configure_slot_lease(
 					id,
 					manager,
@@ -204,8 +235,8 @@ pub mod pallet {
 					T::PermanentSlotLeasePeriodLength::get().into(),
 				)
 				.map_err(|_| Error::<T>::CannotUpgrade)?;
-				PermanentSlots::<T>::insert(id, Some(current_lease_period));
 				*count = count.checked_add(One::one()).ok_or(ArithmeticError::Overflow)?;
+				PermanentSlots::<T>::insert(id, Some(current_lease_period));
 				Ok(())
 			})?;
 
@@ -213,8 +244,9 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Assign a temporary parachain slot
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		/// Assign a temporary parachain slot. The function tries to create a lease for it
+		/// immediately if `SlotLeasePeriodStart::Current` is specified, and ...
+		#[pallet::weight((1_000 + <T as slots::Config>::WeightInfo::force_lease(), DispatchClass::Operational))]
 		pub fn assign_temp_parachain_slot(
 			origin: OriginFor<T>,
 			id: ParaId,
@@ -245,23 +277,62 @@ pub mod pallet {
 				Error::<T>::OngoingLeaseExists
 			);
 
-			TemporarySlots::<T>::insert(
-				id,
-				Some(ParachainTemporarySlot {
-					manager,
-					period_begin: match lease_period_start {
-						SlotLeasePeriodStart::Current => current_lease_period,
-						SlotLeasePeriodStart::Next => current_lease_period + One::one(),
-					},
-					period_count: T::TemporarySlotLeasePeriodLength::get().into(),
-					last_lease: None,
-					lease_count: 0,
-				}),
+			ensure!(
+				TemporarySlotCount::<T>::get() < T::MaxTemporarySlots::get(),
+				Error::<T>::MaxTemporarySlotsExceeded
 			);
 
-			if lease_period_start == SlotLeasePeriodStart::Current {
-				Self::allocate_temporary_slot_leases(current_lease_period)?;
-			}
+			let mut temp_slot = ParachainTemporarySlot {
+				manager: manager.clone(),
+				period_begin: match lease_period_start {
+					SlotLeasePeriodStart::Current => current_lease_period,
+					SlotLeasePeriodStart::Next => current_lease_period + One::one(),
+				},
+				period_count: T::TemporarySlotLeasePeriodLength::get().into(),
+				last_lease: None,
+				lease_count: 0,
+			};
+
+			<TemporarySlotCount<T>>::try_mutate(|count| -> DispatchResult {
+				*count = count.checked_add(One::one()).ok_or(ArithmeticError::Overflow)?;
+
+				if lease_period_start == SlotLeasePeriodStart::Current &&
+					Self::active_temporary_slot_count() <
+						T::MaxTemporarySlotPerLeasePeriod::get()
+				{
+					// Try to allocate slot directly
+					match Self::configure_slot_lease(
+						id,
+						manager,
+						temp_slot.period_begin,
+						temp_slot.period_count,
+					) {
+						Ok(_) => {
+							temp_slot.last_lease = Some(temp_slot.period_begin);
+							temp_slot.lease_count += 1;
+							ActiveTemporarySlotCount::<T>::try_mutate::<_, ArithmeticError, _>(
+								|count| {
+									*count = count
+										.checked_add(One::one())
+										.ok_or(ArithmeticError::Overflow)?;
+									Ok(())
+								},
+							)?;
+						},
+						Err(err) => {
+							// Treat failed lease creationg as warning .. slot will be allocated a lease
+							// in a subsequent lease period by the `allocate_temporary_slot_leases` function.
+							log::warn!(target: "assigned_slots",
+								"Failed to allocate a temp slot for para {:?} at period {:?}: {:?}",
+								id, current_lease_period, err
+							);
+						},
+					}
+				}
+
+				TemporarySlots::<T>::insert(id, Some(temp_slot));
+				Ok(())
+			})?;
 
 			Self::deposit_event(Event::<T>::TemporarySlotAssigned(id));
 
@@ -269,7 +340,7 @@ pub mod pallet {
 		}
 
 		/// Unassign a permanent or temporary parachain slot
-		#[pallet::weight((1_000, DispatchClass::Operational))]
+		#[pallet::weight((1_000 + <T as slots::Config>::WeightInfo::clear_all_leases(), DispatchClass::Operational))]
 		pub fn unassign_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			T::AssignSlotOrigin::ensure_origin(origin.clone())?;
 
@@ -278,23 +349,43 @@ pub mod pallet {
 				Error::<T>::SlotNotAssigned
 			);
 
+			// Check & cache para status before we clear the lease
+			let is_parachain = Self::is_parachain(id);
+
 			if PermanentSlots::<T>::contains_key(id) {
+				// Remove perm slot
 				<PermanentSlotCount<T>>::try_mutate(|count| -> DispatchResult {
-					*count = count.checked_sub(1).ok_or(ArithmeticError::Underflow)?;
+					Self::clear_slot_leases(origin.clone(), id)?;
+					*count = count.saturating_sub(One::one());
+					PermanentSlots::<T>::remove(id);
 					Ok(())
 				})?;
-				PermanentSlots::<T>::remove(id);
 			} else if TemporarySlots::<T>::contains_key(id) {
-				TemporarySlots::<T>::remove(id);
+				// Remove temp slot
+				<TemporarySlotCount<T>>::try_mutate(|count| -> DispatchResult {
+					Self::clear_slot_leases(origin.clone(), id)?;
+					*count = count.saturating_sub(One::one());
+					TemporarySlots::<T>::remove(id);
+					if is_parachain {
+						<ActiveTemporarySlotCount<T>>::mutate(|active_count| {
+							*active_count = active_count.saturating_sub(One::one())
+						});
+					}
+					Ok(())
+				})?;
 			}
 
-			// Clean any para lease
-			Self::clear_slot_leases(origin.clone(), id)?;
-
 			// Force downgrade to parathread (if needed) before end of lease period
-			if paras::Pallet::<T>::lifecycle(id) == Some(ParaLifecycle::Parachain) {
-				runtime_parachains::schedule_parachain_downgrade::<T>(id)
-					.map_err(|_| Error::<T>::CannotDowngrade)?;
+			if is_parachain {
+				if let Err(err) = runtime_parachains::schedule_parachain_downgrade::<T>(id) {
+					// Treat failed downgrade as warning .. slot lease has been cleared,
+					// so the parachain will be downgraded anyway by the slots pallet
+					// at the end of the lease period .
+					log::warn!(target: "assigned_slots",
+						"Failed to downgrade parachain {:?} at period {:?}: {:?}",
+						id, Self::lease_period_index(), err
+					);
+				}
 			}
 
 			Ok(())
@@ -303,6 +394,18 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
+	/// Allocate temporary slot leases up to `MaxTemporarySlotPerLeasePeriod` per lease period.
+	/// Beyong the already active temporary slot leases, this function will activate more leases
+	/// in the following order of preference:
+	/// - Assigned slots that didn't have a turn yet, though their `period_begin` has passed.
+	/// - Assigned slots that already had one (or more) turn(s): they will be considered for the
+	/// current slot lease if they weren't active in the preceding one, and will be ranked by
+	/// total number of lease (lower first), and then when they last a turn (older ones first).
+	/// If any remaining ex-aequo, we just take the para ID in ascending order as discriminator.
+	///
+	/// Assigned slots with a `period_begin` bigger than current lease period are not considered (yet).
+	///
+	/// The function will call out to `Leaser::lease_out` to create the appropriate slot leases.
 	fn allocate_temporary_slot_leases(lease_period_index: LeasePeriodOf<T>) -> DispatchResult {
 		let mut active_temp_slots = 0u32;
 		let mut pending_temp_slots = Vec::new();
@@ -333,6 +436,7 @@ impl<T: Config> Pallet<T> {
 			}
 		});
 
+		let mut newly_created_lease = 0u32;
 		if active_temp_slots < T::MaxTemporarySlotPerLeasePeriod::get() &&
 			!pending_temp_slots.is_empty()
 		{
@@ -347,7 +451,10 @@ impl<T: Config> Pallet<T> {
 
 			let slots_to_be_upgraded = pending_temp_slots
 				.iter()
-				.take((T::MaxTemporarySlotPerLeasePeriod::get() - active_temp_slots) as usize)
+				.take(
+					(T::MaxTemporarySlotPerLeasePeriod::get().saturating_sub(active_temp_slots))
+						as usize,
+				)
 				.collect::<Vec<_>>();
 
 			for (id, temp_slot) in slots_to_be_upgraded.iter() {
@@ -370,17 +477,26 @@ impl<T: Config> Pallet<T> {
 						lease_count: temp_slot.lease_count + 1,
 					});
 
+					newly_created_lease += 1;
+
 					Ok(())
 				})?;
 			}
 		}
+
+		ActiveTemporarySlotCount::<T>::set(active_temp_slots + newly_created_lease);
+
 		Ok(())
 	}
 
+	/// Clear out all slot leases for both permanent & temporary slots.
+	/// The function merely calls out to `Slots::clear_all_leases`.
 	fn clear_slot_leases(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 		Slots::<T>::clear_all_leases(origin, id)
 	}
 
+	/// Create a parachain slot lease based on given params.
+	/// The function merely calls out to `Leaser::lease_out`.
 	fn configure_slot_lease(
 		para: ParaId,
 		manager: T::AccountId,
@@ -390,27 +506,42 @@ impl<T: Config> Pallet<T> {
 		T::Leaser::lease_out(para, &manager, BalanceOf::<T>::zero(), lease_period, lease_duration)
 	}
 
+	/// Returns whether a para has been assigned a permanent slot.
 	fn has_permanent_slot(id: ParaId) -> bool {
 		PermanentSlots::<T>::contains_key(id)
 	}
 
+	/// Returns whether a para has been assigned temporary slot.
 	fn has_temporary_slot(id: ParaId) -> bool {
 		TemporarySlots::<T>::contains_key(id)
 	}
 
+	/// Returns whether a para is currently a parachain.
+	fn is_parachain(id: ParaId) -> bool {
+		T::Registrar::is_parachain(id)
+	}
+
+	/// Returns current lease period index.
 	fn lease_period_index() -> LeasePeriodOf<T> {
 		T::Leaser::lease_period_index()
 	}
 
+	/// Returns current lease period.
 	fn lease_period() -> LeasePeriodOf<T> {
 		T::Leaser::lease_period()
 	}
 
+	/// Handles start of a lease period.
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) -> Weight {
-		// Note: leases that have ended in previous lease period,
-		// should have been cleaned in slots pallet.
-		let _ = Self::allocate_temporary_slot_leases(lease_period_index);
-		0
+		// Note: leases that have ended in previous lease period, should have been cleaned in slots pallet.
+		if let Err(err) = Self::allocate_temporary_slot_leases(lease_period_index) {
+			log::error!(target: "assigned_slots",
+				"Allocating slots failed for lease period {:?}, with: {:?}",
+				lease_period_index, err
+			);
+		}
+		<T as slots::Config>::WeightInfo::force_lease() *
+			(T::MaxTemporarySlotPerLeasePeriod::get() as u64)
 	}
 }
 
@@ -527,6 +658,7 @@ mod tests {
 		pub const PermanentSlotLeasePeriodLength: u32 = 3;
 		pub const TemporarySlotLeasePeriodLength: u32 = 2;
 		pub const MaxPermanentSlots: u32 = 2;
+		pub const MaxTemporarySlots: u32 = 6;
 		pub const MaxTemporarySlotPerLeasePeriod: u32 = 2;
 	}
 
@@ -537,6 +669,7 @@ mod tests {
 		type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
 		type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
 		type MaxPermanentSlots = MaxPermanentSlots;
+		type MaxTemporarySlots = MaxTemporarySlots;
 		type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
 	}
 
@@ -841,6 +974,47 @@ mod tests {
 	}
 
 	#[test]
+	fn assign_temp_slot_fails_when_max_temp_slots_exceeded() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			// Register 6 paras & a temp slot for each
+			for n in 0..=5 {
+				assert_ok!(TestRegistrar::<Test>::register(
+					n,
+					ParaId::from(n as u32),
+					Default::default(),
+					Default::default()
+				));
+
+				assert_ok!(AssignedSlots::assign_temp_parachain_slot(
+					Origin::root(),
+					ParaId::from(n as u32),
+					SlotLeasePeriodStart::Current
+				));
+			}
+
+			assert_eq!(AssignedSlots::temporary_slot_count(), 6);
+
+			// Attempt to assign one more temp slot
+			assert_ok!(TestRegistrar::<Test>::register(
+				7,
+				ParaId::from(7),
+				Default::default(),
+				Default::default()
+			));
+			assert_noop!(
+				AssignedSlots::assign_temp_parachain_slot(
+					Origin::root(),
+					ParaId::from(7),
+					SlotLeasePeriodStart::Current
+				),
+				Error::<Test>::MaxTemporarySlotsExceeded
+			);
+		});
+	}
+
+	#[test]
 	fn assign_temp_slot_succeeds_for_single_parathread() {
 		new_test_ext().execute_with(|| {
 			let mut block = 1;
@@ -859,6 +1033,8 @@ mod tests {
 				ParaId::from(1),
 				SlotLeasePeriodStart::Current
 			));
+			assert_eq!(AssignedSlots::temporary_slot_count(), 1);
+			assert_eq!(AssignedSlots::active_temporary_slot_count(), 1);
 
 			// Block 1-5
 			// Para is a parachain for TemporarySlotLeasePeriodLength * LeasePeriod blocks
@@ -870,6 +1046,7 @@ mod tests {
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
 
 				assert_eq!(AssignedSlots::has_temporary_slot(ParaId::from(1)), true);
+				assert_eq!(AssignedSlots::active_temporary_slot_count(), 1);
 				assert_eq!(
 					AssignedSlots::temporary_slots(ParaId::from(1)),
 					Some(ParachainTemporarySlot {
@@ -895,6 +1072,7 @@ mod tests {
 			// Para lease ended, downgraded back to parathread
 			assert_eq!(TestRegistrar::<Test>::is_parathread(ParaId::from(1)), true);
 			assert_eq!(Slots::already_leased(ParaId::from(1), 0, 3), false);
+			assert_eq!(AssignedSlots::active_temporary_slot_count(), 0);
 
 			// Block 12
 			// Para should get a turn after TemporarySlotLeasePeriodLength * LeasePeriod blocks
@@ -905,6 +1083,7 @@ mod tests {
 
 			assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
 			assert_eq!(Slots::already_leased(ParaId::from(1), 4, 5), true);
+			assert_eq!(AssignedSlots::active_temporary_slot_count(), 1);
 		});
 	}
 
@@ -946,6 +1125,7 @@ mod tests {
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), false);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), false);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), false);
+				assert_eq!(AssignedSlots::active_temporary_slot_count(), 2);
 			}
 
 			// Block 6-11, Period 2-3
@@ -957,6 +1137,7 @@ mod tests {
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), true);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), false);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), false);
+				assert_eq!(AssignedSlots::active_temporary_slot_count(), 2);
 			}
 
 			// Block 12-17, Period 4-5
@@ -968,6 +1149,7 @@ mod tests {
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), false);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), true);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), true);
+				assert_eq!(AssignedSlots::active_temporary_slot_count(), 2);
 			}
 
 			// Block 18-23, Period 6-7
@@ -979,6 +1161,7 @@ mod tests {
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), false);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), false);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), false);
+				assert_eq!(AssignedSlots::active_temporary_slot_count(), 2);
 			}
 
 			// Block 24-29, Period 8-9
@@ -990,6 +1173,7 @@ mod tests {
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), true);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), false);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), false);
+				assert_eq!(AssignedSlots::active_temporary_slot_count(), 2);
 			}
 
 			// Block 30-35, Period 10-11
@@ -1001,6 +1185,7 @@ mod tests {
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(3)), false);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(4)), true);
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(5)), true);
+				assert_eq!(AssignedSlots::active_temporary_slot_count(), 2);
 			}
 		});
 	}
@@ -1077,6 +1262,8 @@ mod tests {
 
 			assert_ok!(AssignedSlots::unassign_parachain_slot(Origin::root(), ParaId::from(1),));
 
+			assert_eq!(AssignedSlots::temporary_slot_count(), 0);
+			assert_eq!(AssignedSlots::active_temporary_slot_count(), 0);
 			assert_eq!(AssignedSlots::has_temporary_slot(ParaId::from(1)), false);
 			assert_eq!(AssignedSlots::temporary_slots(ParaId::from(1)), None);
 

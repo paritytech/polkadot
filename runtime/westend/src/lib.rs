@@ -860,6 +860,7 @@ parameter_types! {
 	pub const PermanentSlotLeasePeriodLength: u32 = 26;
 	pub const TemporarySlotLeasePeriodLength: u32 = 1;
 	pub const MaxPermanentSlots: u32 = 5;
+	pub const MaxTemporarySlots: u32 = 20;
 	pub const MaxTemporarySlotPerLeasePeriod: u32 = 5;
 }
 
@@ -870,6 +871,7 @@ impl assigned_slots::Config for Runtime {
 	type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
 	type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
 	type MaxPermanentSlots = MaxPermanentSlots;
+	type MaxTemporarySlots = MaxTemporarySlots;
 	type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
 }
 
