@@ -51,6 +51,20 @@ pub mod weights;
 
 pub use pallet::*;
 
+// the two key times necessary to track for every code replacement.
+#[derive(Default, Encode, Decode, TypeInfo)]
+#[cfg_attr(test, derive(Debug, Clone, PartialEq))]
+pub struct ReplacementTimes<N> {
+	/// The relay-chain block number that the code upgrade was expected to be activated.
+	/// This is when the code change occurs from the para's perspective - after the
+	/// first parablock included with a relay-parent with number >= this value.
+	expected_at: N,
+	/// The relay-chain block number at which the parablock activating the code upgrade was
+	/// actually included. This means considered included and available, so this is the time at which
+	/// that parablock enters the acceptance period in this fork of the relay-chain.
+	activated_at: N,
+}
+
 /// Metadata used to track previous parachain validation code that we keep in
 /// the state.
 #[derive(Default, Encode, Decode, TypeInfo)]
@@ -61,7 +75,7 @@ pub struct ParaPastCodeMeta<N> {
 	/// of historic code in historic contexts, whereas the second is used to do
 	/// pruning on an accurate timeframe. These can be used as indices
 	/// into the `PastCodeHash` map along with the `ParaId` to fetch the code itself.
-	upgrade_times: Vec<N>,
+	upgrade_times: Vec<ReplacementTimes<N>>,
 	/// Tracks the highest pruned code-replacement, if any. This is the `activated_at` value,
 	/// not the `expected_at` value.
 	last_pruned: Option<N>,
@@ -141,8 +155,8 @@ impl ParaLifecycle {
 
 impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
-	fn note_replacement(&mut self, activated_at: N) {
-		self.upgrade_times.push(activated_at)
+	fn note_replacement(&mut self, expected_at: N, activated_at: N) {
+		self.upgrade_times.push(ReplacementTimes { expected_at, activated_at })
 	}
 
 	fn is_empty(&self) -> bool {
@@ -160,15 +174,17 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// returns an iterator of block numbers at which code was replaced, where the replaced
 	// code should be now pruned, in ascending order.
 	fn prune_up_to(&'_ mut self, max: N) -> impl Iterator<Item = N> + '_ {
-		let to_prune = self.upgrade_times.iter().take_while(|t| **t <= max).count();
-		if to_prune == 0 {
+		let to_prune = self.upgrade_times.iter().take_while(|t| t.activated_at <= max).count();
+		let drained = if to_prune == 0 {
 			// no-op prune.
 			self.upgrade_times.drain(self.upgrade_times.len()..)
 		} else {
 			// if we are actually pruning something, update the last_pruned member.
-			self.last_pruned = Some(self.upgrade_times[to_prune - 1]);
+			self.last_pruned = Some(self.upgrade_times[to_prune - 1].activated_at);
 			self.upgrade_times.drain(..to_prune)
-		}
+		};
+
+		drained.map(|times| times.expected_at)
 	}
 }
 
@@ -543,7 +559,7 @@ pub mod pallet {
 			<Self as Store>::CurrentCodeHash::insert(&para, new_code_hash);
 
 			let now = frame_system::Pallet::<T>::block_number();
-			Self::note_past_code(para, now, prior_code_hash);
+			Self::note_past_code(para, now, now, prior_code_hash);
 			Self::deposit_event(Event::CurrentCodeUpdated(para));
 			Ok(())
 		}
@@ -850,7 +866,7 @@ impl<T: Config> Pallet<T> {
 
 					let removed_code_hash = <Self as Store>::CurrentCodeHash::take(&para);
 					if let Some(removed_code_hash) = removed_code_hash {
-						Self::note_past_code(para, now, removed_code_hash);
+						Self::note_past_code(para, now, now, removed_code_hash);
 					}
 
 					outgoing.push(para);
@@ -893,14 +909,15 @@ impl<T: Config> Pallet<T> {
 	// (i.e. number of `relay_parent` in the receipt)
 	fn note_past_code(
 		id: ParaId,
+		at: T::BlockNumber,
 		now: T::BlockNumber,
 		old_code_hash: ValidationCodeHash,
 	) -> Weight {
 		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
-			past_meta.note_replacement(now);
+			past_meta.note_replacement(at, now);
 		});
 
-		<Self as Store>::PastCodeHash::insert(&(id, now), old_code_hash);
+		<Self as Store>::PastCodeHash::insert(&(id, at), old_code_hash);
 
 		// Schedule pruning for this past-code to be removed as soon as it
 		// exits the slashing window.
@@ -1373,7 +1390,7 @@ impl<T: Config> Pallet<T> {
 
 				// `now` is only used for registering pruning as part of `fn note_past_code`
 				let now = <frame_system::Pallet<T>>::block_number();
-				let weight = Self::note_past_code(id, now, prior_code_hash);
+				let weight = Self::note_past_code(id, expected_at, now, prior_code_hash);
 
 				// add 1 to writes due to heads update.
 				weight + T::DbWeight::get().reads_writes(3, 1 + 3)
