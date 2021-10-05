@@ -20,7 +20,7 @@ Feature: Disputes
     And bob reports polkadot_parachain_candidate_disputes_total is at least 1
     And charlie reports polkadot_parachain_candidate_disputes_total is at least 1
     Then alice polkadot_parachain_candidate_dispute_votes{validity="valid"} is at least 1
-    And bob polkadot_parachain_candidate_dispute_votes{validity="valid"} is is at least 2
+    And bob polkadot_parachain_candidate_dispute_votes{validity="valid"} is at least 2
     And charlie polkadot_parachain_candidate_dispute_votes{validity="valid"} is at least 2
     Then alice polkadot_parachain_candidate_dispute_concluded{validity="valid"} is at least 1
     Then alice polkadot_parachain_candidate_dispute_concluded{validity="invalid"} is 0
