@@ -33,7 +33,8 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
+	BackedCandidate, InherentData as ParachainsInherentData, MultiDisputeStatementSet,
+	UncheckedSignedAvailabilityBitfields, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_runtime::traits::Header as HeaderT;
 use sp_std::prelude::*;
@@ -43,6 +44,8 @@ pub use pallet::*;
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
 const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
+const DISPUTE_WEIGHT: Weight = 1_000_000;
+const BITFIELD_WEIGHT: Weight = 200_000;
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
@@ -155,10 +158,10 @@ pub mod pallet {
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
 			let ParachainsInherentData {
-				bitfields: signed_bitfields,
-				backed_candidates,
+				bitfields: mut signed_bitfields,
+				mut backed_candidates,
 				parent_header,
-				disputes,
+				mut disputes,
 			} = data;
 
 			ensure_none(origin)?;
@@ -180,7 +183,7 @@ pub mod pallet {
 					.map(|s| (s.session, s.candidate_hash))
 					.collect();
 
-				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
@@ -215,7 +218,7 @@ pub mod pallet {
 			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
-				signed_bitfields,
+				signed_bitfields.clone(),
 				<scheduler::Pallet<T>>::core_para,
 			)?;
 
@@ -246,7 +249,9 @@ pub mod pallet {
 			<scheduler::Pallet<T>>::clear();
 			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
 
-			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
+			limit_paras_inherent::<T>(&mut disputes, &mut signed_bitfields, &mut backed_candidates);
+			let disputes_len = disputes.len() as Weight;
+			let bitfields_len = signed_bitfields.len() as Weight;
 			let backed_candidates_len = backed_candidates.len() as Weight;
 
 			// Refuse to back any candidates that were disputed and are concluded invalid.
@@ -280,10 +285,68 @@ pub mod pallet {
 
 			Ok(Some(
 				MINIMAL_INCLUSION_INHERENT_WEIGHT +
+					(disputes_len * DISPUTE_WEIGHT) +
+					(bitfields_len * BITFIELD_WEIGHT) +
 					(backed_candidates_len * BACKED_CANDIDATE_WEIGHT),
 			)
 			.into())
 		}
+	}
+}
+
+fn limit_paras_inherent<T: Config>(
+	disputes: &mut MultiDisputeStatementSet,
+	bitfields: &mut UncheckedSignedAvailabilityBitfields,
+	backed_candidates: &mut Vec<BackedCandidate<T::Hash>>,
+) {
+	const MAX_CODE_UPGRADES: usize = 1;
+
+	// Ignore any candidates beyond one that contain code upgrades.
+	//
+	// This is an artificial limitation that does not appear in the guide as it is a practical
+	// concern around execution.
+	{
+		let mut code_upgrades = 0;
+		backed_candidates.retain(|c| {
+			if c.candidate.commitments.new_validation_code.is_some() {
+				if code_upgrades >= MAX_CODE_UPGRADES {
+					return false
+				}
+
+				code_upgrades += 1;
+			}
+
+			true
+		});
+	}
+
+	let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+	let _block_weight = frame_system::Pallet::<T>::block_weight().total();
+	let max_non_inclusion_weight = max_block_weight - MINIMAL_INCLUSION_INHERENT_WEIGHT;
+
+	let disputes_weight = disputes.len() as Weight * DISPUTE_WEIGHT;
+	let bitfields_weight = bitfields.len() as Weight * BITFIELD_WEIGHT;
+	let backed_candidates_weight = backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT;
+
+	let total_non_inclusion_weight = disputes_weight + bitfields_weight + backed_candidates_weight;
+
+	if disputes_weight > max_non_inclusion_weight {
+		let max_disputes = max_non_inclusion_weight / DISPUTE_WEIGHT;
+		disputes.truncate(max_disputes as usize);
+		bitfields.clear();
+		backed_candidates.clear();
+		return
+	}
+
+	if disputes_weight + bitfields_weight > max_non_inclusion_weight {
+		let max_bitfields = (max_non_inclusion_weight - disputes_weight) / BITFIELD_WEIGHT;
+		bitfields.truncate(max_bitfields as usize);
+		backed_candidates.clear();
+		return
+	}
+
+	if total_non_inclusion_weight > max_non_inclusion_weight {
+		backed_candidates.clear();
 	}
 }
 
@@ -296,6 +359,7 @@ pub mod pallet {
 /// If the backed candidates exceed the available block weight remaining, then skips all of them.
 /// This is somewhat less desirable than attempting to fit some of them, but is more fair in the
 /// even that we can't trust the provisioner to provide a fair / random ordering of candidates.
+#[cfg(test)]
 fn limit_backed_candidates<T: Config>(
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 ) -> Vec<BackedCandidate<T::Hash>> {
