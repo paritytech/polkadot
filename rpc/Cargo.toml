@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-rpc"
-version = "0.9.9"
+version = "0.9.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -27,5 +27,5 @@ frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://gith
 pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "andre/update-substrate" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/grandpa-bridge-gadget", branch = "andre/update-substrate" }
+beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
