@@ -10,7 +10,7 @@ Implementation of a <https://polkadot.network> node in Rust based on the Substra
 This repo contains runtimes for the Polkadot, Kusama, and Westend networks. The README provides
 information about installing the `polkadot` binary and developing on the codebase. For more
 specific guides, like how to be a validator, see the
-[Polkadot Wiki](https://wiki.polkadot.network/docs/en/).
+[Polkadot Wiki](https://wiki.polkadot.network/docs/getting-started).
 
 ## Installation
 
@@ -108,6 +108,22 @@ cargo build --release
 
 Note that compilation is a memory intensive process. We recommend having 4 GiB of physical RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
 
+#### Build from Source with Docker
+
+You can also build from source using 
+[Parity CI docker image](https://github.com/paritytech/scripts/tree/master/dockerfiles/ci-linux):
+
+```bash
+git checkout <latest tagged release>
+docker run --rm -it -w /shellhere/polkadot \
+                    -v $(pwd):/shellhere/polkadot \
+                    paritytech/ci-linux:production cargo build --release
+sudo chown -R $(id -u):$(id -g) target/
+```
+
+If you want to reproduce other steps of CI process you can use the following 
+[guide](https://github.com/paritytech/scripts#gitlab-ci-for-building-docker-images).
+
 ## Networks
 
 This repo supports runtimes for Polkadot, Kusama, and Westend.
@@ -154,7 +170,7 @@ If you want to do anything on Polkadot, Kusama, or Westend, then you'll need to 
 some DOT, KSM, or WND tokens, respectively. See the
 [claims instructions](https://claims.polkadot.network/) for Polkadot if you have DOTs to claim. For
 Westend's WND tokens, see the faucet
-[instructions](https://wiki.polkadot.network/docs/en/learn-DOT#getting-westies) on the Wiki.
+[instructions](https://wiki.polkadot.network/docs/learn-DOT#getting-westies) on the Wiki.
 
 ## Hacking on Polkadot
 

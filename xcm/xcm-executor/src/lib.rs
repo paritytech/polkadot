@@ -67,11 +67,12 @@ pub const MAX_RECURSION_LIMIT: u32 = 8;
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	fn execute_xcm_in_credit(
-		origin: MultiLocation,
+		origin: impl Into<MultiLocation>,
 		mut message: Xcm<Config::Call>,
 		weight_limit: Weight,
 		mut weight_credit: Weight,
 	) -> Outcome {
+		let origin = origin.into();
 		log::trace!(
 			target: "xcm::execute_xcm_in_credit",
 			"origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?}",
@@ -130,9 +131,9 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 
 #[derive(Debug)]
 pub struct ExecutorError {
-	index: u32,
-	xcm_error: XcmError,
-	weight: u64,
+	pub index: u32,
+	pub xcm_error: XcmError,
+	pub weight: u64,
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -149,7 +150,8 @@ impl From<ExecutorError> for frame_benchmarking::BenchmarkError {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	pub fn new(origin: MultiLocation) -> Self {
+	pub fn new(origin: impl Into<MultiLocation>) -> Self {
+		let origin = origin.into();
 		Self {
 			holding: Assets::new(),
 			origin: Some(origin.clone()),
@@ -268,7 +270,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				for asset in assets.inner() {
 					Config::AssetTransactor::beam_asset(asset, origin, &dest)?;
 				}
-				assets.reanchor(&inv_dest)?;
+				assets.reanchor(&inv_dest).map_err(|()| XcmError::MultiLocationFull)?;
 				let mut message = vec![ReserveAssetDeposited(assets), ClearOrigin];
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
@@ -343,10 +345,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ReportError { query_id, dest, max_response_weight: max_weight } => {
 				// Report the given result by sending a QueryResponse XCM to a previously given outcome
 				// destination if one was registered.
-				let response = Response::ExecutionResult(match self.error {
-					None => Ok(()),
-					Some(e) => Err(e),
-				});
+				let response = Response::ExecutionResult(self.error);
 				let message = QueryResponse { query_id, response, max_weight };
 				Config::XcmSender::send_xcm(dest, Xcm(vec![message]))?;
 				Ok(())
@@ -411,14 +410,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			SetErrorHandler(mut handler) => {
-				let handler_weight = Config::Weigher::weight(&mut handler)?;
+				let handler_weight = Config::Weigher::weight(&mut handler)
+					.map_err(|()| XcmError::WeightNotComputable)?;
 				self.total_surplus.saturating_accrue(self.error_handler_weight);
 				self.error_handler = handler;
 				self.error_handler_weight = handler_weight;
 				Ok(())
 			},
 			SetAppendix(mut appendix) => {
-				let appendix_weight = Config::Weigher::weight(&mut appendix)?;
+				let appendix_weight = Config::Weigher::weight(&mut appendix)
+					.map_err(|()| XcmError::WeightNotComputable)?;
 				self.total_surplus.saturating_accrue(self.appendix_weight);
 				self.appendix = appendix;
 				self.appendix_weight = appendix_weight;

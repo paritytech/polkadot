@@ -38,7 +38,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		BlockDescription, ChainApiMessage, DisputeCoordinatorMessage, DisputeDistributionMessage,
+		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		DisputeParticipationMessage, ImportStatementsResult,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 };
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, DisputeStatement, Hash, SessionIndex,
-	SessionInfo, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	SessionInfo, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 
 use futures::{channel::oneshot, prelude::*};
@@ -56,6 +56,7 @@ use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use sc_keystore::LocalKeystore;
 
+use crate::metrics::Metrics;
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
 
@@ -116,12 +117,18 @@ pub struct DisputeCoordinatorSubsystem {
 	config: Config,
 	store: Arc<dyn KeyValueDB>,
 	keystore: Arc<LocalKeystore>,
+	metrics: Metrics,
 }
 
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
-	pub fn new(store: Arc<dyn KeyValueDB>, config: Config, keystore: Arc<LocalKeystore>) -> Self {
-		DisputeCoordinatorSubsystem { store, config, keystore }
+	pub fn new(
+		store: Arc<dyn KeyValueDB>,
+		config: Config,
+		keystore: Arc<LocalKeystore>,
+		metrics: Metrics,
+	) -> Self {
+		DisputeCoordinatorSubsystem { store, config, keystore, metrics }
 	}
 }
 
@@ -329,6 +336,7 @@ where
 		rolling_session_window: RollingSessionWindow::new(DISPUTE_WINDOW),
 		recovery_state: Participation::Pending,
 	};
+	let metrics = &subsystem.metrics;
 
 	loop {
 		let mut overlay_db = OverlayedBackend::new(backend);
@@ -348,7 +356,8 @@ where
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
 			FromOverseer::Communication { msg } =>
-				handle_incoming(ctx, &mut overlay_db, &mut state, msg, clock.now()).await?,
+				handle_incoming(ctx, &mut overlay_db, &mut state, msg, clock.now(), &metrics)
+					.await?,
 		}
 
 		if !overlay_db.is_empty() {
@@ -469,22 +478,7 @@ async fn handle_new_activations(
 	new_activations: impl IntoIterator<Item = Hash>,
 ) -> Result<(), Error> {
 	for new_leaf in new_activations {
-		let block_header = {
-			let (tx, rx) = oneshot::channel();
-
-			ctx.send_message(ChainApiMessage::BlockHeader(new_leaf, tx)).await;
-
-			match rx.await?? {
-				None => continue,
-				Some(header) => header,
-			}
-		};
-
-		match state
-			.rolling_session_window
-			.cache_session_info_for_head(ctx, new_leaf, &block_header)
-			.await
-		{
+		match state.rolling_session_window.cache_session_info_for_head(ctx, new_leaf).await {
 			Err(e) => {
 				tracing::warn!(
 					target: LOG_TARGET,
@@ -518,6 +512,7 @@ async fn handle_incoming(
 	state: &mut State,
 	message: DisputeCoordinatorMessage,
 	now: Timestamp,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	match message {
 		DisputeCoordinatorMessage::ImportStatements {
@@ -527,7 +522,7 @@ async fn handle_incoming(
 			statements,
 			pending_confirmation,
 		} => {
-			handle_import_statements(
+			let outcome = handle_import_statements(
 				ctx,
 				overlay_db,
 				state,
@@ -536,9 +531,10 @@ async fn handle_incoming(
 				session,
 				statements,
 				now,
-				pending_confirmation,
+				metrics,
 			)
 			.await?;
+			pending_confirmation.send(outcome).map_err(|_| Error::OneshotSend)?;
 		},
 		DisputeCoordinatorMessage::RecentDisputes(rx) => {
 			let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
@@ -578,6 +574,7 @@ async fn handle_incoming(
 				session,
 				valid,
 				now,
+				metrics,
 			)
 			.await?;
 		},
@@ -634,15 +631,11 @@ async fn handle_import_statements(
 	session: SessionIndex,
 	statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
-	pending_confirmation: oneshot::Sender<ImportStatementsResult>,
-) -> Result<(), Error> {
+	metrics: &Metrics,
+) -> Result<ImportStatementsResult, Error> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
 		// It is not valid to participate in an ancient dispute (spam?).
-		pending_confirmation
-			.send(ImportStatementsResult::InvalidImport)
-			.map_err(|_| Error::OneshotSend)?;
-
-		return Ok(())
+		return Ok(ImportStatementsResult::InvalidImport)
 	}
 
 	let validators = match state.rolling_session_window.session_info(session) {
@@ -653,11 +646,7 @@ async fn handle_import_statements(
 				"Missing info for session which has an active dispute",
 			);
 
-			pending_confirmation
-				.send(ImportStatementsResult::InvalidImport)
-				.map_err(|_| Error::OneshotSend)?;
-
-			return Ok(())
+			return Ok(ImportStatementsResult::InvalidImport)
 		},
 		Some(info) => info.validators.clone(),
 	};
@@ -694,6 +683,7 @@ async fn handle_import_statements(
 
 		match statement.statement().clone() {
 			DisputeStatement::Valid(valid_kind) => {
+				metrics.on_valid_vote();
 				insert_into_statement_vec(
 					&mut votes.valid,
 					valid_kind,
@@ -702,6 +692,7 @@ async fn handle_import_statements(
 				);
 			},
 			DisputeStatement::Invalid(invalid_kind) => {
+				metrics.on_invalid_vote();
 				insert_into_statement_vec(
 					&mut votes.invalid,
 					invalid_kind,
@@ -722,9 +713,15 @@ async fn handle_import_statements(
 	let prev_status = recent_disputes.get(&(session, candidate_hash)).map(|x| x.clone());
 
 	let status = if is_disputed {
-		let status = recent_disputes
-			.entry((session, candidate_hash))
-			.or_insert(DisputeStatus::active());
+		let status = recent_disputes.entry((session, candidate_hash)).or_insert_with(|| {
+			tracing::info!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				session,
+				"New dispute initiated for candidate.",
+			);
+			DisputeStatus::active()
+		});
 
 		// Note: concluded-invalid overwrites concluded-valid,
 		// so we do this check first. Dispute state machine is
@@ -745,8 +742,15 @@ async fn handle_import_statements(
 	if status != prev_status {
 		// This branch is only hit when the candidate is freshly disputed -
 		// status was previously `None`, and now is not.
-		if prev_status.is_none() {
-			// No matter what, if the dispute is new, we participate.
+		if prev_status.is_none() && {
+			let controlled_indices =
+				find_controlled_validator_indices(&state.keystore, &validators);
+			let voted_indices = votes.voted_indices();
+
+			!controlled_indices.iter().all(|val_index| voted_indices.contains(&val_index))
+		} {
+			// If the dispute is new, we participate UNLESS all our controlled
+			// keys have already participated.
 			//
 			// We also block the coordinator while awaiting our determination
 			// of whether the vote is available.
@@ -767,15 +771,20 @@ async fn handle_import_statements(
 				//
 				// We expect that if the candidate is truly disputed that the higher-level network
 				// code will retry.
-				pending_confirmation
-					.send(ImportStatementsResult::InvalidImport)
-					.map_err(|_| Error::OneshotSend)?;
 
 				tracing::debug!(
 					target: LOG_TARGET,
 					"Recovering availability failed - invalid import."
 				);
-				return Ok(())
+				return Ok(ImportStatementsResult::InvalidImport)
+			}
+			metrics.on_open();
+
+			if concluded_valid {
+				metrics.on_concluded_valid();
+			}
+			if concluded_invalid {
+				metrics.on_concluded_invalid();
 			}
 		}
 
@@ -785,11 +794,23 @@ async fn handle_import_statements(
 
 	overlay_db.write_candidate_votes(session, candidate_hash, votes.into());
 
-	pending_confirmation
-		.send(ImportStatementsResult::ValidImport)
-		.map_err(|_| Error::OneshotSend)?;
+	Ok(ImportStatementsResult::ValidImport)
+}
 
-	Ok(())
+fn find_controlled_validator_indices(
+	keystore: &LocalKeystore,
+	validators: &[ValidatorId],
+) -> HashSet<ValidatorIndex> {
+	let mut controlled = HashSet::new();
+	for (index, validator) in validators.iter().enumerate() {
+		if keystore.key_pair::<ValidatorPair>(validator).ok().flatten().is_none() {
+			continue
+		}
+
+		controlled.insert(ValidatorIndex(index as _));
+	}
+
+	controlled
 }
 
 async fn issue_local_statement(
@@ -801,6 +822,7 @@ async fn issue_local_statement(
 	session: SessionIndex,
 	valid: bool,
 	now: Timestamp,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	// Load session info.
 	let info = match state.rolling_session_window.session_info(session) {
@@ -833,12 +855,9 @@ async fn issue_local_statement(
 	let mut statements = Vec::new();
 
 	let voted_indices: HashSet<_> = voted_indices.into_iter().collect();
-	for (index, validator) in validators.iter().enumerate() {
-		let index = ValidatorIndex(index as _);
+	let controlled_indices = find_controlled_validator_indices(&state.keystore, &validators[..]);
+	for index in controlled_indices {
 		if voted_indices.contains(&index) {
-			continue
-		}
-		if state.keystore.key_pair::<ValidatorPair>(validator).ok().flatten().is_none() {
 			continue
 		}
 
@@ -848,7 +867,7 @@ async fn issue_local_statement(
 			valid,
 			candidate_hash,
 			session,
-			validator.clone(),
+			validators[index.0 as usize].clone(),
 		)
 		.await;
 
@@ -882,8 +901,7 @@ async fn issue_local_statement(
 
 	// Do import
 	if !statements.is_empty() {
-		let (pending_confirmation, rx) = oneshot::channel();
-		handle_import_statements(
+		match handle_import_statements(
 			ctx,
 			overlay_db,
 			state,
@@ -892,10 +910,10 @@ async fn issue_local_statement(
 			session,
 			statements,
 			now,
-			pending_confirmation,
+			metrics,
 		)
-		.await?;
-		match rx.await {
+		.await
+		{
 			Err(_) => {
 				tracing::error!(
 					target: LOG_TARGET,

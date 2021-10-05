@@ -30,6 +30,7 @@ use core::{
 };
 use derivative::Derivative;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
+use scale_info::TypeInfo;
 
 pub mod v0;
 pub mod v1;
@@ -69,7 +70,7 @@ pub trait IntoVersion: Sized {
 }
 
 /// A single `MultiLocation` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -123,7 +124,7 @@ impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
 }
 
 /// A single `Response` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -199,7 +200,7 @@ impl TryFrom<VersionedResponse> for v2::Response {
 }
 
 /// A single `MultiAsset` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -253,7 +254,7 @@ impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
 }
 
 /// A single `MultiAssets` value, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
@@ -307,10 +308,11 @@ impl TryFrom<VersionedMultiAssets> for v1::MultiAssets {
 }
 
 /// A single XCM message, together with its version code.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub enum VersionedXcm<Call> {
 	V0(v0::Xcm<Call>),
 	V1(v1::Xcm<Call>),
@@ -422,7 +424,7 @@ impl WrapVersion for AlwaysV1 {
 	}
 }
 
-/// `WrapVersion` implementation which attempts to always convert the XCM to version 1 before wrapping it.
+/// `WrapVersion` implementation which attempts to always convert the XCM to version 2 before wrapping it.
 pub struct AlwaysV2;
 impl WrapVersion for AlwaysV2 {
 	fn wrap_version<Call>(
@@ -473,4 +475,9 @@ pub mod opaque {
 
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
 	pub type VersionedXcm = super::VersionedXcm<()>;
+}
+
+// A simple trait to get the weight of some object.
+pub trait GetWeight<W> {
+	fn weight(&self) -> latest::Weight;
 }

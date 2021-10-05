@@ -88,7 +88,9 @@ impl pallet_balances::Config for Runtime {
 
 impl shared::Config for Runtime {}
 
-impl configuration::Config for Runtime {}
+impl configuration::Config for Runtime {
+	type WeightInfo = configuration::weights::WeightInfo<Runtime>;
+}
 
 parameter_types! {
 	pub const KsmLocation: MultiLocation = Here.into();
@@ -166,6 +168,7 @@ impl ump::Config for Runtime {
 	type Event = Event;
 	type UmpSink = ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
+	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
 }
 
 impl origin::Config for Runtime {}

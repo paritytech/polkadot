@@ -79,7 +79,7 @@ impl<C: Chain> std::fmt::Debug for Client<C> {
 impl<C: Chain> Client<C> {
 	/// Returns client that is able to call RPCs on Substrate node over websocket connection.
 	///
-	/// This function will keep connecting to given Sustrate node until connection is established
+	/// This function will keep connecting to given Substrate node until connection is established
 	/// and is functional. If attempt fail, it will wait for `RECONNECT_DELAY` and retry again.
 	pub async fn new(params: ConnectionParams) -> Self {
 		loop {
@@ -224,7 +224,7 @@ impl<C: Chain> Client<C> {
 
 	/// Get the nonce of the given Substrate account.
 	///
-	/// Note: It's the caller's responsibility to make sure `account` is a valid ss58 address.
+	/// Note: It's the caller's responsibility to make sure `account` is a valid SS58 address.
 	pub async fn next_account_index(&self, account: C::AccountId) -> Result<C::Index> {
 		Ok(Substrate::<C>::system_account_next_index(&*self.client, account).await?)
 	}

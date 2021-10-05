@@ -109,7 +109,7 @@ fn test_harness_chunks_only<T: Future<Output = (VirtualOverseer, RequestResponse
 	.unwrap();
 }
 
-const TIMEOUT: Duration = Duration::from_millis(100);
+const TIMEOUT: Duration = Duration::from_millis(300);
 
 macro_rules! delay {
 	($delay:expr) => {

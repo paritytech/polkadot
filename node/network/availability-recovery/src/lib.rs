@@ -93,7 +93,7 @@ const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request")
 #[cfg(not(test))]
 const TIMEOUT_START_NEW_REQUESTS: Duration = CHUNK_REQUEST_TIMEOUT;
 #[cfg(test)]
-const TIMEOUT_START_NEW_REQUESTS: Duration = Duration::from_millis(10);
+const TIMEOUT_START_NEW_REQUESTS: Duration = Duration::from_millis(100);
 
 /// The Availability Recovery Subsystem.
 pub struct AvailabilityRecoverySubsystem {

@@ -39,20 +39,18 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 #[panic_handler]
 #[no_mangle]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
-	unsafe { core::intrinsics::abort() }
+	core::intrinsics::abort()
 }
 
 #[cfg(not(feature = "std"))]
 #[alloc_error_handler]
 #[no_mangle]
 pub fn oom(_: core::alloc::Layout) -> ! {
-	unsafe {
-		core::intrinsics::abort();
-	}
+	core::intrinsics::abort();
 }
 
 #[cfg(not(feature = "std"))]
 #[no_mangle]
-pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
+pub extern "C" fn validate_block(_params: *const u8, _len: usize) -> u64 {
 	loop {}
 }
