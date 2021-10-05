@@ -320,7 +320,7 @@ pub mod pallet {
 							)?;
 						},
 						Err(err) => {
-							// Treat failed lease creationg as warning .. slot will be allocated a lease
+							// Treat failed lease creation as warning .. slot will be allocated a lease
 							// in a subsequent lease period by the `allocate_temporary_slot_leases` function.
 							log::warn!(target: "assigned_slots",
 								"Failed to allocate a temp slot for para {:?} at period {:?}: {:?}",
