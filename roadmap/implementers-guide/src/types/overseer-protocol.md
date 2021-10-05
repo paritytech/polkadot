@@ -785,6 +785,9 @@ enum ValidationResult {
     Invalid,
 }
 
+const BACKING_EXECUTION_TIMEOUT: Duration = 2 seconds;
+const APPROVAL_EXECUTION_TIMEOUT: Duration = 6 seconds;
+
 /// Messages received by the Validation subsystem.
 ///
 /// ## Validation Requests
@@ -807,6 +810,7 @@ pub enum CandidateValidationMessage {
     ValidateFromChainState(
         CandidateDescriptor,
         Arc<PoV>,
+        Duration, // Execution timeout.
         oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
     ),
     /// Validate a candidate with provided, exhaustive parameters for validation.
@@ -823,6 +827,7 @@ pub enum CandidateValidationMessage {
         ValidationCode,
         CandidateDescriptor,
         Arc<PoV>,
+        Duration, // Execution timeout.
         oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
     ),
 }

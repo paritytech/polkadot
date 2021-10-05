@@ -33,11 +33,11 @@ OnChainVotes: Option<ScrapedOnChainVotes>,
     1. Hash the parent header and make sure that it corresponds to the block hash of the parent (tracked by the `frame_system` FRAME module),
     1. Invoke `Disputes::provide_multi_dispute_data`.
     1. If `Disputes::is_frozen`, return and set `Included` to `Some(())`.
-    1. If there are any concluded disputes from the current session, invoke `Inclusion::collect_disputed` with the disputed candidates. Annotate each returned core with `FreedReason::Concluded`.
-    1. The `Bitfields` are first forwarded to the `Inclusion::process_bitfields` routine, returning a set of candidate hashes and respective freed cores. Provide the number of availability cores (`Scheduler::availability_cores().len()`) as the expected number of bits and a `Scheduler::core_para` as a core-lookup to the `process_bitfields` routine. Annotate each of these freed cores with `FreedReason::Concluded`.
-    1. For each freed candidate returned from the `Inclusion::process_bitfields` call, invoke `Disputes::note_included(current_session, candidate)`.
+    1. If there are any concluded disputes from the current session, invoke `Inclusion::collect_disputed` with the disputed candidates. Annotate each returned core with `FreedReason::Concluded`, sort them, and invoke `Scheduler::free_cores` with them.
+    1. The `Bitfields` are first forwarded to the `Inclusion::process_bitfields` routine, returning a set included candidates and the respective freed cores. Provide the number of availability cores (`Scheduler::availability_cores().len()`) as the expected number of bits and a `Scheduler::core_para` as a core-lookup to the `process_bitfields` routine. Annotate each of these freed cores with `FreedReason::Concluded`.
+    1. For each freed candidate from the `Inclusion::process_bitfields` call, invoke `Disputes::note_included(current_session, candidate)`.
     1. If `Scheduler::availability_timeout_predicate` is `Some`, invoke `Inclusion::collect_pending` using it and annotate each of those freed cores with `FreedReason::TimedOut`.
-    1. Combine and sort the dispute-freed cores, the bitfield-freed cores, and the timed-out cores.
+    1. Combine and sort the the bitfield-freed cores and the timed-out cores.
     1. Invoke `Scheduler::clear`
     1. Invoke `Scheduler::schedule(freed_cores, System::current_block())`
     1. Extract `parent_storage_root` from the parent header,

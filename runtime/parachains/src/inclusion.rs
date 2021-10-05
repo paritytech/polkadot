@@ -189,8 +189,6 @@ pub mod pallet {
 		NewCodeTooLarge,
 		/// Candidate not in parent context.
 		CandidateNotInParentContext,
-		/// The bitfield contains a bit relating to an unassigned availability core.
-		UnoccupiedBitInBitfield,
 		/// Invalid group index in core assignment.
 		InvalidGroupIndex,
 		/// Insufficient (non-majority) backing.
@@ -201,8 +199,6 @@ pub mod pallet {
 		NotCollatorSigned,
 		/// The validation data hash does not match expected.
 		ValidationDataHashMismatch,
-		/// Internal error only returned when compiled with debug assertions.
-		InternalError,
 		/// The downward message queue is not processed correctly.
 		IncorrectDownwardMessageHandling,
 		/// At least one upward message sent does not pass the acceptance criteria.
@@ -259,8 +255,10 @@ impl<T: Config> Pallet<T> {
 		for _ in <AvailabilityBitfields<T>>::drain() {}
 	}
 
-	/// Process a set of incoming bitfields. Return a `vec` of cores freed by candidates
-	/// becoming available.
+	/// Process a set of incoming bitfields.
+	///
+	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
+	/// and cores free.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
 		unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
@@ -269,10 +267,12 @@ impl<T: Config> Pallet<T> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 
-		let mut assigned_paras_record: Vec<_> = (0..expected_bits)
+		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
-			.map(|core_para| core_para.map(|p| (p, PendingAvailability::<T>::get(&p))))
-			.collect();
+			.map(|opt_para_id| {
+				opt_para_id.map(|para_id| (para_id, PendingAvailability::<T>::get(&para_id)))
+			})
+			.collect::<Vec<_>>();
 
 		// do sanity checks on the bitfields:
 		// 1. no more than one bitfield per validator
@@ -280,14 +280,6 @@ impl<T: Config> Pallet<T> {
 		// 3. each bitfield has exactly `expected_bits`
 		// 4. signature is valid.
 		let signed_bitfields = {
-			let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras_record
-				.iter()
-				.map(|p| {
-					p.as_ref()
-						.map_or(false, |(_id, pending_availability)| pending_availability.is_some())
-				})
-				.collect();
-
 			let mut last_index = None;
 
 			let signing_context = SigningContext {
@@ -314,12 +306,6 @@ impl<T: Config> Pallet<T> {
 					Error::<T>::ValidatorIndexOutOfBounds,
 				);
 
-				ensure!(
-					occupied_bitmask.clone() & unchecked_bitfield.unchecked_payload().0.clone() ==
-						unchecked_bitfield.unchecked_payload().0,
-					Error::<T>::UnoccupiedBitInBitfield,
-				);
-
 				let validator_public =
 					&validators[unchecked_bitfield.unchecked_validator_index().0 as usize];
 
@@ -339,20 +325,26 @@ impl<T: Config> Pallet<T> {
 			for (bit_idx, _) in
 				signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
 			{
-				let (_, pending_availability) = assigned_paras_record[bit_idx]
-					.as_mut()
-					.expect("validator bitfields checked not to contain bits corresponding to unoccupied cores; qed");
+				let pending_availability = if let Some((_, pending_availability)) =
+					assigned_paras_record[bit_idx].as_mut()
+				{
+					pending_availability
+				} else {
+					// For honest validators, this happens in case of unoccupied cores,
+					// which in turn happens in case of a disputed candidate.
+					// A malicious one might include arbitrary indices, but they are represented
+					// by `None` values and will be sorted out in the next if case.
+					continue
+				};
 
 				// defensive check - this is constructed by loading the availability bitfield record,
 				// which is always `Some` if the core is occupied - that's why we're here.
 				let val_idx = signed_bitfield.validator_index().0 as usize;
-				if let Some(mut bit) = pending_availability
-					.as_mut()
-					.and_then(|r| r.availability_votes.get_mut(val_idx))
-				{
+				if let Some(mut bit) =
+					pending_availability.as_mut().and_then(|candidate_pending_availability| {
+						candidate_pending_availability.availability_votes.get_mut(val_idx)
+					}) {
 					*bit = true;
-				} else if cfg!(debug_assertions) {
-					ensure!(false, Error::<T>::InternalError);
 				}
 			}
 
@@ -1454,13 +1446,14 @@ mod tests {
 					bare_bitfield,
 					&signing_context,
 				));
-
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					&core_lookup,
-				)
-				.is_err());
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						&core_lookup,
+					),
+					Ok(vec![])
+				);
 			}
 
 			// empty bitfield signed: always OK, but kind of useless.

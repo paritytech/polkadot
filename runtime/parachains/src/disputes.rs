@@ -304,8 +304,8 @@ pub mod pallet {
 		DisputeTimedOut(CandidateHash),
 		/// A dispute has concluded with supermajority against a candidate.
 		/// Block authors should no longer build on top of this head and should
-		/// instead revert to the block at the given height which is the last
-		/// known valid block in this chain.
+		/// instead revert the block at the given height. This should be the
+		/// number of the child of the last known valid block in the chain.
 		Revert(T::BlockNumber),
 	}
 
@@ -1127,9 +1127,14 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
 		if Self::last_valid_block().map_or(true, |last| last > revert_to) {
 			Frozen::<T>::set(Some(revert_to));
-			Self::deposit_event(Event::Revert(revert_to));
+
+			// The `Revert` log is about reverting a block, not reverting to a block.
+			// If we want to revert to block X in the current chain, we need to revert
+			// block X+1.
+			let revert = revert_to + One::one();
+			Self::deposit_event(Event::Revert(revert));
 			frame_system::Pallet::<T>::deposit_log(
-				ConsensusLog::Revert(revert_to.saturated_into()).into(),
+				ConsensusLog::Revert(revert.saturated_into()).into(),
 			);
 		}
 	}
@@ -2284,8 +2289,8 @@ mod tests {
 			Pallet::<Test>::revert_and_freeze(0);
 
 			assert_eq!(Frozen::<Test>::get(), Some(0));
-			assert_eq!(System::digest().logs[0], ConsensusLog::Revert(0).into());
-			System::assert_has_event(Event::Revert(0).into());
+			assert_eq!(System::digest().logs[0], ConsensusLog::Revert(1).into());
+			System::assert_has_event(Event::Revert(1).into());
 		})
 	}
 
