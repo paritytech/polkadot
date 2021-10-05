@@ -1,16 +1,23 @@
 version: '3'
 services:
   polkadot:
-    build:
-      context: .
-      dockerfile: polkadot_builder.Dockerfile
     ports:
       - "127.0.0.1:30333:30333/tcp"
       - "127.0.0.1:9933:9933/tcp"
-    image: chevdor/polkadot:latest
+    image: parity/polkadot:latest
     volumes:
       - "polkadot-data:/data"
-    command: polkadot
+    command: |
+      --unsafe-rpc-external
+      --unsafe-ws-external
+      --rpc-cors all
+      --prometheus-external
+
+    ports:
+      - "30333:30333"
+      - "9933:9933"
+      - "9944:9944"
+      - "9615:9615"
 
 volumes:
   polkadot-data:
