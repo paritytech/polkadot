@@ -1708,7 +1708,7 @@ mod benchmarking {
 	use frame_system::RawOrigin;
 	use sp_runtime::{traits::Bounded, SaturatedConversion};
 
-	use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whitelisted_caller};
+	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1883,11 +1883,11 @@ mod benchmarking {
 		verify {
 			assert!(AuctionInfo::<T>::get().is_none());
 		}
-	}
 
-	impl_benchmark_test_suite!(
-		Auctions,
-		crate::integration_tests::new_test_ext(),
-		crate::integration_tests::Test,
-	);
+		impl_benchmark_test_suite!(
+			Auctions,
+			crate::integration_tests::new_test_ext(),
+			crate::integration_tests::Test,
+		);
+	}
 }

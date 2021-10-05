@@ -16,7 +16,7 @@
 
 use super::*;
 
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::benchmarks;
 use frame_system::RawOrigin;
 use sp_runtime::traits::One;
 
@@ -27,10 +27,10 @@ benchmarks! {
 	verify {
 		assert!(Frozen::<T>::get().is_none())
 	}
-}
 
-impl_benchmark_test_suite!(
-	Pallet,
-	crate::mock::new_test_ext(Default::default()),
-	crate::mock::Test
-);
+	impl_benchmark_test_suite!(
+		Pallet,
+		crate::mock::new_test_ext(Default::default()),
+		crate::mock::Test
+	);
+}
