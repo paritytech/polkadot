@@ -449,15 +449,12 @@ impl<T: Config> Pallet<T> {
 					.then_with(|| a.0.cmp(&b.0))
 			});
 
-			let slots_to_be_upgraded = pending_temp_slots
-				.iter()
-				.take(
-					(T::MaxTemporarySlotPerLeasePeriod::get().saturating_sub(active_temp_slots))
-						as usize,
-				)
-				.collect::<Vec<_>>();
+			let slots_to_be_upgraded = pending_temp_slots.iter().take(
+				(T::MaxTemporarySlotPerLeasePeriod::get().saturating_sub(active_temp_slots))
+					as usize,
+			);
 
-			for (id, temp_slot) in slots_to_be_upgraded.iter() {
+			for (id, temp_slot) in slots_to_be_upgraded {
 				TemporarySlots::<T>::try_mutate::<_, _, Error<T>, _>(id, |s| {
 					// Configure temp slot lease
 					Self::configure_slot_lease(
