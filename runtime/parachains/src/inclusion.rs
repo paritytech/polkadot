@@ -436,7 +436,8 @@ impl<T: Config> Pallet<T> {
 		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
 		// Collect candidate receipts with backers.
-		let mut candidate_receipt_with_backer_indices = Vec::with_capacity(candidates.len());
+		let mut candidate_receipt_with_backing_validator_indices =
+			Vec::with_capacity(candidates.len());
 
 		// Do all checks before writing storage.
 		let core_indices_and_backers = {
@@ -608,7 +609,7 @@ impl<T: Config> Pallet<T> {
 
 								backers.set(val_idx.0 as _, true);
 							}
-							candidate_receipt_with_backer_indices
+							candidate_receipt_with_backing_validator_indices
 								.push((candidate_receipt, backer_idx_and_attestation));
 						}
 
@@ -677,7 +678,7 @@ impl<T: Config> Pallet<T> {
 
 		Ok(ProcessedCandidates::<T::Hash> {
 			core_indices,
-			candidate_receipt_with_backing_validator_indices: candidate_receipt_with_backer_indices,
+			candidate_receipt_with_backing_validator_indices,
 		})
 	}
 
