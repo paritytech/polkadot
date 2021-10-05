@@ -9,7 +9,7 @@ Feature: Disputes
     Then alice reports block height is at least 2
     And alice reports peers count is at least 2
     Then bob is up
-    And bob reports block height is at least than 2
+    And bob reports block height is at least 2
     And bob reports peers count is at least 2
     Then charlie is up
     And charlie reports block height is at least 2
