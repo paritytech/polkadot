@@ -29,10 +29,7 @@ use primitives::v1::{
 	Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
 };
 use scale_info::TypeInfo;
-use sp_runtime::{
-	traits::{One, Saturating},
-	DispatchError,
-};
+use sp_runtime::{traits::One, DispatchError};
 use sp_std::prelude::*;
 
 use crate::{configuration, disputes, dmp, hrmp, paras, scheduler::CoreAssignment, shared, ump};
@@ -2138,8 +2135,6 @@ mod tests {
 						expected_at,
 						&cfg,
 					);
-
-					assert_eq!(Paras::last_code_upgrade(chain_a, true), Some(expected_at));
 				}
 
 				assert_eq!(

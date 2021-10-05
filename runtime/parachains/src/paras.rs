@@ -163,6 +163,12 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 		self.upgrade_times.is_empty()
 	}
 
+	// The block at which the most recently tracked code change occurred, from the perspective
+	// of the para.
+	fn most_recent_change(&self) -> Option<N> {
+		self.upgrade_times.last().map(|x| x.expected_at.clone())
+	}
+
 	// prunes all code upgrade logs occurring at or before `max`.
 	// note that code replaced at `x` is the code used to validate all blocks before
 	// `x`. Thus, `max` should be outside of the slashing window when this is invoked.
@@ -1619,51 +1625,6 @@ mod tests {
 		assert!(!<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
 	}
 
-	fn fetch_validation_code_at(
-		para_id: ParaId,
-		at: BlockNumber,
-		assume_intermediate: Option<BlockNumber>,
-	) -> Option<ValidationCode> {
-		Paras::validation_code_hash(para_id, at, assume_intermediate).and_then(Paras::code_by_hash)
-	}
-
-	#[test]
-	fn para_past_code_meta_gives_right_code() {
-		let mut past_code = ParaPastCodeMeta::default();
-		assert_eq!(past_code.code_at(0u32), Some(UseCodeAt::Current));
-
-		past_code.note_replacement(10, 12);
-		assert_eq!(past_code.code_at(0), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(12), Some(UseCodeAt::Current));
-
-		past_code.note_replacement(20, 25);
-		assert_eq!(past_code.code_at(1), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(12), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(24), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(25), Some(UseCodeAt::Current));
-
-		past_code.note_replacement(30, 30);
-		assert_eq!(past_code.code_at(1), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(12), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(24), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(25), Some(UseCodeAt::ReplacedAt(30)));
-		assert_eq!(past_code.code_at(30), Some(UseCodeAt::Current));
-
-		past_code.last_pruned = Some(5);
-		assert_eq!(past_code.code_at(1), None);
-		assert_eq!(past_code.code_at(5), None);
-		assert_eq!(past_code.code_at(6), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(24), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(25), Some(UseCodeAt::ReplacedAt(30)));
-		assert_eq!(past_code.code_at(30), Some(UseCodeAt::Current));
-	}
-
 	#[test]
 	fn para_past_code_pruning_works_correctly() {
 		let mut past_code = ParaPastCodeMeta::default();
@@ -2060,27 +2021,6 @@ mod tests {
 
 				assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(expected_at));
 
-				// Some hypothetical block which would have triggered the code change
-				// should still use the old code.
-				assert_eq!(
-					Paras::past_code_meta(&para_id).code_at(expected_at),
-					Some(UseCodeAt::ReplacedAt(expected_at)),
-				);
-
-				// Some hypothetical block at the context which actually triggered the
-				// code change should still use the old code.
-				assert_eq!(
-					Paras::past_code_meta(&para_id).code_at(expected_at + 4),
-					Some(UseCodeAt::ReplacedAt(expected_at)),
-				);
-
-				// Some hypothetical block at the context after the code was upgraded
-				// should use the new code.
-				assert_eq!(
-					Paras::past_code_meta(&para_id).code_at(expected_at + 4 + 1),
-					Some(UseCodeAt::Current),
-				);
-
 				assert_eq!(
 					<Paras as Store>::PastCodeHash::get(&(para_id, expected_at)),
 					Some(original_code.hash()),
@@ -2336,64 +2276,6 @@ mod tests {
 	}
 
 	#[test]
-	fn code_hash_at_with_intermediate() {
-		let code_retention_period = 10;
-		let validation_upgrade_delay = 10;
-
-		let paras = vec![(
-			0u32.into(),
-			ParaGenesisArgs {
-				parachain: true,
-				genesis_head: Default::default(),
-				validation_code: vec![1, 2, 3].into(),
-			},
-		)];
-
-		let genesis_config = MockGenesisConfig {
-			paras: GenesisConfig { paras, ..Default::default() },
-			configuration: crate::configuration::GenesisConfig {
-				config: HostConfiguration {
-					code_retention_period,
-					validation_upgrade_delay,
-					..Default::default()
-				},
-				..Default::default()
-			},
-			..Default::default()
-		};
-
-		new_test_ext(genesis_config).execute_with(|| {
-			let para_id = ParaId::from(0);
-			let old_code: ValidationCode = vec![1, 2, 3].into();
-			let new_code: ValidationCode = vec![4, 5, 6].into();
-
-			// expected_at = 10 = 0 + validation_upgrade_delay = 0 + 10
-			Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(10));
-
-			// no intermediate, falls back on current/past.
-			assert_eq!(fetch_validation_code_at(para_id, 1, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 100, None), Some(old_code.clone()));
-
-			// intermediate before upgrade meant to be applied, falls back on current.
-			assert_eq!(fetch_validation_code_at(para_id, 9, Some(8)), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 10, Some(9)), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 11, Some(9)), Some(old_code.clone()));
-
-			// intermediate at or after upgrade applied
-			assert_eq!(fetch_validation_code_at(para_id, 11, Some(10)), Some(new_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 100, Some(11)), Some(new_code.clone()));
-
-			run_to_block(code_retention_period + 5, None);
-
-			// at <= intermediate not allowed
-			assert_eq!(fetch_validation_code_at(para_id, 10, Some(10)), None);
-			assert_eq!(fetch_validation_code_at(para_id, 9, Some(10)), None);
-		});
-	}
-
-	#[test]
 	fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 2;
@@ -2426,22 +2308,21 @@ mod tests {
 			let new_code: ValidationCode = vec![4, 5, 6].into();
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
 
+			// The new validation code can be applied but a new parablock hasn't gotten in yet,
+			// so the old code should still be current.
+			run_to_block(3, None);
+			assert_eq!(Paras::current_code(&para_id), Some(old_code.clone()));
+
 			run_to_block(10, None);
 			Paras::note_new_head(para_id, Default::default(), 7);
 
 			assert_eq!(Paras::past_code_meta(&para_id).upgrade_times, vec![upgrade_at(2, 10)]);
+			assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
 
-			assert_eq!(fetch_validation_code_at(para_id, 2, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 3, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 9, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(new_code.clone()));
-
+			// Make sure that the old code is available **before** the code retion period passes.
 			run_to_block(10 + code_retention_period, None);
-
-			assert_eq!(fetch_validation_code_at(para_id, 2, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 3, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 9, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(new_code.clone()));
+			assert_eq!(Paras::code_by_hash(&old_code.hash()), Some(old_code.clone()));
+			assert_eq!(Paras::code_by_hash(&new_code.hash()), Some(new_code.clone()));
 
 			run_to_block(10 + code_retention_period + 1, None);
 
@@ -2452,10 +2333,8 @@ mod tests {
 				ParaPastCodeMeta { upgrade_times: Vec::new(), last_pruned: Some(10) },
 			);
 
-			assert_eq!(fetch_validation_code_at(para_id, 2, None), None); // pruned :(
-			assert_eq!(fetch_validation_code_at(para_id, 9, None), None);
-			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(new_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 11, None), Some(new_code.clone()));
+			assert_eq!(Paras::code_by_hash(&old_code.hash()), None); // pruned :(
+			assert_eq!(Paras::code_by_hash(&new_code.hash()), Some(new_code.clone()));
 		});
 	}
 
