@@ -117,7 +117,7 @@ fn query_response_fires() {
 
 	let mut block_builder = client.init_polkadot_block_builder();
 
-	let response = Response::ExecutionResult(Ok(()));
+	let response = Response::ExecutionResult(None);
 	let max_weight = 1_000_000;
 	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
 	let msg = Box::new(VersionedXcm::from(msg));
@@ -148,13 +148,13 @@ fn query_response_fires() {
 				r.event,
 				polkadot_test_runtime::Event::Xcm(pallet_xcm::Event::ResponseReady(
 					q,
-					Response::ExecutionResult(Ok(())),
+					Response::ExecutionResult(None),
 				)) if q == query_id,
 			)));
 			assert_eq!(
 				polkadot_test_runtime::Xcm::query(query_id),
 				Some(QueryStatus::Ready {
-					response: VersionedResponse::V2(Response::ExecutionResult(Ok(()))),
+					response: VersionedResponse::V2(Response::ExecutionResult(None)),
 					at: 2u32.into()
 				}),
 			)
@@ -206,7 +206,7 @@ fn query_response_elicits_handler() {
 
 	let mut block_builder = client.init_polkadot_block_builder();
 
-	let response = Response::ExecutionResult(Ok(()));
+	let response = Response::ExecutionResult(None);
 	let max_weight = 1_000_000;
 	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
 
@@ -237,7 +237,7 @@ fn query_response_elicits_handler() {
 				TestNotifier(ResponseReceived(
 					MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { .. }) },
 					q,
-					Response::ExecutionResult(Ok(())),
+					Response::ExecutionResult(None),
 				)) if q == query_id,
 			)));
 		});

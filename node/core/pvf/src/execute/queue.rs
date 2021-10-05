@@ -38,11 +38,17 @@ slotmap::new_key_type! { struct Worker; }
 
 #[derive(Debug)]
 pub enum ToQueue {
-	Enqueue { artifact: ArtifactPathId, params: Vec<u8>, result_tx: ResultSender },
+	Enqueue {
+		artifact: ArtifactPathId,
+		execution_timeout: Duration,
+		params: Vec<u8>,
+		result_tx: ResultSender,
+	},
 }
 
 struct ExecuteJob {
 	artifact: ArtifactPathId,
+	execution_timeout: Duration,
 	params: Vec<u8>,
 	result_tx: ResultSender,
 }
@@ -167,14 +173,14 @@ async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 }
 
 fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
-	let ToQueue::Enqueue { artifact, params, result_tx } = to_queue;
+	let ToQueue::Enqueue { artifact, execution_timeout, params, result_tx } = to_queue;
 	tracing::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact.id.code_hash,
 		"enqueueing an artifact for execution",
 	);
 	queue.metrics.execute_enqueued();
-	let job = ExecuteJob { artifact, params, result_tx };
+	let job = ExecuteJob { artifact, execution_timeout, params, result_tx };
 
 	if let Some(available) = queue.workers.find_available() {
 		assign(queue, available, job);
@@ -326,7 +332,13 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 	queue.mux.push(
 		async move {
 			let _timer = execution_timer;
-			let outcome = super::worker::start_work(idle, job.artifact.clone(), job.params).await;
+			let outcome = super::worker::start_work(
+				idle,
+				job.artifact.clone(),
+				job.execution_timeout,
+				job.params,
+			)
+			.await;
 			QueueEvent::StartWork(worker, outcome, job.artifact.id, job.result_tx)
 		}
 		.boxed(),
