@@ -482,7 +482,7 @@ pub mod pallet {
 	/// Upcoming paras instantiation arguments.
 	#[pallet::storage]
 	pub(super) type UpcomingParasGenesis<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, (HeadData, ValidationCodeHash, bool)>;
+		StorageMap<_, Twox64Concat, ParaId, ParaGenesisArgs>;
 
 	/// The number of reference on the validation code in [`CodeByHash`] storage.
 	#[pallet::storage]
@@ -818,10 +818,8 @@ impl<T: Config> Pallet<T> {
 				None | Some(ParaLifecycle::Parathread) | Some(ParaLifecycle::Parachain) => { /* Nothing to do... */
 				},
 				Some(ParaLifecycle::Onboarding) => {
-					if let Some((genesis_head, validation_code_hash, parachain)) =
-						<Self as Store>::UpcomingParasGenesis::take(&para)
-					{
-						if parachain {
+					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
+						if genesis_data.parachain {
 							if let Err(i) = parachains.binary_search(&para) {
 								parachains.insert(i, para);
 							}
@@ -829,8 +827,19 @@ impl<T: Config> Pallet<T> {
 						} else {
 							ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parathread);
 						}
-						<Self as Store>::Heads::insert(&para, genesis_head);
-						<Self as Store>::CurrentCodeHash::insert(&para, validation_code_hash);
+
+						// HACK: see the notice in `schedule_para_initialize`.
+						//
+						// Apparently, this is left over from a prior version of the runtime.
+						// To handle this we just insert the code and link the current code hash
+						// to it.
+						if !genesis_data.validation_code.0.is_empty() {
+							let code_hash = genesis_data.validation_code.hash();
+							Self::increase_code_ref(&code_hash, &genesis_data.validation_code);
+							<Self as Store>::CurrentCodeHash::insert(&para, code_hash);
+						}
+
+						<Self as Store>::Heads::insert(&para, genesis_data.genesis_head);
 					}
 				},
 				// Upgrade a parathread to a parachain
@@ -1139,8 +1148,13 @@ impl<T: Config> Pallet<T> {
 
 			match cause {
 				PvfCheckCause::Onboarding(para) => {
-					weight += T::DbWeight::get().writes(2);
+					// Here we need to undo everything that was done during `schedule_para_initialize`.
+					// Essentially, the logic is similar to offboarding, with exception that before
+					// actual onboarding the parachain did not have a chance to reach to upgrades.
+					// Therefore we can skip all the upgrade related storage items here.
+					weight += T::DbWeight::get().writes(3);
 					UpcomingParasGenesis::<T>::remove(&para);
+					CurrentCodeHash::<T>::remove(&para);
 					ParaLifecycles::<T>::remove(&para);
 				},
 				PvfCheckCause::Upgrade(para) => {
@@ -1163,26 +1177,61 @@ impl<T: Config> Pallet<T> {
 	/// Schedule a para to be initialized at the start of the next session.
 	///
 	/// Will return error if para is already registered in the system.
+	// TODO:
 	pub(crate) fn schedule_para_initialize(
 		id: ParaId,
-		genesis_args: ParaGenesisArgs,
+		mut genesis_data: ParaGenesisArgs,
 	) -> DispatchResult {
-		// Make sure parachain isn't already in our system.
+		// Make sure parachain isn't already in our system and that the onboarding parameters are
+		// valid.
 		ensure!(Self::can_schedule_para_initialize(&id), Error::<T>::CannotOnboard);
+		ensure!(!genesis_data.validation_code.0.is_empty(), Error::<T>::CannotOnboard);
 		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
 
-		// Register the new PVF pre-checking run for the given validation hash.
-		let validation_code_hash = genesis_args.validation_code.hash();
+		// HACK: here we are doing something nasty.
+		//
+		// In order to fix the [soaking issue] we insert the code eagerly here. When the onboarding
+		// is finally enacted, we do not need to insert the code anymore. Therefore, there is no
+		// reason for the validation code to be copied into the `ParaGenesisArgs`. We also do not
+		// want to risk it by copying the validation code needlessly to not risk adding more
+		// memory pressure.
+		//
+		// That said, we also want to preserve `ParaGenesisArgs` as it is, for now. There are two
+		// reasons:
+		//
+		// - Doing it within the context of the PR that introduces this change is undesirable, since
+		//   it is already a big change, and that change would require a migration. Moreover, if we
+		//   run the new version of the runtime, there will be less things to worry about during
+		//   the eventual proper migration.
+		//
+		// - This data type already is used for generating genesis, and changing it will probably
+		//   introduce some unnecessary burden.
+		//
+		// So instead of going through it right now, we will do something sneaky. Specifically:
+		//
+		// - Insert the `CurrentCodeHash` now, instead during the onboarding. That would allow to
+		//   get rid of hashing of the validation code when onboarding.
+		//
+		// - Replace `validation_code` with a sentinel value: an empty vector. This should be fine
+		//   as long we do not allow registering parachains with empty code. At the moment of writing
+		//   this should already be the case.
+		//
+		// - Empty value is treated as the current code is already inserted during the onboarding.
+		//
+		// This is only an intermediate solution and should be fixed in foreseable future.
+		//
+		// [soaking issue]: https://github.com/paritytech/polkadot/issues/3918
+		let validation_code = mem::take(&mut genesis_data.validation_code);
+		UpcomingParasGenesis::<T>::insert(&id, genesis_data);
+		let validation_code_hash = validation_code.hash();
+		<Self as Store>::CurrentCodeHash::insert(&id, validation_code_hash);
+
 		let cfg = configuration::Pallet::<T>::config();
 		Self::kick_off_pvf_check(
 			PvfCheckCause::Onboarding(id),
 			validation_code_hash,
-			genesis_args.validation_code,
+			validation_code,
 			&cfg,
-		);
-		UpcomingParasGenesis::<T>::insert(
-			&id,
-			(genesis_args.genesis_head, validation_code_hash, genesis_args.parachain),
 		);
 
 		Ok(())
