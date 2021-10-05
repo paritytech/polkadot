@@ -1173,6 +1173,12 @@ impl paras_registrar::Config for Runtime {
 parameter_types! {
 	// 12 weeks = 3 months per lease period -> 8 lease periods ~ 2 years
 	pub const LeasePeriod: BlockNumber = 12 * WEEKS;
+	// Polkadot Genesis was on May 26, 2020.
+	// Target Parachain Onboarding Date: Dec 15, 2021.
+	// Difference is 568 days.
+	// We want a lease period to start on the target onboarding date.
+	// 568 % (12 * 7) = 64 day offset
+	pub const LeaseOffset: BlockNumber = 64 * DAYS;
 }
 
 impl slots::Config for Runtime {
@@ -1180,6 +1186,7 @@ impl slots::Config for Runtime {
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
+	type LeaseOffset = LeaseOffset;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 

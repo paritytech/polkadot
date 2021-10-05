@@ -883,6 +883,7 @@ impl slots::Config for Runtime {
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
+	type LeaseOffset = ();
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
