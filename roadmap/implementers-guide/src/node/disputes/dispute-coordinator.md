@@ -105,8 +105,8 @@ Do nothing.
 Before actually acting upon a statements import we do check a few things and
 order incoming imports.
 
-First we check whether the incoming votes concern a candidate we already have
-in recent disputes, if that is the case then there is no work todo from our side
+First we check whether the incoming votes concern a dispute we already
+participated in. If that is the case then there is no work to do from our side
 (no availability recovery, no validity checking) and it is safe to import the
 candidate right away (see next section).
 
@@ -125,46 +125,93 @@ might be spam so we put it on the low priority queue which gets processed on a
 best effort basis.
 
 If we have seen the candidate included, but the candidate has a relay parent
-that has been already finalized, also put the candidate on the best effort
+that has already been finalized, also put the candidate on the best effort
 queue. (We can't prevent any potential harm anymore, so we should prioritize
 disputes concerning non finalized blocks.)
 
-##### High priority queue
+###### High priority queue
 
-For statements concerning a candiate that we have seen included, we put those
+For statements concerning a candidate that we have seen included, we put those
 statements on a high priority queue, which is conceptually organized like this:
 
 ```rust
-BTreeMap<(BlockNumber, ParaId), Vec<(Candidate, HashSet<(SignedDisputeStatement,
-      ValidatorIndex)>)>>
+
+BTreeMap<CandidateComparator, (Candidate, HashSet<(SignedDisputeStatement,
+      ValidatorIndex)>)>
+
+struct CandidateComparator {
+  block_number: BlockNumber,
+  para_id: ParaId,
+  relay_parent: Hash
+}
+
+impl Ord for CandidateComparator {
+  fn cmp(&self, other: &Self) -> Ordering {
+      match self.block_number.cmp(other.block_number) {
+        Ordering::Equal => (),
+        o => return o,
+      }
+      match self.block_number.cmp(other.para_id) {
+        Ordering::Equal => (),
+        o => return o,
+      }
+      self.relay_parent.cmp(other.relay_parent)
+    }
+}
 ```
 
 So we order first by block number of the relay parent of the candidate, and then
-by `ParaId`. This way we get a deterministic ordering that should be the same on
-all validators. The size of that map will be limited to some reasonable value.
-The number of votes for each candidate can easily be limited to twice the number
-validators, so everyone can equivocate, if they desire to do so.
+by `ParaId` and only afterwards by its relay parent hash. This way we get a
+deterministic ordering that should be the same on all validators. The size of
+that map will be limited to some reasonable value. The number of votes for each
+candidate can easily be limited to twice the number validators, so everyone can
+equivocate, if they desire to do so.
 
-Note that we not order based on the relay parent hash (forks), instead the value
-of the `BTreeMap` is a vec, to account for multiple relay parents at that
-height. This is, because there is no good ordering of forks and the best thing
-we can do with forks, is treat them in a round robin fashion - so no single fork
-can stall any other fork of getting its disputes processed. So instead of
-ordering by relay parent hash in case of the same block number, we will make
-sure in code to treat multiple relay parent at the same height fairly (round
-robin).
+Reasoning for the ordering: By checking the block number first, we make sure we
+are participating in the oldest disputes first, which is important as they are
+the most time critical. By comparing the para id second, we make sure we will
+treat multiple forks fairly. E.g. we will participate for candidate of parachain
+A on fork 1, then on parachain A on fork 2 and so on. This is desirable, so it
+cannot happen that for example an abandoned chain's disputes starves disputes on
+a better chain, which is actually relevant. Finally, the ordering by relay
+parent hash, ensures we do have deterministic ordering in the event of forks.
 
-We then process this "queue" in order of the oldest block first to make sure we
-will conclude earlier disputes first, before taking care of any younger ones.
+The most important part is, that we get deterministic ordering across validators
+in order for them to pull in the same direction and get disputes to conclude,
+even in the event of lots of concurrent disputes getting initiated due to some
+malicious activity.
+
+Note that even with this mechanism a validator could try to raise lots of
+disputes which will all resolve in favour of the corresponding candidate, in
+order to delay the checking of an actual malicious candidate, provoking this
+dispute to timeout. We can do two things to mitigate this:
+
+1. Revert the chain in case a dispute times out.
+2. Have validators get slashed significantly enough on falsely disputed
+   candidates and make sure we stop accepting disputes from them
+   eventually (once their stake became too low).
+
+##### Low Priority Queue
+
+To be defined: Depending on how likely it is that we don't see a valid candidate
+included but are still able to look up its block number, it might either make
+sense to try to maintain an equivalent ordering as in the high priority queue or
+just order by candidate hash for example.
 
 
 ##### Reasoning / Considerations of this setup
 
-- Responses might be late
+If multiple disputes are in flight and get queued, we might
+- Responses to onshot might be late
 - Explain network effects
 - Slashing for false negative
 - Forks: Disputes might technically be older, but on an abandoned fork -
   shouldn't we de-prioritize those?
+- We cannot fully protect from spam this way, we also rely on the actual import
+  to ignore votes from validators which are disabled/have been slashed too much
+  already. Otherwise, if a single validator is constantly disputing all cores,
+  we are still in trouble. The ordering is still essential so we finish disputes
+  and validators actually get slashed.
 
   Unrelated:
     In case of block producers - we don't participate, do we still try to
