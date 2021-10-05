@@ -16,7 +16,6 @@
 
 //! A simple wrapper allowing `Sudo` to call into `paras` routines.
 
-use crate::assigned_slots::{self, Pallet as AssignedSlots, SlotLeasePeriodStart};
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
@@ -40,12 +39,7 @@ pub mod pallet {
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config:
-		configuration::Config
-		+ paras::Config
-		+ dmp::Config
-		+ ump::Config
-		+ hrmp::Config
-		+ assigned_slots::Config
+		configuration::Config + paras::Config + dmp::Config + ump::Config + hrmp::Config
 	{
 	}
 
@@ -75,31 +69,6 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Assign a permanent parachain slot
-		#[pallet::weight((1_000, DispatchClass::Operational))]
-		pub fn sudo_assign_perm_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
-			ensure_root(origin.clone())?;
-			AssignedSlots::<T>::assign_perm_parachain_slot(origin.clone(), id)
-		}
-
-		/// Assign a temporary parachain slot
-		#[pallet::weight((1_000, DispatchClass::Operational))]
-		pub fn sudo_assign_temp_parachain_slot(
-			origin: OriginFor<T>,
-			id: ParaId,
-			lease_period_start: SlotLeasePeriodStart,
-		) -> DispatchResult {
-			ensure_root(origin.clone())?;
-			AssignedSlots::<T>::assign_temp_parachain_slot(origin.clone(), id, lease_period_start)
-		}
-
-		/// Unassign a permanent or temporary parachain slot
-		#[pallet::weight((1_000, DispatchClass::Operational))]
-		pub fn sudo_unassign_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
-			ensure_root(origin.clone())?;
-			AssignedSlots::<T>::unassign_parachain_slot(origin.clone(), id)
-		}
-
 		/// Schedule a para to be initialized at the start of the next session.
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_para_initialize(
