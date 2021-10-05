@@ -2,6 +2,7 @@ Feature: Disputes
 
   Scenario: Dispute Valid Block
     Given a test network
+    Then sleep 60 seconds
     Then alice is up
     Then bob is up
     Then charlie is up
