@@ -256,6 +256,11 @@ pub fn new_test_ext() -> TestExternalities {
 	ext
 }
 
+pub fn new_test_ext_with_offset(n: BlockNumber) -> TestExternalities {
+	LeaseOffset::set(n);
+	new_test_ext()
+}
+
 const BLOCKS_PER_SESSION: u32 = 10;
 
 fn maybe_new_session(n: u32) {

@@ -1014,7 +1014,7 @@ mod tests {
 
 		fn lease_period_index(b: BlockNumber) -> Option<(u64, bool)> {
 			let (lease_period_length, offset) = Self::lease_period_length();
-			let b = b.saturating_sub(offset);
+			let b = b.checked_sub(offset)?;
 
 			let lease_period = b / lease_period_length;
 			let first_block = (b % lease_period_length).is_zero();
@@ -1869,8 +1869,11 @@ mod benchmarking {
 
 	fn create_fund<T: Config>(id: u32, end: T::BlockNumber) -> ParaId {
 		let cap = BalanceOf::<T>::max_value();
+		let (_, offset) = T::Auctioneer::lease_period_length();
+		// Set to the very beginning of lease period index 0.
+		frame_system::Pallet::<T>::set_block_number(offset);
 		let now = frame_system::Pallet::<T>::block_number();
-		let lease_period_index = T::Auctioneer::lease_period_index(now).0;
+		let (lease_period_index, _) = T::Auctioneer::lease_period_index(now).unwrap_or_default();
 		let first_period = lease_period_index;
 		let last_period =
 			lease_period_index + ((SlotRange::LEASE_PERIODS_PER_SLOT as u32) - 1).into();
@@ -2087,7 +2090,7 @@ mod benchmarking {
 			}
 
 			let now = frame_system::Pallet::<T>::block_number();
-			let lease_period_index = T::Auctioneer::lease_period_index(now).0;
+			let (lease_period_index, _) = T::Auctioneer::lease_period_index(now).unwrap_or_default();
 			let duration = end_block
 				.checked_sub(&frame_system::Pallet::<T>::block_number())
 				.ok_or("duration of auction less than zero")?;
@@ -2106,7 +2109,7 @@ mod benchmarking {
 
 	impl_benchmark_test_suite!(
 		Crowdloan,
-		crate::integration_tests::new_test_ext(),
+		crate::integration_tests::new_test_ext_with_offset(10),
 		crate::integration_tests::Test,
 	);
 }
