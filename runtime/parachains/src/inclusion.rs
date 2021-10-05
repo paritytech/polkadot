@@ -2485,7 +2485,6 @@ mod tests {
 						backed_candidate.validity_votes.len(),
 						backed_candidate.validator_indices.count_ones()
 					);
-					dbg!(&backed_candidate.validator_indices);
 					candidate_receipt_with_backers.1.extend(
 						backed_candidate
 							.validator_indices

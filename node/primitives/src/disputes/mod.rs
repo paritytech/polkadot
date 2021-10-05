@@ -77,15 +77,6 @@ impl SignedDisputeStatement {
 		validator_public: ValidatorId,
 		validator_signature: ValidatorSignature,
 	) -> Self {
-		assert_eq!(
-			dispute_statement.check_signature(
-				&validator_public,
-				candidate_hash,
-				session_index,
-				&validator_signature
-			),
-			Ok(())
-		);
 		SignedDisputeStatement {
 			dispute_statement,
 			candidate_hash,
