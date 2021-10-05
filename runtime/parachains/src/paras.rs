@@ -51,16 +51,6 @@ pub mod weights;
 
 pub use pallet::*;
 
-// the two key times necessary to track for every code replacement.
-#[derive(Default, Encode, Decode, TypeInfo)]
-#[cfg_attr(test, derive(Debug, Clone, PartialEq))]
-pub struct ReplacementTimes<N> {
-	/// The relay-chain block number at which the parablock activating the code upgrade was
-	/// actually included. This means considered included and available, so this is the time at which
-	/// that parablock enters the acceptance period in this fork of the relay-chain.
-	activated_at: N,
-}
-
 /// Metadata used to track previous parachain validation code that we keep in
 /// the state.
 #[derive(Default, Encode, Decode, TypeInfo)]
@@ -71,7 +61,7 @@ pub struct ParaPastCodeMeta<N> {
 	/// of historic code in historic contexts, whereas the second is used to do
 	/// pruning on an accurate timeframe. These can be used as indices
 	/// into the `PastCodeHash` map along with the `ParaId` to fetch the code itself.
-	upgrade_times: Vec<ReplacementTimes<N>>,
+	upgrade_times: Vec<N>,
 	/// Tracks the highest pruned code-replacement, if any. This is the `activated_at` value,
 	/// not the `expected_at` value.
 	last_pruned: Option<N>,
@@ -152,13 +142,11 @@ impl ParaLifecycle {
 impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
 	fn note_replacement(&mut self, activated_at: N) {
-		self.upgrade_times.push(ReplacementTimes { activated_at })
+		self.upgrade_times.push(activated_at)
 	}
 
-	// The block at which the most recently tracked code change occurred, from the perspective
-	// of the para.
-	fn most_recent_change(&self) -> Option<N> {
-		self.upgrade_times.last().map(|x| x.activated_at.clone())
+	fn is_empty(&self) -> bool {
+		self.upgrade_times.is_empty()
 	}
 
 	// prunes all code upgrade logs occurring at or before `max`.
@@ -172,17 +160,15 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// returns an iterator of block numbers at which code was replaced, where the replaced
 	// code should be now pruned, in ascending order.
 	fn prune_up_to(&'_ mut self, max: N) -> impl Iterator<Item = N> + '_ {
-		let to_prune = self.upgrade_times.iter().take_while(|t| t.activated_at <= max).count();
-		let drained = if to_prune == 0 {
+		let to_prune = self.upgrade_times.iter().take_while(|t| **t <= max).count();
+		if to_prune == 0 {
 			// no-op prune.
 			self.upgrade_times.drain(self.upgrade_times.len()..)
 		} else {
 			// if we are actually pruning something, update the last_pruned member.
-			self.last_pruned = Some(self.upgrade_times[to_prune - 1].activated_at);
+			self.last_pruned = Some(self.upgrade_times[to_prune - 1]);
 			self.upgrade_times.drain(..to_prune)
-		};
-
-		drained.map(|times| times.activated_at)
+		}
 	}
 }
 
@@ -966,7 +952,7 @@ impl<T: Config> Pallet<T> {
 							}
 						}
 
-						meta.most_recent_change().is_none() && Self::para_head(&para_id).is_none()
+						meta.is_empty() && Self::para_head(&para_id).is_none()
 					});
 
 					// This parachain has been removed and now the vestigial code
@@ -1191,6 +1177,15 @@ impl<T: Config> Pallet<T> {
 	///
 	/// No-op if para is not registered at all.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
+		// Disallow offboarding in case there is an upcoming upgrade.
+		//
+		// This is not a fundamential limitation but rather simplification: it allows us to get
+		// away without introducing additional logic for pruning and, more importantly, enacting
+		// ongoing PVF pre-checking votings. It also removes some nasty edge cases.
+		if FutureCodeHash::<T>::contains_key(&id) {
+			return Err(Error::<T>::CannotOffboard.into())
+		}
+
 		let lifecycle = ParaLifecycles::<T>::get(&id);
 		match lifecycle {
 			// If para is not registered, nothing to do!
@@ -1277,8 +1272,7 @@ impl<T: Config> Pallet<T> {
 		FutureCodeHash::<T>::insert(&id, &code_hash);
 
 		weight += T::DbWeight::get().reads_writes(2, 2);
-		let now = <frame_system::Pallet<T>>::block_number();
-		let next_possible_upgrade_at = now + cfg.validation_upgrade_frequency;
+		let next_possible_upgrade_at = relay_parent_number + cfg.validation_upgrade_frequency;
 		<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
 			let insert_idx = upgrade_cooldowns
 				.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
