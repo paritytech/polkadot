@@ -352,7 +352,7 @@ impl<T: Config> Auctioneer<T::BlockNumber> for Pallet<T> {
 		Self::handle_bid(bidder, para, AuctionCounter::<T>::get(), first_slot, last_slot, amount)
 	}
 
-	fn lease_period_index(b: T::BlockNumber) -> (Self::LeasePeriod, bool) {
+	fn lease_period_index(b: T::BlockNumber) -> Option<(Self::LeasePeriod, bool)> {
 		T::Leaser::lease_period_index(b)
 	}
 
@@ -382,10 +382,10 @@ impl<T: Config> Pallet<T> {
 		let maybe_auction = AuctionInfo::<T>::get();
 		ensure!(maybe_auction.is_none(), Error::<T>::AuctionInProgress);
 		let now = frame_system::Pallet::<T>::block_number();
-		ensure!(
-			lease_period_index >= T::Leaser::lease_period_index(now).0,
-			Error::<T>::LeasePeriodInPast
-		);
+		if let Some((current_lease_period, _)) = T::Leaser::lease_period_index(now) {
+			// If there is no active lease period, then we don't need to make this check.
+			ensure!(lease_period_index >= current_lease_period, Error::<T>::LeasePeriodInPast);
+		}
 
 		// Bump the counter.
 		let n = AuctionCounter::<T>::mutate(|n| {
@@ -575,7 +575,9 @@ impl<T: Config> Pallet<T> {
 			let period_count = LeasePeriodOf::<T>::from(range.len() as u32);
 
 			match T::Leaser::lease_out(para, &leaser, amount, period_begin, period_count) {
-				Err(LeaseError::ReserveFailed) | Err(LeaseError::AlreadyEnded) => {
+				Err(LeaseError::ReserveFailed) |
+				Err(LeaseError::AlreadyEnded) |
+				Err(LeaseError::NoLeasePeriod) => {
 					// Should never happen since we just unreserved this amount (and our offset is from the
 					// present period). But if it does, there's not much we can do.
 				},
@@ -758,7 +760,9 @@ mod tests {
 			LEASES.with(|l| {
 				let mut leases = l.borrow_mut();
 				let now = System::block_number();
-				if period_begin < Self::lease_period_index(now).0 {
+				let (current_lease_period, _) =
+					Self::lease_period_index(now).ok_or(LeaseError::NoLeasePeriod)?;
+				if period_begin < current_lease_period {
 					return Err(LeaseError::AlreadyEnded)
 				}
 				for period in period_begin..(period_begin + period_count) {
@@ -792,14 +796,14 @@ mod tests {
 			(10, 0)
 		}
 
-		fn lease_period_index(b: BlockNumber) -> (Self::LeasePeriod, bool) {
+		fn lease_period_index(b: BlockNumber) -> Option<(Self::LeasePeriod, bool)> {
 			let (lease_period_length, offset) = Self::lease_period_length();
-			let b = b.saturating_sub(offset);
+			let b = b.checked_sub(offset)?;
 
 			let lease_period = b / lease_period_length;
 			let first_block = (b % lease_period_length).is_zero();
 
-			(lease_period, first_block)
+			Some((lease_period, first_block))
 		}
 
 		fn already_leased(

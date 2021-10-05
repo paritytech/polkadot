@@ -94,6 +94,8 @@ pub enum LeaseError {
 	AlreadyLeased,
 	/// The period to be leased has already ended.
 	AlreadyEnded,
+	/// A lease period has not started yet, due to an offset in the starting block.
+	NoLeasePeriod,
 }
 
 /// Lease manager. Used by the auction module to handle parachain slot leases.
@@ -139,7 +141,10 @@ pub trait Leaser<BlockNumber> {
 	fn lease_period_length() -> (BlockNumber, BlockNumber);
 
 	/// Returns the lease period at `block`, and if this is the first block of a new lease period.
-	fn lease_period_index(block: BlockNumber) -> (Self::LeasePeriod, bool);
+	///
+	/// Will return `None` if the first lease period has not started yet, for example when an offset
+	/// is placed.
+	fn lease_period_index(block: BlockNumber) -> Option<(Self::LeasePeriod, bool)>;
 
 	/// Returns true if the parachain already has a lease in any of lease periods in the inclusive
 	/// range `[first_period, last_period]`, intersected with the unbounded range [`current_lease_period`..] .
@@ -236,7 +241,10 @@ pub trait Auctioneer<BlockNumber> {
 	fn lease_period_length() -> (BlockNumber, BlockNumber);
 
 	/// Returns the lease period at `block`, and if this is the first block of a new lease period.
-	fn lease_period_index(block: BlockNumber) -> (Self::LeasePeriod, bool);
+	///
+	/// Will return `None` if the first lease period has not started yet, for example when an offset
+	/// is placed.
+	fn lease_period_index(block: BlockNumber) -> Option<(Self::LeasePeriod, bool)>;
 
 	/// Check if the para and user combination has won an auction in the past.
 	fn has_won_an_auction(para: ParaId, bidder: &Self::AccountId) -> bool;

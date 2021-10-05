@@ -316,6 +316,8 @@ pub mod pallet {
 		AlreadyInNewRaise,
 		/// No contributions allowed during the VRF delay
 		VrfDelayInProgress,
+		/// A lease period has not started yet, due to an offset in the starting block.
+		NoLeasePeriod,
 	}
 
 	#[pallet::hooks]
@@ -380,7 +382,8 @@ pub mod pallet {
 			// Here we check the lease period on the ending block is at most the first block of the
 			// period after `first_period`. If it would be larger, there is no way we could win an
 			// active auction, thus it would make no sense to have a crowdloan this long.
-			let (lease_period_at_end, is_first_block) = T::Auctioneer::lease_period_index(end);
+			let (lease_period_at_end, is_first_block) =
+				T::Auctioneer::lease_period_index(end).ok_or(Error::<T>::NoLeasePeriod)?;
 			let adjusted_lease_period_at_end = if is_first_block {
 				lease_period_at_end.saturating_sub(One::one())
 			} else {
@@ -389,10 +392,9 @@ pub mod pallet {
 			ensure!(adjusted_lease_period_at_end <= first_period, Error::<T>::EndTooFarInFuture);
 
 			// Can't start a crowdloan for a lease period that already passed.
-			ensure!(
-				first_period >= T::Auctioneer::lease_period_index(now).0,
-				Error::<T>::FirstPeriodInPast
-			);
+			if let Some((current_lease_period, _)) = T::Auctioneer::lease_period_index(now) {
+				ensure!(first_period >= current_lease_period, Error::<T>::FirstPeriodInPast);
+			}
 
 			// There should not be an existing fund.
 			ensure!(!Funds::<T>::contains_key(index), Error::<T>::FundNotEnded);
@@ -454,7 +456,8 @@ pub mod pallet {
 
 			// Make sure crowdloan is in a valid lease period
 			let now = frame_system::Pallet::<T>::block_number();
-			let current_lease_period = T::Auctioneer::lease_period_index(now).0;
+			let (current_lease_period, _) =
+				T::Auctioneer::lease_period_index(now).ok_or(Error::<T>::NoLeasePeriod)?;
 			ensure!(current_lease_period <= fund.first_period, Error::<T>::ContributionPeriodOver);
 
 			// Make sure crowdloan has not already won.
@@ -766,7 +769,8 @@ impl<T: Config> Pallet<T> {
 		// `fund.end` can represent the end of a failed crowdloan or the beginning of retirement
 		// If the current lease period is past the first period they are trying to bid for, then
 		// it is already too late to win the bid.
-		let current_lease_period = T::Auctioneer::lease_period_index(now).0;
+		let (current_lease_period, _) =
+			T::Auctioneer::lease_period_index(now).ok_or(Error::<T>::NoLeasePeriod)?;
 		ensure!(
 			now >= fund.end || current_lease_period > fund.first_period,
 			Error::<T>::FundNotEnded
@@ -953,7 +957,9 @@ mod tests {
 
 		fn new_auction(duration: u64, lease_period_index: u64) -> DispatchResult {
 			let now = System::block_number();
-			assert!(lease_period_index >= Self::lease_period_index(now).0);
+			let (current_lease_period, _) =
+				Self::lease_period_index(now).ok_or("no lease period yet")?;
+			assert!(lease_period_index >= current_lease_period);
 
 			let ending = System::block_number().saturating_add(duration);
 			AUCTION.with(|p| *p.borrow_mut() = Some((lease_period_index, ending)));
@@ -1006,13 +1012,13 @@ mod tests {
 			Ok(())
 		}
 
-		fn lease_period_index(b: BlockNumber) -> (u64, bool) {
+		fn lease_period_index(b: BlockNumber) -> Option<(u64, bool)> {
 			let (lease_period_length, offset) = Self::lease_period_length();
 			let b = b.saturating_sub(offset);
 
 			let lease_period = b / lease_period_length;
 			let first_block = (b % lease_period_length).is_zero();
-			(lease_period, first_block)
+			Some((lease_period, first_block))
 		}
 
 		fn lease_period_length() -> (u64, u64) {
@@ -1388,7 +1394,7 @@ mod tests {
 			assert_ok!(Crowdloan::create(Origin::signed(1), para_3, 1000, 1, 4, 40, None));
 			run_to_block(40);
 			let now = System::block_number();
-			assert_eq!(TestAuctioneer::lease_period_index(now).0, 2);
+			assert_eq!(TestAuctioneer::lease_period_index(now).unwrap().0, 2);
 			assert_noop!(
 				Crowdloan::contribute(Origin::signed(1), para_3, 49, None),
 				Error::<Test>::ContributionPeriodOver
