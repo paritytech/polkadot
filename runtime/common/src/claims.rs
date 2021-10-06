@@ -1589,13 +1589,8 @@ mod benchmarking {
 				assert!(super::Pallet::<T>::eth_recover(&signature, &data, extra).is_some());
 			}
 		}
-	}
 
-	#[cfg(test)]
-	mod tests {
-		use super::*;
-
-		frame_benchmarking::impl_benchmark_test_suite!(
+		impl_benchmark_test_suite!(
 			Pallet,
 			crate::claims::tests::new_test_ext(),
 			crate::claims::tests::Test,
