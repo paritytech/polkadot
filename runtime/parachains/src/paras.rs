@@ -281,19 +281,19 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn force_set_current_code(_c: u32) -> Weight {
-		frame_system::limits::BlockWeights::default().max_block
+		Weight::MAX
 	}
 	fn force_set_current_head(_s: u32) -> Weight {
-		frame_system::limits::BlockWeights::default().max_block
+		Weight::MAX
 	}
 	fn force_schedule_code_upgrade(_c: u32) -> Weight {
-		frame_system::limits::BlockWeights::default().max_block
+		Weight::MAX
 	}
 	fn force_note_new_head(_s: u32) -> Weight {
-		frame_system::limits::BlockWeights::default().max_block
+		Weight::MAX
 	}
 	fn force_queue_action() -> Weight {
-		frame_system::limits::BlockWeights::default().max_block
+		Weight::MAX
 	}
 }
 
