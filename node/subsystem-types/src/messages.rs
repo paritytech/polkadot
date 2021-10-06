@@ -643,6 +643,8 @@ pub enum RuntimeApiRequest {
 	),
 	/// Get information about the BABE epoch the block was included in.
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
+	/// Get all disputes in relation to a relay parent.
+	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v1::ScrapedOnChainVotes>>),
 }
 
 /// A message to the Runtime API subsystem.

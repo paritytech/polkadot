@@ -735,6 +735,7 @@ impl CompactStatement {
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
 #[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum ValidityAttestation {
 	/// Implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
@@ -747,6 +748,18 @@ pub enum ValidityAttestation {
 }
 
 impl ValidityAttestation {
+	/// Produce the underlying signed payload of the attestation, given the hash of the candidate,
+	/// which should be known in context.
+	pub fn to_compact_statement(&self, candidate_hash: CandidateHash) -> CompactStatement {
+		// Explicit and implicit map directly from
+		// `ValidityVote::Valid` and `ValidityVote::Issued`, and hence there is a
+		// `1:1` relationshow which enables the conversion.
+		match *self {
+			ValidityAttestation::Implicit(_) => CompactStatement::Seconded(candidate_hash),
+			ValidityAttestation::Explicit(_) => CompactStatement::Valid(candidate_hash),
+		}
+	}
+
 	/// Get a reference to the signature.
 	pub fn signature(&self) -> &ValidatorSignature {
 		match *self {
