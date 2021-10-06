@@ -167,6 +167,9 @@ impl Contains<Call> for BaseFilter {
 			Call::Dmp(_) |
 			Call::Ump(_) |
 			Call::Hrmp(_) |
+			// Root origin can force register or deregister a para.
+			Call::Registrar(paras_registrar::Call::force_register(..)) |
+			Call::Registrar(paras_registrar::Call::deregister(..)) |
 			Call::Slots(_) => true,
 			// Disable paras registration, crowdloans, and auctions for now.
 			Call::Registrar(_) | Call::Auctions(_) | Call::Crowdloan(_) => false,
