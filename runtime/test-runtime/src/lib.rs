@@ -223,11 +223,15 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
 	pub storage TransactionByteFee: Balance = 10 * MILLICENTS;
+	/// This value increases the priority of `Operational` transactions by adding
+	/// a "virtual tip" that's equal to the `OperationalFeeMultiplier * final_fee`.
+	pub const OperationalFeeMultiplier: u8 = 5;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
 	type TransactionByteFee = TransactionByteFee;
+	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
@@ -457,7 +461,7 @@ impl pallet_sudo::Config for Runtime {
 }
 
 impl parachains_configuration::Config for Runtime {
-	type WeightInfo = parachains_configuration::weights::WeightInfo<Runtime>;
+	type WeightInfo = parachains_configuration::TestWeightInfo;
 }
 
 impl parachains_shared::Config for Runtime {}
@@ -480,6 +484,7 @@ impl parachains_paras_inherent::Config for Runtime {}
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
 	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = ();
 }
 
 impl parachains_session_info::Config for Runtime {}
@@ -487,7 +492,7 @@ impl parachains_session_info::Config for Runtime {}
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 	type Event = Event;
-	type WeightInfo = parachains_paras::weights::WeightInfo<Runtime>;
+	type WeightInfo = parachains_paras::TestWeightInfo;
 }
 
 impl parachains_dmp::Config for Runtime {}
