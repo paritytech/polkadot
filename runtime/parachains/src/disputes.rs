@@ -129,6 +129,8 @@ pub trait DisputesHandler<BlockNumber> {
 		included_in: BlockNumber,
 	);
 
+	fn get_included(session: SessionIndex, candidate_hash: CandidateHash) -> Option<BlockNumber>;
+
 	/// Whether the given candidate concluded invalid in a dispute with supermajority.
 	fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool;
 
@@ -162,6 +164,10 @@ impl<BlockNumber> DisputesHandler<BlockNumber> for () {
 		_candidate_hash: CandidateHash,
 		_included_in: BlockNumber,
 	) {
+	}
+
+	fn get_included(_session: SessionIndex, _candidate_hash: CandidateHash) -> Option<BlockNumber> {
+		None
 	}
 
 	fn concluded_invalid(_session: SessionIndex, _candidate_hash: CandidateHash) -> bool {
@@ -198,6 +204,13 @@ impl<T: Config> DisputesHandler<T::BlockNumber> for pallet::Pallet<T> {
 		included_in: T::BlockNumber,
 	) {
 		pallet::Pallet::<T>::note_included(session, candidate_hash, included_in)
+	}
+
+	fn get_included(
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+	) -> Option<T::BlockNumber> {
+		pallet::Pallet::<T>::get_included(session, candidate_hash)
 	}
 
 	fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
@@ -1111,6 +1124,13 @@ impl<T: Config> Pallet<T> {
 				Self::revert_and_freeze(revert_to);
 			}
 		}
+	}
+
+	pub(crate) fn get_included(
+		session: SessionIndex,
+		candidate_hash: CandidateHash,
+	) -> Option<T::BlockNumber> {
+		<Included<T>>::get(session, candidate_hash)
 	}
 
 	pub(crate) fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {

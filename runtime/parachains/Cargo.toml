@@ -13,6 +13,7 @@ scale-info = { version = "1.0", default-features = false, features = ["derive"] 
 serde = { version = "1.0.130", features = [ "derive" ], optional = true }
 derive_more = "0.99.14"
 bitflags = "1.3.2"
+no-std-compat = "0.4.1"
 
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

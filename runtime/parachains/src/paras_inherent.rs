@@ -21,6 +21,8 @@
 //! as it has no initialization logic and its finalization logic depends only on the details of
 //! this module.
 
+use no_std_compat::cmp::Ordering;
+
 use crate::{
 	disputes::DisputesHandler,
 	inclusion,
@@ -249,6 +251,7 @@ pub mod pallet {
 			<scheduler::Pallet<T>>::clear();
 			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
 
+			// TODO: should this be moved up before disputes are handled?
 			limit_paras_inherent::<T>(&mut disputes, &mut signed_bitfields, &mut backed_candidates);
 			let disputes_len = disputes.len() as Weight;
 			let bitfields_len = signed_bitfields.len() as Weight;
@@ -321,7 +324,6 @@ fn limit_paras_inherent<T: Config>(
 	}
 
 	let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-	let _block_weight = frame_system::Pallet::<T>::block_weight().total();
 	let max_non_inclusion_weight = max_block_weight - MINIMAL_INCLUSION_INHERENT_WEIGHT;
 
 	let disputes_weight = disputes.len() as Weight * DISPUTE_WEIGHT;
@@ -331,6 +333,37 @@ fn limit_paras_inherent<T: Config>(
 	let total_non_inclusion_weight = disputes_weight + bitfields_weight + backed_candidates_weight;
 
 	if disputes_weight > max_non_inclusion_weight {
+		// Sort the dispute statements according to the following prioritization:
+		//  1. Prioritize local disputes over remote disputes.
+		//  2. Prioritize older disputes over newer disputes.
+		//  3. Prioritize local disputes withan invalid vote over valid votes.
+		disputes.sort_by(|a, b| {
+			// TODO: not sure this gives the right definition of a "local" dispute.
+			let a_local_block = T::DisputesHandler::get_included(a.session, a.candidate_hash);
+			let b_local_block = T::DisputesHandler::get_included(b.session, b.candidate_hash);
+			match (a_local_block, b_local_block) {
+				// Prioritize local disputes over remote disputes.
+				(None, Some(_)) => Ordering::Greater,
+				(Some(_), None) => Ordering::Less,
+				// For local disputes, prioritize those with votes for invalidity.
+				(Some(a_height), Some(b_height)) => {
+					// TODO: only inspect our validator index?
+					let a_invalid =
+						a.statements.iter().any(|statement| statement.0.indicates_invalidity());
+					let b_invalid =
+						b.statements.iter().any(|statement| statement.0.indicates_invalidity());
+					match (a_invalid, b_invalid) {
+						(true, false) => Ordering::Less,
+						(false, true) => Ordering::Greater,
+						// Fallback to earliest local dispute if neither or both signal invalidity.
+						_ => a_height.cmp(&b_height),
+					}
+				},
+				// Prioritize earlier remote disputes using session as rough proxy.
+				(None, None) => a.session.cmp(&b.session),
+			}
+		});
+
 		let max_disputes = max_non_inclusion_weight / DISPUTE_WEIGHT;
 		disputes.truncate(max_disputes as usize);
 		bitfields.clear();
