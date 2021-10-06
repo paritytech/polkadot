@@ -1048,7 +1048,7 @@ mod benchmarking {
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
 	use sp_runtime::traits::Bounded;
 
-	use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whitelisted_caller};
+	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1160,11 +1160,11 @@ mod benchmarking {
 			assert_eq!(paras::Pallet::<T>::lifecycle(parachain), Some(ParaLifecycle::Parathread));
 			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parachain));
 		}
-	}
 
-	impl_benchmark_test_suite!(
-		Registrar,
-		crate::integration_tests::new_test_ext(),
-		crate::integration_tests::Test,
-	);
+		impl_benchmark_test_suite!(
+			Registrar,
+			crate::integration_tests::new_test_ext(),
+			crate::integration_tests::Test,
+		);
+	}
 }

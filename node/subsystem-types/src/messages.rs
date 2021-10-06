@@ -23,6 +23,7 @@
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
 use futures::channel::oneshot;
+use sc_network::Multiaddr;
 use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
@@ -50,6 +51,7 @@ use polkadot_statement_table::v1::Misbehavior;
 use std::{
 	collections::{BTreeMap, HashSet},
 	sync::Arc,
+	time::Duration,
 };
 
 /// Network events as transmitted to other subsystems, wrapped in their message types.
@@ -113,6 +115,8 @@ pub enum CandidateValidationMessage {
 	ValidateFromChainState(
 		CandidateDescriptor,
 		Arc<PoV>,
+		/// Execution timeout
+		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
@@ -129,6 +133,8 @@ pub enum CandidateValidationMessage {
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
+		/// Execution timeout
+		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 }
@@ -137,8 +143,8 @@ impl CandidateValidationMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::ValidateFromChainState(_, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
+			Self::ValidateFromChainState(_, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
 		}
 	}
 }
@@ -345,6 +351,14 @@ pub enum NetworkBridgeMessage {
 		/// authority discovery has failed to resolve.
 		failed: oneshot::Sender<usize>,
 	},
+	/// Alternative to `ConnectToValidators` in case you already know the `Multiaddrs` you want to be
+	/// connected to.
+	ConnectToResolvedValidators {
+		/// Each entry corresponds to the addresses of an already resolved validator.
+		validator_addrs: Vec<Vec<Multiaddr>>,
+		/// The peer set we want the connection on.
+		peer_set: PeerSet,
+	},
 	/// Inform the distribution subsystems about the new
 	/// gossip network topology formed.
 	NewGossipTopology {
@@ -365,6 +379,7 @@ impl NetworkBridgeMessage {
 			Self::SendValidationMessages(_) => None,
 			Self::SendCollationMessages(_) => None,
 			Self::ConnectToValidators { .. } => None,
+			Self::ConnectToResolvedValidators { .. } => None,
 			Self::SendRequests { .. } => None,
 			Self::NewGossipTopology { .. } => None,
 		}
@@ -476,17 +491,19 @@ pub enum AvailabilityStoreMessage {
 		tx: oneshot::Sender<Result<(), ()>>,
 	},
 
-	/// Store a `AvailableData` in the AV store.
-	/// If `ValidatorIndex` is present store corresponding chunk also.
+	/// Store a `AvailableData` and all of its chunks in the AV store.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreAvailableData(
-		CandidateHash,
-		Option<ValidatorIndex>,
-		u32,
-		AvailableData,
-		oneshot::Sender<Result<(), ()>>,
-	),
+	StoreAvailableData {
+		/// A hash of the candidate this `available_data` belongs to.
+		candidate_hash: CandidateHash,
+		/// The number of validators in the session.
+		n_validators: u32,
+		/// The `AvailableData` itself.
+		available_data: AvailableData,
+		/// Sending side of the channel to send result to.
+		tx: oneshot::Sender<Result<(), ()>>,
+	},
 }
 
 impl AvailabilityStoreMessage {
@@ -513,7 +530,7 @@ pub enum ChainApiMessage {
 	/// Get the cumulative weight of the given block, by hash.
 	/// If the block or weight is unknown, this returns `None`.
 	///
-	/// Note: this the weight within the low-level fork-choice rule,
+	/// Note: this is the weight within the low-level fork-choice rule,
 	/// not the high-level one implemented in the chain-selection subsystem.
 	///
 	/// Weight is used for comparing blocks in a fork-choice rule.
@@ -850,5 +867,9 @@ pub enum ApprovalDistributionMessage {
 }
 
 /// Message to the Gossip Support subsystem.
-#[derive(Debug)]
-pub enum GossipSupportMessage {}
+#[derive(Debug, derive_more::From)]
+pub enum GossipSupportMessage {
+	/// Dummy constructor, so we can receive networking events.
+	#[from]
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
+}
