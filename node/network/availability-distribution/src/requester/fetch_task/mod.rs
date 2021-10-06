@@ -344,7 +344,7 @@ impl RunningTask {
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::NetworkError(err)) => {
-				tracing::info!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					origin= ?validator,
 					err= ?err,
@@ -353,7 +353,7 @@ impl RunningTask {
 				Err(TaskError::PeerError)
 			},
 			Err(RequestError::Canceled(oneshot::Canceled)) => {
-				tracing::info!(target: LOG_TARGET,
+				tracing::debug!(target: LOG_TARGET,
 							   origin= ?validator,
 							   "Erasure chunk request got canceled");
 				Err(TaskError::PeerError)
