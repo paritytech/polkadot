@@ -160,7 +160,8 @@ impl Ord for CandidateComparator {
 }
 ```
 TODO: Better use block number of block including the candidate to account for
-contextual execution.
+contextual execution - also relay parent is not unique (two forks building on
+the same one).
 TODO: https://github.com/paritytech/srlabs_findings/issues/136
 So we order first by block number of the relay parent of the candidate, and then
 by `ParaId` and only afterwards by its relay parent hash. This way we get a
