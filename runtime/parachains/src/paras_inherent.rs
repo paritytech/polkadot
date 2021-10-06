@@ -22,22 +22,29 @@
 //! this module.
 
 use crate::{
+	configuration::Config,
 	disputes::DisputesHandler,
 	inclusion,
 	scheduler::{self, FreedReason},
 	shared, ump,
 };
+use bitvec::prelude::BitVec;
 use frame_support::{
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
 	pallet_prelude::*,
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	BackedCandidate, InherentData as ParachainsInherentData, ScrapedOnChainVotes,
+	BackedCandidate, CandidateHash, CoreIndex, DisputedBitfield,
+	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SessionIndex,
+	SignedAvailabilityBitfields, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
 	PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_runtime::traits::Header as HeaderT;
-use sp_std::prelude::*;
+use sp_std::{
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+	prelude::*,
+};
 
 pub use pallet::*;
 
@@ -177,9 +184,11 @@ pub mod pallet {
 				Error::<T>::InvalidParentHeader,
 			);
 
+			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
+
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
-			{
+			let (disputed_bits, concluded_invalid_disputed_candidates) = {
 				let new_current_dispute_sets: Vec<_> = disputes
 					.iter()
 					.filter(|s| s.session == current_session)
@@ -193,20 +202,38 @@ pub mod pallet {
 					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
 				}
 
-				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
-					let concluded_invalid_disputes: Vec<_> = new_current_dispute_sets
-						.iter()
-						.filter(|(s, c)| T::DisputesHandler::concluded_invalid(*s, *c))
-						.map(|(_, c)| *c)
-						.collect();
+				let (mut freed_disputed, concluded_invalid_disputed_candidates) =
+					if !new_current_dispute_sets.is_empty() {
+						let concluded_invalid_disputes = new_current_dispute_sets
+							.iter()
+							.filter(|(session, candidate)| {
+								T::DisputesHandler::concluded_invalid(*session, *candidate)
+							})
+							.map(|(_, candidate)| *candidate)
+							.collect::<BTreeSet<CandidateHash>>();
 
-					<inclusion::Pallet<T>>::collect_disputed(concluded_invalid_disputes)
-						.into_iter()
-						.map(|core| (core, FreedReason::Concluded))
-						.collect()
-				} else {
-					Vec::new()
-				};
+						let freed_disputed =
+							<inclusion::Pallet<T>>::collect_disputed(&concluded_invalid_disputes)
+								.into_iter()
+								.map(|core| (core, FreedReason::Concluded))
+								.collect();
+						(freed_disputed, concluded_invalid_disputes)
+					} else {
+						(Vec::new(), BTreeSet::new())
+					};
+
+				// create a bit index from the set of core indicies.
+				let mut bitvec = BitVec::with_capacity(expected_bits);
+				if expected_bits > 0 {
+					bitvec.set(expected_bits.saturating_sub(1), false);
+					for (core_idx, _) in &freed_disputed {
+						let core_idx = core_idx.0 as usize;
+						if core_idx < expected_bits {
+							bitvec.set(core_idx, true);
+						}
+					}
+				}
+				let disputed_bitfield = DisputedBitfield::from(bitvec);
 
 				if !freed_disputed.is_empty() {
 					// unstable sort is fine, because core indices are unique
@@ -214,16 +241,29 @@ pub mod pallet {
 					freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 					<scheduler::Pallet<T>>::free_cores(freed_disputed);
 				}
+
+				(disputed_bitfield, concluded_invalid_disputed_candidates)
 			};
+
+			let validators = shared::Pallet::<T>::active_validator_keys();
+
+			let checked_bitfields = filter_bitfields::<T>(
+				signed_bitfields,
+				disputed_bits,
+				expected_bits,
+				parent_hash,
+				current_session,
+				&validators,
+			);
 
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
-			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
-				signed_bitfields,
+				checked_bitfields,
 				<scheduler::Pallet<T>>::core_para,
-			)?;
+				&validators,
+			);
 
 			// Inform the disputes module of all included candidates.
 			let now = <frame_system::Pallet<T>>::block_number();
@@ -240,31 +280,21 @@ pub mod pallet {
 			};
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
-			let mut freed = freed_concluded
+			let freed = freed_concluded
 				.into_iter()
 				.map(|(c, _hash)| (c, FreedReason::Concluded))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
-				.collect::<Vec<_>>();
+				.collect::<BTreeMap<CoreIndex, FreedReason>>();
 
-			// unstable sort is fine, because core indices are unique.
-			freed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+			let backed_candidates = filter_backed_candidates::<T>(
+				parent_hash,
+				backed_candidates,
+				concluded_invalid_disputed_candidates,
+			);
+			let backed_candidates_len = backed_candidates.len() as Weight;
 
 			<scheduler::Pallet<T>>::clear();
 			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
-
-			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
-			let backed_candidates_len = backed_candidates.len() as Weight;
-
-			// Refuse to back any candidates that were disputed and are concluded invalid.
-			for candidate in &backed_candidates {
-				ensure!(
-					!T::DisputesHandler::concluded_invalid(
-						current_session,
-						candidate.candidate.hash(),
-					),
-					Error::<T>::CandidateConcludedInvalid,
-				);
-			}
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
@@ -302,6 +332,107 @@ pub mod pallet {
 			.into())
 		}
 	}
+}
+
+/// Filter bitfields based on freed core indices.
+///
+/// Do sanity checks on the bitfields:
+///
+///  1. no more than one bitfield per validator
+///  2. bitfields are ascending by validator index.
+///  3. each bitfield has exactly `expected_bits`
+///  4. signature is valid
+///  5. remove any disputed core indices
+///
+/// If any of those is not passed, the bitfield is dropped.
+fn filter_bitfields<T: Config>(
+	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
+	disputed_bits: DisputedBitfield,
+	expected_bits: usize,
+	parent_hash: T::Hash,
+	session_index: SessionIndex,
+	validators: &[ValidatorId],
+) -> SignedAvailabilityBitfields {
+	let mut bitfields = Vec::with_capacity(unchecked_bitfields.len());
+
+	let mut last_index = None;
+
+	if disputed_bits.0.len() != expected_bits {
+		return Default::default()
+	}
+
+	if validators.len() != expected_bits {
+		return Default::default()
+	}
+
+	for unchecked_bitfield in unchecked_bitfields {
+		let signing_context = SigningContext { parent_hash, session_index };
+
+		if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
+			continue
+		}
+
+		if last_index.map_or(false, |last| last >= unchecked_bitfield.unchecked_validator_index()) {
+			continue
+		}
+		if (unchecked_bitfield.unchecked_validator_index().0 as usize) >= validators.len() {
+			continue
+		}
+
+		let validator_index = unchecked_bitfield.unchecked_validator_index();
+
+		let validator_public = &validators[validator_index.0 as usize];
+
+		let signed_bitfield = if let Ok(signed_bitfield) =
+			unchecked_bitfield.try_into_checked(&signing_context, validator_public)
+		{
+			signed_bitfield
+		} else {
+			continue
+		};
+
+		last_index = Some(validator_index);
+
+		// TODO FIXME do we want to adjust the bitfield or drop it entirely?
+
+		// remove all 1 bits which map to concluded disputes
+		// signed_bitfield.payload.0.iter_mut()
+		// 	.enumerate()
+		// 	.any(|(core_idx, mut bit)| {
+		// 		*bit = if *bit {
+		// 			// ignore those that have matching invalid dispute bits
+		// 			// which always works, since we checked for uniformat bit length
+		// 			// before
+		// 			!disputed_bits.0[core_idx]
+		// 		} else {
+		// 			// bit wasn't set in the first place
+		// 			false
+		// 		};
+		// 	});
+		// TODO at this point the signature won't match, since we modified the payload
+		// TODO double check that the signature is not used at a later point
+		bitfields.push(signed_bitfield)
+	}
+	bitfields
+}
+
+/// Filter candidates based on the concluded disputes.
+fn filter_backed_candidates<T: Config>(
+	relay_parent: T::Hash,
+	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
+	disputed_candidates: BTreeSet<CandidateHash>,
+) -> Vec<BackedCandidate<T::Hash>> {
+	// Remove any candidates that were concluded invalid.
+	backed_candidates.retain(|backed_candidate| {
+		let candidate_hash = backed_candidate.candidate.hash();
+		!disputed_candidates.contains(&candidate_hash)
+	});
+	// Remove candidates referencing a different relay parent.
+	backed_candidates
+		.retain(|backed_candidate| backed_candidate.descriptor().relay_parent == relay_parent);
+	//
+	// Limit weight, to avoid overweight block.
+	limit_backed_candidates::<T>(backed_candidates)
 }
 
 /// Limit the number of backed candidates processed in order to stay within block weight limits.
@@ -411,6 +542,16 @@ mod tests {
 				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 1);
 			});
 		}
+	}
+
+	mod filter_bitfields {
+		use super::*;
+		// TODO
+	}
+
+	mod filter_candidates {
+		use super::*;
+		// TODO
 	}
 
 	mod paras_inherent_weight {

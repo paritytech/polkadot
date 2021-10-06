@@ -533,6 +533,17 @@ impl CandidateCommitments {
 	}
 }
 
+/// A bitfield concering concluded disputes for candidates
+/// associated to the core index equivalent to the bit position.
+#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+pub struct DisputedBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
+
+impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
+	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
+		Self(inner)
+	}
+}
+
 /// A bitfield concerning availability of backed candidates.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);

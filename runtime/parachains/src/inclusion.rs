@@ -26,15 +26,15 @@ use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
-	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
-	ValidityAttestation,
+	HeadData, Id as ParaId, SignedAvailabilityBitfields, SigningContext, ValidatorId,
+	ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{One, Saturating},
 	DispatchError,
 };
-use sp_std::prelude::*;
+use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
 use crate::{configuration, disputes, dmp, hrmp, paras, scheduler::CoreAssignment, shared, ump};
 
@@ -261,12 +261,10 @@ impl<T: Config> Pallet<T> {
 	/// and cores free.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
-		unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
+		checked_bitfields: SignedAvailabilityBitfields,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
-		let validators = shared::Pallet::<T>::active_validator_keys();
-		let session_index = shared::Pallet::<T>::session_index();
-
+		validators: &[ValidatorId],
+	) -> Vec<(CoreIndex, CandidateHash)> {
 		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
 			.map(|opt_para_id| {
@@ -274,56 +272,10 @@ impl<T: Config> Pallet<T> {
 			})
 			.collect::<Vec<_>>();
 
-		// do sanity checks on the bitfields:
-		// 1. no more than one bitfield per validator
-		// 2. bitfields are ascending by validator index.
-		// 3. each bitfield has exactly `expected_bits`
-		// 4. signature is valid.
-		let signed_bitfields = {
-			let mut last_index = None;
-
-			let signing_context = SigningContext {
-				parent_hash: <frame_system::Pallet<T>>::parent_hash(),
-				session_index,
-			};
-
-			let mut signed_bitfields = Vec::with_capacity(unchecked_bitfields.len());
-
-			for unchecked_bitfield in unchecked_bitfields {
-				ensure!(
-					unchecked_bitfield.unchecked_payload().0.len() == expected_bits,
-					Error::<T>::WrongBitfieldSize,
-				);
-
-				ensure!(
-					last_index
-						.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()),
-					Error::<T>::BitfieldDuplicateOrUnordered,
-				);
-
-				ensure!(
-					(unchecked_bitfield.unchecked_validator_index().0 as usize) < validators.len(),
-					Error::<T>::ValidatorIndexOutOfBounds,
-				);
-
-				let validator_public =
-					&validators[unchecked_bitfield.unchecked_validator_index().0 as usize];
-
-				last_index = Some(unchecked_bitfield.unchecked_validator_index());
-
-				signed_bitfields.push(
-					unchecked_bitfield
-						.try_into_checked(&signing_context, validator_public)
-						.map_err(|_| Error::<T>::InvalidBitfieldSignature)?,
-				);
-			}
-			signed_bitfields
-		};
-
 		let now = <frame_system::Pallet<T>>::block_number();
-		for signed_bitfield in signed_bitfields {
+		for checked_bitfield in checked_bitfields {
 			for (bit_idx, _) in
-				signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
+				checked_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
 			{
 				let pending_availability = if let Some((_, pending_availability)) =
 					assigned_paras_record[bit_idx].as_mut()
@@ -339,7 +291,7 @@ impl<T: Config> Pallet<T> {
 
 				// defensive check - this is constructed by loading the availability bitfield record,
 				// which is always `Some` if the core is occupied - that's why we're here.
-				let val_idx = signed_bitfield.validator_index().0 as usize;
+				let val_idx = checked_bitfield.validator_index().0 as usize;
 				if let Some(mut bit) =
 					pending_availability.as_mut().and_then(|candidate_pending_availability| {
 						candidate_pending_availability.availability_votes.get_mut(val_idx)
@@ -348,9 +300,9 @@ impl<T: Config> Pallet<T> {
 				}
 			}
 
-			let validator_index = signed_bitfield.validator_index();
+			let validator_index = checked_bitfield.validator_index();
 			let record = AvailabilityBitfieldRecord {
-				bitfield: signed_bitfield.into_payload(),
+				bitfield: checked_bitfield.into_payload(),
 				submitted_at: now,
 			};
 
@@ -398,7 +350,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		Ok(freed_cores)
+		freed_cores
 	}
 
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
@@ -822,7 +774,7 @@ impl<T: Config> Pallet<T> {
 	/// Cleans up all paras pending availability that are in the given list of disputed candidates.
 	///
 	/// Returns a vector of cleaned-up core IDs.
-	pub(crate) fn collect_disputed(disputed: Vec<CandidateHash>) -> Vec<CoreIndex> {
+	pub(crate) fn collect_disputed(disputed: &BTreeSet<CandidateHash>) -> Vec<CoreIndex> {
 		let mut cleaned_up_ids = Vec::new();
 		let mut cleaned_up_cores = Vec::new();
 
@@ -1359,12 +1311,14 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					&core_lookup,
-				)
-				.is_err());
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						&core_lookup,
+					),
+					vec![]
+				);
 			}
 
 			// wrong number of bits: other way around.
@@ -1378,12 +1332,14 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits() + 1,
-					vec![signed.into()],
-					&core_lookup,
-				)
-				.is_err());
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits() + 1,
+						vec![signed.into()],
+						&core_lookup,
+					),
+					vec![]
+				);
 			}
 
 			// duplicate.
@@ -1398,12 +1354,14 @@ mod tests {
 				))
 				.into();
 
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.clone(), signed],
-					&core_lookup,
-				)
-				.is_err());
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.clone(), signed],
+						&core_lookup,
+					),
+					vec![]
+				);
 			}
 
 			// out of order.
@@ -1427,12 +1385,14 @@ mod tests {
 				))
 				.into();
 
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed_1, signed_0],
-					&core_lookup,
-				)
-				.is_err());
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed_1, signed_0],
+						&core_lookup,
+					),
+					vec![]
+				);
 			}
 
 			// non-pending bit set.
@@ -1452,7 +1412,7 @@ mod tests {
 						vec![signed.into()],
 						&core_lookup,
 					),
-					Ok(vec![])
+					vec![]
 				);
 			}
 
@@ -1467,12 +1427,14 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					&core_lookup,
-				)
-				.is_ok());
+				assert!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						&core_lookup,
+					)
+					.len() == 1
+				);
 			}
 
 			// bitfield signed with pending bit signed.
@@ -1509,12 +1471,14 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					&core_lookup,
-				)
-				.is_ok());
+				assert!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						&core_lookup,
+					)
+					.len() == 1
+				);
 
 				<PendingAvailability<Test>>::remove(chain_a);
 				PendingAvailabilityCommitments::<Test>::remove(chain_a);
@@ -1557,7 +1521,7 @@ mod tests {
 						vec![signed.into()],
 						&core_lookup,
 					),
-					Ok(vec![]),
+					vec![],
 				);
 			}
 		});
