@@ -1494,18 +1494,17 @@ mod benchmarking {
 			let signature = sig::<T>(&secret_key, &account.encode(), statement.to_text());
 			super::Pallet::<T>::mint_claim(RawOrigin::Root.into(), eth_address, VALUE.into(), vesting, Some(statement))?;
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
-			let call = Call::<T>::claim_attest {
+			let call_enc = Call::<T>::claim_attest {
 				dest: account.clone(),
 				ethereum_signature: signature.clone(),
 				statement: StatementKind::Regular.to_text().to_vec()
-			};
-			let call_enc = call.encode();
+			}.encode();
 			let source = sp_runtime::transaction_validity::TransactionSource::External;
 		}: {
+			let call = <Call<T> as Decode>::decode(&mut &*call_enc)
+				.expect("call is encoded above, encoding must be correct");
 			super::Pallet::<T>::validate_unsigned(source, &call).map_err(|e| -> &'static str { e.into() })?;
-			<Call<T> as Decode>::decode(&mut &*call_enc)
-				.expect("call is encoded above, encoding must be correct")
-				.dispatch_bypass_filter(RawOrigin::None.into())?;
+			call.dispatch_bypass_filter(RawOrigin::None.into())?;
 		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
@@ -1531,7 +1530,7 @@ mod benchmarking {
 			Preclaims::<T>::insert(&account, eth_address);
 			assert_eq!(Claims::<T>::get(eth_address), Some(VALUE.into()));
 
-			let call = super::Call::attest { statement: StatementKind::Regular.to_text().to_vec() };
+			let call = super::Call::<T>::attest { statement: StatementKind::Regular.to_text().to_vec() };
 			// We have to copy the validate statement here because of trait issues... :(
 			let validate = |who: &T::AccountId, call: &super::Call<T>| -> DispatchResult {
 				if let Call::attest{ statement: attested_statement } = call {
@@ -1544,10 +1543,10 @@ mod benchmarking {
 			};
 			let call_enc = call.encode();
 		}: {
+			let call = <Call<T> as Decode>::decode(&mut &*call_enc)
+				.expect("call is encoded above, encoding must be correct");
 			validate(&account, &call)?;
-			<Call<T> as Decode>::decode(&mut &*call_enc)
-				.expect("call is encoded above, encoding must be correct")
-				.dispatch_bypass_filter(RawOrigin::Signed(account).into())?;
+			call.dispatch_bypass_filter(RawOrigin::Signed(account).into())?;
 		}
 		verify {
 			assert_eq!(Claims::<T>::get(eth_address), None);
