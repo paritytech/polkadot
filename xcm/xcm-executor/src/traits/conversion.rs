@@ -144,9 +144,9 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// // A convertor that will bump the para id and pass it to the next one.
 /// struct BumpParaId;
 /// impl ConvertOrigin<u32> for BumpParaId {
-/// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
-/// 		match origin.interior() {
-/// 			Junctions::X1(Junction::Parachain(id)) if origin.parent_count() == 0 => {
+/// 	fn convert_origin(origin: impl Into<MultiLocation>, _: OriginKind) -> Result<u32, MultiLocation> {
+/// 		match origin.into() {
+/// 			MultiLocation { parents: 0, interior: Junctions::X1(Junction::Parachain(id)) } => {
 /// 				Err(Junctions::X1(Junction::Parachain(id + 1)).into())
 /// 			}
 /// 			_ => unreachable!()
@@ -156,12 +156,12 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 ///
 /// struct AcceptPara7;
 /// impl ConvertOrigin<u32> for AcceptPara7 {
-/// 	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<u32, MultiLocation> {
-/// 		match origin.interior() {
-/// 			Junctions::X1(Junction::Parachain(id)) if id == &7 && origin.parent_count() == 0 => {
+/// 	fn convert_origin(origin: impl Into<MultiLocation>, _: OriginKind) -> Result<u32, MultiLocation> {
+/// 		match origin.into() {
+/// 			MultiLocation { parents: 0, interior: Junctions::X1(Junction::Parachain(id)) } if id == 7 => {
 /// 				Ok(7)
 /// 			}
-/// 			_ => Err(origin)
+/// 			o => Err(o)
 /// 		}
 /// 	}
 /// }
@@ -175,18 +175,25 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// ```
 pub trait ConvertOrigin<Origin> {
 	/// Attempt to convert `origin` to the generic `Origin` whilst consuming it.
-	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation>;
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<Origin, MultiLocation>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl<O> ConvertOrigin<O> for Tuple {
-	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<O, MultiLocation> {
+	fn convert_origin(
+		origin: impl Into<MultiLocation>,
+		kind: OriginKind,
+	) -> Result<O, MultiLocation> {
 		for_tuples!( #(
 			let origin = match Tuple::convert_origin(origin, kind) {
 				Err(o) => o,
 				r => return r
 			};
 		)* );
+		let origin = origin.into();
 		log::trace!(
 			target: "xcm::convert_origin",
 			"could not convert: origin: {:?}, kind: {:?}",
@@ -200,5 +207,5 @@ impl<O> ConvertOrigin<O> for Tuple {
 /// Means of inverting a location: given a location which describes a `target` interpreted from the
 /// `source`, this will provide the corresponding location which describes the `source`.
 pub trait InvertLocation {
-	fn invert_location(l: &MultiLocation) -> MultiLocation;
+	fn invert_location(l: &MultiLocation) -> Result<MultiLocation, ()>;
 }

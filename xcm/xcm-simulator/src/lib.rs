@@ -260,7 +260,7 @@ macro_rules! decl_test_network {
 						},
 					)*
 					_ => {
-						return Err($crate::XcmError::CannotReachDestination(destination, message));
+						return Err($crate::XcmError::Unroutable);
 					}
 				}
 			}
@@ -285,7 +285,7 @@ macro_rules! decl_test_network {
 							);
 						},
 					)*
-					_ => return Err($crate::XcmError::SendFailed("Only sends to children parachain.")),
+					_ => return Err($crate::XcmError::Transport("Only sends to children parachain.")),
 				}
 			}
 
@@ -296,9 +296,10 @@ macro_rules! decl_test_network {
 		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
 
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
-			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
+			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
 				use $crate::{UmpSink, XcmpMessageHandlerT};
 
+				let destination = destination.into();
 				match destination.interior() {
 					$crate::Junctions::Here if destination.parent_count() == 1 => {
 						$crate::PARA_MESSAGE_BUS.with(
@@ -312,7 +313,7 @@ macro_rules! decl_test_network {
 							Ok(())
 						},
 					)*
-					_ => Err($crate::XcmError::CannotReachDestination(destination, message)),
+					_ => Err($crate::SendError::CannotReachDestination(destination, message)),
 				}
 			}
 		}
@@ -320,9 +321,10 @@ macro_rules! decl_test_network {
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
 		impl $crate::SendXcm for RelayChainXcmRouter {
-			fn send_xcm(destination: $crate::MultiLocation, message: $crate::Xcm<()>) -> $crate::XcmResult {
+			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
 				use $crate::DmpMessageHandlerT;
 
+				let destination = destination.into();
 				match destination.interior() {
 					$(
 						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 0 => {
@@ -331,7 +333,7 @@ macro_rules! decl_test_network {
 							Ok(())
 						},
 					)*
-					_ => Err($crate::XcmError::SendFailed("Only sends to children parachain.")),
+					_ => Err($crate::SendError::Unroutable),
 				}
 			}
 		}

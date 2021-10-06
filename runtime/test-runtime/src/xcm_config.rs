@@ -15,10 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::{parameter_types, traits::Everything, weights::Weight};
-use xcm::latest::{
-	Error as XcmError, Junctions::Here, MultiAsset, MultiLocation, NetworkId, Parent,
-	Result as XcmResult, SendXcm, Xcm,
-};
+use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
 	traits::{InvertLocation, TransactAsset, WeightTrader},
@@ -27,6 +24,7 @@ use xcm_executor::{
 
 parameter_types! {
 	pub const OurNetwork: NetworkId = NetworkId::Polkadot;
+	pub const MaxInstructions: u32 = 100;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
@@ -38,7 +36,7 @@ pub type LocalOriginToLocation = (
 
 pub struct DoNothingRouter;
 impl SendXcm for DoNothingRouter {
-	fn send_xcm(_dest: MultiLocation, _msg: Xcm<()>) -> XcmResult {
+	fn send_xcm(_dest: impl Into<MultiLocation>, _msg: Xcm<()>) -> SendResult {
 		Ok(())
 	}
 }
@@ -70,8 +68,8 @@ impl WeightTrader for DummyWeightTrader {
 
 pub struct InvertNothing;
 impl InvertLocation for InvertNothing {
-	fn invert_location(_: &MultiLocation) -> MultiLocation {
-		Here.into()
+	fn invert_location(_: &MultiLocation) -> sp_std::result::Result<MultiLocation, ()> {
+		Ok(Here.into())
 	}
 }
 
@@ -85,7 +83,10 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = ();
 	type LocationInverter = InvertNothing;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call>;
+	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::Call, MaxInstructions>;
 	type Trader = DummyWeightTrader;
-	type ResponseHandler = ();
+	type ResponseHandler = super::Xcm;
+	type AssetTrap = super::Xcm;
+	type AssetClaims = super::Xcm;
+	type SubscriptionService = super::Xcm;
 }

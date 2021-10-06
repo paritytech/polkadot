@@ -92,6 +92,10 @@ impl<T: frame_system::Config> pallet_elections_phragmen::WeightInfo for WeightIn
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(5 as Weight))
 	}
+	// Storage: Benchmark Override (r:0 w:0)
+	fn remove_member_without_replacement() -> Weight {
+		(2_000_000_000_000 as Weight)
+	}
 	fn remove_member_wrong_refund() -> Weight {
 		(8_551_000 as Weight).saturating_add(T::DbWeight::get().reads(1 as Weight))
 	}

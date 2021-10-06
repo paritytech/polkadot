@@ -96,7 +96,7 @@ fn generate_conversion_from_v1() -> TokenStream {
 		.collect::<TokenStream>();
 
 	quote! {
-		impl TryFrom<crate::v1::MultiLocation> for MultiLocation {
+		impl core::convert::TryFrom<crate::v1::MultiLocation> for MultiLocation {
 			type Error = ();
 			fn try_from(v1: crate::v1::MultiLocation) -> core::result::Result<Self, ()> {
 				let mut res = MultiLocation::Null;

@@ -106,6 +106,10 @@ pub type NonFatalResult<T> = std::result::Result<T, NonFatal>;
 pub fn log_error(result: Result<()>) -> std::result::Result<(), Fatal> {
 	match result {
 		Err(Error::Fatal(f)) => Err(f),
+		Err(Error::NonFatal(error @ NonFatal::ImportCanceled(_))) => {
+			tracing::debug!(target: LOG_TARGET, error = ?error);
+			Ok(())
+		},
 		Err(Error::NonFatal(error)) => {
 			tracing::warn!(target: LOG_TARGET, error = ?error);
 			Ok(())

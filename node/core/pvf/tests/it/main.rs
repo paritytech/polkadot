@@ -17,14 +17,16 @@
 use async_std::sync::Mutex;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
-	start, Config, InvalidCandidate, Pvf, ValidationError, ValidationHost,
+	start, Config, InvalidCandidate, Metrics, Pvf, ValidationError, ValidationHost,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
+use std::time::Duration;
 
 mod adder;
 mod worker_common;
 
 const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_puppet_worker");
+const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 
 struct TestHost {
 	_cache_dir: tempfile::TempDir,
@@ -44,7 +46,7 @@ impl TestHost {
 		let program_path = std::path::PathBuf::from(PUPPET_EXE);
 		let mut config = Config::new(cache_dir.path().to_owned(), program_path);
 		f(&mut config);
-		let (host, task) = start(config);
+		let (host, task) = start(config, Metrics::default());
 		let _ = async_std::task::spawn(task);
 		Self { _cache_dir: cache_dir, host: Mutex::new(host) }
 	}
@@ -64,6 +66,7 @@ impl TestHost {
 			.await
 			.execute_pvf(
 				Pvf::from_code(code.into()),
+				TEST_EXECUTION_TIMEOUT,
 				params.encode(),
 				polkadot_node_core_pvf::Priority::Normal,
 				result_tx,

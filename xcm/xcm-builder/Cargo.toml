@@ -3,11 +3,11 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 name = "xcm-builder"
 description = "Tools & types for building with XCM and its executor."
-version = "0.9.9"
+version = "0.9.11"
 
 [dependencies]
-impl-trait-for-tuples = "0.2.0"
-parity-scale-codec = { version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -17,6 +17,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+log = { version = "0.4.0", default-features = false }
 
 # Polkadot dependencies
 polkadot-parachain = { path = "../../parachain", default-features = false }
@@ -30,7 +31,9 @@ polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 default = ["std"]
 runtime-benchmarks = []
 std = [
+	"log/std",
 	"parity-scale-codec/std",
+	"scale-info/std",
 	"xcm/std",
 	"xcm-executor/std",
 	"sp-std/std",

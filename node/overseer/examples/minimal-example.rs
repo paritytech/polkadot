@@ -28,8 +28,9 @@ use polkadot_node_subsystem_types::messages::{
 };
 use polkadot_overseer::{
 	self as overseer,
+	dummy::dummy_overseer_builder,
 	gen::{FromOverseer, SpawnedSubsystem},
-	AllMessages, AllSubsystems, HeadSupportsParachains, Overseer, OverseerSignal, SubsystemError,
+	AllMessages, HeadSupportsParachains, OverseerSignal, SubsystemError,
 };
 use polkadot_primitives::v1::Hash;
 
@@ -74,6 +75,7 @@ impl Subsystem1 {
 			let msg = CandidateValidationMessage::ValidateFromChainState(
 				Default::default(),
 				PoV { block_data: BlockData(Vec::new()) }.into(),
+				Default::default(),
 				tx,
 			);
 			ctx.send_message(<Ctx as overseer::SubsystemContext>::AllMessages::from(msg))
@@ -169,12 +171,13 @@ fn main() {
 			Delay::new(Duration::from_secs(1)).await;
 		});
 
-		let all_subsystems = AllSubsystems::<()>::dummy()
-			.replace_candidate_validation(Subsystem2)
-			.replace_candidate_backing(Subsystem1);
+		let (overseer, _handle) = dummy_overseer_builder(spawner, AlwaysSupportsParachains, None)
+			.unwrap()
+			.replace_candidate_validation(|_| Subsystem2)
+			.replace_candidate_backing(|orig| orig)
+			.build()
+			.unwrap();
 
-		let (overseer, _handle) =
-			Overseer::new(vec![], all_subsystems, None, AlwaysSupportsParachains, spawner).unwrap();
 		let overseer_fut = overseer.run().fuse();
 		let timer_stream = timer_stream;
 

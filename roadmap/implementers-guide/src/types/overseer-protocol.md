@@ -441,7 +441,7 @@ enum DisputeCoordinatorMessage {
         pending_confirmation: oneshot::Sender<ImportStatementsResult>
     },
     /// Fetch a list of all recent disputes that the co-ordinator is aware of.
-    /// These are disputes which have occured any time in recent sessions, which may have already concluded.
+    /// These are disputes which have occurred any time in recent sessions, which may have already concluded.
     RecentDisputes(ResponseChannel<Vec<(SessionIndex, CandidateHash)>>),
     /// Fetch a list of all active disputes that the co-ordinator is aware of.
     /// These disputes are either unconcluded or recently concluded.
@@ -699,7 +699,7 @@ The Runtime API subsystem is responsible for providing an interface to the state
 
 This is fueled by an auxiliary type encapsulating all request types defined in the Runtime API section of the guide.
 
-> TODO: link to the Runtime API section. Not possible currently because of https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/25. Once v0.7.1 is released it will work.
+> To do: link to the Runtime API section. Not possible currently because of https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/25. Once v0.7.1 is released it will work.
 
 ```rust
 enum RuntimeApiRequest {
@@ -785,6 +785,9 @@ enum ValidationResult {
     Invalid,
 }
 
+const BACKING_EXECUTION_TIMEOUT: Duration = 2 seconds;
+const APPROVAL_EXECUTION_TIMEOUT: Duration = 6 seconds;
+
 /// Messages received by the Validation subsystem.
 ///
 /// ## Validation Requests
@@ -807,6 +810,7 @@ pub enum CandidateValidationMessage {
     ValidateFromChainState(
         CandidateDescriptor,
         Arc<PoV>,
+        Duration, // Execution timeout.
         oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
     ),
     /// Validate a candidate with provided, exhaustive parameters for validation.
@@ -823,6 +827,7 @@ pub enum CandidateValidationMessage {
         ValidationCode,
         CandidateDescriptor,
         Arc<PoV>,
+        Duration, // Execution timeout.
         oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
     ),
 }

@@ -24,6 +24,7 @@ use core::{
 };
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
+use scale_info::TypeInfo;
 
 mod junction;
 mod multi_asset;
@@ -58,7 +59,7 @@ pub mod prelude {
 //   the number of items in the vector.
 
 /// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
-#[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
 pub enum OriginKind {
 	/// Origin should just be the native dispatch origin representation for the sender in the
 	/// local runtime framework. For Cumulus/Frame chains this is the `Parachain` or `Relay` origin
@@ -81,7 +82,7 @@ pub enum OriginKind {
 }
 
 /// Response data to a query.
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
 pub enum Response {
 	/// Some assets.
 	Assets(Vec<MultiAsset>),
@@ -95,10 +96,11 @@ pub enum Response {
 ///
 /// This is the inner XCM format and is version-sensitive. Messages are typically passed using the outer
 /// XCM format, known as `VersionedXcm`.
-#[derive(Derivative, Encode, Decode)]
+#[derive(Derivative, Encode, Decode, TypeInfo)]
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
+#[scale_info(bounds(), skip_type_params(Call))]
 pub enum Xcm<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
@@ -295,7 +297,7 @@ impl<Call> Xcm<Call> {
 			},
 			TeleportAsset { assets, effects } =>
 				TeleportAsset { assets, effects: effects.into_iter().map(Order::into).collect() },
-			QueryResponse { query_id: u64, response } => QueryResponse { query_id: u64, response },
+			QueryResponse { query_id, response } => QueryResponse { query_id, response },
 			TransferAsset { assets, dest } => TransferAsset { assets, dest },
 			TransferReserveAsset { assets, dest, effects } =>
 				TransferReserveAsset { assets, dest, effects },
@@ -326,6 +328,7 @@ impl TryFrom<Response1> for Response {
 	fn try_from(new_response: Response1) -> result::Result<Self, ()> {
 		Ok(match new_response {
 			Response1::Assets(assets) => Self::Assets(assets.try_into()?),
+			Response1::Version(..) => return Err(()),
 		})
 	}
 }
@@ -356,8 +359,8 @@ impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
 					.map(Order::try_from)
 					.collect::<result::Result<_, _>>()?,
 			},
-			Xcm1::QueryResponse { query_id: u64, response } =>
-				QueryResponse { query_id: u64, response: response.try_into()? },
+			Xcm1::QueryResponse { query_id, response } =>
+				QueryResponse { query_id, response: response.try_into()? },
 			Xcm1::TransferAsset { assets, beneficiary } =>
 				TransferAsset { assets: assets.try_into()?, dest: beneficiary.try_into()? },
 			Xcm1::TransferReserveAsset { assets, dest, effects } => TransferReserveAsset {
@@ -379,6 +382,7 @@ impl<Call> TryFrom<Xcm1<Call>> for Xcm<Call> {
 				who: MultiLocation1 { interior: who, parents: 0 }.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
 			},
+			Xcm1::SubscribeVersion { .. } | Xcm1::UnsubscribeVersion => return Err(()),
 		})
 	}
 }

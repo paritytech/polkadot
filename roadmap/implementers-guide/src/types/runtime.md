@@ -42,7 +42,7 @@ struct HostConfiguration {
 	pub dispute_period: SessionIndex,
 	/// How long after dispute conclusion to accept statements.
 	pub dispute_post_conclusion_acceptance_period: BlockNumber,
-	/// The maximum number of dispute spam slots 
+	/// The maximum number of dispute spam slots
 	pub dispute_max_spam_slots: u32,
 	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
 	pub dispute_conclusion_by_time_out_period: BlockNumber,
@@ -85,8 +85,6 @@ struct HostConfiguration {
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
 	pub max_downward_message_size: u32,
-	/// Number of sessions after which an HRMP open channel request expires.
-	pub hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
 	pub hrmp_sender_deposit: u32,
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
@@ -119,7 +117,7 @@ struct HostConfiguration {
 Inherent data passed to a runtime entry-point for the advancement of parachain consensus.
 
 This contains 3 pieces of data:
-1. [`Bitfields`](availability.md#signed-availability-bitfield) 
+1. [`Bitfields`](availability.md#signed-availability-bitfield)
 2. [`BackedCandidates`](backing.md#backed-candidate)
 3. [`MultiDisputeStatementSet`](disputes.md#multidisputestatementset)
 

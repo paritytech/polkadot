@@ -28,6 +28,7 @@ use primitives::v1::{
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, HeadData,
 	Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
 };
+use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{One, Saturating},
 	DispatchError,
@@ -43,7 +44,7 @@ pub use pallet::*;
 ///
 /// The bitfield's signature should be checked at the point of submission. Afterwards it can be
 /// dropped.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub struct AvailabilityBitfieldRecord<N> {
 	bitfield: AvailabilityBitfield, // one bit per core.
@@ -51,7 +52,7 @@ pub struct AvailabilityBitfieldRecord<N> {
 }
 
 /// A backed candidate pending availability.
-#[derive(Encode, Decode, PartialEq)]
+#[derive(Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
@@ -134,7 +135,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::Hash = "Hash")]
 	pub enum Event<T: Config> {
 		/// A candidate was backed. `[candidate, head_data]`
 		CandidateBacked(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
@@ -170,8 +170,6 @@ pub mod pallet {
 		NewCodeTooLarge,
 		/// Candidate not in parent context.
 		CandidateNotInParentContext,
-		/// The bitfield contains a bit relating to an unassigned availability core.
-		UnoccupiedBitInBitfield,
 		/// Invalid group index in core assignment.
 		InvalidGroupIndex,
 		/// Insufficient (non-majority) backing.
@@ -182,8 +180,6 @@ pub mod pallet {
 		NotCollatorSigned,
 		/// The validation data hash does not match expected.
 		ValidationDataHashMismatch,
-		/// Internal error only returned when compiled with debug assertions.
-		InternalError,
 		/// The downward message queue is not processed correctly.
 		IncorrectDownwardMessageHandling,
 		/// At least one upward message sent does not pass the acceptance criteria.
@@ -194,6 +190,9 @@ pub mod pallet {
 		InvalidOutboundHrmp,
 		/// The validation code hash of the candidate is not valid.
 		InvalidValidationCodeHash,
+		/// The `para_head` hash in the candidate descriptor doesn't match the hash of the actual para head in the
+		/// commitments.
+		ParaHeadMismatch,
 	}
 
 	/// The latest bitfield for each validator, referred to by their index in the validator set.
@@ -237,8 +236,10 @@ impl<T: Config> Pallet<T> {
 		for _ in <AvailabilityBitfields<T>>::drain() {}
 	}
 
-	/// Process a set of incoming bitfields. Return a `vec` of cores freed by candidates
-	/// becoming available.
+	/// Process a set of incoming bitfields.
+	///
+	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
+	/// and cores free.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
 		unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
@@ -247,10 +248,12 @@ impl<T: Config> Pallet<T> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 
-		let mut assigned_paras_record: Vec<_> = (0..expected_bits)
+		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
-			.map(|core_para| core_para.map(|p| (p, PendingAvailability::<T>::get(&p))))
-			.collect();
+			.map(|opt_para_id| {
+				opt_para_id.map(|para_id| (para_id, PendingAvailability::<T>::get(&para_id)))
+			})
+			.collect::<Vec<_>>();
 
 		// do sanity checks on the bitfields:
 		// 1. no more than one bitfield per validator
@@ -258,14 +261,6 @@ impl<T: Config> Pallet<T> {
 		// 3. each bitfield has exactly `expected_bits`
 		// 4. signature is valid.
 		let signed_bitfields = {
-			let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras_record
-				.iter()
-				.map(|p| {
-					p.as_ref()
-						.map_or(false, |(_id, pending_availability)| pending_availability.is_some())
-				})
-				.collect();
-
 			let mut last_index = None;
 
 			let signing_context = SigningContext {
@@ -292,12 +287,6 @@ impl<T: Config> Pallet<T> {
 					Error::<T>::ValidatorIndexOutOfBounds,
 				);
 
-				ensure!(
-					occupied_bitmask.clone() & unchecked_bitfield.unchecked_payload().0.clone() ==
-						unchecked_bitfield.unchecked_payload().0,
-					Error::<T>::UnoccupiedBitInBitfield,
-				);
-
 				let validator_public =
 					&validators[unchecked_bitfield.unchecked_validator_index().0 as usize];
 
@@ -317,20 +306,26 @@ impl<T: Config> Pallet<T> {
 			for (bit_idx, _) in
 				signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
 			{
-				let (_, pending_availability) = assigned_paras_record[bit_idx]
-					.as_mut()
-					.expect("validator bitfields checked not to contain bits corresponding to unoccupied cores; qed");
+				let pending_availability = if let Some((_, pending_availability)) =
+					assigned_paras_record[bit_idx].as_mut()
+				{
+					pending_availability
+				} else {
+					// For honest validators, this happens in case of unoccupied cores,
+					// which in turn happens in case of a disputed candidate.
+					// A malicious one might include arbitrary indices, but they are represented
+					// by `None` values and will be sorted out in the next if case.
+					continue
+				};
 
 				// defensive check - this is constructed by loading the availability bitfield record,
 				// which is always `Some` if the core is occupied - that's why we're here.
 				let val_idx = signed_bitfield.validator_index().0 as usize;
-				if let Some(mut bit) = pending_availability
-					.as_mut()
-					.and_then(|r| r.availability_votes.get_mut(val_idx))
-				{
+				if let Some(mut bit) =
+					pending_availability.as_mut().and_then(|candidate_pending_availability| {
+						candidate_pending_availability.availability_votes.get_mut(val_idx)
+					}) {
 					*bit = true;
-				} else if cfg!(debug_assertions) {
-					ensure!(false, Error::<T>::InternalError);
 				}
 			}
 
@@ -463,6 +458,12 @@ impl<T: Config> Pallet<T> {
 				ensure!(
 					candidate.descriptor().validation_code_hash == validation_code_hash,
 					Error::<T>::InvalidValidationCodeHash,
+				);
+
+				ensure!(
+					candidate.descriptor().para_head ==
+						candidate.candidate.commitments.head_data.hash(),
+					Error::<T>::ParaHeadMismatch,
 				);
 
 				if let Err(err) = check_cx.check_validation_outputs(
@@ -1169,6 +1170,7 @@ mod tests {
 	struct TestCandidateBuilder {
 		para_id: ParaId,
 		head_data: HeadData,
+		para_head_hash: Option<Hash>,
 		pov_hash: Hash,
 		relay_parent: Hash,
 		persisted_validation_data_hash: Hash,
@@ -1186,6 +1188,7 @@ mod tests {
 					relay_parent: self.relay_parent,
 					persisted_validation_data_hash: self.persisted_validation_data_hash,
 					validation_code_hash: self.validation_code.hash(),
+					para_head: self.para_head_hash.unwrap_or_else(|| self.head_data.hash()),
 					..Default::default()
 				},
 				commitments: CandidateCommitments {
@@ -1405,13 +1408,14 @@ mod tests {
 					bare_bitfield,
 					&signing_context,
 				));
-
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					&core_lookup,
-				)
-				.is_err());
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						&core_lookup,
+					),
+					Ok(vec![])
+				);
 			}
 
 			// empty bitfield signed: always OK, but kind of useless.
@@ -2212,6 +2216,41 @@ mod tests {
 						&group_validators,
 					),
 					Err(Error::<Test>::InvalidValidationCodeHash.into()),
+				);
+			}
+
+			// Para head hash in descriptor doesn't match head data
+			{
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_hash: Hash::repeat_byte(1),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
+					para_head_hash: Some(Hash::random()),
+					..Default::default()
+				}
+				.build();
+
+				collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
+
+				let backed = block_on(back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&keystore,
+					&signing_context,
+					BackingKind::Threshold,
+				));
+
+				assert_eq!(
+					ParaInclusion::process_candidates(
+						Default::default(),
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::ParaHeadMismatch.into()),
 				);
 			}
 		});
