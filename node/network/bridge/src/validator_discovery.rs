@@ -59,7 +59,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	) -> N {
 		let state = &mut self.state[peer_set];
 		let new_peer_ids: HashSet<PeerId> = extract_peer_ids(newly_requested.iter().cloned());
-        let added = new_peer_ids.len(),
+		let added = new_peer_ids.len();
 
 		let addr_to_remove: Vec<PeerId> =
 			state.previously_requested.difference(&new_peer_ids).cloned().collect();
