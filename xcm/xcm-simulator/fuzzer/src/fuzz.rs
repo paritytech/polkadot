@@ -139,6 +139,21 @@ fn main() {
     }
     #[cfg(not(fuzzing))]
     {
+		//This code path can be used to generate a line-code coverage report in html
+		//that depicts which lines are executed by at least one input in the current fuzzing queue.
+		//To generate this code coverage report, run the following commands:
+		/* 
+		```
+			export CARGO_INCREMENTAL=0
+			export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
+			export RUSTDOCFLAGS="-Cpanic=abort"
+			rustup override set nightly
+			SKIP_WASM_BUILD=1 cargo build
+			./xcm/xcm-simulator/fuzzer/target/debug/xcm-fuzzer hfuzz_workspace/xcm-fuzzer/input
+			zip -0 ccov.zip `find ../../target/debug \( -name "*.gc*" -o -name "test-*.gc*" \) -print`
+			grcov ccov.zip -s / -t html --llvm --branch --ignore-not-existing -o ../../target/debug/coverage/ 
+		```
+		*/
         use std::env;
         use std::fs;
         use std::fs::File;
