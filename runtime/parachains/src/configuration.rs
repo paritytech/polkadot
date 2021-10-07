@@ -33,6 +33,7 @@ pub use pallet::*;
 
 pub mod migration;
 
+#[allow(dead_code)]
 const LOG_TARGET: &str = "runtime::configuration";
 
 /// All configuration of the runtime with respect to parachains and parathreads.
