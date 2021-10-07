@@ -60,7 +60,8 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		let state = &mut self.state[peer_set];
 		let new_peer_ids: HashSet<PeerId> = extract_peer_ids(newly_requested.iter().cloned());
 
-		let addr_to_remove = previously_requested.difference(&new_peer_ids).cloned().collect();
+		let addr_to_remove =
+			state.previously_requested.difference(&new_peer_ids).cloned().collect();
 		let multiaddr_to_add: HashSet<_> = newly_requested
 			.iter()
 			.cloned()
@@ -82,7 +83,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			target: LOG_TARGET,
 			?peer_set,
 			added = multiaddr_to_add.len(),
-			removed = multiaddr_to_remove.len(),
+			removed = addr_to_remove.len(),
 			"New ConnectToValidators resolved request",
 		);
 		// ask the network to connect to these nodes and not disconnect
