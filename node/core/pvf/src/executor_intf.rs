@@ -68,6 +68,19 @@ const CONFIG: Config = Config {
 	},
 };
 
+#[test]
+fn karura() {
+	use std::fs;
+	let mut builder = sc_cli::LoggerBuilder::new("");
+	builder.with_colors(false);
+	let _ = builder.init();
+
+	let blob = fs::read("/home/lilpep/dev/Acala/target/release/wbuild/karura-runtime/karura_runtime.wasm").unwrap();
+	let blob = prevalidate(&blob).unwrap();
+	let artifact = prepare(blob).unwrap();
+	let _result = unsafe { execute(&artifact, &[], TaskExecutor::new().unwrap()).unwrap() };
+}
+
 /// Runs the prevalidation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
 pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error::WasmError> {
 	let blob = RuntimeBlob::new(code)?;

@@ -39,3 +39,4 @@ adder = { package = "test-parachain-adder", path = "../../../parachain/test-para
 halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
 hex-literal = "0.3.3"
 tempfile = "3.2.0"
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.10" }
