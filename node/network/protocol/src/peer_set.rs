@@ -66,7 +66,7 @@ impl PeerSet {
 					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
 					out_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
 					reserved_nodes: Vec::new(),
-					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+					non_reserved_mode: sc_network::config::NonReservedPeerMode::Deny,
 				},
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
