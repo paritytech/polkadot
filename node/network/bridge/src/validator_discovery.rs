@@ -23,7 +23,7 @@ use std::collections::HashSet;
 
 use futures::channel::oneshot;
 
-use sc_network::multiaddr::Multiaddr;
+use sc_network::multiaddr::{self, Multiaddr};
 
 pub use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
 use polkadot_node_network_protocol::{
@@ -60,7 +60,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		let state = &mut self.state[peer_set];
 		let new_peer_ids: HashSet<PeerId> = extract_peer_ids(newly_requested.iter().cloned());
 
-		let addr_to_remove =
+		let addr_to_remove: Vec<PeerId> =
 			state.previously_requested.difference(&new_peer_ids).cloned().collect();
 		let multiaddr_to_add: HashSet<_> = newly_requested
 			.iter()
@@ -69,7 +69,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 				match addr.clone().pop() {
 					// clone is important here
 					Some(multiaddr::Protocol::P2p(key)) =>
-						PeerId::from_multihash(key).and_then(|peer_id| {
+						PeerId::from_multihash(key).ok().and_then(|peer_id| {
 							let to_keep = !addr_to_remove.contains(&peer_id);
 							to_keep.then(|| addr)
 						}),
