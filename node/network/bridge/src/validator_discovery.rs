@@ -198,7 +198,7 @@ mod tests {
 			let peer_ids = known_peer_ids();
 			let authorities = known_authorities();
 			let multiaddr = known_multiaddr().into_iter().zip(peer_ids.iter().cloned()).map(
-				|(addr, peer_id)| {
+				|(mut addr, peer_id)| {
 					addr.push(multiaddr::Protocol::P2p(peer_id.into()));
 					addr
 				},
@@ -315,6 +315,7 @@ mod tests {
 				vec![ads.by_authority_id.get(&authority_ids[1]).unwrap().clone()].into_iter(),
 			)
 			.iter()
+			.cloned()
 			.next()
 			.unwrap();
 			assert!(state.previously_requested.contains(&peer_1));
@@ -348,6 +349,7 @@ mod tests {
 				vec![ads.by_authority_id.get(&authority_ids[0]).unwrap().clone()].into_iter(),
 			)
 			.iter()
+			.cloned()
 			.next()
 			.unwrap();
 			assert!(state.previously_requested.contains(&peer_0));
