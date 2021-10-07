@@ -98,15 +98,7 @@ impl Network for TestNetwork {
 			.boxed()
 	}
 
-	async fn add_to_peers_set(
-		&mut self,
-		_protocol: Cow<'static, str>,
-		_: HashSet<Multiaddr>,
-	) -> Result<(), String> {
-		Ok(())
-	}
-
-	async fn remove_from_peers_set(
+	async fn set_reserved_peers(
 		&mut self,
 		_protocol: Cow<'static, str>,
 		_: HashSet<Multiaddr>,

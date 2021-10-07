@@ -365,7 +365,6 @@ where
 	// This is kept sorted, descending, by block number.
 	let mut live_heads: Vec<ActivatedLeaf> = Vec::with_capacity(MAX_VIEW_HEADS);
 	let mut finalized_number = 0;
-	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
 
 	let mut mode = Mode::Syncing(sync_oracle);
 
@@ -541,7 +540,7 @@ where
 
 						metrics.note_desired_peer_count(peer_set, validator_ids.len());
 
-						let (ns, ads) = validator_discovery.on_request(
+						let (ns, ads) = validator_discovery::on_request(
 							validator_ids,
 							peer_set,
 							failed,
@@ -567,7 +566,7 @@ where
 						metrics.note_desired_peer_count(peer_set, validator_addrs.len());
 
 						let all_addrs = validator_addrs.into_iter().flatten().collect();
-						network_service = validator_discovery.on_resolved_request(
+						network_service = validator_discovery::on_resolved_request(
 							all_addrs,
 							peer_set,
 							network_service,

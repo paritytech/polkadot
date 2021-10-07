@@ -18,7 +18,6 @@
 
 use crate::Network;
 
-use core::marker::PhantomData;
 use std::collections::HashSet;
 
 use futures::channel::oneshot;
@@ -26,114 +25,74 @@ use futures::channel::oneshot;
 use sc_network::multiaddr::Multiaddr;
 
 pub use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
-use polkadot_node_network_protocol::peer_set::{PeerSet, PerPeerSet};
+use polkadot_node_network_protocol::peer_set::PeerSet;
 use polkadot_primitives::v1::AuthorityDiscoveryId;
 
 const LOG_TARGET: &str = "parachain::validator-discovery";
 
-pub(super) struct Service<N, AD> {
-	state: PerPeerSet<StatePerPeerSet>,
-	// PhantomData used to make the struct generic instead of having generic methods
-	_phantom: PhantomData<(N, AD)>,
-}
-
-#[derive(Default)]
-struct StatePerPeerSet {
-	previously_requested: HashSet<Multiaddr>,
-}
-
-impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
-	pub fn new() -> Self {
-		Self { state: Default::default(), _phantom: PhantomData }
+/// Connect to already resolved addresses:
+pub async fn on_resolved_request<N: Network>(
+	newly_requested: HashSet<Multiaddr>,
+	peer_set: PeerSet,
+	mut network_service: N,
+) -> N {
+	if let Err(e) = network_service
+		.set_reserved_peers(peer_set.into_protocol_name(), newly_requested)
+		.await
+	{
+		tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 	}
 
-	/// Connect to already resolved addresses:
-	pub async fn on_resolved_request(
-		&mut self,
-		newly_requested: HashSet<Multiaddr>,
-		peer_set: PeerSet,
-		mut network_service: N,
-	) -> N {
-		let state = &mut self.state[peer_set];
-		// clean up revoked requests
-		let multiaddr_to_remove: HashSet<_> =
-			state.previously_requested.difference(&newly_requested).cloned().collect();
-		let multiaddr_to_add: HashSet<_> =
-			newly_requested.difference(&state.previously_requested).cloned().collect();
-		state.previously_requested = newly_requested;
+	network_service
+}
 
-		tracing::debug!(
-			target: LOG_TARGET,
-			?peer_set,
-			added = multiaddr_to_add.len(),
-			removed = multiaddr_to_remove.len(),
-			"New ConnectToValidators resolved request",
-		);
-		// ask the network to connect to these nodes and not disconnect
-		// from them until removed from the set
-		if let Err(e) = network_service
-			.add_to_peers_set(peer_set.into_protocol_name(), multiaddr_to_add)
-			.await
-		{
-			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
-		}
-		// the addresses are known to be valid
-		let _ = network_service
-			.remove_from_peers_set(peer_set.into_protocol_name(), multiaddr_to_remove)
+/// On a new connection request, a peer set update will be issued.
+/// It will ask the network to connect to the validators and not disconnect
+/// from them at least until the next request is issued for the same peer set.
+///
+/// This method will also disconnect from previously connected validators not in the `validator_ids` set.
+/// it takes `network_service` and `authority_discovery_service` by value
+/// and returns them as a workaround for the Future: Send requirement imposed by async function implementation.
+pub async fn on_request<N: Network, AD: AuthorityDiscovery>(
+	validator_ids: Vec<AuthorityDiscoveryId>,
+	peer_set: PeerSet,
+	failed: oneshot::Sender<usize>,
+	network_service: N,
+	mut authority_discovery_service: AD,
+) -> (N, AD) {
+	// collect multiaddress of validators
+	let mut failed_to_resolve: usize = 0;
+	let mut newly_requested = HashSet::new();
+	let requested = validator_ids.len();
+	for authority in validator_ids.into_iter() {
+		let result = authority_discovery_service
+			.get_addresses_by_authority_id(authority.clone())
 			.await;
-
-		network_service
-	}
-
-	/// On a new connection request, a peer set update will be issued.
-	/// It will ask the network to connect to the validators and not disconnect
-	/// from them at least until the next request is issued for the same peer set.
-	///
-	/// This method will also disconnect from previously connected validators not in the `validator_ids` set.
-	/// it takes `network_service` and `authority_discovery_service` by value
-	/// and returns them as a workaround for the Future: Send requirement imposed by async function implementation.
-	pub async fn on_request(
-		&mut self,
-		validator_ids: Vec<AuthorityDiscoveryId>,
-		peer_set: PeerSet,
-		failed: oneshot::Sender<usize>,
-		network_service: N,
-		mut authority_discovery_service: AD,
-	) -> (N, AD) {
-		// collect multiaddress of validators
-		let mut failed_to_resolve: usize = 0;
-		let mut newly_requested = HashSet::new();
-		let requested = validator_ids.len();
-		for authority in validator_ids.into_iter() {
-			let result = authority_discovery_service
-				.get_addresses_by_authority_id(authority.clone())
-				.await;
-			if let Some(addresses) = result {
-				newly_requested.extend(addresses);
-			} else {
-				failed_to_resolve += 1;
-				tracing::debug!(
-					target: LOG_TARGET,
-					"Authority Discovery couldn't resolve {:?}",
-					authority
-				);
-			}
+		if let Some(addresses) = result {
+			newly_requested.extend(addresses);
+		} else {
+			failed_to_resolve += 1;
+			tracing::debug!(
+				target: LOG_TARGET,
+				"Authority Discovery couldn't resolve {:?}",
+				authority
+			);
 		}
-
-		tracing::debug!(
-			target: LOG_TARGET,
-			?peer_set,
-			?requested,
-			?failed_to_resolve,
-			"New ConnectToValidators request",
-		);
-
-		let r = self.on_resolved_request(newly_requested, peer_set, network_service).await;
-
-		let _ = failed.send(failed_to_resolve);
-
-		(r, authority_discovery_service)
 	}
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		?peer_set,
+		?requested,
+		?failed_to_resolve,
+		"New ConnectToValidators request",
+	);
+
+	let r = on_resolved_request(newly_requested, peer_set, network_service).await;
+
+	let _ = failed.send(failed_to_resolve);
+
+	(r, authority_discovery_service)
 }
 
 #[cfg(test)]
@@ -147,10 +106,6 @@ mod tests {
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
 	use std::{borrow::Cow, collections::HashMap};
-
-	fn new_service() -> Service<TestNetwork, TestAuthorityDiscovery> {
-		Service::new()
-	}
 
 	fn new_network() -> (TestNetwork, TestAuthorityDiscovery) {
 		(TestNetwork::default(), TestAuthorityDiscovery::new())
@@ -185,21 +140,12 @@ mod tests {
 			panic!()
 		}
 
-		async fn add_to_peers_set(
+		async fn set_reserved_peers(
 			&mut self,
 			_protocol: Cow<'static, str>,
 			multiaddresses: HashSet<Multiaddr>,
 		) -> Result<(), String> {
-			self.peers_set.extend(multiaddresses.into_iter());
-			Ok(())
-		}
-
-		async fn remove_from_peers_set(
-			&mut self,
-			_protocol: Cow<'static, str>,
-			multiaddresses: HashSet<Multiaddr>,
-		) -> Result<(), String> {
-			self.peers_set.retain(|elem| !multiaddresses.contains(elem));
+			self.peers_set = multiaddresses;
 			Ok(())
 		}
 
@@ -259,38 +205,9 @@ mod tests {
 			"/ip4/127.0.0.1/tcp/1236".parse().unwrap(),
 		]
 	}
-	// Test cleanup works.
-	#[test]
-	fn old_multiaddrs_are_removed_on_new_request() {
-		let mut service = new_service();
-
-		let (ns, ads) = new_network();
-
-		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
-
-		futures::executor::block_on(async move {
-			let (failed, _) = oneshot::channel();
-			let (ns, ads) = service
-				.on_request(vec![authority_ids[0].clone()], PeerSet::Validation, failed, ns, ads)
-				.await;
-
-			let (failed, _) = oneshot::channel();
-			let (_, ads) = service
-				.on_request(vec![authority_ids[1].clone()], PeerSet::Validation, failed, ns, ads)
-				.await;
-
-			let state = &service.state[PeerSet::Validation];
-			assert_eq!(state.previously_requested.len(), 1);
-			assert!(state
-				.previously_requested
-				.contains(ads.by_authority_id.get(&authority_ids[1]).unwrap()));
-		});
-	}
 
 	#[test]
 	fn failed_resolution_is_reported_properly() {
-		let mut service = new_service();
-
 		let (ns, ads) = new_network();
 
 		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
@@ -298,21 +215,14 @@ mod tests {
 		futures::executor::block_on(async move {
 			let (failed, failed_rx) = oneshot::channel();
 			let unknown = Sr25519Keyring::Ferdie.public().into();
-			let (_, ads) = service
-				.on_request(
-					vec![authority_ids[0].clone(), unknown],
-					PeerSet::Validation,
-					failed,
-					ns,
-					ads,
-				)
-				.await;
-
-			let state = &service.state[PeerSet::Validation];
-			assert_eq!(state.previously_requested.len(), 1);
-			assert!(state
-				.previously_requested
-				.contains(ads.by_authority_id.get(&authority_ids[0]).unwrap()));
+			let (_, _) = on_request(
+				vec![authority_ids[0].clone(), unknown],
+				PeerSet::Validation,
+				failed,
+				ns,
+				ads,
+			)
+			.await;
 
 			let failed = failed_rx.await.unwrap();
 			assert_eq!(failed, 1);
