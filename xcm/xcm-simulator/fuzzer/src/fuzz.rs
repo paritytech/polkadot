@@ -26,6 +26,7 @@ use codec::{Decode, DecodeLimit, Encode};
 
 use frame_support::assert_ok;
 use xcm::latest::prelude::*;
+use xcm::MAX_XCM_DECODE_DEPTH;
 
 
 pub const ALICE: sp_runtime::AccountId32 = sp_runtime::AccountId32::new([0u8; 32]);
@@ -109,7 +110,7 @@ pub type ParachainPalletXcm = pallet_xcm::Pallet<parachain::Runtime>;
 
 fn run_one_input(data: &[u8]) {
 	MockNet::reset();
-	if let Ok(m) = Xcm::decode_all_with_depth_limit(8, data){
+	if let Ok(m) = Xcm::decode_all_with_depth_limit(MAX_XCM_DECODE_DEPTH, data){
 		#[cfg(not(fuzzing))]
 		{
 			println!("Executing message {:?}", m);
