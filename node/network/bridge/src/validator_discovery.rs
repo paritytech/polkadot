@@ -23,7 +23,7 @@ use std::collections::HashSet;
 
 use futures::channel::oneshot;
 
-use sc_network::multiaddr::{self, Multiaddr};
+use sc_network::multiaddr::Multiaddr;
 
 pub use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
 use polkadot_node_network_protocol::{
