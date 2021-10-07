@@ -23,7 +23,7 @@ use parity_scale_codec::Encode;
 
 use sc_network::{
 	config::parse_addr,
-	multiaddr::{self, Multiaddr},
+	multiaddr::Multiaddr,
 	Event as NetworkEvent, IfDisconnected, NetworkService, OutboundFailure, RequestFailure,
 };
 
