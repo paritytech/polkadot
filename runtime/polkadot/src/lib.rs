@@ -1543,6 +1543,26 @@ impl OnRuntimeUpgrade for SetInitialHostConfiguration {
 			Configuration::force_set_active_config(active_config);
 		}
 
+		{
+			// At the moment, the `parachains_configuration` crate has already had one runtime
+			// storage migration (performed as part of [#3575]). As the result a call to
+			// `StorageVersion::get::<Configuration>` will return `Some(1)`
+			//
+			// However, Polkadot is just about to have its first version of parachains runtime
+			// pallets and thus there is no existing storage which needs to be migrated. Above
+			// we just have set the active configuration of the actual version, i.e. the same as the
+			// version 1 on Kusama.
+			//
+			// The caveat here is when we deploy a module for the first time, it's runtime version
+			// will be empty and thus it will be considered as version 0. Since we want to avoid
+			// the situation where the same storage structure has version 0 on Polkadot and
+			// version 1 on Kusama we need to set the storage version explicitly.
+			//
+			// [#3575]: https://github.com/paritytech/polkadot/pull/3575
+			use frame_support::traits::StorageVersion;
+			StorageVersion::new(1).put::<Configuration>();
+		}
+
 		RocksDbWeight::get().reads(1) + RocksDbWeight::get().writes(1)
 	}
 }
