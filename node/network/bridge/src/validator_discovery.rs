@@ -69,6 +69,14 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			removed = multiaddr_to_remove.len(),
 			"New ConnectToValidators resolved request",
 		);
+
+		// we remove before inserting because there might be same PeerIds
+		// in both lists
+		// the addresses are known to be valid
+		let _ = network_service
+			.remove_from_peers_set(peer_set.into_protocol_name(), multiaddr_to_remove)
+			.await;
+
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
 		if let Err(e) = network_service
@@ -77,10 +85,6 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		{
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
-		// the addresses are known to be valid
-		let _ = network_service
-			.remove_from_peers_set(peer_set.into_protocol_name(), multiaddr_to_remove)
-			.await;
 
 		network_service
 	}
