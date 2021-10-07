@@ -17,17 +17,13 @@
 mod parachain;
 mod relay_chain;
 
+use codec::DecodeLimit;
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
-use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain};
-use honggfuzz::fuzz;
-use xcm_simulator::TestExt;
-use codec::{Decode, DecodeLimit, Encode};
+use xcm_simulator::{decl_test_network, decl_test_parachain, decl_test_relay_chain, TestExt};
 
 use frame_support::assert_ok;
-use xcm::latest::prelude::*;
-use xcm::MAX_XCM_DECODE_DEPTH;
-
+use xcm::{latest::prelude::*, MAX_XCM_DECODE_DEPTH};
 
 pub const ALICE: sp_runtime::AccountId32 = sp_runtime::AccountId32::new([0u8; 32]);
 pub const INITIAL_BALANCE: u128 = 1_000_000_000;
@@ -110,39 +106,33 @@ pub type ParachainPalletXcm = pallet_xcm::Pallet<parachain::Runtime>;
 
 fn run_one_input(data: &[u8]) {
 	MockNet::reset();
-	if let Ok(m) = Xcm::decode_all_with_depth_limit(MAX_XCM_DECODE_DEPTH, data){
+	if let Ok(m) = Xcm::decode_all_with_depth_limit(MAX_XCM_DECODE_DEPTH, data) {
 		#[cfg(not(fuzzing))]
 		{
 			println!("Executing message {:?}", m);
 		}
 		ParaA::execute_with(|| {
-			ParachainPalletXcm::send_xcm(
-				Here,
-				Parent.into(),
-				m,
-			);
+			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent.into(), m));
 		});
-		Relay::execute_with(|| {
-			use relay_chain::{Event, System};
-		});
+		Relay::execute_with(|| {});
 	}
 }
 
 fn main() {
-    #[cfg(fuzzing)]
-    {
-        loop {
-            fuzz!(|data: &[u8]| {
-                run_one_input(data);
-            });
-        }
-    }
-    #[cfg(not(fuzzing))]
-    {
+	#[cfg(fuzzing)]
+	{
+		loop {
+			fuzz!(|data: &[u8]| {
+				run_one_input(data);
+			});
+		}
+	}
+	#[cfg(not(fuzzing))]
+	{
 		//This code path can be used to generate a line-code coverage report in html
 		//that depicts which lines are executed by at least one input in the current fuzzing queue.
 		//To generate this code coverage report, run the following commands:
-		/* 
+		/*
 		```
 			export CARGO_INCREMENTAL=0
 			export RUSTFLAGS="-Zprofile -Ccodegen-units=1 -Copt-level=0 -Clink-dead-code -Coverflow-checks=off -Zpanic_abort_tests -Cpanic=abort"
@@ -151,29 +141,26 @@ fn main() {
 			SKIP_WASM_BUILD=1 cargo build
 			./xcm/xcm-simulator/fuzzer/target/debug/xcm-fuzzer hfuzz_workspace/xcm-fuzzer/input
 			zip -0 ccov.zip `find ../../target/debug \( -name "*.gc*" -o -name "test-*.gc*" \) -print`
-			grcov ccov.zip -s / -t html --llvm --branch --ignore-not-existing -o ../../target/debug/coverage/ 
+			grcov ccov.zip -s / -t html --llvm --branch --ignore-not-existing -o ../../target/debug/coverage/
 		```
 		*/
-        use std::env;
-        use std::fs;
-        use std::fs::File;
-        use std::io::Read;
-        let args: Vec<_> = env::args().collect();
-        let md = fs::metadata(&args[1]).unwrap();
-        let all_files = match md.is_dir() {
-            true => fs::read_dir(&args[1])
-                .unwrap()
-                .map(|x| x.unwrap().path().to_str().unwrap().to_string())
-                .collect::<Vec<String>>(),
-            false => (&args[1..]).to_vec(),
-        };
-        println!("All_files {:?}", all_files);
-        for argument in all_files {
-            println!("Now doing file {:?}", argument);
-            let mut buffer: Vec<u8> = Vec::new();
-            let mut f = File::open(argument).unwrap();
-            f.read_to_end(&mut buffer).unwrap();
-            run_one_input(&buffer.as_slice());
-        }
-    }
+		use std::{env, fs, fs::File, io::Read};
+		let args: Vec<_> = env::args().collect();
+		let md = fs::metadata(&args[1]).unwrap();
+		let all_files = match md.is_dir() {
+			true => fs::read_dir(&args[1])
+				.unwrap()
+				.map(|x| x.unwrap().path().to_str().unwrap().to_string())
+				.collect::<Vec<String>>(),
+			false => (&args[1..]).to_vec(),
+		};
+		println!("All_files {:?}", all_files);
+		for argument in all_files {
+			println!("Now doing file {:?}", argument);
+			let mut buffer: Vec<u8> = Vec::new();
+			let mut f = File::open(argument).unwrap();
+			f.read_to_end(&mut buffer).unwrap();
+			run_one_input(&buffer.as_slice());
+		}
+	}
 }
