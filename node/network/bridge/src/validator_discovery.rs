@@ -82,7 +82,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		tracing::debug!(
 			target: LOG_TARGET,
 			?peer_set,
-			added = multiaddr_to_add.len(),
+			added = new_peer_ids.len(),
 			removed = addr_to_remove.len(),
 			"New ConnectToValidators resolved request",
 		);
