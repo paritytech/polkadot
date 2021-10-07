@@ -70,8 +70,8 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 					// clone is important here
 					Some(multiaddr::Protocol::P2p(key)) =>
 						PeerId::from_multihash(key).ok().and_then(|peer_id| {
-							let to_keep = !addr_to_remove.contains(&peer_id);
-							to_keep.then(|| addr)
+							let to_add = !state.previously_requested.contains(&peer_id);
+							to_add.then(|| addr)
 						}),
 					_ => None,
 				}
