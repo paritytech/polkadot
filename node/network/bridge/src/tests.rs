@@ -106,12 +106,7 @@ impl Network for TestNetwork {
 		Ok(())
 	}
 
-	async fn remove_from_peers_set(
-		&mut self,
-		_protocol: Cow<'static, str>,
-		_: Vec<PeerId>,
-	) {
-	}
+	async fn remove_from_peers_set(&mut self, _protocol: Cow<'static, str>, _: Vec<PeerId>) {}
 
 	async fn start_request<AD: AuthorityDiscovery>(
 		&self,

@@ -88,11 +88,7 @@ pub trait Network: Clone + Send + 'static {
 	) -> Result<(), String>;
 
 	/// Cancels the effects of `add_to_peers_set`.
-	async fn remove_from_peers_set(
-		&mut self,
-		protocol: Cow<'static, str>,
-		peers: Vec<PeerId>,
-	);
+	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, peers: Vec<PeerId>);
 
 	/// Send a request to a remote peer.
 	async fn start_request<AD: AuthorityDiscovery>(
@@ -126,16 +122,8 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		sc_network::NetworkService::add_peers_to_reserved_set(&**self, protocol, multiaddresses)
 	}
 
-	async fn remove_from_peers_set(
-		&mut self,
-		protocol: Cow<'static, str>,
-		peers: Vec<PeerId>,
-	)  {
-		sc_network::NetworkService::remove_peers_from_reserved_set(
-			&**self,
-			protocol,
-			peers,
-		);
+	async fn remove_from_peers_set(&mut self, protocol: Cow<'static, str>, peers: Vec<PeerId>) {
+		sc_network::NetworkService::remove_peers_from_reserved_set(&**self, protocol, peers);
 	}
 
 	fn report_peer(&self, who: PeerId, cost_benefit: Rep) {
