@@ -26,7 +26,7 @@ use futures::channel::oneshot;
 use sc_network::multiaddr::Multiaddr;
 
 pub use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
-use polkadot_node_network_protocol::peer_set::{PeerSet, PerPeerSet};
+use polkadot_node_network_protocol::{PeerId, peer_set::{PeerSet, PerPeerSet}};
 use polkadot_primitives::v1::AuthorityDiscoveryId;
 
 const LOG_TARGET: &str = "parachain::validator-discovery";
@@ -39,7 +39,7 @@ pub(super) struct Service<N, AD> {
 
 #[derive(Default)]
 struct StatePerPeerSet {
-	previously_requested: HashSet<Multiaddr>,
+	previously_requested: HashSet<PeerId>,
 }
 
 impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
@@ -55,12 +55,26 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		mut network_service: N,
 	) -> N {
 		let state = &mut self.state[peer_set];
-		// clean up revoked requests
-		let multiaddr_to_remove: HashSet<_> =
-			state.previously_requested.difference(&newly_requested).cloned().collect();
-		let multiaddr_to_add: HashSet<_> =
-			newly_requested.difference(&state.previously_requested).cloned().collect();
-		state.previously_requested = newly_requested;
+		let new_peer_ids: HashSet<PeerId> = extract_peer_ids(newly_requested.iter().cloned());
+
+		let addr_to_remove = previously_requested.difference(&new_peer_ids)
+			.cloned()
+			.collect();
+		let multiaddr_to_add: HashSet<_> = newly_requested.iter()
+			.cloned()
+			.filter_map(|addr| {
+				match addr.clone().pop() { // clone is important here
+					Some(multiaddr::Protocol::P2p(key)) => {
+						PeerId::from_multihash(key).and_then(|peer_id| {
+							let to_keep = !addr_to_remove.contains(&peer_id);
+							to_keep.then(|| addr)
+						})
+					},
+					_ => None,
+				}
+			})
+			.collect();
+		state.previously_requested = new_peer_ids;
 
 		tracing::debug!(
 			target: LOG_TARGET,
@@ -69,14 +83,6 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			removed = multiaddr_to_remove.len(),
 			"New ConnectToValidators resolved request",
 		);
-
-		// we remove before inserting because there might be same PeerIds
-		// in both lists
-		// the addresses are known to be valid
-		let _ = network_service
-			.remove_from_peers_set(peer_set.into_protocol_name(), multiaddr_to_remove)
-			.await;
-
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
 		if let Err(e) = network_service
@@ -85,6 +91,10 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		{
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
+		// the addresses are known to be valid
+		let _ = network_service
+			.remove_from_peers_set(peer_set.into_protocol_name(), addr_to_remove)
+			.await;
 
 		network_service
 	}
@@ -140,6 +150,17 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	}
 }
 
+fn extract_peer_ids(multiaddr: impl Iterator<Item = Multiaddr>) -> HashSet<PeerId> {
+	multiaddr
+		.filter_map(|addr| {
+			match addr.pop() {
+				Some(multiaddr::Protocol::P2p(key)) => PeerId::from_multihash(key).ok(),
+				_ => None,
+			}
+		})
+		.collect()
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -162,7 +183,7 @@ mod tests {
 
 	#[derive(Default, Clone)]
 	struct TestNetwork {
-		peers_set: HashSet<Multiaddr>,
+		peers_set: HashSet<PeerId>,
 	}
 
 	#[derive(Default, Clone, Debug)]
@@ -194,17 +215,16 @@ mod tests {
 			_protocol: Cow<'static, str>,
 			multiaddresses: HashSet<Multiaddr>,
 		) -> Result<(), String> {
-			self.peers_set.extend(multiaddresses.into_iter());
+			self.peers_set.extend(extract_peer_ids(multiaddresses.into_iter()));
 			Ok(())
 		}
 
 		async fn remove_from_peers_set(
 			&mut self,
 			_protocol: Cow<'static, str>,
-			multiaddresses: HashSet<Multiaddr>,
-		) -> Result<(), String> {
-			self.peers_set.retain(|elem| !multiaddresses.contains(elem));
-			Ok(())
+			peers: Vec<PeerId>,
+		) {
+			self.peers_set.retain(|elem| !peers.contains(elem));
 		}
 
 		async fn start_request<AD: AuthorityDiscovery>(

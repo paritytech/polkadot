@@ -91,8 +91,8 @@ pub trait Network: Clone + Send + 'static {
 	async fn remove_from_peers_set(
 		&mut self,
 		protocol: Cow<'static, str>,
-		multiaddresses: HashSet<Multiaddr>,
-	) -> Result<(), String>;
+		peers: Vec<PeerId>,
+	);
 
 	/// Send a request to a remote peer.
 	async fn start_request<AD: AuthorityDiscovery>(
@@ -129,14 +129,13 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 	async fn remove_from_peers_set(
 		&mut self,
 		protocol: Cow<'static, str>,
-		multiaddresses: HashSet<Multiaddr>,
-	) -> Result<(), String> {
+		peers: Vec<PeerId>,
+	)  {
 		sc_network::NetworkService::remove_peers_from_reserved_set(
 			&**self,
-			protocol.clone(),
-			multiaddresses.clone(),
-		)?;
-		sc_network::NetworkService::remove_from_peers_set(&**self, protocol, multiaddresses)
+			protocol,
+			peers,
+		);
 	}
 
 	fn report_peer(&self, who: PeerId, cost_benefit: Rep) {

@@ -109,9 +109,8 @@ impl Network for TestNetwork {
 	async fn remove_from_peers_set(
 		&mut self,
 		_protocol: Cow<'static, str>,
-		_: HashSet<Multiaddr>,
-	) -> Result<(), String> {
-		Ok(())
+		_: Vec<PeerId>,
+	) {
 	}
 
 	async fn start_request<AD: AuthorityDiscovery>(
