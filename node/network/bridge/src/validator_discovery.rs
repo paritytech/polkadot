@@ -64,11 +64,10 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		let addr_to_remove: Vec<PeerId> =
 			state.previously_requested.difference(&new_peer_ids).cloned().collect();
 		let multiaddr_to_add: HashSet<_> = newly_requested
-			.iter()
-			.cloned()
+			.into_iter()
 			.filter_map(|addr| {
+				// clone is important here
 				match addr.clone().pop() {
-					// clone is important here
 					Some(multiaddr::Protocol::P2p(key)) =>
 						PeerId::from_multihash(key).ok().and_then(|peer_id| {
 							let to_keep = !addr_to_remove.contains(&peer_id);
