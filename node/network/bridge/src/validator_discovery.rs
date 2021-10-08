@@ -64,23 +64,6 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		let peers_to_remove: Vec<PeerId> =
 			state.previously_requested.difference(&new_peer_ids).cloned().collect();
 		let removed = peers_to_remove.len();
-		let multiaddr_to_add: HashSet<_> = newly_requested
-			.into_iter()
-			.filter_map(|addr| {
-				// clone is important here - we do not want to alter `addr`
-				match addr.clone().pop() {
-					Some(multiaddr::Protocol::P2p(key)) =>
-						PeerId::from_multihash(key).ok().and_then(|peer_id| {
-							// we're using `addr_to_remove` instead of `previously_requested`
-							// here, because there might be new `Multiaddr` for an old `PeerId`
-							// and `add_to_peers_set` should be idempotent
-							let to_add = !addr_to_remove.contains(&peer_id);
-							to_add.then(|| addr)
-						}),
-					_ => None,
-				}
-			})
-			.collect();
 		state.previously_requested = new_peer_ids;
 
 		tracing::debug!(
@@ -93,7 +76,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the set
 		if let Err(e) = network_service
-			.add_to_peers_set(peer_set.into_protocol_name(), multiaddr_to_add)
+			.set_reserved_peers(peer_set.into_protocol_name(), newly_requested)
 			.await
 		{
 			tracing::warn!(target: LOG_TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
@@ -220,12 +203,12 @@ mod tests {
 			panic!()
 		}
 
-		async fn add_to_peers_set(
+		async fn set_reserved_peers(
 			&mut self,
 			_protocol: Cow<'static, str>,
 			multiaddresses: HashSet<Multiaddr>,
 		) -> Result<(), String> {
-			self.peers_set.extend(extract_peer_ids(multiaddresses.into_iter()));
+			self.peers_set = extract_peer_ids(multiaddresses.into_iter());
 			Ok(())
 		}
 
