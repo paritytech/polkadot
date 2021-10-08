@@ -21,7 +21,7 @@ use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
 use sp_consensus_babe::Epoch;
 
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
+	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
 	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
 	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
 	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
@@ -43,6 +43,8 @@ const DMQ_CONTENTS_CACHE_SIZE: usize = 64 * 1024;
 const INBOUND_HRMP_CHANNELS_CACHE_SIZE: usize = 64 * 1024;
 const CURRENT_BABE_EPOCH_CACHE_SIZE: usize = 64 * 1024;
 const ON_CHAIN_VOTES_CACHE_SIZE: usize = 3 * 1024;
+/// Seems plenty, considering that we are only storing block numbers here:
+const CANDIDATES_INCLUDED_STATE_CACHE_SIZE: usize = 1024;
 
 struct ResidentSizeOf<T>(T);
 
@@ -101,6 +103,8 @@ pub(crate) struct RequestResultCache {
 	>,
 	current_babe_epoch: MemoryLruCache<Hash, DoesNotAllocate<Epoch>>,
 	on_chain_votes: MemoryLruCache<Hash, ResidentSizeOf<Option<ScrapedOnChainVotes>>>,
+	candidates_included_state:
+		MemoryLruCache<(Hash, SessionIndex, CandidateHash), ResidentSizeOf<Option<BlockNumber>>>,
 }
 
 impl Default for RequestResultCache {
@@ -124,6 +128,7 @@ impl Default for RequestResultCache {
 			inbound_hrmp_channels_contents: MemoryLruCache::new(INBOUND_HRMP_CHANNELS_CACHE_SIZE),
 			current_babe_epoch: MemoryLruCache::new(CURRENT_BABE_EPOCH_CACHE_SIZE),
 			on_chain_votes: MemoryLruCache::new(ON_CHAIN_VOTES_CACHE_SIZE),
+			candidates_included_state: MemoryLruCache::new(CANDIDATES_INCLUDED_STATE_CACHE_SIZE),
 		}
 	}
 }
@@ -339,6 +344,16 @@ impl RequestResultCache {
 	) {
 		self.on_chain_votes.insert(relay_parent, ResidentSizeOf(scraped));
 	}
+	pub(crate) fn cache_candidate_included_state(
+		&mut self,
+		relay_parent: Hash,
+		session_index: SessionIndex,
+		candidate_hash: CandidateHash,
+		included: Option<BlockNumber>,
+	) {
+		self.candidates_included_state
+			.insert((relay_parent, session_index, candidate_hash), ResidentSizeOf(included));
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -362,4 +377,5 @@ pub(crate) enum RequestResult {
 	),
 	CurrentBabeEpoch(Hash, Epoch),
 	FetchOnChainVotes(Hash, Option<ScrapedOnChainVotes>),
+	CandidateIncludedState(Hash, SessionIndex, CandidateHash, Option<BlockNumber>),
 }

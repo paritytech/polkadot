@@ -145,6 +145,13 @@ where
 				self.requests_cache.cache_current_babe_epoch(relay_parent, epoch),
 			FetchOnChainVotes(relay_parent, scraped) =>
 				self.requests_cache.cache_on_chain_votes(relay_parent, scraped),
+			CandidateIncludedState(relay_parent, session_index, candidate_hash, block_number) =>
+				self.requests_cache.cache_candidate_included_state(
+					relay_parent,
+					session_index,
+					candidate_hash,
+					block_number,
+				),
 		}
 	}
 
@@ -213,6 +220,10 @@ where
 				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
 			Request::FetchOnChainVotes(sender) =>
 				query!(on_chain_votes(), sender).map(|sender| Request::FetchOnChainVotes(sender)),
+			Request::CandidateIncludedState(session_index, candidate_hash, sender) =>
+				query!(candidate_included_state(session_index, candidate_hash), sender).map(
+					|sender| Request::CandidateIncludedState(session_index, candidate_hash, sender),
+				),
 		}
 	}
 
@@ -347,6 +358,11 @@ where
 			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
 		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
 		Request::FetchOnChainVotes(sender) => query!(FetchOnChainVotes, on_chain_votes(), sender),
+		Request::CandidateInludedState(session_index, candidate_hash, sender) => query!(
+			CandidateIncludedState,
+			candidate_included_state(session_index, candidate_hash),
+			sender
+		),
 	}
 }
 

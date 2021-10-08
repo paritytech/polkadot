@@ -1036,6 +1036,9 @@ sp_api::decl_runtime_apis! {
 
 		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
+
+		/// Get included state of a given candidate as known to the disputes module.
+		fn candidate_included_state(session_index: SessionIndex, candidate_hash: CandidateHash) -> Option<BlockNumber>;
 	}
 }
 
