@@ -61,7 +61,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		let new_peer_ids: HashSet<PeerId> = extract_peer_ids(newly_requested.iter().cloned());
 		let added = new_peer_ids.len();
 
-		let addr_to_remove: Vec<PeerId> =
+		let peers_to_remove: Vec<PeerId> =
 			state.previously_requested.difference(&new_peer_ids).cloned().collect();
 		let multiaddr_to_add: HashSet<_> = newly_requested
 			.into_iter()
@@ -83,7 +83,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			target: LOG_TARGET,
 			?peer_set,
 			?added,
-			removed = addr_to_remove.len(),
+			removed = peers_to_remove.len(),
 			"New ConnectToValidators resolved request",
 		);
 		// ask the network to connect to these nodes and not disconnect
@@ -96,7 +96,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		}
 		// the addresses are known to be valid
 		let _ = network_service
-			.remove_from_peers_set(peer_set.into_protocol_name(), addr_to_remove)
+			.remove_from_peers_set(peer_set.into_protocol_name(), peers_to_remove)
 			.await;
 
 		network_service
