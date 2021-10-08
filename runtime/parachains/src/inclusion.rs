@@ -40,6 +40,9 @@ use crate::{configuration, disputes, dmp, hrmp, paras, scheduler::CoreAssignment
 
 pub use pallet::*;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
 ///
