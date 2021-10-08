@@ -329,7 +329,7 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pal
 		<Pallet<T>>::on_new_session(changed, session_index, validators, Some(queued));
 	}
 
-	fn on_disabled(_i: usize) {}
+	fn on_disabled(_i: u32) {}
 }
 
 #[cfg(test)]
