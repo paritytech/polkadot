@@ -1857,7 +1857,7 @@ mod benchmarking {
 	use sp_runtime::traits::{Bounded, CheckedSub};
 	use sp_std::prelude::*;
 
-	use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whitelisted_caller};
+	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Pallet::<T>::events();
@@ -2105,11 +2105,11 @@ mod benchmarking {
 			assert_eq!(EndingsCount::<T>::get(), old_endings_count + 1);
 			assert_last_event::<T>(Event::<T>::HandleBidResult((n - 1).into(), Ok(())).into());
 		}
-	}
 
-	impl_benchmark_test_suite!(
-		Crowdloan,
-		crate::integration_tests::new_test_ext_with_offset(10),
-		crate::integration_tests::Test,
-	);
+		impl_benchmark_test_suite!(
+			Crowdloan,
+			crate::integration_tests::new_test_ext_with_offset(10),
+			crate::integration_tests::Test,
+		);
+	}
 }

@@ -975,7 +975,7 @@ mod benchmarking {
 	use frame_system::RawOrigin;
 	use sp_runtime::traits::Bounded;
 
-	use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whitelisted_caller};
+	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
 	use crate::slots::Pallet as Slots;
 
@@ -1112,11 +1112,11 @@ mod benchmarking {
 			T::Registrar::execute_pending_transitions();
 			assert!(T::Registrar::is_parachain(para));
 		}
-	}
 
-	impl_benchmark_test_suite!(
-		Slots,
-		crate::integration_tests::new_test_ext(),
-		crate::integration_tests::Test,
-	);
+		impl_benchmark_test_suite!(
+			Slots,
+			crate::integration_tests::new_test_ext(),
+			crate::integration_tests::Test,
+		);
+	}
 }

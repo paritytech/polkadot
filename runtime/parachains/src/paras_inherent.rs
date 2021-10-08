@@ -85,6 +85,11 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(crate) type Included<T> = StorageValue<_, ()>;
 
+	/// Scraped on chain data for extracting resolved disputes as well as backing votes.
+	#[pallet::storage]
+	#[pallet::getter(fn on_chain_votes)]
+	pub(crate) type OnChainVotes<T: Config> = StorageValue<_, ScrapedOnChainVotes<T::Hash>>;
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_: T::BlockNumber) -> Weight {
@@ -273,12 +278,23 @@ pub mod pallet {
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
-			let occupied = <inclusion::Pallet<T>>::process_candidates(
+			let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
+				core_indices: occupied,
+				candidate_receipt_with_backing_validator_indices,
+			} = <inclusion::Pallet<T>>::process_candidates(
 				parent_storage_root,
 				backed_candidates,
 				<scheduler::Pallet<T>>::scheduled(),
 				<scheduler::Pallet<T>>::group_validators,
 			)?;
+
+			// The number of disputes included in a block is
+			// limited by the weight as well as the number of candidate blocks.
+			OnChainVotes::<T>::put(ScrapedOnChainVotes::<<T::Header as HeaderT>::Hash> {
+				session: current_session,
+				backing_validators_per_candidate: candidate_receipt_with_backing_validator_indices,
+				disputes,
+			});
 
 			// Note which of the scheduled cores were actually occupied by a backed candidate.
 			<scheduler::Pallet<T>>::occupied(&occupied);
