@@ -256,6 +256,7 @@ pub fn new_test_ext() -> TestExternalities {
 	ext
 }
 
+#[cfg(feature = "runtime-benchmarks")]
 pub fn new_test_ext_with_offset(n: BlockNumber) -> TestExternalities {
 	LeaseOffset::set(n);
 	new_test_ext()
