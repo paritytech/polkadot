@@ -63,15 +63,19 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 		let peers_to_remove: Vec<PeerId> =
 			state.previously_requested.difference(&new_peer_ids).cloned().collect();
+		let removed = peers_to_remove.len();
 		let multiaddr_to_add: HashSet<_> = newly_requested
 			.into_iter()
 			.filter_map(|addr| {
-				// clone is important here
+				// clone is important here - we do not want to alter `addr`
 				match addr.clone().pop() {
 					Some(multiaddr::Protocol::P2p(key)) =>
 						PeerId::from_multihash(key).ok().and_then(|peer_id| {
-							let to_keep = !addr_to_remove.contains(&peer_id);
-							to_keep.then(|| addr)
+							// we're using `addr_to_remove` instead of `previously_requested`
+							// here, because there might be new `Multiaddr` for an old `PeerId`
+							// and `add_to_peers_set` should be idempotent
+							let to_add = !addr_to_remove.contains(&peer_id);
+							to_add.then(|| addr)
 						}),
 					_ => None,
 				}
@@ -83,7 +87,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			target: LOG_TARGET,
 			?peer_set,
 			?added,
-			removed = peers_to_remove.len(),
+			?removed,
 			"New ConnectToValidators resolved request",
 		);
 		// ask the network to connect to these nodes and not disconnect
