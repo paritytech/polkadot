@@ -35,7 +35,8 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	BackedCandidate, InherentData as ParachainsInherentData, MultiDisputeStatementSet,
+	BackedCandidate, DisputeStatementSet, InherentData as ParachainsInherentData,
+	MultiDisputeStatementSet, ScrapedOnChainVotes, UncheckedSignedAvailabilityBitfield,
 	UncheckedSignedAvailabilityBitfields, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_runtime::traits::Header as HeaderT;
@@ -46,7 +47,7 @@ pub use pallet::*;
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
 const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
-const DISPUTE_WEIGHT: Weight = 1_000_000;
+const DISPUTE_PER_STATEMENT_WEIGHT: Weight = 200_000;
 const BITFIELD_WEIGHT: Weight = 200_000;
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
@@ -152,7 +153,10 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[pallet::weight((
-			MINIMAL_INCLUSION_INHERENT_WEIGHT + data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
+			MINIMAL_INCLUSION_INHERENT_WEIGHT +
+				count_dispute_statements(&data.disputes) as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
+				count_bitfield_bits(&data.bitfields) as Weight * BITFIELD_WEIGHT +
+				data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(
@@ -175,6 +179,11 @@ pub mod pallet {
 				parent_header.hash().as_ref() == parent_hash.as_ref(),
 				Error::<T>::InvalidParentHeader,
 			);
+
+			limit_paras_inherent::<T>(&mut disputes, &mut signed_bitfields, &mut backed_candidates);
+			let num_dispute_statements = count_dispute_statements(&disputes) as Weight;
+			let num_bitfield_bits = count_bitfield_bits(&signed_bitfields) as Weight;
+			let backed_candidates_len = backed_candidates.len() as Weight;
 
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
@@ -220,7 +229,7 @@ pub mod pallet {
 			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
-				signed_bitfields.clone(),
+				signed_bitfields,
 				<scheduler::Pallet<T>>::core_para,
 			)?;
 
@@ -250,12 +259,6 @@ pub mod pallet {
 
 			<scheduler::Pallet<T>>::clear();
 			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
-
-			// TODO: should this be moved up before disputes are handled?
-			limit_paras_inherent::<T>(&mut disputes, &mut signed_bitfields, &mut backed_candidates);
-			let disputes_len = disputes.len() as Weight;
-			let bitfields_len = signed_bitfields.len() as Weight;
-			let backed_candidates_len = backed_candidates.len() as Weight;
 
 			// Refuse to back any candidates that were disputed and are concluded invalid.
 			for candidate in &backed_candidates {
@@ -288,13 +291,21 @@ pub mod pallet {
 
 			Ok(Some(
 				MINIMAL_INCLUSION_INHERENT_WEIGHT +
-					(disputes_len * DISPUTE_WEIGHT) +
-					(bitfields_len * BITFIELD_WEIGHT) +
+					(num_dispute_statements * DISPUTE_PER_STATEMENT_WEIGHT) +
+					(num_bitfield_bits * BITFIELD_WEIGHT) +
 					(backed_candidates_len * BACKED_CANDIDATE_WEIGHT),
 			)
 			.into())
 		}
 	}
+}
+
+fn count_dispute_statements(disputes: &[DisputeStatementSet]) -> usize {
+	disputes.iter().map(|d| d.statements.len()).sum()
+}
+
+fn count_bitfield_bits(bitfields: &[UncheckedSignedAvailabilityBitfield]) -> usize {
+	bitfields.iter().map(|b| b.unchecked_payload().0.len()).sum()
 }
 
 fn limit_paras_inherent<T: Config>(
@@ -326,8 +337,9 @@ fn limit_paras_inherent<T: Config>(
 	let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 	let max_non_inclusion_weight = max_block_weight - MINIMAL_INCLUSION_INHERENT_WEIGHT;
 
-	let disputes_weight = disputes.len() as Weight * DISPUTE_WEIGHT;
-	let bitfields_weight = bitfields.len() as Weight * BITFIELD_WEIGHT;
+	let num_dispute_statements = count_dispute_statements(&disputes) as Weight;
+	let disputes_weight = num_dispute_statements as Weight * DISPUTE_PER_STATEMENT_WEIGHT;
+	let bitfields_weight = count_bitfield_bits(&bitfields) as Weight * BITFIELD_WEIGHT;
 	let backed_candidates_weight = backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT;
 
 	let total_non_inclusion_weight = disputes_weight + bitfields_weight + backed_candidates_weight;
@@ -338,7 +350,6 @@ fn limit_paras_inherent<T: Config>(
 		//  2. Prioritize older disputes over newer disputes.
 		//  3. Prioritize local disputes withan invalid vote over valid votes.
 		disputes.sort_by(|a, b| {
-			// TODO: not sure this gives the right definition of a "local" dispute.
 			let a_local_block = T::DisputesHandler::get_included(a.session, a.candidate_hash);
 			let b_local_block = T::DisputesHandler::get_included(b.session, b.candidate_hash);
 			match (a_local_block, b_local_block) {
@@ -347,33 +358,33 @@ fn limit_paras_inherent<T: Config>(
 				(Some(_), None) => Ordering::Less,
 				// For local disputes, prioritize those with votes for invalidity.
 				(Some(a_height), Some(b_height)) => {
-					// TODO: only inspect our validator index?
-					let a_invalid =
-						a.statements.iter().any(|statement| statement.0.indicates_invalidity());
-					let b_invalid =
-						b.statements.iter().any(|statement| statement.0.indicates_invalidity());
-					match (a_invalid, b_invalid) {
-						(true, false) => Ordering::Less,
-						(false, true) => Ordering::Greater,
-						// Fallback to earliest local dispute if neither or both signal invalidity.
-						_ => a_height.cmp(&b_height),
-					}
+					let a_invalid = a.statements.iter().any(|stmt| stmt.0.indicates_invalidity());
+					let b_invalid = b.statements.iter().any(|stmt| stmt.0.indicates_invalidity());
+					// Fallback to earliest local dispute if neither or both signal invalidity.
+					a_invalid.cmp(&b_invalid).reverse().then_with(|| a_height.cmp(&b_height))
 				},
 				// Prioritize earlier remote disputes using session as rough proxy.
 				(None, None) => a.session.cmp(&b.session),
 			}
 		});
 
-		let max_disputes = max_non_inclusion_weight / DISPUTE_WEIGHT;
-		disputes.truncate(max_disputes as usize);
+		let mut total_weight = 0;
+		disputes.retain(|d| {
+			total_weight += d.statements.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT;
+			total_weight <= max_non_inclusion_weight
+		});
+
 		bitfields.clear();
 		backed_candidates.clear();
 		return
 	}
 
 	if disputes_weight + bitfields_weight > max_non_inclusion_weight {
-		let max_bitfields = (max_non_inclusion_weight - disputes_weight) / BITFIELD_WEIGHT;
-		bitfields.truncate(max_bitfields as usize);
+		let mut total_weight = disputes_weight;
+		bitfields.retain(|b| {
+			total_weight += b.unchecked_payload().0.len() as Weight * BITFIELD_WEIGHT;
+			total_weight <= max_non_inclusion_weight
+		});
 		backed_candidates.clear();
 		return
 	}
