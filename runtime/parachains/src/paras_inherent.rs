@@ -352,7 +352,7 @@ fn filter_bitfields<T: Config>(
 	parent_hash: T::Hash,
 	session_index: SessionIndex,
 	validators: &[ValidatorId],
-) -> SignedAvailabilityBitfields {
+) -> Vec<(AvailabilityBitfield, ValidatorIndex)> {
 	let mut bitfields = Vec::with_capacity(unchecked_bitfields.len());
 
 	let mut last_index = None;
@@ -393,25 +393,21 @@ fn filter_bitfields<T: Config>(
 
 		last_index = Some(validator_index);
 
-		// TODO FIXME do we want to adjust the bitfield or drop it entirely?
-
-		// remove all 1 bits which map to concluded disputes
-		// signed_bitfield.payload.0.iter_mut()
-		// 	.enumerate()
-		// 	.any(|(core_idx, mut bit)| {
-		// 		*bit = if *bit {
-		// 			// ignore those that have matching invalid dispute bits
-		// 			// which always works, since we checked for uniformat bit length
-		// 			// before
-		// 			!disputed_bits.0[core_idx]
-		// 		} else {
-		// 			// bit wasn't set in the first place
-		// 			false
-		// 		};
-		// 	});
-		// TODO at this point the signature won't match, since we modified the payload
-		// TODO double check that the signature is not used at a later point
-		bitfields.push(signed_bitfield)
+		let mut checked_bitfield = signed_bitfield.into_payload();
+		checked_bitfield.0.iter_mut()
+			.enumerate()
+			.any(|(core_idx, mut bit)| {
+				*bit = if *bit {
+					// ignore those that have matching invalid dispute bits
+					// which always works, since we checked for uniformat bit length
+					// before
+					!disputed_bits.0[core_idx]
+				} else {
+					// bit wasn't set in the first place
+					false
+				};
+			});
+		bitfields.push((checked_bitfield, validator_index));
 	}
 	bitfields
 }

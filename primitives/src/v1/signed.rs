@@ -143,6 +143,11 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	}
 }
 
+
+// Payload that passed signature verification, but the content
+// could be normalized/modified _after_ checking.
+// struct Checked<Payload> {}
+
 // We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
 // the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
 // because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our

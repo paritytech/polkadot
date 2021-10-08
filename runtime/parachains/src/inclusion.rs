@@ -261,7 +261,7 @@ impl<T: Config> Pallet<T> {
 	/// and cores free.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
-		checked_bitfields: SignedAvailabilityBitfields,
+		checked_bitfields: Vec<(AvailabilityBitfield, ValidatorIndex)>,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
 		validators: &[ValidatorId],
 	) -> Vec<(CoreIndex, CandidateHash)> {
@@ -273,9 +273,9 @@ impl<T: Config> Pallet<T> {
 			.collect::<Vec<_>>();
 
 		let now = <frame_system::Pallet<T>>::block_number();
-		for checked_bitfield in checked_bitfields {
+		for (checked_bitfield, validator_index) in checked_bitfields {
 			for (bit_idx, _) in
-				checked_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
+				checked_bitfield.iter().enumerate().filter(|(_, is_av)| **is_av)
 			{
 				let pending_availability = if let Some((_, pending_availability)) =
 					assigned_paras_record[bit_idx].as_mut()
@@ -291,7 +291,7 @@ impl<T: Config> Pallet<T> {
 
 				// defensive check - this is constructed by loading the availability bitfield record,
 				// which is always `Some` if the core is occupied - that's why we're here.
-				let val_idx = checked_bitfield.validator_index().0 as usize;
+				let validator_index = validator_index.0 as usize;
 				if let Some(mut bit) =
 					pending_availability.as_mut().and_then(|candidate_pending_availability| {
 						candidate_pending_availability.availability_votes.get_mut(val_idx)
@@ -300,9 +300,8 @@ impl<T: Config> Pallet<T> {
 				}
 			}
 
-			let validator_index = checked_bitfield.validator_index();
 			let record = AvailabilityBitfieldRecord {
-				bitfield: checked_bitfield.into_payload(),
+				bitfield: checked_bitfield,
 				submitted_at: now,
 			};
 
@@ -1316,6 +1315,7 @@ mod tests {
 						expected_bits(),
 						vec![signed.into()],
 						&core_lookup,
+						&validator_public,
 					),
 					vec![]
 				);
@@ -1337,6 +1337,7 @@ mod tests {
 						expected_bits() + 1,
 						vec![signed.into()],
 						&core_lookup,
+						&validator_public,
 					),
 					vec![]
 				);
@@ -1359,6 +1360,7 @@ mod tests {
 						expected_bits(),
 						vec![signed.clone(), signed],
 						&core_lookup,
+						&validator_public,
 					),
 					vec![]
 				);
@@ -1390,6 +1392,7 @@ mod tests {
 						expected_bits(),
 						vec![signed_1, signed_0],
 						&core_lookup,
+						&validator_public,
 					),
 					vec![]
 				);
@@ -1411,6 +1414,7 @@ mod tests {
 						expected_bits(),
 						vec![signed.into()],
 						&core_lookup,
+						&validator_public,
 					),
 					vec![]
 				);
@@ -1432,6 +1436,7 @@ mod tests {
 						expected_bits(),
 						vec![signed.into()],
 						&core_lookup,
+						&validator_public,
 					)
 					.len() == 1
 				);
@@ -1476,6 +1481,7 @@ mod tests {
 						expected_bits(),
 						vec![signed.into()],
 						&core_lookup,
+						&validator_public,
 					)
 					.len() == 1
 				);
@@ -1520,6 +1526,7 @@ mod tests {
 						expected_bits(),
 						vec![signed.into()],
 						&core_lookup,
+						&validator_public,
 					),
 					vec![],
 				);
@@ -1662,6 +1669,7 @@ mod tests {
 				expected_bits(),
 				signed_bitfields,
 				&core_lookup,
+				&validator_public,
 			)
 			.is_ok());
 
