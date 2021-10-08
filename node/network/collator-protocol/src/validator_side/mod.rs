@@ -1362,7 +1362,7 @@ where
 					.await;
 			},
 			Err(RequestError::NetworkError(err)) => {
-				tracing::warn!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
 					para_id = ?pending_collation.para_id,
@@ -1377,7 +1377,7 @@ where
 				modify_reputation(ctx, pending_collation.peer_id.clone(), COST_NETWORK_ERROR).await;
 			},
 			Err(RequestError::Canceled(_)) => {
-				tracing::warn!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					hash = ?pending_collation.relay_parent,
 					para_id = ?pending_collation.para_id,

@@ -129,6 +129,13 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().reads((1 as Weight).saturating_mul(r as Weight)))
 	}
+	fn on_initialize_base_with_launch_period(r: u32) -> Weight {
+		(7_728_000 as Weight)
+			// Standard Error: 4_000
+			.saturating_add((5_099_000 as Weight).saturating_mul(r as Weight))
+			.saturating_add(T::DbWeight::get().reads(5 as Weight))
+			.saturating_add(T::DbWeight::get().reads((1 as Weight).saturating_mul(r as Weight)))
+	}
 	fn delegate(r: u32) -> Weight {
 		(53_667_000 as Weight)
 			// Standard Error: 4_000

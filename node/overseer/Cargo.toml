@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-overseer"
-version = "0.9.9"
+version = "0.9.11"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -16,9 +16,9 @@ polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-overseer-gen = { path = "./overseer-gen" }
-polkadot-overseer-all-subsystems-gen = { path = "./all-subsystems-gen" }
-tracing = "0.1.27"
-lru = "0.6"
+tracing = "0.1.29"
+lru = "0.7"
+parity-util-mem = { version = ">= 0.10.1", default-features = false }
 
 [dev-dependencies]
 metered-channel = { path = "../metered-channel" }
@@ -29,4 +29,3 @@ assert_matches = "1.4.0"
 
 [features]
 default = []
-memory-stats = ["polkadot-node-metrics/memory-stats"]

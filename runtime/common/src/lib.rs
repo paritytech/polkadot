@@ -150,7 +150,7 @@ impl<T: pallet_session::Config> OneSessionHandler<T::AccountId>
 	{
 	}
 
-	fn on_disabled(_: usize) {}
+	fn on_disabled(_: u32) {}
 }
 
 /// A placeholder since there is currently no provided session key handler for parachain validator
@@ -179,7 +179,7 @@ impl<T: pallet_session::Config> OneSessionHandler<T::AccountId>
 	{
 	}
 
-	fn on_disabled(_: usize) {}
+	fn on_disabled(_: u32) {}
 }
 
 #[cfg(test)]

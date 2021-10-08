@@ -24,12 +24,10 @@ mod parachains_db;
 mod relay_chain_selection;
 
 #[cfg(feature = "full-node")]
-mod overseer;
+pub mod overseer;
 
 #[cfg(feature = "full-node")]
-pub use self::overseer::{
-	create_default_subsystems, OverseerGen, OverseerGenArgs, RealOverseerGen,
-};
+pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
 
 #[cfg(all(test, feature = "disputes"))]
 mod tests;
@@ -56,6 +54,7 @@ pub use sp_core::traits::SpawnNamed;
 pub use {
 	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
 	polkadot_primitives::v1::ParachainHost,
+	relay_chain_selection::SelectRelayChain,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
 	sp_blockchain::HeaderBackend,
@@ -387,14 +386,14 @@ where
 		)?;
 	let client = Arc::new(client);
 
-	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
-
-	let telemetry: Option<_> = telemetry.map(|(worker, telemetry)| {
+	let telemetry = telemetry.map(|(worker, telemetry)| {
 		if let Some(worker) = worker {
 			task_manager.spawn_handle().spawn("telemetry", worker.run());
 		}
 		telemetry
 	});
+
+	jaeger_launch_collector_with_agent(task_manager.spawn_handle(), &*config, jaeger_agent)?;
 
 	Ok(Basics { task_manager, client, backend, keystore_container, telemetry })
 }
@@ -711,35 +710,38 @@ where
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
-	let overseer_connector = OverseerConnector::default();
-
-	let handle = Handle(overseer_connector.as_handle().clone());
-
 	let basics = new_partial_basics::<RuntimeApi, ExecutorDispatch>(
 		&mut config,
 		jaeger_agent,
 		telemetry_worker_handle,
 	)?;
 
+	let prometheus_registry = config.prometheus_registry().cloned();
+
+	let overseer_connector = OverseerConnector::default();
+	let overseer_handle = Handle::new(overseer_connector.handle());
+
+	let chain_spec = config.chain_spec.cloned_box();
+
 	// we should remove this check before we deploy parachains on polkadot
 	// TODO: https://github.com/paritytech/polkadot/issues/3326
-	let chain_spec = &config.chain_spec as &dyn IdentifyVariant;
-
 	let is_relay_chain = chain_spec.is_kusama() ||
 		chain_spec.is_westend() ||
 		chain_spec.is_rococo() ||
 		chain_spec.is_wococo();
 
-	let prometheus_registry = config.prometheus_registry().cloned();
-
-	use relay_chain_selection::SelectRelayChain;
+	let local_keystore = basics.keystore_container.local_keystore();
+	let requires_overseer_for_chain_sel = local_keystore.is_some() &&
+		is_relay_chain &&
+		(role.is_authority() || is_collator.is_collator());
 
 	let select_chain = SelectRelayChain::new(
 		basics.backend.clone(),
-		is_relay_chain,
-		handle.clone(),
+		overseer_handle.clone(),
+		requires_overseer_for_chain_sel,
 		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
 	);
+
 	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
 		client,
 		backend,
@@ -763,7 +765,7 @@ where
 	// Substrate nodes.
 	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
 
-	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
+	if chain_spec.is_rococo() || chain_spec.is_wococo() {
 		config.network.extra_sets.push(beefy_gadget::beefy_peers_set_config());
 	}
 
@@ -786,9 +788,16 @@ where
 	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver();
 	config.network.request_response_protocols.push(cfg);
 
+	let grandpa_hard_forks = if config.chain_spec.is_kusama() {
+		grandpa_support::kusama_hard_forks()
+	} else {
+		Vec::new()
+	};
+
 	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
 		import_setup.1.shared_authority_set().clone(),
+		grandpa_hard_forks,
 	));
 
 	let (network, system_rpc_tx, network_starter) =
@@ -848,7 +857,6 @@ where
 		col_data: crate::parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
 	};
 
-	let chain_spec = config.chain_spec.cloned_box();
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -868,7 +876,10 @@ where
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
-	let active_leaves = futures::executor::block_on(active_leaves(&select_chain, &*client))?;
+	// Cannot use the `RelayChainSelection`, since that'd require a setup _and running_ overseer
+	// which we are about to setup.
+	let active_leaves =
+		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
 	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
 		use futures::StreamExt;
@@ -905,7 +916,6 @@ where
 		None
 	};
 
-	let local_keystore = keystore_container.local_keystore();
 	if local_keystore.is_none() {
 		tracing::info!("Cannot run as validator without local keystore.");
 	}
@@ -914,8 +924,7 @@ where
 		local_keystore.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
 
 	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
-		// already have access to the handle
-		let (overseer, _handle) = overseer_gen
+		let (overseer, overseer_handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
 				overseer_connector,
 				OverseerGenArgs {
@@ -941,6 +950,7 @@ where
 					dispute_coordinator_config,
 				},
 			)?;
+		let handle = Handle::new(overseer_handle.clone());
 
 		{
 			let handle = handle.clone();
@@ -967,6 +977,10 @@ where
 		}
 		Some(handle)
 	} else {
+		assert!(
+			!requires_overseer_for_chain_sel,
+			"Precondition congruence (false) is guaranteed by manual checking. qed"
+		);
 		None
 	};
 
@@ -1283,6 +1297,7 @@ where
 	Ok((task_manager, rpc_handlers))
 }
 
+#[cfg(feature = "full-node")]
 macro_rules! chain_ops {
 	($config:expr, $jaeger_agent:expr, $telemetry_worker_handle:expr; $scope:ident, $executor:ident, $variant:ident) => {{
 		let telemetry_worker_handle = $telemetry_worker_handle;
@@ -1343,9 +1358,8 @@ pub fn new_chain_ops(
 
 	#[cfg(feature = "polkadot-native")]
 	{
-		chain_ops!(config, jaeger_agent, telemetry_worker_handle; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
+		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
 	}
-
 	#[cfg(not(feature = "polkadot-native"))]
 	Err(Error::NoRuntime)
 }

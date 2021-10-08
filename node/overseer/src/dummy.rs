@@ -14,8 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{AllMessages, OverseerSignal};
-use polkadot_node_subsystem_types::errors::SubsystemError;
+use crate::{
+	prometheus::Registry, AllMessages, HeadSupportsParachains, MetricsTrait, Overseer,
+	OverseerBuilder, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnNamed,
+	KNOWN_LEAVES_CACHE_SIZE,
+};
+use lru::LruCache;
+use polkadot_node_subsystem_types::{errors::SubsystemError, messages::*};
 use polkadot_overseer_gen::{FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext};
 
 /// A dummy subsystem that implements [`Subsystem`] for all
@@ -51,4 +56,141 @@ where
 
 		SpawnedSubsystem { name: "dummy-subsystem", future }
 	}
+}
+
+/// Create an overseer with all subsystem being `Sub`.
+///
+/// Preferred way of initializing a dummy overseer for subsystem tests.
+pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
+	spawner: Spawner,
+	supports_parachains: SupportsParachains,
+	registry: Option<&'a Registry>,
+) -> Result<
+	OverseerBuilder<
+		Spawner,
+		SupportsParachains,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+	>,
+	SubsystemError,
+>
+where
+	Spawner: SpawnNamed + Send + Sync + 'static,
+	SupportsParachains: HeadSupportsParachains,
+{
+	one_for_all_overseer_builder(spawner, supports_parachains, DummySubsystem, registry)
+}
+
+/// Create an overseer with all subsystem being `Sub`.
+pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
+	spawner: Spawner,
+	supports_parachains: SupportsParachains,
+	subsystem: Sub,
+	registry: Option<&'a Registry>,
+) -> Result<
+	OverseerBuilder<
+		Spawner,
+		SupportsParachains,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+		Sub,
+	>,
+	SubsystemError,
+>
+where
+	Spawner: SpawnNamed + Send + Sync + 'static,
+	SupportsParachains: HeadSupportsParachains,
+	Sub: Clone
+		+ Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<AvailabilityRecoveryMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<CandidateBackingMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<CandidateValidationMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ChainApiMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<CollationGenerationMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ProvisionerMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<RuntimeApiMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<StatementDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ApprovalDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<DisputeCoordinatorMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<DisputeParticipationMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>,
+{
+	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
+
+	let builder = Overseer::builder()
+		.availability_distribution(subsystem.clone())
+		.availability_recovery(subsystem.clone())
+		.availability_store(subsystem.clone())
+		.bitfield_distribution(subsystem.clone())
+		.bitfield_signing(subsystem.clone())
+		.candidate_backing(subsystem.clone())
+		.candidate_validation(subsystem.clone())
+		.chain_api(subsystem.clone())
+		.collation_generation(subsystem.clone())
+		.collator_protocol(subsystem.clone())
+		.network_bridge(subsystem.clone())
+		.provisioner(subsystem.clone())
+		.runtime_api(subsystem.clone())
+		.statement_distribution(subsystem.clone())
+		.approval_distribution(subsystem.clone())
+		.approval_voting(subsystem.clone())
+		.gossip_support(subsystem.clone())
+		.dispute_coordinator(subsystem.clone())
+		.dispute_participation(subsystem.clone())
+		.dispute_distribution(subsystem.clone())
+		.chain_selection(subsystem)
+		.activation_external_listeners(Default::default())
+		.span_per_active_leaf(Default::default())
+		.active_leaves(Default::default())
+		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
+		.leaves(Default::default())
+		.spawner(spawner)
+		.metrics(metrics)
+		.supports_parachains(supports_parachains);
+	Ok(builder)
 }
