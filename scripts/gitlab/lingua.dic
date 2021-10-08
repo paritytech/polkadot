@@ -180,6 +180,7 @@ phragmen
 picosecond/SM
 PoA/MS
 polkadot/MS
+Polkadot/MS
 PoS/MS
 PoV/MS
 PoW/MS
@@ -214,6 +215,7 @@ rpc
 RPC/MS
 runtime/MS
 rustc/MS
+sybil
 SAFT
 scalable
 scalability

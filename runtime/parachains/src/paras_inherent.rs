@@ -33,7 +33,8 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
+	BackedCandidate, InherentData as ParachainsInherentData, ScrapedOnChainVotes,
+	PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_runtime::traits::Header as HeaderT;
 use sp_std::prelude::*;
@@ -78,6 +79,11 @@ pub mod pallet {
 	/// If this is `None` at the end of the block, we panic and render the block invalid.
 	#[pallet::storage]
 	pub(crate) type Included<T> = StorageValue<_, ()>;
+
+	/// Scraped on chain data for extracting resolved disputes as well as backing votes.
+	#[pallet::storage]
+	#[pallet::getter(fn on_chain_votes)]
+	pub(crate) type OnChainVotes<T: Config> = StorageValue<_, ScrapedOnChainVotes<T::Hash>>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -180,7 +186,7 @@ pub mod pallet {
 					.map(|s| (s.session, s.candidate_hash))
 					.collect();
 
-				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
@@ -262,12 +268,23 @@ pub mod pallet {
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
-			let occupied = <inclusion::Pallet<T>>::process_candidates(
+			let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
+				core_indices: occupied,
+				candidate_receipt_with_backing_validator_indices,
+			} = <inclusion::Pallet<T>>::process_candidates(
 				parent_storage_root,
 				backed_candidates,
 				<scheduler::Pallet<T>>::scheduled(),
 				<scheduler::Pallet<T>>::group_validators,
 			)?;
+
+			// The number of disputes included in a block is
+			// limited by the weight as well as the number of candidate blocks.
+			OnChainVotes::<T>::put(ScrapedOnChainVotes::<<T::Header as HeaderT>::Hash> {
+				session: current_session,
+				backing_validators_per_candidate: candidate_receipt_with_backing_validator_indices,
+				disputes,
+			});
 
 			// Note which of the scheduled cores were actually occupied by a backed candidate.
 			<scheduler::Pallet<T>>::occupied(&occupied);
