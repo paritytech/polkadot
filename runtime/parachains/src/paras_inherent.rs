@@ -22,8 +22,9 @@
 //! this module.
 
 use crate::{
+	disputes,
 	disputes::DisputesHandler,
-	inclusion,
+	inclusion, initializer,
 	scheduler::{self, FreedReason},
 	shared, ump,
 };
@@ -37,6 +38,8 @@ use primitives::v1::{
 };
 use sp_runtime::traits::Header as HeaderT;
 use sp_std::prelude::*;
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 
 pub use pallet::*;
 
@@ -46,6 +49,21 @@ const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
+
+pub trait WeightInfo {
+	fn enter_backed_dominant(b: u32) -> Weight;
+	fn enter_dispute_dominant(d: u32) -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn enter_backed_dominant(_b: u32) -> Weight {
+		Weight::MAX
+	}
+	fn enter_dispute_dominant(_d: u32) -> Weight {
+		Weight::MAX
+	}
+}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -57,7 +75,12 @@ pub mod pallet {
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config: inclusion::Config + scheduler::Config {}
+	pub trait Config:
+		inclusion::Config + scheduler::Config + initializer::Config + disputes::Config
+	{
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
+	}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -147,7 +170,9 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[pallet::weight((
-			MINIMAL_INCLUSION_INHERENT_WEIGHT + data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
+			// configuration::Pallet::<T>::config().enter_dispute_dominant +
+				<T as Config>::WeightInfo::enter_backed_dominant(data.backed_candidates.len() as u32) +
+				<T as Config>::WeightInfo::enter_dispute_dominant(data.disputes.len() as u32),
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(
@@ -262,11 +287,13 @@ pub mod pallet {
 			<scheduler::Pallet<T>>::occupied(&occupied);
 
 			// Give some time slice to dispatch pending upward messages.
-			<ump::Pallet<T>>::process_pending_upward_messages();
+			// this is max config.ump_service_total_weight
+			let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
 			// And track that we've finished processing the inherent for this block.
 			Included::<T>::set(Some(()));
 
+			// ump_weight + WeightInfo::enter(backed_candidates_len, disputed.len())
 			Ok(Some(
 				MINIMAL_INCLUSION_INHERENT_WEIGHT +
 					(backed_candidates_len * BACKED_CANDIDATE_WEIGHT),
@@ -309,10 +336,14 @@ fn limit_backed_candidates<T: Config>(
 		});
 	}
 
+	// TODO checking weight at this point seems strange since most of the weight likely revolves around
+	// count of back candidates?
+
 	// the weight of the paras inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
 	if frame_system::Pallet::<T>::block_weight().total() >
 		<T as frame_system::Config>::BlockWeights::get().max_block
+	// shouldn't this check be moved to top of fn?
 	{
 		Vec::new()
 	} else {

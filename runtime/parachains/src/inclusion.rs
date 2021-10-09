@@ -52,7 +52,7 @@ pub struct AvailabilityBitfieldRecord<N> {
 }
 
 /// A backed candidate pending availability.
-#[derive(Encode, Decode, PartialEq, TypeInfo)]
+#[derive(Encode, Decode, PartialEq, TypeInfo, Default)]
 #[cfg_attr(test, derive(Debug))]
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
@@ -97,6 +97,29 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 	/// Get the candidate descriptor.
 	pub(crate) fn candidate_descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.descriptor
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn new(
+		core: CoreIndex,
+		hash: CandidateHash,
+		descriptor: CandidateDescriptor<H>,
+		availability_votes: BitVec<BitOrderLsb0, u8>,
+		backers: BitVec<BitOrderLsb0, u8>,
+		relay_parent_number: N,
+		backed_in_number: N,
+		backing_group: GroupIndex,
+	) -> Self {
+		Self {
+			core,
+			hash,
+			descriptor,
+			availability_votes,
+			backers,
+			relay_parent_number,
+			backed_in_number,
+			backing_group,
+		}
 	}
 }
 
@@ -372,7 +395,7 @@ impl<T: Config> Pallet<T> {
 					descriptor: pending_availability.descriptor,
 					commitments,
 				};
-				Self::enact_candidate(
+				let _weight = Self::enact_candidate(
 					pending_availability.relay_parent_number,
 					receipt,
 					pending_availability.backers,
@@ -716,6 +739,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		// enact the messaging facet of the candidate.
+		// TODO check how to account for these
 		weight += <dmp::Pallet<T>>::prune_dmq(
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
