@@ -22,9 +22,10 @@
 //! this module.
 
 use crate::{
+	disputes,
 	disputes::DisputesHandler,
-	inclusion,
-	scheduler::{self, CoreAssignment, FreedReason},
+	inclusion, initializer,
+	scheduler::{self, FreedReason},
 	shared, ump,
 };
 use bitvec::prelude::BitVec;
@@ -48,6 +49,8 @@ use sp_std::{
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
 	prelude::*,
 };
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 
 pub use pallet::*;
 
@@ -56,6 +59,21 @@ const LOG_TARGET: &str = "runtime::inclusion-inherent";
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
+
+pub trait WeightInfo {
+	fn enter_backed_dominant(b: u32) -> Weight;
+	fn enter_dispute_dominant(d: u32) -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn enter_backed_dominant(_b: u32) -> Weight {
+		Weight::MAX
+	}
+	fn enter_dispute_dominant(_d: u32) -> Weight {
+		Weight::MAX
+	}
+}
 
 /// Weights
 ///
@@ -134,7 +152,12 @@ pub mod pallet {
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config: inclusion::Config + scheduler::Config + pallet_babe::Config {}
+	pub trait Config:
+		inclusion::Config + scheduler::Config + initializer::Config + disputes::Config
+	{
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
+	}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -514,7 +537,8 @@ pub mod pallet {
 			<scheduler::Pallet<T>>::occupied(&occupied);
 
 			// Give some time slice to dispatch pending upward messages.
-			<ump::Pallet<T>>::process_pending_upward_messages();
+			// this is max config.ump_service_total_weight
+			let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
 			// And track that we've finished processing the inherent for this block.
 			Included::<T>::set(Some(()));
@@ -811,10 +835,14 @@ fn limit_backed_candidates<T: Config>(
 		});
 	}
 
+	// TODO checking weight at this point seems strange since most of the weight likely revolves around
+	// count of back candidates?
+
 	// the weight of the paras inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
 	if frame_system::Pallet::<T>::block_weight().total() >
 		<T as frame_system::Config>::BlockWeights::get().max_block
+	// shouldn't this check be moved to top of fn?
 	{
 		Vec::new()
 	} else {

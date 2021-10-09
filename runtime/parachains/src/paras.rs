@@ -160,7 +160,7 @@ impl ParaLifecycle {
 
 impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
-	fn note_replacement(&mut self, expected_at: N, activated_at: N) {
+	pub(crate) fn note_replacement(&mut self, expected_at: N, activated_at: N) {
 		self.upgrade_times.push(ReplacementTimes { expected_at, activated_at })
 	}
 
@@ -1166,6 +1166,32 @@ impl<T: Config> Pallet<T> {
 			session_index: shared::Pallet::<T>::session_index(),
 			..Default::default()
 		});
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn parachains_append(para_id: ParaId) {
+		Parachains::<T>::append(para_id)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn heads_insert(para_id: &ParaId, head_data: HeadData) {
+		Heads::<T>::insert(para_id, head_data)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn current_code_hash_insert(
+		para_id: &ParaId,
+		validation_code_hash: ValidationCodeHash,
+	) {
+		CurrentCodeHash::<T>::insert(para_id, validation_code_hash)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn past_code_meta_insert(
+		para_id: &ParaId,
+		past_code_meta: ParaPastCodeMeta<T::BlockNumber>,
+	) {
+		PastCodeMeta::<T>::insert(para_id, past_code_meta)
 	}
 }
 
