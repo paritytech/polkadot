@@ -76,8 +76,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config:
-		inclusion::Config + scheduler::Config + initializer::Config + disputes::Config
+	pub trait Config: inclusion::Config + scheduler::Config + initializer::Config // + disputes::Config
 	{
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
