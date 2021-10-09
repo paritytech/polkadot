@@ -57,8 +57,8 @@ pub struct AvailabilityBitfieldRecord<N> {
 }
 
 /// A backed candidate pending availability.
-#[derive(Encode, Decode, PartialEq, TypeInfo, Default)]
-#[cfg_attr(test, derive(Debug))]
+#[derive(Encode, Decode, PartialEq, TypeInfo)]
+#[cfg_attr(test, derive(Debug, Default))]
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
 	core: CoreIndex,

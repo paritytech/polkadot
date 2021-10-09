@@ -476,7 +476,9 @@ impl parachains_disputes::Config for Runtime {
 	type WeightInfo = parachains_disputes::TestWeightInfo;
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type WeightInfo = parachains_paras_inherent::TestWeightInfo;
+}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
