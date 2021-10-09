@@ -47,8 +47,8 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> SendResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
+	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
+		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
 		Ok(())
 	}
 }
@@ -108,7 +108,7 @@ impl pallet_balances::Config for Runtime {
 impl shared::Config for Runtime {}
 
 impl configuration::Config for Runtime {
-	type WeightInfo = configuration::weights::WeightInfo<Runtime>;
+	type WeightInfo = configuration::TestWeightInfo;
 }
 
 // aims to closely emulate the Kusama XcmConfig

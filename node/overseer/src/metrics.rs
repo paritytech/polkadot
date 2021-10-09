@@ -17,7 +17,7 @@
 //! Prometheus metrics related to the overseer and its channels.
 
 use super::*;
-use polkadot_node_metrics::metrics::{self, prometheus};
+pub use polkadot_node_metrics::metrics::{self, prometheus, Metrics as MetricsTrait};
 
 use parity_util_mem::MemoryAllocationSnapshot;
 
@@ -110,7 +110,7 @@ impl Metrics {
 	}
 }
 
-impl metrics::Metrics for Metrics {
+impl MetricsTrait for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			activated_heads_total: prometheus::register(
