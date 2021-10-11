@@ -83,6 +83,6 @@ frame_benchmarking::benchmarks! {
 
 frame_benchmarking::impl_benchmark_test_suite!(
 	Ump,
-	crate::mock::new_test_ext(Default::default()).build(),
+	crate::mock::new_test_ext(crate::ump::tests::GenesisConfigBuilder::default().build()),
 	crate::mock::Test
 );
