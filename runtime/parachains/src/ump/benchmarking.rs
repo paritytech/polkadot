@@ -66,8 +66,11 @@ frame_benchmarking::benchmarks! {
 		let host_conf = configuration::ActiveConfig::<T>::get();
 		let weight = host_conf.ump_max_individual_weight + 1;
 		let para = ParaId::from(1978);
+		// the message's weight does not really matter here, as we add service_overweight's max_weight parameter
+		// to the extrinsic's weight in the weight calculation
 		let msg = create_message::<T>(weight.into());
 
+		// This just makes sure that 0 is not a valid index and we can use it later on.
 		let _ = Ump::<T>::service_overweight(RawOrigin::Root.into(), 0, 1000);
 		// Start with the block number 1. This is needed because should an event be
 		// emitted during the genesis block they will be implicitly wiped.

@@ -317,7 +317,7 @@ pub mod pallet {
 		///
 		/// Events:
 		/// - `OverweightServiced`: On success.
-		#[pallet::weight(<T as Config>::WeightInfo::service_overweight())]
+		#[pallet::weight(weight_limit + <T as Config>::WeightInfo::service_overweight())]
 		pub fn service_overweight(
 			origin: OriginFor<T>,
 			index: OverweightIndex,
