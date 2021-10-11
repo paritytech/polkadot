@@ -8,7 +8,7 @@ edition = "2018"
 futures = "0.3.17"
 futures-timer = "3.0.2"
 kvdb = "0.10.0"
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 tracing = "0.1.29"
 bitvec = "0.20.1"
 
