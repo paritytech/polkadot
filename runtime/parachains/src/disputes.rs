@@ -1113,7 +1113,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// Retrieve the included state of a given candidate in a particular lession.
+	/// Retrieve the included state of a given candidate in a particular session.
 	pub(crate) fn get_included_state(
 		session: &SessionIndex,
 		candidate_hash: &CandidateHash,
