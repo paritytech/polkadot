@@ -1370,6 +1370,7 @@ mod tests {
 			configuration: crate::configuration::GenesisConfig {
 				config: crate::configuration::HostConfiguration {
 					max_downward_message_size: 1024,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 			},

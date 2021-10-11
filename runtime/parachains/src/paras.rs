@@ -30,7 +30,7 @@ use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	ConsensusLog, HeadData, Id as ParaId, PvfCheckStatement, SessionIndex, UpgradeGoAhead,
-	UpgradeRestriction, ValidationCode, ValidationCodeHash,
+	UpgradeRestriction, ValidationCode, ValidationCodeHash, ValidatorSignature,
 };
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
@@ -632,11 +632,12 @@ pub mod pallet {
 		pub fn include_pvf_check_statement(
 			origin: OriginFor<T>,
 			stmt: PvfCheckStatement,
+			signature: ValidatorSignature,
 		) -> DispatchResult {
 			ensure_none(origin)?;
 			let validators = shared::Pallet::<T>::active_validator_keys();
 			let current_session = shared::Pallet::<T>::session_index();
-			ensure!(stmt.session_index == current_session, Error::<T>::PvfCheckStatementStale,);
+			ensure!(stmt.session_index == current_session, Error::<T>::PvfCheckStatementStale);
 			let validator_index = stmt.validator_index.0 as usize;
 			let validator_public = validators
 				.get(validator_index)
@@ -644,7 +645,7 @@ pub mod pallet {
 
 			let signing_payload = stmt.signing_payload();
 			ensure!(
-				stmt.signature.verify(&signing_payload[..], &validator_public),
+				signature.verify(&signing_payload[..], &validator_public),
 				Error::<T>::PvfCheckInvalidSignature,
 			);
 
@@ -699,8 +700,8 @@ pub mod pallet {
 		type Call = Call<T>;
 
 		fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-			let stmt = match call {
-				Call::include_pvf_check_statement { stmt } => stmt,
+			let (stmt, signature) = match call {
+				Call::include_pvf_check_statement { stmt, signature } => (stmt, signature),
 				_ => return InvalidTransaction::Call.into(),
 			};
 
@@ -717,7 +718,7 @@ pub mod pallet {
 			};
 
 			let signing_payload = stmt.signing_payload();
-			if !stmt.signature.verify(&signing_payload[..], &validator_public) {
+			if !signature.verify(&signing_payload[..], &validator_public) {
 				return InvalidTransaction::BadProof.into()
 			}
 
@@ -745,7 +746,7 @@ pub mod pallet {
 
 		fn pre_dispatch(call: &Self::Call) -> Result<(), TransactionValidityError> {
 			let stmt = match call {
-				Call::include_pvf_check_statement { stmt } => stmt,
+				Call::include_pvf_check_statement { stmt, .. } => stmt,
 				_ => return Err(InvalidTransaction::Call.into()),
 			};
 
@@ -916,35 +917,6 @@ impl<T: Config> Pallet<T> {
 		return outgoing
 	}
 
-	// note replacement of the code of para with given `id`, which occured in the
-	// context of the given relay-chain block number. provide the replaced code.
-	//
-	// `at` for para-triggered replacement is the block number of the relay-chain
-	// block in whose context the parablock was executed
-	// (i.e. number of `relay_parent` in the receipt)
-	fn note_past_code(
-		id: ParaId,
-		at: T::BlockNumber,
-		now: T::BlockNumber,
-		old_code_hash: ValidationCodeHash,
-	) -> Weight {
-		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
-			past_meta.note_replacement(at, now);
-		});
-
-		<Self as Store>::PastCodeHash::insert(&(id, at), old_code_hash);
-
-		// Schedule pruning for this past-code to be removed as soon as it
-		// exits the slashing window.
-		<Self as Store>::PastCodePruning::mutate(|pruning| {
-			let insert_idx =
-				pruning.binary_search_by_key(&now, |&(_, b)| b).unwrap_or_else(|idx| idx);
-			pruning.insert(insert_idx, (id, now));
-		});
-
-		T::DbWeight::get().reads_writes(2, 3)
-	}
-
 	// looks at old code metadata, compares them to the current acceptance window, and prunes those
 	// that are too old.
 	fn prune_old_code(now: T::BlockNumber) -> Weight {
@@ -1113,18 +1085,15 @@ impl<T: Config> Pallet<T> {
 		code_hash: &ValidationCodeHash,
 		now: T::BlockNumber,
 		code_inserted_at: T::BlockNumber,
-		_cfg: &configuration::HostConfiguration<T::BlockNumber>,
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		const SOAKING_PERIOD: u32 = 600;
-		const MINIMUM_SCHEDULE_UPGRADE_DELAY: u32 = 60;
-
 		let mut weight = 0;
 
 		// Schedule upgrade to happen after a mandatory PVF code soaking period, but
 		// make sure it is no earlier than the minimum schedule delay.
 		let expected_at = cmp::max(
-			code_inserted_at + SOAKING_PERIOD.into(),
-			now + MINIMUM_SCHEDULE_UPGRADE_DELAY.into(),
+			code_inserted_at + cfg.validation_upgrade_delay,
+			now + cfg.minimum_validation_upgrade_delay,
 		);
 
 		weight += T::DbWeight::get().reads_writes(1, 4);
@@ -1191,7 +1160,7 @@ impl<T: Config> Pallet<T> {
 		// Make sure parachain isn't already in our system and that the onboarding parameters are
 		// valid.
 		ensure!(Self::can_schedule_para_initialize(&id), Error::<T>::CannotOnboard);
-		ensure!(!genesis_data.validation_code.0.is_empty(), Error::<T>::CannotOnboard);
+		// ensure!(!genesis_data.validation_code.0.is_empty(), Error::<T>::CannotOnboard);
 		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
 
 		// HACK: here we are doing something nasty.
@@ -1366,16 +1335,17 @@ impl<T: Config> Pallet<T> {
 	) -> Weight {
 		let mut weight = 0;
 
-		// TODO: account for the configuration parameter that disables pvf-checks.
-
 		weight += T::DbWeight::get().reads(1);
 		match PvfVotingMap::<T>::get(&code_hash) {
 			None => {
 				let known_code = CodeByHash::<T>::contains_key(&code_hash);
 
-				if known_code {
-					// The code is known and there is no voting. That means the code already is
-					// checked. Fast track.
+				if !cfg.pvf_checking_enabled || known_code {
+					// Either:
+					// - the code is known and there is no PVF voting for it meaning it is already
+					//   checked, or
+					// - the PVF checking is diabled
+					// In any case: fast track the PVF checking into the accepted state
 					let now = <frame_system::Pallet<T>>::block_number();
 					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, now, cfg);
 				} else {
@@ -1462,16 +1432,48 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	// note replacement of the code of para with given `id`, which occured in the
+	// context of the given relay-chain block number. provide the replaced code.
+	//
+	// `at` for para-triggered replacement is the block number of the relay-chain
+	// block in whose context the parablock was executed
+	// (i.e. number of `relay_parent` in the receipt)
+	fn note_past_code(
+		id: ParaId,
+		at: T::BlockNumber,
+		now: T::BlockNumber,
+		old_code_hash: ValidationCodeHash,
+	) -> Weight {
+		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
+			past_meta.note_replacement(at, now);
+		});
+
+		<Self as Store>::PastCodeHash::insert(&(id, at), old_code_hash);
+
+		// Schedule pruning for this past-code to be removed as soon as it
+		// exits the slashing window.
+		<Self as Store>::PastCodePruning::mutate(|pruning| {
+			let insert_idx =
+				pruning.binary_search_by_key(&now, |&(_, b)| b).unwrap_or_else(|idx| idx);
+			pruning.insert(insert_idx, (id, now));
+		});
+
+		T::DbWeight::get().reads_writes(2, 3)
+	}
+
 	/// Returns the list of PVFs (aka validation code) that require pre-checking votes.
 	pub(crate) fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
 		PvfVotingList::<T>::get()
 	}
 
-	pub(crate) fn submit_pvf_check_statement(stmt: PvfCheckStatement) {
+	pub(crate) fn submit_pvf_check_statement(
+		stmt: PvfCheckStatement,
+		signature: ValidatorSignature,
+	) {
 		use frame_system::offchain::SubmitTransaction;
 
 		if let Err(e) = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(
-			Call::include_pvf_check_statement { stmt }.into(),
+			Call::include_pvf_check_statement { stmt, signature }.into(),
 		) {
 			log::error!(
 				target: "runtime::paras",
@@ -1574,15 +1576,43 @@ impl<T: Config> Pallet<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::assert_ok;
-	use primitives::v1::BlockNumber;
+	use frame_support::{assert_err, assert_ok};
+	use keyring::Sr25519Keyring;
+	use primitives::{
+		v0::PARACHAIN_KEY_TYPE_ID,
+		v1::{BlockNumber, ValidatorId},
+	};
+	use sc_keystore::LocalKeystore;
+	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+	use std::sync::Arc;
 
 	use crate::{
 		configuration::HostConfiguration,
-		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System},
+		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System, Test},
 	};
 
+	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+		val_ids.iter().map(|v| v.public().into()).collect()
+	}
+
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		for validator in validators.iter() {
+			SyncCryptoStore::sr25519_generate_new(
+				&*keystore,
+				PARACHAIN_KEY_TYPE_ID,
+				Some(&validator.to_seed()),
+			)
+			.unwrap();
+		}
+
 		while System::block_number() < to {
 			let b = System::block_number();
 			Paras::initializer_finalize();
@@ -1590,12 +1620,14 @@ mod tests {
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				let mut session_change_notification = SessionChangeNotification::default();
 				session_change_notification.session_index = ParasShared::session_index() + 1;
+				session_change_notification.validators = validator_pubkeys(&validators);
 				ParasShared::initializer_on_new_session(
 					session_change_notification.session_index,
 					session_change_notification.random_seed,
 					&session_change_notification.new_config,
 					session_change_notification.validators.clone(),
 				);
+				ParasShared::set_active_validators_ascending(validator_pubkeys(&validators));
 				Paras::initializer_on_new_session(&session_change_notification);
 			}
 			System::on_finalize(b);
@@ -1859,6 +1891,7 @@ mod tests {
 					code_retention_period,
 					validation_upgrade_delay,
 					validation_upgrade_frequency,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -1876,8 +1909,10 @@ mod tests {
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 			let expected_at = {
-				// this parablock is in the context of block 1.
-				let expected_at = 1 + validation_upgrade_delay;
+				// the upgrade is scheduled at block #2 and instantly enacted (because pvf checking
+				// is disabled). At the same time, the upgrade frequency (cooldown) is counted from
+				// the relay-parent which is 1.
+				let expected_at = 2 + validation_upgrade_delay;
 				let next_possible_upgrade_at = 1 + validation_upgrade_frequency;
 				Paras::schedule_code_upgrade(
 					para_id,
@@ -1966,6 +2001,7 @@ mod tests {
 					code_retention_period,
 					validation_upgrade_delay,
 					validation_upgrade_frequency,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -1981,8 +2017,10 @@ mod tests {
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 			let expected_at = {
-				// this parablock is in the context of block 1.
-				let expected_at = 1 + validation_upgrade_delay;
+				// the upgrade is scheduled at block #2 and instantly enacted (because pvf checking
+				// is disabled). At the same time, the upgrade frequency (cooldown) is counted from
+				// the relay-parent which is 1.
+				let expected_at = 2 + validation_upgrade_delay;
 				let next_possible_upgrade_at = 1 + validation_upgrade_frequency;
 				Paras::schedule_code_upgrade(
 					para_id,
@@ -2037,6 +2075,7 @@ mod tests {
 	fn submit_code_change_when_not_allowed_is_err() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 7;
+		let validation_upgrade_frequency = 100;
 
 		let paras = vec![(
 			0u32.into(),
@@ -2053,6 +2092,8 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					validation_upgrade_frequency,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -2089,7 +2130,7 @@ mod tests {
 
 	#[test]
 	fn full_parachain_cleanup_storage() {
-		let code_retention_period = 10;
+		let code_retention_period = 20;
 		let validation_upgrade_delay = 1 + 5;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
@@ -2108,6 +2149,8 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					pvf_checking_enabled: false, // TODO: not sure about this
+					minimum_validation_upgrade_delay: 0,
 					..Default::default()
 				},
 				..Default::default()
@@ -2126,8 +2169,9 @@ mod tests {
 			check_code_is_stored(&original_code);
 
 			let expected_at = {
-				// this parablock is in the context of block 1.
-				let expected_at = 1 + validation_upgrade_delay;
+				// `schdule_code_upgrade` inserts the code at the relay-block 2 and then it has
+				// to go through the validation upgrade delay (soaking).
+				let expected_at = 2 + validation_upgrade_delay;
 				Paras::schedule_code_upgrade(
 					para_id,
 					new_code.clone(),
@@ -2146,62 +2190,58 @@ mod tests {
 				expected_at
 			};
 
+			// Cannot offboard while an upgrade is pending.
+			assert_err!(Paras::schedule_para_cleanup(para_id), Error::<Test>::CannotOffboard);
+
+			// Enact the upgrade.
+			//
+			// For that run to block #8 and submit a new head.
+			assert_eq!(expected_at, 8);
+			run_to_block(8, None);
+			assert_eq!(<frame_system::Pallet<Test>>::block_number(), 8);
+			Paras::note_new_head(para_id, Default::default(), expected_at);
+
 			assert_ok!(Paras::schedule_para_cleanup(para_id));
 
-			// Just scheduling cleanup shouldn't change anything.
-			{
-				assert_eq!(
-					<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
-					vec![para_id],
-				);
-				assert_eq!(Paras::parachains(), vec![para_id]);
-
-				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
-				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
-				check_code_is_stored(&original_code);
-				check_code_is_stored(&new_code);
-
-				assert_eq!(<Paras as Store>::Heads::get(&para_id), Some(Default::default()));
-			}
-
-			// run to block #4, with a 2 session changes at the end of the block 2 & 3.
-			run_to_block(4, Some(vec![3, 4]));
+			// run to block #10, with a 2 session changes at the end of the block 8 & 9.
+			run_to_block(10, Some(vec![9, 10]));
 
 			// cleaning up the parachain should place the current parachain code
 			// into the past code buffer & schedule cleanup.
-			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(3));
-			assert_eq!(
-				<Paras as Store>::PastCodeHash::get(&(para_id, 3)),
-				Some(original_code.hash())
-			);
-			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 3)]);
+			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(9));
+			assert_eq!(<Paras as Store>::PastCodeHash::get(&(para_id, 9)), Some(new_code.hash()));
+			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 8), (para_id, 9)]);
 			check_code_is_stored(&original_code);
+			check_code_is_stored(&new_code);
 
 			// any future upgrades haven't been used to validate yet, so those
 			// are cleaned up immediately.
 			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
 			assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
 			assert!(Paras::current_code(&para_id).is_none());
-			check_code_is_not_stored(&new_code);
 
 			// run to do the final cleanup
-			let cleaned_up_at = 3 + code_retention_period + 1;
+			let cleaned_up_at = 9 + code_retention_period + 1;
 			run_to_block(cleaned_up_at, None);
 
 			// now the final cleanup: last past code cleaned up, and this triggers meta cleanup.
 			assert_eq!(Paras::past_code_meta(&para_id), Default::default());
-			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 3)).is_none());
+			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 8)).is_none());
+			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 9)).is_none());
 			assert!(<Paras as Store>::PastCodePruning::get().is_empty());
 			check_code_is_not_stored(&original_code);
+			check_code_is_not_stored(&new_code);
 		});
 	}
 
 	#[test]
 	fn para_incoming_at_session() {
+		let code_a = ValidationCode(vec![2]);
+		let code_b = ValidationCode(vec![1]);
+		let code_c = ValidationCode(vec![3]);
+
 		new_test_ext(Default::default()).execute_with(|| {
-			run_to_block(1, None);
+			run_to_block(1, Some(vec![1]));
 
 			let b = ParaId::from(525);
 			let a = ParaId::from(999);
@@ -2212,7 +2252,7 @@ mod tests {
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![1].into(),
-					validation_code: vec![1].into(),
+					validation_code: code_b.clone(),
 				},
 			));
 
@@ -2221,7 +2261,7 @@ mod tests {
 				ParaGenesisArgs {
 					parachain: false,
 					genesis_head: vec![2].into(),
-					validation_code: vec![2].into(),
+					validation_code: code_a.clone(),
 				},
 			));
 
@@ -2230,9 +2270,49 @@ mod tests {
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![3].into(),
-					validation_code: vec![3].into(),
+					validation_code: code_c.clone(),
 				},
 			));
+
+			fn sign_and_include_pvf_check_statement(stmt: PvfCheckStatement) {
+				let validators = &[
+					Sr25519Keyring::Alice,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+					Sr25519Keyring::Dave,
+					Sr25519Keyring::Ferdie,
+				];
+				let signature =
+					validators[stmt.validator_index.0 as usize].sign(&stmt.signing_payload());
+				Paras::include_pvf_check_statement(None.into(), stmt, signature.into()).unwrap();
+			}
+
+			IntoIterator::into_iter([0, 1, 2, 3])
+				.map(|i| PvfCheckStatement {
+					accept: true,
+					subject: code_a.hash(),
+					session_index: 1,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
+
+			IntoIterator::into_iter([1, 2, 3, 4])
+				.map(|i| PvfCheckStatement {
+					accept: true,
+					subject: code_b.hash(),
+					session_index: 1,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
+
+			IntoIterator::into_iter([0, 2, 3, 4])
+				.map(|i| PvfCheckStatement {
+					accept: true,
+					subject: code_c.hash(),
+					session_index: 1,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
 
 			assert_eq!(
 				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
@@ -2295,6 +2375,7 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()

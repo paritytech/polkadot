@@ -145,11 +145,11 @@ impl frame_support::traits::EstimateNextSessionRotation<u32> for TestNextSession
 		10
 	}
 
-	fn estimate_current_session_progress(now: u32) -> (Option<Permill>, Weight) {
+	fn estimate_current_session_progress(_now: u32) -> (Option<Permill>, Weight) {
 		(None, 0)
 	}
 
-	fn estimate_next_session_rotation(now: u32) -> (Option<u32>, Weight) {
+	fn estimate_next_session_rotation(_now: u32) -> (Option<u32>, Weight) {
 		(None, 0)
 	}
 }

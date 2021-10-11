@@ -188,6 +188,9 @@ needed_approvals                         : pre.needed_approvals,
 relay_vrf_modulo_samples                 : pre.relay_vrf_modulo_samples,
 
 ump_max_individual_weight: <configuration::HostConfiguration<BlockNumberFor<T>>>::default().ump_max_individual_weight,
+// TODO: this is not correct,
+pvf_checking_enabled: <configuration::HostConfiguration<BlockNumberFor<T>>>::default().pvf_checking_enabled,
+minimum_validation_upgrade_delay: <configuration::HostConfiguration<BlockNumberFor<T>>>::default().minimum_validation_upgrade_delay,
 		}
 	};
 

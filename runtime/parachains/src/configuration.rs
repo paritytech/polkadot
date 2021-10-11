@@ -77,6 +77,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// FOr example, (unchecked) this should be bigger than the PVF pre-checking time and so on.
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
+	// TODO: rename to validation_code_soaking_period
 	pub validation_upgrade_delay: BlockNumber,
 
 	/**
@@ -184,6 +185,9 @@ pub struct HostConfiguration<BlockNumber> {
 	// TODO: Add voting TTL
 	// TODO: remove validation_upgrade_delay ?
 	// TODO: enable disable pre-checking.
+	pub pvf_checking_enabled: bool,
+
+	pub minimum_validation_upgrade_delay: BlockNumber,
 }
 
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
@@ -229,6 +233,8 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
 			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
+			pvf_checking_enabled: true,
+			minimum_validation_upgrade_delay: Default::default(),
 		}
 	}
 }
@@ -1071,6 +1077,8 @@ mod tests {
 				hrmp_max_parathread_outbound_channels: 200,
 				hrmp_max_message_num_per_candidate: 20,
 				ump_max_individual_weight: 909,
+				pvf_checking_enabled: true,          // TODO: not correct
+				minimum_validation_upgrade_delay: 0, // TODO: not correct
 			};
 
 			assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none());

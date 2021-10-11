@@ -1340,7 +1340,6 @@ pub struct PvfCheckStatement {
 	pub subject: ValidationCodeHash,
 	pub session_index: SessionIndex,
 	pub validator_index: ValidatorIndex,
-	pub signature: ValidatorSignature,
 }
 
 impl PvfCheckStatement {
