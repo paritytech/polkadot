@@ -112,7 +112,7 @@ fn run_one_input(data: &[u8]) {
 			println!("Executing message {:?}", m);
 		}
 		ParaA::execute_with(|| {
-			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent.into(), m));
+			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent, m));
 		});
 		Relay::execute_with(|| {});
 	}
