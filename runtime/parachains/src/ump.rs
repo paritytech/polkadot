@@ -19,7 +19,7 @@ use crate::{
 	initializer,
 };
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
-use frame_system::pallet_prelude::*;
+use frame_system::{limits::BlockWeights, pallet_prelude::*};
 use primitives::v1::{Id as ParaId, UpwardMessage};
 use sp_std::{
 	collections::btree_map::BTreeMap, convert::TryFrom, fmt, marker::PhantomData, mem, prelude::*,
@@ -170,6 +170,13 @@ pub trait WeightInfo {
 	fn service_overweight() -> Weight;
 }
 
+// fallback implementation
+impl WeightInfo for () {
+	fn service_overweight() -> Weight {
+		BlockWeights::default().max_block
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -197,8 +204,8 @@ pub mod pallet {
 		/// Origin which is allowed to execute overweight messages.
 		type ExecuteOverweightOrigin: EnsureOrigin<Self::Origin>;
 
-//		/// Weight information for extrinsics in this pallet
-//		type WeightInfo: WeightInfo;
+		/// Weight information for extrinsics in this pallet
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -213,20 +220,20 @@ pub mod pallet {
 		/// Upward message executed with the given outcome.
 		/// \[ id, outcome \]
 		ExecutedUpward(MessageId, Outcome),
-		/// The weight limit for handling downward messages was reached.
+		/// The weight limit for handling upward messages was reached.
 		/// \[ id, remaining, required \]
 		WeightExhausted(MessageId, Weight, Weight),
-		/// Some downward messages have been received and will be processed.
+		/// Some upward messages have been received and will be processed.
 		/// \[ para, count, size \]
 		UpwardMessagesReceived(ParaId, u32, u32),
-		/// The weight budget was exceeded for an individual downward message.
+		/// The weight budget was exceeded for an individual upward message.
 		///
 		/// This message can be later dispatched manually using `service_overweight` dispatchable
 		/// using the assigned `overweight_index`.
 		///
 		/// \[ para, id, overweight_index, required \]
 		OverweightEnqueued(ParaId, MessageId, OverweightIndex, Weight),
-		/// Downward message from the overweight queue was executed with the given actual weight
+		/// Upward message from the overweight queue was executed with the given actual weight
 		/// used.
 		///
 		/// \[ overweight_index, used \]
@@ -310,7 +317,7 @@ pub mod pallet {
 		///
 		/// Events:
 		/// - `OverweightServiced`: On success.
-		#[pallet::weight(weight_limit.saturating_add(1_000_000))]
+		#[pallet::weight(<T as Config>::WeightInfo::service_overweight())]
 		pub fn service_overweight(
 			origin: OriginFor<T>,
 			index: OverweightIndex,
@@ -773,7 +780,7 @@ pub(crate) mod tests {
 		}
 	}
 
-	pub(super) fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
+	pub fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
 		let msgs = vec![msg];
 		assert!(Ump::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
 		let _ = Ump::receive_upward_messages(para, msgs);
@@ -1052,5 +1059,3 @@ pub(crate) mod tests {
 		});
 	}
 }
-
-
