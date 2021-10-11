@@ -12,4 +12,3 @@ polkadot.*
 .DS_Store
 .cargo
 .env
-**/overlord-expansion.rs
