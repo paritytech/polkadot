@@ -203,6 +203,17 @@ impl TestState {
 				}
 			)
 		}
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_new_leaf,
+				RuntimeApiRequest::FetchOnChainVotes(tx),
+			)) => {
+				// add some `BackedCandidates` or resolved disputes here as needed
+				tx.send(Ok(Some(ScrapedOnChainVotes::default()))).unwrap();
+			}
+		)
 	}
 
 	async fn handle_resume_sync(

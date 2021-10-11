@@ -109,4 +109,5 @@ Frozen: Option<BlockNumber>,
 
 * `revert_and_freeze(BlockNumber)`:
   1. If `is_frozen()` return.
-  1. Set `Frozen` to `Some(BlockNumber)` to indicate a rollback to the given block number is necessary.
+  1. Set `Frozen` to `Some(BlockNumber)` to indicate a rollback to the block number.
+  1. Issue a `Revert(BlockNumber + 1)` log to indicate a rollback of the block's child in the header chain, which is the same as a rollback to the block number.
