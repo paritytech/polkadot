@@ -548,6 +548,9 @@ simnet-tests:
   stage:                           deploy
   image:                           "${SIMNET_IMAGE}"
   <<:                              *kubernetes-env
+  variables:                       
+    NETWORK_CONFIG:                "simnet_tests/configs/simple_rococo_testnet.toml"
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/master/simnet_tests"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
@@ -564,17 +567,20 @@ simnet-tests:
 
   # SIMNET_REF is a gitlab variable
   before_script:
-    - echo "Simnet Tests Config
-        ${SIMNET_IMAGE}
-        ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
-        ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+    - echo "Simnet Tests Config"
+    - echo "${SIMNET_IMAGE}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+    - echo "${GH_DIR}" 
+    - echo "${NETWORK_CONFIG}" 
   script:
-    - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
-        --github-remote-dir="https://github.com/paritytech/polkadot/tree/master/simnet_tests"
-        --config="simnet_tests/configs/simple_rococo_testnet.toml"
+    - /home/nonroot/simnet/scripts/run-test-environment-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --config="${NETWORK_CONFIG}"
         --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image-simnet="${SIMNET_IMAGE}"
+        -e "SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        -e "COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
+        -e "SCRIPTSIMAGE=${SIMNET_IMAGE}"
   allow_failure:                   true
   retry: 2
   tags:
