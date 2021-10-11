@@ -138,6 +138,7 @@ impl crate::ump::Config for Test {
 	type UmpSink = TestUmpSink;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
+	type WeightInfo = crate::ump::WeightInfo<()>;
 }
 
 impl crate::hrmp::Config for Test {
