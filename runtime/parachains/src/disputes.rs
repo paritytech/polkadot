@@ -1113,6 +1113,11 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	/// Retrieve the included state of a given candidate in a particular lession.
+	pub(crate) fn get_included_state(session: &SessionIndex, candidate_hash: &CandidateHash) -> Option<T::BlockNumber> {
+		<Included<T>>::get(session, candidate_hash)
+	}
+
 	pub(crate) fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool {
 		<Disputes<T>>::get(&session, &candidate_hash).map_or(false, |dispute| {
 			// A dispute that has concluded with supermajority-against.

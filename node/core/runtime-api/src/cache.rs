@@ -337,6 +337,13 @@ impl RequestResultCache {
 		self.on_chain_votes.get(relay_parent).map(|v| &v.0)
 	}
 
+	pub(crate) fn candidate_included_state(
+		&mut self,
+		key: (Hash, SessionIndex, CandidateHash)
+	) -> Option<&Option<BlockNumber>> {
+		self.candidates_included_state.get(&key).map(|v| &v.0)
+	}
+
 	pub(crate) fn cache_on_chain_votes(
 		&mut self,
 		relay_parent: Hash,
@@ -346,13 +353,11 @@ impl RequestResultCache {
 	}
 	pub(crate) fn cache_candidate_included_state(
 		&mut self,
-		relay_parent: Hash,
-		session_index: SessionIndex,
-		candidate_hash: CandidateHash,
+		key: (Hash, SessionIndex, CandidateHash),
 		included: Option<BlockNumber>,
 	) {
 		self.candidates_included_state
-			.insert((relay_parent, session_index, candidate_hash), ResidentSizeOf(included));
+			.insert(key, ResidentSizeOf(included));
 	}
 }
 

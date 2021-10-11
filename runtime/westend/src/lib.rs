@@ -1288,6 +1288,10 @@ sp_api::impl_runtime_apis! {
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
 			parachains_runtime_api_impl::on_chain_votes::<Runtime>()
 		}
+
+		fn candidate_included_state(session_index: SessionIndex, candidate_hash: CandidateHash) -> Option<BlockNumber> {
+			runtime_api_impl::candidate_included_state::<Runtime>(session_index, candidate_hash)
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {

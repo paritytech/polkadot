@@ -147,9 +147,7 @@ where
 				self.requests_cache.cache_on_chain_votes(relay_parent, scraped),
 			CandidateIncludedState(relay_parent, session_index, candidate_hash, block_number) =>
 				self.requests_cache.cache_candidate_included_state(
-					relay_parent,
-					session_index,
-					candidate_hash,
+					(relay_parent, session_index, candidate_hash),
 					block_number,
 				),
 		}
@@ -358,7 +356,7 @@ where
 			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
 		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
 		Request::FetchOnChainVotes(sender) => query!(FetchOnChainVotes, on_chain_votes(), sender),
-		Request::CandidateInludedState(session_index, candidate_hash, sender) => query!(
+		Request::CandidateIncludedState(session_index, candidate_hash, sender) => query!(
 			CandidateIncludedState,
 			candidate_included_state(session_index, candidate_hash),
 			sender

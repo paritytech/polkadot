@@ -17,17 +17,8 @@
 //! Runtimes implementing the v1 runtime API are recommended to forward directly to these
 //! functions.
 
-use crate::{
-	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
-	session_info, shared,
-};
-use primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
-	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
-};
+use crate::{configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler, session_info, shared};
+use primitives::v1::{AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreIndex, CoreOccupied, CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex};
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
@@ -334,4 +325,9 @@ pub fn validation_code_by_hash<T: paras::Config>(
 /// Disputes imported via means of on-chain imports.
 pub fn on_chain_votes<T: paras_inherent::Config>() -> Option<ScrapedOnChainVotes<T::Hash>> {
 	<paras_inherent::Pallet<T>>::on_chain_votes()
+}
+
+/// Query candidate included state.
+pub fn candidate_included_state<T: disputes::Config>(session_index: SessionIndex, candidate_hash: CandidateHash) -> Option<T::BlockNumber> {
+	<disputes::Pallet<T>>::get_included_state(&session_index, &candidate_hash)
 }
