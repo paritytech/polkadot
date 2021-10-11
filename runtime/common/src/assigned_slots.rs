@@ -69,10 +69,11 @@ pub struct ParachainTemporarySlot<AccountId, LeasePeriod> {
 	pub lease_count: u32,
 }
 
-type BalanceOf<T> = <<<T as Config>::Leaser as Leaser>::Currency as Currency<
+type BalanceOf<T> = <<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
-type LeasePeriodOf<T> = <<T as Config>::Leaser as Leaser>::LeasePeriod;
+type LeasePeriodOf<T> =
+	<<T as Config>::Leaser as Leaser<<T as frame_system::Config>::BlockNumber>>::LeasePeriod;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -92,7 +93,11 @@ pub mod pallet {
 		type AssignSlotOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
 
 		/// The type representing the leasing system.
-		type Leaser: Leaser<AccountId = Self::AccountId, LeasePeriod = Self::BlockNumber>;
+		type Leaser: Leaser<
+			Self::BlockNumber,
+			AccountId = Self::AccountId,
+			LeasePeriod = Self::BlockNumber,
+		>;
 
 		/// The number of lease periods a permanent parachain slot lasts.
 		#[pallet::constant]
@@ -181,13 +186,15 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(n: T::BlockNumber) -> Weight {
-			let lease_period = Self::lease_period();
-			let lease_period_index = Self::lease_period_index();
-			if (n % lease_period).is_zero() {
-				Self::manage_lease_period_start(lease_period_index)
-			} else {
-				0
+			if let Some((lease_period, first_block)) = Self::lease_period_index(n) {
+				// If we're beginning a new lease period then handle that.
+				if first_block {
+					return Self::manage_lease_period_start(lease_period)
+				}
 			}
+
+			// We didn't return early above, so we didn't do anything.
+			0
 		}
 	}
 
@@ -207,7 +214,7 @@ pub mod pallet {
 				Error::<T>::SlotAlreadyAssigned
 			);
 
-			let current_lease_period: T::BlockNumber = Self::lease_period_index();
+			let current_lease_period: T::BlockNumber = Self::current_lease_period_index();
 			ensure!(
 				!T::Leaser::already_leased(
 					id,
@@ -263,7 +270,7 @@ pub mod pallet {
 				Error::<T>::SlotAlreadyAssigned
 			);
 
-			let current_lease_period: T::BlockNumber = Self::lease_period_index();
+			let current_lease_period: T::BlockNumber = Self::current_lease_period_index();
 			ensure!(
 				!T::Leaser::already_leased(
 					id,
@@ -383,7 +390,7 @@ pub mod pallet {
 					// at the end of the lease period .
 					log::warn!(target: "assigned_slots",
 						"Failed to downgrade parachain {:?} at period {:?}: {:?}",
-						id, Self::lease_period_index(), err
+						id, Self::current_lease_period_index(), err
 					);
 				}
 			}
@@ -519,14 +526,21 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Returns current lease period index.
-	fn lease_period_index() -> LeasePeriodOf<T> {
-		T::Leaser::lease_period_index()
+	fn current_lease_period_index() -> LeasePeriodOf<T> {
+		T::Leaser::lease_period_index(frame_system::Pallet::<T>::block_number())
+			.and_then(|x| Some(x.0))
+			.unwrap()
+	}
+
+	/// Returns lease period index for block
+	fn lease_period_index(block: BlockNumberFor<T>) -> Option<(LeasePeriodOf<T>, bool)> {
+		T::Leaser::lease_period_index(block)
 	}
 
 	/// Returns current lease period.
-	fn lease_period() -> LeasePeriodOf<T> {
-		T::Leaser::lease_period()
-	}
+	// fn lease_period() -> LeasePeriodOf<T> {
+	// 	T::Leaser::lease_period()
+	// }
 
 	/// Handles start of a lease period.
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) -> Weight {
@@ -627,19 +641,20 @@ mod tests {
 	}
 
 	impl parachains_configuration::Config for Test {
-		type WeightInfo = parachains_configuration::weights::WeightInfo<Test>;
+		type WeightInfo = parachains_configuration::TestWeightInfo;
 	}
 
 	impl parachains_paras::Config for Test {
 		type Origin = Origin;
 		type Event = Event;
-		type WeightInfo = parachains_paras::weights::WeightInfo<Test>;
+		type WeightInfo = parachains_paras::TestWeightInfo;
 	}
 
 	impl parachains_shared::Config for Test {}
 
 	parameter_types! {
 		pub const LeasePeriod: BlockNumber = 3;
+		pub static LeaseOffset: BlockNumber = 0;
 		pub const ParaDeposit: u64 = 1;
 	}
 
@@ -648,6 +663,7 @@ mod tests {
 		type Currency = Balances;
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
+		type LeaseOffset = LeaseOffset;
 		type WeightInfo = crate::slots::TestWeightInfo;
 	}
 
@@ -711,12 +727,12 @@ mod tests {
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_eq!(Slots::lease_period(), 3);
-			assert_eq!(Slots::lease_period_index(), 0);
+			// assert_eq!(Slots::lease_period(), 3);
+			assert_eq!(AssignedSlots::current_lease_period_index(), 0);
 			assert_eq!(Slots::deposit_held(1.into(), &1), 0);
 
 			run_to_block(3);
-			assert_eq!(Slots::lease_period_index(), 1);
+			assert_eq!(AssignedSlots::current_lease_period_index(), 1);
 		});
 	}
 
@@ -1037,7 +1053,7 @@ mod tests {
 			// Para is a parachain for TemporarySlotLeasePeriodLength * LeasePeriod blocks
 			while block < 6 {
 				println!("block #{}", block);
-				println!("lease period #{}", Slots::lease_period_index());
+				println!("lease period #{}", AssignedSlots::current_lease_period_index());
 				println!("lease {:?}", Slots::lease(ParaId::from(1)));
 
 				assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
@@ -1063,7 +1079,7 @@ mod tests {
 
 			// Block 6
 			println!("block #{}", block);
-			println!("lease period #{}", Slots::lease_period_index());
+			println!("lease period #{}", AssignedSlots::current_lease_period_index());
 			println!("lease {:?}", Slots::lease(ParaId::from(1)));
 
 			// Para lease ended, downgraded back to parathread
@@ -1075,7 +1091,7 @@ mod tests {
 			// Para should get a turn after TemporarySlotLeasePeriodLength * LeasePeriod blocks
 			run_to_block(12);
 			println!("block #{}", block);
-			println!("lease period #{}", Slots::lease_period_index());
+			println!("lease period #{}", AssignedSlots::current_lease_period_index());
 			println!("lease {:?}", Slots::lease(ParaId::from(1)));
 
 			assert_eq!(TestRegistrar::<Test>::is_parachain(ParaId::from(1)), true);
