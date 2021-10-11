@@ -339,7 +339,7 @@ impl RequestResultCache {
 
 	pub(crate) fn candidate_included_state(
 		&mut self,
-		key: (Hash, SessionIndex, CandidateHash)
+		key: (Hash, SessionIndex, CandidateHash),
 	) -> Option<&Option<BlockNumber>> {
 		self.candidates_included_state.get(&key).map(|v| &v.0)
 	}
@@ -356,8 +356,7 @@ impl RequestResultCache {
 		key: (Hash, SessionIndex, CandidateHash),
 		included: Option<BlockNumber>,
 	) {
-		self.candidates_included_state
-			.insert(key, ResidentSizeOf(included));
+		self.candidates_included_state.insert(key, ResidentSizeOf(included));
 	}
 }
 
