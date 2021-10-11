@@ -1720,7 +1720,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn candidate_included_state(session_index: SessionIndex, candidate_hash: CandidateHash) -> Option<BlockNumber> {
-			runtime_api_impl::candidate_included_state::<Runtime>(session_index, candidate_hash)
+			parachains_runtime_api_impl::candidate_included_state::<Runtime>(session_index, candidate_hash)
 		}
 	}
 
