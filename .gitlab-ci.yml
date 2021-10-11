@@ -31,6 +31,7 @@ variables:
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
+  SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v10"
 
 default:
   cache:                           {}
@@ -545,7 +546,7 @@ deploy-polkasync-kusama:
 
 simnet-tests:
   stage:                           deploy
-  image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
+  image:                           "${SIMNET_IMAGE}"
   <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -564,7 +565,7 @@ simnet-tests:
   # SIMNET_REF is a gitlab variable
   before_script:
     - echo "Simnet Tests Config
-        ${SIMNET_IMAGE_NAME} ${SIMNET_REF}
+        ${SIMNET_IMAGE}
         ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
         ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
   script:
@@ -573,7 +574,7 @@ simnet-tests:
         --config="simnet_tests/configs/simple_rococo_testnet.toml"
         --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
         --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image-simnet="docker.io/paritytech/simnet:${SIMNET_REF}"
+        --image-simnet="${SIMNET_IMAGE}"
   allow_failure:                   true
   retry: 2
   tags:
