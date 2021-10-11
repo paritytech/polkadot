@@ -16,7 +16,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-primitives = { path = "../../primitives" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 rand = "0.8.3"
 derive_more = "0.99.11"
 lru = "0.7.0"
