@@ -20,10 +20,10 @@ use futures::channel::oneshot;
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, GroupRotationInfo,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, BlockNumber, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionIndex,
+	SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_core::testing::TaskExecutor;
 use std::{
@@ -50,6 +50,7 @@ struct MockRuntimeApi {
 	hrmp_channels: HashMap<ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage>>>,
 	babe_epoch: Option<BabeEpoch>,
 	on_chain_votes: Option<ScrapedOnChainVotes>,
+	candidates_included_state: HashMap<(SessionIndex, CandidateHash), BlockNumber>,
 }
 
 impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -154,6 +155,10 @@ sp_api::mock_impl_runtime_apis! {
 		fn on_chain_votes(&self) -> Option<ScrapedOnChainVotes> {
 			self.on_chain_votes.clone()
 		}
+
+		fn candidate_included_state(session_index: SessionIndex, candidate_hash: CandidateHash) -> Option<BlockNumber> {
+			self.candidates_included_state.get(&(session_index, candidate_hash)).cloned()
+		}
 	}
 
 	impl BabeApi<Block> for MockRuntimeApi {
@@ -214,6 +219,44 @@ fn requests_authorities() {
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.authorities);
+
+		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::executor::block_on(future::join(subsystem_task, test_task));
+}
+
+#[test]
+fn request_included_state() {
+	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+
+	let mut runtime_api = MockRuntimeApi::default();
+	let candidate_hash = CandidateHash(Hash::repeat_byte(0xaa));
+	let session_index = 1;
+	let included_block = 8_u32;
+	runtime_api
+		.candidates_included_state
+		.insert((session_index, candidate_hash.clone()), included_block);
+	let runtime_api = Arc::new(runtime_api);
+
+	let relay_parent = [1; 32].into();
+	let spawner = sp_core::testing::TaskExecutor::new();
+
+	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+	let test_task = async move {
+		let (tx, rx) = oneshot::channel();
+
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::CandidateIncludedState(session_index, candidate_hash, tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), Some(included_block));
 
 		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 	};
