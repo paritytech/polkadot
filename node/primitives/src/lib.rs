@@ -22,7 +22,7 @@
 
 #![deny(missing_docs)]
 
-use std::{convert::TryFrom, pin::Pin};
+use std::{convert::TryFrom, pin::Pin, time::Duration};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
@@ -70,6 +70,17 @@ pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
 ///
 /// Number of sessions we want to consider in disputes.
 pub const DISPUTE_WINDOW: SessionIndex = 6;
+
+/// The amount of time to spend on execution during backing.
+pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// The amount of time to spend on execution during approval or disputes.
+///
+/// This is deliberately much longer than the backing execution timeout to
+/// ensure that in the absence of extremely large disparities between hardware,
+/// blocks that pass backing are considerd executable by approval checkers or
+/// dispute participants.
+pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
 
 /// The cumulative weight of a block in a fork-choice rule.
 pub type BlockWeight = u32;

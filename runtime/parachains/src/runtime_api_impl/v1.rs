@@ -18,14 +18,15 @@
 //! functions.
 
 use crate::{
-	configuration, dmp, hrmp, inclusion, initializer, paras, scheduler, session_info, shared,
+	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
+	session_info, shared,
 };
 use primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	ScheduledCore, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId,
-	ValidatorIndex,
+	ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -328,4 +329,9 @@ pub fn validation_code_by_hash<T: paras::Config>(
 	hash: ValidationCodeHash,
 ) -> Option<ValidationCode> {
 	<paras::Pallet<T>>::code_by_hash(hash)
+}
+
+/// Disputes imported via means of on-chain imports.
+pub fn on_chain_votes<T: paras_inherent::Config>() -> Option<ScrapedOnChainVotes<T::Hash>> {
+	<paras_inherent::Pallet<T>>::on_chain_votes()
 }

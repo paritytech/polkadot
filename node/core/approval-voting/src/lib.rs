@@ -27,7 +27,7 @@ use polkadot_node_primitives::{
 	approval::{
 		BlockApprovalMeta, DelayTranche, IndirectAssignmentCert, IndirectSignedApprovalVote,
 	},
-	SignedDisputeStatement, ValidationResult,
+	SignedDisputeStatement, ValidationResult, APPROVAL_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
@@ -1288,10 +1288,21 @@ async fn handle_approved_ancestor(
 							);
 						},
 						Some(a_entry) => {
-							let n_assignments = a_entry.n_assignments();
-							let n_approvals = c_entry.approvals().count_ones();
-
 							let status = || {
+								let n_assignments = a_entry.n_assignments();
+
+								// Take the approvals, filtered by the assignments
+								// for this block.
+								let n_approvals = c_entry
+									.approvals()
+									.iter()
+									.by_val()
+									.enumerate()
+									.filter(|(i, approved)| {
+										*approved && a_entry.is_assigned(ValidatorIndex(*i as _))
+									})
+									.count();
+
 								format!(
 									"{}/{}/{}",
 									n_assignments,
@@ -2224,6 +2235,7 @@ async fn launch_approval(
 					validation_code,
 					candidate.descriptor.clone(),
 					available_data.pov,
+					APPROVAL_EXECUTION_TIMEOUT,
 					val_tx,
 				)
 				.into(),

@@ -117,7 +117,18 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 	match result {
 		Err(Error::Fatal(f)) => Err(f),
 		Err(Error::NonFatal(error)) => {
-			tracing::warn!(target: LOG_TARGET, error = ?error, ctx);
+			match error {
+				NonFatal::UnexpectedPoV |
+				NonFatal::InvalidValidatorIndex |
+				NonFatal::NoSuchCachedSession |
+				NonFatal::QueryAvailableDataResponseChannel(_) |
+				NonFatal::QueryChunkResponseChannel(_) =>
+					tracing::warn!(target: LOG_TARGET, error = %error, ctx),
+				NonFatal::FetchPoV(_) |
+				NonFatal::SendResponse |
+				NonFatal::NoSuchPoV |
+				NonFatal::Runtime(_) => tracing::debug!(target: LOG_TARGET, error = ?error, ctx),
+			}
 			Ok(())
 		},
 		Ok(()) => Ok(()),

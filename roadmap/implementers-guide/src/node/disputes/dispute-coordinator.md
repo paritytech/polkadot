@@ -89,6 +89,8 @@ For each leaf in the leaves update:
   * Use `iter_with_prefix` to remove everything from `"earliest-session"` up to `state.highest_session - DISPUTE_WINDOW` from the DB under `"candidate-votes"`.
   * Update `"earliest-session"` to be equal to `state.highest_session - DISPUTE_WINDOW`.
 * For each new block, explicitly or implicitly, under the new leaf, scan for a dispute digest which indicates a rollback. If a rollback is detected, use the `ChainApi` subsystem to blacklist the chain.
+* For each new block, use the `RuntimeApi` to obtain a `ScrapedOnChainVotes` and handle them as if they were provided by means of a incoming `DisputeCoordinatorMessage::ImportStatement` message.
+  * In the case of a concluded dispute, there are some cases that do not guarantee the presence of a `CandidateReceipt`, where handling has to be defered <https://github.com/paritytech/polkadot/issues/4011>.
 
 ### On `OverseerSignal::Conclude`
 

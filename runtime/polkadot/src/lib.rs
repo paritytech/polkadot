@@ -54,8 +54,8 @@ use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, SessionInfo, Signature,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
+	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_core::{
 	u32_trait::{_1, _2, _3, _4, _5},
@@ -105,7 +105,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9110,
+	spec_version: 9120,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -302,11 +302,15 @@ impl pallet_balances::Config for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
+	/// This value increases the priority of `Operational` transactions by adding
+	/// a "virtual tip" that's equal to the `OperationalFeeMultiplier * final_fee`.
+	pub const OperationalFeeMultiplier: u8 = 5;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Runtime>>;
 	type TransactionByteFee = TransactionByteFee;
+	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
@@ -344,10 +348,6 @@ impl_opaque_keys! {
 	}
 }
 
-parameter_types! {
-	pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
-}
-
 impl pallet_session::Config for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
@@ -357,7 +357,6 @@ impl pallet_session::Config for Runtime {
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
-	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	type WeightInfo = weights::pallet_session::WeightInfo<Runtime>;
 }
 
@@ -381,8 +380,8 @@ parameter_types! {
 	pub SignedRewardBase: Balance = 1 * UNITS;
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
-	// miner configs
-	pub OffchainRepeat: BlockNumber = 5;
+	// 4 hour session, 1 hour unsigned phase, 32 offchain executions.
+	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 32;
 
 	/// Whilst `UseNominatorsAndUpdateBagsList` or `UseNominatorsMap` is in use, this can still be a
 	/// very large value. Once the `BagsList` is in full motion, staking might open its door to many
@@ -469,6 +468,7 @@ parameter_types! {
 	pub const MaxPriorSlashingSpans: u32 = 1_000;
 	pub const MaxValidatorsCount: u32 = 4_000;
 	pub const MaxUnlockingChunks: u32 = 32;
+	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -507,6 +507,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxPriorSlashingSpans = MaxPriorSlashingSpans;
 	type MaxValidatorsCount = MaxValidatorsCount;
 	type MaxUnlockingChunks = MaxUnlockingChunks;
+	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
@@ -1185,6 +1186,12 @@ impl paras_registrar::Config for Runtime {
 parameter_types! {
 	// 12 weeks = 3 months per lease period -> 8 lease periods ~ 2 years
 	pub const LeasePeriod: BlockNumber = 12 * WEEKS;
+	// Polkadot Genesis was on May 26, 2020.
+	// Target Parachain Onboarding Date: Dec 15, 2021.
+	// Difference is 568 days.
+	// We want a lease period to start on the target onboarding date.
+	// 568 % (12 * 7) = 64 day offset
+	pub const LeaseOffset: BlockNumber = 64 * DAYS;
 }
 
 impl slots::Config for Runtime {
@@ -1192,6 +1199,7 @@ impl slots::Config for Runtime {
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
+	type LeaseOffset = LeaseOffset;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 
@@ -1551,6 +1559,26 @@ impl OnRuntimeUpgrade for SetInitialHostConfiguration {
 			Configuration::force_set_active_config(active_config);
 		}
 
+		{
+			// At the moment, the `parachains_configuration` crate has already had one runtime
+			// storage migration (performed as part of [#3575]). As the result a call to
+			// `StorageVersion::get::<Configuration>` will return `Some(1)`
+			//
+			// However, Polkadot is just about to have its first version of parachains runtime
+			// pallets and thus there is no existing storage which needs to be migrated. Above
+			// we just have set the active configuration of the actual version, i.e. the same as the
+			// version 1 on Kusama.
+			//
+			// The caveat here is when we deploy a module for the first time, it's runtime version
+			// will be empty and thus it will be considered as version 0. Since we want to avoid
+			// the situation where the same storage structure has version 0 on Polkadot and
+			// version 1 on Kusama we need to set the storage version explicitly.
+			//
+			// [#3575]: https://github.com/paritytech/polkadot/pull/3575
+			use frame_support::traits::StorageVersion;
+			StorageVersion::new(1).put::<Configuration>();
+		}
+
 		RocksDbWeight::get().reads(1) + RocksDbWeight::get().writes(1)
 	}
 }
@@ -1701,6 +1729,10 @@ sp_api::impl_runtime_apis! {
 
 		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode> {
 			parachains_runtime_api_impl::validation_code_by_hash::<Runtime>(hash)
+		}
+
+		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
+			parachains_runtime_api_impl::on_chain_votes::<Runtime>()
 		}
 	}
 
@@ -1897,6 +1929,9 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_common::claims, Claims);
 			list_benchmark!(list, extra, runtime_common::slots, Slots);
 			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
+			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
+			list_benchmark!(list, extra, runtime_parachains::initializer, Initializer);
+			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
 			// Substrate
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_bounties, Bounties);
@@ -1969,6 +2004,9 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			add_benchmark!(params, batches, runtime_common::slots, Slots);
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
+			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
+			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
+			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);

@@ -295,8 +295,8 @@ fn cast_invalid_vote_if_validation_fails_or_is_invalid() {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, tx)
-				) => {
+					CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
+				) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 					tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::Timeout))).unwrap();
 				},
 				"overseer did not receive candidate validation message",
@@ -331,8 +331,8 @@ fn cast_invalid_vote_if_validation_passes_but_commitments_dont_match() {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, tx)
-				) => {
+					CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
+				) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 					let mut commitments = CandidateCommitments::default();
 					// this should lead to a commitments hash mismatch
 					commitments.processed_downward_messages = 42;
@@ -371,8 +371,8 @@ fn cast_valid_vote_if_validation_passes() {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, tx)
-				) => {
+					CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
+				) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 					tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default()))).unwrap();
 				},
 				"overseer did not receive candidate validation message",
@@ -408,8 +408,8 @@ fn failure_to_store_available_data_does_not_preclude_participation() {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, tx)
-				) => {
+					CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
+				) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 					tx.send(Err(ValidationFailed("fail".to_string()))).unwrap();
 				},
 				"overseer did not receive candidate validation message",

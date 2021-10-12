@@ -31,7 +31,9 @@ trait WeighMultiAssets {
 	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight;
 }
 
-// TODO wild case
+// Westend only knows about one asset, the balances pallet.
+const MAX_ASSETS: u32 = 1;
+
 impl WeighMultiAssets for MultiAssetFilter {
 	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight {
 		match self {
@@ -44,7 +46,7 @@ impl WeighMultiAssets for MultiAssetFilter {
 					AssetTypes::Unknown => Weight::MAX,
 				})
 				.fold(0, |acc, x| acc.saturating_add(x)),
-			_ => Weight::MAX,
+			Self::Wild(_) => (MAX_ASSETS as Weight).saturating_mul(balances_weight),
 		}
 	}
 }
