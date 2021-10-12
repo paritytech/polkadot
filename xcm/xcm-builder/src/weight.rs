@@ -92,9 +92,6 @@ where
 		let mut r: Weight = 0;
 		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
 		for m in message.0.iter() {
-			sp_std::if_std! {
-				println!("r: {:?}", r);
-			}
 			r = r.checked_add(Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
 		}
 		Ok(r)
@@ -104,7 +101,7 @@ where
 		instrs_limit: &mut u32,
 	) -> Result<Weight, ()> {
 		use xcm::GetWeight;
-		let weight = instruction
+		instruction
 			.weight()
 			.checked_add(match instruction {
 				Transact { require_weight_at_most, .. } => *require_weight_at_most,
@@ -112,11 +109,7 @@ where
 					Self::weight_with_limit(xcm, instrs_limit)?,
 				_ => 0,
 			})
-			.ok_or(());
-		sp_std::if_std! {
-			println!("instruction: {:?}, weight: {:?}", instruction, weight);
-		}
-		weight
+			.ok_or(())
 	}
 }
 
