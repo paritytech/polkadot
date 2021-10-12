@@ -19,3 +19,6 @@ The biggest change here is the restructuring of XCM messages: instead of having 
 - `Xcm` is now a simple wrapper around a `Vec<Instruction>`.
 - During conversion from `Order` to `Instruction`, we do not handle `BuyExecution`s that have nested XCMs, i.e. if the `instructions` field in the `BuyExecution` enum struct variant is not empty, then the conversion will fail. To address this, rewrite the XCM using `Instruction`s in chronological order.
 - During conversion from `Xcm` to `Instruction`, we do not handle `RelayedFrom` messages at all.
+
+### XCM Pallet
+- The `Weigher` configuration item must have sensible weights defined for `BuyExecution` and `DepositAsset` instructions. Failing that, dispatch calls to `teleport_assets` and `reserve_transfer_assets` will fail with `UnweighableMessage`.
