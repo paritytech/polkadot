@@ -47,10 +47,12 @@ fn queue_upward_msg<T: Config>(
 }
 
 fn create_message<T: Config>(weight: u64) -> Vec<u8> {
-	let max_size = configuration::ActiveConfig::<T>::get().max_upward_message_size as usize;
-	let mut remark = Vec::new();
 	// fill the remark but leave some bytes for the encoding of the message
-	remark.resize(max_size - 20, 0u8);
+	let max_size = configuration::ActiveConfig::<T>::get()
+		.max_upward_message_size
+		.saturating_sub(20) as usize;
+	let mut remark = Vec::new();
+	remark.resize(max_size, 0u8);
 	let call = frame_system::Call::<T>::remark_with_event { remark };
 	VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_type: OriginKind::SovereignAccount,
