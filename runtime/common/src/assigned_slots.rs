@@ -537,11 +537,6 @@ impl<T: Config> Pallet<T> {
 		T::Leaser::lease_period_index(block)
 	}
 
-	/// Returns current lease period.
-	// fn lease_period() -> LeasePeriodOf<T> {
-	// 	T::Leaser::lease_period()
-	// }
-
 	/// Handles start of a lease period.
 	fn manage_lease_period_start(lease_period_index: LeasePeriodOf<T>) -> Weight {
 		// Note: leases that have ended in previous lease period, should have been cleaned in slots pallet.
@@ -727,7 +722,6 @@ mod tests {
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			// assert_eq!(Slots::lease_period(), 3);
 			assert_eq!(AssignedSlots::current_lease_period_index(), 0);
 			assert_eq!(Slots::deposit_held(1.into(), &1), 0);
 
