@@ -51,49 +51,19 @@ fn call_size() {
 }
 
 #[test]
-fn xcm_weight() {
+fn sanity_check_teleport_assets_weight() {
+	// This test sanity checks that at least 50 teleports can exist in a block.
+	// Usually when XCM runs into an issue, it will return a weight of `Weight::MAX`,
+	// so this test will certainly ensure that this problem does not occur.
 	use frame_support::dispatch::GetDispatchInfo;
 	let weight = pallet_xcm::Call::<Runtime>::teleport_assets {
-		dest: Box::new(xcm::VersionedMultiLocation::V1(MultiLocation::parent())),
-		beneficiary: Box::new(xcm::VersionedMultiLocation::V1(MultiLocation::parent())),
-		assets: Box::new((
-			Concrete(MultiLocation::parent()),
-			Fungible(200_000)
-		).into()),
-		fee_asset_item: 0
-	}.get_dispatch_info().weight;
+		dest: Box::new(xcm::VersionedMultiLocation::V1(MultiLocation::here())),
+		beneficiary: Box::new(xcm::VersionedMultiLocation::V1(MultiLocation::here())),
+		assets: Box::new((Concrete(MultiLocation::here()), Fungible(200_000)).into()),
+		fee_asset_item: 0,
+	}
+	.get_dispatch_info()
+	.weight;
 
-	println!("{:?} max: {:?}", weight, u64::MAX);
-	assert!(false);
-}
-
-#[test]
-fn xcm_weight_2() {
-	use sp_std::convert::TryInto;
-	use xcm_executor::traits::WeightBounds;
-	let assets: Box<xcm::VersionedMultiAssets> = Box::new((
-		Concrete(MultiLocation::parent()),
-		Fungible(200_000)
-	).into());
-	let dest: Box<xcm::VersionedMultiLocation> = Box::new(
-		xcm::VersionedMultiLocation::V1(MultiLocation::parent())
-	);
-	let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
-	let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
-	let final_weight = match (maybe_assets, maybe_dest) {
-		(Ok(assets), Ok(dest)) => {
-			use sp_std::vec;
-			let mut message = Xcm(vec![
-				WithdrawAsset(assets),
-				InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
-			]);
-			let result = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut message);
-			println!("result: {:?}", result);
-			result.map_or(Weight::max_value(), |w| 100_000_000 + w)
-		},
-		_ => Weight::max_value(),
-	};
-
-	println!("{:?} max: {:?}", final_weight, u64::MAX);
-	assert!(false);
+	assert!(weight * 50 < BlockWeights::get().max_block);
 }
