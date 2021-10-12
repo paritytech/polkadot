@@ -60,7 +60,7 @@ frame-system = { git = "https://github.com/paritytech/substrate", branch = "mast
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
-primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false, features = [ "disputes" ] }
 polkadot-parachain = { path = "../../parachain", default-features = false }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 
