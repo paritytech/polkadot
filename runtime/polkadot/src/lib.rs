@@ -460,11 +460,11 @@ parameter_types! {
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxRewardableIndividualExposures: u32 = 256;
-	pub const MaxIndividualExposures: u32 = 256;
+	pub const MaxIndividualExposures: u32 = 10_000;
 	pub const MaxNominations: u32 = <NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	pub const MaxUnappliedSlashes: u32 = 1_000;
 	pub const MaxInvulnerablesCount: u32 = 10;
-	pub const MaxErasForRewards: u32 = 10_000;
+	pub const MaxHistoryDepth: u32 = 10_000;
 	pub const MaxReportersCount: u32 = 1_000;
 	pub const MaxPriorSlashingSpans: u32 = 1_000;
 	pub const MaxValidatorsCount: u32 = 4_000;
@@ -502,7 +502,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
 	type MaxUnappliedSlashes = MaxUnappliedSlashes;
 	type MaxInvulnerablesCount = MaxInvulnerablesCount;
-	type MaxErasForRewards = MaxErasForRewards;
+	type MaxHistoryDepth = MaxHistoryDepth;
 	type MaxReportersCount = MaxReportersCount;
 	type MaxPriorSlashingSpans = MaxPriorSlashingSpans;
 	type MaxValidatorsCount = MaxValidatorsCount;

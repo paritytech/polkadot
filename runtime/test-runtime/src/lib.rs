@@ -311,12 +311,12 @@ parameter_types! {
 	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxRewardableIndividualExposures: u32 = 64;
-	pub const MaxIndividualExposures: u32 = 64;
+	pub const MaxIndividualExposures: u32 = 1_000;
 	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxNominations: u32 = 16;
 	pub const MaxUnappliedSlashes: u32 = 1_000;
 	pub const MaxInvulnerablesCount: u32 = 10;
-	pub const MaxErasForRewards: u32 = 10_000;
+	pub const MaxHistoryDepth: u32 = 10_000;
 	pub const MaxReportersCount: u32 = 1_000;
 	pub const MaxPriorSlashingSpans: u32 = 1_000;
 	pub const MaxValidatorsCount: u32 = 4_000;
@@ -348,7 +348,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
 	type MaxUnappliedSlashes = MaxUnappliedSlashes;
 	type MaxInvulnerablesCount = MaxInvulnerablesCount;
-	type MaxErasForRewards = MaxErasForRewards;
+	type MaxHistoryDepth = MaxHistoryDepth;
 	type MaxReportersCount = MaxReportersCount;
 	type MaxPriorSlashingSpans = MaxPriorSlashingSpans;
 	type MaxValidatorsCount = MaxValidatorsCount;
