@@ -240,7 +240,7 @@ fn teleport_assets_works() {
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v0_ok: xcm::v0::Xcm::<()> = versioned_sent.try_into().unwrap();
+		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -286,7 +286,7 @@ fn reserve_transfer_assets_works() {
 			)]
 		);
 		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
-		let _check_v0_ok: xcm::v0::Xcm::<()> = versioned_sent.try_into().unwrap();
+		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
