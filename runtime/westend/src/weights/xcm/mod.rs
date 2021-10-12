@@ -20,9 +20,9 @@ pub enum AssetTypes {
 impl From<&MultiAsset> for AssetTypes {
 	fn from(asset: &MultiAsset) -> Self {
 		match asset {
-			MultiAsset { id: Concrete(MultiLocation { parents: 0, interior: Here }), .. } =>
+			_ =>
 				AssetTypes::Balances,
-			_ => AssetTypes::Unknown,
+			//_ => AssetTypes::Unknown,
 		}
 	}
 }
@@ -44,6 +44,7 @@ impl WeighMultiAssets for MultiAssetFilter {
 					AssetTypes::Unknown => Weight::MAX,
 				})
 				.fold(0, |acc, x| acc.saturating_add(x)),
+			Self::Wild(_) => balances_weight,
 			_ => Weight::MAX,
 		}
 	}
