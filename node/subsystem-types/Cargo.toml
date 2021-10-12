@@ -17,4 +17,4 @@ polkadot-overseer-gen = { path = "../overseer/overseer-gen" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 smallvec = "1.6.1"
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.26"
+thiserror = "1.0.30"
