@@ -1,4 +1,5 @@
 # XCM Version 1
+The comprehensive list of changes can be found in (this PR description)[https://github.com/paritytech/polkadot/pull/2815#issue-608567900].
 
 ## Changes to be aware of
 Most changes should automatically be resolved via the conversion traits (i.e. `TryFrom` and `From`). The list here is mostly for incompatible changes that result in an `Err(())` when attempting to convert XCM objects from v0.
