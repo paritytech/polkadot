@@ -550,7 +550,7 @@ simnet-tests:
   <<:                              *kubernetes-env
   variables:                       
     NETWORK_CONFIG:                "simnet_tests/configs/simple_rococo_testnet.toml"
-    GH_DIR:                        "${CI_COMMIT_REF_NAME}"
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_REF_NAME}/simnet_tests"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
