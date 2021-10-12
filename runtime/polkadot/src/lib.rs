@@ -105,7 +105,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9110,
+	spec_version: 9120,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1914,6 +1914,9 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_common::claims, Claims);
 			list_benchmark!(list, extra, runtime_common::slots, Slots);
 			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
+			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
+			list_benchmark!(list, extra, runtime_parachains::initializer, Initializer);
+			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
 			// Substrate
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_bounties, Bounties);
@@ -1986,6 +1989,9 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_common::claims, Claims);
 			add_benchmark!(params, batches, runtime_common::slots, Slots);
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
+			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
+			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
+			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
