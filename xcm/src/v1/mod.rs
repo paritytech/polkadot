@@ -26,15 +26,15 @@
 //!
 //! ### Junction
 //! - `v0::Junction::Parent` cannot be converted to v1, because the way we represent parents in v1
-//!   has changed - instead of being a property of the junction, v1 MultiLocations now have an
-//!   extra field representing the number of parents that the MultiLocation contains.
+//!   has changed - instead of being a property of the junction, v1 `MultiLocation`s now have an
+//!   extra field representing the number of parents that the `MultiLocation` contains.
 //!
-//! ### MultiLocation
-//! - The `try_from` conversion method will always canonicalize the v0 MultiLocation before
+//! ### `MultiLocation`
+//! - The `try_from` conversion method will always canonicalize the v0 `MultiLocation` before
 //!   attempting to do the proper conversion. Since canonicalization is not a fallible operation,
-//!   we do not expect v0 MultiLocation to ever fail to be upgraded to v1.
+//!   we do not expect v0 `MultiLocation` to ever fail to be upgraded to v1.
 //!
-//! ### MultiAsset
+//! ### `MultiAsset`
 //! - Stronger typing to differentiate between a single class of `MultiAsset` and several classes
 //!   of `MultiAssets` is introduced. As the name suggests, a `Vec<MultiAsset>` that is used on all
 //!   APIs will instead be using a new type called `MultiAssets` (note the `s`).
@@ -42,7 +42,7 @@
 //!   `v0::MultiAsset::AllFungible`, `v0::MultiAsset::AllNonFungible`,
 //!   `v0::MultiAsset::AllAbstractFungible`, `v0::MultiAsset::AllAbstractNonFungible`,
 //!   `v0::MultiAsset::AllConcreteFungible` and `v0::MultiAsset::AllConcreteNonFungible`, will fail
-//!   to convert to v1 MultiAsset, since v1 does not contain these variants.
+//!   to convert to v1 `MultiAsset`, since v1 does not contain these variants.
 //! - Similarly, all `MultiAsset` variants whose name contains "All" in it can be converted into a
 //!   `WildMultiAsset`.
 //! - `v0::MultiAsset::None` is not represented at all in v1.
