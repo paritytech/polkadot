@@ -16,7 +16,6 @@
 
 use super::{Pallet as Ump, *};
 use frame_system::RawOrigin;
-use sp_runtime::Perbill;
 use xcm::prelude::*;
 
 fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
