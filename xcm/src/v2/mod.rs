@@ -17,7 +17,7 @@
 
 //! # XCM Version 2
 //! Version 2 of the Cross-Consensus Message format data structures. The comprehensive list of
-// !changes can be found in
+//! changes can be found in
 //! [this PR description](https://github.com/paritytech/polkadot/pull/3629#issue-968428279).
 //! 
 //! ## Changes to be aware of
