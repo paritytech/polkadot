@@ -10,7 +10,7 @@ on:
         required: true
       binary_url:
         description: A url to a Linux binary for the node containing the runtime to test
-        default: https://releases.parity.io/polkadot/x86_64-debian:stretch/v0.9.9-rc1/polkadot
+        default: https://releases.parity.io/polkadot/x86_64-debian:stretch/v0.9.10/polkadot
         required: true
       chain:
         description: The name of the chain under test. Usually, you would pass a local chain
