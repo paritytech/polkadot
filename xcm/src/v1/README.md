@@ -19,6 +19,6 @@ Most changes should automatically be resolved via the conversion traits (i.e. `T
 - No special attention necessary
 
 ### Order
-- `v1::Order::DepositAsset` and `v1::Order::DepositReserveAsset` both introduced a new `max_asset` field that limits the maximum classes of assets that can be deposited. During conversion from v0, the `max_asset` field is defaulted to 1.
+- `v1::Order::DepositAsset` and `v1::Order::DepositReserveAsset` both introduced a new `max_asset` field that limits the maximum classes of assets that can be deposited. During conversion from v0, the `max_asset` field defaults to 1.
 - v1 Orders that contain `MultiAsset` as argument(s) will need to explicitly specify the amount and details of assets. This is to prevent accidental misuse of `All` to possibly transfer, spend or otherwise perform unintended operations on `All` assets.
 - For v1 Orders that do allow the notion of `All` to be used as wildcards, they will instead use a new type called `MultiAssetFilter`.
