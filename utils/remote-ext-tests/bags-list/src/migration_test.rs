@@ -16,8 +16,9 @@
 
 //! Generic remote tests for the voter bags module.
 
+use crate::{RuntimeT, LOG_TARGET};
 use frame_election_provider_support::SortedListProvider;
-use frame_support::traits::Get;
+use frame_support::traits::{Get, PalletInfo};
 use pallet_election_provider_multi_phase as EPM;
 use pallet_staking::{BalanceOf, MinNominatorBond, Nominators};
 use remote_externalities::{Builder, Mode, OnlineConfig};
@@ -25,23 +26,17 @@ use sp_runtime::traits::Block as BlockT;
 use sp_std::convert::TryInto;
 use sp_storage::well_known_keys;
 
-const LOG_TARGET: &'static str = "remote-ext-tests::bags-list";
-
 /// Test voter bags migration. `currency_unit` is the number of planks per the
 /// the runtimes `UNITS` (i.e. number of decimal places per DOT, KSM etc)
-pub(crate) async fn test_voter_bags_migration<
-	Runtime: pallet_staking::Config + pallet_bags_list::Config + EPM::Config,
-	Block: BlockT,
->(
-	currency_unit: u64,
-	ws_url: String,
-) {
-	sp_tracing::try_init_simple();
-
+pub(crate) async fn execute<Runtime: RuntimeT, Block: BlockT>(currency_unit: u64, ws_url: String) {
 	let mut ext = Builder::<Block>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: ws_url.to_string().into(),
-			pallets: vec!["Staking".to_string()],
+			pallets: vec![<Runtime as frame_system::Config>::PalletInfo::name::<
+				pallet_staking::Pallet<Runtime>,
+			>()
+			.expect("Pallet always has name; qed.")
+			.to_string()],
 			at: None,
 			state_snapshot: None,
 		}))

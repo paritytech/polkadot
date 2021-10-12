@@ -7787,14 +7787,15 @@ dependencies = [
 name = "remote-ext-tests-bags-list"
 version = "0.9.11"
 dependencies = [
+ "clap",
  "frame-election-provider-support",
  "frame-support",
+ "frame-system",
  "kusama-runtime",
  "log",
  "pallet-bags-list",
  "pallet-election-provider-multi-phase",
  "pallet-staking",
- "polkadot-runtime",
  "remote-externalities",
  "sp-core",
  "sp-runtime",
@@ -7803,6 +7804,7 @@ dependencies = [
  "sp-tracing",
  "structopt",
  "tokio",
+ "westend-runtime",
 ]
 
 [[package]]

@@ -14,46 +14,74 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Remote tests.
+//! Remote tests for bags-list pallet.
 
+use clap::arg_enum;
+use pallet_election_provider_multi_phase as EPM;
 use structopt::StructOpt;
 
-mod voter_bags;
+const LOG_TARGET: &'static str = "remote-ext-tests::bags-list";
 
-#[derive(StructOpt)]
-enum Runtime {
-	Kusama,
+mod migration_test;
+mod sanity_check;
+
+arg_enum! {
+	#[derive(Debug)]
+	enum Command {
+		CheckMigration,
+		SanityChecks,
+	}
 }
 
-impl std::str::FromStr for Runtime {
-	type Err = &'static str;
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		match s.to_lowercase().as_str() {
-			"kusama" => Ok(Runtime::Kusama),
-			_ => Err("wrong Runtime: can be 'polkadot' or 'kusama'."),
-		}
+arg_enum! {
+	#[derive(Debug)]
+	enum Runtime {
+		Kusama,
+		Westend,
 	}
 }
 
 #[derive(StructOpt)]
 struct Cli {
-	#[structopt(long, default_value = "wss://rpc.kusama.io")]
+	#[structopt(long, short, default_value = "wss://kusama-rpc.polkadot.io")]
 	uri: String,
-	#[structopt(long, short, default_value = "kusama")]
+	#[structopt(long, short, case_insensitive = true, possible_values = &Runtime::variants(), default_value = "kusama")]
 	runtime: Runtime,
+	#[structopt(long, short, case_insensitive = true, possible_values = &Command::variants(), default_value = "check-migration")]
+	command: Command,
+}
+
+pub(crate) trait RuntimeT:
+	pallet_staking::Config + pallet_bags_list::Config + EPM::Config + frame_system::Config
+{
+}
+impl<T: pallet_staking::Config + pallet_bags_list::Config + EPM::Config + frame_system::Config>
+	RuntimeT for T
+{
 }
 
 #[tokio::main]
 async fn main() {
 	let options = Cli::from_args();
-	match options.runtime {
-		Runtime::Kusama => {
+	sp_tracing::try_init_simple();
+
+	match (options.runtime, options.command) {
+		(Runtime::Kusama, Command::CheckMigration) => {
 			use kusama_runtime::{constants::currency::UNITS, Block, Runtime};
-			voter_bags::test_voter_bags_migration::<Runtime, Block>(
-				UNITS as u64,
-				options.uri.clone(),
-			)
-			.await;
+			migration_test::execute::<Runtime, Block>(UNITS as u64, options.uri.clone()).await;
+		},
+		(Runtime::Kusama, Command::SanityChecks) => {
+			use kusama_runtime::{Block, Runtime};
+			sanity_check::execute::<Runtime, Block>(options.uri.clone()).await;
+		},
+
+		(Runtime::Westend, Command::CheckMigration) => {
+			use westend_runtime::{constants::currency::UNITS, Block, Runtime};
+			migration_test::execute::<Runtime, Block>(UNITS as u64, options.uri.clone()).await;
+		},
+		(Runtime::Westend, Command::SanityChecks) => {
+			use westend_runtime::{Block, Runtime};
+			sanity_check::execute::<Runtime, Block>(options.uri.clone()).await;
 		},
 	}
 }
