@@ -30,7 +30,6 @@ pub use pallet::*;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-//pub mod weights;
 
 /// All upward messages coming from parachains will be funneled into an implementation of this trait.
 ///

@@ -2141,10 +2141,10 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_common::slots, Slots);
 			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
 			// Parachains
-			add_benchmark!(params, batches, runtime_parachains::ump, Ump);
 			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
 			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
+			add_benchmark!(params, batches, runtime_parachains::ump, Ump);
 			// Substrate
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bags_list, BagsList);
