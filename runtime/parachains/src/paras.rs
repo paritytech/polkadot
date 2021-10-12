@@ -1214,7 +1214,7 @@ impl<T: Config> Pallet<T> {
 		// Make sure parachain isn't already in our system and that the onboarding parameters are
 		// valid.
 		ensure!(Self::can_schedule_para_initialize(&id), Error::<T>::CannotOnboard);
-		// ensure!(!genesis_data.validation_code.0.is_empty(), Error::<T>::CannotOnboard);
+		ensure!(!genesis_data.validation_code.0.is_empty(), Error::<T>::CannotOnboard);
 		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
 
 		// HACK: here we are doing something nasty.
@@ -2213,7 +2213,7 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
-					pvf_checking_enabled: false, // TODO: not sure about this
+					pvf_checking_enabled: false,
 					minimum_validation_upgrade_delay: 0,
 					..Default::default()
 				},
@@ -2482,6 +2482,16 @@ mod tests {
 			assert_eq!(Paras::code_by_hash(&new_code.hash()), Some(new_code.clone()));
 		});
 	}
+
+	// TODO: pre-checking onboarding accept
+	// TODO: pre-checking upgrade accept
+	// TODO: pre-checking onboarding reject
+	// TODO: pre-checking upgrade reject
+	// TODO: pre-checking new session
+	// TODO: pre-checking expiry reject
+
+	// TODO: pre-checking votes accepting.
+	// TODO: unsigned extrinsic checking?
 
 	#[test]
 	fn code_ref_is_cleaned_correctly() {
