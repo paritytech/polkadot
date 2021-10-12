@@ -14,14 +14,68 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The paras pallet is responsible for storing data on parachains and parathreads.
+//! The paras pallet acts as the main registry of paras.
 //!
-//! It tracks which paras are parachains, what their current head data is in
-//! this fork of the relay chain, what their validation code is, and what their past and upcoming
-//! validation code is.
+//! # Tracking State of Paras
 //!
-//! A para is not considered live until it is registered and activated in this pallet. Activation can
-//! only occur at session boundaries.
+//! The most important responsibility of this module is to track which parachains and parathreads
+//! are active and what their current state is. The current state of a para consists of the current
+//! head data and the current validation code (AKA Parachain Validation Function (PVF)).
+//!
+//! A para is not considered live until it is registered and activated in this pallet.
+//!
+//! # Validation Code Upgrades
+//!
+//! When a para signals the validation code upgrade it will be processes by this module. This can
+//! be in turn split into more fine grained items:
+//!
+//! - Part of the acceptance criteria checks if the para can indeed signal an upgrade,
+//!
+//! - When the candidate is enacted, this module schedules code upgrade, storing the prospective
+//!   validation code.
+//!
+//! - Actually assign the prospective validation code to be the current one after all conditions are
+//!   fulfilled.
+//!
+//! The conditions that must be met before the para can use the new validation code are:
+//!
+//! 1. The validation code should've been "soaked" in the storage for a given number of blocks. That
+//!    is, the validation code should've been stored in on-chain storage for some time, so that in
+//!    case of a revert with a non-extreme height difference, that validation code can still be
+//!    found on-chain.
+//!
+//! 2. The validation code was vetted by the validators and declared as non-malicious in a processes
+//!    known as PVF pre-checking.
+//!
+//! # Validation Code Management
+//!
+//! Potentially, one validation code can be used by several different paras. For example, during
+//! initial stages of deployment several paras can use the same "shell" validation code, or
+//! there can be shards of the same para that use the same validation code.
+//!
+//! In case a validation code ceases to have any users it must be pruned from the on-chain storage.
+//!
+//! # Para Lifecycle Management
+//!
+//! A para can be in one of the two stable states: it is either a parachain or a parathread.
+//!
+//! However, in order to get into one of those two states, it must first be onboarded. Onboarding
+//! can be only enacted at session boundaries. Onboarding must take at least one full session.
+//! Moreover, a brand new validation code should go through the PVF pre-checking process.
+//!
+//! Once the para in one of the two stable states, it can switch to the other stable state or to
+//! initiate offboarding process. The result of offboarding is removal of all data related to that
+//! para.
+//!
+//! # PVF Pre-checking
+//!
+//! As was mentioned above, a brand new validation code should go through a process of approval.
+//! As part of this process, validators from the active set will take the validation code and
+//! check if it is malicious. Once they did that and have their judgement, either accept or reject,
+//! they issue a statement in a form of an unsigned extrinsic. This extrinsic is processed by this
+//! pallet. Once supermajority is gained for accept, then the process that initiated the check
+//! is resumed (as mentioned before this can be either upgrading of validation code or onboarding).
+//! If supermajority is gained for reject, then the process is canceled.
 
 use crate::{configuration, initializer::SessionChangeNotification, shared};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
@@ -1299,20 +1353,31 @@ impl<T: Config> Pallet<T> {
 		relay_parent_number: T::BlockNumber,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
+		let mut weight = T::DbWeight::get().reads(1);
+
 		// Enacting this should be prevented by the `can_schedule_upgrade`
 		if UpgradeRestrictionSignal::<T>::contains_key(&id) {
 			// TODO: Something went wrong. The acceptance criteria should've made sure parachain
 			// cannot signal an upgrade while one is pending.
-			return T::DbWeight::get().reads(1)
+			return weight
 		}
 
-		let mut weight = 0;
+		let code_hash = new_code.hash();
+
+		// para signals an update to the same code? This does not make a lot of sense, so abort the
+		// process right away.
+		weight += T::DbWeight::get().reads(1);
+		if CurrentCodeHash::<T>::get(&id) == Some(code_hash) {
+			UpgradeGoAheadSignal::<T>::insert(&id, UpgradeGoAhead::Abort);
+			return weight
+		}
 
 		// This is the start of the upgrade process. Prevent any further attempts at upgrading.
-		let code_hash = new_code.hash();
+		weight += T::DbWeight::get().writes(2);
 		FutureCodeHash::<T>::insert(&id, &code_hash);
+		UpgradeRestrictionSignal::<T>::insert(&id, UpgradeRestriction::Present);
 
-		weight += T::DbWeight::get().reads_writes(2, 2);
+		weight += T::DbWeight::get().reads_writes(1, 1);
 		let next_possible_upgrade_at = relay_parent_number + cfg.validation_upgrade_frequency;
 		<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
 			let insert_idx = upgrade_cooldowns
@@ -1320,7 +1385,6 @@ impl<T: Config> Pallet<T> {
 				.unwrap_or_else(|idx| idx);
 			upgrade_cooldowns.insert(insert_idx, (id, next_possible_upgrade_at));
 		});
-		UpgradeRestrictionSignal::<T>::insert(&id, UpgradeRestriction::Present);
 
 		weight += Self::kick_off_pvf_check(PvfCheckCause::Upgrade(id), code_hash, new_code, cfg);
 
