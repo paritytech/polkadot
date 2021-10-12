@@ -24,7 +24,6 @@ fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 	let system_event: <T as frame_system::Config>::Event = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
-	log::warn!("Last event: {:?}", event);
 	assert_eq!(event, &system_event);
 }
 
@@ -33,7 +32,6 @@ fn assert_last_event_type<T: Config>(generic_event: <T as Config>::Event) {
 	let system_event: <T as frame_system::Config>::Event = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
-	log::warn!("Last event: {:?}", event);
 	assert_eq!(sp_std::mem::discriminant(event), sp_std::mem::discriminant(&system_event));
 }
 
@@ -50,9 +48,11 @@ fn queue_upward_msg<T: Config>(
 }
 
 fn create_message<T: Config>(weight: u64) -> Vec<u8> {
-	let max_weight = T::BlockWeights::get().max_block;
-	let call =
-		frame_system::Call::<T>::fill_block { ratio: Perbill::from_rational(weight, max_weight) };
+	let max_size = configuration::ActiveConfig::<T>::get().max_upward_message_size as usize;
+	let mut remark = Vec::new();
+	// fill the remark but leave some bytes for the encoding of the message
+	remark.resize(max_size - 20, 0u8);
+	let call = frame_system::Call::<T>::remark_with_event { remark };
 	VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_type: OriginKind::SovereignAccount,
 		require_weight_at_most: weight,
@@ -66,8 +66,9 @@ frame_benchmarking::benchmarks! {
 		let host_conf = configuration::ActiveConfig::<T>::get();
 		let weight = host_conf.ump_max_individual_weight + 1;
 		let para = ParaId::from(1978);
-		// the message's weight does not really matter here, as we add service_overweight's max_weight parameter
-		// to the extrinsic's weight in the weight calculation
+		// The message's weight does not really matter here, as we add service_overweight's
+		// max_weight parameter to the extrinsic's weight in the weight calculation.
+		// The size of the message influences decoding time, so we create a max-sized message here.
 		let msg = create_message::<T>(weight.into());
 
 		// This just makes sure that 0 is not a valid index and we can use it later on.
@@ -77,7 +78,9 @@ frame_benchmarking::benchmarks! {
 		frame_system::Pallet::<T>::set_block_number(1u32.into());
 		queue_upward_msg::<T>(&host_conf, para, msg.clone());
 		Ump::<T>::process_pending_upward_messages();
-		assert_last_event_type::<T>(Event::OverweightEnqueued(para, upward_message_id(&msg), 0, 0).into());
+		assert_last_event_type::<T>(
+			Event::OverweightEnqueued(para, upward_message_id(&msg), 0, 0).into()
+		);
 	}: _(RawOrigin::Root, 0, Weight::MAX)
 	verify {
 		assert_last_event_type::<T>(Event::OverweightServiced(0, 0).into());
