@@ -310,6 +310,11 @@ pub(crate) fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {
 	BuyExecution { fees: fees.into(), weight_limit: Unlimited }
 }
 
+pub(crate) fn buy_limited_execution<C>(fees: impl Into<MultiAsset>, weight: u64) -> Instruction<C> {
+	use xcm::latest::prelude::*;
+	BuyExecution { fees: fees.into(), weight_limit: Limited(weight) }
+}
+
 pub(crate) fn new_test_ext_with_balances(
 	balances: Vec<(AccountId, Balance)>,
 ) -> sp_io::TestExternalities {
