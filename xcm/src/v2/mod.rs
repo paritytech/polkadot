@@ -14,27 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
 
-
 //! # XCM Version 2
 //! Version 2 of the Cross-Consensus Message format data structures. The comprehensive list of
 //! changes can be found in
 //! [this PR description](https://github.com/paritytech/polkadot/pull/3629#issue-968428279).
-//! 
+//!
 //! ## Changes to be aware of
 //! The biggest change here is the restructuring of XCM messages: instead of having `Order` and
 //! `Xcm` types, the `Xcm` type now simply wraps a `Vec` containing `Instruction`s. However, most
 //! changes should still be automatically convertible via the `try_from` and `from` conversion
 //! functions.
-//! 
+//!
 //! ### Junction
 //! - No special attention necessary
-//! 
-//! ### MultiLocation
+//!
+//! ### `MultiLocation`
 //! - No special attention necessary
-//! 
-//! ### MultiAsset
+//!
+//! ### `MultiAsset`
 //! - No special attention necessary
-//! 
+//!
 //! ### XCM and Order
 //! - `Xcm` and `Order` variants are now combined under a single `Instruction` enum.
 //! - `Order` is now obsolete and replaced entirely by `Instruction`.
