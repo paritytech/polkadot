@@ -1213,7 +1213,7 @@ mod tests {
 		REWARD_VALIDATORS,
 	};
 	use frame_support::{
-		assert_err, assert_noop, assert_ok,
+		assert_err, assert_noop, assert_ok, assert_storage_noop,
 		traits::{OnFinalize, OnInitialize},
 	};
 	use frame_system::InitKind;
@@ -2839,7 +2839,7 @@ mod tests {
 				],
 			}];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert_eq!(
 				statements,
@@ -2921,7 +2921,7 @@ mod tests {
 				],
 			}];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert!(statements.is_empty());
 		})
@@ -3062,7 +3062,7 @@ mod tests {
 			];
 
 			let old_statements = statements.clone();
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert_eq!(statements, old_statements);
 		})
@@ -3099,7 +3099,7 @@ mod tests {
 				)],
 			}];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert!(statements.is_empty());
 		})
@@ -3191,7 +3191,7 @@ mod tests {
 				},
 			];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert_eq!(
 				statements,
@@ -3281,7 +3281,7 @@ mod tests {
 				},
 			];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert_eq!(
 				statements,
@@ -3336,7 +3336,7 @@ mod tests {
 				)],
 			}];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert!(statements.is_empty());
 		})
