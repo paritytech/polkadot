@@ -8,7 +8,7 @@ BASE_BRANCH="origin/master"
 LINE_WIDTH="121"
 GOOD_LINE_WIDTH="101"
 
-git diff --name-only "${BASE_BRANCH}...${CI_COMMIT_SHA}" -- \*.rs | ( while read -r file
+git diff --name-only "${BASE_BRANCH}...${CI_COMMIT_SHA}" -- \*.rs :^bridges | ( while read -r file
 do
   if [ ! -f "${file}" ];
   then

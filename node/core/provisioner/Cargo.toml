@@ -8,7 +8,7 @@ edition = "2018"
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 futures = "0.3.17"
 tracing = "0.1.29"
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }

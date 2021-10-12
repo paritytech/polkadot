@@ -98,12 +98,12 @@ pub(crate) fn impl_overseer_gen(
 	additive.extend(impl_message_wrapper_enum(&info)?);
 	additive.extend(impl_dispatch(&info));
 
-	#[cfg(feature = "expansion")]
-	{
+	if cfg!(feature = "expansion") {
 		use std::io::Write;
 
-		let cwd = std::env::current_dir().unwrap();
-		let path: std::path::PathBuf = cwd.join("overlord-expansion.rs");
+		let out = env!("OUT_DIR");
+		let out = std::path::PathBuf::from(out);
+		let path = out.join("overlord-expansion.rs");
 		let mut f = std::fs::OpenOptions::new()
 			.write(true)
 			.create(true)
@@ -117,9 +117,15 @@ pub(crate) fn impl_overseer_gen(
 		std::process::Command::new("rustfmt")
 			.arg("--edition=2018")
 			.arg(&path)
-			.current_dir(cwd)
+			.current_dir(out)
 			.spawn()
 			.expect("Running rustfmt works. qed");
+
+		let path = path.display().to_string();
+		Ok(quote! {
+			include!( #path );
+		})
+	} else {
+		Ok(additive)
 	}
-	Ok(additive)
 }
