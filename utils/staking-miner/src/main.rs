@@ -350,10 +350,6 @@ struct SharedConfig {
 	/// configured, it might re-try and lose funds through transaction fees/deposits.
 	#[structopt(long, short, env = "SEED")]
 	seed: String,
-
-	/// Don't do the spec-version check.
-	#[structopt(long)]
-	no_spec_version_check: bool,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -394,9 +390,9 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 		.map_err(|why| Error::RemoteExternalities(why))
 }
 
-/// Compute the election at the given block number. It expects to NOT be `Phase::Off`. In other
-/// words, the snapshot must exists on the given externalities.
-fn mine_unchecked<T, S>(
+/// Compute the election. It expects to NOT be `Phase::Off`. In other words, the snapshot must
+/// exists on the given externalities.
+fn mine_solution<T, S>(
 	ext: &mut Ext,
 	do_feasibility: bool,
 ) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
@@ -425,6 +421,7 @@ where
 fn mine_with<T>(
 	solver: &Solvers,
 	ext: &mut Ext,
+	do_feasibility: bool,
 ) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
 where
 	T: EPM::Config,
@@ -435,21 +432,21 @@ where
 	match solver {
 		Solvers::SeqPhragmen { iterations } => {
 			BalanceIterations::set(*iterations);
-			mine_unchecked::<
+			mine_solution::<
 				T,
 				SequentialPhragmen<
 					<T as frame_system::Config>::AccountId,
 					sp_runtime::Perbill,
 					Balancing,
 				>,
-			>(ext, false)
+			>(ext, do_feasibility)
 		},
 		Solvers::PhragMMS { iterations } => {
 			BalanceIterations::set(*iterations);
-			mine_unchecked::<
+			mine_solution::<
 				T,
 				PhragMMS<<T as frame_system::Config>::AccountId, sp_runtime::Perbill, Balancing>,
-			>(ext, false)
+			>(ext, do_feasibility)
 		},
 	}
 }
@@ -494,7 +491,6 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 
 pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	client: &WsClient,
-	print: bool,
 ) -> Result<(), Error<T>> {
 	let linked_version = T::Version::get();
 	let on_chain_version = rpc_helpers::rpc::<sp_version::RuntimeVersion>(
@@ -505,10 +501,9 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	.await
 	.expect("runtime version RPC should always work; qed");
 
-	if print {
-		log::info!(target: LOG_TARGET, "linked version {:?}", linked_version);
-		log::info!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
-	}
+	log::debug!(target: LOG_TARGET, "linked version {:?}", linked_version);
+	log::debug!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
+
 	if linked_version != on_chain_version {
 		log::error!(
 			target: LOG_TARGET,
@@ -596,7 +591,7 @@ async fn main() {
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
 	any_runtime_unit! {
-		check_versions::<Runtime>(&client, !shared.no_spec_version_check).await
+		check_versions::<Runtime>(&client).await
 	};
 
 	let signer_account = any_runtime! {

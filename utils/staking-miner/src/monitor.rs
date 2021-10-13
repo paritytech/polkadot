@@ -87,10 +87,10 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			while let Some(now) = subscription.next().await? {
 				let hash = now.hash();
-				log::debug!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
+				log::trace!(target: LOG_TARGET, "new event at #{:?} ({:?})", now.number, hash);
 
-				// if the runtime version has changed, terminate
-				crate::check_versions::<Runtime>(client, false).await?;
+				// if the runtime version has changed, terminate.
+				crate::check_versions::<Runtime>(client).await?;
 
 				// we prefer doing this check before fetching anything into a remote-ext.
 				if ensure_signed_phase::<Runtime, Block>(client, hash).await.is_err() {
@@ -98,22 +98,20 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					continue;
 				};
 
-				// NOTE: we don't check the score of any of the submitted solutions. If we submit a weak
-				// one, as long as we are valid, we will end up getting our deposit back, so not a big
-				// deal for now. Note that to avoid an unfeasible solution, we should make sure that we
-				// only start the process on a finalized snapshot. If the signed phase is long enough,
-				// this will not be a solution.
-
 				// grab an externalities without staking, just the election snapshot.
-				let mut ext = crate::create_election_ext::<Runtime, Block>(shared.uri.clone(), Some(hash), vec![]).await?;
+				let mut ext = crate::create_election_ext::<Runtime, Block>(
+					shared.uri.clone(),
+					Some(hash),
+					vec![],
+				).await?;
 
 				if ensure_no_previous_solution::<Runtime, Block>(&mut ext, &signer.account).await.is_err() {
 					log::debug!(target: LOG_TARGET, "We already have a solution in this phase, skipping.");
 					continue;
 				}
 
-				let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext)?;
-
+				// mine a solution, and run feasibility check on it as well.
+				let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, true)?;
 				log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
 				let nonce = crate::get_account_info::<Runtime>(client, &signer.account, Some(hash))
@@ -124,7 +122,11 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				let period = <Runtime as frame_system::Config>::BlockHashCount::get() / 2;
 				let current_block = now.number.saturating_sub(1);
 				let era = sp_runtime::generic::Era::mortal(period.into(), current_block.into());
-				log::trace!(target: LOG_TARGET, "transaction mortality: {:?} -> {:?}", era.birth(current_block.into()), era.death(current_block.into()));
+				log::trace!(
+					target: LOG_TARGET, "transaction mortality: {:?} -> {:?}",
+					era.birth(current_block.into()),
+					era.death(current_block.into()),
+				);
 				let extrinsic = ext.execute_with(|| create_uxt(raw_solution, witness, signer.clone(), nonce, tip, era));
 				let bytes = sp_core::Bytes(extrinsic.encode());
 
@@ -136,11 +138,13 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				{
 					Ok(sub) => sub,
 					Err(why) => {
-					// This usually happens when we've been busy with mining for a few blocks, and now we're receiving the
-					// subscriptions of blocks in which we were busy. In these blocks, we still don't have a solution, so we
-					// re-compute a new solution and submit it with an outdated `Nonce`, which yields most often `Stale`
-					// error. NOTE: to improve this overall, and to be able to introduce an array of other fancy features,
-					// we should make this multi-threaded and do the computation outside of this callback.
+					// This usually happens when we've been busy with mining for a few blocks, and
+					// now we're receiving the subscriptions of blocks in which we were busy. In
+					// these blocks, we still don't have a solution, so we re-compute a new solution
+					// and submit it with an outdated `Nonce`, which yields most often `Stale`
+					// error. NOTE: to improve this overall, and to be able to introduce an array of
+					// other fancy features, we should make this multi-threaded and do the
+					// computation outside of this callback.
 						log::warn!(target: LOG_TARGET, "failing to submit a transaction {:?}. continuing...", why);
 						continue
 					}
