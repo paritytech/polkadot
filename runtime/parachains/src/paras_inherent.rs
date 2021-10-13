@@ -422,8 +422,10 @@ fn limit_paras_inherent<T: Config>(
 			.saturating_sub(disputes_weight)
 			.saturating_sub(bitfields_weight)
 			.saturating_sub(num_code_upgrades as u64 * CODE_UPGRADE_WEIGHT);
-		let num_candidates_to_retain =
-			min(num_backed_candidate_signatures as u64, block_weight_available / BACKED_CANDIDATE_WEIGHT);
+		let num_candidates_to_retain = min(
+			num_backed_candidate_signatures as u64,
+			block_weight_available / BACKED_CANDIDATE_WEIGHT,
+		);
 		backed_candidates.drain(num_candidates_to_retain as usize..);
 	}
 }
