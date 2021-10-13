@@ -1655,20 +1655,21 @@ mod tests {
 		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System, Test},
 	};
 
+	static VALIDATORS: &[Sr25519Keyring] = &[
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Ferdie,
+	];
+
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 		val_ids.iter().map(|v| v.public().into()).collect()
 	}
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
-		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Ferdie,
-		];
 		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-		for validator in validators.iter() {
+		for validator in VALIDATORS.iter() {
 			SyncCryptoStore::sr25519_generate_new(
 				&*keystore,
 				PARACHAIN_KEY_TYPE_ID,
@@ -1676,6 +1677,7 @@ mod tests {
 			)
 			.unwrap();
 		}
+		let validator_pubkeys = validator_pubkeys(VALIDATORS);
 
 		while System::block_number() < to {
 			let b = System::block_number();
@@ -1684,14 +1686,14 @@ mod tests {
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				let mut session_change_notification = SessionChangeNotification::default();
 				session_change_notification.session_index = ParasShared::session_index() + 1;
-				session_change_notification.validators = validator_pubkeys(&validators);
+				session_change_notification.validators = validator_pubkeys.clone();
 				ParasShared::initializer_on_new_session(
 					session_change_notification.session_index,
 					session_change_notification.random_seed,
 					&session_change_notification.new_config,
 					session_change_notification.validators.clone(),
 				);
-				ParasShared::set_active_validators_ascending(validator_pubkeys(&validators));
+				ParasShared::set_active_validators_ascending(validator_pubkeys.clone());
 				Paras::initializer_on_new_session(&session_change_notification);
 			}
 			System::on_finalize(b);
@@ -2483,6 +2485,7 @@ mod tests {
 		});
 	}
 
+	// TODO: pre-checking verify that we always prune PVF in case of reject
 	// TODO: pre-checking onboarding accept
 	// TODO: pre-checking upgrade accept
 	// TODO: pre-checking onboarding reject
