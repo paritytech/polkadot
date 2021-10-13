@@ -124,6 +124,11 @@ pub mod pallet {
 
 			// filter out any unneeded dispute statements
 			T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
+			limit_paras_inherent::<T>(
+				&mut inherent_data.disputes,
+				&mut inherent_data.bitfields,
+				&mut inherent_data.backed_candidates,
+			);
 
 			// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 			// See github.com/paritytech/polkadot/issues/1327
@@ -171,10 +176,10 @@ pub mod pallet {
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
 			let ParachainsInherentData {
-				bitfields: mut signed_bitfields,
-				mut backed_candidates,
+				bitfields: signed_bitfields,
+				backed_candidates,
 				parent_header,
-				mut disputes,
+				disputes,
 			} = data;
 
 			ensure_none(origin)?;
@@ -186,8 +191,6 @@ pub mod pallet {
 				parent_header.hash().as_ref() == parent_hash.as_ref(),
 				Error::<T>::InvalidParentHeader,
 			);
-
-			limit_paras_inherent::<T>(&mut disputes, &mut signed_bitfields, &mut backed_candidates);
 
 			let disputes_weight =
 				count_dispute_statements(&disputes) as Weight * DISPUTE_PER_STATEMENT_WEIGHT;
@@ -407,7 +410,7 @@ fn limit_paras_inherent<T: Config>(
 	let bitfields_count = count_bitfields(&bitfields);
 	let bitfields_weight = bitfields_count as Weight * BITFIELD_WEIGHT;
 	if disputes_weight + bitfields_weight > max_block_weight {
-		let num_bitfields = max_block_weight / BITFIELD_WEIGHT;
+		let num_bitfields = max_block_weight.saturating_sub(disputes_weight) / BITFIELD_WEIGHT;
 		let _ = bitfields.drain(num_bitfields as usize..);
 		backed_candidates.clear();
 		return
