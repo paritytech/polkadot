@@ -11,7 +11,7 @@ tracing = "0.1.29"
 parity-scale-codec = "2"
 kvdb = "0.10.0"
 derive_more = "0.99.14"
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
