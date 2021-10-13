@@ -65,6 +65,7 @@ use self::error::{NonFatal, log_error};
 mod backend;
 mod db;
 mod error;
+mod ordering;
 
 #[cfg(test)]
 mod tests;
