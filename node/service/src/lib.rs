@@ -723,16 +723,8 @@ where
 
 	let chain_spec = config.chain_spec.cloned_box();
 
-	// we should remove this check before we deploy parachains on polkadot
-	// TODO: https://github.com/paritytech/polkadot/issues/3326
-	let is_relay_chain = chain_spec.is_kusama() ||
-		chain_spec.is_westend() ||
-		chain_spec.is_rococo() ||
-		chain_spec.is_wococo();
-
 	let local_keystore = basics.keystore_container.local_keystore();
 	let requires_overseer_for_chain_sel = local_keystore.is_some() &&
-		is_relay_chain &&
 		(role.is_authority() || is_collator.is_collator());
 
 	let select_chain = SelectRelayChain::new(
