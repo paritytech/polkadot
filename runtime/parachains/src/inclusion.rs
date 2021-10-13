@@ -927,8 +927,8 @@ impl<T: Config> CandidateCheckContext<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-
 	use crate::{
+		paras_inherent::{sanitize_bitfields, DisputedBitfield},
 		configuration::HostConfiguration,
 		initializer::SessionChangeNotification,
 		mock::{
@@ -1310,13 +1310,15 @@ mod tests {
 					&signing_context,
 				));
 
-				assert_eq!(ParaInclusion::process_bitfields(
-					expected_bits(),
+				assert_eq!(sanitize_bitfields::<Test, true>(
 					vec![signed.into()],
-					&core_lookup,
+					DisputedBitfield::default(),
+					expected_bits(),
+					System::parent_hash(),
+					shared::Pallet::<Test>::session_index(),
 					&validator_public,
 				),
-				Err(Error::WrongBitfieldSize));
+				Err(Error::<T>::WrongBitfieldSize.into()));
 			}
 
 			// wrong number of bits: other way around.

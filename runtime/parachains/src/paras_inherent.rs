@@ -55,7 +55,7 @@ const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEI
 /// A bitfield concering concluded disputes for candidates
 /// associated to the core index equivalent to the bit position.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-pub struct DisputedBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
+pub(crate) struct DisputedBitfield(pub(crate) BitVec<bitvec::order::Lsb0, u8>);
 
 impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
 	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
@@ -369,7 +369,7 @@ macro_rules! ensure2 {
 ///  5. remove any disputed core indices
 ///
 /// If any of those is not passed, the bitfield is dropped.
-fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EARLY_RETURN: bool>(
+pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EARLY_RETURN: bool>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bits: DisputedBitfield,
 	expected_bits: usize,
