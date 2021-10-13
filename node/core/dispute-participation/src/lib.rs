@@ -199,18 +199,15 @@ async fn participate(
 	.await;
 
 	let available_data = match recover_available_data_rx.await? {
-		Ok(data) => {
-			data
-		},
+		Ok(data) => data,
 		Err(RecoveryError::Invalid) => {
 			// the available data was recovered but it is invalid, therefore we'll
 			// vote negatively for the candidate dispute
 			cast_invalid_vote(ctx, candidate_hash, candidate_receipt, session).await;
 			return Ok(())
 		},
-		Err(RecoveryError::Unavailable) => {
-			return Err(ParticipationError::MissingAvailableData(candidate_hash).into())
-		},
+		Err(RecoveryError::Unavailable) =>
+			return Err(ParticipationError::MissingAvailableData(candidate_hash).into()),
 	};
 
 	// we also need to fetch the validation code which we can reference by its

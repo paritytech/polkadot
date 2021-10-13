@@ -14,14 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{cmp::{Ordering, Ord, PartialOrd}, collections::{HashMap, HashSet}};
+use std::{
+	cmp::{Ord, Ordering, PartialOrd},
+	collections::{HashMap, HashSet},
+};
 
 use polkadot_node_subsystem::{ActiveLeavesUpdate, SubsystemSender};
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
-use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Id};
+use polkadot_primitives::v1::{
+	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Id,
+};
 
 use super::error::Result;
-
 
 /// Provider of `CandidateComparator` for candidates.
 pub struct OrderingProvider {
@@ -54,36 +58,36 @@ pub struct CandidateComparator {
 	included_block_number: BlockNumber,
 	/// Para id, used for ordering parachains within same relay chain block.
 	para_id: Id,
-	/// The hash of the relay chain block the candidate got included in. 
+	/// The hash of the relay chain block the candidate got included in.
 	included_block_hash: Hash,
 }
 
 impl PartialEq for CandidateComparator {
 	fn eq(&self, other: &CandidateComparator) -> bool {
-		Ordering::Equal == self.cmp(other) 
+		Ordering::Equal == self.cmp(other)
 	}
 }
 
 impl Eq for CandidateComparator {}
 
 impl PartialOrd for CandidateComparator {
-  fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-	  Some(self.cmp(other))
-  }
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
 }
 
 impl Ord for CandidateComparator {
-  fn cmp(&self, other: &Self) -> Ordering {
-      match self.included_block_number.cmp(&other.included_block_number) {
-        Ordering::Equal => (),
-        o => return o,
-      }
-      match self.para_id.cmp(&other.para_id) {
-        Ordering::Equal => (),
-        o => return o,
-      }
-      self.included_block_hash.cmp(&other.included_block_hash)
-    }
+	fn cmp(&self, other: &Self) -> Ordering {
+		match self.included_block_number.cmp(&other.included_block_number) {
+			Ordering::Equal => (),
+			o => return o,
+		}
+		match self.para_id.cmp(&other.para_id) {
+			Ordering::Equal => (),
+			o => return o,
+		}
+		self.included_block_hash.cmp(&other.included_block_hash)
+	}
 }
 
 impl OrderingProvider {
@@ -95,24 +99,31 @@ impl OrderingProvider {
 	/// Retrieve a candidate comparator if available.
 	///
 	/// If not available, we can treat disputes concerning this candidate with low priority and
-	/// should use spam slots for such disputes. 
-	pub async fn candidate_comparator<'a>(&'a mut self, candidate: &CandidateReceipt) -> Option<&'a CandidateComparator> {
+	/// should use spam slots for such disputes.
+	pub async fn candidate_comparator<'a>(
+		&'a mut self,
+		candidate: &CandidateReceipt,
+	) -> Option<&'a CandidateComparator> {
 		self.cached_comparators.get(&candidate.hash())
 	}
 
 	/// Query active leaves for any candidate `CandidateEvent::CandidateIncluded` events.
 	///
 	/// and updates current heads, so we can query candidates for all active heads.
-	pub async fn process_active_leaves_update<Sender: SubsystemSender>(&mut self, sender: &mut Sender, update: &ActiveLeavesUpdate) -> Result<()> {
-		if let Some(activated) =  update.activated.as_ref() {
+	pub async fn process_active_leaves_update<Sender: SubsystemSender>(
+		&mut self,
+		sender: &mut Sender,
+		update: &ActiveLeavesUpdate,
+	) -> Result<()> {
+		if let Some(activated) = update.activated.as_ref() {
 			// Get included events:
-			let included = get_candidate_events(sender, activated.hash).await?
+			let included = get_candidate_events(sender, activated.hash)
+				.await?
 				.into_iter()
 				.filter_map(|ev| match ev {
-					CandidateEvent::CandidateIncluded(receipt, _ , _ , _) => Some(receipt),
+					CandidateEvent::CandidateIncluded(receipt, _, _, _) => Some(receipt),
 					_ => None,
-				}
-				);
+				});
 			for receipt in included {
 				let candidate_hash = receipt.hash();
 				let comparator = CandidateComparator {
@@ -121,7 +132,10 @@ impl OrderingProvider {
 					para_id: receipt.descriptor.para_id,
 				};
 				self.cached_comparators.insert(candidate_hash, comparator);
-				self.candidates_by_relay_chain.entry(activated.hash).or_default().insert(candidate_hash);
+				self.candidates_by_relay_chain
+					.entry(activated.hash)
+					.or_default()
+					.insert(candidate_hash);
 			}
 		}
 
@@ -136,20 +150,15 @@ impl OrderingProvider {
 	}
 }
 
-
-
 // Queue
 
 // - On import - check for ordering for the given candidate hash
 // - If present - import into priority queue based on given `CandidateComparator`.
 // - If not push on best effort queue (if participation is required)
 
-
 // Import
 
-
 // Chain import
-
 
 // Dispute distribution on startup - ordering irrelevant, just distribute what has not yet been
 // distributed.
@@ -157,12 +166,11 @@ impl OrderingProvider {
 //
 //
 
-
 // Components/modules:
 //
 
 // Ordering: Get Ordering for candidates
-// 
+//
 // participation/Queues - might be owned by participation:
 //
 //    // Will put message in queue, either priority or best effort depending on whether ordering
@@ -184,7 +192,7 @@ impl OrderingProvider {
 //		running_participations: HashSet<CandidateHash>,
 //   }
 //   // removes candidate from running_participations & dequeues the next participation.
-//    
+//
 //   fn handle_local_statement(session, candidate_hash) ;
 //	 - Keep track of in-flight participation tasks - watch for `IssueLocalStatement`.
 //	 - Process queues (priority in order and then best effort in order)

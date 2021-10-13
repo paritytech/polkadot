@@ -31,7 +31,7 @@ use std::{
 	time::{SystemTime, UNIX_EPOCH},
 };
 
-use futures::{FutureExt, TryFutureExt, channel::oneshot};
+use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use polkadot_node_primitives::{
@@ -58,9 +58,9 @@ use sc_keystore::LocalKeystore;
 use crate::metrics::Metrics;
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
-use error::{Result, FatalResult};
+use error::{FatalResult, Result};
 
-use self::error::{NonFatal, log_error};
+use self::error::{log_error, NonFatal};
 
 mod backend;
 mod db;
@@ -140,7 +140,8 @@ impl DisputeCoordinatorSubsystem {
 		mut ctx: Context,
 		mut backend: B,
 		clock: Box<dyn Clock>,
-	) -> FatalResult<()> where
+	) -> FatalResult<()>
+	where
 		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend,
@@ -688,7 +689,9 @@ async fn handle_incoming(
 				metrics,
 			)
 			.await?;
-			pending_confirmation.send(outcome).map_err(|_| NonFatal::DisputeImportOneshotSend)?;
+			pending_confirmation
+				.send(outcome)
+				.map_err(|_| NonFatal::DisputeImportOneshotSend)?;
 		},
 		DisputeCoordinatorMessage::RecentDisputes(rx) => {
 			let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();

@@ -26,11 +26,15 @@ use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem::{SubsystemContext, SubsystemSender};
-use polkadot_primitives::v1::{CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidatorId, ValidatorIndex};
+use polkadot_primitives::v1::{
+	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
+	SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidatorId,
+	ValidatorIndex,
+};
 
 use crate::{
-	request_availability_cores, request_session_index_for_child, request_session_info,
-	request_validator_groups, request_candidate_events,
+	request_availability_cores, request_candidate_events, request_session_index_for_child,
+	request_session_info, request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.

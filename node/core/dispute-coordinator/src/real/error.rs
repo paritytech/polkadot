@@ -18,13 +18,13 @@ use futures::channel::oneshot;
 use thiserror::Error;
 
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError}, SubsystemError,
+	errors::{ChainApiError, RuntimeApiError},
+	SubsystemError,
 };
 use polkadot_node_subsystem_util::runtime;
 
-use crate::real::CodecError;
-use crate::real::LOG_TARGET;
 use super::db;
+use crate::real::{CodecError, LOG_TARGET};
 
 /// Errors for this subsystem.
 #[derive(Debug, Error, derive_more::From)]
@@ -59,7 +59,6 @@ impl From<SubsystemError> for Error {
 	}
 }
 
-
 /// Fatal errors of this subsystem.
 #[derive(Debug, Error)]
 pub enum Fatal {
@@ -69,7 +68,7 @@ pub enum Fatal {
 
 	/// We received a legacy SubystemError::Context error which is considered fatal.
 	#[error("SubsystemError::Context error: {0}")]
-	SubsystemContext(String)
+	SubsystemContext(String),
 }
 
 #[derive(Debug, thiserror::Error)]
