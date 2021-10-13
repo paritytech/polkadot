@@ -143,8 +143,9 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 				"more HRMP messages than permitted by config ({} > {})",
 				sent, permitted,
 			),
-			NotSorted { idx } =>
-				write!(fmt, "the HRMP messages are not sorted (first unsorted is at index {})", idx,),
+			NotSorted { idx } => {
+				write!(fmt, "the HRMP messages are not sorted (first unsorted is at index {})", idx,)
+			},
 			NoSuchChannel { idx, channel_id } => write!(
 				fmt,
 				"the HRMP message at index {} is sent to a non existent channel {:?}->{:?}",
@@ -386,7 +387,7 @@ pub mod pallet {
 		/// parameters.
 		///
 		/// - `proposed_max_capacity` - specifies how many messages can be in the channel at once.
-		/// - `proposed_max_message_size` - specifies the maximum size of any of the messages.
+		/// - `proposed_max_message_size` - specifies the maximum size of the messages.
 		///
 		/// These numbers are a subject to the relay-chain configuration limits.
 		///

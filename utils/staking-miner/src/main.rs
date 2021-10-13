@@ -389,15 +389,15 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
 	use sp_core::hashing::twox_128;
 
-	let mut modules = vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
+	let mut pallets = vec![<T as frame_system::Config>::PalletInfo::name::<EPM::Pallet<T>>()
 		.expect("Pallet always has name; qed.")
 		.to_string()];
-	modules.extend(additional);
+	pallets.extend(additional);
 	Builder::<B>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: uri.into(),
 			at,
-			modules,
+			pallets,
 			..Default::default()
 		}))
 		.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
@@ -534,7 +534,7 @@ async fn main() {
 	match chain.to_lowercase().as_str() {
 		"polkadot" | "development" => {
 			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
+				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount.into(),
 			);
 			sub_tokens::dynamic::set_name("DOT");
 			sub_tokens::dynamic::set_decimal_points(10_000_000_000);
@@ -546,7 +546,7 @@ async fn main() {
 		},
 		"kusama" | "kusama-dev" => {
 			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormat::KusamaAccount,
+				sp_core::crypto::Ss58AddressFormatRegistry::KusamaAccount.into(),
 			);
 			sub_tokens::dynamic::set_name("KSM");
 			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
@@ -558,7 +558,7 @@ async fn main() {
 		},
 		"westend" => {
 			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
+				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount.into(),
 			);
 			sub_tokens::dynamic::set_name("WND");
 			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);

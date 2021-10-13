@@ -34,8 +34,6 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationResult;
 use std::time::{Duration, Instant};
 
-const EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
-
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
 /// The program should be able to handle `<program-path> execute-worker <socket-path>` invocation.
@@ -69,6 +67,7 @@ pub enum Outcome {
 pub async fn start_work(
 	worker: IdleWorker,
 	artifact: ArtifactPathId,
+	execution_timeout: Duration,
 	validation_params: Vec<u8>,
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
@@ -108,7 +107,7 @@ pub async fn start_work(
 				Ok(response) => response,
 			}
 		},
-		_ = Delay::new(EXECUTION_TIMEOUT).fuse() => {
+		_ = Delay::new(execution_timeout).fuse() => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
