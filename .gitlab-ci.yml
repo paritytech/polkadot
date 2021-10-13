@@ -31,7 +31,7 @@ variables:
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
-  SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v12"
+  SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v13"
 
 default:
   cache:                           {}
