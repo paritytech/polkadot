@@ -28,7 +28,7 @@ use futures::{select, FutureExt};
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::ProvisionerMessage, overseer::Handle,
 };
-use polkadot_primitives::v1::{Block, Hash, InherentData as ParachainsInherentData};
+use polkadot_primitives::v1::{Block, SeedEntropy, Hash, InherentData as ParachainsInherentData};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
 use std::time;
@@ -97,6 +97,7 @@ impl ParachainsInherentDataProvider {
 					backed_candidates: Vec::new(),
 					disputes: Vec::new(),
 					parent_header,
+					entropy: SeedEntropy::draw(),
 				}
 			},
 		};

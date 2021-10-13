@@ -125,11 +125,12 @@ pub mod pallet {
 		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			let ParachainsInherentData<T::Header> {
-				mut bitfields,
-				mut backed_candidates,
-				mut disputes,
-				mut parent_header,
+			let ParachainsInherentData::<T::Header> {
+				bitfields,
+				backed_candidates,
+				disputes,
+				parent_header,
+				entropy,
 			} = match data.get_data(&Self::INHERENT_IDENTIFIER) {
 				Ok(Some(d)) => d,
 				Ok(None) => return None,
@@ -142,7 +143,7 @@ pub mod pallet {
 
 
 			// filter out any unneeded dispute statements
-			T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
+			T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
 			// sanitize the bitfields and candidates by removing
 			// anything that does not pass a set of checks
@@ -172,6 +173,13 @@ pub mod pallet {
 				&scheduled[..],
 			).ok()?;
 
+			let inherent_data = ParachainsInherentData::<T::Header> {
+				bitfields,
+				backed_candidates,
+				disputes,
+				parent_header,
+				entropy,
+			};
 
 			// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 			// See <https://github.com/paritytech/polkadot/issues/1327>
