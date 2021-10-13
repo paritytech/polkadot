@@ -7,25 +7,25 @@ require 'git'
 require 'json'
 require 'octokit'
 require 'toml'
-require 'logger'
 require_relative './lib.rb'
 
-$logger = Logger.new(STDOUT)
-$logger.level = Logger::DEBUG
-$logger.debug("Start")
+# A logger only active when NOT running in CI
+def logger(s)
+  puts "▶ DEBUG: %s" % [s] if ENV['CI'] != 'true'
+end
 
 # Check if all the required ENV are set
 # This is especially convenient when testing locally
 def check_env()
   if ENV['CI'] != 'true' then
-    $logger.info("Running locally")
+    logger("Running locally")
     vars = ['GITHUB_REF', 'GITHUB_TOKEN', 'GITHUB_WORKSPACE', 'GITHUB_REPOSITORY', 'RUSTC_STABLE', 'RUSTC_NIGHTLY']
     vars.each { |x|
       env = (ENV[x] || "")
       if env.length > 0 then
-        $logger.info("- %s:\tset: %s, len: %d" % [x, env.length > 0 || false, env.length])
+        logger("- %s:\tset: %s, len: %d" % [x, env.length > 0 || false, env.length])
       else
-        $logger.error("- %s:\tset: %s, len: %d" % [x, env.length > 0 || false, env.length])
+        logger("- %s:\tset: %s, len: %d" % [x, env.length > 0 || false, env.length])
       end
     }
   end
@@ -36,7 +36,7 @@ check_env()
 current_ref = ENV['GITHUB_REF']
 token = ENV['GITHUB_TOKEN']
 
-$logger.info("Connecting to Github")
+logger("Connecting to Github")
 github_client = Octokit::Client.new(
   access_token: token
 )
@@ -51,8 +51,9 @@ renderer = ERB.new(
 
 # get ref of last polkadot release
 last_ref = 'refs/tags/' + github_client.latest_release(ENV['GITHUB_REPOSITORY']).tag_name
+logger("Last ref: " + last_ref)
 
-$logger.info("Generate changelog for Polkadot")
+logger("Generate changelog for Polkadot")
 polkadot_cl = Changelog.new(
   'paritytech/polkadot', last_ref, current_ref, token: token
 )
@@ -74,7 +75,7 @@ end
 substrate_prev_sha = get_substrate_commit(github_client, last_ref)
 substrate_cur_sha = get_substrate_commit(github_client, current_ref)
 
-$logger.info("Generate changelog for Substrate")
+logger("Generate changelog for Substrate")
 substrate_cl = Changelog.new(
   'paritytech/substrate', substrate_prev_sha, substrate_cur_sha,
   token: token,
