@@ -31,7 +31,7 @@ use std::{
 	time::{SystemTime, UNIX_EPOCH},
 };
 
-use futures::{channel::oneshot, prelude::*};
+use futures::{FutureExt, TryFutureExt, channel::oneshot};
 use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use polkadot_node_primitives::{
@@ -39,7 +39,6 @@ use polkadot_node_primitives::{
 	DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
 	messages::{
 		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		DisputeParticipationMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
@@ -59,9 +58,13 @@ use sc_keystore::LocalKeystore;
 use crate::metrics::Metrics;
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
+use error::{Result, FatalResult};
+
+use self::error::{NonFatal, log_error};
 
 mod backend;
 mod db;
+mod error;
 
 #[cfg(test)]
 mod tests;
@@ -130,6 +133,81 @@ impl DisputeCoordinatorSubsystem {
 	) -> Self {
 		DisputeCoordinatorSubsystem { store, config, keystore, metrics }
 	}
+
+	async fn run<B, Context>(
+		self,
+		mut ctx: Context,
+		mut backend: B,
+		clock: Box<dyn Clock>,
+	) -> FatalResult<()> where
+		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
+		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+		B: Backend,
+	{
+		loop {
+			let res = self.run_until_error(&mut ctx, &mut backend, &*clock).await;
+			if let Ok(()) = res {
+				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+				return Ok(())
+			}
+			log_error(res)?;
+		}
+	}
+
+	// Run the subsystem until an error is encountered or a `conclude` signal is received.
+	// Most errors are non-fatal and should lead to another call to this function.
+	//
+	// A return value of `Ok` indicates that an exit should be made, while non-fatal errors
+	// lead to another call to this function.
+	async fn run_until_error<B, Context>(
+		&self,
+		ctx: &mut Context,
+		backend: &mut B,
+		clock: &dyn Clock,
+	) -> Result<()>
+	where
+		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
+		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+		B: Backend,
+	{
+		let mut state = State {
+			keystore: self.keystore.clone(),
+			highest_session: None,
+			rolling_session_window: RollingSessionWindow::new(DISPUTE_WINDOW),
+			recovery_state: Participation::Pending,
+		};
+		let metrics = &self.metrics;
+
+		loop {
+			let mut overlay_db = OverlayedBackend::new(backend);
+			match ctx.recv().await? {
+				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+					handle_new_activations(
+						ctx,
+						&mut overlay_db,
+						&mut state,
+						update.activated.into_iter().map(|a| a.hash),
+						clock.now(),
+						&metrics,
+					)
+					.await?;
+					if !state.recovery_state.complete() {
+						handle_startup(ctx, &mut overlay_db, &mut state).await?;
+					}
+				},
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
+				FromOverseer::Communication { msg } =>
+					handle_incoming(ctx, &mut overlay_db, &mut state, msg, clock.now(), &metrics)
+						.await?,
+			}
+
+			if !overlay_db.is_empty() {
+				let ops = overlay_db.into_write_ops();
+				backend.write(ops)?;
+			}
+		}
+	}
 }
 
 impl<Context> overseer::Subsystem<Context, SubsystemError> for DisputeCoordinatorSubsystem
@@ -139,7 +217,10 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.store.clone(), self.config.column_config());
-		let future = run(self, ctx, backend, Box::new(SystemClock)).map(|_| Ok(())).boxed();
+		let future = self
+			.run(ctx, backend, Box::new(SystemClock))
+			.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
+			.boxed();
 
 		SpawnedSubsystem { name: "dispute-coordinator-subsystem", future }
 	}
@@ -170,52 +251,6 @@ impl Clock for SystemClock {
 
 				0
 			},
-		}
-	}
-}
-
-#[derive(Debug, thiserror::Error)]
-#[allow(missing_docs)]
-pub enum Error {
-	#[error(transparent)]
-	RuntimeApi(#[from] RuntimeApiError),
-
-	#[error(transparent)]
-	ChainApi(#[from] ChainApiError),
-
-	#[error(transparent)]
-	Io(#[from] std::io::Error),
-
-	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
-
-	#[error("Oneshot send failed")]
-	OneshotSend,
-
-	#[error(transparent)]
-	Subsystem(#[from] SubsystemError),
-
-	#[error(transparent)]
-	Codec(#[from] CodecError),
-}
-
-impl From<db::v1::Error> for Error {
-	fn from(err: db::v1::Error) -> Self {
-		match err {
-			db::v1::Error::Io(io) => Self::Io(io),
-			db::v1::Error::Codec(e) => Self::Codec(e),
-		}
-	}
-}
-
-impl Error {
-	fn trace(&self) {
-		match self {
-			// don't spam the log with spurious errors
-			Self::RuntimeApi(_) | Self::Oneshot(_) =>
-				tracing::debug!(target: LOG_TARGET, err = ?self),
-			// it's worth reporting otherwise
-			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
 		}
 	}
 }
@@ -286,89 +321,6 @@ impl DisputeStatus {
 	}
 }
 
-async fn run<B, Context>(
-	subsystem: DisputeCoordinatorSubsystem,
-	mut ctx: Context,
-	mut backend: B,
-	clock: Box<dyn Clock>,
-) where
-	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
-	B: Backend,
-{
-	loop {
-		let res = run_until_error(&mut ctx, &subsystem, &mut backend, &*clock).await;
-		match res {
-			Err(e) => {
-				e.trace();
-
-				if let Error::Subsystem(SubsystemError::Context(_)) = e {
-					break
-				}
-			},
-			Ok(()) => {
-				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
-				break
-			},
-		}
-	}
-}
-
-// Run the subsystem until an error is encountered or a `conclude` signal is received.
-// Most errors are non-fatal and should lead to another call to this function.
-//
-// A return value of `Ok` indicates that an exit should be made, while non-fatal errors
-// lead to another call to this function.
-async fn run_until_error<B, Context>(
-	ctx: &mut Context,
-	subsystem: &DisputeCoordinatorSubsystem,
-	backend: &mut B,
-	clock: &dyn Clock,
-) -> Result<(), Error>
-where
-	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
-	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
-	B: Backend,
-{
-	let mut state = State {
-		keystore: subsystem.keystore.clone(),
-		highest_session: None,
-		rolling_session_window: RollingSessionWindow::new(DISPUTE_WINDOW),
-		recovery_state: Participation::Pending,
-	};
-	let metrics = &subsystem.metrics;
-
-	loop {
-		let mut overlay_db = OverlayedBackend::new(backend);
-		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-				handle_new_activations(
-					ctx,
-					&mut overlay_db,
-					&mut state,
-					update.activated.into_iter().map(|a| a.hash),
-					clock.now(),
-					&metrics,
-				)
-				.await?;
-				if !state.recovery_state.complete() {
-					handle_startup(ctx, &mut overlay_db, &mut state).await?;
-				}
-			},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
-			FromOverseer::Communication { msg } =>
-				handle_incoming(ctx, &mut overlay_db, &mut state, msg, clock.now(), &metrics)
-					.await?,
-		}
-
-		if !overlay_db.is_empty() {
-			let ops = overlay_db.into_write_ops();
-			backend.write(ops)?;
-		}
-	}
-}
-
 // Restores the subsystem's state before proceeding with the main event loop. Primarily, this
 // repopulates the rolling session window the relevant session information to handle incoming
 // import statement requests.
@@ -380,7 +332,7 @@ async fn handle_startup<Context>(
 	ctx: &mut Context,
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 	state: &mut State,
-) -> Result<(), Error>
+) -> Result<()>
 where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
@@ -450,22 +402,13 @@ where
 		// Send a `DisputeParticipationMessage` for all non-concluded disputes which do not have a
 		// recorded local statement.
 		if missing_local_statement {
-			let (report_availability, receive_availability) = oneshot::channel();
 			ctx.send_message(DisputeParticipationMessage::Participate {
 				candidate_hash: *candidate_hash,
 				candidate_receipt: votes.candidate_receipt.clone(),
 				session,
 				n_validators: n_validators as u32,
-				report_availability,
 			})
 			.await;
-
-			if !receive_availability.await? {
-				tracing::debug!(
-					target: LOG_TARGET,
-					"Participation failed. Candidate not available"
-				);
-			}
 		}
 	}
 
@@ -480,7 +423,7 @@ async fn handle_new_activations(
 	new_activations: impl IntoIterator<Item = Hash>,
 	now: u64,
 	metrics: &Metrics,
-) -> Result<(), Error> {
+) -> Result<()> {
 	for new_leaf in new_activations {
 		match state.rolling_session_window.cache_session_info_for_head(ctx, new_leaf).await {
 			Err(e) => {
@@ -519,7 +462,7 @@ async fn scrape_on_chain_votes(
 	new_leaf: Hash,
 	now: u64,
 	metrics: &Metrics,
-) -> Result<(), Error> {
+) -> Result<()> {
 	// obtain the concluded disputes as well as the candidate backing votes
 	// from the new leaf
 	let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = {
@@ -723,7 +666,7 @@ async fn handle_incoming(
 	message: DisputeCoordinatorMessage,
 	now: Timestamp,
 	metrics: &Metrics,
-) -> Result<(), Error> {
+) -> Result<()> {
 	match message {
 		DisputeCoordinatorMessage::ImportStatements {
 			candidate_hash,
@@ -744,7 +687,7 @@ async fn handle_incoming(
 				metrics,
 			)
 			.await?;
-			pending_confirmation.send(outcome).map_err(|_| Error::OneshotSend)?;
+			pending_confirmation.send(outcome).map_err(|_| NonFatal::DisputeImportOneshotSend)?;
 		},
 		DisputeCoordinatorMessage::RecentDisputes(rx) => {
 			let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
@@ -850,7 +793,7 @@ async fn handle_import_statements(
 	statements: impl IntoIterator<Item = (SignedDisputeStatement, ValidatorIndex)>,
 	now: Timestamp,
 	metrics: &Metrics,
-) -> Result<ImportStatementsResult, Error> {
+) -> Result<ImportStatementsResult> {
 	if state.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
 		// It is not valid to participate in an ancient dispute (spam?).
 		return Ok(ImportStatementsResult::InvalidImport)
@@ -986,35 +929,14 @@ async fn handle_import_statements(
 
 			!controlled_indices.iter().all(|val_index| voted_indices.contains(&val_index))
 		} {
-			// If the dispute is new, we participate UNLESS all our controlled
-			// keys have already participated.
-			//
-			// We also block the coordinator while awaiting our determination
-			// of whether the vote is available.
-			let (report_availability, receive_availability) = oneshot::channel();
 			ctx.send_message(DisputeParticipationMessage::Participate {
 				candidate_hash,
 				candidate_receipt,
 				session,
 				n_validators: n_validators as u32,
-				report_availability,
 			})
 			.await;
 
-			if !receive_availability.await.map_err(Error::Oneshot)? {
-				// If the data is not available, we disregard the dispute votes.
-				// This is an indication that the dispute does not correspond to any included
-				// candidate and that it should be ignored.
-				//
-				// We expect that if the candidate is truly disputed that the higher-level network
-				// code will retry.
-
-				tracing::debug!(
-					target: LOG_TARGET,
-					"Recovering availability failed - invalid import."
-				);
-				return Ok(ImportStatementsResult::InvalidImport)
-			}
 			metrics.on_open();
 
 			if concluded_valid {
@@ -1060,7 +982,7 @@ async fn issue_local_statement(
 	valid: bool,
 	now: Timestamp,
 	metrics: &Metrics,
-) -> Result<(), Error> {
+) -> Result<()> {
 	// Load session info.
 	let info = match state.rolling_session_window.session_info(session) {
 		None => {
@@ -1198,7 +1120,7 @@ fn make_dispute_message(
 	votes: &CandidateVotes,
 	our_vote: SignedDisputeStatement,
 	our_index: ValidatorIndex,
-) -> Result<DisputeMessage, DisputeMessageCreationError> {
+) -> std::result::Result<DisputeMessage, DisputeMessageCreationError> {
 	let validators = &info.validators;
 
 	let (valid_statement, valid_index, invalid_statement, invalid_index) =
@@ -1253,7 +1175,7 @@ fn determine_undisputed_chain(
 	base_number: BlockNumber,
 	base_hash: Hash,
 	block_descriptions: Vec<BlockDescription>,
-) -> Result<(BlockNumber, Hash), Error> {
+) -> Result<(BlockNumber, Hash)> {
 	let last = block_descriptions
 		.last()
 		.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash))

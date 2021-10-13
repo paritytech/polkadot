@@ -157,7 +157,6 @@ async fn handle_incoming(
 			candidate_receipt,
 			session,
 			n_validators,
-			report_availability,
 		} =>
 			if let Some((_, block_hash)) = state.recent_block {
 				participate(
@@ -167,7 +166,6 @@ async fn handle_incoming(
 					candidate_receipt,
 					session,
 					n_validators,
-					report_availability,
 				)
 				.await
 			} else {
@@ -202,20 +200,15 @@ async fn participate(
 
 	let available_data = match recover_available_data_rx.await? {
 		Ok(data) => {
-			report_availability.send(true).map_err(|_| Error::OneshotSendFailed)?;
 			data
 		},
 		Err(RecoveryError::Invalid) => {
-			report_availability.send(true).map_err(|_| Error::OneshotSendFailed)?;
-
 			// the available data was recovered but it is invalid, therefore we'll
 			// vote negatively for the candidate dispute
 			cast_invalid_vote(ctx, candidate_hash, candidate_receipt, session).await;
 			return Ok(())
 		},
 		Err(RecoveryError::Unavailable) => {
-			report_availability.send(false).map_err(|_| Error::OneshotSendFailed)?;
-
 			return Err(ParticipationError::MissingAvailableData(candidate_hash).into())
 		},
 	};

@@ -491,9 +491,6 @@ enum DisputeParticipationMessage {
         session: SessionIndex,
         /// The number of validators in the session.
         n_validators: u32,
-        /// Give immediate feedback on whether the candidate was available or
-        /// not.
-        report_availability: oneshot::Sender<bool>,
     }
 }
 ```
