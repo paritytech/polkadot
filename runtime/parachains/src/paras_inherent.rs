@@ -21,19 +21,24 @@
 //! as it has no initialization logic and its finalization logic depends only on the details of
 //! this module.
 
-use crate::{configuration::Config, disputes::DisputesHandler, inclusion, scheduler::{self, CoreAssignment, FreedReason}, shared, ump};
+use crate::{
+	configuration::Config,
+	disputes::DisputesHandler,
+	inclusion,
+	scheduler::{self, CoreAssignment, FreedReason},
+	shared, ump,
+};
 use bitvec::prelude::BitVec;
 use frame_support::{
+	fail,
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
 	pallet_prelude::*,
-	fail,
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	AvailabilityBitfield, ValidatorIndex,
-	BackedCandidate, CandidateHash, CoreIndex,
-	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SessionIndex,
-	SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
+	AvailabilityBitfield, BackedCandidate, CandidateHash, CoreIndex,
+	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SessionIndex, SigningContext,
+	UncheckedSignedAvailabilityBitfields, ValidatorId, ValidatorIndex,
 	PARACHAINS_INHERENT_IDENTIFIER,
 };
 use scale_info::TypeInfo;
@@ -255,25 +260,14 @@ pub mod pallet {
 				(disputed_bitfield, concluded_invalid_disputed_candidates)
 			};
 
-			let validators = shared::Pallet::<T>::active_validator_keys();
-
-			let checked_bitfields = sanitize_bitfields::<T, true>(
-				signed_bitfields,
-				disputed_bits,
-				expected_bits,
-				parent_hash,
-				current_session,
-				&validators,
-			)?;
-
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
 			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
-				checked_bitfields,
+				signed_bitfields,
+				disputed_bits,
 				<scheduler::Pallet<T>>::core_para,
-				&validators,
-			);
+			)?;
 
 			// Inform the disputes module of all included candidates.
 			let now = <frame_system::Pallet<T>>::block_number();
@@ -381,7 +375,7 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 
 	let mut last_index = None;
 
-	if EARLY_RETURN && disputed_bits.0.len() != expected_bits{
+	if EARLY_RETURN && disputed_bits.0.len() != expected_bits {
 		return Ok(Default::default())
 	}
 
@@ -395,9 +389,8 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 		);
 
 		ensure2!(
-			last_index
-				.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()),
-				crate::inclusion::pallet::Error::<T>::BitfieldDuplicateOrUnordered,
+			last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()),
+			crate::inclusion::pallet::Error::<T>::BitfieldDuplicateOrUnordered,
 			EARLY_RETURN
 		);
 
@@ -418,7 +411,7 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 		} else if EARLY_RETURN {
 			fail!(crate::inclusion::pallet::Error::<T>::InvalidBitfieldSignature);
 		} else {
-			continue;
+			continue
 		};
 
 		last_index = Some(validator_index);
@@ -427,19 +420,17 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 
 		// filter the bitfields only
 		if !EARLY_RETURN {
-			checked_bitfield.0.iter_mut()
-				.enumerate()
-				.for_each(|(core_idx, mut bit)| {
-					*bit = if *bit {
-						// ignore those that have matching invalid dispute bits
-						// which always works, since we checked for uniformat bit length
-						// before
-						!disputed_bits.0[core_idx]
-					} else {
-						// bit wasn't set in the first place
-						false
-					};
-				});
+			checked_bitfield.0.iter_mut().enumerate().for_each(|(core_idx, mut bit)| {
+				*bit = if *bit {
+					// ignore those that have matching invalid dispute bits
+					// which always works, since we checked for uniformat bit length
+					// before
+					!disputed_bits.0[core_idx]
+				} else {
+					// bit wasn't set in the first place
+					false
+				};
+			});
 		}
 
 		bitfields.push((checked_bitfield, validator_index));
@@ -453,12 +444,15 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 /// guide: Currently `free` but might become `occupied`.
 /// For the filtering here the relevant part is only the current `free`
 /// state.
-fn sanitize_backed_candidates<T: Config + crate::paras_inherent::Config, const EARLY_RETURN: bool>(
+fn sanitize_backed_candidates<
+	T: Config + crate::paras_inherent::Config,
+	const EARLY_RETURN: bool,
+>(
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	disputed_candidates: BTreeSet<CandidateHash>,
 	scheduled: &[CoreAssignment],
-) -> Result<Vec<BackedCandidate<T::Hash>>, Error::<T>> {
+) -> Result<Vec<BackedCandidate<T::Hash>>, Error<T>> {
 	let n = backed_candidates.len();
 	// Remove any candidates that were concluded invalid.
 	backed_candidates.retain(|backed_candidate| {
@@ -472,8 +466,8 @@ fn sanitize_backed_candidates<T: Config + crate::paras_inherent::Config, const E
 	// Also checks the candidate references the correct relay parent.
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
-		desc.relay_parent == relay_parent
-		&& scheduled.iter().any(|core| core.para_id == desc.para_id)
+		desc.relay_parent == relay_parent &&
+			scheduled.iter().any(|core| core.para_id == desc.para_id)
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 

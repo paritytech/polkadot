@@ -20,14 +20,20 @@
 //! It is responsible for carrying candidates from being backable to being backed, and then from backed
 //! to included.
 
+use crate::{
+	configuration, disputes, dmp, hrmp, paras,
+	paras_inherent::{sanitize_bitfields, DisputedBitfield},
+	scheduler::CoreAssignment,
+	shared, ump,
+};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
-	HeadData, Id as ParaId, SigningContext, ValidatorId,
-	ValidatorIndex, ValidityAttestation,
+	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
+	ValidityAttestation,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -35,8 +41,6 @@ use sp_runtime::{
 	DispatchError,
 };
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
-
-use crate::{configuration, disputes, dmp, hrmp, paras, scheduler::CoreAssignment, shared, ump};
 
 pub use pallet::*;
 
@@ -261,10 +265,23 @@ impl<T: Config> Pallet<T> {
 	/// and cores free.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
-		checked_bitfields: Vec<(AvailabilityBitfield, ValidatorIndex)>,
+		signed_bitfields: UncheckedSignedAvailabilityBitfields,
+		disputed_bits: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-		validators: &[ValidatorId],
-	) -> Vec<(CoreIndex, CandidateHash)> {
+	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
+		let validators = shared::Pallet::<T>::active_validator_keys();
+		let session_index = shared::Pallet::<T>::session_index();
+		let parent_hash = frame_system::Pallet::<T>::parent_hash();
+
+		let checked_bitfields = sanitize_bitfields::<T, true>(
+			signed_bitfields,
+			disputed_bits,
+			expected_bits,
+			parent_hash,
+			session_index,
+			&validators[..],
+		)?;
+
 		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
 			.map(|opt_para_id| {
@@ -274,9 +291,7 @@ impl<T: Config> Pallet<T> {
 
 		let now = <frame_system::Pallet<T>>::block_number();
 		for (checked_bitfield, validator_index) in checked_bitfields {
-			for (bit_idx, _) in
-				checked_bitfield.0.iter().enumerate().filter(|(_, is_av)| **is_av)
-			{
+			for (bit_idx, _) in checked_bitfield.0.iter().enumerate().filter(|(_, is_av)| **is_av) {
 				let pending_availability = if let Some((_, pending_availability)) =
 					assigned_paras_record[bit_idx].as_mut()
 				{
@@ -300,10 +315,8 @@ impl<T: Config> Pallet<T> {
 				}
 			}
 
-			let record = AvailabilityBitfieldRecord {
-				bitfield: checked_bitfield,
-				submitted_at: now,
-			};
+			let record =
+				AvailabilityBitfieldRecord { bitfield: checked_bitfield, submitted_at: now };
 
 			<AvailabilityBitfields<T>>::insert(&validator_index, record);
 		}
@@ -349,7 +362,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		freed_cores
+		Ok(freed_cores)
 	}
 
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
@@ -928,7 +941,6 @@ impl<T: Config> CandidateCheckContext<T> {
 mod tests {
 	use super::*;
 	use crate::{
-		paras_inherent::{sanitize_bitfields, DisputedBitfield},
 		configuration::HostConfiguration,
 		initializer::SessionChangeNotification,
 		mock::{
@@ -936,6 +948,7 @@ mod tests {
 			System, Test,
 		},
 		paras::ParaGenesisArgs,
+		paras_inherent::{sanitize_bitfields, DisputedBitfield},
 		scheduler::AssignmentKind,
 	};
 	use futures::executor::block_on;
@@ -1310,15 +1323,17 @@ mod tests {
 					&signing_context,
 				));
 
-				assert_eq!(sanitize_bitfields::<Test, true>(
-					vec![signed.into()],
-					DisputedBitfield::default(),
-					expected_bits(),
-					System::parent_hash(),
-					shared::Pallet::<Test>::session_index(),
-					&validator_public,
-				),
-				Err(Error::<T>::WrongBitfieldSize.into()));
+				assert_eq!(
+					sanitize_bitfields::<Test, true>(
+						vec![signed.into()],
+						DisputedBitfield::default(),
+						expected_bits(),
+						System::parent_hash(),
+						shared::Pallet::<Test>::session_index(),
+						&validator_public,
+					),
+					Err(Error::<Test>::WrongBitfieldSize.into())
+				);
 			}
 
 			// wrong number of bits: other way around.
@@ -1332,13 +1347,17 @@ mod tests {
 					&signing_context,
 				));
 
-				assert_eq!(ParaInclusion::process_bitfields(
-					expected_bits() + 1,
-					vec![signed.into()],
-					&core_lookup,
-					&validator_public,
-				),
-				Err(Error::WrongBitfieldSize));
+				assert_eq!(
+					sanitize_bitfields::<Test, true>(
+						vec![signed.into()],
+						DisputedBitfield::default(),
+						expected_bits() + 1,
+						System::parent_hash(),
+						shared::Pallet::<Test>::session_index(),
+						&validator_public,
+					),
+					Err(Error::<Test>::WrongBitfieldSize.into())
+				);
 			}
 
 			// duplicate.
@@ -1353,12 +1372,15 @@ mod tests {
 				))
 				.into();
 
-				assert_eq!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.clone(), signed],
-					&core_lookup,
-					&validators_public,
-				), Err(Error::BitfieldDuplicateOrUnordered));
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.clone(), signed],
+						DisputedBitfield::default(),
+						&core_lookup,
+					),
+					Err(Error::<Test>::BitfieldDuplicateOrUnordered.into())
+				);
 			}
 
 			// out of order.
@@ -1382,13 +1404,15 @@ mod tests {
 				))
 				.into();
 
-				assert_eq!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed_1, signed_0],
-					&core_lookup,
-					&validators_public,
-				),
-				Err(Error::BitfieldDuplicateOrUnordered));
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed_1, signed_0],
+						DisputedBitfield::default(),
+						&core_lookup,
+					),
+					Err(Error::<Test>::BitfieldDuplicateOrUnordered.into())
+				);
 			}
 
 			// non-pending bit set.
@@ -1402,14 +1426,14 @@ mod tests {
 					bare_bitfield,
 					&signing_context,
 				));
-				assert_eq!(
-					ParaInclusion::process_bitfields(
-						expected_bits(),
-						vec![signed.into()],
-						&core_lookup,
-					),
-					Ok(vec![])
-				);
+
+				assert!(ParaInclusion::process_bitfields(
+					expected_bits(),
+					vec![signed.into()],
+					DisputedBitfield::default(),
+					&core_lookup,
+				)
+				.is_ok());
 			}
 
 			// empty bitfield signed: always OK, but kind of useless.
@@ -1423,12 +1447,13 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(ParaInclusion::process_bitfields(
+				assert!(!ParaInclusion::process_bitfields(
 					expected_bits(),
 					vec![signed.into()],
+					DisputedBitfield::default(),
 					&core_lookup,
-					&validators_public,
-				).is_ok());
+				)
+				.is_ok());
 			}
 
 			// bitfield signed with pending bit signed.
@@ -1468,9 +1493,10 @@ mod tests {
 				assert!(ParaInclusion::process_bitfields(
 					expected_bits(),
 					vec![signed.into()],
+					DisputedBitfield::default(),
 					&core_lookup,
-					&validators_public,
-				).is_ok());
+				)
+				.is_ok());
 
 				<PendingAvailability<Test>>::remove(chain_a);
 				PendingAvailabilityCommitments::<Test>::remove(chain_a);
@@ -1507,14 +1533,13 @@ mod tests {
 				));
 
 				// no core is freed
-				assert_eq!(
-					ParaInclusion::process_bitfields(
-						expected_bits(),
-						vec![signed.into()],
-						&core_lookup,
-					),
-					Ok(vec![]),
-				);
+				assert!(ParaInclusion::process_bitfields(
+					expected_bits(),
+					vec![signed.into()],
+					DisputedBitfield::default(),
+					&core_lookup,
+				)
+				.is_ok());
 			}
 		});
 	}
@@ -1653,6 +1678,7 @@ mod tests {
 			assert!(ParaInclusion::process_bitfields(
 				expected_bits(),
 				signed_bitfields,
+				DisputedBitfield::default(),
 				&core_lookup,
 			)
 			.is_ok());
