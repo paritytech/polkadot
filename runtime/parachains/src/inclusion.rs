@@ -1324,13 +1324,11 @@ mod tests {
 				));
 
 				assert_eq!(
-					sanitize_bitfields::<Test, true>(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
 						vec![signed.into()],
 						DisputedBitfield::default(),
-						expected_bits(),
-						System::parent_hash(),
-						shared::Pallet::<Test>::session_index(),
-						&validator_public,
+						&core_lookup,
 					),
 					Err(Error::<Test>::WrongBitfieldSize.into())
 				);
@@ -1348,13 +1346,11 @@ mod tests {
 				));
 
 				assert_eq!(
-					sanitize_bitfields::<Test, true>(
+					ParaInclusion::process_bitfields(
+						expected_bits() + 1,
 						vec![signed.into()],
 						DisputedBitfield::default(),
-						expected_bits() + 1,
-						System::parent_hash(),
-						shared::Pallet::<Test>::session_index(),
-						&validator_public,
+						&core_lookup,
 					),
 					Err(Error::<Test>::WrongBitfieldSize.into())
 				);

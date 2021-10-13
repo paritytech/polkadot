@@ -125,19 +125,53 @@ pub mod pallet {
 		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			let mut inherent_data: ParachainsInherentData<T::Header> =
-				match data.get_data(&Self::INHERENT_IDENTIFIER) {
-					Ok(Some(d)) => d,
-					Ok(None) => return None,
-					Err(_) => {
-						log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
+			let ParachainsInherentData<T::Header> {
+				mut bitfields,
+				mut backed_candidates,
+				mut disputes,
+				mut parent_header,
+			} = match data.get_data(&Self::INHERENT_IDENTIFIER) {
+				Ok(Some(d)) => d,
+				Ok(None) => return None,
+				Err(_) => {
+					log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
 
-						return None
-					},
-				};
+					return None
+				},
+			};
+
 
 			// filter out any unneeded dispute statements
 			T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
+
+			// sanitize the bitfields and candidates by removing
+			// anything that does not pass a set of checks
+			// will be removed here
+			let validators = shared::Pallet::<T>::active_validator_keys();
+			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+			let current_session = <shared::Pallet<T>>::session_index();
+
+			let expected_bits = unimplemented!("source?");
+			// FIXME the return value is inapropriate for further usage
+			// TODO move to index return value and do not consume the input
+			let bitfields = sanitize_bitfields::<T, false>(
+				bitfields,
+				DisputedBitfield::default(), // TODO FIXME
+				expected_bits,
+				parent_hash,
+				current_session,
+				&validator_public[..],
+			).ok()?;
+
+			let scheduled = unimplemented!();
+			let disputed_candidates = unimplemented!("");
+			let backed_candidates = sanitize_backed_candidates::<T, false>(
+				parent_hash,
+				backed_candidates,
+				disputed_candidates,
+				&scheduled[..],
+			).ok()?;
+
 
 			// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 			// See <https://github.com/paritytech/polkadot/issues/1327>
