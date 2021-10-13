@@ -31,8 +31,8 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::v2::{
-	AuthorityDiscoveryId, Balance, BlockNumber, Header, Moment, SessionIndex, UpwardMessage,
-	ValidatorIndex,
+	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
+	UpwardMessage, ValidatorIndex,
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
@@ -242,30 +242,23 @@ impl crate::hrmp::Config for Test {
 
 impl crate::disputes::Config for Test {
 	type Event = Event;
-	type RewardValidators = Self;
+	type IdentifyValidatorsInSession = ();
+	type ReportDisputeOffences = ();
 	type PunishValidators = Self;
 	type WeightInfo = crate::disputes::TestWeightInfo;
 }
 
 thread_local! {
-	pub static REWARD_VALIDATORS: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_INCONCLUSIVE: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 }
 
-impl crate::disputes::RewardValidators for Test {
-	fn reward_dispute_statement(
-		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
-	) {
-		REWARD_VALIDATORS.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
-	}
-}
-
-impl crate::disputes::PunishValidators for Test {
+impl crate::disputes::PunishValidators<BlockNumber> for Test {
 	fn punish_for_invalid(
 		session: SessionIndex,
+		_: BlockNumber,
+		_: CandidateHash,
 		validators: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_FOR
@@ -274,6 +267,8 @@ impl crate::disputes::PunishValidators for Test {
 
 	fn punish_against_valid(
 		session: SessionIndex,
+		_: BlockNumber,
+		_: CandidateHash,
 		validators: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_AGAINST
@@ -282,6 +277,8 @@ impl crate::disputes::PunishValidators for Test {
 
 	fn punish_inconclusive(
 		session: SessionIndex,
+		_: BlockNumber,
+		_: CandidateHash,
 		validators: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_INCONCLUSIVE

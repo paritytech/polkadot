@@ -1257,7 +1257,8 @@ impl parachains_initializer::Config for Runtime {
 
 impl parachains_disputes::Config for Runtime {
 	type Event = Event;
-	type RewardValidators = ();
+	type IdentifyValidatorsInSession = ();
+	type ReportDisputeOffences = ();
 	type PunishValidators = ();
 	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
 }

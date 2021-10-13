@@ -20,6 +20,7 @@ use crate::{configuration, initializer::SessionChangeNotification, session_info}
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
+use pallet_session::historical as pallet_historical;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash,
@@ -33,11 +34,14 @@ use sp_runtime::{
 	traits::{AppVerify, One, Saturating, Zero},
 	DispatchError, RuntimeDebug, SaturatedConversion,
 };
+use sp_staking::offence::ReportOffence;
 use sp_std::{cmp::Ordering, prelude::*};
 
 #[cfg(test)]
 #[allow(unused_imports)]
 pub(crate) use self::tests::run_to_block;
+
+pub mod slashing;
 
 #[cfg(test)]
 mod tests;
@@ -59,50 +63,126 @@ pub enum DisputeResult {
 	Invalid,
 }
 
-/// Reward hooks for disputes.
-pub trait RewardValidators {
-	// Give each validator a reward, likely small, for participating in the dispute.
-	fn reward_dispute_statement(
-		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
-	);
-}
-
-impl RewardValidators for () {
-	fn reward_dispute_statement(_: SessionIndex, _: impl IntoIterator<Item = ValidatorIndex>) {}
-}
-
 /// Punishment hooks for disputes.
-pub trait PunishValidators {
+pub trait PunishValidators<BlockNumber> {
 	/// Punish a series of validators who were for an invalid parablock. This is expected to be a major
 	/// punishment.
+	///
+	/// `validator_set_count` is the size of the validator set in that session.
 	fn punish_for_invalid(
 		session: SessionIndex,
+		dispute_start_block_number: BlockNumber,
+		candidate_hash: CandidateHash,
 		validators: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
 	/// Punish a series of validators who were against a valid parablock. This is expected to be a minor
 	/// punishment.
+	///
+	/// `validator_set_count` is the size of the validator set in that session.
 	fn punish_against_valid(
 		session: SessionIndex,
+		dispute_start_block_number: BlockNumber,
+		candidate_hash: CandidateHash,
 		validators: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
 	/// Punish a series of validators who were part of a dispute which never concluded. This is expected
 	/// to be a minor punishment.
+	///
+	/// `validator_set_count` is the size of the validator set in that session.
 	fn punish_inconclusive(
 		session: SessionIndex,
+		dispute_time_slot: BlockNumber,
+		candidate_hash: CandidateHash,
 		validators: impl IntoIterator<Item = ValidatorIndex>,
 	);
 }
 
-impl PunishValidators for () {
-	fn punish_for_invalid(_: SessionIndex, _: impl IntoIterator<Item = ValidatorIndex>) {}
+impl<T> PunishValidators<T> for () {
+	fn punish_for_invalid(
+		_: SessionIndex,
+		_: T,
+		_: CandidateHash,
+		_: impl IntoIterator<Item = ValidatorIndex>,
+	) {
+	}
 
-	fn punish_against_valid(_: SessionIndex, _: impl IntoIterator<Item = ValidatorIndex>) {}
+	fn punish_against_valid(
+		_: SessionIndex,
+		_: T,
+		_: CandidateHash,
+		_: impl IntoIterator<Item = ValidatorIndex>,
+	) {
+	}
 
-	fn punish_inconclusive(_: SessionIndex, _: impl IntoIterator<Item = ValidatorIndex>) {}
+	fn punish_inconclusive(
+		_: SessionIndex,
+		_: T,
+		_: CandidateHash,
+		_: impl IntoIterator<Item = ValidatorIndex>,
+	) {
+	}
 }
+
+// TODO: docs
+pub trait IdentifyValidatorsInSession {
+	// TODO: docs
+	type IdentificationTuple: Clone;
+	// TODO: docs
+	fn identify_validators_in_session(
+		session_index: SessionIndex,
+		validators: impl IntoIterator<Item = ValidatorIndex>,
+	) -> Vec<Self::IdentificationTuple>;
+}
+
+impl IdentifyValidatorsInSession for () {
+	type IdentificationTuple = ();
+
+	fn identify_validators_in_session(
+		_session_index: SessionIndex,
+		_validators: impl IntoIterator<Item = ValidatorIndex>,
+	) -> Vec<()> {
+		Vec::new()
+	}
+}
+
+// WARNING: THIS IS CURSED!
+impl<T> IdentifyValidatorsInSession for pallet_staking::Pallet<T>
+where
+	T: Config + pallet_staking::Config + crate::shared::Config,
+	T: pallet_session::Config<ValidatorId = <T as frame_system::Config>::AccountId>,
+	T: pallet_historical::Config<
+		FullIdentification = pallet_staking::Exposure<
+			<T as frame_system::Config>::AccountId,
+			pallet_staking::BalanceOf<T>,
+		>,
+		FullIdentificationOf = pallet_staking::ExposureOf<T>,
+	>,
+{
+	type IdentificationTuple = pallet_historical::IdentificationTuple<T>;
+
+	fn identify_validators_in_session(
+		session_index: SessionIndex,
+		_validators: impl IntoIterator<Item = ValidatorIndex>,
+	) -> Vec<pallet_historical::IdentificationTuple<T>> {
+		use pallet_staking::SessionInterface as _;
+		// FIXME: put stash keys into SessionInfo v3
+		let validators = T::SessionInterface::validators();
+
+		validators
+			.into_iter()
+			.map(|v| {
+				// FIXME: convert session index to era properly
+				let era = session_index / 6;
+				(v.clone(), Self::eras_stakers(era, v))
+			})
+			.collect::<Vec<_>>()
+	}
+}
+
+type IdentificationTuple<T> =
+	<<T as Config>::IdentifyValidatorsInSession as IdentifyValidatorsInSession>::IdentificationTuple;
 
 /// Binary discriminator to determine if the expensive signature
 /// checks are necessary.
@@ -411,8 +491,23 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config + session_info::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
-		type RewardValidators: RewardValidators;
-		type PunishValidators: PunishValidators;
+
+		/// A type for retrieving staking information about validators
+		/// that lost a dispute about a candidate included in a given session.
+		type IdentifyValidatorsInSession: IdentifyValidatorsInSession;
+
+		/// A type that gives us the ability to submit dispute offence reports.
+		type ReportDisputeOffences: ReportOffence<
+				Self::AccountId,
+				IdentificationTuple<Self>,
+				slashing::ForInvalidOffence<Self::BlockNumber, IdentificationTuple<Self>>,
+			> + ReportOffence<
+				Self::AccountId,
+				IdentificationTuple<Self>,
+				slashing::AgainstValidOffence<Self::BlockNumber, IdentificationTuple<Self>>,
+			>;
+
+		type PunishValidators: PunishValidators<Self::BlockNumber>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -563,6 +658,7 @@ struct ImportSummary<BlockNumber> {
 	// Validators to slash for being (wrongly) on the FOR side.
 	slash_for: Vec<ValidatorIndex>,
 	// New participants in the dispute.
+	#[allow(unused)] // FIXME
 	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
 	// Difference in state flags from previous.
 	new_flags: DisputeStateFlags,
@@ -817,6 +913,8 @@ impl<T: Config> Pallet<T> {
 					// others in a timely manner.
 					T::PunishValidators::punish_inconclusive(
 						session_index,
+						dispute.start,
+						candidate_hash,
 						participating.iter_ones().map(|i| ValidatorIndex(i as _)),
 					);
 				});
@@ -1124,7 +1222,9 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::SingleSidedDispute,
 		);
 
-		let DisputeStatementSet { session, candidate_hash, .. } = set.clone();
+		let DisputeStatementSet { ref session, ref candidate_hash, .. } = set;
+		let session = *session;
+		let candidate_hash = *candidate_hash;
 
 		// we can omit spam slot checks, `fn filter_disputes_data` is
 		// always called before calling this `fn`.
@@ -1156,18 +1256,28 @@ impl<T: Config> Pallet<T> {
 		}
 
 		// Reward statements.
-		T::RewardValidators::reward_dispute_statement(
-			session,
-			summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _)),
-		);
+		// T::RewardValidators::reward_dispute_statement(
+		// 	session,
+		// 	summary.new_participants.iter_ones().map(|i| ValidatorIndex(i as _)),
+		// );
 
 		// Slash participants on a losing side.
 		{
 			// a valid candidate, according to 2/3. Punish those on the 'against' side.
-			T::PunishValidators::punish_against_valid(session, summary.slash_against);
+			T::PunishValidators::punish_against_valid(
+				session,
+				summary.state.start,
+				candidate_hash,
+				summary.slash_against,
+			);
 
 			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-			T::PunishValidators::punish_for_invalid(session, summary.slash_for);
+			T::PunishValidators::punish_for_invalid(
+				session,
+				summary.state.start,
+				candidate_hash,
+				summary.slash_for,
+			);
 		}
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);

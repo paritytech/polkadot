@@ -893,8 +893,9 @@ impl assigned_slots::Config for Runtime {
 
 impl parachains_disputes::Config for Runtime {
 	type Event = Event;
-	type RewardValidators = ();
-	type PunishValidators = ();
+	type IdentifyValidatorsInSession = Staking;
+	type ReportDisputeOffences = Offences;
+	type PunishValidators = parachains_disputes::slashing::SlashValidatorsForDisputes<Self>;
 	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
 }
 

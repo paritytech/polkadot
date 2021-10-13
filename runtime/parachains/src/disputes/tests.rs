@@ -21,7 +21,6 @@ use crate::{
 	mock::{
 		new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
 		Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
-		REWARD_VALIDATORS,
 	},
 };
 use frame_support::{
@@ -1058,22 +1057,6 @@ fn test_provide_multi_dispute_success_and_other() {
 		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
 		Pallet::<Test>::note_included(4, candidate_hash.clone(), 4);
 		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 0, 0, 0, 0, 0]));
-
-		// Ensure the `reward_validator` function was correctly called
-		assert_eq!(
-			REWARD_VALIDATORS.with(|r| r.borrow().clone()),
-			vec![
-				(3, vec![ValidatorIndex(0), ValidatorIndex(2)]),
-				(4, vec![ValidatorIndex(2), ValidatorIndex(3)]),
-				(3, vec![ValidatorIndex(3)]),
-				(3, vec![ValidatorIndex(5)]),
-				(5, vec![ValidatorIndex(2), ValidatorIndex(5)]),
-				(3, vec![ValidatorIndex(6)]),
-				(5, vec![ValidatorIndex(6)]),
-				(5, vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(4)]),
-				(3, vec![ValidatorIndex(1), ValidatorIndex(4)]),
-			],
-		);
 
 		// Ensure punishment against is called
 		assert_eq!(
