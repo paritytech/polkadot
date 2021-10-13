@@ -909,4 +909,25 @@ mod tests {
 		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
 		assert_eq!(new_xcm, xcm);
 	}
+
+	#[test]
+	fn transact_roundtrip_works() {
+		use crate::VersionedXcm;
+		type XcmV0 = crate::opaque::v0::Xcm;
+		type XcmV1 = crate::opaque::v1::Xcm;
+
+		let dummy_call = vec![0; 4];
+		let require_weight_at_most = 100;
+
+		let message = XcmV0::Transact {
+			origin_type: OriginKind::Superuser,
+			require_weight_at_most,
+			call: dummy_call.clone().into(),
+		};
+		let versioned = VersionedXcm::from(message.clone());
+		let message_v2 = Xcm::try_from(versioned).unwrap();
+		let message_v0 = XcmV0::try_from(XcmV1::try_from(message_v2.clone()).unwrap()).unwrap();
+
+		assert_eq!(message_v0, message);
+	}
 }
