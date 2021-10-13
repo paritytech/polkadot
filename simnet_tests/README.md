@@ -1,4 +1,4 @@
-# Simulation tests, or high level integration tests
+# Simulation tests, or end-to-end tests
 
 _The content of this directory is meant to be used by Parity's private CI/CD
 infrastructure with private tools. At the moment those tools are still early
@@ -7,27 +7,17 @@ public use._
 
 ## Contents of this directory
 
-`configs` directory contains config files in toml format that describe how to
-configure the simulation network that you want to launch.
+This directory contains different test suits, everyone one of them contains the set of test cases.
+Every test suits is defined by its definition file test_suit_description.toml. More information about
+structure of test suits and test cases may be found in [SimNet repository](https://gitlab.parity.io/parity/simnet/-/tree/master/ci_helper).
 
-`tests` directory contains [Cucumber](https://cucumber.io/) files. Those are
-Behavior-Driven Development test files that describe tests in plain English.
-Under the hood there are assertions that specific metrics should have specific
-values.
+Every test case deploys a test network, using toml config file, and runs the test,
+using a test scenario, written in [Cucumber](https://cucumber.io/).
 
-At the moment we have only one test for parachains: `/parachains.features`
-This test uses a JS script that we added to Simnet image and it's launched
-by this step in the cucumber file:
-`Then launch 'node' with parameters '--unhandled-rejections=strict /usr/local/bin/simnet_scripts test_parachain ./configs/adder.json ws://localhost:11222 100 10'`
-
-`run_test.sh` is an entry point for running all tests in the folder.
-Any setup required for tests (but cannot be done in configs) is performed
-here. The main script's responsibility is to run [Gurke](https://github.com/paritytech/gurke)
-with passed parameters.
-In order to use this script locally, you need to install
+In order to a test case locally, you need to install
 [Gurke](https://github.com/paritytech/gurke)
 Once you have access to a kubernetes cluster (meaning you can do `kubectl get pods`)
-you can run this script with no arguments, like `./run_test.sh` and tests should run.
+you can use Gurke in order to deploy a chain and run the test (see gurke's manual for the commands).
 Kubernetes cluster can be local, spawned with
 [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation)
 or an instance living in the
