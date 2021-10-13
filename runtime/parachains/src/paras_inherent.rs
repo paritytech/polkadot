@@ -21,7 +21,7 @@
 //! as it has no initialization logic and its finalization logic depends only on the details of
 //! this module.
 
-use no_std_compat::cmp::{min, Ordering};
+use no_std_compat::cmp::Ordering;
 
 use crate::{
 	disputes::DisputesHandler,
@@ -124,6 +124,8 @@ pub mod pallet {
 
 			// filter out any unneeded dispute statements
 			T::DisputesHandler::filter_multi_dispute_data(&mut inherent_data.disputes);
+
+			// Limit the total number of inherent data in the block
 			limit_paras_inherent::<T>(
 				&mut inherent_data.disputes,
 				&mut inherent_data.bitfields,
@@ -165,10 +167,9 @@ pub mod pallet {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[pallet::weight((
 			MINIMAL_INCLUSION_INHERENT_WEIGHT +
-				count_dispute_statements(&data.disputes) as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
-				count_bitfields(&data.bitfields) as Weight * BITFIELD_WEIGHT +
-				count_backed_candidate_signatures::<T>(&data.backed_candidates) as Weight * BACKED_CANDIDATE_WEIGHT +
-				count_code_upgrades::<T>(&data.backed_candidates) as Weight * CODE_UPGRADE_WEIGHT,
+				dispute_statements_weight(&data.disputes) +
+				signed_bitfields_weight(&data.bitfields) +
+				backed_candidates_weight::<T>(&data.backed_candidates),
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(
@@ -192,13 +193,9 @@ pub mod pallet {
 				Error::<T>::InvalidParentHeader,
 			);
 
-			let disputes_weight =
-				count_dispute_statements(&disputes) as Weight * DISPUTE_PER_STATEMENT_WEIGHT;
-			let bitfields_weight = count_bitfields(&signed_bitfields) as Weight * BITFIELD_WEIGHT;
-			let backed_candidates_weight =
-				count_backed_candidate_signatures::<T>(&backed_candidates) as Weight *
-					BACKED_CANDIDATE_WEIGHT +
-					count_code_upgrades::<T>(&backed_candidates) as Weight * CODE_UPGRADE_WEIGHT;
+			let disputes_weight = dispute_statements_weight(&disputes);
+			let bitfields_weight = signed_bitfields_weight(&signed_bitfields);
+			let backed_candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
 
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
@@ -325,24 +322,29 @@ pub mod pallet {
 	}
 }
 
-fn count_dispute_statements(disputes: &[DisputeStatementSet]) -> usize {
-	disputes.iter().map(|d| d.statements.len()).sum()
+fn dispute_statements_weight(disputes: &[DisputeStatementSet]) -> Weight {
+	disputes
+		.iter()
+		.map(|d| d.statements.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT)
+		.sum()
 }
 
-fn count_bitfields(bitfields: &[UncheckedSignedAvailabilityBitfield]) -> usize {
-	bitfields.len()
+fn signed_bitfields_weight(bitfields: &[UncheckedSignedAvailabilityBitfield]) -> Weight {
+	bitfields.len() as Weight * BITFIELD_WEIGHT
 }
 
-fn count_backed_candidate_signatures<T: Config>(candidates: &[BackedCandidate<T::Hash>]) -> usize {
-	candidates.iter().map(|c| c.validity_votes.len()).sum()
-}
-
-fn count_code_upgrades<T: Config>(candidates: &[BackedCandidate<T::Hash>]) -> usize {
+fn backed_candidates_weight<T: Config>(candidates: &[BackedCandidate<T::Hash>]) -> Weight {
 	candidates
 		.iter()
-		.find(|c| c.candidate.commitments.new_validation_code.is_some())
-		.map(|_| 1)
-		.unwrap_or(0)
+		.map(|c| {
+			c.validity_votes.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
+				if c.candidate.commitments.new_validation_code.is_some() {
+					CODE_UPGRADE_WEIGHT
+				} else {
+					0 as Weight
+				}
+		})
+		.sum()
 }
 
 fn limit_paras_inherent<T: Config>(
@@ -350,32 +352,12 @@ fn limit_paras_inherent<T: Config>(
 	bitfields: &mut UncheckedSignedAvailabilityBitfields,
 	backed_candidates: &mut Vec<BackedCandidate<T::Hash>>,
 ) {
-	const MAX_CODE_UPGRADES: usize = 1;
-	// Ignore any candidates beyond one that contain code upgrades.
-	//
-	// This is an artificial limitation that does not appear in the guide as it is a practical
-	// concern around execution.
-	{
-		let mut code_upgrades = 0;
-		backed_candidates.retain(|c| {
-			if c.candidate.commitments.new_validation_code.is_some() {
-				if code_upgrades >= MAX_CODE_UPGRADES {
-					return false
-				}
+	let available_block_weight = <T as frame_system::Config>::BlockWeights::get()
+		.max_block
+		.saturating_sub(frame_system::Pallet::<T>::block_weight().total());
 
-				code_upgrades += 1;
-			}
-
-			true
-		});
-	}
-
-	let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-
-	let disputes_weight =
-		count_dispute_statements(&disputes) as Weight * DISPUTE_PER_STATEMENT_WEIGHT;
-
-	if disputes_weight > max_block_weight {
+	let disputes_weight = dispute_statements_weight(&disputes);
+	if disputes_weight > available_block_weight {
 		// Sort the dispute statements according to the following prioritization:
 		//  1. Prioritize local disputes over remote disputes.
 		//  2. Prioritize older disputes over newer disputes.
@@ -397,7 +379,7 @@ fn limit_paras_inherent<T: Config>(
 		let mut total_weight = 0;
 		disputes.retain(|d| {
 			total_weight += d.statements.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT;
-			total_weight <= max_block_weight
+			total_weight <= available_block_weight
 		});
 
 		bitfields.clear();
@@ -405,32 +387,29 @@ fn limit_paras_inherent<T: Config>(
 		return
 	}
 
-	let disputes_weight =
-		count_dispute_statements(&disputes) as Weight * DISPUTE_PER_STATEMENT_WEIGHT;
-	let bitfields_count = count_bitfields(&bitfields);
-	let bitfields_weight = bitfields_count as Weight * BITFIELD_WEIGHT;
-	if disputes_weight + bitfields_weight > max_block_weight {
-		let num_bitfields = max_block_weight.saturating_sub(disputes_weight) / BITFIELD_WEIGHT;
+	let bitfields_weight = signed_bitfields_weight(&bitfields);
+	if disputes_weight + bitfields_weight > available_block_weight {
+		let num_bitfields =
+			available_block_weight.saturating_sub(disputes_weight) / BITFIELD_WEIGHT;
 		let _ = bitfields.drain(num_bitfields as usize..);
 		backed_candidates.clear();
 		return
 	}
 
-	let block_weight = frame_system::Pallet::<T>::block_weight().total();
-	let num_code_upgrades = count_code_upgrades::<T>(&backed_candidates);
-	let num_backed_candidate_signatures =
-		count_backed_candidate_signatures::<T>(&backed_candidates);
-	if block_weight > max_block_weight {
-		let block_weight_available = max_block_weight
-			.saturating_sub(disputes_weight)
-			.saturating_sub(bitfields_weight)
-			.saturating_sub(num_code_upgrades as u64 * CODE_UPGRADE_WEIGHT);
-		let num_candidates_to_retain = min(
-			num_backed_candidate_signatures as u64,
-			block_weight_available / BACKED_CANDIDATE_WEIGHT,
-		);
-		backed_candidates.drain(num_candidates_to_retain as usize..);
-	}
+	let block_weight_available_for_candidates = available_block_weight
+		.saturating_sub(disputes_weight)
+		.saturating_sub(bitfields_weight);
+
+	let mut total_weight = 0;
+	backed_candidates.retain(|c| {
+		total_weight += c.validity_votes.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
+			if c.candidate.commitments.new_validation_code.is_some() {
+				CODE_UPGRADE_WEIGHT
+			} else {
+				0 as Weight
+			};
+		total_weight < block_weight_available_for_candidates
+	});
 }
 
 /// Limit the number of backed candidates processed in order to stay within block weight limits.
@@ -623,9 +602,9 @@ mod tests {
 				System::set_parent_hash(header.hash());
 
 				// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
-				let signed_bitfields = Vec::new();
+				let mut signed_bitfields = Vec::new();
 				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
-				let backed_candidates = vec![BackedCandidate::default(); 10];
+				let mut backed_candidates = vec![BackedCandidate::default(); 10];
 
 				// the expected weight with no blocks is just the minimum weight
 				let expected_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
@@ -634,14 +613,22 @@ mod tests {
 				let max_block_weight =
 					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				let used_block_weight = max_block_weight + 1;
+
 				System::set_block_consumed_resources(used_block_weight, 0);
+
+				let mut disputes = Vec::new();
+				limit_paras_inherent::<Test>(
+					&mut disputes,
+					&mut signed_bitfields,
+					&mut backed_candidates,
+				);
 
 				// execute the paras inherent
 				let post_info = Call::<Test>::enter {
 					data: ParachainsInherentData {
 						bitfields: signed_bitfields,
 						backed_candidates,
-						disputes: Vec::new(),
+						disputes,
 						parent_header: header,
 					},
 				}
