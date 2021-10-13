@@ -59,13 +59,31 @@ use crate::metrics::Metrics;
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
 use error::{FatalResult, Result};
+use ordering::OrderingProvider;
 
 use self::error::{log_error, NonFatal};
 
 mod backend;
 mod db;
 mod error;
+
+/// Provider of an ordering for candidates.
+///
+/// This is based on information we have on candidates we have seen included. Thus a dispute for a
+/// candidate where we can get some ordering is high-priority (we know it is a valid dispute) and
+/// those can be ordered based on relay chain block number and other metrics, so each validator
+/// will participate in disputes in a similar order, which ensures we will be resolving disputes,
+/// even under heavy load.
 mod ordering;
+
+/// When importing votes we will check via the `ordering` module, whether or not we know of the
+/// candidate to be included somewhere. If not, the votes might be spam, in this case we want to
+/// limit the amount of locally imported votes, to prevent DoS attacks/resource exhaustion. The
+/// `spam_slots` module helps keeping track of unconfirmed disputes per validators, if a spam slot
+/// gets full, we will drop any further potential spam votes from that validator and report back
+/// that the import failed. Which will lead to any honest validator to retry, thus the spam slots
+/// can be relatively small, as a drop is not fatal.
+mod spam_slots;
 
 #[cfg(test)]
 mod tests;
