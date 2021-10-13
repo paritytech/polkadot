@@ -21,7 +21,7 @@
 //! as it has no initialization logic and its finalization logic depends only on the details of
 //! this module.
 
-use no_std_compat::cmp::Ordering;
+use no_std_compat::cmp::{min, Ordering};
 
 use crate::{
 	disputes::DisputesHandler,
@@ -368,11 +368,9 @@ fn limit_paras_inherent<T: Config>(
 	}
 
 	let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-	let block_weight = frame_system::Pallet::<T>::block_weight().total();
 
 	let disputes_weight =
 		count_dispute_statements(&disputes) as Weight * DISPUTE_PER_STATEMENT_WEIGHT;
-	let bitfields_weight = count_bitfields(&bitfields) as Weight * BITFIELD_WEIGHT;
 
 	if disputes_weight > max_block_weight {
 		// Sort the dispute statements according to the following prioritization:
@@ -386,13 +384,8 @@ fn limit_paras_inherent<T: Config>(
 				// Prioritize local disputes over remote disputes.
 				(None, Some(_)) => Ordering::Less,
 				(Some(_), None) => Ordering::Greater,
-				// For local disputes, prioritize those with votes for invalidity.
-				(Some(a_height), Some(b_height)) => {
-					let a_invalid = a.statements.iter().any(|stmt| stmt.0.indicates_invalidity());
-					let b_invalid = b.statements.iter().any(|stmt| stmt.0.indicates_invalidity());
-					// Fallback to earliest local dispute if neither or both signal invalidity.
-					a_invalid.cmp(&b_invalid).reverse().then_with(|| a_height.cmp(&b_height))
-				},
+				// For local disputes, prioritize those that occur at an earlier height.
+				(Some(a_height), Some(b_height)) => a_height.cmp(&b_height),
 				// Prioritize earlier remote disputes using session as rough proxy.
 				(None, None) => a.session.cmp(&b.session),
 			}
@@ -409,18 +402,29 @@ fn limit_paras_inherent<T: Config>(
 		return
 	}
 
+	let disputes_weight =
+		count_dispute_statements(&disputes) as Weight * DISPUTE_PER_STATEMENT_WEIGHT;
+	let bitfields_count = count_bitfields(&bitfields);
+	let bitfields_weight = bitfields_count as Weight * BITFIELD_WEIGHT;
 	if disputes_weight + bitfields_weight > max_block_weight {
-		let mut total_weight = disputes_weight;
-		bitfields.retain(|b| {
-			total_weight += b.unchecked_payload().0.len() as Weight * BITFIELD_WEIGHT;
-			total_weight <= max_block_weight
-		});
+		let num_bitfields = max_block_weight / BITFIELD_WEIGHT;
+		let _ = bitfields.drain(num_bitfields as usize..);
 		backed_candidates.clear();
 		return
 	}
 
+	let block_weight = frame_system::Pallet::<T>::block_weight().total();
+	let num_code_upgrades = count_code_upgrades::<T>(&backed_candidates);
+	let num_backed_candidate_signatures =
+		count_backed_candidate_signatures::<T>(&backed_candidates);
 	if block_weight > max_block_weight {
-		backed_candidates.clear();
+		let block_weight_available = max_block_weight
+			.saturating_sub(disputes_weight)
+			.saturating_sub(bitfields_weight)
+			.saturating_sub(num_code_upgrades as u64 * CODE_UPGRADE_WEIGHT);
+		let num_candidates_to_retain =
+			min(num_backed_candidate_signatures as u64, block_weight_available / BACKED_CANDIDATE_WEIGHT);
+		backed_candidates.drain(num_candidates_to_retain as usize..);
 	}
 }
 
