@@ -44,7 +44,7 @@
 //!   `Instruction`s in chronological order.
 //! - During conversion from `Xcm` to `Instruction`, we do not handle `RelayedFrom` messages at
 //!   all.
-//! 
+//!
 //! ### XCM Pallet
 //! - The `Weigher` configuration item must have sensible weights defined for `BuyExecution` and
 //!   `DepositAsset` instructions. Failing that, dispatch calls to `teleport_assets` and
