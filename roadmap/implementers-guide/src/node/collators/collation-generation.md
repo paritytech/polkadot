@@ -58,12 +58,12 @@ pub struct CollationResult {
 
 /// Signal that is being returned when a collation was seconded by a validator.
 pub struct CollationSecondedSignal {
-    /// The hash of the relay chain block that was used as context to sign [`Self::statement`].
-    pub relay_parent: Hash,
-    /// The statement about seconding the collation.
-    ///
-    /// Anything else than `Statement::Seconded` is forbidden here.
-    pub statement: SignedFullStatement,
+  /// The hash of the relay chain block that was used as context to sign [`Self::statement`].
+  pub relay_parent: Hash,
+  /// The statement about seconding the collation.
+  ///
+  /// Anything else than `Statement::Seconded` is forbidden here.
+  pub statement: SignedFullStatement,
 }
 
 /// Collation function.
