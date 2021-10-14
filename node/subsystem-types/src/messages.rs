@@ -45,7 +45,7 @@ use polkadot_primitives::v1::{
 	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
 	PersistedValidationData, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
 	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	ValidatorSignature, PvfCheckStatement,
 };
 use polkadot_statement_table::v1::Misbehavior;
 use std::{
@@ -645,6 +645,10 @@ pub enum RuntimeApiRequest {
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 	/// Get all disputes in relation to a relay parent.
 	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v1::ScrapedOnChainVotes>>),
+	/// TODO:
+	SubmitPvfCheckStatement(PvfCheckStatement, ValidatorSignature, RuntimeApiSender<()>),
+	/// TODO:
+	PvfsRequirePrecheck(RuntimeApiSender<Vec<ValidationCodeHash>>),
 }
 
 /// A message to the Runtime API subsystem.

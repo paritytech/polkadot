@@ -1036,6 +1036,12 @@ sp_api::decl_runtime_apis! {
 
 		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
+
+		/// TODO:
+		fn submit_pvf_check_statement(stmt: PvfCheckStatement, signature: ValidatorSignature);
+
+		/// TODO:
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash>;
 	}
 }
 

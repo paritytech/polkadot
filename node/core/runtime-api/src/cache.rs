@@ -43,6 +43,7 @@ const DMQ_CONTENTS_CACHE_SIZE: usize = 64 * 1024;
 const INBOUND_HRMP_CHANNELS_CACHE_SIZE: usize = 64 * 1024;
 const CURRENT_BABE_EPOCH_CACHE_SIZE: usize = 64 * 1024;
 const ON_CHAIN_VOTES_CACHE_SIZE: usize = 3 * 1024;
+const PVFS_REQUIRE_PRECHECK_SIZE: usize = 1024;
 
 struct ResidentSizeOf<T>(T);
 
@@ -101,6 +102,7 @@ pub(crate) struct RequestResultCache {
 	>,
 	current_babe_epoch: MemoryLruCache<Hash, DoesNotAllocate<Epoch>>,
 	on_chain_votes: MemoryLruCache<Hash, ResidentSizeOf<Option<ScrapedOnChainVotes>>>,
+	pvfs_require_precheck: MemoryLruCache<Hash, ResidentSizeOf<Vec<ValidationCodeHash>>>,
 }
 
 impl Default for RequestResultCache {
@@ -124,6 +126,7 @@ impl Default for RequestResultCache {
 			inbound_hrmp_channels_contents: MemoryLruCache::new(INBOUND_HRMP_CHANNELS_CACHE_SIZE),
 			current_babe_epoch: MemoryLruCache::new(CURRENT_BABE_EPOCH_CACHE_SIZE),
 			on_chain_votes: MemoryLruCache::new(ON_CHAIN_VOTES_CACHE_SIZE),
+			pvfs_require_precheck: MemoryLruCache::new(PVFS_REQUIRE_PRECHECK_SIZE),
 		}
 	}
 }
@@ -339,6 +342,21 @@ impl RequestResultCache {
 	) {
 		self.on_chain_votes.insert(relay_parent, ResidentSizeOf(scraped));
 	}
+
+	pub(crate) fn pvfs_require_precheck(
+		&mut self,
+		relay_parent: &Hash,
+	) -> Option<&Vec<ValidationCodeHash>> {
+		self.pvfs_require_precheck.get(relay_parent).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_pvfs_require_precheck(
+		&mut self,
+		relay_parent: Hash,
+		pvfs: Vec<ValidationCodeHash>,
+	) {
+		self.pvfs_require_precheck.insert(relay_parent, ResidentSizeOf(pvfs))
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -362,4 +380,5 @@ pub(crate) enum RequestResult {
 	),
 	CurrentBabeEpoch(Hash, Epoch),
 	FetchOnChainVotes(Hash, Option<ScrapedOnChainVotes>),
+	PvfsRequirePrecheck(Hash, Vec<ValidationCodeHash>),
 }
