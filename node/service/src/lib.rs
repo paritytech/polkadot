@@ -24,12 +24,10 @@ mod parachains_db;
 mod relay_chain_selection;
 
 #[cfg(feature = "full-node")]
-mod overseer;
+pub mod overseer;
 
 #[cfg(feature = "full-node")]
-pub use self::overseer::{
-	create_default_subsystems, OverseerGen, OverseerGenArgs, RealOverseerGen,
-};
+pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
 
 #[cfg(all(test, feature = "disputes"))]
 mod tests;
@@ -56,6 +54,7 @@ pub use sp_core::traits::SpawnNamed;
 pub use {
 	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
 	polkadot_primitives::v1::ParachainHost,
+	relay_chain_selection::SelectRelayChain,
 	sc_client_api::AuxStore,
 	sp_authority_discovery::AuthorityDiscoveryApi,
 	sp_blockchain::HeaderBackend,
@@ -736,14 +735,13 @@ where
 		is_relay_chain &&
 		(role.is_authority() || is_collator.is_collator());
 
-	use relay_chain_selection::SelectRelayChain;
-
 	let select_chain = SelectRelayChain::new(
 		basics.backend.clone(),
 		overseer_handle.clone(),
 		requires_overseer_for_chain_sel,
 		polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?,
 	);
+
 	let service::PartialComponents::<_, _, SelectRelayChain<_>, _, _, _> {
 		client,
 		backend,
@@ -790,9 +788,16 @@ where
 	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver();
 	config.network.request_response_protocols.push(cfg);
 
+	let grandpa_hard_forks = if config.chain_spec.is_kusama() {
+		grandpa_support::kusama_hard_forks()
+	} else {
+		Vec::new()
+	};
+
 	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
 		import_setup.1.shared_authority_set().clone(),
+		grandpa_hard_forks,
 	));
 
 	let (network, system_rpc_tx, network_starter) =
@@ -1292,6 +1297,7 @@ where
 	Ok((task_manager, rpc_handlers))
 }
 
+#[cfg(feature = "full-node")]
 macro_rules! chain_ops {
 	($config:expr, $jaeger_agent:expr, $telemetry_worker_handle:expr; $scope:ident, $executor:ident, $variant:ident) => {{
 		let telemetry_worker_handle = $telemetry_worker_handle;
@@ -1354,7 +1360,6 @@ pub fn new_chain_ops(
 	{
 		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
 	}
-
 	#[cfg(not(feature = "polkadot-native"))]
 	Err(Error::NoRuntime)
 }

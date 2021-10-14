@@ -51,6 +51,7 @@ use polkadot_statement_table::v1::Misbehavior;
 use std::{
 	collections::{BTreeMap, HashSet},
 	sync::Arc,
+	time::Duration,
 };
 
 /// Network events as transmitted to other subsystems, wrapped in their message types.
@@ -114,6 +115,8 @@ pub enum CandidateValidationMessage {
 	ValidateFromChainState(
 		CandidateDescriptor,
 		Arc<PoV>,
+		/// Execution timeout
+		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
@@ -130,6 +133,8 @@ pub enum CandidateValidationMessage {
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
+		/// Execution timeout
+		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 }
@@ -138,8 +143,8 @@ impl CandidateValidationMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::ValidateFromChainState(_, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
+			Self::ValidateFromChainState(_, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
 		}
 	}
 }
@@ -486,17 +491,19 @@ pub enum AvailabilityStoreMessage {
 		tx: oneshot::Sender<Result<(), ()>>,
 	},
 
-	/// Store a `AvailableData` in the AV store.
-	/// If `ValidatorIndex` is present store corresponding chunk also.
+	/// Store a `AvailableData` and all of its chunks in the AV store.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreAvailableData(
-		CandidateHash,
-		Option<ValidatorIndex>,
-		u32,
-		AvailableData,
-		oneshot::Sender<Result<(), ()>>,
-	),
+	StoreAvailableData {
+		/// A hash of the candidate this `available_data` belongs to.
+		candidate_hash: CandidateHash,
+		/// The number of validators in the session.
+		n_validators: u32,
+		/// The `AvailableData` itself.
+		available_data: AvailableData,
+		/// Sending side of the channel to send result to.
+		tx: oneshot::Sender<Result<(), ()>>,
+	},
 }
 
 impl AvailabilityStoreMessage {
@@ -523,7 +530,7 @@ pub enum ChainApiMessage {
 	/// Get the cumulative weight of the given block, by hash.
 	/// If the block or weight is unknown, this returns `None`.
 	///
-	/// Note: this the weight within the low-level fork-choice rule,
+	/// Note: this is the weight within the low-level fork-choice rule,
 	/// not the high-level one implemented in the chain-selection subsystem.
 	///
 	/// Weight is used for comparing blocks in a fork-choice rule.
@@ -636,6 +643,8 @@ pub enum RuntimeApiRequest {
 	),
 	/// Get information about the BABE epoch the block was included in.
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
+	/// Get all disputes in relation to a relay parent.
+	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v1::ScrapedOnChainVotes>>),
 }
 
 /// A message to the Runtime API subsystem.

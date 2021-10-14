@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::benchmarks;
 use frame_system::{DigestItemOf, RawOrigin};
 use primitives::v1::ConsensusLog;
 
@@ -35,10 +35,10 @@ benchmarks! {
 			&<DigestItemOf<T>>::from(ConsensusLog::ForceApprove(d + 1)),
 		);
 	}
-}
 
-impl_benchmark_test_suite!(
-	Pallet,
-	crate::mock::new_test_ext(Default::default()),
-	crate::mock::Test
-);
+	impl_benchmark_test_suite!(
+		Pallet,
+		crate::mock::new_test_ext(Default::default()),
+		crate::mock::Test
+	);
+}
