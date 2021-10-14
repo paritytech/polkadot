@@ -327,8 +327,8 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// A unique descriptor of the candidate receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, Default, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,

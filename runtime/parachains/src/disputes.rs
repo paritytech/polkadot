@@ -1130,6 +1130,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn revert_and_freeze(revert_to: T::BlockNumber) {
+		assert_eq!(Some(Vec::new()), Self::spam_slots(0));
 		if Self::last_valid_block().map_or(true, |last| last > revert_to) {
 			Frozen::<T>::set(Some(revert_to));
 
