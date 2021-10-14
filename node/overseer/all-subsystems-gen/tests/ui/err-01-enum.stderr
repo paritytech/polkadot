@@ -1,5 +1,0 @@
-error: expected `struct`
- --> $DIR/err-01-enum.rs:6:1
-  |
-6 | enum AllSubsystems<A,B> {
-  | ^^^^

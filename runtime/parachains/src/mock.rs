@@ -124,10 +124,11 @@ impl pallet_balances::Config for Test {
 impl crate::initializer::Config for Test {
 	type Randomness = TestRandomness<Self>;
 	type ForceOrigin = frame_system::EnsureRoot<u64>;
+	type WeightInfo = ();
 }
 
 impl crate::configuration::Config for Test {
-	type WeightInfo = crate::configuration::weights::WeightInfo<Test>;
+	type WeightInfo = crate::configuration::TestWeightInfo;
 }
 
 impl crate::shared::Config for Test {}
@@ -157,7 +158,7 @@ impl frame_support::traits::EstimateNextSessionRotation<u32> for TestNextSession
 impl crate::paras::Config for Test {
 	type Origin = Origin;
 	type Event = Event;
-	type WeightInfo = crate::paras::weights::WeightInfo<Test>;
+	type WeightInfo = crate::paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
 	type NextSessionRotation = TestNextSessionRotation;
 }
@@ -185,6 +186,7 @@ impl crate::disputes::Config for Test {
 	type Event = Event;
 	type RewardValidators = Self;
 	type PunishValidators = Self;
+	type WeightInfo = crate::disputes::TestWeightInfo;
 }
 
 thread_local! {

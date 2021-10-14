@@ -317,9 +317,10 @@ fn backing_second_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate.descriptor() => {
+			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -336,7 +337,7 @@ fn backing_second_works() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				AvailabilityStoreMessage::StoreAvailableData { candidate_hash, tx, .. }
 			) if candidate_hash == candidate.hash() => {
 				tx.send(Ok(())).unwrap();
 			}
@@ -476,9 +477,10 @@ fn backing_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate_a.descriptor() => {
+			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -495,7 +497,7 @@ fn backing_works() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				AvailabilityStoreMessage::StoreAvailableData { candidate_hash, tx, .. }
 			) if candidate_hash == candidate_a.hash() => {
 				tx.send(Ok(())).unwrap();
 			}
@@ -669,9 +671,10 @@ fn backing_works_while_validation_ongoing() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate_a.descriptor() => {
+			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				// we never validate the candidate. our local node
 				// shouldn't issue any statements.
 				std::mem::forget(tx);
@@ -834,9 +837,10 @@ fn backing_misbehavior_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate_a.descriptor() => {
+			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -853,7 +857,7 @@ fn backing_misbehavior_works() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				AvailabilityStoreMessage::StoreAvailableData { candidate_hash, tx, .. }
 			) if candidate_hash == candidate_a.hash() => {
 					tx.send(Ok(())).unwrap();
 				}
@@ -980,9 +984,10 @@ fn backing_dont_second_invalid() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate_a.descriptor() => {
+			) if pov == pov && &c == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 			}
 		);
@@ -1008,9 +1013,10 @@ fn backing_dont_second_invalid() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate_b.descriptor() => {
+			) if pov == pov && &c == candidate_b.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -1027,7 +1033,7 @@ fn backing_dont_second_invalid() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::AvailabilityStore(
-				AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				AvailabilityStoreMessage::StoreAvailableData { candidate_hash, tx, .. }
 			) if candidate_hash == candidate_b.hash() => {
 				tx.send(Ok(())).unwrap();
 			}
@@ -1138,9 +1144,10 @@ fn backing_second_after_first_fails_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate.descriptor() => {
+			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 			}
 		);
@@ -1185,6 +1192,7 @@ fn backing_second_after_first_fails_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					_,
 					pov,
+					_,
 					_,
 				)
 			) => {
@@ -1270,9 +1278,10 @@ fn backing_works_after_failed_validation() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					timeout,
 					tx,
 				)
-			) if pov == pov && &c == candidate.descriptor() => {
+			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
 				tx.send(Err(ValidationFailed("Internal test error".into()))).unwrap();
 			}
 		);
@@ -1646,9 +1655,10 @@ fn retry_works() {
 				CandidateValidationMessage::ValidateFromChainState(
 					c,
 					pov,
+					timeout,
 					_tx,
 				)
-			) if pov == pov && &c == candidate.descriptor()
+			) if pov == pov && &c == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT
 		);
 		virtual_overseer
 	});

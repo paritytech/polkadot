@@ -387,7 +387,7 @@ pub mod pallet {
 		/// parameters.
 		///
 		/// - `proposed_max_capacity` - specifies how many messages can be in the channel at once.
-		/// - `proposed_max_message_size` - specifies the maximum size of any of the messages.
+		/// - `proposed_max_message_size` - specifies the maximum size of the messages.
 		///
 		/// These numbers are a subject to the relay-chain configuration limits.
 		///

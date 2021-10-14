@@ -56,7 +56,7 @@ pub struct SessionInfo {
 	/// validators.
 	pub validator_groups: Vec<Vec<AuthorityDiscoveryId>>,
 
-	/// Information about ourself:
+	/// Information about ourselves:
 	pub our_index: ValidatorIndex,
 
 	/// Remember to which group we belong, so we won't start fetching chunks for candidates with
