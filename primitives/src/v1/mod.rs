@@ -1345,8 +1345,8 @@ pub struct DisputeState<N = BlockNumber> {
 }
 
 /// Type abstraction to provide entropy for seeding a `crng`
-#[derive(Clone, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct SeedEntropy(pub [u8; 16]);
+#[derive(Clone, Default, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct SeedEntropy(pub [u8; 32]);
 
 impl AsRef<[u8]> for SeedEntropy {
 	fn as_ref(&self) -> &[u8] {
@@ -1354,17 +1354,22 @@ impl AsRef<[u8]> for SeedEntropy {
 	}
 }
 
+impl AsMut<[u8]> for SeedEntropy {
+	fn as_mut(&mut self) -> &mut [u8] {
+		&mut self.0[..]
+	}
+}
+
 #[cfg(feature = "std")]
 impl SeedEntropy {
 	/// Collect a random entropy.
 	pub fn draw() -> Self {
-		let mut bytes = [0u8; 16];
+		let mut bytes = [0u8; 32];
 
 		use rand::RngCore;
 
 		#[cfg(not(fuzzing))]
 		{
-
 			let mut rng = rand::thread_rng();
 			rng.fill_bytes(&mut bytes[..]);
 		}
@@ -1376,7 +1381,6 @@ impl SeedEntropy {
 			}
 			RNG.fill_bytes(&mut bytes[..])
 		}
-
 
 		Self(bytes)
 	}

@@ -85,6 +85,7 @@ impl ParachainsInherentDataProvider {
 				bitfields: pd.bitfields.into_iter().map(Into::into).collect(),
 				backed_candidates: pd.backed_candidates,
 				disputes: pd.disputes,
+				seed: pd.entropy,
 				parent_header,
 			},
 			Err(err) => {

@@ -41,6 +41,7 @@ use primitives::v1::{
 	UncheckedSignedAvailabilityBitfields, ValidatorId, ValidatorIndex,
 	PARACHAINS_INHERENT_IDENTIFIER,
 };
+use rand::Rng;
 use scale_info::TypeInfo;
 use sp_runtime::traits::Header as HeaderT;
 use sp_std::{
@@ -148,13 +149,12 @@ pub mod pallet {
 			// sanitize the bitfields and candidates by removing
 			// anything that does not pass a set of checks
 			// will be removed here
-			let validators = shared::Pallet::<T>::active_validator_keys();
+			let validator_public = shared::Pallet::<T>::active_validator_keys();
 			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 			let current_session = <shared::Pallet<T>>::session_index();
 
 			let expected_bits = unimplemented!("source?");
-			// FIXME the return value is inapropriate for further usage
-			// TODO move to index return value and do not consume the input
+
 			let bitfields = sanitize_bitfields::<T, false>(
 				bitfields,
 				DisputedBitfield::default(), // TODO FIXME
@@ -164,8 +164,8 @@ pub mod pallet {
 				&validator_public[..],
 			).ok()?;
 
-			let scheduled = unimplemented!();
-			let disputed_candidates = unimplemented!("");
+			let scheduled: Vec<CoreAssignment> = unimplemented!();
+			let disputed_candidates: BTreeSet<CandidateHash> = unimplemented!("");
 			let backed_candidates = sanitize_backed_candidates::<T, false>(
 				parent_hash,
 				backed_candidates,
@@ -394,6 +394,39 @@ macro_rules! ensure2 {
 	};
 }
 
+/// Considers an upper threshold that the candidates must not exceed.
+///
+/// If there is sufficient space, all blocks will be included, otherwise
+/// continues adding blocks, ignoring blocks that exceed the threshold.
+fn pick_random_thresholded_subset(mut candidates: Vec<(CandidateHash, Weight)>, entropy: &EntropySeed, max_weight: Weight) -> (Weight, Vec<CandidateHash>) {
+	if max_weight < candidates.iter().map(|(_, weight)| { weight }).sum() {
+		return candidates.iter().map(|(candidate_hash, _)| candidate_hash).collect()
+	}
+
+	let mut candidates_acc = Vec::with_capacity(candidates.len());
+
+	// TODO use CurrentBlockRandomness as seed here
+	// TODO alt: use the pick index as subject to
+	// TODO obtain an index at the cost of having to impl
+	// TODO the equal probability distribution ourselves
+	let rng = chacha_rand::ChaCha20::from_seed(&entropy);
+	let mut weight_acc: Weight = 0 as _;
+
+	while weight_acc < max_weight || !candidates.empty() {
+		// select a index to try
+		let pick = rng.gen_range(0 .. candidates.len());
+		// remove the candidate from the possible pick set
+		let (picked_candidate, picked_weight) = candidates.swap_remove(pick);
+		// is the candidate small enough to fit
+		if picked_weight + weight_acc <= max_weight {
+			// candidate fits, so pick it and account for its weight
+			candidates_acc.push(picked_candidate);
+			weight_acc += picked_weight;
+		}
+	}
+	(weight_acc, candidates_acc)
+}
+
 /// Filter bitfields based on freed core indices, validity, and other sanity checks.
 ///
 /// Do sanity checks on the bitfields:
@@ -405,6 +438,10 @@ macro_rules! ensure2 {
 ///  5. remove any disputed core indices
 ///
 /// If any of those is not passed, the bitfield is dropped.
+///
+/// While this function technically returns a set of unchecked bitfields,
+/// they were actually checked and filtered to allow using it in both
+/// cases, as `filtering` and `checking` stage.
 pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EARLY_RETURN: bool>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bits: DisputedBitfield,
@@ -412,7 +449,7 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 	parent_hash: T::Hash,
 	session_index: SessionIndex,
 	validators: &[ValidatorId],
-) -> Result<Vec<(AvailabilityBitfield, ValidatorIndex)>, DispatchError> {
+) -> Result<UncheckedSignedAvailabilityBitfields, DispatchError> {
 	let mut bitfields = Vec::with_capacity(unchecked_bitfields.len());
 
 	let mut last_index = None;
@@ -456,26 +493,9 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 			continue
 		};
 
+		bitfields.push(signed_bitfield.into_unchecked());
+
 		last_index = Some(validator_index);
-
-		let mut checked_bitfield = signed_bitfield.into_payload();
-
-		// filter the bitfields only
-		if !EARLY_RETURN {
-			checked_bitfield.0.iter_mut().enumerate().for_each(|(core_idx, mut bit)| {
-				*bit = if *bit {
-					// ignore those that have matching invalid dispute bits
-					// which always works, since we checked for uniformat bit length
-					// before
-					!disputed_bits.0[core_idx]
-				} else {
-					// bit wasn't set in the first place
-					false
-				};
-			});
-		}
-
-		bitfields.push((checked_bitfield, validator_index));
 	}
 	Ok(bitfields)
 }
