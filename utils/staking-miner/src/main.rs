@@ -549,7 +549,7 @@ async fn main() {
 	match chain.to_lowercase().as_str() {
 		"polkadot" | "development" => {
 			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
+				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount,
 			);
 			sub_tokens::dynamic::set_name("DOT");
 			sub_tokens::dynamic::set_decimal_points(10_000_000_000);
@@ -561,7 +561,7 @@ async fn main() {
 		},
 		"kusama" | "kusama-dev" => {
 			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormat::KusamaAccount,
+				sp_core::crypto::Ss58AddressFormatRegistry::KusamaAccount,
 			);
 			sub_tokens::dynamic::set_name("KSM");
 			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
@@ -573,7 +573,7 @@ async fn main() {
 		},
 		"westend" => {
 			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
+				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount,
 			);
 			sub_tokens::dynamic::set_name("WND");
 			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
