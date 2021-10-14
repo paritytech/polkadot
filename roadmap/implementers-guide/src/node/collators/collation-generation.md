@@ -53,7 +53,7 @@ pub struct CollationResult {
   /// There is no guarantee that this sender is informed ever about any result, it is completely okay to just drop it.
   /// However, if it is called, it should be called with the signed statement of a parachain validator seconding the
   /// collation.
-  pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
+  pub result_sender: Option<oneshot::Sender<CollationSecondedSignal>>,
 }
 
 /// Collation function.
