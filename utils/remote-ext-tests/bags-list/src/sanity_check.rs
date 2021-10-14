@@ -15,13 +15,20 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_election_provider_support::SortedListProvider;
-use frame_support::traits::{Get, PalletInfo};
+use frame_support::{
+	storage::generator::StorageMap,
+	traits::{Get, PalletInfo},
+};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_runtime::traits::Block as BlockT;
 use sp_std::convert::TryInto;
 
 /// Execute the sanity check of the bags-list.
-pub(crate) async fn execute<Runtime: crate::RuntimeT, Block: BlockT>(ws_url: String) {
+pub(crate) async fn execute<Runtime: crate::RuntimeT, Block: BlockT>(
+	currency_unit: u64,
+	currency_name: &'static str,
+	ws_url: String,
+) {
 	let mut ext = Builder::<Block>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: ws_url.to_string().into(),
@@ -33,6 +40,8 @@ pub(crate) async fn execute<Runtime: crate::RuntimeT, Block: BlockT>(ws_url: Str
 			at: None,
 			state_snapshot: None,
 		}))
+		.inject_hashed_prefix(&<pallet_staking::Bonded<Runtime>>::prefix_hash())
+		.inject_hashed_prefix(&<pallet_staking::Ledger<Runtime>>::prefix_hash())
 		.build()
 		.await
 		.unwrap();
@@ -41,5 +50,7 @@ pub(crate) async fn execute<Runtime: crate::RuntimeT, Block: BlockT>(ws_url: Str
 		sp_core::crypto::set_default_ss58_version(Runtime::SS58Prefix::get().try_into().unwrap());
 		pallet_bags_list::Pallet::<Runtime>::sanity_check().unwrap();
 		log::info!(target: crate::LOG_TARGET, "executed bags-list sanity check with no errors.");
+
+		crate::display_and_check_bags::<Runtime>(currency_unit, currency_name);
 	});
 }

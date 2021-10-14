@@ -18,17 +18,23 @@
 
 use crate::{RuntimeT, LOG_TARGET};
 use frame_election_provider_support::SortedListProvider;
-use frame_support::traits::{Get, PalletInfo};
+use frame_support::{
+	storage::generator::StorageMap,
+	traits::{Get, PalletInfo},
+};
 use pallet_election_provider_multi_phase as EPM;
-use pallet_staking::{BalanceOf, MinNominatorBond, Nominators};
+use pallet_staking::Nominators;
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_runtime::traits::Block as BlockT;
 use sp_std::convert::TryInto;
-use sp_storage::well_known_keys;
 
 /// Test voter bags migration. `currency_unit` is the number of planks per the
 /// the runtimes `UNITS` (i.e. number of decimal places per DOT, KSM etc)
-pub(crate) async fn execute<Runtime: RuntimeT, Block: BlockT>(currency_unit: u64, ws_url: String) {
+pub(crate) async fn execute<Runtime: RuntimeT, Block: BlockT>(
+	currency_unit: u64,
+	currency_name: &'static str,
+	ws_url: String,
+) {
 	let mut ext = Builder::<Block>::new()
 		.mode(Mode::Online(OnlineConfig {
 			transport: ws_url.to_string().into(),
@@ -40,7 +46,8 @@ pub(crate) async fn execute<Runtime: RuntimeT, Block: BlockT>(currency_unit: u64
 			at: None,
 			state_snapshot: None,
 		}))
-		.inject_hashed_key(well_known_keys::CODE)
+		.inject_hashed_prefix(&<pallet_staking::Bonded<Runtime>>::prefix_hash())
+		.inject_hashed_prefix(&<pallet_staking::Ledger<Runtime>>::prefix_hash())
 		.build()
 		.await
 		.unwrap();
@@ -67,65 +74,7 @@ pub(crate) async fn execute<Runtime: RuntimeT, Block: BlockT>(currency_unit: u64
 		assert_eq!(pre_migrate_nominator_count, voter_list_len);
 		assert_eq!(pre_migrate_nominator_count, voter_list_count);
 
-		let min_nominator_bond = <MinNominatorBond<Runtime>>::get();
-		log::info!(target: LOG_TARGET, "min nominator bond is {:?}", min_nominator_bond);
-
-		// go through every bag to track the total number of voters within bags
-		// and log some info about how voters are distributed within the bags.
-		let mut seen_in_bags = 0;
-		for vote_weight_thresh in <Runtime as pallet_bags_list::Config>::BagThresholds::get() {
-			// threshold in terms of UNITS (e.g. KSM, DOT etc)
-			let vote_weight_thresh_as_unit = *vote_weight_thresh as f64 / currency_unit as f64;
-			let pretty_thresh = format!("Threshold: {}.", vote_weight_thresh_as_unit);
-
-			let bag = match pallet_bags_list::Pallet::<Runtime>::list_bags_get(*vote_weight_thresh)
-			{
-				Some(bag) => bag,
-				None => {
-					log::info!(target: LOG_TARGET, "{} NO VOTERS.", pretty_thresh);
-					continue
-				},
-			};
-
-			let voters_in_bag = bag.std_iter().count() as u32;
-
-			// if this bag is below the min nominator bond print out all the members
-			let vote_weight_as_balance: BalanceOf<Runtime> =
-				(*vote_weight_thresh).try_into().map_err(|_| "should not fail").unwrap();
-			if vote_weight_as_balance <= min_nominator_bond {
-				for id in bag.std_iter().map(|node| node.std_id().clone()) {
-					log::trace!(
-						target: LOG_TARGET,
-						"{} Account found below min bond: {:?}.",
-						pretty_thresh,
-						id
-					);
-				}
-			}
-
-			// update our overall counter
-			seen_in_bags += voters_in_bag;
-
-			// percentage of all nominators
-			let percent_of_voters = percent(voters_in_bag, voter_list_count);
-
-			log::info!(
-				target: LOG_TARGET,
-				"{} Nominators: {} [%{:.3}]",
-				pretty_thresh,
-				voters_in_bag,
-				percent_of_voters,
-			);
-		}
-
-		if seen_in_bags != voter_list_count {
-			log::error!(
-				target: LOG_TARGET,
-				"bags list population ({}) not on par whoever is voter_list ({})",
-				seen_in_bags,
-				voter_list_count,
-			)
-		}
+		crate::display_and_check_bags::<Runtime>(currency_unit, currency_name);
 
 		// now let's test the process of a snapshot being created..
 		EPM::Pallet::<Runtime>::create_snapshot().unwrap();
@@ -136,8 +85,4 @@ pub(crate) async fn execute<Runtime: RuntimeT, Block: BlockT>(currency_unit: u64
 			EPM::Pallet::<Runtime>::snapshot_metadata(),
 		);
 	});
-}
-
-fn percent(portion: u32, total: u32) -> f64 {
-	(portion as f64 / total as f64) * 100f64
 }
