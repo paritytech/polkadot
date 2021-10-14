@@ -210,5 +210,5 @@ impl OrderingProvider {
 //		- fn recover_from_state() -> Self {}
 //		- fn add_unconfirmed(&mut self, CandidateHash, ValidatorIndex)
 //		  // If a dispute became obsolete/got confirmed:
-//		- fn clear(CandidateHash)
+//		- fn clear(SessionIndex, CandidateHash)
 //		- fn has_free_slots(&self, SessionIndex, ValidatorIndex)
