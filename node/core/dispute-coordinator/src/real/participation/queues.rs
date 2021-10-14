@@ -66,13 +66,12 @@ pub struct ParticipationRequest {
 
 impl ParticipationRequest {
 	/// Create a new `ParticipationRequest` to be queued.
-	pub fn new(candidate_receipt: CandidateReceipt, session: SessionIndex, n_validators: u32) -> Self {
-		Self {
-			candidate_hash: candidate_receipt.hash(),
-			candidate_receipt,
-			session,
-			n_validators,
-		}
+	pub fn new(
+		candidate_receipt: CandidateReceipt,
+		session: SessionIndex,
+		n_validators: u32,
+	) -> Self {
+		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session, n_validators }
 	}
 }
 
@@ -94,8 +93,6 @@ struct BestEffortEntry {
 	added_count: BestEffortCount,
 }
 
-
-
 impl Queues {
 	/// Will put message in queue, either priority or best effort depending on whether a
 	/// `CandidateComparator` was provided or not.
@@ -105,7 +102,11 @@ impl Queues {
 	/// effort queue will be bumped.
 	///
 	/// Returns: true if queued successfully, false if queues are full.
-	pub fn queue(&mut self, comparator: Option<CandidateComparator>, req: ParticipationRequest) -> bool {
+	pub fn queue(
+		&mut self,
+		comparator: Option<CandidateComparator>,
+		req: ParticipationRequest,
+	) -> bool {
 		if let Some(comparator) = comparator {
 			if self.priority.len() >= PRIORITY_QUEUE_SIZE {
 				return false
@@ -117,10 +118,10 @@ impl Queues {
 			if self.best_effort.len() >= BEST_EFFORT_QUEUE_SIZE {
 				return false
 			}
-			self.best_effort.entry(req.candidate_hash).or_insert(BestEffortEntry {
-				req,
-				added_count: 0,
-			}).added_count += 1;
+			self.best_effort
+				.entry(req.candidate_hash)
+				.or_insert(BestEffortEntry { req, added_count: 0 })
+				.added_count += 1;
 		}
 		true
 	}
@@ -130,23 +131,20 @@ impl Queues {
 	/// if any.  Priority queue is always considered first, then the best effort queue based on
 	/// `added_count`.
 	pub fn dequeue(&mut self) -> Option<ParticipationRequest> {
-		self
-			.pop_priority()
-			.or_else(|| self.pop_best_effort())
+		self.pop_priority().or_else(|| self.pop_best_effort())
 	}
 
 	/// Get the next best from the best effort queue.
 	///
 	/// If there are multiple best - just pick one.
 	fn pop_best_effort(&mut self) -> Option<ParticipationRequest> {
-		let best = self.best_effort.iter().reduce(
-			|(hash1, entry1), (hash2, entry2)|
-				if entry1.added_count > entry2.added_count {
-					(hash1, entry1)
-				} else {
-					(hash2, entry2)
-				}
-				);
+		let best = self.best_effort.iter().reduce(|(hash1, entry1), (hash2, entry2)| {
+			if entry1.added_count > entry2.added_count {
+				(hash1, entry1)
+			} else {
+				(hash2, entry2)
+			}
+		});
 		if let Some((best_hash, _)) = best {
 			let best_hash = best_hash.clone();
 			self.best_effort.remove(&best_hash).map(|e| e.req)

@@ -1,4 +1,3 @@
-
 // Copyright 2021 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
@@ -50,11 +49,12 @@ pub struct SpamSlots {
 }
 
 impl SpamSlots {
-
 	/// Recover `SpamSlots` from state on startup.
 	///
 	/// Initialize based on already existing active disputes.
-	pub fn recover_from_state(active_disputes: HashMap<(SessionIndex, CandidateHash), HashSet<ValidatorIndex>>) -> Self {
+	pub fn recover_from_state(
+		active_disputes: HashMap<(SessionIndex, CandidateHash), HashSet<ValidatorIndex>>,
+	) -> Self {
 		let mut slots: HashMap<(SessionIndex, ValidatorIndex), SpamCount> = HashMap::new();
 		for ((session, candidate), validators) in active_disputes.iter() {
 			for validator in validators {
@@ -72,14 +72,16 @@ impl SpamSlots {
 			}
 		}
 
-		Self {
-			slots,
-			unconfirmed_candidates: active_disputes
-		}
+		Self { slots, unconfirmed_candidates: active_disputes }
 	}
 
 	/// Add an unconfirmed dispute if free slots are available.
-	pub fn add_unconfirmed(&mut self, session: SessionIndex, candidate: CandidateHash, validator: ValidatorIndex) -> bool {
+	pub fn add_unconfirmed(
+		&mut self,
+		session: SessionIndex,
+		candidate: CandidateHash,
+		validator: ValidatorIndex,
+	) -> bool {
 		let c = self.slots.entry((session, validator)).or_default();
 		if *c >= MAX_SPAM_VOTES {
 			return false

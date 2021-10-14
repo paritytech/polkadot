@@ -16,7 +16,6 @@
 
 use std::collections::HashSet;
 
-
 mod queues;
 use polkadot_primitives::v1::CandidateHash;
 use queues::Queues;
