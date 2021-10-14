@@ -266,7 +266,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		let data = Self::payload_data(&payload, context);
 		let signature = pair.sign(&data);
 
-		Self { payload, validator_index, signature, real_payload: std::marker::PhantomData }
+		Self { payload, validator_index, signature, real_payload: sp_std::marker::PhantomData }
 	}
 
 	/// Immutably access the signature.

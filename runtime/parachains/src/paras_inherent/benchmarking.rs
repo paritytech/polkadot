@@ -24,11 +24,12 @@ use primitives::v1::{
 	CandidateHash, CollatorId, CommittedCandidateReceipt, CompactStatement, CoreIndex,
 	CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId,
 	InvalidDisputeStatementKind, PersistedValidationData, SigningContext, UncheckedSigned,
-	ValidatorId, ValidatorIndex, ValidatorPair, ValidityAttestation,
+	ValidatorId, ValidatorIndex, ValidityAttestation,
 };
+use primitives::v0::{CollatorPair, ValidatorPair};
 use sp_core::{crypto::CryptoType, Pair, H256};
 use sp_runtime::traits::{One, Zero};
-use std::{collections::HashMap, convert::TryInto};
+use sp_std::{collections::btree_map::BTreeMap as HashMap, convert::TryInto};
 
 // Brainstorming worst case aspects:
 //
@@ -164,9 +165,14 @@ impl<T: Config> BenchBuilder<T> {
 
 	/// Generate validator key pairs and account ids.
 	fn generate_validator_pairs(validator_count: u32) -> Vec<(T::AccountId, ValidatorPair)> {
+		let mut seed = [0u8; 32];
 		(0..validator_count)
 			.map(|i| {
-				let (pair, _seed) = ValidatorPair::generate();
+				seed[31] = (i % (1<<8)) as u8;
+				seed[30] = ((i >> 8) % (1<<8)) as u8;
+				seed[29] = ((i >> 16) % (1<<8)) as u8;
+				seed[29] = ((i >> 24) % (1<<8)) as u8;
+				let pair = ValidatorPair::from_seed_slice(&seed).unwrap();
 
 				// this account is not actually used anywhere, just necessary to fulfill expected type
 				// `validators` param of `test_trigger_on_new_session`.
@@ -220,7 +226,7 @@ impl<T: Config> BenchBuilder<T> {
 		);
 
 		Self::run_to_block(2);
-		frame_system::Pallet::<T>::set_parent_hash(Self::header().hash());
+		<frame_system::Pallet<T> as Config>::ParentHash::<T>::put(Self::header().hash());
 
 		// confirm setup at session change.
 		assert_eq!(scheduler::AvailabilityCores::<T>::get().len(), Self::cores() as usize);
@@ -314,12 +320,17 @@ impl<T: Config> BenchBuilder<T> {
 			});
 		}
 
+		let mut rng_seed = [0u8; 32];
 		let backed_candidates: Vec<BackedCandidate<T::Hash>> = backed_rng
 			.clone()
 			.map(|seed| {
+				rng_seed[31] = (seed % (1<<8)) as u8;
+				rng_seed[30] = ((seed >> 8) % (1<<8)) as u8;
+				rng_seed[29] = ((seed >> 16) % (1<<8)) as u8;
+				rng_seed[29] = ((seed >> 24) % (1<<8)) as u8;
 				let (para_id, _core_idx, group_idx) = Self::create_indexes(seed);
 
-				let collator_pair = <CollatorId as CryptoType>::Pair::generate().0;
+				let collator_pair = CollatorPair::from_seed_slice(&rng_seed).unwrap();
 				let relay_parent = Self::header().hash();
 				let head_data: HeadData = Default::default();
 				let persisted_validation_data_hash = PersistedValidationData::<H256> {
