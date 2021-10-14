@@ -22,7 +22,7 @@ use crate::{
 	session_info,
 };
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
-use frame_support::{ensure, traits::Get, weights::Weight};
+use frame_support::{ensure, storage::TransactionOutcome, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
@@ -739,26 +739,29 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
-		let config = <configuration::Pallet<T>>::config();
+		frame_support::storage::with_transaction(|| {
+			let config = <configuration::Pallet<T>>::config();
 
-		let old_statement_sets = sp_std::mem::take(statement_sets);
+			let old_statement_sets = sp_std::mem::take(statement_sets);
 
-		// Deduplicate.
-		let dedup_iter = {
-			let mut targets = BTreeSet::new();
-			old_statement_sets.into_iter().filter(move |set| {
-				let target = (set.candidate_hash, set.session);
-				targets.insert(target)
-			})
-		};
+			// Deduplicate.
+			let dedup_iter = {
+				let mut targets = BTreeSet::new();
+				old_statement_sets.into_iter().filter(move |set| {
+					let target = (set.candidate_hash, set.session);
+					targets.insert(target)
+				})
+			};
 
-		*statement_sets = dedup_iter
-			.filter_map(|set| {
-				let filter = Self::filter_dispute_data(&config, &set);
+			*statement_sets = dedup_iter
+				.filter_map(|set| {
+					let filter = Self::filter_dispute_data(&config, &set);
 
-				filter.filter_statement_set(set)
-			})
-			.collect();
+					filter.filter_statement_set(set)
+				})
+				.collect();
+			TransactionOutcome::Rollback(())
+		})
 	}
 
 	// Given a statement set, this produces a filter to be applied to the statement set.
@@ -1210,7 +1213,7 @@ mod tests {
 		REWARD_VALIDATORS,
 	};
 	use frame_support::{
-		assert_err, assert_noop, assert_ok,
+		assert_err, assert_noop, assert_ok, assert_storage_noop,
 		traits::{OnFinalize, OnInitialize},
 	};
 	use frame_system::InitKind;
@@ -2836,7 +2839,7 @@ mod tests {
 				],
 			}];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert_eq!(
 				statements,
@@ -2918,7 +2921,7 @@ mod tests {
 				],
 			}];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert!(statements.is_empty());
 		})
@@ -3059,7 +3062,7 @@ mod tests {
 			];
 
 			let old_statements = statements.clone();
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert_eq!(statements, old_statements);
 		})
@@ -3096,7 +3099,7 @@ mod tests {
 				)],
 			}];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert!(statements.is_empty());
 		})
@@ -3188,7 +3191,7 @@ mod tests {
 				},
 			];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert_eq!(
 				statements,
@@ -3278,7 +3281,7 @@ mod tests {
 				},
 			];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert_eq!(
 				statements,
@@ -3333,7 +3336,7 @@ mod tests {
 				)],
 			}];
 
-			Pallet::<Test>::filter_multi_dispute_data(&mut statements);
+			assert_storage_noop!(Pallet::<Test>::filter_multi_dispute_data(&mut statements));
 
 			assert!(statements.is_empty());
 		})

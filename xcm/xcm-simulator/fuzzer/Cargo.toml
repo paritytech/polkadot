@@ -1,0 +1,32 @@
+[package]
+name = "xcm-simulator-fuzzer"
+version = "0.9.9"
+authors = ["Parity Technologies <admin@parity.io>"]
+description = "Examples of xcm-simulator usage."
+edition = "2018"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0" }
+honggfuzz = "0.5.54"
+scale-info = { version = "1.0", features = ["derive"] }
+
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+xcm = { path = "../../" }
+xcm-simulator = { path = "../" }
+xcm-executor = { path = "../../xcm-executor" }
+xcm-builder = { path = "../../xcm-builder" }
+pallet-xcm = { path = "../../pallet-xcm" }
+polkadot-core-primitives = { path = "../../../core-primitives" }
+polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
+polkadot-parachain = { path = "../../../parachain" }
+
+[[bin]]
+path = "src/fuzz.rs"
+name = "xcm-fuzzer"

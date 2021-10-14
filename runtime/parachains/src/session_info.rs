@@ -166,7 +166,7 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pal
 		AssignmentKeysUnsafe::<T>::set(assignment_keys);
 	}
 
-	fn on_disabled(_i: usize) {}
+	fn on_disabled(_i: u32) {}
 }
 
 #[cfg(test)]

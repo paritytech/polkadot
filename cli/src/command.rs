@@ -19,6 +19,7 @@ use futures::future::TryFutureExt;
 use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
 use service::{self, IdentifyVariant};
+use sp_core::crypto::Ss58AddressFormatRegistry;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -191,15 +192,14 @@ impl SubstrateCli for Cli {
 }
 
 fn set_default_ss58_version(spec: &Box<dyn service::ChainSpec>) {
-	use sp_core::crypto::Ss58AddressFormat;
-
 	let ss58_version = if spec.is_kusama() {
-		Ss58AddressFormat::KusamaAccount
+		Ss58AddressFormatRegistry::KusamaAccount
 	} else if spec.is_westend() {
-		Ss58AddressFormat::SubstrateAccount
+		Ss58AddressFormatRegistry::SubstrateAccount
 	} else {
-		Ss58AddressFormat::PolkadotAccount
-	};
+		Ss58AddressFormatRegistry::PolkadotAccount
+	}
+	.into();
 
 	sp_core::crypto::set_default_ss58_version(ss58_version);
 }
