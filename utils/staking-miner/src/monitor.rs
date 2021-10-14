@@ -150,7 +150,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					}
 				};
 
-				let _success = while let Some(status_update) = tx_subscription.next().await? {
+				while let Some(status_update) = tx_subscription.next().await? {
 					log::trace!(target: LOG_TARGET, "status update {:?}", status_update);
 					match status_update {
 						TransactionStatus::Ready | TransactionStatus::Broadcast(_) | TransactionStatus::Future => continue,
@@ -176,7 +176,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				};
 			}
 
-			log::warn!(target: LOG_TARGET, "subscription terminated. Retrying..")
+			log::warn!(target: LOG_TARGET, "subscription to {} terminated. Retrying..", sub)
 		}
 	}
 }}}
