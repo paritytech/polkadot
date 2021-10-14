@@ -40,6 +40,6 @@ exactly one downward message queue.
 - VMP: (Vertical Message Passing) A family of mechanisms that are responsible for message exchange between the relay chain and parachains.
 - XCMP (Cross-Chain Message Passing) A type of horizontal message passing (i.e. between parachains) that allows secure message passing directly between parachains and has minimal resource requirements from the relay chain, thus highly scalable.
 
-Also of use is the [Substrate Glossary](https://substrate.dev/docs/en/knowledgebase/getting-started/glossary).
+Also of use is the [Substrate Glossary](https://docs.substrate.io/v3/getting-started/glossary).
 
 [0]: https://wiki.polkadot.network/docs/learn-consensus

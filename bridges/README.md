@@ -39,7 +39,7 @@ cargo test --all
 ```
 
 If you need more information about setting up your development environment Substrate's
-[Getting Started](https://substrate.dev/docs/en/knowledgebase/getting-started/) page is a good
+[Getting Started](https://docs.substrate.io/v3/getting-started/installation) page is a good
 resource.
 
 ## High-Level Architecture
