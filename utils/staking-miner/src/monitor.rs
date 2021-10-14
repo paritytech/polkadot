@@ -21,7 +21,7 @@ use crate::{
 };
 use codec::Encode;
 use jsonrpsee_ws_client::{
-	types::{traits::SubscriptionClient, v2::params::JsonRpcParams, Subscription},
+	types::{traits::SubscriptionClient, Subscription},
 	WsClient,
 };
 use sc_transaction_pool_api::TransactionStatus;
