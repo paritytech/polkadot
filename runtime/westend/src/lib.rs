@@ -1487,7 +1487,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_common::slots, Slots);
 			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
 			list_benchmark!(list, extra, runtime_parachains::initializer, Initializer);
-			list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParasInherent);
+			// list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParaInherent);
 			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
 
 			// Substrate
@@ -1601,7 +1601,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
 			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
-			add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParasInherent);
+			// add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
 
 			// Substrate
 			add_benchmark!(params, batches, pallet_bags_list, BagsList);
