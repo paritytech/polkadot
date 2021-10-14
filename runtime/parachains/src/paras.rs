@@ -219,6 +219,7 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 
 	// The block at which the most recently tracked code change occurred, from the perspective
 	// of the para.
+	#[cfg(test)]
 	fn most_recent_change(&self) -> Option<N> {
 		self.upgrade_times.last().map(|x| x.expected_at.clone())
 	}
@@ -260,24 +261,40 @@ pub struct ParaGenesisArgs {
 	pub parachain: bool,
 }
 
+/// This enum describes a reason why a particular PVF pre-checking voting was initiated. When the
+/// PVF voting in question is concluded, this enum indicates what changes should be performed.
 #[derive(Encode, Decode, TypeInfo)]
 enum PvfCheckCause {
+	/// PVF voting was initiated by the initial onboarding process of the given para.
 	Onboarding(ParaId),
+	/// PVF voting was initated by signalling of an upgrade by the given para.
 	Upgrade(ParaId),
 }
 
+/// Specifies what was the outcome of a PVF pre-checking voting.
 #[derive(Copy, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 enum PvfCheckOutcome {
 	Accepted,
 	Rejected,
 }
 
+/// This struct describes the current state of a PVF pre-checking voting process.
 #[derive(Encode, Decode, TypeInfo)]
 struct PvfCheckVotingState<BlockNumber> {
+	// The two following vectors have their length equal to the number of validators in the active
+	// set. They start with all zeroes. A 1 is set at an index when the validator at the same index
+	// makes a vote. Once a 1 is set for either of the vector, that validator cannot vote anymore.
+	// Since the active validator set changes each session, the bit vectors are reinitialized as
+	// well.
 	votes_accept: BitVec<BitOrderLsb0, u8>,
 	votes_reject: BitVec<BitOrderLsb0, u8>,
+
+	/// The number of session changes this PVF voting has observed. Therefore, this number is
+	/// increased at each session boundary. Starts with 0.
 	age: SessionIndex,
+	/// The block number at which this PVF voting was created.
 	created_at: BlockNumber,
+	/// A list of causes for this PVF pre-checking. Has at least one.
 	causes: Vec<PvfCheckCause>,
 }
 
@@ -294,6 +311,7 @@ impl<BlockNumber> PvfCheckVotingState<BlockNumber> {
 		}
 	}
 
+	/// Resets all votes and resizes the votes vectors.
 	fn reinitialize_ballots(&mut self, n_validators: usize) {
 		let clear_and_resize = |v: &mut BitVec<_, _>| {
 			v.clear();
@@ -303,6 +321,7 @@ impl<BlockNumber> PvfCheckVotingState<BlockNumber> {
 		clear_and_resize(&mut self.votes_reject);
 	}
 
+	/// Returns true if the validator at the given index has already casted their vote.
 	fn has_vote(&self, validator_index: usize) -> bool {
 		let inner = || -> Result<bool, ()> {
 			let accept_vote = self.votes_accept.get(validator_index).ok_or(())?;
@@ -682,6 +701,8 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Includes a statement for a PVF pre-checking voting. Finalizes the voting and enacts
+		/// the results if that was the last vote before achieving the supermajority.
 		#[pallet::weight(0)]
 		pub fn include_pvf_check_statement(
 			origin: OriginFor<T>,
@@ -716,6 +737,10 @@ pub mod pallet {
 			}
 
 			if let Some(outcome) = voting.quorum(validators.len()) {
+				// The supermajority quorum has been achieved.
+				//
+				// Remove the PVF check voting and finalize the PVF checking according to the
+				// outcome.
 				PvfVotingMap::<T>::remove(&stmt.subject);
 				PvfVotingList::<T>::mutate(|l| {
 					if let Ok(i) = l.binary_search(&stmt.subject) {
@@ -753,7 +778,7 @@ pub mod pallet {
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
 
-		fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 			let (stmt, signature) = match call {
 				Call::include_pvf_check_statement { stmt, signature } => (stmt, signature),
 				_ => return InvalidTransaction::Call.into(),
@@ -1056,6 +1081,8 @@ impl<T: Config> Pallet<T> {
 		T::DbWeight::get().reads_writes(2, upgrades_signaled as u64 + cooldowns_expired as u64)
 	}
 
+	/// Goes over all PVF voting in progress, reinitializes ballots, increments ages and prunes the
+	/// votings that reached their time-to-live.
 	fn groom_ongoing_pvf_voting(new_n_validators: usize) -> Weight {
 		// TODO: Move in the config
 		const PVF_CHECK_TTL: SessionIndex = 3;
@@ -1069,7 +1096,14 @@ impl<T: Config> Pallet<T> {
 			let mut voting = match PvfVotingMap::<T>::take(&pvf_hash) {
 				Some(v) => v,
 				None => {
-					// TODO: worth logging
+					// This branch should never be reached. This is due to the fact that the set of
+					// `PvfVotingMap`'s keys is always equal to the set of items found in
+					// `PvfVotingList`.
+					log::warn!(
+						target: "runtime::paras",
+						"The PVF voting map is not synced with the list!",
+					);
+					debug_assert!(false);
 					continue
 				},
 			};
@@ -1203,10 +1237,16 @@ impl<T: Config> Pallet<T> {
 		ParaLifecycles::<T>::get(id).is_none()
 	}
 
-	/// Schedule a para to be initialized at the start of the next session.
+	/// Schedule a para to be initialized. If the validation code is not already stored in the
+	/// code storage, then a PVF pre-checking process will be initiated.
 	///
-	/// Will return error if para is already registered in the system.
-	// TODO:
+	/// Only after the PVF pre-checking succeeds can the para be onboarded. Note, that calling this
+	/// does not guarantee that the parachain will eventually be onboarded. This can happen in case
+	/// the PVF does not pass PVF pre-checking.
+	///
+	/// The Para ID should be not activated in this module. The validation code supplied in
+	/// `genesis_data` should not be empty. If those conditions are not met, then the para cannot
+	/// be onboarded.
 	pub(crate) fn schedule_para_initialize(
 		id: ParaId,
 		mut genesis_data: ParaGenesisArgs,
@@ -1268,7 +1308,10 @@ impl<T: Config> Pallet<T> {
 
 	/// Schedule a para to be cleaned up at the start of the next session.
 	///
-	/// Will return error if para is not a stable parachain or parathread.
+	/// Will return error if either is true:
+	///
+	/// - para is not a stable parachain or parathread.
+	/// - para has a pending upgrade.
 	///
 	/// No-op if para is not registered at all.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
@@ -1277,6 +1320,8 @@ impl<T: Config> Pallet<T> {
 		// This is not a fundamential limitation but rather simplification: it allows us to get
 		// away without introducing additional logic for pruning and, more importantly, enacting
 		// ongoing PVF pre-checking votings. It also removes some nasty edge cases.
+		//
+		// This implicitly assumes that the given para exists, i.e. it's lifecycle != None.
 		if FutureCodeHash::<T>::contains_key(&id) {
 			return Err(Error::<T>::CannotOffboard.into())
 		}
@@ -1342,10 +1387,20 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
-	/// of a block of the same parachain executed in the context of a relay-chain block
-	/// with number >= `expected_at`
+	/// Schedule a future code upgrade of the given parachain.
 	///
+	/// If the new code is not known, then the PVF pre-checking will be started for that validation
+	/// code. In case the validation code does not pass the PVF pre-checking process, the
+	/// upgrade will be aborted.
+	///
+	/// Only after the code is approved by the process, the upgrade can be scheduled. Specifically,
+	/// the relay-chain block number will be determined at which the upgrade will take place. We
+	/// call that block `expected_at`.
+	///
+	/// Once the candidate with the relay-parent >= `expected_at` is enacted, the new validation code
+	/// will be applied. Therefore, the new code will be used to validate the next candidate.
+	///
+	/// The new code should not be equal to the current one, otherwise the upgrade will be aborted.
 	/// If there is already a scheduled code upgrade for the para, this is a no-op.
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
@@ -1356,9 +1411,17 @@ impl<T: Config> Pallet<T> {
 		let mut weight = T::DbWeight::get().reads(1);
 
 		// Enacting this should be prevented by the `can_schedule_upgrade`
-		if UpgradeRestrictionSignal::<T>::contains_key(&id) {
-			// TODO: Something went wrong. The acceptance criteria should've made sure parachain
-			// cannot signal an upgrade while one is pending.
+		if FutureCodeHash::<T>::contains_key(&id) {
+			// This branch should never be reached. Signalling an upgrade is disallowed for a para
+			// that already has one upgrade scheduled.
+			//
+			// Any candidate that attempts to do that should be rejected by
+			// `can_upgrade_validation_code`.
+			UpgradeGoAheadSignal::<T>::insert(&id, UpgradeGoAhead::Abort);
+			log::warn!(
+				target: "runtime::paras",
+				"ended up scheduling an upgrade while one is pending",
+			);
 			return weight
 		}
 
