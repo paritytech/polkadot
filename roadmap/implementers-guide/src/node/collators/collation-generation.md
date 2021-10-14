@@ -27,7 +27,7 @@ The process of generating a collation for a parachain is very parachain-specific
 ///
 /// - does not contain the erasure root; that's computed at the Polkadot level, not at Cumulus
 /// - contains a proof of validity.
-pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
+pub struct Collation {
   /// Messages destined to be interpreted by the Relay chain itself.
   pub upward_messages: Vec<UpwardMessage>,
   /// The horizontal messages sent by the parachain.
