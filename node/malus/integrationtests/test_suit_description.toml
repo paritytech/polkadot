@@ -1,0 +1,14 @@
+name = "Malus tests"
+description = "Tests with malicious attacks"
+required-images = [
+	"SYNTHIMAGE",
+	"COLIMAGE",
+	"SCRIPTSIMAGE",
+	"PARACHAINSIMAGE",
+	"MALUSIMAGE"
+]
+
+[[test-cases]]
+tags = ["all", "malus"]
+chain-config = "0001-dispute-valid-block.toml"
+scenarios = ["0001-dispute-valid-block.feature"]

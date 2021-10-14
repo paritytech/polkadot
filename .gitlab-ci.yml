@@ -28,8 +28,7 @@ variables:
   CI_SERVER_NAME:                  "GitLab CI"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
-  SIMNET_IMAGE_NAME:               "docker.io/paritytech/simnet"
-  SIMNET_IMAGE_TAG:                "v9"
+  SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v13"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
@@ -604,7 +603,7 @@ simnet-tests-parachains-smoketest:
     - job:                         publish-polkadot-image
     - job:                         publish-adder-collator-image
 
-  image:                           '${SIMNET_IMAGE_NAME}:${SIMNET_IMAGE_TAG}'
+  image:                           "${SIMNET_IMAGE}"
   variables:
     GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx/simnet_tests'
     # FIXME: use the master after the merge of the malus pr
@@ -638,7 +637,7 @@ simnet-tests-parachains-smoketest:
 
 simnet-tests-malus-dispute-valid:
   stage:                           deploy
-  image:                           '${SIMNET_IMAGE_NAME}:${SIMNET_IMAGE_TAG}'
+  image:                           "${SIMNET_IMAGE}"
   <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -651,12 +650,10 @@ simnet-tests-malus-dispute-valid:
     - job:                         publish-adder-collator-image
 
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx/node/malus/integrationtests'
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx/simnet_tests'
     # FIXME: use the master after the merge of the malus pr
     # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/simnet_tests'
     # FIXME: copy config of tests in simnet_test and use proper values
-    NETWORK_CONFIG:                'node/malus/integrationtests/0001-dispute-valid-block.toml'
-    FEATURES:                      'node/malus/integrationtests/0001-dispute-valid-block.feature'
   # `malus.env` brings here `$MALUS_IMAGE_NAME` and `$MALUS_IMAGE_TAG`
   # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
   # For local tests with docker `$MALUS_IMAGE_TAG` can be replaced with `master` tag.
@@ -664,25 +661,19 @@ simnet-tests-malus-dispute-valid:
   before_script:
     - echo "Simnet Tests Config"
     - echo "${SIMNET_IMAGE_NAME}"
-    - echo "${SIMNET_IMAGE_TAG}"
-    - echo "${PARACHAINS_IMAGE_NAME}"
-    - echo "${PARACHAINS_IMAGE_TAG}"
-    - echo "${MALUS_IMAGE_NAME}"
-    - echo "${MALUS_IMAGE_TAG}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
-    - echo "${NETWORK_CONFIG}"
-    - echo "${FEATURES}"
 
   script:
-    - /home/nonroot/simnet/scripts/run-test-environment-manager.sh
+    - /home/nonroot/simnet/scripts/run-test-environment-manager-v2.sh
         --github-remote-dir="${GH_DIR}"
-        --config="${NETWORK_CONFIG}"
-        --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --features="${FEATURES}"
-        -e "SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        -e "MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}"
-        -e "SCRIPTSIMAGE=${SIMNET_IMAGE_NAME}:${SIMNET_IMAGE_TAG}"
-        -e "COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
+        -t malus
+        -i "PARACHAINSIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        -i "SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        -i "COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
+        -i "SCRIPTSIMAGE=${SIMNET_IMAGE}"
+        -i "MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}"
   allow_failure:                   true
   retry: 2
   tags:
