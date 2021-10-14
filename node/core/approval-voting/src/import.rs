@@ -663,7 +663,7 @@ pub(crate) mod tests {
 		let key: &schnorrkel::Keypair = key.as_ref();
 
 		let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
-		(VRFOutput(o.to_output()), VRFProof(p))
+		(VRFOutput(o.to_preout()), VRFProof(p))
 	}
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {

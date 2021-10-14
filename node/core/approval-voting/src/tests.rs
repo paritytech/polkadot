@@ -372,7 +372,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let mut prng = rand_core::OsRng;
 	let keypair = schnorrkel::Keypair::generate_with(&mut prng);
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
-	let out = inout.to_output();
+	let out = inout.to_preout();
 
 	AssignmentCert { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
 }
