@@ -36,10 +36,9 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	AvailabilityBitfield, BackedCandidate, CandidateHash, CoreIndex,
-	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SessionIndex, SigningContext,
-	UncheckedSignedAvailabilityBitfields, ValidatorId, ValidatorIndex,
-	PARACHAINS_INHERENT_IDENTIFIER,
+	BackedCandidate, CandidateHash, CoreIndex, InherentData as ParachainsInherentData,
+	ScrapedOnChainVotes, SeedEntropy, SessionIndex, SigningContext,
+	UncheckedSignedAvailabilityBitfields, ValidatorId, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use rand::Rng;
 use scale_info::TypeInfo;
@@ -66,6 +65,12 @@ pub(crate) struct DisputedBitfield(pub(crate) BitVec<bitvec::order::Lsb0, u8>);
 impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
 	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
 		Self(inner)
+	}
+}
+
+impl DisputedBitfield {
+	pub fn zeros(n: usize) -> Self {
+		Self::from(BitVec::<bitvec::order::Lsb0, u8>::repeat(false, n))
 	}
 }
 
@@ -129,7 +134,7 @@ pub mod pallet {
 			let ParachainsInherentData::<T::Header> {
 				bitfields,
 				backed_candidates,
-				disputes,
+				mut disputes,
 				parent_header,
 				entropy,
 			} = match data.get_data(&Self::INHERENT_IDENTIFIER) {
@@ -142,36 +147,56 @@ pub mod pallet {
 				},
 			};
 
+			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+			let current_session = <shared::Pallet<T>>::session_index();
 
 			// filter out any unneeded dispute statements
 			T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
+
+			let concluded_invalid_disputes = disputes
+				.iter()
+				.filter(|s| s.session == current_session)
+				.map(|s| (s.session, s.candidate_hash))
+				.filter(|(session, candidate)| {
+					T::DisputesHandler::concluded_invalid(*session, *candidate)
+				})
+				.map(|(_session, candidate)| candidate)
+				.collect::<BTreeSet<CandidateHash>>();
 
 			// sanitize the bitfields and candidates by removing
 			// anything that does not pass a set of checks
 			// will be removed here
 			let validator_public = shared::Pallet::<T>::active_validator_keys();
-			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
-			let current_session = <shared::Pallet<T>>::session_index();
 
-			let expected_bits = unimplemented!("source?");
+			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 
 			let bitfields = sanitize_bitfields::<T, false>(
 				bitfields,
-				DisputedBitfield::default(), // TODO FIXME
+				DisputedBitfield::zeros(expected_bits), // TODO FIXME
 				expected_bits,
 				parent_hash,
 				current_session,
 				&validator_public[..],
-			).ok()?;
+			)
+			.ok()?;
 
-			let scheduled: Vec<CoreAssignment> = unimplemented!();
-			let disputed_candidates: BTreeSet<CandidateHash> = unimplemented!("");
+			let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
 			let backed_candidates = sanitize_backed_candidates::<T, false>(
 				parent_hash,
 				backed_candidates,
-				disputed_candidates,
+				concluded_invalid_disputes,
 				&scheduled[..],
-			).ok()?;
+			)
+			.ok()?;
+
+			// TODO this cannot be correct
+			// TODO filter bitfields as well
+			let remaining_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
+			let (_backed_candidates_weight, backed_candidates) = pick_random_thresholded_subset::<T>(
+				backed_candidates,
+				entropy.clone(),
+				remaining_weight,
+			);
 
 			let inherent_data = ParachainsInherentData::<T::Header> {
 				bitfields,
@@ -187,7 +212,7 @@ pub mod pallet {
 				match Self::enter(frame_system::RawOrigin::None.into(), inherent_data.clone()) {
 					Ok(_) => inherent_data,
 					Err(err) => {
-						log::warn!(
+						log::error!(
 							target: LOG_TARGET,
 								"dropping signed_bitfields and backed_candidates because they produced \
 							an invalid paras inherent: {:?}",
@@ -199,6 +224,7 @@ pub mod pallet {
 							backed_candidates: Vec::new(),
 							disputes: Vec::new(),
 							parent_header: inherent_data.parent_header,
+							entropy: inherent_data.entropy,
 						}
 					},
 				};
@@ -227,6 +253,7 @@ pub mod pallet {
 				backed_candidates,
 				parent_header,
 				disputes,
+				entropy: _entropy,
 			} = data;
 
 			ensure_none(origin)?;
@@ -243,7 +270,7 @@ pub mod pallet {
 
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
-			let (disputed_bits, concluded_invalid_disputed_candidates) = {
+			let (disputed_bitfield, concluded_invalid_disputed_candidates) = {
 				let new_current_dispute_sets: Vec<_> = disputes
 					.iter()
 					.filter(|s| s.session == current_session)
@@ -307,7 +334,7 @@ pub mod pallet {
 			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
 				signed_bitfields,
-				disputed_bits,
+				disputed_bitfield,
 				<scheduler::Pallet<T>>::core_para,
 			)?;
 
@@ -384,23 +411,47 @@ pub mod pallet {
 }
 
 macro_rules! ensure2 {
-	($condition:expr, $err:expr, $action:ident) => {
+	($condition:expr, $err:expr, $action:ident $(, $alt:expr)? $(,)?) => {
 		let condition = $condition;
 		if !condition {
 			if $action {
 				ensure!(condition, $err);
+			} else {
+				$($alt)?
 			}
 		}
 	};
+}
+
+/// Calculate the weight of a single backed candidate.
+fn backed_candidate_weight<T: Config>(backed_candidate: &BackedCandidate<<T>::Hash>) -> Weight {
+	// FIXME
+	const CODE_UPGRADE_WEIGHT: Weight = 10 as Weight;
+	const DISPUTE_PER_STATEMENT_WEIGHT: Weight = 1 as Weight;
+
+	backed_candidate.validity_votes.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
+		if backed_candidate.candidate.commitments.new_validation_code.is_some() {
+			CODE_UPGRADE_WEIGHT
+		} else {
+			0 as Weight
+		}
 }
 
 /// Considers an upper threshold that the candidates must not exceed.
 ///
 /// If there is sufficient space, all blocks will be included, otherwise
 /// continues adding blocks, ignoring blocks that exceed the threshold.
-fn pick_random_thresholded_subset(mut candidates: Vec<(CandidateHash, Weight)>, entropy: &EntropySeed, max_weight: Weight) -> (Weight, Vec<CandidateHash>) {
-	if max_weight < candidates.iter().map(|(_, weight)| { weight }).sum() {
-		return candidates.iter().map(|(candidate_hash, _)| candidate_hash).collect()
+fn pick_random_thresholded_subset<T: Config>(
+	mut candidates: Vec<BackedCandidate<<T>::Hash>>,
+	entropy: SeedEntropy,
+	max_weight: Weight,
+) -> (Weight, Vec<BackedCandidate<<T as frame_system::Config>::Hash>>) {
+	let total = candidates
+		.iter()
+		.map(|backed_candidate| backed_candidate_weight::<T>(backed_candidate))
+		.sum();
+	if max_weight < total {
+		return (total, candidates)
 	}
 
 	let mut candidates_acc = Vec::with_capacity(candidates.len());
@@ -409,14 +460,18 @@ fn pick_random_thresholded_subset(mut candidates: Vec<(CandidateHash, Weight)>, 
 	// TODO alt: use the pick index as subject to
 	// TODO obtain an index at the cost of having to impl
 	// TODO the equal probability distribution ourselves
-	let rng = chacha_rand::ChaCha20::from_seed(&entropy);
+	use rand_chacha::rand_core::SeedableRng;
+	let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 	let mut weight_acc: Weight = 0 as _;
 
-	while weight_acc < max_weight || !candidates.empty() {
+	while weight_acc < max_weight || !candidates.is_empty() {
 		// select a index to try
-		let pick = rng.gen_range(0 .. candidates.len());
+		let pick = rng.gen_range(0..candidates.len());
 		// remove the candidate from the possible pick set
-		let (picked_candidate, picked_weight) = candidates.swap_remove(pick);
+		let picked_candidate = candidates.swap_remove(pick);
+
+		let picked_weight = backed_candidate_weight::<T>(&picked_candidate);
+
 		// is the candidate small enough to fit
 		if picked_weight + weight_acc <= max_weight {
 			// candidate fits, so pick it and account for its weight
@@ -454,9 +509,11 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 
 	let mut last_index = None;
 
-	if EARLY_RETURN && disputed_bits.0.len() != expected_bits {
-		return Ok(Default::default())
-	}
+	ensure2!(
+		disputed_bits.0.len() == expected_bits,
+		crate::inclusion::pallet::Error::<T>::WrongBitfieldSize,
+		EARLY_RETURN
+	);
 
 	for unchecked_bitfield in unchecked_bitfields {
 		let signing_context = SigningContext { parent_hash, session_index };
@@ -464,19 +521,22 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 		ensure2!(
 			unchecked_bitfield.unchecked_payload().0.len() == expected_bits,
 			crate::inclusion::pallet::Error::<T>::WrongBitfieldSize,
-			EARLY_RETURN
+			EARLY_RETURN,
+			continue
 		);
 
 		ensure2!(
 			last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()),
 			crate::inclusion::pallet::Error::<T>::BitfieldDuplicateOrUnordered,
-			EARLY_RETURN
+			EARLY_RETURN,
+			continue
 		);
 
 		ensure2!(
 			(unchecked_bitfield.unchecked_validator_index().0 as usize) < validators.len(),
 			crate::inclusion::pallet::Error::<T>::ValidatorIndexOutOfBounds,
-			EARLY_RETURN
+			EARLY_RETURN,
+			continue
 		);
 
 		let validator_index = unchecked_bitfield.unchecked_validator_index();
@@ -696,6 +756,7 @@ mod tests {
 						backed_candidates,
 						disputes: Vec::new(),
 						parent_header: default_header(),
+						entropy: Default::default(),
 					},
 				}
 				.dispatch_bypass_filter(None.into())
@@ -746,6 +807,7 @@ mod tests {
 						backed_candidates,
 						disputes: Vec::new(),
 						parent_header: header,
+						entropy: Default::default(),
 					},
 				}
 				.dispatch_bypass_filter(None.into())
@@ -754,7 +816,7 @@ mod tests {
 				// we don't directly check the block's weight post-call. Instead, we check that the
 				// call has returned the appropriate post-dispatch weight for refund, and trust
 				// Substrate to do the right thing with that information.
-				assert_eq!(post_info.actual_weight.unwrap(), expected_weight);
+				assert_eq!(post_info.actual_weight, Some(expected_weight));
 			});
 		}
 	}

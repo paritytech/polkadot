@@ -290,7 +290,13 @@ impl<T: Config> Pallet<T> {
 			.collect::<Vec<_>>();
 
 		let now = <frame_system::Pallet<T>>::block_number();
-		for (checked_bitfield, validator_index) in checked_bitfields {
+		for (checked_bitfield, validator_index) in
+			checked_bitfields.into_iter().map(|signed_bitfield| {
+				// extracting unchecked data, since it's checked in `fn sanitize_bitfields` already.
+				let validator_idx = signed_bitfield.unchecked_validator_index();
+				let checked_bitfield = signed_bitfield.unchecked_into_payload();
+				(checked_bitfield, validator_idx)
+			}) {
 			for (bit_idx, _) in checked_bitfield.0.iter().enumerate().filter(|(_, is_av)| **is_av) {
 				let pending_availability = if let Some((_, pending_availability)) =
 					assigned_paras_record[bit_idx].as_mut()
@@ -948,9 +954,10 @@ mod tests {
 			System, Test,
 		},
 		paras::ParaGenesisArgs,
-		paras_inherent::{sanitize_bitfields, DisputedBitfield},
+		paras_inherent::DisputedBitfield,
 		scheduler::AssignmentKind,
 	};
+	use assert_matches::assert_matches;
 	use futures::executor::block_on;
 	use keyring::Sr25519Keyring;
 	use primitives::{
@@ -1311,7 +1318,7 @@ mod tests {
 				_ => panic!("out of bounds for testing"),
 			};
 
-			// wrong number of bits.
+			// too many bits in bitfield
 			{
 				let mut bare_bitfield = default_bitfield();
 				bare_bitfield.0.push(false);
@@ -1327,14 +1334,14 @@ mod tests {
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.into()],
-						DisputedBitfield::default(),
+						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
 					Err(Error::<Test>::WrongBitfieldSize.into())
 				);
 			}
 
-			// wrong number of bits: other way around.
+			// not enough bits
 			{
 				let bare_bitfield = default_bitfield();
 				let signed = block_on(sign_bitfield(
@@ -1349,7 +1356,7 @@ mod tests {
 					ParaInclusion::process_bitfields(
 						expected_bits() + 1,
 						vec![signed.into()],
-						DisputedBitfield::default(),
+						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
 					Err(Error::<Test>::WrongBitfieldSize.into())
@@ -1372,7 +1379,7 @@ mod tests {
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.clone(), signed],
-						DisputedBitfield::default(),
+						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
 					Err(Error::<Test>::BitfieldDuplicateOrUnordered.into())
@@ -1404,7 +1411,7 @@ mod tests {
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed_1, signed_0],
-						DisputedBitfield::default(),
+						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
 					Err(Error::<Test>::BitfieldDuplicateOrUnordered.into())
@@ -1426,7 +1433,7 @@ mod tests {
 				assert!(ParaInclusion::process_bitfields(
 					expected_bits(),
 					vec![signed.into()],
-					DisputedBitfield::default(),
+					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
 				)
 				.is_ok());
@@ -1443,13 +1450,15 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(!ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					DisputedBitfield::default(),
-					&core_lookup,
-				)
-				.is_ok());
+				assert_matches!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						DisputedBitfield::zeros(expected_bits()),
+						&core_lookup,
+					),
+					Ok(_)
+				);
 			}
 
 			// bitfield signed with pending bit signed.
@@ -1486,13 +1495,15 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					DisputedBitfield::default(),
-					&core_lookup,
-				)
-				.is_ok());
+				assert_matches!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						DisputedBitfield::zeros(expected_bits()),
+						&core_lookup,
+					),
+					Ok(_)
+				);
 
 				<PendingAvailability<Test>>::remove(chain_a);
 				PendingAvailabilityCommitments::<Test>::remove(chain_a);
@@ -1529,13 +1540,15 @@ mod tests {
 				));
 
 				// no core is freed
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					DisputedBitfield::default(),
-					&core_lookup,
-				)
-				.is_ok());
+				assert_matches!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						DisputedBitfield::zeros(expected_bits()),
+						&core_lookup,
+					),
+					Ok(_)
+				);
 			}
 		});
 	}
@@ -1674,7 +1687,7 @@ mod tests {
 			assert!(ParaInclusion::process_bitfields(
 				expected_bits(),
 				signed_bitfields,
-				DisputedBitfield::default(),
+				DisputedBitfield::zeros(expected_bits()),
 				&core_lookup,
 			)
 			.is_ok());

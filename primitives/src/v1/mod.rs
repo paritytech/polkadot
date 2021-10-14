@@ -1360,6 +1360,12 @@ impl AsMut<[u8]> for SeedEntropy {
 	}
 }
 
+impl Into<[u8; 32]> for SeedEntropy {
+	fn into(self) -> [u8; 32] {
+		self.0
+	}
+}
+
 #[cfg(feature = "std")]
 impl SeedEntropy {
 	/// Collect a random entropy.
@@ -1376,7 +1382,7 @@ impl SeedEntropy {
 
 		#[cfg(fuzzing)]
 		{
-			lazy_static::lazy_static!{
+			lazy_static::lazy_static! {
 				static ref RNG: rand_chacha::ChaChaRng = rand_chacha::ChaChaRng::from_seed(b"polkadot_on_chain_selection_seed");
 			}
 			RNG.fill_bytes(&mut bytes[..])
