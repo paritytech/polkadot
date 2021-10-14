@@ -356,7 +356,7 @@ fn compute_relay_vrf_modulo_assignments(
 			let cert = AssignmentCert {
 				kind: AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
 				vrf: (
-					approval_types::VRFOutput(vrf_in_out.to_output()),
+					approval_types::VRFOutput(vrf_in_out.to_preout()),
 					approval_types::VRFProof(vrf_proof),
 				),
 			};
@@ -393,7 +393,7 @@ fn compute_relay_vrf_delay_assignments(
 		let cert = AssignmentCert {
 			kind: AssignmentCertKind::RelayVRFDelay { core_index: core },
 			vrf: (
-				approval_types::VRFOutput(vrf_in_out.to_output()),
+				approval_types::VRFOutput(vrf_in_out.to_preout()),
 				approval_types::VRFProof(vrf_proof),
 			),
 		};
