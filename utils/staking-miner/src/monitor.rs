@@ -81,7 +81,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 		loop {
 			log::info!(target: LOG_TARGET, "subscribing to {:?} / {:?}", sub, unsub);
 			let mut subscription: Subscription<Header> = client
-				.subscribe(&sub, JsonRpcParams::NoParams, &unsub)
+				.subscribe(&sub, params! {}, &unsub)
 				.await
 				.unwrap();
 
