@@ -182,7 +182,7 @@ type MoreThanHalfCouncil = EnsureOneOf<
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
-	pub const SS58Prefix: u8 = 0;
+	pub const SS58Prefix: u16 = 0;
 }
 
 impl frame_system::Config for Runtime {
