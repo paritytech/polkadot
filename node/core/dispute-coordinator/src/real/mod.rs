@@ -85,6 +85,13 @@ mod ordering;
 /// can be relatively small, as a drop is not fatal.
 mod spam_slots;
 
+/// Handling of participation requests.
+///
+/// `Participation takes care of queuing and dequeuing participation requests, such that most
+/// important/urgend disputes will be resolved first and more importantly it will order requests in
+/// a way so disputes will get resolved, even if there are lots of them.
+mod participation;
+
 #[cfg(test)]
 mod tests;
 

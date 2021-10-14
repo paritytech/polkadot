@@ -53,6 +53,7 @@ pub struct OrderingProvider {
 /// treated as low priority when it comes to disputes, as even in the case of a negative outcome,
 /// we are already too late. The ordering mechanism here serves to prevent this from happening in
 /// the first place.
+#[derive(Clone)]
 pub struct CandidateComparator {
 	/// Relay chain block number the candidate got included in.
 	included_block_number: BlockNumber,
