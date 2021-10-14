@@ -56,6 +56,16 @@ pub struct CollationResult {
   pub result_sender: Option<oneshot::Sender<CollationSecondedSignal>>,
 }
 
+/// Signal that is being returned when a collation was seconded by a validator.
+pub struct CollationSecondedSignal {
+    /// The hash of the relay chain block that was used as context to sign [`Self::statement`].
+    pub relay_parent: Hash,
+    /// The statement about seconding the collation.
+    ///
+    /// Anything else than `Statement::Seconded` is forbidden here.
+    pub statement: SignedFullStatement,
+}
+
 /// Collation function.
 ///
 /// Will be called with the hash of the relay chain block the parachain block should be build on and the
