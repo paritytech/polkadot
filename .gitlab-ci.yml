@@ -31,7 +31,7 @@ variables:
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
-  SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v13"
+  SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v14"
 
 default:
   cache:                           {}
@@ -576,11 +576,11 @@ simnet-tests:
   script:
     - /home/nonroot/simnet/scripts/run-test-environment-manager-v2.sh
         --github-remote-dir="${GH_DIR}"
-        -t smoketest
-        -i "PARACHAINSIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        -i "SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        -i "COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        -i "SCRIPTSIMAGE=${SIMNET_IMAGE}"
+        --tag=smoketest
+        --image="PARACHAINSIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        --image="SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        --image="COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
+        --image="SCRIPTSIMAGE=${SIMNET_IMAGE}"
   allow_failure:                   true
   retry: 2
   tags:
