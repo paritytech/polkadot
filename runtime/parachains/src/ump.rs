@@ -754,7 +754,7 @@ pub(crate) mod tests {
 		MockGenesisConfig {
 			configuration: crate::configuration::GenesisConfig {
 				config: crate::configuration::HostConfiguration {
-					max_upward_message_size: 1024,
+					max_downward_message_size: 1024,
 					..Default::default()
 				},
 			},
