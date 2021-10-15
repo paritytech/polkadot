@@ -25,8 +25,9 @@ use crate::{
 	configuration::Config,
 	disputes::DisputesHandler,
 	inclusion,
+	inclusion::{CandidatePendingAvailability, PendingAvailability},
 	scheduler::{self, CoreAssignment, FreedReason},
-	shared, ump,
+	shared, ump, ParaId,
 };
 use bitvec::{bitvec, order::Lsb0, prelude::BitVec};
 use frame_support::{
@@ -35,7 +36,12 @@ use frame_support::{
 	pallet_prelude::*,
 };
 use frame_system::pallet_prelude::*;
-use primitives::v1::{AvailabilityBitfield, BackedCandidate, CandidateHash, CoreIndex, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER, ScrapedOnChainVotes, SeedEntropy, SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId};
+use primitives::v1::{
+	AvailabilityBitfield, BackedCandidate, CandidateHash, CoreIndex,
+	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SeedEntropy, SessionIndex,
+	SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
+	PARACHAINS_INHERENT_IDENTIFIER,
+};
 use rand::Rng;
 use scale_info::TypeInfo;
 use sp_runtime::traits::Header as HeaderT;
@@ -186,9 +192,10 @@ pub mod pallet {
 			.ok()?;
 
 			let remaining_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
-			let (_backed_candidates_weight, backed_candidates) = apply_weight_limit::<T>(
+			let (_backed_candidates_weight, backed_candidates, bitfields) = apply_weight_limit::<T, _>(
 				expected_bits,
 				backed_candidates,
+				bitfields,
 				entropy.clone(),
 				remaining_weight,
 				<scheduler::Pallet<T>>::core_para,
@@ -446,21 +453,19 @@ fn bitfield_weight<T: Config>(bitfield: &AvailabilityBitfield) -> Weight {
 /// Since there is the relation of `backed candidate <-> occupied core <-> bitfield`
 /// this is used to pick the candidate, but also include all relevant
 /// bitfields.
-fn apply_weight_limit<T: Config>(
+fn apply_weight_limit<T: Config, F: Fn(CoreIndex) -> Option<ParaId>>(
 	expected_bits: usize,
 	mut candidates: Vec<BackedCandidate<<T>::Hash>>,
 	mut bitfields: UncheckedSignedAvailabilityBitfields,
 	entropy: SeedEntropy,
 	max_weight: Weight,
-	core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-) -> (Weight, Vec<BackedCandidate<<T as frame_system::Config>::Hash>>) {
+	core_lookup: F,
+) -> (Weight, Vec<BackedCandidate<<T>::Hash>>, UncheckedSignedAvailabilityBitfields) {
 	let mut total = candidates
 		.iter()
 		.map(|backed_candidate| backed_candidate_weight::<T>(backed_candidate))
 		.sum();
-	total += bitfields.iter()
-		.map(|bitfield| bitfield_weight::<T>(bitfield))
-		.sum();
+	total += bitfields.iter().map(|bitfield| bitfield_weight::<T>(bitfield.unchecked_payload())).sum();
 
 	if max_weight < total {
 		return (total, candidates, bitfields)
@@ -477,22 +482,17 @@ fn apply_weight_limit<T: Config>(
 	let mut weight_acc: Weight = 0 as _;
 
 	// a bitfield to determine which bitfields to include
-	let bitfields_to_include_coverage = bitvec![Lsb0, u8; false; bitfields.len()];
+	let bitfields_to_include_coverage = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
 
 	// create a mapping of `CandidateHash` to `CoreIndex`
 	let mut candidates_core_index: BTreeMap<CandidateHash, CoreIndex> = (0..expected_bits)
 		.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
-		.filter_map(|opt_para_id| {
-			opt_para_id
-		})
+		.filter_map(|opt_para_id| opt_para_id)
 		.map(|para_id| {
 			PendingAvailability::<T>::get(&para_id);
 		})
-		.map(|cpa: CandidatePendingAvailability<T> | {
-			(cpa.candidate, cpa.core_index)
-		})
+		.map(|cpa: CandidatePendingAvailability<T,<T>::BlockNumber>| (cpa.candidate_hash(), cpa.core_occupied()))
 		.collect();
-
 
 	while weight_acc < max_weight || !candidates.is_empty() {
 		// select a index to try
@@ -505,15 +505,12 @@ fn apply_weight_limit<T: Config>(
 		// collect all bitfields that reference the candidate
 		// (or: the availability core index that is responsible for the candidate)
 		let bitfields_weight = 0 as Weight;
-		let covered_bitfields = bitvec![Lsb0, u8; false; bitfields.len()];
+		let covered_bitfields = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
 
-		for (i, bitfield) in bitfields
-			.iter()
-			.enumerate() {
-
+		for (i, bitfield) in bitfields.iter().enumerate() {
 			// lookup the core index that is responsible for the candidate
-			if let Some(core_index) = candidates_core_index.get(&picked_candidate) {
-				if bitfield[core_index] {
+			if let Some(core_index) = candidates_core_index.get(&picked_candidate.hash()) {
+				if bitfield.unchecked_payload().0[core_index.0 as _] {
 					// avoid duplicate accounting if it was already included before
 					if bitfields_to_include_coverage[i] {
 						// mark the `i`-th bit
@@ -535,9 +532,12 @@ fn apply_weight_limit<T: Config>(
 		}
 	}
 
-	let bitfields_acc = bitfields.into_iter().iter().filter(|(i, _)| {
-		bitfields_to_include_coverage[i]
-	}).collect::<Vec<_>>();
+	let bitfields_acc = bitfields
+		.into_iter()
+		.enumerate()
+		.filter(|(i, _)| bitfields_to_include_coverage[*i])
+		.map(|(_, bitfield)| bitfield)
+		.collect::<Vec<_>>();
 
 	(weight_acc, candidates_acc, bitfields_acc)
 }
