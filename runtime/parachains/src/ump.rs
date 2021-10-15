@@ -31,7 +31,7 @@ pub use pallet::*;
 /// All upward messages coming from parachains will be funneled into an implementation of this trait.
 ///
 /// The message is opaque from the perspective of UMP. The message size can range from 0 to
-/// `config.max_upward_message_size`.
+/// `config.max_downward_message_size`.
 ///
 /// It's up to the implementation of this trait to decide what to do with a message as long as it
 /// returns the amount of weight consumed in the process of handling. Ignoring a message is a valid
