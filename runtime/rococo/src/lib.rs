@@ -644,7 +644,7 @@ parameter_types! {
 	pub const RococoForTick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(100).into());
 	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(110).into());
 	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(120).into());
-	pub const RococoForStatemint: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1001).into());
+	pub const RococoForRockmine: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1001).into());
 	pub const RococoForCanvas: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1002).into());
 	pub const MaxInstructions: u32 = 100;
 }
@@ -652,7 +652,7 @@ pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
 	xcm_builder::Case<RococoForTrick>,
 	xcm_builder::Case<RococoForTrack>,
-	xcm_builder::Case<RococoForStatemint>,
+	xcm_builder::Case<RococoForRockmine>,
 	xcm_builder::Case<RococoForCanvas>,
 );
 
