@@ -28,18 +28,14 @@ use crate::{
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump,
 };
-use bitvec::prelude::BitVec;
+use bitvec::{bitvec, order::Lsb0, prelude::BitVec};
 use frame_support::{
 	fail,
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
 	pallet_prelude::*,
 };
 use frame_system::pallet_prelude::*;
-use primitives::v1::{
-	BackedCandidate, CandidateHash, CoreIndex, InherentData as ParachainsInherentData,
-	ScrapedOnChainVotes, SeedEntropy, SessionIndex, SigningContext,
-	UncheckedSignedAvailabilityBitfields, ValidatorId, PARACHAINS_INHERENT_IDENTIFIER,
-};
+use primitives::v1::{AvailabilityBitfield, BackedCandidate, CandidateHash, CoreIndex, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER, ScrapedOnChainVotes, SeedEntropy, SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId};
 use rand::Rng;
 use scale_info::TypeInfo;
 use sp_runtime::traits::Header as HeaderT;
@@ -189,13 +185,13 @@ pub mod pallet {
 			)
 			.ok()?;
 
-			// TODO this cannot be correct
-			// TODO filter bitfields as well
 			let remaining_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
-			let (_backed_candidates_weight, backed_candidates) = pick_random_thresholded_subset::<T>(
+			let (_backed_candidates_weight, backed_candidates) = apply_weight_limit::<T>(
+				expected_bits,
 				backed_candidates,
 				entropy.clone(),
 				remaining_weight,
+				<scheduler::Pallet<T>>::core_para,
 			);
 
 			let inherent_data = ParachainsInherentData::<T::Header> {
@@ -426,8 +422,8 @@ macro_rules! ensure2 {
 /// Calculate the weight of a single backed candidate.
 fn backed_candidate_weight<T: Config>(backed_candidate: &BackedCandidate<<T>::Hash>) -> Weight {
 	// FIXME
-	const CODE_UPGRADE_WEIGHT: Weight = 10 as Weight;
-	const DISPUTE_PER_STATEMENT_WEIGHT: Weight = 1 as Weight;
+	const CODE_UPGRADE_WEIGHT: Weight = 10_000 as Weight;
+	const DISPUTE_PER_STATEMENT_WEIGHT: Weight = 1_000 as Weight;
 
 	backed_candidate.validity_votes.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
 		if backed_candidate.candidate.commitments.new_validation_code.is_some() {
@@ -437,21 +433,37 @@ fn backed_candidate_weight<T: Config>(backed_candidate: &BackedCandidate<<T>::Ha
 		}
 }
 
+/// Calculate the weight of a individual bitfield.
+fn bitfield_weight<T: Config>(bitfield: &AvailabilityBitfield) -> Weight {
+	7_000 as Weight
+}
+
 /// Considers an upper threshold that the candidates must not exceed.
 ///
 /// If there is sufficient space, all blocks will be included, otherwise
 /// continues adding blocks, ignoring blocks that exceed the threshold.
-fn pick_random_thresholded_subset<T: Config>(
+///
+/// Since there is the relation of `backed candidate <-> occupied core <-> bitfield`
+/// this is used to pick the candidate, but also include all relevant
+/// bitfields.
+fn apply_weight_limit<T: Config>(
+	expected_bits: usize,
 	mut candidates: Vec<BackedCandidate<<T>::Hash>>,
+	mut bitfields: UncheckedSignedAvailabilityBitfields,
 	entropy: SeedEntropy,
 	max_weight: Weight,
+	core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
 ) -> (Weight, Vec<BackedCandidate<<T as frame_system::Config>::Hash>>) {
-	let total = candidates
+	let mut total = candidates
 		.iter()
 		.map(|backed_candidate| backed_candidate_weight::<T>(backed_candidate))
 		.sum();
+	total += bitfields.iter()
+		.map(|bitfield| bitfield_weight::<T>(bitfield))
+		.sum();
+
 	if max_weight < total {
-		return (total, candidates)
+		return (total, candidates, bitfields)
 	}
 
 	let mut candidates_acc = Vec::with_capacity(candidates.len());
@@ -464,6 +476,24 @@ fn pick_random_thresholded_subset<T: Config>(
 	let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 	let mut weight_acc: Weight = 0 as _;
 
+	// a bitfield to determine which bitfields to include
+	let bitfields_to_include_coverage = bitvec![Lsb0, u8; false; bitfields.len()];
+
+	// create a mapping of `CandidateHash` to `CoreIndex`
+	let mut candidates_core_index: BTreeMap<CandidateHash, CoreIndex> = (0..expected_bits)
+		.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
+		.filter_map(|opt_para_id| {
+			opt_para_id
+		})
+		.map(|para_id| {
+			PendingAvailability::<T>::get(&para_id);
+		})
+		.map(|cpa: CandidatePendingAvailability<T> | {
+			(cpa.candidate, cpa.core_index)
+		})
+		.collect();
+
+
 	while weight_acc < max_weight || !candidates.is_empty() {
 		// select a index to try
 		let pick = rng.gen_range(0..candidates.len());
@@ -472,14 +502,44 @@ fn pick_random_thresholded_subset<T: Config>(
 
 		let picked_weight = backed_candidate_weight::<T>(&picked_candidate);
 
+		// collect all bitfields that reference the candidate
+		// (or: the availability core index that is responsible for the candidate)
+		let bitfields_weight = 0 as Weight;
+		let covered_bitfields = bitvec![Lsb0, u8; false; bitfields.len()];
+
+		for (i, bitfield) in bitfields
+			.iter()
+			.enumerate() {
+
+			// lookup the core index that is responsible for the candidate
+			if let Some(core_index) = candidates_core_index.get(&picked_candidate) {
+				if bitfield[core_index] {
+					// avoid duplicate accounting if it was already included before
+					if bitfields_to_include_coverage[i] {
+						// mark the `i`-th bit
+						covered_bitfields.set(i, true);
+						// account for the added weight of the bitfield
+						bitfields_weight += bitfield_weight(bitfield.unchecked_payload());
+					}
+				}
+			}
+		}
+
 		// is the candidate small enough to fit
-		if picked_weight + weight_acc <= max_weight {
+		let prospective_weight = picked_weight + bitfields_weight + weight_acc;
+		if prospective_weight <= max_weight {
 			// candidate fits, so pick it and account for its weight
 			candidates_acc.push(picked_candidate);
-			weight_acc += picked_weight;
+			weight_acc = prospective_weight;
+			bitfields_to_include_coverage |= bitfields_weight;
 		}
 	}
-	(weight_acc, candidates_acc)
+
+	let bitfields_acc = bitfields.into_iter().iter().filter(|(i, _)| {
+		bitfields_to_include_coverage[i]
+	}).collect::<Vec<_>>();
+
+	(weight_acc, candidates_acc, bitfields_acc)
 }
 
 /// Filter bitfields based on freed core indices, validity, and other sanity checks.

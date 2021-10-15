@@ -534,6 +534,8 @@ impl CandidateCommitments {
 }
 
 /// A bitfield concerning availability of backed candidates.
+///
+/// Every bit refers to an availability core index.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
 
