@@ -592,6 +592,59 @@ mod tests {
 		}
 
 		#[test]
+		fn backed_candidates_ignored_when_remote_disputes_overlength() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let (mut disputes, mut backed_candidates) =
+					make_inherent_data(10, vec![3, 2, 1], 1, 1, true);
+				let mut bitfields = Vec::new();
+
+				assert_eq!(backed_candidates.len(), 1);
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
+				assert_eq!(disputes.len(), 2);
+				assert_eq!(disputes[0].session, 1);
+				assert_eq!(disputes[1].session, 2);
+
+				assert_eq!(backed_candidates.len(), 0);
+			});
+		}
+
+		#[test]
+		fn backed_candidates_included_when_remote_disputes_not_overlength() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let (mut disputes, mut backed_candidates) =
+					make_inherent_data(5, vec![3, 2, 1], 1, 1, true);
+				let mut bitfields = Vec::new();
+
+				assert_eq!(backed_candidates.len(), 1);
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
+				assert_eq!(disputes.len(), 3);
+				assert_eq!(disputes[0].session, 3);
+				assert_eq!(disputes[1].session, 2);
+				assert_eq!(disputes[2].session, 1);
+
+				assert_eq!(backed_candidates.len(), 1);
+			});
+		}
+
+		#[test]
+		fn backed_candidates_truncated_when_remote_disputes_not_overlength() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let (mut disputes, mut backed_candidates) =
+					make_inherent_data(5, vec![3, 2, 1], 3, 1, true);
+				let mut bitfields = Vec::new();
+
+				assert_eq!(backed_candidates.len(), 3);
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
+				assert_eq!(disputes.len(), 3);
+				assert_eq!(disputes[0].session, 3);
+				assert_eq!(disputes[1].session, 2);
+				assert_eq!(disputes[2].session, 1);
+
+				assert_eq!(backed_candidates.len(), 2);
+			});
+		}
+
+		#[test]
 		fn does_not_ignore_subsequent_code_upgrades() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let mut disputes = vec![];
