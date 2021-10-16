@@ -391,11 +391,11 @@ parameter_types! {
 
 sp_npos_elections::generate_solution_type!(
 	#[compact]
-	pub struct NposCompactSolution16::<
+	pub struct NposCompactSolution24::<
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = sp_runtime::PerU16,
-	>(16)
+	>(24)
 );
 
 impl pallet_election_provider_multi_phase::Config for Runtime {
@@ -418,7 +418,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
-	type Solution = NposCompactSolution16;
+	type Solution = NposCompactSolution24;
 	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
 	type Solver = frame_election_provider_support::SequentialPhragmen<
 		AccountId,
@@ -475,7 +475,7 @@ impl frame_election_provider_support::onchain::Config for Runtime {
 
 impl pallet_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+		<NposCompactSolution24 as sp_npos_elections::NposSolution>::LIMIT as u32;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
