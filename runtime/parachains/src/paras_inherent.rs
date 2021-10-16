@@ -47,7 +47,8 @@ pub use pallet::*;
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
 const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
-const CODE_UPGRADE_WEIGHT: Weight = 400_000;
+const CODE_UPGRADE_WEIGHT_FIXED: Weight = 400_000;
+const CODE_UPGRADE_WEIGHT_VARIABLE: Weight = 400_000;
 const DISPUTE_PER_STATEMENT_WEIGHT: Weight = 200_000;
 const BITFIELD_WEIGHT: Weight = 200_000;
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
@@ -333,20 +334,31 @@ fn signed_bitfields_weight(bitfields: &[UncheckedSignedAvailabilityBitfield]) ->
 	bitfields.len() as Weight * BITFIELD_WEIGHT
 }
 
-fn backed_candidates_weight<T: Config>(candidates: &[BackedCandidate<T::Hash>]) -> Weight {
-	candidates
-		.iter()
-		.map(|c| {
-			c.validity_votes.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
-				if c.candidate.commitments.new_validation_code.is_some() {
-					CODE_UPGRADE_WEIGHT
-				} else {
-					0 as Weight
-				}
-		})
-		.sum()
+fn backed_candidate_weight<T: frame_system::Config>(
+	candidate: &BackedCandidate<T::Hash>,
+) -> Weight {
+	match &candidate.candidate.commitments.new_validation_code {
+		Some(v) => v.0.len() as u64 * CODE_UPGRADE_WEIGHT_VARIABLE + CODE_UPGRADE_WEIGHT_FIXED,
+		_ => 0 as Weight,
+	}
 }
 
+fn backed_candidates_weight<T: frame_system::Config>(
+	candidates: &[BackedCandidate<T::Hash>],
+) -> Weight {
+	candidates.iter().map(|c| backed_candidate_weight::<T>(c)).sum()
+}
+
+/// Limit the number of disputes, signed bitfields and backed candidates processed in order to stay
+/// within block weight limits.
+///
+/// Use a configured assumption about the weight required to process a backed candidate and the
+/// current block weight as of the execution of this function to ensure that we don't overload
+/// the block with candidate processing.
+///
+/// If the backed candidates exceed the available block weight remaining, then skips all of them.
+/// This is somewhat less desirable than attempting to fit some of them, but is more fair in the
+/// even that we can't trust the provisioner to provide a fair / random ordering of candidates.
 fn limit_paras_inherent<T: Config>(
 	disputes: &mut MultiDisputeStatementSet,
 	bitfields: &mut UncheckedSignedAvailabilityBitfields,
@@ -402,123 +414,238 @@ fn limit_paras_inherent<T: Config>(
 
 	let mut total_weight = 0;
 	backed_candidates.retain(|c| {
-		total_weight += c.validity_votes.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
-			if c.candidate.commitments.new_validation_code.is_some() {
-				CODE_UPGRADE_WEIGHT
-			} else {
-				0 as Weight
-			};
+		let code_upgrade_weight = backed_candidate_weight::<T>(c);
+		total_weight +=
+			c.validity_votes.len() as Weight * BACKED_CANDIDATE_WEIGHT + code_upgrade_weight;
 		total_weight < block_weight_available_for_candidates
 	});
-}
-
-/// Limit the number of backed candidates processed in order to stay within block weight limits.
-///
-/// Use a configured assumption about the weight required to process a backed candidate and the
-/// current block weight as of the execution of this function to ensure that we don't overload
-/// the block with candidate processing.
-///
-/// If the backed candidates exceed the available block weight remaining, then skips all of them.
-/// This is somewhat less desirable than attempting to fit some of them, but is more fair in the
-/// even that we can't trust the provisioner to provide a fair / random ordering of candidates.
-#[cfg(test)]
-fn limit_backed_candidates<T: Config>(
-	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
-) -> Vec<BackedCandidate<T::Hash>> {
-	const MAX_CODE_UPGRADES: usize = 1;
-
-	// Ignore any candidates beyond one that contain code upgrades.
-	//
-	// This is an artificial limitation that does not appear in the guide as it is a practical
-	// concern around execution.
-	{
-		let mut code_upgrades = 0;
-		backed_candidates.retain(|c| {
-			if c.candidate.commitments.new_validation_code.is_some() {
-				if code_upgrades >= MAX_CODE_UPGRADES {
-					return false
-				}
-
-				code_upgrades += 1;
-			}
-
-			true
-		});
-	}
-
-	// the weight of the paras inherent is already included in the current block weight,
-	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
-	if frame_system::Pallet::<T>::block_weight().total() >
-		<T as frame_system::Config>::BlockWeights::get().max_block
-	{
-		Vec::new()
-	} else {
-		backed_candidates
-	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-
 	use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
+	use primitives::{
+		v0::{ValidatorSignature, ValidityAttestation},
+		v1::{
+			CandidateHash, DisputeStatement, SessionIndex, ValidDisputeStatementKind,
+			ValidatorIndex,
+		},
+	};
 
 	mod limit_backed_candidates {
 		use super::*;
+		use no_std_compat::cmp::min;
+		use primitives::v0::ValidatorPair;
+		use sp_core::Pair;
+
+		fn sign_hash(index: u64, candidate_hash: &CandidateHash) -> ValidatorSignature {
+			let mut seed = [0u8; 32usize];
+			seed[31] = (index % (1 << 8)) as u8;
+			seed[30] = ((index >> 8) % (1 << 8)) as u8;
+			seed[29] = ((index >> 16) % (1 << 8)) as u8;
+			seed[29] = ((index >> 24) % (1 << 8)) as u8;
+			let pair = ValidatorPair::from_seed_slice(&seed).unwrap();
+			pair.sign(candidate_hash.0.as_ref())
+		}
+
+		fn make_dispute(num_statements: u32, session: SessionIndex) -> DisputeStatementSet {
+			let mut dispute = DisputeStatementSet {
+				candidate_hash: CandidateHash::default(),
+				session,
+				statements: vec![],
+			};
+			let candidate_hash = &dispute.candidate_hash;
+			for i in 0..num_statements {
+				dispute.statements.push((
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(i),
+					sign_hash(i as u64, candidate_hash),
+				));
+			}
+			dispute
+		}
+
+		fn make_backed_candidate(
+			num_signatures: u64,
+			includes_code_upgrade: bool,
+		) -> BackedCandidate {
+			let mut backed = BackedCandidate::default();
+			let candidate_hash = backed.hash();
+			for i in 0..num_signatures {
+				backed
+					.validity_votes
+					.push(ValidityAttestation::Implicit(sign_hash(i, &candidate_hash)));
+			}
+			if includes_code_upgrade {
+				backed.candidate.commitments.new_validation_code = Some(Vec::new().into());
+			}
+			backed
+		}
+
+		fn make_inherent_data(
+			num_statements: u32,
+			dispute_sessions: Vec<SessionIndex>,
+			num_candidates: u64,
+			num_signatures: u64,
+			includes_code_upgrade: bool,
+		) -> (MultiDisputeStatementSet, Vec<BackedCandidate>) {
+			(
+				dispute_sessions
+					.into_iter()
+					.map(|session| make_dispute(num_statements, session))
+					.collect(),
+				(0..num_candidates)
+					.map(|_| make_backed_candidate(num_signatures, includes_code_upgrade))
+					.collect(),
+			)
+		}
 
 		#[test]
 		fn does_not_truncate_on_empty_block() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-				let backed_candidates = vec![BackedCandidate::default()];
+				let mut disputes = vec![];
+				let mut bitfields = vec![];
+				let mut backed_candidates = vec![BackedCandidate::default()];
+
 				System::set_block_consumed_resources(0, 0);
-				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 1);
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
+				assert_eq!(backed_candidates.len(), 1);
 			});
 		}
 
 		#[test]
 		fn does_not_truncate_on_exactly_full_block() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-				let backed_candidates = vec![BackedCandidate::default()];
+				let mut disputes = vec![];
+				let mut bitfields = vec![];
+				let mut backed_candidates = vec![BackedCandidate::default()];
+
 				let max_block_weight =
 					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
 				System::set_block_consumed_resources(max_block_weight, 0);
-				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 1);
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
+				// TODO ladi - Does set_block_consumed_resources include backed candidates?
+				assert_eq!(backed_candidates.len(), 0);
 			});
 		}
 
 		#[test]
 		fn truncates_on_over_full_block() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-				let backed_candidates = vec![BackedCandidate::default()];
+				let mut disputes = vec![];
+				let mut bitfields = vec![];
+				let mut backed_candidates = vec![BackedCandidate::default()];
+
 				let max_block_weight =
 					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
 				System::set_block_consumed_resources(max_block_weight + 1, 0);
-				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 0);
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
+				assert_eq!(backed_candidates.len(), 0);
 			});
 		}
 
 		#[test]
 		fn all_backed_candidates_get_truncated() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-				let backed_candidates = vec![BackedCandidate::default(); 10];
+				let mut disputes = vec![];
+				let mut bitfields = vec![];
+				let mut backed_candidates = vec![BackedCandidate::default()];
+
 				let max_block_weight =
 					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				// if the consumed resources are precisely equal to the max block weight, we do not truncate.
 				System::set_block_consumed_resources(max_block_weight + 1, 0);
-				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 0);
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
 			});
 		}
 
 		#[test]
-		fn ignores_subsequent_code_upgrades() {
+		fn remote_disputes_untouched_when_not_overlength() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-				let mut backed = BackedCandidate::default();
-				backed.candidate.commitments.new_validation_code = Some(Vec::new().into());
-				let backed_candidates = (0..3).map(|_| backed.clone()).collect();
-				assert_eq!(limit_backed_candidates::<Test>(backed_candidates).len(), 1);
+				let (mut disputes, _) = make_inherent_data(5, vec![3, 2, 1], 0, 0, true);
+				let mut bitfields = Vec::new();
+				let mut backed_candidates = Vec::new();
+
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
+				assert_eq!(disputes.len(), 3);
+				assert_eq!(disputes[0].session, 3);
+				assert_eq!(disputes[1].session, 2);
+				assert_eq!(disputes[2].session, 1);
 			});
+		}
+
+		#[test]
+		fn remote_disputes_sorted_by_session_when_overlength() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let (mut disputes, _) = make_inherent_data(10, vec![3, 2, 1], 0, 0, true);
+				let mut bitfields = Vec::new();
+				let mut backed_candidates = Vec::new();
+
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
+				assert_eq!(disputes.len(), 2);
+				assert_eq!(disputes[0].session, 1);
+				assert_eq!(disputes[1].session, 2);
+			});
+		}
+
+		#[test]
+		fn does_not_ignore_subsequent_code_upgrades() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let mut disputes = vec![];
+				let mut bitfields = vec![];
+				let (_, mut backed_candidates) = make_inherent_data(0, Vec::new(), 3, 1, true);
+
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
+				assert_eq!(backed_candidates.len(), 3);
+			});
+		}
+
+		fn truncates_full_block(num_candidates: u64, num_signatures: u64, code_upgrades: bool) {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				let max_block_weight =
+					<Test as frame_system::Config>::BlockWeights::get().max_block;
+				let mut disputes = vec![];
+				let mut bitfields = vec![];
+				let (_, mut backed_candidates) = make_inherent_data(
+					0,
+					Vec::new(),
+					num_candidates,
+					num_signatures,
+					code_upgrades,
+				);
+
+				limit_paras_inherent::<Test>(&mut disputes, &mut bitfields, &mut backed_candidates);
+				assert_eq!(
+					backed_candidates.len() as u64,
+					min(
+						num_candidates,
+						max_block_weight /
+							(num_signatures as u64 * BACKED_CANDIDATE_WEIGHT +
+								if code_upgrades { CODE_UPGRADE_WEIGHT_FIXED } else { 0 })
+					)
+				);
+			});
+		}
+
+		fn truncates_full_block_matrix_test(code_upgrades: bool) {
+			for i in 1..10 {
+				for j in 1..10 {
+					truncates_full_block(i, j, code_upgrades);
+				}
+			}
+		}
+
+		#[test]
+		fn truncates_full_block_without_code_upgrade() {
+			truncates_full_block_matrix_test(false);
+		}
+
+		#[test]
+		fn truncates_full_block_with_code_upgrade() {
+			truncates_full_block_matrix_test(true);
 		}
 	}
 
