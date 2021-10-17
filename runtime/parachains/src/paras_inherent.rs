@@ -38,8 +38,8 @@ use primitives::v1::{
 };
 use sp_runtime::traits::Header as HeaderT;
 use sp_std::prelude::*;
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 
 pub use pallet::*;
 

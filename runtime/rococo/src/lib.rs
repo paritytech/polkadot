@@ -1603,7 +1603,7 @@ sp_api::impl_runtime_apis! {
 
 			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
 			list_benchmark!(list, extra, runtime_parachains::disputes, ParasDisputes);
-			// list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParaInherent);
+			list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParaInherent);
 			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
@@ -1636,7 +1636,7 @@ sp_api::impl_runtime_apis! {
 
 			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
 			add_benchmark!(params, batches, runtime_parachains::disputes, ParasDisputes);
-			// add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
+			add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
