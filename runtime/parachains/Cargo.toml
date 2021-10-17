@@ -5,7 +5,6 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["full_crypto"] }
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
@@ -43,6 +42,8 @@ primitives = { package = "polkadot-primitives", path = "../../primitives", defau
 
 rand = { version = "0.8.3", default-features = false }
 rand_chacha = { version = "0.3.1", default-features = false }
+
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
 [dev-dependencies]
 futures = "0.3.17"
@@ -87,7 +88,8 @@ runtime-benchmarks = [
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
-	"primitives/runtime-benchmarks"
+	"primitives/runtime-benchmarks",
+	"application-crypto/full_crypto"
 ]
 try-runtime = [
 	"frame-support/try-runtime",
