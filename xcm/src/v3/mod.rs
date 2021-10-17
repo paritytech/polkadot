@@ -37,8 +37,8 @@ pub use traits::{
 pub use super::v2::{
 	Ancestor, AncestorThen, AssetId, AssetInstance, BodyId, BodyPart, Fungibility,
 	InteriorMultiLocation, Junction, Junctions, MultiAsset, MultiAssetFilter, MultiAssets,
-	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WildFungibility, WildMultiAsset,
-	WeightLimit,
+	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WeightLimit, WildFungibility,
+	WildMultiAsset,
 };
 
 /// This module's XCM version.
@@ -364,7 +364,7 @@ pub enum Instruction<Call> {
 	///
 	/// A `QueryResponse` message of type `ExecutionOutcome` is sent to `dest` with the given
 	/// `query_id` and the outcome of the XCM.
-	/// 
+	///
 	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
 	/// - `dest`: A valid destination for the returned XCM message.
 	/// - `max_response_weight`: The maximum amount of weight that the `QueryResponse` item which
@@ -581,7 +581,7 @@ pub enum Instruction<Call> {
 	/// Ask the destination system to respond with the most recent version of XCM that they
 	/// support in a `QueryResponse` instruction. Any changes to this should also elicit similar
 	/// responses when they happen.
-	/// 
+	///
 	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
 	/// - `max_response_weight`: The maximum amount of weight that the `QueryResponse` item which
 	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
@@ -606,8 +606,8 @@ pub enum Instruction<Call> {
 
 	/// Reduce Holding by up to the given assets.
 	///
-	/// Holding is reduced by up to the assets in the parameter. If this is less than the 
-	/// 
+	/// Holding is reduced by up to the assets in the parameter. If this is less than the
+	///
 	/// Kind: *Instruction*
 	///
 	/// Errors: *Fallible*
@@ -771,12 +771,10 @@ impl TryFrom<OldResponse> for Response {
 		match old_response {
 			OldResponse::Assets(assets) => Ok(Self::Assets(assets)),
 			OldResponse::Version(version) => Ok(Self::Version(version)),
-			OldResponse::ExecutionResult(error) => {
-				Ok(Self::ExecutionResult(match error {
-					Some((i, e)) => Some((i, e.try_into()?)),
-					None => None,
-				}))
-			},
+			OldResponse::ExecutionResult(error) => Ok(Self::ExecutionResult(match error {
+				Some((i, e)) => Some((i, e.try_into()?)),
+				None => None,
+			})),
 			OldResponse::Null => Ok(Self::Null),
 		}
 	}
@@ -848,9 +846,10 @@ mod tests {
 	fn basic_roundtrip_works() {
 		let xcm =
 			Xcm::<()>(vec![TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() }]);
-		let old_xcm = OldXcm::<()>(vec![
-			OldInstruction::TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() }
-		]);
+		let old_xcm = OldXcm::<()>(vec![OldInstruction::TransferAsset {
+			assets: (Here, 1).into(),
+			beneficiary: Here.into(),
+		}]);
 		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
 		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
 		assert_eq!(new_xcm, xcm);

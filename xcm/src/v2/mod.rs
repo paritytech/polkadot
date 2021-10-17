@@ -16,8 +16,10 @@
 
 //! Version 1 of the Cross-Consensus Message format data structures.
 
-use super::v1::{Order as OldOrder, Response as OldResponse, Xcm as OldXcm};
-use super::v3::{Instruction as NewInstruction, Response as NewResponse, Xcm as NewXcm};
+use super::{
+	v1::{Order as OldOrder, Response as OldResponse, Xcm as OldXcm},
+	v3::{Instruction as NewInstruction, Response as NewResponse, Xcm as NewXcm},
+};
 use crate::{DoubleEncoded, GetWeight};
 use alloc::{vec, vec::Vec};
 use core::{
@@ -391,7 +393,7 @@ pub enum Instruction<Call> {
 	///
 	/// A `QueryResponse` message of type `ExecutionOutcome` is sent to `dest` with the given
 	/// `query_id` and the outcome of the XCM.
-	/// 
+	///
 	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
 	/// - `dest`: A valid destination for the returned XCM message.
 	/// - `max_response_weight`: The maximum amount of weight that the `QueryResponse` item which
@@ -608,7 +610,7 @@ pub enum Instruction<Call> {
 	/// Ask the destination system to respond with the most recent version of XCM that they
 	/// support in a `QueryResponse` instruction. Any changes to this should also elicit similar
 	/// responses when they happen.
-	/// 
+	///
 	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
 	/// - `max_response_weight`: The maximum amount of weight that the `QueryResponse` item which
 	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
@@ -767,12 +769,10 @@ impl TryFrom<NewResponse> for Response {
 		match response {
 			NewResponse::Assets(assets) => Ok(Self::Assets(assets)),
 			NewResponse::Version(version) => Ok(Self::Version(version)),
-			NewResponse::ExecutionResult(error) => {
-				Ok(Self::ExecutionResult(match error {
-					Some((i, e)) => Some((i, e.try_into()?)),
-					None => None,
-				}))
-			},
+			NewResponse::ExecutionResult(error) => Ok(Self::ExecutionResult(match error {
+				Some((i, e)) => Some((i, e.try_into()?)),
+				None => None,
+			})),
 			NewResponse::Null => Ok(Self::Null),
 		}
 	}

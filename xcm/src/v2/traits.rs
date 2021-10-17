@@ -16,10 +16,10 @@
 
 //! Cross-Consensus Message format data structures.
 
+use crate::v3::Error as NewError;
 use core::result;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use crate::v3::Error as NewError;
 
 use super::*;
 

@@ -16,10 +16,10 @@
 
 //! Cross-Consensus Message format data structures.
 
+use crate::v2::Error as OldError;
 use core::result;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use crate::v2::Error as OldError;
 
 use super::*;
 
@@ -414,8 +414,16 @@ pub trait XcmWeightInfo<Call> {
 	fn trap(code: &u64) -> Weight;
 	fn subscribe_version(query_id: &QueryId, max_response_weight: &u64) -> Weight;
 	fn unsubscribe_version() -> Weight;
-	fn burn_asset(_assets: &MultiAssets) -> Weight { 0 }
-	fn expect_asset(_assets: &MultiAssets) -> Weight { 0 }
-	fn expect_origin(_origin: &MultiLocation) -> Weight { 0 }
-	fn expect_error(_error: &Option<(u32, Error)>) -> Weight { 0 }
+	fn burn_asset(_assets: &MultiAssets) -> Weight {
+		0
+	}
+	fn expect_asset(_assets: &MultiAssets) -> Weight {
+		0
+	}
+	fn expect_origin(_origin: &MultiLocation) -> Weight {
+		0
+	}
+	fn expect_error(_error: &Option<(u32, Error)>) -> Weight {
+		0
+	}
 }
