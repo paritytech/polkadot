@@ -505,7 +505,7 @@ impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
 	}
 }
 
-// Convert from a v1 response to a v2 response
+// Convert from a v2 response to a v1 response
 impl TryFrom<NewResponse> for Response {
 	type Error = ();
 	fn try_from(response: NewResponse) -> result::Result<Self, ()> {

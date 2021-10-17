@@ -19,6 +19,7 @@
 use core::result;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use crate::v3::Error as NewError;
 
 use super::*;
 
@@ -108,6 +109,38 @@ pub enum Error {
 	Barrier,
 	/// The weight of an XCM message is not computable ahead of execution.
 	WeightNotComputable,
+}
+
+impl TryFrom<NewError> for Error {
+	type Error = ();
+	fn try_from(new_error: NewError) -> result::Result<Error, ()> {
+		use NewError::*;
+		Ok(match new_error {
+			Overflow => Self::Overflow,
+			Unimplemented => Self::Unimplemented,
+			UntrustedReserveLocation => Self::UntrustedReserveLocation,
+			UntrustedTeleportLocation => Self::UntrustedTeleportLocation,
+			MultiLocationFull => Self::MultiLocationFull,
+			MultiLocationNotInvertible => Self::MultiLocationNotInvertible,
+			BadOrigin => Self::BadOrigin,
+			InvalidLocation => Self::InvalidLocation,
+			AssetNotFound => Self::AssetNotFound,
+			FailedToTransactAsset(s) => Self::FailedToTransactAsset(s),
+			NotWithdrawable => Self::NotWithdrawable,
+			LocationCannotHold => Self::LocationCannotHold,
+			ExceedsMaxMessageSize => Self::ExceedsMaxMessageSize,
+			DestinationUnsupported => Self::DestinationUnsupported,
+			Transport(s) => Self::Transport(s),
+			Unroutable => Self::Unroutable,
+			UnknownClaim => Self::UnknownClaim,
+			FailedToDecode => Self::FailedToDecode,
+			TooMuchWeightRequired => Self::TooMuchWeightRequired,
+			NotHoldingFees => Self::NotHoldingFees,
+			TooExpensive => Self::TooExpensive,
+			Trap(i) => Self::Trap(i),
+			_ => return Err(()),
+		})
+	}
 }
 
 impl From<SendError> for Error {
@@ -320,7 +353,7 @@ impl SendXcm for Tuple {
 	}
 }
 
-/// The info needed to weight an XCM.
+/// The info needed to weigh an XCM.
 // TODO: Automate Generation
 pub trait XcmWeightInfo<Call> {
 	fn withdraw_asset(assets: &MultiAssets) -> Weight;

@@ -17,6 +17,7 @@
 //! Version 1 of the Cross-Consensus Message format data structures.
 
 use super::v1::{Order as OldOrder, Response as OldResponse, Xcm as OldXcm};
+use super::v3::{Instruction as NewInstruction, Response as NewResponse, Xcm as NewXcm};
 use crate::{DoubleEncoded, GetWeight};
 use alloc::{vec, vec::Vec};
 use core::{
@@ -390,6 +391,12 @@ pub enum Instruction<Call> {
 	///
 	/// A `QueryResponse` message of type `ExecutionOutcome` is sent to `dest` with the given
 	/// `query_id` and the outcome of the XCM.
+	/// 
+	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
+	/// - `dest`: A valid destination for the returned XCM message.
+	/// - `max_response_weight`: The maximum amount of weight that the `QueryResponse` item which
+	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
+	///   response may not execute at all.
 	///
 	/// Kind: *Instruction*
 	///
@@ -601,8 +608,15 @@ pub enum Instruction<Call> {
 	/// Ask the destination system to respond with the most recent version of XCM that they
 	/// support in a `QueryResponse` instruction. Any changes to this should also elicit similar
 	/// responses when they happen.
+	/// 
+	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
+	/// - `max_response_weight`: The maximum amount of weight that the `QueryResponse` item which
+	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
+	///   response may not execute at all.
 	///
 	/// Kind: *Instruction*
+	///
+	/// Errors: *Fallible*
 	SubscribeVersion {
 		#[codec(compact)]
 		query_id: QueryId,
@@ -613,6 +627,8 @@ pub enum Instruction<Call> {
 	/// Cancel the effect of a previous `SubscribeVersion` instruction.
 	///
 	/// Kind: *Instruction*
+	///
+	/// Errors: *Fallible*
 	UnsubscribeVersion,
 }
 
@@ -744,6 +760,24 @@ impl TryFrom<OldResponse> for Response {
 	}
 }
 
+// Convert from a v3 response to a v2 response
+impl TryFrom<NewResponse> for Response {
+	type Error = ();
+	fn try_from(response: NewResponse) -> result::Result<Self, ()> {
+		match response {
+			NewResponse::Assets(assets) => Ok(Self::Assets(assets)),
+			NewResponse::Version(version) => Ok(Self::Version(version)),
+			NewResponse::ExecutionResult(error) => {
+				Ok(Self::ExecutionResult(match error {
+					Some((i, e)) => Some((i, e.try_into()?)),
+					None => None,
+				}))
+			},
+			NewResponse::Null => Ok(Self::Null),
+		}
+	}
+}
+
 impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	type Error = ();
 	fn try_from(old: OldXcm<Call>) -> result::Result<Xcm<Call>, ()> {
@@ -796,6 +830,14 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	}
 }
 
+// Convert from a v3 XCM to a v2 XCM.
+impl<Call> TryFrom<NewXcm<Call>> for Xcm<Call> {
+	type Error = ();
+	fn try_from(new_xcm: NewXcm<Call>) -> result::Result<Self, ()> {
+		Ok(Xcm(new_xcm.0.into_iter().map(TryInto::try_into).collect::<result::Result<_, _>>()?))
+	}
+}
+
 impl<Call> TryFrom<OldOrder<Call>> for Instruction<Call> {
 	type Error = ();
 	fn try_from(old: OldOrder<Call>) -> result::Result<Instruction<Call>, ()> {
@@ -841,6 +883,57 @@ impl<Call> TryFrom<OldOrder<Call>> for Instruction<Call> {
 				}
 				BuyExecution { fees, weight_limit: WeightLimit::Limited(debt) }
 			},
+		})
+	}
+}
+
+// Convert from a v3 instruction to a v2 instruction
+impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
+	type Error = ();
+	fn try_from(instruction: NewInstruction<Call>) -> result::Result<Self, ()> {
+		use NewInstruction::*;
+		Ok(match instruction {
+			WithdrawAsset(assets) => Self::WithdrawAsset(assets),
+			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets),
+			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets),
+			QueryResponse { query_id, response, max_weight } =>
+				Self::QueryResponse { query_id, response: response.try_into()?, max_weight },
+			TransferAsset { assets, beneficiary } => Self::TransferAsset { assets, beneficiary },
+			TransferReserveAsset { assets, dest, xcm } =>
+				Self::TransferReserveAsset { assets, dest, xcm: xcm.try_into()? },
+			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
+				Self::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
+			HrmpChannelAccepted { recipient } => Self::HrmpChannelAccepted { recipient },
+			HrmpChannelClosing { initiator, sender, recipient } =>
+				Self::HrmpChannelClosing { initiator, sender, recipient },
+			Transact { origin_type, require_weight_at_most, call } =>
+				Self::Transact { origin_type, require_weight_at_most, call: call.into() },
+			ReportError { query_id, dest, max_response_weight } =>
+				Self::ReportError { query_id, dest, max_response_weight },
+			DepositAsset { assets, max_assets, beneficiary } =>
+				Self::DepositAsset { assets, max_assets, beneficiary },
+			DepositReserveAsset { assets, max_assets, dest, xcm } =>
+				Self::DepositReserveAsset { assets, max_assets, dest, xcm: xcm.try_into()? },
+			ExchangeAsset { give, receive } => Self::ExchangeAsset { give, receive },
+			InitiateReserveWithdraw { assets, reserve, xcm } =>
+				Self::InitiateReserveWithdraw { assets, reserve, xcm: xcm.try_into()? },
+			InitiateTeleport { assets, dest, xcm } =>
+				Self::InitiateTeleport { assets, dest, xcm: xcm.try_into()? },
+			QueryHolding { query_id, dest, assets, max_response_weight } =>
+				Self::QueryHolding { query_id, dest, assets, max_response_weight },
+			BuyExecution { fees, weight_limit } => Self::BuyExecution { fees, weight_limit },
+			ClearOrigin => Self::ClearOrigin,
+			DescendOrigin(who) => Self::DescendOrigin(who),
+			RefundSurplus => Self::RefundSurplus,
+			SetErrorHandler(xcm) => Self::SetErrorHandler(xcm.try_into()?),
+			SetAppendix(xcm) => Self::SetAppendix(xcm.try_into()?),
+			ClearError => Self::ClearError,
+			ClaimAsset { assets, ticket } => Self::ClaimAsset { assets, ticket },
+			Trap(code) => Self::Trap(code),
+			SubscribeVersion { query_id, max_response_weight } =>
+				Self::SubscribeVersion { query_id, max_response_weight },
+			UnsubscribeVersion => Self::UnsubscribeVersion,
+			_ => return Err(()),
 		})
 	}
 }

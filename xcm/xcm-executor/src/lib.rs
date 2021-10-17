@@ -451,6 +451,22 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(&self.original_origin == origin, XcmError::BadOrigin);
 				Config::SubscriptionService::stop(origin)
 			},
+			BurnAsset(assets) => {
+				self.holding.saturating_take(assets.into());
+				Ok(())
+			},
+			ExpectAsset(assets) => {
+				self.holding.ensure_contains(&assets).map_err(|_| XcmError::ExpectationFalse)
+			},
+			ExpectOrigin(origin) => {
+				let origin_ref = self.origin.as_ref().ok_or(XcmError::ExpectationFalse)?;
+				ensure!(origin_ref == &origin, XcmError::ExpectationFalse);
+				Ok(())
+			},
+			ExpectError(error) => {
+				ensure!(self.error == error, XcmError::ExpectationFalse);
+				Ok(())
+			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),

@@ -35,9 +35,10 @@ use scale_info::TypeInfo;
 pub mod v0;
 pub mod v1;
 pub mod v2;
+pub mod v3;
 
 pub mod latest {
-	pub use super::v2::*;
+	pub use super::v3::*;
 }
 
 mod double_encoded;
@@ -83,7 +84,7 @@ impl IntoVersion for VersionedMultiLocation {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
 			0 => Self::V0(self.try_into()?),
-			1 | 2 => Self::V1(self.try_into()?),
+			1 | 2 | 3 => Self::V1(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
@@ -132,6 +133,7 @@ pub enum VersionedResponse {
 	V0(v0::Response),
 	V1(v1::Response),
 	V2(v2::Response),
+	V3(v3::Response),
 }
 
 impl IntoVersion for VersionedResponse {
@@ -140,6 +142,7 @@ impl IntoVersion for VersionedResponse {
 			0 => Self::V0(self.try_into()?),
 			1 => Self::V1(self.try_into()?),
 			2 => Self::V2(self.try_into()?),
+			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
@@ -157,9 +160,15 @@ impl From<v1::Response> for VersionedResponse {
 	}
 }
 
-impl<T: Into<v2::Response>> From<T> for VersionedResponse {
+impl From<v2::Response> for VersionedResponse {
+	fn from(x: v2::Response) -> Self {
+		VersionedResponse::V2(x)
+	}
+}
+
+impl<T: Into<v3::Response>> From<T> for VersionedResponse {
 	fn from(x: T) -> Self {
-		VersionedResponse::V2(x.into())
+		VersionedResponse::V3(x.into())
 	}
 }
 
@@ -170,7 +179,8 @@ impl TryFrom<VersionedResponse> for v0::Response {
 		match x {
 			V0(x) => Ok(x),
 			V1(x) => x.try_into(),
-			V2(x) => VersionedResponse::V1(x.try_into()?).try_into(),
+			V2(x) => V1(x.try_into()?).try_into(),
+			V3(x) => V2(x.try_into()?).try_into(),
 		}
 	}
 }
@@ -183,6 +193,7 @@ impl TryFrom<VersionedResponse> for v1::Response {
 			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
 			V2(x) => x.try_into(),
+			V3(x) => V2(x.try_into()?).try_into(),
 		}
 	}
 }
@@ -192,9 +203,23 @@ impl TryFrom<VersionedResponse> for v2::Response {
 	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
 		use VersionedResponse::*;
 		match x {
-			V0(x) => VersionedResponse::V1(x.try_into()?).try_into(),
+			V0(x) => V1(x.try_into()?).try_into(),
 			V1(x) => x.try_into(),
 			V2(x) => Ok(x),
+			V3(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedResponse> for v3::Response {
+	type Error = ();
+	fn try_from(x: VersionedResponse) -> Result<Self, ()> {
+		use VersionedResponse::*;
+		match x {
+			V0(x) => V1(x.try_into()?).try_into(),
+			V1(x) => V2(x.try_into()?).try_into(),
+			V2(x) => x.try_into(),
+			V3(x) => Ok(x),
 		}
 	}
 }
@@ -213,7 +238,7 @@ impl IntoVersion for VersionedMultiAsset {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
 			0 => Self::V0(self.try_into()?),
-			1 | 2 => Self::V1(self.try_into()?),
+			1 | 2 | 3 => Self::V1(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
@@ -267,7 +292,7 @@ impl IntoVersion for VersionedMultiAssets {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
 			0 => Self::V0(self.try_into()?),
-			1 | 2 => Self::V1(self.try_into()?),
+			1 | 2 | 3 => Self::V1(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
@@ -317,6 +342,7 @@ pub enum VersionedXcm<Call> {
 	V0(v0::Xcm<Call>),
 	V1(v1::Xcm<Call>),
 	V2(v2::Xcm<Call>),
+	V3(v3::Xcm<Call>),
 }
 
 impl<C> IntoVersion for VersionedXcm<C> {
@@ -325,6 +351,7 @@ impl<C> IntoVersion for VersionedXcm<C> {
 			0 => Self::V0(self.try_into()?),
 			1 => Self::V1(self.try_into()?),
 			2 => Self::V2(self.try_into()?),
+			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
@@ -348,6 +375,12 @@ impl<Call> From<v2::Xcm<Call>> for VersionedXcm<Call> {
 	}
 }
 
+impl<Call> From<v3::Xcm<Call>> for VersionedXcm<Call> {
+	fn from(x: v3::Xcm<Call>) -> Self {
+		VersionedXcm::V3(x)
+	}
+}
+
 impl<Call> TryFrom<VersionedXcm<Call>> for v0::Xcm<Call> {
 	type Error = ();
 	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
@@ -356,6 +389,7 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v0::Xcm<Call> {
 			V0(x) => Ok(x),
 			V1(x) => x.try_into(),
 			V2(x) => V1(x.try_into()?).try_into(),
+			V3(x) => V2(x.try_into()?).try_into(),
 		}
 	}
 }
@@ -368,6 +402,7 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v1::Xcm<Call> {
 			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
 			V2(x) => x.try_into(),
+			V3(x) => V2(x.try_into()?).try_into(),
 		}
 	}
 }
@@ -380,6 +415,20 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v2::Xcm<Call> {
 			V0(x) => V1(x.try_into()?).try_into(),
 			V1(x) => x.try_into(),
 			V2(x) => Ok(x),
+			V3(x) => x.try_into(),
+		}
+	}
+}
+
+impl<Call> TryFrom<VersionedXcm<Call>> for v3::Xcm<Call> {
+	type Error = ();
+	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+		use VersionedXcm::*;
+		match x {
+			V0(x) => V1(x.try_into()?).try_into(),
+			V1(x) => V2(x.try_into()?).try_into(),
+			V2(x) => x.try_into(),
+			V3(x) => Ok(x),
 		}
 	}
 }
@@ -402,28 +451,6 @@ impl WrapVersion for () {
 	}
 }
 
-/// `WrapVersion` implementation which attempts to always convert the XCM to version 0 before wrapping it.
-pub struct AlwaysV0;
-impl WrapVersion for AlwaysV0 {
-	fn wrap_version<Call>(
-		_: &latest::MultiLocation,
-		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
-		Ok(VersionedXcm::<Call>::V0(xcm.into().try_into()?))
-	}
-}
-
-/// `WrapVersion` implementation which attempts to always convert the XCM to version 1 before wrapping it.
-pub struct AlwaysV1;
-impl WrapVersion for AlwaysV1 {
-	fn wrap_version<Call>(
-		_: &latest::MultiLocation,
-		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
-		Ok(VersionedXcm::<Call>::V1(xcm.into().try_into()?))
-	}
-}
-
 /// `WrapVersion` implementation which attempts to always convert the XCM to version 2 before wrapping it.
 pub struct AlwaysV2;
 impl WrapVersion for AlwaysV2 {
@@ -435,15 +462,26 @@ impl WrapVersion for AlwaysV2 {
 	}
 }
 
+/// `WrapVersion` implementation which attempts to always convert the XCM to version 2 before wrapping it.
+pub struct AlwaysV3;
+impl WrapVersion for AlwaysV3 {
+	fn wrap_version<Call>(
+		_: &latest::MultiLocation,
+		xcm: impl Into<VersionedXcm<Call>>,
+	) -> Result<VersionedXcm<Call>, ()> {
+		Ok(VersionedXcm::<Call>::V3(xcm.into().try_into()?))
+	}
+}
+
 /// `WrapVersion` implementation which attempts to always convert the XCM to the latest version before wrapping it.
-pub type AlwaysLatest = AlwaysV1;
+pub type AlwaysLatest = AlwaysV2;
 
 /// `WrapVersion` implementation which attempts to always convert the XCM to the release version before wrapping it.
-pub type AlwaysRelease = AlwaysV0;
+pub type AlwaysRelease = AlwaysV2;
 
 pub mod prelude {
 	pub use super::{
-		latest::prelude::*, AlwaysLatest, AlwaysRelease, AlwaysV0, AlwaysV1, AlwaysV2, IntoVersion,
+		latest::prelude::*, AlwaysLatest, AlwaysRelease, AlwaysV2, AlwaysV3, IntoVersion,
 		Unsupported, Version as XcmVersion, VersionedMultiAsset, VersionedMultiAssets,
 		VersionedMultiLocation, VersionedResponse, VersionedXcm, WrapVersion,
 	};
@@ -468,9 +506,15 @@ pub mod opaque {
 		// Then override with the opaque types in v2
 		pub use crate::v2::opaque::{Instruction, Xcm};
 	}
+	pub mod v3 {
+		// Everything from v2
+		pub use crate::v3::*;
+		// Then override with the opaque types in v3
+		pub use crate::v3::opaque::{Instruction, Xcm};
+	}
 
 	pub mod latest {
-		pub use super::v2::*;
+		pub use super::v3::*;
 	}
 
 	/// The basic `VersionedXcm` type which just uses the `Vec<u8>` as an encoded call.
