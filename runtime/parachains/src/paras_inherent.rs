@@ -217,7 +217,7 @@ pub mod pallet {
 					Err(err) => {
 						log::error!(
 							target: LOG_TARGET,
-								"dropping signed_bitfields and backed_candidates because they produced \
+								"dropping paras inherent data because they produced \
 							an invalid paras inherent: {:?}",
 							err.error,
 						);
