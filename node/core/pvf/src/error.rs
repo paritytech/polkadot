@@ -14,6 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use parity_scale_codec::{Decode, Encode};
+
+/// An error reported during the prechecking routine.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum PrecheckError {
+	/// Failed to precheck the PVF due to the time limit.
+	TimedOut,
+	/// Failed to precheck the PVF due to the memory limit.
+	MemoryLimitReached,
+	/// Compilation error occurred.
+	CompileError(String),
+	/// Couldn't serve the request due to some kind of internal error.
+	Internal(String),
+}
+
 /// A error raised during validation of the candidate.
 #[derive(Debug, Clone)]
 pub enum ValidationError {

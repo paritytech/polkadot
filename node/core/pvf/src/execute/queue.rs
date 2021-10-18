@@ -21,7 +21,7 @@ use crate::{
 	artifacts::{ArtifactId, ArtifactPathId},
 	host::ResultSender,
 	metrics::Metrics,
-	worker_common::{IdleWorker, WorkerHandle},
+	worker_common::{IdleWorker, Worker, WorkerData, WorkerHandle, Workers},
 	InvalidCandidate, ValidationError, LOG_TARGET,
 };
 use async_std::path::PathBuf;
@@ -32,9 +32,7 @@ use futures::{
 	Future, FutureExt,
 };
 use slotmap::HopSlotMap;
-use std::{collections::VecDeque, fmt, time::Duration};
-
-slotmap::new_key_type! { struct Worker; }
+use std::{collections::VecDeque, time::Duration};
 
 #[derive(Debug)]
 pub enum ToQueue {
@@ -51,47 +49,6 @@ struct ExecuteJob {
 	execution_timeout: Duration,
 	params: Vec<u8>,
 	result_tx: ResultSender,
-}
-
-struct WorkerData {
-	idle: Option<IdleWorker>,
-	handle: WorkerHandle,
-}
-
-impl fmt::Debug for WorkerData {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "WorkerData(pid={})", self.handle.id())
-	}
-}
-
-struct Workers {
-	/// The registry of running workers.
-	running: HopSlotMap<Worker, WorkerData>,
-
-	/// The number of spawning but not yet spawned workers.
-	spawn_inflight: usize,
-
-	/// The maximum number of workers queue can have at once.
-	capacity: usize,
-}
-
-impl Workers {
-	fn can_afford_one_more(&self) -> bool {
-		self.spawn_inflight + self.running.len() < self.capacity
-	}
-
-	fn find_available(&self) -> Option<Worker> {
-		self.running
-			.iter()
-			.find_map(|d| if d.1.idle.is_some() { Some(d.0) } else { None })
-	}
-
-	/// Find the associated data by the worker token and extract it's [`IdleWorker`] token.
-	///
-	/// Returns `None` if either worker is not recognized or idle token is absent.
-	fn claim_idle(&mut self, worker: Worker) -> Option<IdleWorker> {
-		self.running.get_mut(worker)?.idle.take()
-	}
 }
 
 enum QueueEvent {

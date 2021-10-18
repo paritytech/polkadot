@@ -63,6 +63,10 @@ macro_rules! decl_puppet_worker_main {
 				"sleep" => {
 					std::thread::sleep(std::time::Duration::from_secs(5));
 				},
+				"precheck-worker" => {
+					let socket_path = &args[2];
+					$crate::precheck_worker_entrypoint(socket_path);
+				},
 				"prepare-worker" => {
 					let socket_path = &args[2];
 					$crate::prepare_worker_entrypoint(socket_path);

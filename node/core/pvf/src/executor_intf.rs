@@ -17,6 +17,7 @@
 //! Interface to the Substrate Executor
 
 use sc_executor_common::{
+	error::WasmError,
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
 };
@@ -73,7 +74,7 @@ const CONFIG: Config = Config {
 };
 
 /// Runs the prevalidation on the given code. Returns a [`RuntimeBlob`] if it succeeds.
-pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error::WasmError> {
+pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, WasmError> {
 	let blob = RuntimeBlob::new(code)?;
 	// It's assumed this function will take care of any prevalidation logic
 	// that needs to be done.
@@ -84,8 +85,15 @@ pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error
 
 /// Runs preparation on the given runtime blob. If successful, it returns a serialized compiled
 /// artifact which can then be used to pass into [`execute`].
-pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
+pub fn prepare(blob: RuntimeBlob) -> Result<Vec<u8>, WasmError> {
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &CONFIG.semantics)
+}
+
+/// Runs [`prepare`] routine on a single thread.
+pub fn prepare_single_threaded(blob: RuntimeBlob) -> Result<Vec<u8>, WasmError> {
+	let mut semantics = CONFIG.semantics;
+	semantics.parallel_compilation = false;
+	sc_executor_wasmtime::prepare_runtime_artifact(blob, &semantics)
 }
 
 /// Executes the given PVF in the form of a compiled artifact and returns the result of execution

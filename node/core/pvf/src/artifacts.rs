@@ -144,6 +144,11 @@ impl Artifacts {
 	}
 
 	/// Returns the state of the given artifact by its ID.
+	pub fn artifact_state(&self, artifact_id: &ArtifactId) -> Option<&ArtifactState> {
+		self.artifacts.get(artifact_id)
+	}
+
+	/// Returns mutable state of the given artifact by its ID.
 	pub fn artifact_state_mut(&mut self, artifact_id: &ArtifactId) -> Option<&mut ArtifactState> {
 		self.artifacts.get_mut(artifact_id)
 	}
