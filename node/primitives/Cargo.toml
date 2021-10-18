@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-primitives"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Primitives types for the Node-side"
@@ -18,7 +18,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-parachain = { path = "../../parachain", default-features = false }
 schnorrkel = "0.9.1"
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 serde = { version = "1.0.130", features = ["derive"] }
 
 [target.'cfg(not(target_os = "unknown"))'.dependencies]

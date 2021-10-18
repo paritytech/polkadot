@@ -1,6 +1,6 @@
 [package]
 name = "staking-miner"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -14,7 +14,7 @@ jsonrpsee-ws-client = { version = "0.3.1", default-features = false, features = 
 serde_json = "1.0"
 serde = "1.0.130"
 paste = "1.0.5"
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
