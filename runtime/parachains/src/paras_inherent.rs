@@ -919,8 +919,7 @@ mod tests {
 					},
 				}
 				.dispatch_bypass_filter(None.into())
-				.unwrap_err()
-				.post_info;
+				.unwrap();
 
 				// we don't directly check the block's weight post-call. Instead, we check that the
 				// call has returned the appropriate post-dispatch weight for refund, and trust
