@@ -29,7 +29,7 @@ use crate::{
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump, ParaId,
 };
-use bitvec::{bitvec, order::Lsb0, prelude::BitVec};
+use bitvec::{order::Lsb0, prelude::BitVec};
 use frame_support::{
 	fail,
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
@@ -71,6 +71,7 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
 }
 
 impl DisputedBitfield {
+	/// Create a new bitfield, where each bit is set to `false`.
 	pub fn zeros(n: usize) -> Self {
 		Self::from(BitVec::<bitvec::order::Lsb0, u8>::repeat(false, n))
 	}
@@ -489,9 +490,11 @@ fn apply_weight_limit<T: Config, F: Fn(CoreIndex) -> Option<ParaId>>(
 		.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
 		.filter_map(|opt_para_id| opt_para_id)
 		.map(|para_id| {
-			PendingAvailability::<T>::get(&para_id);
+			PendingAvailability::<T>::get(&para_id)
 		})
-		.map(|cpa: CandidatePendingAvailability<T,<T>::BlockNumber>| (cpa.candidate_hash(), cpa.core_occupied()))
+		.map(|cpa: CandidatePendingAvailability<T,<T>::BlockNumber>| {
+			(cpa.candidate_hash(), cpa.core_occupied())
+		})
 		.collect();
 
 	while weight_acc < max_weight || !candidates.is_empty() {
