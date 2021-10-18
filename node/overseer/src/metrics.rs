@@ -17,10 +17,9 @@
 //! Prometheus metrics related to the overseer and its channels.
 
 use super::*;
-use polkadot_node_metrics::metrics::{self, prometheus};
+pub use polkadot_node_metrics::metrics::{self, prometheus, Metrics as MetricsTrait};
 
-#[cfg(feature = "memory-stats")]
-use polkadot_node_metrics::MemoryAllocationSnapshot;
+use parity_util_mem::MemoryAllocationSnapshot;
 
 /// Overseer Prometheus metrics.
 #[derive(Clone)]
@@ -35,10 +34,7 @@ struct MetricsInner {
 	signals_sent: prometheus::GaugeVec<prometheus::U64>,
 	signals_received: prometheus::GaugeVec<prometheus::U64>,
 
-	#[cfg(feature = "memory-stats")]
 	memory_stats_resident: prometheus::Gauge<prometheus::U64>,
-
-	#[cfg(feature = "memory-stats")]
 	memory_stats_allocated: prometheus::Gauge<prometheus::U64>,
 }
 
@@ -65,13 +61,10 @@ impl Metrics {
 		}
 	}
 
-	#[cfg(feature = "memory-stats")]
 	pub(crate) fn memory_stats_snapshot(&self, memory_stats: MemoryAllocationSnapshot) {
 		if let Some(metrics) = &self.0 {
-			let MemoryAllocationSnapshot { resident, allocated } = memory_stats;
-
-			metrics.memory_stats_allocated.set(allocated);
-			metrics.memory_stats_resident.set(resident);
+			metrics.memory_stats_allocated.set(memory_stats.allocated);
+			metrics.memory_stats_resident.set(memory_stats.resident);
 		}
 	}
 
@@ -117,7 +110,7 @@ impl Metrics {
 	}
 }
 
-impl metrics::Metrics for Metrics {
+impl MetricsTrait for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			activated_heads_total: prometheus::register(
@@ -202,7 +195,6 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 
-			#[cfg(feature = "memory-stats")]
 			memory_stats_allocated: prometheus::register(
 				prometheus::Gauge::<prometheus::U64>::new(
 					"memory_allocated",
@@ -210,8 +202,6 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-
-			#[cfg(feature = "memory-stats")]
 			memory_stats_resident: prometheus::register(
 				prometheus::Gauge::<prometheus::U64>::new(
 					"memory_resident",

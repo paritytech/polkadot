@@ -31,6 +31,7 @@ use primitives::v1::{
 	ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead, UpgradeRestriction,
 	ValidationCode, ValidationCodeHash,
 };
+use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
 use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
 use sp_std::{prelude::*, result};
@@ -40,10 +41,13 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::Origin as ParachainOrigin;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
 pub use pallet::*;
 
 // the two key times necessary to track for every code replacement.
-#[derive(Default, Encode, Decode)]
+#[derive(Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(Debug, Clone, PartialEq))]
 pub struct ReplacementTimes<N> {
 	/// The relay-chain block number that the code upgrade was expected to be activated.
@@ -58,7 +62,7 @@ pub struct ReplacementTimes<N> {
 
 /// Metadata used to track previous parachain validation code that we keep in
 /// the state.
-#[derive(Default, Encode, Decode)]
+#[derive(Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(Debug, Clone, PartialEq))]
 pub struct ParaPastCodeMeta<N> {
 	/// Block numbers where the code was expected to be replaced and where the code
@@ -87,7 +91,7 @@ enum UseCodeAt<N> {
 /// If the para is in a "transition state", it is expected that the parachain is
 /// queued in the `ActionsQueue` to transition it into a stable state. Its lifecycle
 /// state will be used to determine the state transition to apply to the para.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub enum ParaLifecycle {
 	/// Para is new and is onboarding as a Parathread or Parachain.
 	Onboarding,
@@ -255,7 +259,7 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 }
 
 /// Arguments for initializing a para.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ParaGenesisArgs {
 	/// The initial head data to use.
@@ -264,6 +268,33 @@ pub struct ParaGenesisArgs {
 	pub validation_code: ValidationCode,
 	/// True if parachain, false if parathread.
 	pub parachain: bool,
+}
+
+pub trait WeightInfo {
+	fn force_set_current_code(c: u32) -> Weight;
+	fn force_set_current_head(s: u32) -> Weight;
+	fn force_schedule_code_upgrade(c: u32) -> Weight;
+	fn force_note_new_head(s: u32) -> Weight;
+	fn force_queue_action() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn force_set_current_code(_c: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_set_current_head(_s: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_schedule_code_upgrade(_c: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_note_new_head(_s: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_queue_action() -> Weight {
+		Weight::MAX
+	}
 }
 
 #[frame_support::pallet]
@@ -282,6 +313,9 @@ pub mod pallet {
 			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -489,7 +523,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Set the storage for the parachain validation code immediately.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_code(new_code.0.len() as u32))]
 		pub fn force_set_current_code(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -508,7 +542,7 @@ pub mod pallet {
 		}
 
 		/// Set the storage for the current parachain head data immediately.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_head(new_head.0.len() as u32))]
 		pub fn force_set_current_head(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -521,7 +555,7 @@ pub mod pallet {
 		}
 
 		/// Schedule an upgrade as if it was scheduled in the given relay parent block.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_schedule_code_upgrade(new_code.0.len() as u32))]
 		pub fn force_schedule_code_upgrade(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -536,7 +570,7 @@ pub mod pallet {
 		}
 
 		/// Note a new block head for para within the context of the current block.
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_note_new_head(new_head.0.len() as u32))]
 		pub fn force_note_new_head(
 			origin: OriginFor<T>,
 			para: ParaId,
@@ -552,7 +586,7 @@ pub mod pallet {
 		/// Put a parachain directly into the next session's action queue.
 		/// We can't queue it any sooner than this without going into the
 		/// initializer...
-		#[pallet::weight(0)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_queue_action())]
 		pub fn force_queue_action(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 			let next_session = shared::Pallet::<T>::session_index().saturating_add(One::one());

@@ -19,7 +19,7 @@
 use hash_db::{HashDB, Hasher, EMPTY_PREFIX};
 use sp_runtime::RuntimeDebug;
 use sp_std::vec::Vec;
-use sp_trie::{read_trie_value, trie_types::Layout, MemoryDB, StorageProof};
+use sp_trie::{read_trie_value, LayoutV1 as Layout, MemoryDB, StorageProof};
 
 /// This struct is used to read storage values from a subset of a Merklized database. The "proof"
 /// is a subset of the nodes in the Merkle structure of the database, so that it provides

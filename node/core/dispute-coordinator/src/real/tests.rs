@@ -26,9 +26,7 @@ use overseer::TimeoutExt;
 use parity_scale_codec::Encode;
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{
-		AllMessages, BlockDescription, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
-	},
+	messages::{AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
@@ -170,33 +168,22 @@ impl TestState {
 			)))
 			.await;
 
-		self.handle_sync_queries(virtual_overseer, block_hash, block_header, session)
-			.await;
+		self.handle_sync_queries(virtual_overseer, block_hash, session).await;
 	}
 
 	async fn handle_sync_queries(
 		&self,
 		virtual_overseer: &mut VirtualOverseer,
 		block_hash: Hash,
-		block_header: Header,
 		session: SessionIndex,
 	) {
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::ChainApi(ChainApiMessage::BlockHeader(h, tx)) => {
-				assert_eq!(h, block_hash);
-				let _ = tx.send(Ok(Some(block_header)));
-			}
-		);
-
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				h,
 				RuntimeApiRequest::SessionIndexForChild(tx),
 			)) => {
-				let parent_hash = session_to_hash(session, b"parent");
-				assert_eq!(h, parent_hash);
+				assert_eq!(h, block_hash);
 				let _ = tx.send(Ok(session));
 			}
 		);
@@ -216,6 +203,17 @@ impl TestState {
 				}
 			)
 		}
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_new_leaf,
+				RuntimeApiRequest::FetchOnChainVotes(tx),
+			)) => {
+				// add some `BackedCandidates` or resolved disputes here as needed
+				tx.send(Ok(Some(ScrapedOnChainVotes::default()))).unwrap();
+			}
+		)
 	}
 
 	async fn handle_resume_sync(
@@ -236,8 +234,7 @@ impl TestState {
 				)))
 				.await;
 
-			let header = self.headers.get(leaf).unwrap().clone();
-			self.handle_sync_queries(virtual_overseer, *leaf, header, session).await;
+			self.handle_sync_queries(virtual_overseer, *leaf, session).await;
 		}
 	}
 
@@ -286,6 +283,7 @@ impl TestState {
 			self.db.clone(),
 			self.config.clone(),
 			self.subsystem_keystore.clone(),
+			Metrics::default(),
 		);
 		let backend = DbBackend::new(self.db.clone(), self.config.column_config());
 		let subsystem_task = run(subsystem, ctx, backend, Box::new(self.clock.clone()));

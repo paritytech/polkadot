@@ -27,6 +27,7 @@ blockchain/MS
 borked
 broadcast/UDSMG
 BTC/S
+canonicalization
 canonicalize/D
 CentOS
 CLI/MS
@@ -180,6 +181,7 @@ phragmen
 picosecond/SM
 PoA/MS
 polkadot/MS
+Polkadot/MS
 PoS/MS
 PoV/MS
 PoW/MS
@@ -198,6 +200,7 @@ proxy/G
 proxying
 PRs
 PVF/S
+p2p
 README/MS
 redhat/M
 register/CD
@@ -213,6 +216,7 @@ rpc
 RPC/MS
 runtime/MS
 rustc/MS
+sybil
 SAFT
 scalable
 scalability
@@ -225,7 +229,9 @@ shareable
 Simnet/MS
 spawn/SR
 spawner
+SS58
 sr25519
+SSL
 startup/MS
 stateful
 str
@@ -235,6 +241,7 @@ substream
 subsystem/MS
 subsystems'
 supermajority
+SURI
 systemwide
 taskmanager/MS
 TCP
@@ -249,6 +256,7 @@ timestamp/MS
 transitionary
 trie/MS
 trustless/Y
+TTL
 tuple/SM
 typesystem
 ubuntu/M
@@ -280,6 +288,7 @@ versa
 version/DMSG
 versioned
 VMP/SM
+VPS
 VRF/SM
 w3f/MS
 wakeups
@@ -290,5 +299,12 @@ Westend/M
 wildcard/MS
 WND/S
 Wococo
+WS
 XCM/S
 XCMP/M
+yeet
+yml
+decrement
+DM
+ParaId
+functor

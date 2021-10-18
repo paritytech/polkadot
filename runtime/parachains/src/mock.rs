@@ -112,15 +112,19 @@ impl pallet_balances::Config for Test {
 impl crate::initializer::Config for Test {
 	type Randomness = TestRandomness<Self>;
 	type ForceOrigin = frame_system::EnsureRoot<u64>;
+	type WeightInfo = ();
 }
 
-impl crate::configuration::Config for Test {}
+impl crate::configuration::Config for Test {
+	type WeightInfo = crate::configuration::TestWeightInfo;
+}
 
 impl crate::shared::Config for Test {}
 
 impl crate::paras::Config for Test {
 	type Origin = Origin;
 	type Event = Event;
+	type WeightInfo = crate::paras::TestWeightInfo;
 }
 
 impl crate::dmp::Config for Test {}
@@ -133,6 +137,7 @@ impl crate::ump::Config for Test {
 	type Event = Event;
 	type UmpSink = TestUmpSink;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
+	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
 }
 
 impl crate::hrmp::Config for Test {
@@ -145,6 +150,7 @@ impl crate::disputes::Config for Test {
 	type Event = Event;
 	type RewardValidators = Self;
 	type PunishValidators = Self;
+	type WeightInfo = crate::disputes::TestWeightInfo;
 }
 
 thread_local! {
@@ -308,4 +314,12 @@ pub struct MockGenesisConfig {
 	pub system: frame_system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
 	pub paras: crate::paras::GenesisConfig,
+}
+
+pub fn assert_last_event(generic_event: Event) {
+	let events = frame_system::Pallet::<Test>::events();
+	let system_event: <Test as frame_system::Config>::Event = generic_event.into();
+	// compare to the last event record
+	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
+	assert_eq!(event, &system_event);
 }

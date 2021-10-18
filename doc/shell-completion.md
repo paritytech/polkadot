@@ -10,6 +10,7 @@ source target/release/completion-scripts/polkadot.bash
 ```
 
 You can find completion scripts for:
+
 - bash
 - fish
 - zsh

@@ -118,13 +118,14 @@ mod tests {
 	fn dmp() {
 		MockNet::reset();
 
-		let remark = parachain::Call::System(
-			frame_system::Call::<parachain::Runtime>::remark_with_event(vec![1, 2, 3]),
-		);
+		let remark =
+			parachain::Call::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
+				remark: vec![1, 2, 3],
+			});
 		Relay::execute_with(|| {
 			assert_ok!(RelayChainPalletXcm::send_xcm(
 				Here,
-				Parachain(1).into(),
+				Parachain(1),
 				Xcm(vec![Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
@@ -146,12 +147,12 @@ mod tests {
 		MockNet::reset();
 
 		let remark = relay_chain::Call::System(
-			frame_system::Call::<relay_chain::Runtime>::remark_with_event(vec![1, 2, 3]),
+			frame_system::Call::<relay_chain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
 		);
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,
-				Parent.into(),
+				Parent,
 				Xcm(vec![Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
@@ -172,13 +173,14 @@ mod tests {
 	fn xcmp() {
 		MockNet::reset();
 
-		let remark = parachain::Call::System(
-			frame_system::Call::<parachain::Runtime>::remark_with_event(vec![1, 2, 3]),
-		);
+		let remark =
+			parachain::Call::System(frame_system::Call::<parachain::Runtime>::remark_with_event {
+				remark: vec![1, 2, 3],
+			});
 		ParaA::execute_with(|| {
 			assert_ok!(ParachainPalletXcm::send_xcm(
 				Here,
-				MultiLocation::new(1, X1(Parachain(2))),
+				(Parent, Parachain(2)),
 				Xcm(vec![Transact {
 					origin_type: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
@@ -245,7 +247,7 @@ mod tests {
 				},
 			]);
 			// Send withdraw and deposit
-			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent.into(), message.clone()));
+			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent, message.clone()));
 		});
 
 		Relay::execute_with(|| {
@@ -287,7 +289,7 @@ mod tests {
 				},
 			]);
 			// Send withdraw and deposit with query holding
-			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent.into(), message.clone(),));
+			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent, message.clone(),));
 		});
 
 		// Check that transfer was executed

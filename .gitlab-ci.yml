@@ -31,6 +31,7 @@ variables:
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
+  PIPELINE_SCRIPTS_TAG:            "v0.1"
 
 default:
   cache:                           {}
@@ -113,13 +114,13 @@ default:
       file:                        false
     GITHUB_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_TOKEN@kv
-      file:                        false    
+      file:                        false
     MATRIX_ACCESS_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ACCESS_TOKEN@kv
       file:                        false
     MATRIX_ROOM_ID:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ROOM_ID@kv
-      file:                        false   
+      file:                        false
     PARITYPR_USER:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/PARITYPR_USER@kv
       file:                        false
@@ -210,7 +211,7 @@ test-build-linux-stable:
     - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
     - echo -n ${VERSION} > ./artifacts/VERSION
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
-    - cp -r scripts/docker/* ./artifacts
+    - cp -r scripts/* ./artifacts
 
 check-runtime-benchmarks:
   stage:                           test
@@ -223,6 +224,17 @@ check-runtime-benchmarks:
     - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
+check-no-default-features:
+  stage:                           test
+  <<:                              *rules-test
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  <<:                              *vault-secrets
+  script:
+    # Check that polkadot-cli will compile no default features.
+    - ./scripts/gitlab/check_no_default_features.sh
+    - sccache -s
+
 spellcheck:
   stage:                           test
   <<:                              *docker-env
@@ -231,8 +243,9 @@ spellcheck:
     - cargo spellcheck --version
     # compare with the commit parent to the PR, given it's from a default branch
     - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
+    - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
     - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
-        -r $(git diff --name-only ${CI_COMMIT_SHA} $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH}))
+        $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
   allow_failure:                   true
 
 build-adder-collator:
@@ -254,12 +267,35 @@ build-adder-collator:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
-    - cp -r scripts/docker/* ./artifacts
+    - cp -r scripts/* ./artifacts
 
 #### stage:                        build
 
+.check-dependent-project:          &check-dependent-project
+  stage:                           build
+  <<:                              *docker-env
+  <<:                              *vault-secrets
+  script:
+    - git clone
+        --depth=1
+        "--branch=$PIPELINE_SCRIPTS_TAG"
+        https://github.com/paritytech/pipeline-scripts
+    - ./pipeline-scripts/check_dependent_project.sh
+        paritytech
+        polkadot
+        --polkadot
+        "$DEPENDENT_REPO"
+        "$GITHUB_PR_TOKEN"
+    - cd "$DEPENDENT_REPO" && git rev-parse --abbrev-ref HEAD
+
+check-dependent-cumulus:
+  <<: *check-dependent-project
+  variables:
+    DEPENDENT_REPO: cumulus
+
 check-transaction-versions:
-  image:                           node:15
+  # image must be ubuntu:20.04 based to match the linkers, this image has npm installed
+  image:                           paritytech/contracts-ci-linux:production
   stage:                           build
   <<:                              *rules-test
   <<:                              *docker-env
@@ -346,8 +382,8 @@ publish-polkadot-image:
   <<:                              *build-push-image
   variables:
     <<:                            *image-variables
-    # scripts/docker/Dockerfile
-    DOCKERFILE:                    Dockerfile
+    # scripts/dockerfiles/polkadot_injected_debug.Dockerfile
+    DOCKERFILE:                    dockerfiles/polkadot_injected_debug.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/synth-wave
   rules:
     # Don't run on releases - this is handled by the Github Action here:
@@ -382,8 +418,8 @@ publish-adder-collator-image:
   <<:                              *build-push-image
   variables:
     <<:                            *image-variables
-    # scripts/docker/collator.Dockerfile
-    DOCKERFILE:                    collator.Dockerfile
+    # scripts/dockerfiles/collator_injected.Dockerfile
+    DOCKERFILE:                    dockerfiles/collator_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -474,6 +510,7 @@ publish-s3-release:                &publish-s3
 publish-rustdoc:
   stage:                           publish
   <<:                              *kubernetes-env
+  <<:                              *vault-secrets
   image:                           paritytech/tools:latest
   variables:
     GIT_DEPTH:                     100
@@ -563,4 +600,4 @@ simnet-tests:
   allow_failure:                   true
   retry: 2
   tags:
-    - parity-simnet
+    - polkadot-simnet

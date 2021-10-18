@@ -66,6 +66,26 @@ impl CandidateVotes {
 }
 
 impl SignedDisputeStatement {
+	/// Create a new `SignedDisputeStatement` from information
+	/// that is available on-chain, and hence already can be trusted.
+	///
+	/// Attention: Not to be used other than with guaranteed fetches.
+	pub fn new_unchecked_from_trusted_source(
+		dispute_statement: DisputeStatement,
+		candidate_hash: CandidateHash,
+		session_index: SessionIndex,
+		validator_public: ValidatorId,
+		validator_signature: ValidatorSignature,
+	) -> Self {
+		SignedDisputeStatement {
+			dispute_statement,
+			candidate_hash,
+			validator_public,
+			validator_signature,
+			session_index,
+		}
+	}
+
 	/// Create a new `SignedDisputeStatement`, which is only possible by checking the signature.
 	pub fn new_checked(
 		dispute_statement: DisputeStatement,

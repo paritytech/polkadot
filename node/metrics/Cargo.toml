@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-metrics"
-version = "0.9.9"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Subsystem traits and message definitions"
@@ -13,8 +13,5 @@ metered-channel = { path = "../metered-channel" }
 
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-jemalloc-ctl = { version = "0.3.3", optional = true }
-
 [features]
 default = []
-memory-stats = ["jemalloc-ctl"]

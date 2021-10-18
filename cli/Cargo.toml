@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.9"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2018"
@@ -15,7 +15,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 log = "0.4.13"
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 structopt = { version = "0.3.23", optional = true }
 futures = "0.3.17"
 
@@ -36,7 +36,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", 
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker" ]
+default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker", "polkadot-native" ]
 wasmtime = [ "sc-cli/wasmtime" ]
 db = [ "service/db" ]
 cli = [
@@ -46,22 +46,16 @@ cli = [
 	"frame-benchmarking-cli",
 	"try-runtime-cli",
 	"polkadot-node-core-pvf",
-# memory stats require jemalloc, which we know is enabled for Linux
-# but not present on wasm or windows
-# https://github.com/paritytech/parity-common/blob/master/parity-util-mem/src/allocators.rs#L9-L34
-# Once
-# https://github.com/rust-lang/cargo/issues/1197
-# is resolved.
-	"service/memory-stats",
 ]
 runtime-benchmarks = [ "service/runtime-benchmarks" ]
 trie-memory-tracker = [ "sp-trie/memory-tracker" ]
 full-node = [ "service/full-node" ]
 try-runtime = [ "service/try-runtime" ]
 
-# Configure the native runtimes to use. Polkadot is always enabled by default.
+# Configure the native runtimes to use. Polkadot is enabled by default.
 #
 # Validators require the native runtime currently
+polkadot-native = [ "service/polkadot-native" ]
 kusama-native = [ "service/kusama-native" ]
 westend-native = [ "service/westend-native" ]
 rococo-native = [ "service/rococo-native" ]
