@@ -1998,7 +1998,7 @@ mod tests {
 						],
 						&group_validators,
 					),
-					Error::<Test>::WrongCollator.into(),
+					Error::<Test>::WrongCollator,
 				);
 			}
 
