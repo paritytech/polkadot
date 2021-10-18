@@ -968,6 +968,7 @@ mod tests {
 			UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
 		},
 	};
+	use frame_support::assert_noop;
 	use sc_keystore::LocalKeystore;
 	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 	use std::sync::Arc;
@@ -1330,14 +1331,14 @@ mod tests {
 					&signing_context,
 				));
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Err(Error::<Test>::WrongBitfieldSize.into())
+					Error::<Test>::WrongBitfieldSize.into()
 				);
 			}
 
@@ -1352,14 +1353,14 @@ mod tests {
 					&signing_context,
 				));
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_bitfields(
 						expected_bits() + 1,
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Err(Error::<Test>::WrongBitfieldSize.into())
+					Error::<Test>::WrongBitfieldSize.into()
 				);
 			}
 
@@ -1375,14 +1376,14 @@ mod tests {
 				))
 				.into();
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.clone(), signed],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Err(Error::<Test>::BitfieldDuplicateOrUnordered.into())
+					Error::<Test>::BitfieldDuplicateOrUnordered.into()
 				);
 			}
 
@@ -1407,14 +1408,14 @@ mod tests {
 				))
 				.into();
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed_1, signed_0],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Err(Error::<Test>::BitfieldDuplicateOrUnordered.into())
+					Error::<Test>::BitfieldDuplicateOrUnordered.into()
 				);
 			}
 
@@ -1430,13 +1431,15 @@ mod tests {
 					&signing_context,
 				));
 
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					DisputedBitfield::zeros(expected_bits()),
-					&core_lookup,
-				)
-				.is_ok());
+				assert_matches!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						DisputedBitfield::zeros(expected_bits()),
+						&core_lookup,
+					),
+					Ok(_)
+				);
 			}
 
 			// empty bitfield signed: always OK, but kind of useless.
@@ -1540,14 +1543,14 @@ mod tests {
 				));
 
 				// no core is freed
-				assert_matches!(
+				assert_eq!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Ok(_)
+					Ok(vec![])
 				);
 			}
 		});
@@ -1684,13 +1687,15 @@ mod tests {
 				})
 				.collect();
 
-			assert!(ParaInclusion::process_bitfields(
-				expected_bits(),
-				signed_bitfields,
-				DisputedBitfield::zeros(expected_bits()),
-				&core_lookup,
-			)
-			.is_ok());
+			assert_matches!(
+				ParaInclusion::process_bitfields(
+					expected_bits(),
+					signed_bitfields,
+					DisputedBitfield::zeros(expected_bits()),
+					&core_lookup,
+				),
+				Ok(_)
+			);
 
 			// chain A had 4 signing off, which is >= threshold.
 			// chain B has 3 signing off, which is < threshold.
@@ -1824,14 +1829,14 @@ mod tests {
 					BackingKind::Threshold,
 				));
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_b_assignment.clone()],
 						&group_validators,
 					),
-					Err(Error::<Test>::UnscheduledCandidate.into()),
+					Error::<Test>::UnscheduledCandidate.into(),
 				);
 			}
 
@@ -1879,14 +1884,14 @@ mod tests {
 				));
 
 				// out-of-order manifests as unscheduled.
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed_b, backed_a],
 						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 						&group_validators,
 					),
-					Err(Error::<Test>::UnscheduledCandidate.into()),
+					Error::<Test>::UnscheduledCandidate.into(),
 				);
 			}
 
@@ -1912,14 +1917,14 @@ mod tests {
 					BackingKind::Lacking,
 				));
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Err(Error::<Test>::InsufficientBacking.into()),
+					Error::<Test>::InsufficientBacking.into(),
 				);
 			}
 
@@ -1947,14 +1952,14 @@ mod tests {
 					BackingKind::Threshold,
 				));
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Err(Error::<Test>::CandidateNotInParentContext.into()),
+					Error::<Test>::CandidateNotInParentContext.into(),
 				);
 			}
 
@@ -1982,7 +1987,7 @@ mod tests {
 					BackingKind::Threshold,
 				));
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
@@ -1993,7 +1998,7 @@ mod tests {
 						],
 						&group_validators,
 					),
-					Err(Error::<Test>::WrongCollator.into()),
+					Error::<Test>::WrongCollator.into(),
 				);
 			}
 
@@ -2024,14 +2029,14 @@ mod tests {
 					BackingKind::Threshold,
 				));
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![thread_a_assignment.clone()],
 						&group_validators,
 					),
-					Err(Error::<Test>::NotCollatorSigned.into()),
+					Error::<Test>::NotCollatorSigned.into(),
 				);
 			}
 
@@ -2074,14 +2079,14 @@ mod tests {
 				);
 				<PendingAvailabilityCommitments<Test>>::insert(&chain_a, candidate.commitments);
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Err(Error::<Test>::CandidateScheduledBeforeParaFree.into()),
+					Error::<Test>::CandidateScheduledBeforeParaFree.into(),
 				);
 
 				<PendingAvailability<Test>>::remove(&chain_a);
@@ -2117,14 +2122,14 @@ mod tests {
 					BackingKind::Threshold,
 				));
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Err(Error::<Test>::CandidateScheduledBeforeParaFree.into()),
+					Error::<Test>::CandidateScheduledBeforeParaFree.into(),
 				);
 
 				<PendingAvailabilityCommitments<Test>>::remove(&chain_a);
@@ -2168,14 +2173,14 @@ mod tests {
 					assert_eq!(Paras::last_code_upgrade(chain_a, true), Some(expected_at));
 				}
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Err(Error::<Test>::PrematureCodeUpgrade.into()),
+					Error::<Test>::PrematureCodeUpgrade.into(),
 				);
 			}
 
@@ -2237,14 +2242,14 @@ mod tests {
 					BackingKind::Threshold,
 				));
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Err(Error::<Test>::InvalidValidationCodeHash.into()),
+					Error::<Test>::InvalidValidationCodeHash.into(),
 				);
 			}
 
@@ -2272,14 +2277,14 @@ mod tests {
 					BackingKind::Threshold,
 				));
 
-				assert_eq!(
+				assert_noop!(
 					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Err(Error::<Test>::ParaHeadMismatch.into()),
+					Error::<Test>::ParaHeadMismatch.into(),
 				);
 			}
 		});
