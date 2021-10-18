@@ -181,7 +181,7 @@ pub mod pallet {
 				current_session,
 				&validator_public[..],
 			)
-			.ok()?;
+			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
 
 			let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
 			let backed_candidates = sanitize_backed_candidates::<T, false>(
@@ -190,19 +190,20 @@ pub mod pallet {
 				concluded_invalid_disputes,
 				&scheduled[..],
 			)
-			.ok()?;
+			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
 
 			// XXX @Lldenaurois
 			// FIXME these weights are garbage
 			let remaining_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
-			let (_backed_candidates_weight, backed_candidates, bitfields) = apply_weight_limit::<T, _>(
-				expected_bits,
-				backed_candidates,
-				bitfields,
-				entropy.clone(),
-				remaining_weight,
-				<scheduler::Pallet<T>>::core_para,
-			);
+			let (_backed_candidates_weight, backed_candidates, bitfields) =
+				apply_weight_limit::<T, _>(
+					expected_bits,
+					backed_candidates,
+					bitfields,
+					entropy.clone(),
+					remaining_weight,
+					<scheduler::Pallet<T>>::core_para,
+				);
 
 			let inherent_data = ParachainsInherentData::<T::Header> {
 				bitfields,
@@ -220,7 +221,7 @@ pub mod pallet {
 					Err(err) => {
 						log::error!(
 							target: LOG_TARGET,
-								"dropping paras inherent data because they produced \
+							"dropping paras inherent data because they produced \
 							an invalid paras inherent: {:?}",
 							err.error,
 						);
@@ -471,7 +472,10 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		.iter()
 		.map(|backed_candidate| backed_candidate_weight::<T>(backed_candidate))
 		.sum();
-	total += bitfields.iter().map(|bitfield| bitfield_weight::<T>(bitfield.unchecked_payload())).sum::<Weight>();
+	total += bitfields
+		.iter()
+		.map(|bitfield| bitfield_weight::<T>(bitfield.unchecked_payload()))
+		.sum::<Weight>();
 
 	if max_weight < total {
 		return (total, candidates, bitfields)
@@ -494,10 +498,8 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 	let mut candidates_core_index: BTreeMap<CandidateHash, CoreIndex> = (0..expected_bits)
 		.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
 		.filter_map(|opt_para_id| opt_para_id)
-		.filter_map(|para_id| {
-			PendingAvailability::<T>::get(&para_id)
-		})
-		.map(|cpa: CandidatePendingAvailability<<T>::Hash,<T>::BlockNumber>| {
+		.filter_map(|para_id| PendingAvailability::<T>::get(&para_id))
+		.map(|cpa: CandidatePendingAvailability<<T>::Hash, <T>::BlockNumber>| {
 			(cpa.candidate_hash(), cpa.core_occupied())
 		})
 		.collect();

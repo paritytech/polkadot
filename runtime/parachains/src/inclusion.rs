@@ -958,6 +958,7 @@ mod tests {
 		scheduler::AssignmentKind,
 	};
 	use assert_matches::assert_matches;
+	use frame_support::assert_noop;
 	use futures::executor::block_on;
 	use keyring::Sr25519Keyring;
 	use primitives::{
@@ -968,7 +969,6 @@ mod tests {
 			UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
 		},
 	};
-	use frame_support::assert_noop;
 	use sc_keystore::LocalKeystore;
 	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 	use std::sync::Arc;
