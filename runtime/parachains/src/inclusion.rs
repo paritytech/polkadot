@@ -1338,7 +1338,7 @@ mod tests {
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Error::<Test>::WrongBitfieldSize.into()
+					Error::<Test>::WrongBitfieldSize
 				);
 			}
 
@@ -1360,7 +1360,7 @@ mod tests {
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Error::<Test>::WrongBitfieldSize.into()
+					Error::<Test>::WrongBitfieldSize
 				);
 			}
 
@@ -1383,7 +1383,7 @@ mod tests {
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Error::<Test>::BitfieldDuplicateOrUnordered.into()
+					Error::<Test>::BitfieldDuplicateOrUnordered
 				);
 			}
 
@@ -1415,7 +1415,7 @@ mod tests {
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Error::<Test>::BitfieldDuplicateOrUnordered.into()
+					Error::<Test>::BitfieldDuplicateOrUnordered
 				);
 			}
 
@@ -1836,7 +1836,7 @@ mod tests {
 						vec![chain_b_assignment.clone()],
 						&group_validators,
 					),
-					Error::<Test>::UnscheduledCandidate.into(),
+					Error::<Test>::UnscheduledCandidate
 				);
 			}
 
@@ -1891,7 +1891,7 @@ mod tests {
 						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 						&group_validators,
 					),
-					Error::<Test>::UnscheduledCandidate.into(),
+					Error::<Test>::UnscheduledCandidate
 				);
 			}
 
@@ -1924,7 +1924,7 @@ mod tests {
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Error::<Test>::InsufficientBacking.into(),
+					Error::<Test>::InsufficientBacking
 				);
 			}
 
@@ -1959,7 +1959,7 @@ mod tests {
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Error::<Test>::CandidateNotInParentContext.into(),
+					Error::<Test>::CandidateNotInParentContext
 				);
 			}
 
@@ -2036,7 +2036,7 @@ mod tests {
 						vec![thread_a_assignment.clone()],
 						&group_validators,
 					),
-					Error::<Test>::NotCollatorSigned.into(),
+					Error::<Test>::NotCollatorSigned
 				);
 			}
 
@@ -2086,7 +2086,7 @@ mod tests {
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Error::<Test>::CandidateScheduledBeforeParaFree.into(),
+					Error::<Test>::CandidateScheduledBeforeParaFree
 				);
 
 				<PendingAvailability<Test>>::remove(&chain_a);
@@ -2129,7 +2129,7 @@ mod tests {
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Error::<Test>::CandidateScheduledBeforeParaFree.into(),
+					Error::<Test>::CandidateScheduledBeforeParaFree
 				);
 
 				<PendingAvailabilityCommitments<Test>>::remove(&chain_a);
@@ -2180,7 +2180,7 @@ mod tests {
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Error::<Test>::PrematureCodeUpgrade.into(),
+					Error::<Test>::PrematureCodeUpgrade
 				);
 			}
 
@@ -2249,7 +2249,7 @@ mod tests {
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Error::<Test>::InvalidValidationCodeHash.into(),
+					Error::<Test>::InvalidValidationCodeHash
 				);
 			}
 
@@ -2284,7 +2284,7 @@ mod tests {
 						vec![chain_a_assignment.clone()],
 						&group_validators,
 					),
-					Error::<Test>::ParaHeadMismatch.into(),
+					Error::<Test>::ParaHeadMismatch
 				);
 			}
 		});

@@ -147,19 +147,7 @@ pub mod pallet {
 				Ok(None) => return None,
 				Err(_) => {
 					log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
-
-					let parent_header = unimplemented!();
-					ParachainsInherentData {
-						// this is ok, since there are no backed candidates
-						// to pick from in case of overweight.
-						entropy: SeedEntropy::default(),
-
-						parent_header,
-
-						bitfields: Default::default(),
-						backed_candidates: Default::default(),
-						disputes: Default::default(),
-					}
+					return None
 				},
 			};
 
