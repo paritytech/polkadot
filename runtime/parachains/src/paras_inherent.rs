@@ -156,12 +156,17 @@ pub mod pallet {
 			// filter out any unneeded dispute statements
 			T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
+			// `with_transaction`
+			// T::DisputesHandler::provide_multi_dispute_data(disputes);
+
 			let concluded_invalid_disputes = disputes
 				.iter()
-				.filter(|s| s.session == current_session)
-				.map(|s| (s.session, s.candidate_hash))
+				.filter(|dss| dss.session == current_session)
+				.map(|dss| (dss.session, dss.candidate_hash))
 				.filter(|(session, candidate)| {
-					T::DisputesHandler::concluded_invalid(*session, *candidate)
+					// newly concluded votes are not accounted for _yet_
+					// as such we need to explicitly check for them
+					<T>::DisputesHandler::concluded_invalid(*session, *candidate)
 				})
 				.map(|(_session, candidate)| candidate)
 				.collect::<BTreeSet<CandidateHash>>();
@@ -188,6 +193,7 @@ pub mod pallet {
 				parent_hash,
 				backed_candidates,
 				concluded_invalid_disputes,
+				current_session,
 				&scheduled[..],
 			)
 			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
@@ -374,8 +380,17 @@ pub mod pallet {
 				parent_hash,
 				backed_candidates,
 				concluded_invalid_disputed_candidates,
+				current_session,
 				&scheduled[..],
-			)?;
+			).unwrap_or_else(|err| {
+				log::error!(
+					target: LOG_TARGET,
+					"dropping all backed candidates due to sanitization error: {:?}",
+					err,
+				);
+				Vec::new()
+			});
+
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
 			let backed_candidates_len = backed_candidates.len() as Weight;
 
@@ -446,7 +461,7 @@ fn backed_candidate_weight<T: Config>(backed_candidate: &BackedCandidate<<T>::Ha
 }
 
 /// Calculate the weight of a individual bitfield.
-fn bitfield_weight<T: Config>(bitfield: &AvailabilityBitfield) -> Weight {
+fn bitfield_weight<T: Config>(_bitfield: &AvailabilityBitfield) -> Weight {
 	// XXX @Lldenaurois
 	// FIXME these weights are garbage
 	7_000 as Weight
@@ -463,7 +478,7 @@ fn bitfield_weight<T: Config>(bitfield: &AvailabilityBitfield) -> Weight {
 fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<ParaId>>(
 	expected_bits: usize,
 	mut candidates: Vec<BackedCandidate<<T>::Hash>>,
-	mut bitfields: UncheckedSignedAvailabilityBitfields,
+	bitfields: UncheckedSignedAvailabilityBitfields,
 	entropy: SeedEntropy,
 	max_weight: Weight,
 	core_lookup: F,
@@ -492,10 +507,10 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 	let mut weight_acc: Weight = 0 as _;
 
 	// a bitfield to determine which bitfields to include
-	let bitfields_to_include_coverage = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
+	let mut bitfields_to_include_coverage = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
 
 	// create a mapping of `CandidateHash` to `CoreIndex`
-	let mut candidates_core_index: BTreeMap<CandidateHash, CoreIndex> = (0..expected_bits)
+	let candidates_core_index: BTreeMap<CandidateHash, CoreIndex> = (0..expected_bits)
 		.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
 		.filter_map(|opt_para_id| opt_para_id)
 		.filter_map(|para_id| PendingAvailability::<T>::get(&para_id))
@@ -514,8 +529,8 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 
 		// collect all bitfields that reference the candidate
 		// (or: the availability core index that is responsible for the candidate)
-		let bitfields_weight = 0 as Weight;
-		let covered_bitfields = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
+		let mut bitfields_weight = 0 as Weight;
+		let mut covered_bitfields = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
 
 		for (i, bitfield) in bitfields.iter().enumerate() {
 			// lookup the core index that is responsible for the candidate
@@ -644,12 +659,13 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 /// For the filtering here the relevant part is only the current `free`
 /// state.
 fn sanitize_backed_candidates<
-	T: Config + crate::paras_inherent::Config,
+	T: Config + crate::inclusion::Config + crate::paras_inherent::Config,
 	const EARLY_RETURN: bool,
 >(
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	disputed_candidates: BTreeSet<CandidateHash>,
+	session_index: SessionIndex,
 	scheduled: &[CoreAssignment],
 ) -> Result<Vec<BackedCandidate<T::Hash>>, Error<T>> {
 	let n = backed_candidates.len();
@@ -657,6 +673,7 @@ fn sanitize_backed_candidates<
 	backed_candidates.retain(|backed_candidate| {
 		let candidate_hash = backed_candidate.candidate.hash();
 		!disputed_candidates.contains(&candidate_hash)
+		|| T::DisputesHandler::concluded_invalid(session_index, candidate_hash)
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
