@@ -167,9 +167,12 @@ impl Contains<Call> for BaseFilter {
 			Call::Dmp(_) |
 			Call::Ump(_) |
 			Call::Hrmp(_) |
-			Call::Slots(_) => true,
-			// Disable paras registration, crowdloans, and auctions for now.
-			Call::Registrar(_) | Call::Auctions(_) | Call::Crowdloan(_) => false,
+			Call::Slots(_) |
+			Call::Registrar(_) |
+			Call::Auctions(_) |
+			Call::Crowdloan(_) => true,
+			// All pallets are allowed, but exhaustive match is defensive
+			// in the case of adding new pallets.
 		}
 	}
 }
