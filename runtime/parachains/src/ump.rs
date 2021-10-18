@@ -330,7 +330,7 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::WeightOverLimit)?;
 			Overweight::<T>::remove(index);
 			Self::deposit_event(Event::OverweightServiced(index, used));
-			Ok(Some(used.saturating_add(1_000_000)).into())
+			Ok(Some(used.saturating_add(<T as Config>::WeightInfo::service_overweight())).into())
 		}
 	}
 }
