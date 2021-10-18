@@ -177,13 +177,9 @@ impl<T: Config> BenchBuilder<T> {
 
 	/// Generate validator key pairs and account ids.
 	fn generate_validator_pairs(validator_count: u32) -> Vec<(T::AccountId, ValidatorPair)> {
-		let mut seed = [0u8; 32];
 		(0..validator_count)
 			.map(|i| {
-				seed[31] = (i % (1 << 8)) as u8;
-				seed[30] = ((i >> 8) % (1 << 8)) as u8;
-				seed[29] = ((i >> 16) % (1 << 8)) as u8;
-				seed[28] = ((i >> 24) % (1 << 8)) as u8;
+				let seed = byte32_slice_from(i);
 				let pair = ValidatorPair::from_seed_slice(&seed).unwrap();
 
 				// this account is not actually used anywhere, just necessary to fulfill expected type
@@ -238,10 +234,11 @@ impl<T: Config> BenchBuilder<T> {
 		);
 
 		Self::run_to_block(2);
+
 		// we use this because we want to make sure `frame_system::ParentHash` is set. The storage
 		// item itself is private.
 		frame_system::Pallet::<T>::initialize(
-			&Self::header().number(),
+			&2u32.into(),
 			&Self::header().hash(),
 			&Digest::<T::Hash> { logs: Vec::new() },
 			Default::default(),
@@ -339,14 +336,10 @@ impl<T: Config> BenchBuilder<T> {
 			});
 		}
 
-		let mut rng_seed = [0u8; 32];
 		let backed_candidates: Vec<BackedCandidate<T::Hash>> = backed_rng
 			.clone()
 			.map(|seed| {
-				rng_seed[31] = (seed % (1 << 8)) as u8;
-				rng_seed[30] = ((seed >> 8) % (1 << 8)) as u8;
-				rng_seed[29] = ((seed >> 16) % (1 << 8)) as u8;
-				rng_seed[29] = ((seed >> 24) % (1 << 8)) as u8;
+				let rng_seed = byte32_slice_from(seed);
 				let (para_id, _core_idx, group_idx) = Self::create_indexes(seed);
 
 				let collator_pair = CollatorPair::from_seed_slice(&rng_seed).unwrap();
@@ -549,6 +542,56 @@ benchmarks! {
 		// let b in 0..d;
 
 		let backed_and_concluding = BenchBuilder::<T>::cores() - d;
+		let backed_and_concluding = 0;
+
+		let config = configuration::Pallet::<T>::config();
+		let scenario = BenchBuilder::<T>::new()
+			.build(backed_and_concluding, d);
+	}: enter(RawOrigin::None, scenario.data.clone())
+	verify {
+		// check that the disputes storage has updated as expected.
+
+		// TODO
+		// if d > 1 {
+		// 	let spam_slots = disputes::Pallet::<T>::spam_slots(&scenario.current_session).unwrap();
+		// 	assert!(
+		// 		// we expect the first 1/3rd of validators to have maxed out spam slots. Sub 1 for when
+		// 		// there is an odd number of validators.
+		// 		// TODO
+		// 		&spam_slots[..(BenchBuilder::<T>::statement_spam_thresh() - 1) as usize]
+		// 		.iter()
+		// 		.all(|n| *n == config.dispute_max_spam_slots)
+		// 	);
+		// 	assert!(
+		// 		&spam_slots[BenchBuilder::<T>::statement_spam_thresh() as usize ..]
+		// 		.iter()
+		// 		.all(|n| *n == 0)
+		// 	);
+		// }
+
+		// pending availability data is removed when disputes are collected.
+		assert_eq!(
+			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
+			backed_and_concluding as usize
+		);
+		assert_eq!(
+			inclusion::PendingAvailability::<T>::iter().count(),
+			backed_and_concluding as usize
+		);
+
+		// max possible number of cores have been scheduled.
+		assert_eq!(scheduler::Scheduled::<T>::get().len(), d as usize);
+
+		// all cores are occupied by a parachain.
+		assert_eq!(
+			scheduler::AvailabilityCores::<T>::get().len(), BenchBuilder::<T>::cores() as usize
+		);
+	}
+
+	enter_disputes_only {
+		let d in 0..BenchBuilder::<T>::cores();
+
+		let backed_and_concluding = 0;
 
 		let config = configuration::Pallet::<T>::config();
 		let scenario = BenchBuilder::<T>::new()
@@ -608,24 +651,35 @@ benchmarks! {
 			.build(b, disputed);
 	}: enter(RawOrigin::None, scenario.data.clone())
 	verify {
-		// TODO
-		// if disputed > 1 {
-		// 	let spam_slots = disputes::Pallet::<T>::spam_slots(&scenario.current_session).unwrap();
-		// 	assert!(
-		// 		// we expect the first 1/3rd of validators to have maxed out spam slots. Sub 1 for when
-		// 		// there is an odd number of validators.
-		// 		// TODO
-		// 		&spam_slots[..(BenchBuilder::<T>::statement_spam_thresh() - 1) as usize]
-		// 		.iter()
-		// 		.all(|n| *n == config.dispute_max_spam_slots)
-		// 	);
-		// 	assert!(
-		// 		&spam_slots[BenchBuilder::<T>::statement_spam_thresh() as usize ..]
-		// 		.iter()
-		// 		.all(|n| *n == 0)
-		// 	);
-		// }
+		// pending availability data is removed when disputes are collected.
+		assert_eq!(
+			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
+			b as usize
+		);
+		assert_eq!(
+			inclusion::PendingAvailability::<T>::iter().count(),
+			b as usize
+		);
 
+		// exactly the disputed cores are schedule since they where freed.
+		assert_eq!(scheduler::Scheduled::<T>::get().len(), disputed as usize);
+
+		assert_eq!(
+			scheduler::AvailabilityCores::<T>::get().len(), BenchBuilder::<T>::cores() as usize
+		);
+	}
+
+	enter_backed_only {
+		let b in 0..BenchBuilder::<T>::cores();
+		// let d in 0..b;
+
+		let disputed = 0;
+
+		let config = configuration::Pallet::<T>::config();
+		let scenario = BenchBuilder::<T>::new()
+			.build(b, disputed);
+	}: enter(RawOrigin::None, scenario.data.clone())
+	verify {
 		// pending availability data is removed when disputes are collected.
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
