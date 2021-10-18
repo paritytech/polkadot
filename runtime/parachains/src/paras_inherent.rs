@@ -36,6 +36,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
+	supermajority_threshold,
 	AvailabilityBitfield, BackedCandidate, CandidateHash, CoreIndex,
 	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SeedEntropy, SessionIndex,
 	SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
@@ -199,7 +200,7 @@ pub mod pallet {
 
 			// XXX @Lldenaurois
 			// FIXME these weights are garbage
-			let remaining_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
+			let remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 			let (_backed_candidates_weight, backed_candidates, bitfields) =
 				apply_weight_limit::<T, _>(
 					expected_bits,
@@ -208,6 +209,7 @@ pub mod pallet {
 					entropy.clone(),
 					remaining_weight,
 					<scheduler::Pallet<T>>::core_para,
+					supermajority_threshold(validator_public.len())
 				);
 
 			let inherent_data = ParachainsInherentData::<T::Header> {
@@ -482,6 +484,7 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 	entropy: SeedEntropy,
 	max_weight: Weight,
 	core_lookup: F,
+	validator_supermajority_availability_threshold: usize,
 ) -> (Weight, Vec<BackedCandidate<<T>::Hash>>, UncheckedSignedAvailabilityBitfields) {
 	let mut total = candidates
 		.iter()
@@ -506,7 +509,8 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 	let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 	let mut weight_acc: Weight = 0 as _;
 
-	// a bitfield to determine which bitfields to include
+	// a bitfield to determine which availablity bitfields to include
+	// essentially a `Vec<bool>` for our purposes
 	let mut bitfields_to_include_coverage = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
 
 	// create a mapping of `CandidateHash` to `CoreIndex`
@@ -519,25 +523,43 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		})
 		.collect();
 
-	while weight_acc < max_weight || !candidates.is_empty() {
+	// Keep track the coverage for each candidate, and avoid
+	// including excessive coverage that is not required since the `f+1` threshold is already reached
+	let mut sufficiency_count = BTreeMap::<CandidateHash, usize>::new();
+
+	// the candidates that have remaining bitfields which
+	// could be used to maximize the block utilization
+	let mut superfluous = Vec::new();
+	'next: while weight_acc < max_weight || !candidates.is_empty() {
 		// select a index to try
 		let pick = rng.gen_range(0..candidates.len());
 		// remove the candidate from the possible pick set
 		let picked_candidate = candidates.swap_remove(pick);
 
 		let picked_weight = backed_candidate_weight::<T>(&picked_candidate);
-
 		// collect all bitfields that reference the candidate
 		// (or: the availability core index that is responsible for the candidate)
 		let mut bitfields_weight = 0 as Weight;
 		let mut covered_bitfields = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
 
 		for (i, bitfield) in bitfields.iter().enumerate() {
+
+			// check if there are already sufficient bitfields included to pass the `f+1` threshold
+			if *sufficiency_count.entry(picked_candidate.hash())
+				.and_modify(|x| { *x += 1; } )
+				.or_insert(1_usize) > validator_supermajority_availability_threshold {
+				// supermajority of bitfields reached, don't worry about extra bitfields
+				// they are used lazily to fill remaining space
+				superfluous.push(picked_candidate);
+				continue 'next;
+			}
+
 			// lookup the core index that is responsible for the candidate
 			if let Some(core_index) = candidates_core_index.get(&picked_candidate.hash()) {
+				// check the corresponding bit is `true`
 				if bitfield.unchecked_payload().0[core_index.0 as usize] {
 					// avoid duplicate accounting if it was already included before
-					if bitfields_to_include_coverage[i] {
+					if !bitfields_to_include_coverage[i] {
 						// mark the `i`-th bit
 						covered_bitfields.set(i, true);
 						// account for the added weight of the bitfield
@@ -557,6 +579,44 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		}
 	}
 
+
+	// If there is any remaining weight, try to fit in some
+	// additional bitfields for candidates that are included with
+	// corresponding bitfields that were not that are not included yet.
+	// see if any further bitfields that cover included candidates.
+	'outer: for (i, bitfield) in bitfields
+		.iter()
+		.enumerate()
+	{
+		// avoid duplicate accounting if it was already included before
+		if bitfields_to_include_coverage[i] {
+			continue 'outer;
+		}
+		// Processing in order here is ok, it's round robbin with an initially
+		// shuffeled ordering.
+		for picked_candidate in superfluous.iter() {
+			if weight_acc >= max_weight {
+				break 'outer;
+			}
+
+			// lookup the core index that is responsible for the candidate
+			if let Some(core_index) = candidates_core_index.get(&picked_candidate.hash()) {
+				// check the corresponding core index represented by the bit offset is `true`
+				if bitfield.unchecked_payload().0[core_index.0 as usize] {
+					// mark the `i`-th bit, we assured in the outer loop
+					// it was not set
+					bitfields_to_include_coverage.set(i, true);
+					// account for the added weight of the bitfield
+					weight_acc += bitfield_weight::<T>(bitfield.unchecked_payload());
+					// if a bitfield is included once, the inner loop is done
+					continue 'outer;
+				}
+			}
+		}
+	}
+
+	// actually collect all unchecked signed availablity bitfields based
+	// on the accumulative bitfield that was created above
 	let bitfields_acc = bitfields
 		.into_iter()
 		.enumerate()
@@ -675,8 +735,8 @@ fn sanitize_backed_candidates<
 	// Remove any candidates that were concluded invalid.
 	backed_candidates.retain(|backed_candidate| {
 		let candidate_hash = backed_candidate.candidate.hash();
-		!disputed_candidates.contains(&candidate_hash) ||
-			T::DisputesHandler::concluded_invalid(session_index, candidate_hash)
+		!disputed_candidates.contains(&candidate_hash) &&
+			!T::DisputesHandler::concluded_invalid(session_index, candidate_hash)
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
@@ -845,6 +905,8 @@ mod tests {
 					<Test as frame_system::Config>::BlockWeights::get().max_block;
 				let used_block_weight = max_block_weight / 2;
 				System::set_block_consumed_resources(used_block_weight, 0);
+
+				// TODO add scheduled cores
 
 				// execute the paras inherent
 				let post_info = Call::<Test>::enter {
