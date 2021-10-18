@@ -21,7 +21,7 @@
 //! as it has no initialization logic and its finalization logic depends only on the details of
 //! this module.
 
-use no_std_compat::cmp::Ordering;
+use sp_std::cmp::Ordering;
 
 use crate::{
 	disputes::DisputesHandler,
@@ -337,10 +337,11 @@ fn signed_bitfields_weight(bitfields: &[UncheckedSignedAvailabilityBitfield]) ->
 fn backed_candidate_weight<T: frame_system::Config>(
 	candidate: &BackedCandidate<T::Hash>,
 ) -> Weight {
-	match &candidate.candidate.commitments.new_validation_code {
-		Some(v) => v.0.len() as u64 * CODE_UPGRADE_WEIGHT_VARIABLE + CODE_UPGRADE_WEIGHT_FIXED,
-		_ => 0 as Weight,
-	}
+	candidate.validity_votes.len() as Weight * BACKED_CANDIDATE_WEIGHT +
+		match &candidate.candidate.commitments.new_validation_code {
+			Some(v) => v.0.len() as u64 * CODE_UPGRADE_WEIGHT_VARIABLE + CODE_UPGRADE_WEIGHT_FIXED,
+			_ => 0 as Weight,
+		}
 }
 
 fn backed_candidates_weight<T: frame_system::Config>(
@@ -373,14 +374,13 @@ fn limit_paras_inherent<T: Config>(
 		// Sort the dispute statements according to the following prioritization:
 		//  1. Prioritize local disputes over remote disputes.
 		//  2. Prioritize older disputes over newer disputes.
-		//  3. Prioritize local disputes withan invalid vote over valid votes.
 		disputes.sort_by(|a, b| {
 			let a_local_block = T::DisputesHandler::included_state(a.session, a.candidate_hash);
 			let b_local_block = T::DisputesHandler::included_state(b.session, b.candidate_hash);
 			match (a_local_block, b_local_block) {
 				// Prioritize local disputes over remote disputes.
-				(None, Some(_)) => Ordering::Less,
-				(Some(_), None) => Ordering::Greater,
+				(None, Some(_)) => Ordering::Greater,
+				(Some(_), None) => Ordering::Less,
 				// For local disputes, prioritize those that occur at an earlier height.
 				(Some(a_height), Some(b_height)) => a_height.cmp(&b_height),
 				// Prioritize earlier remote disputes using session as rough proxy.
@@ -414,9 +414,7 @@ fn limit_paras_inherent<T: Config>(
 
 	let mut total_weight = 0;
 	backed_candidates.retain(|c| {
-		let code_upgrade_weight = backed_candidate_weight::<T>(c);
-		total_weight +=
-			c.validity_votes.len() as Weight * BACKED_CANDIDATE_WEIGHT + code_upgrade_weight;
+		total_weight += backed_candidate_weight::<T>(c);
 		total_weight < block_weight_available_for_candidates
 	});
 }
