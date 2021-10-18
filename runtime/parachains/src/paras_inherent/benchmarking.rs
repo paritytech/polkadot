@@ -52,7 +52,7 @@ fn byte32_slice_from(n: u32) -> [u8; 32] {
 // - create a new `DisputeState` with blank bitfields.
 // - make sure spam slotes is incremented by have DisputeStatementSet U DisputeState < byzantize_thresh
 // - force one side to have a super majority, so we enable slashing
-/// ParaInherent `enter` benchmark scenario builder.
+/// Paras inherent `enter` benchmark scenario builder.
 struct BenchBuilder<T: Config> {
 	current_session: u32,
 	validators: Option<Vec<(ValidatorId, ValidatorPair)>>,
@@ -62,7 +62,7 @@ struct BenchBuilder<T: Config> {
 	_phantom: sp_std::marker::PhantomData<T>,
 }
 
-/// ParaInherent `enter` benchmark scenario.
+/// Paras inherent `enter` benchmark scenario.
 struct Bench<T: Config> {
 	data: ParachainsInherentData<T::Header>,
 }
