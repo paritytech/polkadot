@@ -1346,53 +1346,6 @@ pub struct DisputeState<N = BlockNumber> {
 	pub concluded_at: Option<N>,
 }
 
-/// Type abstraction to provide entropy for seeding a `crng`
-#[derive(Clone, Default, Encode, Decode, PartialEq, RuntimeDebug, TypeInfo)]
-pub struct SeedEntropy(pub [u8; 32]);
-
-impl AsRef<[u8]> for SeedEntropy {
-	fn as_ref(&self) -> &[u8] {
-		&self.0[..]
-	}
-}
-
-impl AsMut<[u8]> for SeedEntropy {
-	fn as_mut(&mut self) -> &mut [u8] {
-		&mut self.0[..]
-	}
-}
-
-impl Into<[u8; 32]> for SeedEntropy {
-	fn into(self) -> [u8; 32] {
-		self.0
-	}
-}
-
-#[cfg(feature = "std")]
-impl SeedEntropy {
-	/// Collect a random entropy.
-	pub fn draw() -> Self {
-		let mut bytes = [0u8; 32];
-
-		use rand::RngCore;
-
-		#[cfg(not(fuzzing))]
-		{
-			let mut rng = rand::thread_rng();
-			rng.fill_bytes(&mut bytes[..]);
-		}
-
-		#[cfg(fuzzing)]
-		{
-			lazy_static::lazy_static! {
-				static ref RNG: rand_chacha::ChaChaRng = rand_chacha::ChaChaRng::from_seed(b"polkadot_on_chain_selection_seed");
-			}
-			RNG.fill_bytes(&mut bytes[..])
-		}
-
-		Self(bytes)
-	}
-}
 /// Parachains inherent-data passed into the runtime by a block author
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct InherentData<HDR: HeaderT = Header> {
@@ -1404,9 +1357,6 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub disputes: MultiDisputeStatementSet,
 	/// The parent block header. Used for checking state proofs.
 	pub parent_header: HDR,
-	/// Entropy source to initialize a `cprng`, for usage
-	/// in the decimation process of overweight blocks.
-	pub entropy: SeedEntropy,
 }
 
 /// The maximum number of validators `f` which may safely be faulty.

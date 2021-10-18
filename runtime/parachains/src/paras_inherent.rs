@@ -32,13 +32,14 @@ use bitvec::{order::Lsb0, prelude::BitVec};
 use frame_support::{
 	fail,
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
+	traits::Randomness,
 	pallet_prelude::*,
 };
 use frame_system::pallet_prelude::*;
+use pallet_babe::CurrentBlockRandomness;
 use primitives::v1::{
-	supermajority_threshold,
-	AvailabilityBitfield, BackedCandidate, CandidateHash, CoreIndex,
-	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SeedEntropy, SessionIndex,
+	supermajority_threshold, AvailabilityBitfield, BackedCandidate, CandidateHash, CoreIndex,
+	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SessionIndex,
 	SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
 	PARACHAINS_INHERENT_IDENTIFIER,
 };
@@ -141,7 +142,6 @@ pub mod pallet {
 				backed_candidates,
 				mut disputes,
 				parent_header,
-				entropy,
 			} = match data.get_data(&Self::INHERENT_IDENTIFIER) {
 				Ok(Some(d)) => d,
 				Ok(None) => return None,
@@ -198,6 +198,9 @@ pub mod pallet {
 			)
 			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
 
+
+			let entropy = CurrentBlockRandomness::random(&b"candidate-pick"[..]).0;
+
 			// XXX @Lldenaurois
 			// FIXME these weights are garbage
 			let remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
@@ -206,10 +209,10 @@ pub mod pallet {
 					expected_bits,
 					backed_candidates,
 					bitfields,
-					entropy.clone(),
+					entropy,
 					remaining_weight,
 					<scheduler::Pallet<T>>::core_para,
-					supermajority_threshold(validator_public.len())
+					supermajority_threshold(validator_public.len()),
 				);
 
 			let inherent_data = ParachainsInherentData::<T::Header> {
@@ -217,7 +220,6 @@ pub mod pallet {
 				backed_candidates,
 				disputes,
 				parent_header,
-				entropy,
 			};
 
 			// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
@@ -238,7 +240,6 @@ pub mod pallet {
 							backed_candidates: Vec::new(),
 							disputes: Vec::new(),
 							parent_header: inherent_data.parent_header,
-							entropy: inherent_data.entropy,
 						}
 					},
 				};
@@ -267,7 +268,6 @@ pub mod pallet {
 				backed_candidates,
 				parent_header,
 				disputes,
-				entropy: _entropy,
 			} = data;
 
 			ensure_none(origin)?;
@@ -481,7 +481,7 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 	expected_bits: usize,
 	mut candidates: Vec<BackedCandidate<<T>::Hash>>,
 	bitfields: UncheckedSignedAvailabilityBitfields,
-	entropy: SeedEntropy,
+	entropy: [u8; 32],
 	max_weight: Weight,
 	core_lookup: F,
 	validator_supermajority_availability_threshold: usize,
@@ -543,15 +543,19 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		let mut covered_bitfields = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
 
 		for (i, bitfield) in bitfields.iter().enumerate() {
-
 			// check if there are already sufficient bitfields included to pass the `f+1` threshold
-			if *sufficiency_count.entry(picked_candidate.hash())
-				.and_modify(|x| { *x += 1; } )
-				.or_insert(1_usize) > validator_supermajority_availability_threshold {
+			if *sufficiency_count
+				.entry(picked_candidate.hash())
+				.and_modify(|x| {
+					*x += 1;
+				})
+				.or_insert(1_usize) >
+				validator_supermajority_availability_threshold
+			{
 				// supermajority of bitfields reached, don't worry about extra bitfields
 				// they are used lazily to fill remaining space
 				superfluous.push(picked_candidate);
-				continue 'next;
+				continue 'next
 			}
 
 			// lookup the core index that is responsible for the candidate
@@ -579,24 +583,20 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		}
 	}
 
-
 	// If there is any remaining weight, try to fit in some
 	// additional bitfields for candidates that are included with
 	// corresponding bitfields that were not that are not included yet.
 	// see if any further bitfields that cover included candidates.
-	'outer: for (i, bitfield) in bitfields
-		.iter()
-		.enumerate()
-	{
+	'outer: for (i, bitfield) in bitfields.iter().enumerate() {
 		// avoid duplicate accounting if it was already included before
 		if bitfields_to_include_coverage[i] {
-			continue 'outer;
+			continue 'outer
 		}
 		// Processing in order here is ok, it's round robbin with an initially
 		// shuffeled ordering.
 		for picked_candidate in superfluous.iter() {
 			if weight_acc >= max_weight {
-				break 'outer;
+				break 'outer
 			}
 
 			// lookup the core index that is responsible for the candidate
@@ -609,7 +609,7 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 					// account for the added weight of the bitfield
 					weight_acc += bitfield_weight::<T>(bitfield.unchecked_payload());
 					// if a bitfield is included once, the inner loop is done
-					continue 'outer;
+					continue 'outer
 				}
 			}
 		}
