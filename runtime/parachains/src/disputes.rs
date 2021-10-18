@@ -738,6 +738,7 @@ impl<T: Config> Pallet<T> {
 		Ok(fresh)
 	}
 
+	/// Removes all duplicate disputes.
 	fn filter_multi_dispute_data(statement_sets: &mut MultiDisputeStatementSet) {
 		let config = <configuration::Pallet<T>>::config();
 

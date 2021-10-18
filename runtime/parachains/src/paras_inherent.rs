@@ -59,7 +59,7 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 
-/// A bitfield concering concluded disputes for candidates
+/// A bitfield concerning concluded disputes for candidates
 /// associated to the core index equivalent to the bit position.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 pub(crate) struct DisputedBitfield(pub(crate) BitVec<bitvec::order::Lsb0, u8>);
@@ -134,6 +134,8 @@ pub mod pallet {
 		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+
 			let ParachainsInherentData::<T::Header> {
 				bitfields,
 				backed_candidates,
@@ -146,11 +148,21 @@ pub mod pallet {
 				Err(_) => {
 					log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
 
-					return None
+					let parent_header = unimplemented!();
+					ParachainsInherentData {
+						// this is ok, since there are no backed candidates
+						// to pick from in case of overweight.
+						entropy: SeedEntropy::default(),
+
+						parent_header,
+
+						bitfields: Default::default(),
+						backed_candidates: Default::default(),
+						disputes: Default::default(),
+					}
 				},
 			};
 
-			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 			let current_session = <shared::Pallet<T>>::session_index();
 
 			// filter out any unneeded dispute statements
@@ -192,6 +204,8 @@ pub mod pallet {
 			)
 			.ok()?;
 
+			// XXX @Lldenaurois
+			// FIXME these weights are garbage
 			let remaining_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
 			let (_backed_candidates_weight, backed_candidates, bitfields) = apply_weight_limit::<T, _>(
 				expected_bits,
@@ -429,7 +443,8 @@ macro_rules! ensure2 {
 
 /// Calculate the weight of a single backed candidate.
 fn backed_candidate_weight<T: Config>(backed_candidate: &BackedCandidate<<T>::Hash>) -> Weight {
-	// FIXME
+	// XXX @Lldenaurois
+	// FIXME these weights are garbage
 	const CODE_UPGRADE_WEIGHT: Weight = 10_000 as Weight;
 	const DISPUTE_PER_STATEMENT_WEIGHT: Weight = 1_000 as Weight;
 
@@ -443,6 +458,8 @@ fn backed_candidate_weight<T: Config>(backed_candidate: &BackedCandidate<<T>::Ha
 
 /// Calculate the weight of a individual bitfield.
 fn bitfield_weight<T: Config>(bitfield: &AvailabilityBitfield) -> Weight {
+	// XXX @Lldenaurois
+	// FIXME these weights are garbage
 	7_000 as Weight
 }
 
@@ -454,7 +471,7 @@ fn bitfield_weight<T: Config>(bitfield: &AvailabilityBitfield) -> Weight {
 /// Since there is the relation of `backed candidate <-> occupied core <-> bitfield`
 /// this is used to pick the candidate, but also include all relevant
 /// bitfields.
-fn apply_weight_limit<T: Config, F: Fn(CoreIndex) -> Option<ParaId>>(
+fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<ParaId>>(
 	expected_bits: usize,
 	mut candidates: Vec<BackedCandidate<<T>::Hash>>,
 	mut bitfields: UncheckedSignedAvailabilityBitfields,
@@ -466,7 +483,7 @@ fn apply_weight_limit<T: Config, F: Fn(CoreIndex) -> Option<ParaId>>(
 		.iter()
 		.map(|backed_candidate| backed_candidate_weight::<T>(backed_candidate))
 		.sum();
-	total += bitfields.iter().map(|bitfield| bitfield_weight::<T>(bitfield.unchecked_payload())).sum();
+	total += bitfields.iter().map(|bitfield| bitfield_weight::<T>(bitfield.unchecked_payload())).sum::<Weight>();
 
 	if max_weight < total {
 		return (total, candidates, bitfields)
@@ -489,10 +506,10 @@ fn apply_weight_limit<T: Config, F: Fn(CoreIndex) -> Option<ParaId>>(
 	let mut candidates_core_index: BTreeMap<CandidateHash, CoreIndex> = (0..expected_bits)
 		.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
 		.filter_map(|opt_para_id| opt_para_id)
-		.map(|para_id| {
+		.filter_map(|para_id| {
 			PendingAvailability::<T>::get(&para_id)
 		})
-		.map(|cpa: CandidatePendingAvailability<T,<T>::BlockNumber>| {
+		.map(|cpa: CandidatePendingAvailability<<T>::Hash,<T>::BlockNumber>| {
 			(cpa.candidate_hash(), cpa.core_occupied())
 		})
 		.collect();
@@ -513,13 +530,13 @@ fn apply_weight_limit<T: Config, F: Fn(CoreIndex) -> Option<ParaId>>(
 		for (i, bitfield) in bitfields.iter().enumerate() {
 			// lookup the core index that is responsible for the candidate
 			if let Some(core_index) = candidates_core_index.get(&picked_candidate.hash()) {
-				if bitfield.unchecked_payload().0[core_index.0 as _] {
+				if bitfield.unchecked_payload().0[core_index.0 as usize] {
 					// avoid duplicate accounting if it was already included before
 					if bitfields_to_include_coverage[i] {
 						// mark the `i`-th bit
 						covered_bitfields.set(i, true);
 						// account for the added weight of the bitfield
-						bitfields_weight += bitfield_weight(bitfield.unchecked_payload());
+						bitfields_weight += bitfield_weight::<T>(bitfield.unchecked_payload());
 					}
 				}
 			}
@@ -560,6 +577,11 @@ fn apply_weight_limit<T: Config, F: Fn(CoreIndex) -> Option<ParaId>>(
 /// While this function technically returns a set of unchecked bitfields,
 /// they were actually checked and filtered to allow using it in both
 /// cases, as `filtering` and `checking` stage.
+///
+/// `EARLY_RETURN` determines the behavior.
+/// `false` assures that all inputs are filtered, and invalid ones are filtered out.
+/// It also skips signature verification.
+/// `true` returns an `Err(_)` on the first check failing.
 pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EARLY_RETURN: bool>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bits: DisputedBitfield,
@@ -606,17 +628,19 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 
 		let validator_public = &validators[validator_index.0 as usize];
 
-		let signed_bitfield = if let Ok(signed_bitfield) =
-			unchecked_bitfield.try_into_checked(&signing_context, validator_public)
-		{
-			signed_bitfield
-		} else if EARLY_RETURN {
-			fail!(crate::inclusion::pallet::Error::<T>::InvalidBitfieldSignature);
+		// only check the signatures when returning early
+		if EARLY_RETURN {
+			let signed_bitfield = if let Ok(signed_bitfield) =
+				unchecked_bitfield.try_into_checked(&signing_context, validator_public)
+			{
+				signed_bitfield
+			} else {
+				fail!(crate::inclusion::pallet::Error::<T>::InvalidBitfieldSignature);
+			};
+			bitfields.push(signed_bitfield.into_unchecked());
 		} else {
-			continue
-		};
-
-		bitfields.push(signed_bitfield.into_unchecked());
+			bitfields.push(unchecked_bitfield);
+		}
 
 		last_index = Some(validator_index);
 	}
