@@ -22,10 +22,9 @@
 //! this module.
 
 use crate::{
-	configuration::Config,
+	configuration,
 	disputes::DisputesHandler,
-	inclusion,
-	inclusion::{CandidatePendingAvailability, PendingAvailability},
+	inclusion::{self, CandidatePendingAvailability, PendingAvailability},
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump, ParaId,
 };
@@ -382,7 +381,8 @@ pub mod pallet {
 				concluded_invalid_disputed_candidates,
 				current_session,
 				&scheduled[..],
-			).unwrap_or_else(|err| {
+			)
+			.unwrap_or_else(|err| {
 				log::error!(
 					target: LOG_TARGET,
 					"dropping all backed candidates due to sanitization error: {:?}",
@@ -587,7 +587,10 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 /// `false` assures that all inputs are filtered, and invalid ones are filtered out.
 /// It also skips signature verification.
 /// `true` returns an `Err(_)` on the first check failing.
-pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EARLY_RETURN: bool>(
+pub(crate) fn sanitize_bitfields<
+	T: configuration::Config + crate::inclusion::Config,
+	const EARLY_RETURN: bool,
+>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bits: DisputedBitfield,
 	expected_bits: usize,
@@ -672,8 +675,8 @@ fn sanitize_backed_candidates<
 	// Remove any candidates that were concluded invalid.
 	backed_candidates.retain(|backed_candidate| {
 		let candidate_hash = backed_candidate.candidate.hash();
-		!disputed_candidates.contains(&candidate_hash)
-		|| T::DisputesHandler::concluded_invalid(session_index, candidate_hash)
+		!disputed_candidates.contains(&candidate_hash) ||
+			T::DisputesHandler::concluded_invalid(session_index, candidate_hash)
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
