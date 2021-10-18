@@ -145,6 +145,22 @@ pub mod prelude {
 	}
 }
 
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+pub struct PalletInfo {
+	#[codec(compact)] pub index: u32,
+	pub name: Vec<u8>,
+	pub module_name: Vec<u8>,
+	#[codec(compact)] pub major: u32,
+	#[codec(compact)] pub minor: u32,
+	#[codec(compact)] pub patch: u32,
+}
+
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+pub enum MaybeErrorCode {
+	Success,
+	Error(Vec<u8>),
+}
+
 /// Response data to a query.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
 pub enum Response {
@@ -156,12 +172,27 @@ pub enum Response {
 	ExecutionResult(Option<(u32, Error)>),
 	/// An XCM version.
 	Version(super::Version),
+	/// The index, instance name, pallet name and version of some pallets.
+	PalletsInfo(Vec<PalletInfo>),
+	/// The error of a dispatch attempt, or `None` if the dispatch executed without error.
+	DispatchResult(MaybeErrorCode),
 }
 
 impl Default for Response {
 	fn default() -> Self {
 		Self::Null
 	}
+}
+
+/// Information regarding the composition of a query response.
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+pub struct QueryResponseInfo {
+	/// The destination to which the query response message should be send. 
+	pub destination: MultiLocation,
+	/// The `query_id` field of the `QueryResponse` message.
+	#[codec(compact)] pub query_id: QueryId,
+	/// The `max_weight` field of the `QueryResponse` message.
+	#[codec(compact)] pub max_weight: Weight,
 }
 
 /// Cross-Consensus Message: A message from one consensus system to another.
@@ -230,7 +261,7 @@ pub enum Instruction<Call> {
 		query_id: QueryId,
 		response: Response,
 		#[codec(compact)]
-		max_weight: u64,
+		max_weight: Weight,
 	},
 
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets
@@ -379,7 +410,7 @@ pub enum Instruction<Call> {
 		query_id: QueryId,
 		dest: MultiLocation,
 		#[codec(compact)]
-		max_response_weight: u64,
+		max_response_weight: Weight,
 	},
 
 	/// Remove the asset(s) (`assets`) from the Holding Register and place equivalent assets under
@@ -496,7 +527,7 @@ pub enum Instruction<Call> {
 		dest: MultiLocation,
 		assets: MultiAssetFilter,
 		#[codec(compact)]
-		max_response_weight: u64,
+		max_response_weight: Weight,
 	},
 
 	/// Pay for the execution of some XCM `xcm` and `orders` with up to `weight`
@@ -594,7 +625,7 @@ pub enum Instruction<Call> {
 		#[codec(compact)]
 		query_id: QueryId,
 		#[codec(compact)]
-		max_response_weight: u64,
+		max_response_weight: Weight,
 	},
 
 	/// Cancel the effect of a previous `SubscribeVersion` instruction.
@@ -637,6 +668,59 @@ pub enum Instruction<Call> {
 	/// Errors:
 	/// - `ExpectationFalse`: If the value of the Error Register is not equal to the parameter.
 	ExpectError(Option<(u32, Error)>),
+
+	/// Query the existence of a particular pallet type.
+	/// 
+	/// - `name`: The name of the pallet to query.
+	/// - `response_info`: Information for making the response.
+	/// 
+	/// Sends a `QueryResponse` to Origin whose data field `PalletsInfo` containing the information
+	/// of all pallets on the local chain whose name is equal to `name`. This is empty in the case
+	/// that the local chain is not based on Substrate Frame.
+	/// 
+	/// Safety: No concerns.
+	/// 
+	/// Kind: *Instruction*
+	/// 
+	/// Errors: *Fallible*.
+	QueryPallet {
+		name: Vec<u8>,
+		response_info: QueryResponseInfo,
+	},
+	
+	/// Dispatch a call into a pallet in the Frame system. This provides a means of ensuring that
+	/// the pallet continues to exist with a known version.
+	/// 
+	/// - `origin_kind`: The means of expressing the message origin as a dispatch origin.
+	/// - `name`: The name of the pallet to which to dispatch a message.
+	/// - `major`, `minor`: The major and minor version of the pallet. The major version
+	///   must be equal and the minor version of the pallet must be at least as great.
+	/// - `pallet_index`: The index of the pallet to be called.
+	/// - `call_index`: The index of the dispatchable to be called.
+	/// - `params`: The encoded parameters of the dispatchable.
+	/// - `query_id`: If present, then a `QueryResponse`
+	///   whose `query_id` and `max_weight` are the given `QueryId`and `Weight` values is sent to
+	///   the given `MultiLocation` value with a `DispatchResult` response corresponding to the
+	///   error status of the "inner" dispatch. This only happens if the dispatch was actually
+	///   made - if an error happened prior to dispatch, then the Error Register is set and the
+	///   operation aborted as usual.
+	/// 
+	/// Safety: No concerns.
+	/// 
+	/// Kind: *Instruction*
+	/// 
+	/// Errors: *Fallible*.
+	Dispatch {
+		origin_kind: OriginKind,
+		#[codec(compact)] require_weight_at_most: Weight,
+		name: Vec<u8>,
+		#[codec(compact)] major: u32,
+		#[codec(compact)] minor: u32,
+		#[codec(compact)] pallet_index: u32,
+		#[codec(compact)] call_index: u32,
+		params: Vec<u8>,
+		response_info: Option<QueryResponseInfo>,
+	},
 }
 
 impl<Call> Xcm<Call> {
@@ -698,6 +782,29 @@ impl<Call> Instruction<Call> {
 			ExpectAsset(assets) => ExpectAsset(assets),
 			ExpectOrigin(origin) => ExpectOrigin(origin),
 			ExpectError(error) => ExpectError(error),
+			QueryPallet { name, response_info } =>
+				QueryPallet { name, response_info },
+			Dispatch {
+				origin_kind,
+				require_weight_at_most,
+				name,
+				major,
+				minor,
+				pallet_index,
+				call_index,
+				params,
+				response_info,
+			} => Dispatch {
+				origin_kind,
+				require_weight_at_most,
+				name,
+				major,
+				minor,
+				pallet_index,
+				call_index,
+				params,
+				response_info,
+			},
 		}
 	}
 }
@@ -750,6 +857,23 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ExpectAsset(assets) => W::expect_asset(assets),
 			ExpectOrigin(origin) => W::expect_origin(origin),
 			ExpectError(error) => W::expect_error(error),
+			QueryPallet { .. } => W::query_pallet(),
+			Dispatch {
+				origin_kind,
+				require_weight_at_most,
+				pallet_index,
+				call_index,
+				params,
+				response_info,
+				..
+			} => W::dispatch(
+				origin_kind,
+				require_weight_at_most,
+				pallet_index,
+				call_index,
+				params,
+				response_info,
+			),
 		}
 	}
 }

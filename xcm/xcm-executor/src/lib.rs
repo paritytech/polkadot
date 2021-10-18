@@ -20,14 +20,11 @@ use frame_support::{
 	dispatch::{Dispatchable, Weight},
 	ensure,
 	weights::GetDispatchInfo,
+	traits::PalletInfoAccess,
 };
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
-use xcm::latest::{
-	Error as XcmError, ExecuteXcm,
-	Instruction::{self, *},
-	MultiAssets, MultiLocation, Outcome, Response, SendXcm, Xcm,
-};
+use xcm::latest::{Error as XcmError, ExecuteXcm, Instruction::{self, *}, MaybeErrorCode, MultiAssets, MultiLocation, Outcome, PalletInfo, QueryResponseInfo, Response, SendXcm, Xcm};
 
 pub mod traits;
 use traits::{
@@ -464,6 +461,84 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			ExpectError(error) => {
 				ensure!(self.error == error, XcmError::ExpectationFalse);
+				Ok(())
+			},
+			QueryPallet { name, response_info } => {
+				let pallets = Config::AllPalletsInfo::infos()
+					.into_iter()
+					.filter(|x| x.name.as_bytes() == &name[..])
+					.map(|x| PalletInfo {
+						index: x.index as u32,
+						name: x.name.as_bytes().into(),
+						module_name: x.module_name.as_bytes().into(),
+						major: x.crate_version.major as u32,
+						minor: x.crate_version.minor as u32,
+						patch: x.crate_version.patch as u32,
+					})
+					.collect::<Vec<_>>();
+				let QueryResponseInfo { destination, query_id, max_weight } = response_info;
+				let response = Response::PalletsInfo(pallets);
+				let instruction = QueryResponse { query_id, response, max_weight };
+				let message = Xcm(vec![instruction]);
+				Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
+			},
+			Dispatch {
+				origin_kind,
+				require_weight_at_most,
+				name,
+				major,
+				minor,
+				pallet_index,
+				call_index,
+				params,
+				response_info,
+			} => {
+				// We assume that the Relay-chain is allowed to use transact on this parachain.
+				let origin = self.origin.clone().ok_or(XcmError::BadOrigin)?;
+
+				let pallet = Config::AllPalletsInfo::infos()
+					.into_iter()
+					.find(|x| x.index == pallet_index)
+					.ok_or(XcmError::PalletNotFound)?;
+				ensure!(pallet.name.as_bytes() == &name[..], XcmError::NameMismatch);
+				ensure!(pallet.crate_version.major as u32 == major, XcmError::VersionIncompatible);
+				ensure!(pallet.crate_version.minor as u32 >= minor, XcmError::VersionIncompatible);
+
+				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
+				let mut encoded_call = vec![pallet_index as u8, call_index as u8];
+				encoded_call.extend(params);
+				let message_call = Config::Call::decode(&mut &encoded_call[..])
+					.map_err(|_| XcmError::FailedToDecode)?;
+
+				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_kind)
+					.map_err(|_| XcmError::BadOrigin)?;
+				let weight = message_call.get_dispatch_info().weight;
+				ensure!(weight <= require_weight_at_most, XcmError::TooMuchWeightRequired);
+				let (actual_weight, error_code) = match message_call.dispatch(dispatch_origin) {
+					Ok(post_info) => (post_info.actual_weight, MaybeErrorCode::Success),
+					Err(error_and_info) => {
+						let error = MaybeErrorCode::Error(error_and_info.error.encode();
+						let actual_weight = error_and_info.post_info.actual_weight;
+						(actual_weight, error)
+					},
+				};
+				let actual_weight = actual_weight.unwrap_or(weight);
+				let surplus = weight.saturating_sub(actual_weight);
+				// We assume that the `Config::Weigher` will counts the `require_weight_at_most`
+				// for the estimate of how much weight this instruction will take. Now that we know
+				// that it's less, we credit it.
+				//
+				// We make the adjustment for the total surplus, which is used eventually
+				// reported back to the caller and this ensures that they account for the total
+				// weight consumed correctly (potentially allowing them to do more operations in a
+				// block than they otherwise would).
+				self.total_surplus.saturating_accrue(surplus);
+				if let Some(QueryResponseInfo { destination, query_id, max_weight }) = response_info {
+					let response = Response::DispatchResult(error_code);
+					let instruction = QueryResponse { query_id, response, max_weight };
+					let message = Xcm(vec![instruction]);
+					Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
+				}
 				Ok(())
 			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),

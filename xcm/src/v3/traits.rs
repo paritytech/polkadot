@@ -96,6 +96,15 @@ pub enum Error {
 	/// Used by `ExpectAsset`, `ExpectError` and `ExpectOrigin` when the expectation was not true.
 	#[codec(index = 22)]
 	ExpectationFalse,
+	/// The provided pallet index was not found.
+	#[codec(index = 23)]
+	PalletNotFound,
+	/// The given pallet's name is different to that expected.
+	#[codec(index = 24)]
+	NameMismatch,
+	/// The given pallet's version has an incompatible version to that expected.
+	#[codec(index = 25)]
+	VersionIncompatible,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.
@@ -425,5 +434,18 @@ pub trait XcmWeightInfo<Call> {
 	}
 	fn expect_error(_error: &Option<(u32, Error)>) -> Weight {
 		0
+	}
+	fn query_pallet() -> Weight {
+		0
+	}
+	fn dispatch(
+		_origin_kind: &OriginKind,
+		require_weight_at_most: &Weight,
+		_pallet_index: &u32,
+		_call_index: &u32,
+		_params: &Vec<u8>,
+		_response_info: &Option<QueryResponseInfo>,
+	) -> Weight {
+		*require_weight_at_most
 	}
 }

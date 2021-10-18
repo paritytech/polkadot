@@ -774,6 +774,7 @@ impl TryFrom<NewResponse> for Response {
 				None => None,
 			})),
 			NewResponse::Null => Ok(Self::Null),
+			_ => Err(()),
 		}
 	}
 }
