@@ -64,6 +64,13 @@ pub struct ParticipationRequest {
 	n_validators: u32,
 }
 
+/// Entry for the best effort queue.
+struct BestEffortEntry {
+	req: ParticipationRequest,
+	/// How often was the above request added to the queue.
+	added_count: BestEffortCount,
+}
+
 impl ParticipationRequest {
 	/// Create a new `ParticipationRequest` to be queued.
 	pub fn new(
@@ -73,27 +80,34 @@ impl ParticipationRequest {
 	) -> Self {
 		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session, n_validators }
 	}
-}
 
-impl Into<DisputeParticipationMessage> for ParticipationRequest {
-	fn into(self) -> DisputeParticipationMessage {
-		DisputeParticipationMessage::Participate {
-			candidate_hash: self.candidate_hash,
-			candidate_receipt: self.candidate_receipt,
-			session: self.session,
-			n_validators: self.n_validators,
-		}
+	pub fn candidate_receipt(&'_ self) -> &'_ CandidateReceipt {
+		&self.candidate_receipt
+	}
+	pub fn candidate_hash(&'_ self) -> &'_ CandidateHash {
+		&self.candidate_hash
+	}
+	pub fn session(&self) -> SessionIndex {
+		self.session
+	}
+	pub fn n_validators(&self) -> u32 {
+		self.n_validators
+	}
+	pub fn into_candidate_info(self) -> (CandidateHash, CandidateReceipt) {
+		let Self { candidate_hash, candidate_receipt, .. } = self;
+		(candidate_hash, candidate_receipt)
 	}
 }
 
-/// Entry for the best effort queue.
-struct BestEffortEntry {
-	req: ParticipationRequest,
-	/// How often was the above request added to the queue.
-	added_count: BestEffortCount,
-}
-
 impl Queues {
+	/// Create new `Queues`.
+	pub fn new() -> Self {
+		Self {
+			best_effort: HashMap::new(),
+			priority: BTreeMap::new(),
+		}
+	}
+
 	/// Will put message in queue, either priority or best effort depending on whether a
 	/// `CandidateComparator` was provided or not.
 	///
