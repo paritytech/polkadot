@@ -40,7 +40,7 @@ xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", defa
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 
 rand = { version = "0.8.3", default-features = false }
-rand_chacha = { version = "0.3.1" }
+rand_chacha = { version = "0.3.1", default-features = false }
 
 [dev-dependencies]
 futures = "0.3.17"
