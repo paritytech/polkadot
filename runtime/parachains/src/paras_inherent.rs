@@ -531,7 +531,7 @@ fn apply_weight_limit<T: Config, F: Fn(CoreIndex) -> Option<ParaId>>(
 			// candidate fits, so pick it and account for its weight
 			candidates_acc.push(picked_candidate);
 			weight_acc = prospective_weight;
-			bitfields_to_include_coverage |= bitfields_weight;
+			bitfields_to_include_coverage |= covered_bitfields;
 		}
 	}
 
