@@ -80,13 +80,11 @@ impl ParachainsInherentDataProvider {
 			_ = timeout => Err(Error::Timeout),
 		};
 
-		let entropy = SeedEntropy::draw();
 		let inherent_data = match res {
 			Ok(pd) => ParachainsInherentData {
 				bitfields: pd.bitfields.into_iter().map(Into::into).collect(),
 				backed_candidates: pd.backed_candidates,
 				disputes: pd.disputes,
-				entropy,
 				parent_header,
 			},
 			Err(err) => {
