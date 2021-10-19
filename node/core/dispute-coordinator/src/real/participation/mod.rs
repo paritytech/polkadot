@@ -164,7 +164,7 @@ impl Participation {
 	}
 
 	/// Process active leaves update.
-	pub async fn on_active_leaves_update<Context: SubsystemContext>(
+	pub async fn process_active_leaves_update<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context,
 		update: &ActiveLeavesUpdate,
