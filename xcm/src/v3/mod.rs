@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Version 1 of the Cross-Consensus Message format data structures.
+//! Version 3 of the Cross-Consensus Message format data structures.
 
 use super::v2::{Instruction as OldInstruction, Response as OldResponse, Xcm as OldXcm};
 use crate::{DoubleEncoded, GetWeight};
