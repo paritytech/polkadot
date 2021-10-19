@@ -304,11 +304,3 @@ beefy-gadget = { git="https://github.com/cheme/substrate", branch="state-update4
 beefy-gadget-rpc = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 beefy-merkle-tree = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
 beefy-primitives = { git="https://github.com/cheme/substrate", branch="state-update4-host2" }
-
-
-[patch.crates-io]
-hash-db = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4-new" }
-memory-db = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4-new" }
-trie-db = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4-new" }
-trie-root = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4-new" }
-trie-bench = { git = "https://github.com/cheme/trie.git", branch = "hashed-value-simple4-new" }
