@@ -207,7 +207,7 @@ pub mod pallet {
 					// in case there is no vrf randomness present, we utilize the relay parent
 					// as seed, it's better than a static value.
 					log::warn!(target: LOG_TARGET, "CurrentBlockRandomness did not provide entropy");
-					entropy.as_mut().copy_from_slice(relay_parent.as_ref());
+					entropy.as_mut().copy_from_slice(parent_hash.as_ref());
 				}
 				entropy
 			};
