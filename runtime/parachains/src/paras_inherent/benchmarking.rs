@@ -27,16 +27,25 @@ use primitives::{
 		CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet,
 		GroupIndex, HeadData, Id as ParaId, InvalidDisputeStatementKind, PersistedValidationData,
 		SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
-		ValidityAttestation,
+		ValidityAttestation, PARACHAIN_KEY_TYPE_ID,
 	},
 };
+
+use application_crypto::RuntimePublic;
 use sp_core::{Pair, H256};
 use sp_runtime::{
 	generic::Digest,
 	traits::{One, Zero},
+	BoundToRuntimeAppPublic, RuntimeAppPublic,
 };
 use sp_std::{collections::btree_map::BTreeMap as HashMap, convert::TryInto};
-use sp_runtime::RuntimeAppPublic;
+
+// Alias the validator key type id for readability. Also see `COLLATOR_KEY_TYPE_ID`
+// const VALIDATOR_KEY_TYPE_ID: KeyTypeId = PARACHAIN_KEY_TYPE_ID;
+
+impl<T: super::Config> BoundToRuntimeAppPublic for super::Pallet<T> {
+	type Public = ValidatorId;
+}
 
 fn byte32_slice_from(n: u32) -> [u8; 32] {
 	let mut slice = [0u8; 32];
@@ -181,6 +190,14 @@ impl<T: Config> BenchBuilder<T> {
 			.map(|i| {
 				let seed = byte32_slice_from(i);
 				let pair = ValidatorPair::from_seed_slice(&seed).unwrap();
+				// let public
+				// 	= <
+				// 		<Pallet<T> as BoundToRuntimeAppPublic>::Public as RuntimePublic
+				// 		>::generate_pair(Some(seed.to_vec()));
+
+				// let public = <ValidatorId as RuntimeAppPublic>::generate_pair(
+				// 	Some(seed.to_vec())
+				// );
 
 				// this account is not actually used anywhere, just necessary to fulfill expected type
 				// `validators` param of `test_trigger_on_new_session`.
@@ -196,7 +213,6 @@ impl<T: Config> BenchBuilder<T> {
 
 	fn max_validators() -> u32 {
 		let config_max = configuration::Pallet::<T>::config().max_validators.unwrap_or(200);
-		// self.validator_count.and_then(|c| Some(c.max(config_max))).unwrap_or(config_max)
 		config_max
 	}
 
@@ -358,13 +374,16 @@ impl<T: Config> BenchBuilder<T> {
 
 				let pov_hash = Default::default();
 				let validation_code_hash = Default::default();
-				let signature = collator_pair.public().sign(&collator_signature_payload(
+				let payload = collator_signature_payload(
 					&relay_parent,
 					&para_id,
 					&persisted_validation_data_hash,
 					&pov_hash,
 					&validation_code_hash,
-				)).unwrap();
+				);
+				// let public = collator_pair.public();
+				// let signature = collator_pair.public().sign(&payload).unwrap();
+				let signature = collator_pair.sign(&payload);
 
 				// set the head data so it can be used while validating the signatures on the candidate
 				// receipt.
@@ -482,6 +501,9 @@ impl<T: Config> BenchBuilder<T> {
 						};
 						let data = dispute_statement
 							.payload_data(candidate_hash.clone(), self.current_session);
+
+						// let debug_res = validator_pair.public().sign(&data);
+						// println!("debug res validator sign {}", debug_res);
 						let statement_sig = validator_pair.sign(&data);
 
 						(dispute_statement, ValidatorIndex(validator_index), statement_sig)

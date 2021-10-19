@@ -301,6 +301,8 @@ impl inclusion::RewardValidators for TestRewardValidators {
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
+	use sp_keystore::{testing::KeyStore, KeystoreExt, SyncCryptoStorePtr};
+	use sp_std::sync::Arc;
 	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
 	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
 
@@ -308,7 +310,10 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	state.configuration.assimilate_storage(&mut t).unwrap();
 	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
 
-	t.into()
+	let mut ext: TestExternalities = t.into();
+	ext.register_extension(KeystoreExt(Arc::new(KeyStore::new()) as SyncCryptoStorePtr));
+
+	ext
 }
 
 #[derive(Default)]

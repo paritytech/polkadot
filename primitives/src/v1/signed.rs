@@ -263,8 +263,13 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		validator_index: ValidatorIndex,
 	) -> Self {
 		use application_crypto::Pair;
+		use application_crypto::RuntimeAppPublic;
 		let data = Self::payload_data(&payload, context);
-		let signature = pair.sign(&data);
+
+		let debug_res = pair.public().sign(&data);
+		println!("debug_res benchmark sign {:?}", debug_res);
+		let signature = debug_res.unwrap();
+		// let signature = pair.sign(&data);
 
 		Self { payload, validator_index, signature, real_payload: sp_std::marker::PhantomData }
 	}
