@@ -18,9 +18,11 @@ use crate::traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
 	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
-use frame_support::dispatch::{Dispatchable, Parameter};
-use frame_support::traits::PalletsInfoAccess;
-use frame_support::weights::{GetDispatchInfo, PostDispatchInfo};
+use frame_support::{
+	dispatch::{Dispatchable, Parameter},
+	traits::PalletsInfoAccess,
+	weights::{GetDispatchInfo, PostDispatchInfo},
+};
 use xcm::latest::SendXcm;
 
 /// The trait to parameterize the `XcmExecutor`.

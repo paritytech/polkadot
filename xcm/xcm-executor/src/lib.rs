@@ -19,13 +19,18 @@
 use frame_support::{
 	dispatch::{Dispatchable, Weight},
 	ensure,
-	weights::GetDispatchInfo,
 	traits::PalletsInfoAccess,
+	weights::GetDispatchInfo,
 };
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
-use xcm::latest::{Error as XcmError, ExecuteXcm, Instruction::{self, *}, MaybeErrorCode, MultiAssets, MultiLocation, Outcome, PalletInfo, QueryResponseInfo, Response, SendXcm, Xcm};
+use xcm::latest::{
+	Error as XcmError, ExecuteXcm,
+	Instruction::{self, *},
+	MaybeErrorCode, MultiAssets, MultiLocation, Outcome, PalletInfo, QueryResponseInfo, Response,
+	SendXcm, Xcm,
+};
 
 pub mod traits;
 use traits::{
@@ -533,7 +538,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// weight consumed correctly (potentially allowing them to do more operations in a
 				// block than they otherwise would).
 				self.total_surplus.saturating_accrue(surplus);
-				if let Some(QueryResponseInfo { destination, query_id, max_weight }) = response_info {
+				if let Some(QueryResponseInfo { destination, query_id, max_weight }) = response_info
+				{
 					let response = Response::DispatchResult(error_code);
 					let instruction = QueryResponse { query_id, response, max_weight };
 					let message = Xcm(vec![instruction]);
