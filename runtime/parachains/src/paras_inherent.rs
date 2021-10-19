@@ -862,7 +862,6 @@ mod tests {
 						backed_candidates,
 						disputes: Vec::new(),
 						parent_header: default_header(),
-						entropy: Default::default(),
 					},
 				}
 				.dispatch_bypass_filter(None.into())

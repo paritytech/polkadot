@@ -22,15 +22,28 @@ use crate::{
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
-use frame_support::{parameter_types, traits::GenesisBuild, weights::Weight};
+
+use frame_support::{
+	construct_runtime, parameter_types,
+	traits::{
+		Contains, Everything, GenesisBuild, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		Nothing, OnRuntimeUpgrade,
+	},
+	weights::Weight,
+	PalletId, RuntimeDebug,
+};
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::v1::{
-	AuthorityDiscoveryId, Balance, BlockNumber, Header, SessionIndex, UpwardMessage, ValidatorIndex,
+	AuthorityDiscoveryId, Balance, BlockNumber, Header, Moment, SessionIndex, UpwardMessage,
+	ValidatorIndex,
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
-use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
+use sp_runtime::{
+	traits::{BlakeTwo256, IdentityLookup},
+	KeyTypeId,
+};
 use std::{cell::RefCell, collections::HashMap};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -106,6 +119,52 @@ impl pallet_balances::Config for Test {
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub const EpochDuration: u64 = 10;
+	pub const ExpectedBlockTime: Moment = 6_000;
+	pub const ReportLongevity: u64 = 10;
+	pub const MaxAuthorities: u32 = 100_000;
+}
+
+impl pallet_babe::Config for Test {
+	type EpochDuration = EpochDuration;
+	type ExpectedBlockTime = ExpectedBlockTime;
+
+	// session module is the trigger
+	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
+
+	type DisabledValidators = ();
+
+	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		pallet_babe::AuthorityId,
+	)>>::Proof;
+
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		pallet_babe::AuthorityId,
+	)>>::IdentificationTuple;
+
+	type KeyOwnerProofSystem = ();
+
+	type HandleEquivocation = ();
+
+	type WeightInfo = ();
+
+	type MaxAuthorities = MaxAuthorities;
+}
+
+parameter_types! {
+	pub const MinimumPeriod: Moment = 6_000 / 2;
+}
+
+impl pallet_timestamp::Config for Test {
+	type Moment = Moment;
+	type OnTimestampSet = ();
+	type MinimumPeriod = MinimumPeriod;
 	type WeightInfo = ();
 }
 
