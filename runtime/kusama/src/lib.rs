@@ -51,7 +51,6 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, Nothing,
-		OnRuntimeUpgrade,
 	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
