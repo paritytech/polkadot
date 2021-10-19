@@ -34,24 +34,47 @@ use std::{
 	time::Duration,
 };
 
+/// Transmission end used for sending the PVF prechecking result.
 pub type PrecheckResultSender = oneshot::Sender<PrecheckResult>;
 
+/// Precheck request sent from the host to the queue.
 pub struct ToQueue {
 	pub pvf: Pvf,
 	pub result_sender: PrecheckResultSender,
 }
 
+/// An event produced by futures spawned by the queue.
 enum QueueEvent {
+	/// A new worker spawned.
 	Spawn(IdleWorker, WorkerHandle),
+	/// A worker finished the PVF processing. If it was successful
+	/// and worker survived, its token is returned along with the outcome.
 	StartWork { worker: Worker, outcome: Outcome, artifact_id: ArtifactId },
 }
 
+/// A set of asynchronous tasks spawned by the queue.
+type Mux = FuturesUnordered<BoxFuture<'static, QueueEvent>>;
+
+/// Status of the PVF prechecking. Only makes sense for requests whose
+/// processing was initiated, i.e. a worker was previously assigned to it.
+/// Queued requests are stored separately in the queue.
 enum PrecheckStatus {
+	/// A worker is currently busy with the prechecking.
 	InProgress { waiting_for_response: Vec<PrecheckResultSender> },
+	/// Cached result for processed requests.
 	Done(PrecheckResult),
 }
 
-type Mux = FuturesUnordered<BoxFuture<'static, QueueEvent>>;
+/// Handles the request which is already present in the queue.
+fn deduplicate_request(status: &mut PrecheckStatus, request: ToQueue) {
+	match status {
+		PrecheckStatus::InProgress { waiting_for_response } =>
+			waiting_for_response.push(request.result_sender),
+		PrecheckStatus::Done(result) => {
+			let _ = request.result_sender.send(result.clone());
+		},
+	}
+}
 
 struct Queue {
 	artifacts: HashMap<ArtifactId, PrecheckStatus>,
@@ -104,14 +127,9 @@ impl Queue {
 	}
 
 	fn handle_to_queue(&mut self, request: ToQueue) {
+		// Deduplicate the request if necessary.
 		if let Some(status) = self.artifacts.get_mut(&request.pvf.as_artifact_id()) {
-			match status {
-				PrecheckStatus::InProgress { waiting_for_response } =>
-					waiting_for_response.push(request.result_sender),
-				PrecheckStatus::Done(result) => {
-					let _ = request.result_sender.send(result.clone());
-				},
-			}
+			deduplicate_request(status, request);
 			return
 		}
 
@@ -127,6 +145,7 @@ impl Queue {
 			if self.workers.can_afford_one_more() {
 				self.spawn_extra_worker();
 			}
+			// Queue the request, the worker will pull it later.
 			self.queue.push_back(request);
 		}
 	}
@@ -136,8 +155,8 @@ impl Queue {
 			QueueEvent::Spawn(idle, handle) => {
 				self.handle_worker_spawned(idle, handle);
 			},
-			QueueEvent::StartWork { worker: key, outcome, artifact_id } =>
-				self.handle_job_finished(key, outcome, artifact_id),
+			QueueEvent::StartWork { worker, outcome, artifact_id } =>
+				self.handle_job_finished(worker, outcome, artifact_id),
 		}
 	}
 
@@ -183,6 +202,7 @@ impl Queue {
 			let _ = result_sender.send(result.clone());
 		}
 
+		// Cache the prechecking result.
 		self.artifacts.insert(artifact_id, PrecheckStatus::Done(result));
 
 		if let Some(idle_worker) = idle_worker {
@@ -194,7 +214,7 @@ impl Queue {
 				}
 			}
 		} else {
-			// Note it's possible that the worker was purged already by `purge_dead`
+			// Note it's possible that the worker was purged already by `purge_dead`.
 			self.workers.running.remove(worker);
 
 			if !self.queue.is_empty() && self.workers.find_available().is_none() {
@@ -217,6 +237,13 @@ impl Queue {
 	}
 
 	fn assign(&mut self, worker: Worker, request: ToQueue) {
+		// Queued items still can be duplicated. Before actually assigning it to the worker
+		// verify its not present in the artifacts map yet.
+		if let Some(status) = self.artifacts.get_mut(&request.pvf.as_artifact_id()) {
+			deduplicate_request(status, request);
+			return
+		}
+
 		let ToQueue { pvf, result_sender } = request;
 		tracing::debug!(
 			target: LOG_TARGET,

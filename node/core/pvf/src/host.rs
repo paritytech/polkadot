@@ -48,6 +48,13 @@ pub struct ValidationHost {
 }
 
 impl ValidationHost {
+	/// Precheck PVF with the given code, i.e. verify that it compiles within a reasonable time limit.
+	/// The result of execution will be sent to the provided result sender.
+	///
+	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// situations this function should return immediately.
+	///
+	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn precheck_pvf(
 		&mut self,
 		pvf: Pvf,

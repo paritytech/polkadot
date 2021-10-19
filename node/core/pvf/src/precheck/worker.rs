@@ -46,7 +46,7 @@ pub enum Outcome {
 	IoErr(io::Error),
 }
 
-pub async fn start_work(worker: IdleWorker, pvf: Pvf, execution_timeout: Duration) -> Outcome {
+pub async fn start_work(worker: IdleWorker, pvf: Pvf, precheck_timeout: Duration) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
 	tracing::debug!(
@@ -67,7 +67,7 @@ pub async fn start_work(worker: IdleWorker, pvf: Pvf, execution_timeout: Duratio
 		return Outcome::IoErr(error)
 	}
 
-	match async_std::future::timeout(execution_timeout, recv_response(&mut stream)).await {
+	match async_std::future::timeout(precheck_timeout, recv_response(&mut stream)).await {
 		Ok(receive_result) => match receive_result {
 			Ok(precheck_result) =>
 				Outcome::Ok { precheck_result, idle_worker: IdleWorker { stream, pid } },
