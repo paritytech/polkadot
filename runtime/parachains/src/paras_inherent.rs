@@ -24,11 +24,11 @@
 use crate::{
 	configuration,
 	disputes::DisputesHandler,
-	inclusion::{self, CandidatePendingAvailability, PendingAvailability},
+	inclusion,
 	scheduler::{self, CoreAssignment, FreedReason},
-	shared, ump, ParaId,
+	shared, ump,
 };
-use bitvec::{order::Lsb0, prelude::BitVec};
+use bitvec::prelude::BitVec;
 use frame_support::{
 	fail,
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
@@ -38,8 +38,8 @@ use frame_support::{
 use frame_system::pallet_prelude::*;
 use pallet_babe::CurrentBlockRandomness;
 use primitives::v1::{
-	supermajority_threshold, AvailabilityBitfield, BackedCandidate, CandidateHash, CoreIndex,
-	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SessionIndex, SigningContext,
+	BackedCandidate, CandidateHash, CoreIndex, InherentData as ParachainsInherentData,
+	ScrapedOnChainVotes, SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfield,
 	UncheckedSignedAvailabilityBitfields, ValidatorId, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use rand::Rng;
@@ -155,8 +155,16 @@ pub mod pallet {
 			// filter out any unneeded dispute statements
 			T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
-			// `with_transaction`
-			// T::DisputesHandler::provide_multi_dispute_data(disputes);
+			let fresh_disputes = frame_support::storage::with_transaction(|| {
+				frame_support::storage::TransactionOutcome::Rollback(
+					T::DisputesHandler::provide_multi_dispute_data(disputes.clone()),
+				)
+			})
+			.map_err(|e| {
+				log::warn!(target: LOG_TARGET, "MultiDisputesData failed to load: {:?}", e);
+				e
+			})
+			.unwrap_or_default();
 
 			let concluded_invalid_disputes = disputes
 				.iter()
@@ -165,7 +173,8 @@ pub mod pallet {
 				.filter(|(session, candidate)| {
 					// newly concluded votes are not accounted for _yet_
 					// as such we need to explicitly check for them
-					<T>::DisputesHandler::concluded_invalid(*session, *candidate)
+					!fresh_disputes.contains(&(*session, *candidate)) &&
+						!<T>::DisputesHandler::concluded_invalid(*session, *candidate)
 				})
 				.map(|(_session, candidate)| candidate)
 				.collect::<BTreeSet<CandidateHash>>();
@@ -206,7 +215,10 @@ pub mod pallet {
 				} else {
 					// in case there is no vrf randomness present, we utilize the relay parent
 					// as seed, it's better than a static value.
-					log::warn!(target: LOG_TARGET, "CurrentBlockRandomness did not provide entropy");
+					log::warn!(
+						target: LOG_TARGET,
+						"CurrentBlockRandomness did not provide entropy"
+					);
 					entropy.as_mut().copy_from_slice(parent_hash.as_ref());
 				}
 				entropy
@@ -216,15 +228,7 @@ pub mod pallet {
 			// FIXME these weights are garbage
 			let remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 			let (_backed_candidates_weight, backed_candidates, bitfields) =
-				apply_weight_limit::<T, _>(
-					expected_bits,
-					backed_candidates,
-					bitfields,
-					entropy,
-					remaining_weight,
-					<scheduler::Pallet<T>>::core_para,
-					supermajority_threshold(validator_public.len()),
-				);
+				apply_weight_limit::<T>(backed_candidates, bitfields, entropy, remaining_weight);
 
 			let inherent_data = ParachainsInherentData::<T::Header> {
 				bitfields,
@@ -474,7 +478,7 @@ fn backed_candidate_weight<T: Config>(backed_candidate: &BackedCandidate<<T>::Ha
 }
 
 /// Calculate the weight of a individual bitfield.
-fn bitfield_weight<T: Config>(_bitfield: &AvailabilityBitfield) -> Weight {
+fn bitfield_weight<T: Config>(_bitfield: &UncheckedSignedAvailabilityBitfield) -> Weight {
 	// XXX @Lldenaurois
 	// FIXME these weights are garbage
 	7_000 as Weight
@@ -482,175 +486,92 @@ fn bitfield_weight<T: Config>(_bitfield: &AvailabilityBitfield) -> Weight {
 
 /// Considers an upper threshold that the candidates must not exceed.
 ///
-/// If there is sufficient space, all blocks will be included, otherwise
-/// continues adding blocks, ignoring blocks that exceed the threshold.
+/// If there is sufficient space, all bitfields and candidates will be included.
 ///
-/// Since there is the relation of `backed candidate <-> occupied core <-> bitfield`
-/// this is used to pick the candidate, but also include all relevant
-/// bitfields.
-fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<ParaId>>(
-	expected_bits: usize,
-	mut candidates: Vec<BackedCandidate<<T>::Hash>>,
+/// Otherwise tries to include all bitfields, and fills in the remaining weight with candidates.
+///
+/// If even the bitfields are too large to fit into the `max_weight` limit, bitfields are randomly
+/// picked and _no_ candidates will be included.
+fn apply_weight_limit<T: Config + inclusion::Config>(
+	candidates: Vec<BackedCandidate<<T>::Hash>>,
 	bitfields: UncheckedSignedAvailabilityBitfields,
 	entropy: [u8; 32],
 	max_weight: Weight,
-	core_lookup: F,
-	validator_supermajority_availability_threshold: usize,
 ) -> (Weight, Vec<BackedCandidate<<T>::Hash>>, UncheckedSignedAvailabilityBitfields) {
-	let mut total = candidates
+	let total_bitfields_weight =
+		bitfields.iter().map(|bitfield| bitfield_weight::<T>(bitfield)).sum::<Weight>();
+
+	let total_candidates_weight = candidates
 		.iter()
-		.map(|backed_candidate| {
-			backed_candidate_weight::<T>(backed_candidate)
-		})
-		.sum();
-	total += bitfields
-		.iter()
-		.map(|bitfield| bitfield_weight::<T>(bitfield.unchecked_payload()))
+		.map(|backed_candidate| backed_candidate_weight::<T>(backed_candidate))
 		.sum::<Weight>();
 
+	let total = total_bitfields_weight + total_candidates_weight;
+
+	// everything fits into the block
 	if max_weight < total {
 		return (total, candidates, bitfields)
 	}
 
-	// add the original index _before_ randomly picking
-	let candidates = candidates.into_iter().enumerate().collect::<Vec<_>>();
-
-	let mut candidates_acc = Vec::with_capacity(candidates.len());
-
-	// TODO use CurrentBlockRandomness as seed here
-	// TODO alt: use the pick index as subject to
-	// TODO obtain an index at the cost of having to impl
-	// TODO the equal probability distribution ourselves
 	use rand_chacha::rand_core::SeedableRng;
 	let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
-	let mut weight_acc: Weight = 0 as _;
 
-	// a bitfield to determine which availablity bitfields to include
-	// essentially a `Vec<bool>` for our purposes
-	let mut bitfields_to_include_coverage = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
+	fn random_sel<X, F: Fn(&X) -> Weight>(
+		rng: &mut rand_chacha::ChaChaRng,
+		selectables: &[X],
+		weight_fn: F,
+		weight_limit: Weight,
+	) -> (Weight, Vec<usize>) {
+		let mut indices = (0..selectables.len()).into_iter().collect::<Vec<_>>();
+		let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
 
-	// create a mapping of `CandidateHash` to `CoreIndex`
-	let candidates_core_index: BTreeMap<CandidateHash, CoreIndex> = (0..expected_bits)
-		.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
-		.filter_map(|opt_para_id| opt_para_id)
-		.filter_map(|para_id| PendingAvailability::<T>::get(&para_id))
-		.map(|cpa: CandidatePendingAvailability<<T>::Hash, <T>::BlockNumber>| {
-			(cpa.candidate_hash(), cpa.core_occupied())
-		})
-		.collect();
+		let mut weight_acc = 0 as Weight;
+		while weight_acc < weight_limit || !selectables.is_empty() {
+			// randomly pick an index
+			let pick = rng.gen_range(0..indices.len());
+			// remove the index from the available set of indices
+			let idx = indices.swap_remove(pick);
 
-	// Keep track the coverage for each candidate, and avoid
-	// including excessive coverage that is not required since the
-	// `2f + 1` threshold is already reached.
-	let mut sufficiency_count = BTreeMap::<CandidateHash, usize>::new();
+			let item = &selectables[idx];
 
-	// the candidates that have remaining bitfields which
-	// could be used to maximize the block utilization
-	let mut superfluous = Vec::new();
-	'next: while weight_acc < max_weight || !candidates.is_empty() {
-		// select a index to try
-		let pick = rng.gen_range(0..candidates.len());
-		// remove the candidate from the possible pick set
-		let (original_vec_idx, picked_candidate) = candidates.swap_remove(pick);
-
-		let picked_weight = backed_candidate_weight::<T>(&picked_candidate);
-		// collect all bitfields that reference the candidate
-		// (or: the availability core index that is responsible for the candidate)
-		let mut bitfields_weight = 0 as Weight;
-		let mut covered_bitfields = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
-
-		for (i, bitfield) in bitfields.iter().enumerate() {
-			// check if there are already sufficient bitfields included to pass the `2f + 1` threshold
-			if *sufficiency_count
-				.entry(picked_candidate.hash())
-				.and_modify(|x| {
-					*x += 1;
-				})
-				.or_insert(1_usize) >
-				validator_supermajority_availability_threshold
-			{
-				// supermajority of bitfields reached, don't worry about extra bitfields
-				// they are used lazily to fill remaining space
-				superfluous.push((original_vec_idx, picked_candidate));
-				continue 'next
-			}
-
-			// lookup the core index that is responsible for the candidate
-			if let Some(core_index) = candidates_core_index.get(&picked_candidate.hash()) {
-				// check the corresponding bit is `true`
-				if bitfield.unchecked_payload().0[core_index.0 as usize] {
-					// avoid duplicate accounting if it was already included before
-					if !bitfields_to_include_coverage[i] {
-						// mark the `i`-th bit
-						covered_bitfields.set(i, true);
-						// account for the added weight of the bitfield
-						bitfields_weight += bitfield_weight::<T>(bitfield.unchecked_payload());
-					}
-				}
-			}
+			picked_indices.push(idx);
+			weight_acc = weight_fn(item);
 		}
-
-		// is the candidate small enough to fit
-		let prospective_weight = picked_weight + bitfields_weight + weight_acc;
-		if prospective_weight <= max_weight {
-			// candidate fits, so pick it and account for its weight
-			candidates_acc.push((original_vec_idx, picked_candidate));
-			weight_acc = prospective_weight;
-			bitfields_to_include_coverage |= covered_bitfields;
-		}
+		// sorting indices, so the ordering is retained
+		// unstable sorting is fine, since there are no duplicates
+		picked_indices.sort_unstable();
+		(weight_acc, picked_indices)
 	}
 
-	// If there is any remaining weight, try to fit in some
-	// additional bitfields for candidates that are included with
-	// corresponding bitfields that were not that are not included yet.
-	// see if any further bitfields that cover included candidates.
-	'outer: for (i, bitfield) in bitfields.iter().enumerate() {
-		// avoid duplicate accounting if it was already included before
-		if bitfields_to_include_coverage[i] {
-			continue 'outer
-		}
-		// Processing in order here is ok, it's round robbin with an initially
-		// shuffeled ordering.
-		for (_original_vec_idx, picked_candidate) in superfluous.iter() {
-			if weight_acc >= max_weight {
-				break 'outer
-			}
-
-			// lookup the core index that is responsible for the candidate
-			if let Some(core_index) = candidates_core_index.get(&picked_candidate.hash()) {
-				// check the corresponding core index represented by the bit offset is `true`
-				if bitfield.unchecked_payload().0[core_index.0 as usize] {
-					// mark the `i`-th bit, we assured in the outer loop
-					// it was not set
-					bitfields_to_include_coverage.set(i, true);
-					// account for the added weight of the bitfield
-					weight_acc += bitfield_weight::<T>(bitfield.unchecked_payload());
-					// if a bitfield is included once, the inner loop is done
-					continue 'outer
-				}
-			}
-		}
+	// There is weight remaining to be consumed by a subset of candidates
+	// which are going to be picked now.
+	if let Some(remaining_weight) = max_weight.checked_sub(total_bitfields_weight) {
+		let (acc_candidate_weight, indices) = random_sel::<BackedCandidate<<T>::Hash>, _>(
+			&mut rng,
+			&candidates[..],
+			backed_candidate_weight::<T>,
+			remaining_weight,
+		);
+		let candidates =
+			indices.into_iter().map(move |idx| candidates[idx].clone()).collect::<Vec<_>>();
+		// pick all bitfields, and
+		// fill the remaining space with candidates
+		let total = acc_candidate_weight + total_bitfields_weight;
+		return (total, candidates, bitfields)
 	}
 
-	// actually collect all unchecked signed availablity bitfields based
-	// on the accumulative bitfield that was created above
-	let bitfields_acc = bitfields
-		.into_iter()
-		.enumerate()
-		.filter(|(i, _)| bitfields_to_include_coverage[*i])
-		.map(|(_, bitfield)| bitfield)
-		.collect::<Vec<_>>();
-
-	candidates_acc.sort_by(|(x_idx, _), (y_idx, _)| {
-		x_idx.cmp(&y_idx)
-	});
-
-	// drop the original indices _after_ sorting
-	let candidates_acc = candidates_acc.into_iter().map(|(_original_vec_idx, backed_candidate)| {
-		backed_candidate
-	}).collect::<Vec<_>>();
-
-	(weight_acc, candidates_acc, bitfields_acc)
+	// insufficient space for even the bitfields alone, so only try to fit as many of those
+	// into the block and skip the candidates entirely
+	let (total, indices) = random_sel::<UncheckedSignedAvailabilityBitfield, _>(
+		&mut rng,
+		&bitfields[..],
+		bitfield_weight::<T>,
+		max_weight,
+	);
+	let bitfields = indices.into_iter().map(move |idx| bitfields[idx].clone()).collect::<Vec<_>>();
+	// pick all bitfields, and
+	// fill the remaining space with candidates
+	(total, candidates, bitfields)
 }
 
 /// Filter bitfields based on freed core indices, validity, and other sanity checks.
@@ -991,7 +912,6 @@ mod tests {
 						backed_candidates,
 						disputes: Vec::new(),
 						parent_header: header,
-						entropy: Default::default(),
 					},
 				}
 				.dispatch_bypass_filter(None.into())
