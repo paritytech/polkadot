@@ -22,11 +22,12 @@ use frame_system::RawOrigin;
 use primitives::{
 	v0::{CollatorPair, ValidatorPair},
 	v1::{
-		collator_signature_payload, AvailabilityBitfield, CandidateCommitments,
-		CandidateDescriptor, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreIndex,
-		CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId,
-		InvalidDisputeStatementKind, PersistedValidationData, SigningContext, UncheckedSigned,
-		ValidatorId, ValidatorIndex, ValidityAttestation,
+		byzantine_threshold, collator_signature_payload, AvailabilityBitfield,
+		CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
+		CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet,
+		GroupIndex, HeadData, Id as ParaId, InvalidDisputeStatementKind, PersistedValidationData,
+		SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
+		ValidityAttestation,
 	},
 };
 use sp_core::{Pair, H256};
@@ -57,8 +58,6 @@ struct BenchBuilder<T: Config> {
 	current_session: u32,
 	validators: Option<Vec<(ValidatorId, ValidatorPair)>>,
 	validators_map: Option<HashMap<ValidatorId, ValidatorPair>>,
-	// validator_count: Option<u32>,
-	// validators_per_core: Option<u32>,
 	_phantom: sp_std::marker::PhantomData<T>,
 }
 
@@ -214,12 +213,17 @@ impl<T: Config> BenchBuilder<T> {
 
 	/// Byzantine statement spam threshold.
 	fn statement_spam_thresh() -> u32 {
-		(Self::max_statements() / 3).saturating_sub(1)
+		byzantine_threshold(Self::max_statements() as usize) as u32
 	}
 
 	fn validator_availability_votes_yes() -> BitVec<bitvec::order::Lsb0, u8> {
 		// every validator confirms availability.
 		bitvec::bitvec![bitvec::order::Lsb0, u8; 1; Self::max_validators() as usize]
+	}
+
+	fn validator_availability_votes_no() -> BitVec<bitvec::order::Lsb0, u8> {
+		// every validator denies availability.
+		bitvec::bitvec![bitvec::order::Lsb0, u8; 0; Self::max_validators() as usize]
 	}
 
 	/// Setup session 1 and create `self.validators_map` and `self.validators`.
@@ -245,7 +249,7 @@ impl<T: Config> BenchBuilder<T> {
 		);
 
 		// confirm setup at session change.
-		assert_eq!(scheduler::AvailabilityCores::<T>::get().len(), Self::cores() as usize);
+		// assert_eq!(scheduler::AvailabilityCores::<T>::get().len(), Self::cores() as usize);
 		assert_eq!(scheduler::ValidatorGroups::<T>::get().len(), Self::cores() as usize);
 
 		// assert the current session is 0.
@@ -447,6 +451,13 @@ impl<T: Config> BenchBuilder<T> {
 				// is called.
 				let (para_id, core_idx, group_idx) = Self::create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
+				// let votes = if seed % 2 == 0 {
+				// 	// we need votes on both sides
+				// 	Self::validator_availability_votes_yes()
+				// } else {
+				// 	Self::validator_availability_votes_no()
+				// };
+
 				Self::add_availability(
 					para_id,
 					core_idx,
@@ -473,8 +484,12 @@ impl<T: Config> BenchBuilder<T> {
 					.map(|validator_index| {
 						let validator_pair = &validators.get(validator_index as usize).unwrap().1;
 
-						let dispute_statement =
-							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit);
+						// we need dispute statements on each side.
+						let dispute_statement = if validator_index % 2 == 0 {
+							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
+						} else {
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
+						};
 						let data = dispute_statement
 							.payload_data(candidate_hash.clone(), self.current_session);
 						let statement_sig = validator_pair.sign(&data);
@@ -498,6 +513,10 @@ impl<T: Config> BenchBuilder<T> {
 	}
 
 	fn build(self, backed_and_concluding: u32, disputed: u32) -> Bench<T> {
+		// make sure relevant storage is cleared. TODO
+		inclusion::PendingAvailabilityCommitments::<T>::remove_all(None);
+		inclusion::PendingAvailability::<T>::remove_all(None);
+
 		Self::setup_para_ids(Self::cores());
 
 		let validator_pairs = Self::generate_validator_pairs(Self::max_validators());
@@ -513,7 +532,6 @@ impl<T: Config> BenchBuilder<T> {
 		// spam slots are empty prior.
 		// TODO
 		// assert_eq!(disputes::Pallet::<T>::spam_slots(&builder.current_session), None);
-
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
 			(disputed + backed_and_concluding) as usize
@@ -539,10 +557,8 @@ impl<T: Config> BenchBuilder<T> {
 benchmarks! {
 	enter_dispute_dominant {
 		let d in 0..BenchBuilder::<T>::cores();
-		// let b in 0..d;
 
 		let backed_and_concluding = BenchBuilder::<T>::cores() - d;
-		let backed_and_concluding = 0;
 
 		let config = configuration::Pallet::<T>::config();
 		let scenario = BenchBuilder::<T>::new()
@@ -641,10 +657,8 @@ benchmarks! {
 	// backed candidate. Remainder of cores are occupied by disputes.
 	enter_backed_dominant {
 		let b in 0..BenchBuilder::<T>::cores();
-		// let d in 0..b;
 
 		let disputed = BenchBuilder::<T>::cores() - b;
-		// let disputed = d.min(disputed_minor);
 
 		let config = configuration::Pallet::<T>::config();
 		let scenario = BenchBuilder::<T>::new()
@@ -671,7 +685,6 @@ benchmarks! {
 
 	enter_backed_only {
 		let b in 0..BenchBuilder::<T>::cores();
-		// let d in 0..b;
 
 		let disputed = 0;
 
