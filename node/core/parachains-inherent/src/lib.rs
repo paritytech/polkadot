@@ -99,10 +99,6 @@ impl ParachainsInherentDataProvider {
 					backed_candidates: Vec::new(),
 					disputes: Vec::new(),
 					parent_header,
-<<<<<<< HEAD
-					entropy,
-=======
->>>>>>> parent of f7003e839e (start entropy passing)
 				}
 			},
 		};

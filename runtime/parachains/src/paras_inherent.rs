@@ -32,16 +32,15 @@ use bitvec::{order::Lsb0, prelude::BitVec};
 use frame_support::{
 	fail,
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
-	traits::Randomness,
 	pallet_prelude::*,
+	traits::Randomness,
 };
 use frame_system::pallet_prelude::*;
 use pallet_babe::CurrentBlockRandomness;
 use primitives::v1::{
 	supermajority_threshold, AvailabilityBitfield, BackedCandidate, CandidateHash, CoreIndex,
-	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SessionIndex,
-	SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
-	PARACHAINS_INHERENT_IDENTIFIER,
+	InherentData as ParachainsInherentData, ScrapedOnChainVotes, SessionIndex, SigningContext,
+	UncheckedSignedAvailabilityBitfields, ValidatorId, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use rand::Rng;
 use scale_info::TypeInfo;
@@ -88,7 +87,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config: inclusion::Config + scheduler::Config {}
+	pub trait Config: inclusion::Config + scheduler::Config + pallet_babe::Config {}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -198,8 +197,15 @@ pub mod pallet {
 			)
 			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
 
-
-			let entropy = CurrentBlockRandomness::random(&b"candidate-pick"[..]).0;
+			let entropy = {
+				const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
+				let vrf_random = CurrentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
+				let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
+				if let Some(vrf_random) = vrf_random {
+					entropy.as_mut().copy_from_slice(vrf_random.as_ref());
+				}
+				entropy
+			};
 
 			// XXX @Lldenaurois
 			// FIXME these weights are garbage
