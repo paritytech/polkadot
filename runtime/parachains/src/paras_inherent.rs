@@ -499,7 +499,9 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 ) -> (Weight, Vec<BackedCandidate<<T>::Hash>>, UncheckedSignedAvailabilityBitfields) {
 	let mut total = candidates
 		.iter()
-		.map(|backed_candidate| backed_candidate_weight::<T>(backed_candidate))
+		.map(|backed_candidate| {
+			backed_candidate_weight::<T>(backed_candidate)
+		})
 		.sum();
 	total += bitfields
 		.iter()
@@ -509,6 +511,9 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 	if max_weight < total {
 		return (total, candidates, bitfields)
 	}
+
+	// add the original index _before_ randomly picking
+	let candidates = candidates.into_iter().enumerate().collect::<Vec<_>>();
 
 	let mut candidates_acc = Vec::with_capacity(candidates.len());
 
@@ -535,7 +540,8 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		.collect();
 
 	// Keep track the coverage for each candidate, and avoid
-	// including excessive coverage that is not required since the `f+1` threshold is already reached
+	// including excessive coverage that is not required since the
+	// `2f + 1` threshold is already reached.
 	let mut sufficiency_count = BTreeMap::<CandidateHash, usize>::new();
 
 	// the candidates that have remaining bitfields which
@@ -545,7 +551,7 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		// select a index to try
 		let pick = rng.gen_range(0..candidates.len());
 		// remove the candidate from the possible pick set
-		let picked_candidate = candidates.swap_remove(pick);
+		let (original_vec_idx, picked_candidate) = candidates.swap_remove(pick);
 
 		let picked_weight = backed_candidate_weight::<T>(&picked_candidate);
 		// collect all bitfields that reference the candidate
@@ -554,7 +560,7 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		let mut covered_bitfields = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
 
 		for (i, bitfield) in bitfields.iter().enumerate() {
-			// check if there are already sufficient bitfields included to pass the `f+1` threshold
+			// check if there are already sufficient bitfields included to pass the `2f + 1` threshold
 			if *sufficiency_count
 				.entry(picked_candidate.hash())
 				.and_modify(|x| {
@@ -565,7 +571,7 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 			{
 				// supermajority of bitfields reached, don't worry about extra bitfields
 				// they are used lazily to fill remaining space
-				superfluous.push(picked_candidate);
+				superfluous.push((original_vec_idx, picked_candidate));
 				continue 'next
 			}
 
@@ -588,7 +594,7 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		let prospective_weight = picked_weight + bitfields_weight + weight_acc;
 		if prospective_weight <= max_weight {
 			// candidate fits, so pick it and account for its weight
-			candidates_acc.push(picked_candidate);
+			candidates_acc.push((original_vec_idx, picked_candidate));
 			weight_acc = prospective_weight;
 			bitfields_to_include_coverage |= covered_bitfields;
 		}
@@ -605,7 +611,7 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		}
 		// Processing in order here is ok, it's round robbin with an initially
 		// shuffeled ordering.
-		for picked_candidate in superfluous.iter() {
+		for (_original_vec_idx, picked_candidate) in superfluous.iter() {
 			if weight_acc >= max_weight {
 				break 'outer
 			}
@@ -634,6 +640,15 @@ fn apply_weight_limit<T: Config + inclusion::Config, F: Fn(CoreIndex) -> Option<
 		.filter(|(i, _)| bitfields_to_include_coverage[*i])
 		.map(|(_, bitfield)| bitfield)
 		.collect::<Vec<_>>();
+
+	candidates_acc.sort_by(|(x_idx, _), (y_idx, _)| {
+		x_idx.cmp(&y_idx)
+	});
+
+	// drop the original indices _after_ sorting
+	let candidates_acc = candidates_acc.into_iter().map(|(_original_vec_idx, backed_candidate)| {
+		backed_candidate
+	}).collect::<Vec<_>>();
 
 	(weight_acc, candidates_acc, bitfields_acc)
 }
