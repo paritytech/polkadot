@@ -53,7 +53,6 @@ fn byte32_slice_from(n: u32) -> [u8; 32] {
 //
 /// Paras inherent `enter` benchmark scenario builder.
 struct BenchBuilder<T: Config> {
-	current_session: u32,
 	validators: Option<Vec<ValidatorId>>,
 	_phantom: sp_std::marker::PhantomData<T>,
 }
@@ -66,9 +65,7 @@ struct Bench<T: Config> {
 impl<T: Config> BenchBuilder<T> {
 	fn new() -> Self {
 		BenchBuilder {
-			current_session: 0,
 			validators: None,
-			// validators_map: None,
 			_phantom: sp_std::marker::PhantomData::<T>,
 		}
 	}
@@ -218,12 +215,10 @@ impl<T: Config> BenchBuilder<T> {
 
 	/// Setup session 1 and create `self.validators_map` and `self.validators`.
 	fn setup_session_1(mut self, validators: Vec<(T::AccountId, ValidatorId)>) -> Self {
-		assert_eq!(self.current_session, 0);
 		// initialize session 1.
 		initializer::Pallet::<T>::test_trigger_on_new_session(
 			true, // indicate the validator set has changed
 			1,    // session index
-			// validators.clone().iter().map(|(a, v)| (a, v.public())), // validators
 			validators.clone().iter().map(|(a, v)| (a, v.clone())), // validators
 			None, // queued - when this is None validators are considered queued
 		);
@@ -242,26 +237,21 @@ impl<T: Config> BenchBuilder<T> {
 		// confirm setup at session change.
 		// assert_eq!(scheduler::AvailabilityCores::<T>::get().len(), Self::cores() as usize);
 		assert_eq!(scheduler::ValidatorGroups::<T>::get().len(), Self::cores() as usize);
+		assert_eq!(<shared::Pallet<T>>::session_index(), 1);
 
-		// assert the current session is 0.
-		self.current_session = 1;
-		assert_eq!(self.current_session, self.current_session);
-
-		assert_eq!(<shared::Pallet<T>>::session_index(), self.current_session);
-
-		// create map of validator public id => signing pair.
-		// let validators_map: HashMap<_, _> =
-		// 	validators.iter().map(|(_, pair)| (pair.public(), pair.clone())).collect();
+				log::info!(target: LOG_TARGET, "b");
 
 		// get validators from session info. We need to refetch them since they have been shuffled.
 		let validators_shuffled: Vec<_> =
-			session_info::Pallet::<T>::session_info(self.current_session)
+			session_info::Pallet::<T>::session_info(1)
 				.unwrap()
 				.validators
 				.clone()
 				.into_iter()
 				.enumerate()
 				.map(|(val_idx, public)| {
+					// TODO we don't actually need to map here anymore, can just to a for loop to
+					// sanity check things.
 					{
 						// sanity check that the validator keys line up as expected.
 						let active_val_keys = shared::Pallet::<T>::active_validator_keys();
@@ -269,14 +259,10 @@ impl<T: Config> BenchBuilder<T> {
 						assert_eq!(public, *public_check);
 					}
 
-					// let pair = validators_map.get(&public).unwrap().clone();
-
-					// (public, pair)
 					public
 				})
 				.collect();
 
-		// self.validators_map = Some(validators_map);
 		self.validators = Some(validators_shuffled);
 
 		self
@@ -307,9 +293,12 @@ impl<T: Config> BenchBuilder<T> {
 					ValidatorIndex(i as u32),
 				);
 
+
 				unchecked_signed
 			})
 			.collect();
+
+		log::info!(target: LOG_TARGET, "c");
 
 		for seed in backed_rng.clone() {
 			// make sure the candidates that are concluding by becoming available are marked as
@@ -327,6 +316,9 @@ impl<T: Config> BenchBuilder<T> {
 				cores[seed as usize] = Some(CoreOccupied::Parachain)
 			});
 		}
+
+		log::info!(target: LOG_TARGET, "d");
+
 
 		let backed_candidates: Vec<BackedCandidate<T::Hash>> = backed_rng
 			.clone()
@@ -427,6 +419,8 @@ impl<T: Config> BenchBuilder<T> {
 			})
 			.collect();
 
+			log::info!(target: LOG_TARGET, "e");
+
 		(backed_candidates, bitfields)
 	}
 
@@ -434,6 +428,10 @@ impl<T: Config> BenchBuilder<T> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 		let config = configuration::Pallet::<T>::config();
+
+
+		log::info!(target: LOG_TARGET, "f");
+		log::info!(target: LOG_TARGET, "disputes with spam start {}, last {}", start, last);
 
 		let mut spam_count = 0;
 		(start..last)
@@ -465,6 +463,8 @@ impl<T: Config> BenchBuilder<T> {
 					// threshold and thus these statements will not be counted as potential spam.
 					0..Self::max_statements()
 				};
+				log::info!(target: LOG_TARGET, "g");
+
 				let statements = statement_range
 					.map(|validator_index| {
 						let validator_public = &validators.get(validator_index as usize).unwrap();
@@ -476,7 +476,7 @@ impl<T: Config> BenchBuilder<T> {
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
 						let data = dispute_statement
-							.payload_data(candidate_hash.clone(), self.current_session);
+							.payload_data(candidate_hash.clone(), 1);
 
 						// let debug_res = validator_pair.public().sign(&data);
 						// println!("debug res validator sign {}", debug_res);
@@ -493,7 +493,7 @@ impl<T: Config> BenchBuilder<T> {
 				// return dispute statements with metadata.
 				DisputeStatementSet {
 					candidate_hash: candidate_hash.clone(),
-					session: self.current_session,
+					session: 1,
 					statements,
 				}
 			})
@@ -517,6 +517,7 @@ impl<T: Config> BenchBuilder<T> {
 		let last_disputed = backed_and_concluding + disputed;
 		assert!(last_disputed <= Self::cores());
 		let disputes = builder.create_disputes_with_some_spam(backed_and_concluding, last_disputed);
+		log::info!(target: LOG_TARGET, "i");
 
 		// spam slots are empty prior.
 		// TODO
@@ -529,6 +530,9 @@ impl<T: Config> BenchBuilder<T> {
 			inclusion::PendingAvailability::<T>::iter().count(),
 			(disputed + backed_and_concluding) as usize
 		);
+
+		log::info!(target: LOG_TARGET, "k");
+
 
 		Bench::<T> {
 			data: ParachainsInherentData {
@@ -596,13 +600,17 @@ benchmarks! {
 	enter_disputes_only {
 		let d in 0..BenchBuilder::<T>::cores();
 
+		log::info!(target: LOG_TARGET, "a");
 		let backed_and_concluding = 0;
 
 		let config = configuration::Pallet::<T>::config();
 		let scenario = BenchBuilder::<T>::new()
 			.build(backed_and_concluding, d);
+		log::info!(target: LOG_TARGET, "x");
+
 	}: enter(RawOrigin::None, scenario.data.clone())
 	verify {
+		log::warn!(target: LOG_TARGET, "y");
 		// check that the disputes storage has updated as expected.
 
 		// TODO
@@ -622,6 +630,7 @@ benchmarks! {
 		// 		.all(|n| *n == 0)
 		// 	);
 		// }
+
 
 		// pending availability data is removed when disputes are collected.
 		assert_eq!(
