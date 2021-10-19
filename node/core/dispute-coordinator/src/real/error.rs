@@ -69,6 +69,10 @@ pub enum Fatal {
 	/// We received a legacy SubystemError::Context error which is considered fatal.
 	#[error("SubsystemError::Context error: {0}")]
 	SubsystemContext(String),
+
+	/// ctx.spawn failed with an error.
+	#[error("Spawning a task failed: {0}")]
+	SpawnFailed(SubsystemError),
 }
 
 #[derive(Debug, thiserror::Error)]

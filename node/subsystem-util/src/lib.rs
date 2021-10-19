@@ -49,12 +49,7 @@ use futures::{
 use parity_scale_codec::Encode;
 use pin_project::pin_project;
 use polkadot_node_jaeger as jaeger;
-use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
-	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode,
-	ValidatorId, ValidatorIndex,
-};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption, PersistedValidationData, SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex};
 use sp_application_crypto::AppKey;
 use sp_core::{traits::SpawnNamed, Public};
 use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
@@ -208,6 +203,7 @@ specialize_requests! {
 	fn request_persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
 	fn request_session_index_for_child() -> SessionIndex; SessionIndexForChild;
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
+	fn request_validation_code_by_hash(validation_code_hash: ValidationCodeHash) -> Option<ValidationCode>; ValidationCodeByHash;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
 	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;

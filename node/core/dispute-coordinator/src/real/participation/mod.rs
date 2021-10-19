@@ -17,16 +17,18 @@
 use std::collections::HashSet;
 
 use futures::channel::{mpsc, oneshot};
-use futures::FutureExt;
+use futures::{FutureExt, SinkExt};
 
-use polkadot_node_primitives::APPROVAL_EXECUTION_TIMEOUT;
-use polkadot_node_subsystem::messages::{CandidateValidationMessage, RuntimeApiMessage, RuntimeApiRequest};
+use polkadot_node_primitives::{APPROVAL_EXECUTION_TIMEOUT, ValidationResult};
+use polkadot_node_subsystem::messages::{AvailabilityStoreMessage, CandidateValidationMessage, RuntimeApiMessage, RuntimeApiRequest};
 use polkadot_node_subsystem::{ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender, messages::AvailabilityRecoveryMessage};
+use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
 use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
 
 use crate::real::LOG_TARGET;
 
+use super::error::{Fatal, FatalResult};
 use super::{error::Result, ordering::CandidateComparator};
 
 mod queues;
@@ -56,18 +58,22 @@ struct Participation {
 }
 
 /// Message from worker tasks.
-struct WorkerMessage {
+pub struct WorkerMessage(ParticipationStatement);
+
+/// Statement as result of the validation process.
+struct ParticipationStatement {
 	/// Relevant session.
-	session: SessionIndex,
+	pub session: SessionIndex,
 	/// The candidate the worker has been spawned for.
-	candidate_hash: CandidateHash,
+	pub candidate_hash: CandidateHash,
 	/// Used receipt.
-	candidate_receipt: CandidateReceipt,
+	pub candidate_receipt: CandidateReceipt,
 	/// Actual result.
-	validation_result: ValidationResult,
+	pub outcome: ParticipationOutcome,
 }
 
-enum ValidationResult {
+/// Outcome of the validation process.
+pub enum ParticipationOutcome {
 	/// Candidate was found to be valid.
 	Valid,
 	/// Candidate was found to be invalid.
@@ -79,15 +85,17 @@ enum ValidationResult {
 }
 
 impl WorkerMessage {
-	fn from_request(req: ParticipationRequest, validation_result: ValidationResult) -> Self {
+	fn from_request(req: ParticipationRequest, outcome: ParticipationOutcome) -> Self {
 		let session = req.session();
 		let (candidate_hash, candidate_receipt) = req.into_candidate_info();
-		Self {
-			session,
-			candidate_hash,
-			candidate_receipt,
-			validation_result,
-		}
+		Self(
+			ParticipationStatement {
+				session,
+				candidate_hash,
+				candidate_receipt,
+				outcome,
+			}
+		)
 	}
 }
 
@@ -128,14 +136,25 @@ impl Participation {
 		Ok(self.queue.queue(comparator, req))
 	}
 
-	/// Message from a worker task was received.
+	/// Message from a worker task was received - get the outcome.
+	///
+	/// Call this function to keep participations going and to receive `ParticipationStatement`s.
 	///
 	/// This message has to be called for each received worker message, in order to make sure
 	/// enough participation processes are running at any given time.
-	pub async fn on_worker_message<Context: SubsystemContext>(&mut self, ctx: &mut Context, msg: WorkerMessage) {}
+	///
+	/// Returns: The received `ParticipationStatement` or a fatal error, in case
+	/// something went wrong when dequeuing more requests (tasks could not be spawned).
+	pub async fn get_participation_result<Context: SubsystemContext>(&mut self, ctx: &mut Context, msg: WorkerMessage) -> FatalResult<ParticipationStatement> {
+		let WorkerMessage(statement) = msg;
+		self.running_participations.remove(&statement.candidate_hash);
+		let recent_block = self.recent_block.expect("We never ever reset recent_block to `None` and we already received a result, so it must have been set before. qed.");
+		self.dequeue_until_capacity(ctx, recent_block.1).await?;
+		Ok(statement)
+	}
 
 	/// Process active leaves update.
-	pub async fn on_active_leaves_update<Context: SubsystemContext>(&mut self, ctx: &mut Context, update: &ActiveLeavesUpdate) -> Result<()> {
+	pub async fn on_active_leaves_update<Context: SubsystemContext>(&mut self, ctx: &mut Context, update: &ActiveLeavesUpdate) -> FatalResult<()> {
 		if let Some(activated) = &update.activated {
 			match self.recent_block {
 				None => {
@@ -153,7 +172,7 @@ impl Participation {
 	}
 
 	/// Dequeue until `MAX_PARALLEL_PARTICIPATIONS` is reached.
-	async fn dequeue_until_capacity<Context: SubsystemContext>(&mut self, ctx: &mut Context, recent_head: Hash) -> Result<()> {
+	async fn dequeue_until_capacity<Context: SubsystemContext>(&mut self, ctx: &mut Context, recent_head: Hash) -> FatalResult<()> {
 		while self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
 			if let Some(req) = self.queue.dequeue() {
 				self.fork_participation(ctx, req, recent_head)?;
@@ -165,9 +184,10 @@ impl Participation {
 	}
 
 	/// Fork a participation task in the background.
-	fn fork_participation<Context: SubsystemContext>(&mut self, ctx: &mut Context, req: ParticipationRequest, recent_head: Hash) -> Result<()> {
+	fn fork_participation<Context: SubsystemContext>(&mut self, ctx: &mut Context, req: ParticipationRequest, recent_head: Hash) -> FatalResult<()> {
 		if self.running_participations.insert(req.candidate_hash().clone()) {
-			ctx.spawn("participation-worker", participate(ctx.sender().clone(), recent_head, req).boxed())?;
+			let sender = ctx.sender().clone();
+			ctx.spawn("participation-worker", participate(self.worker_sender.clone(), sender, recent_head, req).boxed()).map_err(Fatal::SpawnFailed)?;
 		}
 		Ok(())
 	}
@@ -175,10 +195,11 @@ impl Participation {
 
 
 async fn participate(
-	sender: impl SubsystemSender,
+	mut result_sender: mpsc::Sender<WorkerMessage>,
+	mut sender: impl SubsystemSender,
 	block_hash: Hash,
 	req: ParticipationRequest,
-) -> Result<WorkerMessage> {
+) {
 
 	// in order to validate a candidate we need to start by recovering the
 	// available data
@@ -188,18 +209,30 @@ async fn participate(
 		req.session(),
 		None,
 		recover_available_data_tx,
-	))
+	).into())
 	.await;
 
-	let available_data = match recover_available_data_rx.await? {
-		Ok(data) => data,
-		Err(RecoveryError::Invalid) => {
+	let available_data = match recover_available_data_rx.await {
+		Err(oneshot::Canceled) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"`Oneshot` got cancelled when recovering available data {:?}",
+				req.candidate_hash(),
+			);
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
+			return
+		},
+		Ok(Ok(data)) => data,
+		Ok(Err(RecoveryError::Invalid)) => {
 			// the available data was recovered but it is invalid, therefore we'll
 			// vote negatively for the candidate dispute
-			return Ok(WorkerMessage::from_request(req, ValidationResult::Invalid))
+			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
+			return
 		},
-		Err(RecoveryError::Unavailable) =>
-			return Ok(WorkerMessage::from_request(req, ValidationResult::Unavailable))
+		Ok(Err(RecoveryError::Unavailable)) => {
+			send_result(&mut result_sender, req, ParticipationOutcome::Unavailable).await;
+			return
+		},
 	};
 
 	// we also need to fetch the validation code which we can reference by its
@@ -211,12 +244,12 @@ async fn participate(
 			req.candidate_receipt().descriptor.validation_code_hash,
 			code_tx,
 		),
-	))
+	).into())
 	.await;
 
-	let validation_code = match code_rx.await?? {
-		Some(code) => code,
-		None => {
+	let validation_code = match get_validation_code_by_hash(&mut sender, block_hash, req.candidate_receipt().descriptor.validation_code_hash).await {
+		Ok(Some(code)) => code,
+		Ok(None) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"Validation code unavailable for code hash {:?} in the state of block {:?}",
@@ -224,35 +257,56 @@ async fn participate(
 				block_hash,
 			);
 
-			return Ok(WorkerMessage::from_request(req, ValidationResult::Error))
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
+			return
 		},
+		Err(err) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				?err,
+				"Error when fetching validation code."
+			);
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
+			return
+		}
 	};
 
-	// we dispatch a request to store the available data for the candidate. we
+	// we dispatch a request to store the available data for the candidate. We
 	// want to maximize data availability for other potential checkers involved
 	// in the dispute
 	let (store_available_data_tx, store_available_data_rx) = oneshot::channel();
-	ctx.send_message(AvailabilityStoreMessage::StoreAvailableData {
-		candidate_hash: req.candidate_hash(),
+	sender.send_message(AvailabilityStoreMessage::StoreAvailableData {
+		candidate_hash: *req.candidate_hash(),
 		n_validators: req.n_validators(),
 		available_data: available_data.clone(),
 		tx: store_available_data_tx,
-	})
+	}.into())
 	.await;
 
-	match store_available_data_rx.await? {
-		Err(err) => {
+	match store_available_data_rx.await {
+		Err(oneshot::Canceled) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"`Oneshot` got cancelled when storing available data {:?}",
+				req.candidate_hash(),
+			);
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
+			return
+		},
+		Ok(Err(err)) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				?err,
 				"Failed to store available data for candidate {:?}",
 				req.candidate_hash(),
 			);
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
+			return
 		},
-		Ok(()) => {},
+		Ok(Ok(())) => {},
 	}
 
-	// we issue a request to validate the candidate with the provided exhaustive
+	// Issue a request to validate the candidate with the provided exhaustive
 	// parameters
 	//
 	// We use the approval execution timeout because this is intended to
@@ -266,13 +320,22 @@ async fn participate(
 		available_data.pov,
 		APPROVAL_EXECUTION_TIMEOUT,
 		validation_tx,
-	))
+	).into())
 	.await;
 
 	// we cast votes (either positive or negative) depending on the outcome of
 	// the validation and if valid, whether the commitments hash matches
-	match validation_rx.await? {
-		Err(err) => {
+	match validation_rx.await {
+		Err(oneshot::Canceled) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				"`Oneshot` got cancelled when validating candidate {:?}",
+				req.candidate_hash(),
+			);
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
+			return
+		},
+		Ok(Err(err)) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"Candidate {:?} validation failed with: {:?}",
@@ -280,9 +343,9 @@ async fn participate(
 				err,
 			);
 
-			Ok(WorkerMessage::from_request(req, ValidationResult::Invalid))
+			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 		},
-		Ok(ValidationResult::Invalid(invalid)) => {
+		Ok(Ok(ValidationResult::Invalid(invalid))) => {
 			tracing::warn!(
 				target: LOG_TARGET,
 				"Candidate {:?} considered invalid: {:?}",
@@ -290,21 +353,31 @@ async fn participate(
 				invalid,
 			);
 
-			Ok(WorkerMessage::from_request(req, ValidationResult::Invalid))
+			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 		},
-		Ok(ValidationResult::Valid(commitments, _)) => {
-			if commitments.hash() != candidate_receipt.commitments_hash {
+		Ok(Ok(ValidationResult::Valid(commitments, _))) => {
+			if commitments.hash() != req.candidate_receipt().commitments_hash {
 				tracing::warn!(
 					target: LOG_TARGET,
-					expected = ?candidate_receipt.commitments_hash,
+					expected = ?req.candidate_receipt().commitments_hash,
 					got = ?commitments.hash(),
 					"Candidate is valid but commitments hash doesn't match",
 				);
 
-				Ok(WorkerMessage::from_request(req, ValidationResult::Invalid))
+				send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
 			} else {
-				Ok(WorkerMessage::from_request(req, ValidationResult::Valid))
+				send_result(&mut result_sender, req, ParticipationOutcome::Valid).await;
 			}
 		},
+	}
+}
+
+/// Helper function for sending the result back and report any error.
+async fn send_result(sender: &mut mpsc::Sender<WorkerMessage>, req: ParticipationRequest, outcome: ParticipationOutcome) {
+	if let Err(err) = sender.feed(WorkerMessage::from_request(req, outcome)).await {
+		tracing::error!(
+			target: LOG_TARGET,
+			"Sending back participation result failed. Dispute coordinator not working properly!"
+		);
 	}
 }
