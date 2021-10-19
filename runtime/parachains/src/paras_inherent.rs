@@ -203,6 +203,11 @@ pub mod pallet {
 				let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
 				if let Some(vrf_random) = vrf_random {
 					entropy.as_mut().copy_from_slice(vrf_random.as_ref());
+				} else {
+					// in case there is no vrf randomness present, we utilize the relay parent
+					// as seed, it's better than a static value.
+					log::warn!(target: LOG_TARGET, "CurrentBlockRandomness did not provide entropy");
+					entropy.as_mut().copy_from_slice(relay_parent.as_ref());
 				}
 				entropy
 			};
