@@ -221,11 +221,6 @@ impl<T: Config> BenchBuilder<T> {
 		bitvec::bitvec![bitvec::order::Lsb0, u8; 1; Self::max_validators() as usize]
 	}
 
-	fn validator_availability_votes_no() -> BitVec<bitvec::order::Lsb0, u8> {
-		// every validator denies availability.
-		bitvec::bitvec![bitvec::order::Lsb0, u8; 0; Self::max_validators() as usize]
-	}
-
 	/// Setup session 1 and create `self.validators_map` and `self.validators`.
 	fn setup_session_1(mut self, validators: Vec<(T::AccountId, ValidatorPair)>) -> Self {
 		assert_eq!(self.current_session, 0);
@@ -451,12 +446,6 @@ impl<T: Config> BenchBuilder<T> {
 				// is called.
 				let (para_id, core_idx, group_idx) = Self::create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
-				// let votes = if seed % 2 == 0 {
-				// 	// we need votes on both sides
-				// 	Self::validator_availability_votes_yes()
-				// } else {
-				// 	Self::validator_availability_votes_no()
-				// };
 
 				Self::add_availability(
 					para_id,
