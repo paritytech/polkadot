@@ -36,6 +36,7 @@ use sp_runtime::{
 	traits::{One, Zero},
 };
 use sp_std::{collections::btree_map::BTreeMap as HashMap, convert::TryInto};
+use sp_runtime::RuntimeAppPublic;
 
 fn byte32_slice_from(n: u32) -> [u8; 32] {
 	let mut slice = [0u8; 32];
@@ -357,13 +358,13 @@ impl<T: Config> BenchBuilder<T> {
 
 				let pov_hash = Default::default();
 				let validation_code_hash = Default::default();
-				let signature = collator_pair.sign(&collator_signature_payload(
+				let signature = collator_pair.public().sign(&collator_signature_payload(
 					&relay_parent,
 					&para_id,
 					&persisted_validation_data_hash,
 					&pov_hash,
 					&validation_code_hash,
-				));
+				)).unwrap();
 
 				// set the head data so it can be used while validating the signatures on the candidate
 				// receipt.
@@ -502,7 +503,8 @@ impl<T: Config> BenchBuilder<T> {
 	}
 
 	fn build(self, backed_and_concluding: u32, disputed: u32) -> Bench<T> {
-		// make sure relevant storage is cleared. TODO
+		// make sure relevant storage is cleared. TODO this is just to get the asserts to work when
+		// running tests because it seems the storage is not cleared in between.
 		inclusion::PendingAvailabilityCommitments::<T>::remove_all(None);
 		inclusion::PendingAvailability::<T>::remove_all(None);
 
