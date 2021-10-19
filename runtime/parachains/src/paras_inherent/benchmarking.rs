@@ -19,33 +19,20 @@ use crate::{configuration, inclusion, initializer, paras, scheduler, session_inf
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
-use primitives::{
-	v0::{CollatorPair, ValidatorPair},
-	v1::{
-		byzantine_threshold, collator_signature_payload, AvailabilityBitfield,
-		CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
-		CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet,
-		GroupIndex, HeadData, Id as ParaId, InvalidDisputeStatementKind, PersistedValidationData,
-		SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
-		ValidityAttestation, PARACHAIN_KEY_TYPE_ID,
-	},
+use primitives::v1::{
+	byzantine_threshold, collator_signature_payload, AvailabilityBitfield, CandidateCommitments,
+	CandidateDescriptor, CandidateHash, CollatorId, CommittedCandidateReceipt, CompactStatement,
+	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
+	Id as ParaId, InvalidDisputeStatementKind, PersistedValidationData, SigningContext,
+	UncheckedSigned, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
-
-use application_crypto::RuntimePublic;
-use sp_core::{Pair, H256};
+use sp_core::H256;
 use sp_runtime::{
 	generic::Digest,
 	traits::{One, Zero},
-	BoundToRuntimeAppPublic, RuntimeAppPublic,
+	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_map::BTreeMap as HashMap, convert::TryInto};
-
-// Alias the validator key type id for readability. Also see `COLLATOR_KEY_TYPE_ID`
-// const VALIDATOR_KEY_TYPE_ID: KeyTypeId = PARACHAIN_KEY_TYPE_ID;
-
-impl<T: super::Config> BoundToRuntimeAppPublic for super::Pallet<T> {
-	type Public = ValidatorId;
-}
+use sp_std::convert::TryInto;
 
 fn byte32_slice_from(n: u32) -> [u8; 32] {
 	let mut slice = [0u8; 32];
@@ -61,13 +48,13 @@ fn byte32_slice_from(n: u32) -> [u8; 32] {
 //
 // - there are many fresh disputes, where the disputes have just been initiated.
 // - create a new `DisputeState` with blank bitfields.
-// - make sure spam slotes is incremented by have DisputeStatementSet U DisputeState < byzantize_thresh
-// - force one side to have a super majority, so we enable slashing
+// - make sure spam slots is maxed out without being cleared
+// - force one side to have a super majority, so we enable slashing <-- TODO
+//
 /// Paras inherent `enter` benchmark scenario builder.
 struct BenchBuilder<T: Config> {
 	current_session: u32,
-	validators: Option<Vec<(ValidatorId, ValidatorPair)>>,
-	validators_map: Option<HashMap<ValidatorId, ValidatorPair>>,
+	validators: Option<Vec<ValidatorId>>,
 	_phantom: sp_std::marker::PhantomData<T>,
 }
 
@@ -81,7 +68,7 @@ impl<T: Config> BenchBuilder<T> {
 		BenchBuilder {
 			current_session: 0,
 			validators: None,
-			validators_map: None,
+			// validators_map: None,
 			_phantom: sp_std::marker::PhantomData::<T>,
 		}
 	}
@@ -185,24 +172,15 @@ impl<T: Config> BenchBuilder<T> {
 	}
 
 	/// Generate validator key pairs and account ids.
-	fn generate_validator_pairs(validator_count: u32) -> Vec<(T::AccountId, ValidatorPair)> {
+	fn generate_validator_pairs(validator_count: u32) -> Vec<(T::AccountId, ValidatorId)> {
 		(0..validator_count)
 			.map(|i| {
-				let seed = byte32_slice_from(i);
-				let pair = ValidatorPair::from_seed_slice(&seed).unwrap();
-				// let public
-				// 	= <
-				// 		<Pallet<T> as BoundToRuntimeAppPublic>::Public as RuntimePublic
-				// 		>::generate_pair(Some(seed.to_vec()));
-
-				// let public = <ValidatorId as RuntimeAppPublic>::generate_pair(
-				// 	Some(seed.to_vec())
-				// );
+				let public = ValidatorId::generate_pair(None);
 
 				// this account is not actually used anywhere, just necessary to fulfill expected type
 				// `validators` param of `test_trigger_on_new_session`.
 				let account: T::AccountId = account("validator", i, i);
-				(account, pair)
+				(account, public)
 			})
 			.collect()
 	}
@@ -239,13 +217,14 @@ impl<T: Config> BenchBuilder<T> {
 	}
 
 	/// Setup session 1 and create `self.validators_map` and `self.validators`.
-	fn setup_session_1(mut self, validators: Vec<(T::AccountId, ValidatorPair)>) -> Self {
+	fn setup_session_1(mut self, validators: Vec<(T::AccountId, ValidatorId)>) -> Self {
 		assert_eq!(self.current_session, 0);
 		// initialize session 1.
 		initializer::Pallet::<T>::test_trigger_on_new_session(
 			true, // indicate the validator set has changed
 			1,    // session index
-			validators.clone().iter().map(|(a, v)| (a, v.public())), // validators
+			// validators.clone().iter().map(|(a, v)| (a, v.public())), // validators
+			validators.clone().iter().map(|(a, v)| (a, v.clone())), // validators
 			None, // queued - when this is None validators are considered queued
 		);
 
@@ -271,8 +250,8 @@ impl<T: Config> BenchBuilder<T> {
 		assert_eq!(<shared::Pallet<T>>::session_index(), self.current_session);
 
 		// create map of validator public id => signing pair.
-		let validators_map: HashMap<_, _> =
-			validators.iter().map(|(_, pair)| (pair.public(), pair.clone())).collect();
+		// let validators_map: HashMap<_, _> =
+		// 	validators.iter().map(|(_, pair)| (pair.public(), pair.clone())).collect();
 
 		// get validators from session info. We need to refetch them since they have been shuffled.
 		let validators_shuffled: Vec<_> =
@@ -290,13 +269,14 @@ impl<T: Config> BenchBuilder<T> {
 						assert_eq!(public, *public_check);
 					}
 
-					let pair = validators_map.get(&public).unwrap().clone();
+					// let pair = validators_map.get(&public).unwrap().clone();
 
-					(public, pair)
+					// (public, pair)
+					public
 				})
 				.collect();
 
-		self.validators_map = Some(validators_map);
+		// self.validators_map = Some(validators_map);
 		self.validators = Some(validators_shuffled);
 
 		self
@@ -309,10 +289,6 @@ impl<T: Config> BenchBuilder<T> {
 	) -> (Vec<BackedCandidate<T::Hash>>, Vec<UncheckedSigned<AvailabilityBitfield>>) {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
-		let validator_map = self
-			.validators_map
-			.as_ref()
-			.expect("must have some validator map prior to calling");
 		let config = configuration::Pallet::<T>::config();
 
 		let backed_rng = first..last;
@@ -323,9 +299,9 @@ impl<T: Config> BenchBuilder<T> {
 		let bitfields: Vec<UncheckedSigned<AvailabilityBitfield>> = validators
 			.iter()
 			.enumerate()
-			.map(|(i, (_public, pair))| {
+			.map(|(i, public)| {
 				let unchecked_signed = UncheckedSigned::<AvailabilityBitfield>::benchmark_sign(
-					pair,
+					public,
 					availability_bitvec.clone(),
 					&Self::signing_context(),
 					ValidatorIndex(i as u32),
@@ -355,10 +331,11 @@ impl<T: Config> BenchBuilder<T> {
 		let backed_candidates: Vec<BackedCandidate<T::Hash>> = backed_rng
 			.clone()
 			.map(|seed| {
-				let rng_seed = byte32_slice_from(seed);
 				let (para_id, _core_idx, group_idx) = Self::create_indexes(seed);
 
-				let collator_pair = CollatorPair::from_seed_slice(&rng_seed).unwrap();
+				// generate a pair and add it to the keystore.
+				let collator_public = CollatorId::generate_pair(None);
+
 				let relay_parent = Self::header().hash();
 				let head_data: HeadData = Default::default();
 				let persisted_validation_data_hash = PersistedValidationData::<H256> {
@@ -381,9 +358,7 @@ impl<T: Config> BenchBuilder<T> {
 					&pov_hash,
 					&validation_code_hash,
 				);
-				// let public = collator_pair.public();
-				// let signature = collator_pair.public().sign(&payload).unwrap();
-				let signature = collator_pair.sign(&payload);
+				let signature = collator_public.sign(&payload).unwrap();
 
 				// set the head data so it can be used while validating the signatures on the candidate
 				// receipt.
@@ -405,7 +380,8 @@ impl<T: Config> BenchBuilder<T> {
 					descriptor: CandidateDescriptor::<T::Hash> {
 						para_id,
 						relay_parent,
-						collator: collator_pair.public(),
+						// collator: collator_pair.public(),
+						collator: collator_public,
 						persisted_validation_data_hash,
 						pov_hash,
 						erasure_root: Default::default(),
@@ -428,11 +404,11 @@ impl<T: Config> BenchBuilder<T> {
 				let validity_votes: Vec<_> = group_validators
 					.iter()
 					.map(|val_idx| {
-						let (public, _) = validators.get(val_idx.0 as usize).unwrap();
+						let public = validators.get(val_idx.0 as usize).unwrap();
 
-						let pair = validator_map.get(public).unwrap();
+						// let pair = validator_map.get(public).unwrap();
 						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
-							pair,
+							public,
 							CompactStatement::Valid(candidate_hash.clone()),
 							&Self::signing_context(),
 							*val_idx,
@@ -491,7 +467,7 @@ impl<T: Config> BenchBuilder<T> {
 				};
 				let statements = statement_range
 					.map(|validator_index| {
-						let validator_pair = &validators.get(validator_index as usize).unwrap().1;
+						let validator_public = &validators.get(validator_index as usize).unwrap();
 
 						// we need dispute statements on each side.
 						let dispute_statement = if validator_index % 2 == 0 {
@@ -504,7 +480,7 @@ impl<T: Config> BenchBuilder<T> {
 
 						// let debug_res = validator_pair.public().sign(&data);
 						// println!("debug res validator sign {}", debug_res);
-						let statement_sig = validator_pair.sign(&data);
+						let statement_sig = validator_public.sign(&data).unwrap();
 
 						(dispute_statement, ValidatorIndex(validator_index), statement_sig)
 					})
@@ -532,8 +508,8 @@ impl<T: Config> BenchBuilder<T> {
 
 		Self::setup_para_ids(Self::cores());
 
-		let validator_pairs = Self::generate_validator_pairs(Self::max_validators());
-		let builder = self.setup_session_1(validator_pairs);
+		let validator_ids = Self::generate_validator_pairs(Self::max_validators());
+		let builder = self.setup_session_1(validator_ids);
 
 		let (backed_candidates, bitfields) =
 			builder.create_fully_available_and_new_backed(0, backed_and_concluding);
