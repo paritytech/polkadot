@@ -16,24 +16,32 @@
 
 use std::collections::HashSet;
 
-use futures::channel::{mpsc, oneshot};
-use futures::{FutureExt, SinkExt};
+use futures::{
+	channel::{mpsc, oneshot},
+	FutureExt, SinkExt,
+};
 
-use polkadot_node_primitives::{APPROVAL_EXECUTION_TIMEOUT, ValidationResult};
-use polkadot_node_subsystem::messages::{AvailabilityStoreMessage, CandidateValidationMessage, RuntimeApiMessage, RuntimeApiRequest};
-use polkadot_node_subsystem::{ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender, messages::AvailabilityRecoveryMessage};
+use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
+use polkadot_node_subsystem::{
+	messages::{
+		AvailabilityRecoveryMessage, AvailabilityStoreMessage, CandidateValidationMessage,
+		RuntimeApiMessage, RuntimeApiRequest,
+	},
+	ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender,
+};
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
 use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
-
 use crate::real::LOG_TARGET;
 
-use super::error::{Fatal, FatalResult};
-use super::{error::Result, ordering::CandidateComparator};
+use super::{
+	error::{Fatal, FatalResult, Result},
+	ordering::CandidateComparator,
+};
 
 mod queues;
-use queues::Queues;
 pub use queues::ParticipationRequest;
+use queues::Queues;
 
 /// How many participation processes do we want to run in parallel the most.
 ///
@@ -88,14 +96,7 @@ impl WorkerMessage {
 	fn from_request(req: ParticipationRequest, outcome: ParticipationOutcome) -> Self {
 		let session = req.session();
 		let (candidate_hash, candidate_receipt) = req.into_candidate_info();
-		Self(
-			ParticipationStatement {
-				session,
-				candidate_hash,
-				candidate_receipt,
-				outcome,
-			}
-		)
+		Self(ParticipationStatement { session, candidate_hash, candidate_receipt, outcome })
 	}
 }
 
@@ -120,14 +121,19 @@ impl Participation {
 	/// `on_active_leaves_update`, the participation will be launched right away.
 	///
 	/// Returns: false, if queues are already full.
-	pub async fn queue_participation<Context: SubsystemContext>(&mut self, ctx: &mut Context, comparator: Option<CandidateComparator>, req: ParticipationRequest) -> Result<bool>  {
+	pub async fn queue_participation<Context: SubsystemContext>(
+		&mut self,
+		ctx: &mut Context,
+		comparator: Option<CandidateComparator>,
+		req: ParticipationRequest,
+	) -> Result<bool> {
 		// Participation already running - we can ignore that request:
-		if self.running_participations.contains(req.candidate_hash()) { 
+		if self.running_participations.contains(req.candidate_hash()) {
 			return Ok(true)
 		}
 		// Available capacity - participate right away (if we already have a recent block):
 		if let Some((_, h)) = self.recent_block {
-			if self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS  {
+			if self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
 				self.fork_participation(ctx, req, h)?;
 				return Ok(true)
 			}
@@ -145,7 +151,11 @@ impl Participation {
 	///
 	/// Returns: The received `ParticipationStatement` or a fatal error, in case
 	/// something went wrong when dequeuing more requests (tasks could not be spawned).
-	pub async fn get_participation_result<Context: SubsystemContext>(&mut self, ctx: &mut Context, msg: WorkerMessage) -> FatalResult<ParticipationStatement> {
+	pub async fn get_participation_result<Context: SubsystemContext>(
+		&mut self,
+		ctx: &mut Context,
+		msg: WorkerMessage,
+	) -> FatalResult<ParticipationStatement> {
 		let WorkerMessage(statement) = msg;
 		self.running_participations.remove(&statement.candidate_hash);
 		let recent_block = self.recent_block.expect("We never ever reset recent_block to `None` and we already received a result, so it must have been set before. qed.");
@@ -154,25 +164,33 @@ impl Participation {
 	}
 
 	/// Process active leaves update.
-	pub async fn on_active_leaves_update<Context: SubsystemContext>(&mut self, ctx: &mut Context, update: &ActiveLeavesUpdate) -> FatalResult<()> {
+	pub async fn on_active_leaves_update<Context: SubsystemContext>(
+		&mut self,
+		ctx: &mut Context,
+		update: &ActiveLeavesUpdate,
+	) -> FatalResult<()> {
 		if let Some(activated) = &update.activated {
 			match self.recent_block {
 				None => {
 					self.recent_block = Some((activated.number, activated.hash));
 					// Work got potentially unblocked:
 					self.dequeue_until_capacity(ctx, activated.hash).await?;
-				}
+				},
 				Some((number, hash)) if activated.number > number => {
 					self.recent_block = Some((activated.number, activated.hash));
-				}
-				Some(_) => {}
+				},
+				Some(_) => {},
 			}
 		}
 		Ok(())
 	}
 
 	/// Dequeue until `MAX_PARALLEL_PARTICIPATIONS` is reached.
-	async fn dequeue_until_capacity<Context: SubsystemContext>(&mut self, ctx: &mut Context, recent_head: Hash) -> FatalResult<()> {
+	async fn dequeue_until_capacity<Context: SubsystemContext>(
+		&mut self,
+		ctx: &mut Context,
+		recent_head: Hash,
+	) -> FatalResult<()> {
 		while self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
 			if let Some(req) = self.queue.dequeue() {
 				self.fork_participation(ctx, req, recent_head)?;
@@ -184,15 +202,23 @@ impl Participation {
 	}
 
 	/// Fork a participation task in the background.
-	fn fork_participation<Context: SubsystemContext>(&mut self, ctx: &mut Context, req: ParticipationRequest, recent_head: Hash) -> FatalResult<()> {
+	fn fork_participation<Context: SubsystemContext>(
+		&mut self,
+		ctx: &mut Context,
+		req: ParticipationRequest,
+		recent_head: Hash,
+	) -> FatalResult<()> {
 		if self.running_participations.insert(req.candidate_hash().clone()) {
 			let sender = ctx.sender().clone();
-			ctx.spawn("participation-worker", participate(self.worker_sender.clone(), sender, recent_head, req).boxed()).map_err(Fatal::SpawnFailed)?;
+			ctx.spawn(
+				"participation-worker",
+				participate(self.worker_sender.clone(), sender, recent_head, req).boxed(),
+			)
+			.map_err(Fatal::SpawnFailed)?;
 		}
 		Ok(())
 	}
 }
-
 
 async fn participate(
 	mut result_sender: mpsc::Sender<WorkerMessage>,
@@ -200,17 +226,20 @@ async fn participate(
 	block_hash: Hash,
 	req: ParticipationRequest,
 ) {
-
 	// in order to validate a candidate we need to start by recovering the
 	// available data
 	let (recover_available_data_tx, recover_available_data_rx) = oneshot::channel();
-	sender.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
-		req.candidate_receipt().clone(),
-		req.session(),
-		None,
-		recover_available_data_tx,
-	).into())
-	.await;
+	sender
+		.send_message(
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				req.candidate_receipt().clone(),
+				req.session(),
+				None,
+				recover_available_data_tx,
+			)
+			.into(),
+		)
+		.await;
 
 	let available_data = match recover_available_data_rx.await {
 		Err(oneshot::Canceled) => {
@@ -238,16 +267,26 @@ async fn participate(
 	// we also need to fetch the validation code which we can reference by its
 	// hash as taken from the candidate descriptor
 	let (code_tx, code_rx) = oneshot::channel();
-	sender.send_message(RuntimeApiMessage::Request(
-		block_hash,
-		RuntimeApiRequest::ValidationCodeByHash(
-			req.candidate_receipt().descriptor.validation_code_hash,
-			code_tx,
-		),
-	).into())
-	.await;
+	sender
+		.send_message(
+			RuntimeApiMessage::Request(
+				block_hash,
+				RuntimeApiRequest::ValidationCodeByHash(
+					req.candidate_receipt().descriptor.validation_code_hash,
+					code_tx,
+				),
+			)
+			.into(),
+		)
+		.await;
 
-	let validation_code = match get_validation_code_by_hash(&mut sender, block_hash, req.candidate_receipt().descriptor.validation_code_hash).await {
+	let validation_code = match get_validation_code_by_hash(
+		&mut sender,
+		block_hash,
+		req.candidate_receipt().descriptor.validation_code_hash,
+	)
+	.await
+	{
 		Ok(Some(code)) => code,
 		Ok(None) => {
 			tracing::warn!(
@@ -261,27 +300,27 @@ async fn participate(
 			return
 		},
 		Err(err) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				?err,
-				"Error when fetching validation code."
-			);
+			tracing::warn!(target: LOG_TARGET, ?err, "Error when fetching validation code.");
 			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
 			return
-		}
+		},
 	};
 
 	// we dispatch a request to store the available data for the candidate. We
 	// want to maximize data availability for other potential checkers involved
 	// in the dispute
 	let (store_available_data_tx, store_available_data_rx) = oneshot::channel();
-	sender.send_message(AvailabilityStoreMessage::StoreAvailableData {
-		candidate_hash: *req.candidate_hash(),
-		n_validators: req.n_validators(),
-		available_data: available_data.clone(),
-		tx: store_available_data_tx,
-	}.into())
-	.await;
+	sender
+		.send_message(
+			AvailabilityStoreMessage::StoreAvailableData {
+				candidate_hash: *req.candidate_hash(),
+				n_validators: req.n_validators(),
+				available_data: available_data.clone(),
+				tx: store_available_data_tx,
+			}
+			.into(),
+		)
+		.await;
 
 	match store_available_data_rx.await {
 		Err(oneshot::Canceled) => {
@@ -313,15 +352,19 @@ async fn participate(
 	// be run outside of backing and therefore should be subject to the
 	// same level of leeway.
 	let (validation_tx, validation_rx) = oneshot::channel();
-	sender.send_message(CandidateValidationMessage::ValidateFromExhaustive(
-		available_data.validation_data,
-		validation_code,
-		req.candidate_receipt().descriptor.clone(),
-		available_data.pov,
-		APPROVAL_EXECUTION_TIMEOUT,
-		validation_tx,
-	).into())
-	.await;
+	sender
+		.send_message(
+			CandidateValidationMessage::ValidateFromExhaustive(
+				available_data.validation_data,
+				validation_code,
+				req.candidate_receipt().descriptor.clone(),
+				available_data.pov,
+				APPROVAL_EXECUTION_TIMEOUT,
+				validation_tx,
+			)
+			.into(),
+		)
+		.await;
 
 	// we cast votes (either positive or negative) depending on the outcome of
 	// the validation and if valid, whether the commitments hash matches
@@ -373,7 +416,11 @@ async fn participate(
 }
 
 /// Helper function for sending the result back and report any error.
-async fn send_result(sender: &mut mpsc::Sender<WorkerMessage>, req: ParticipationRequest, outcome: ParticipationOutcome) {
+async fn send_result(
+	sender: &mut mpsc::Sender<WorkerMessage>,
+	req: ParticipationRequest,
+	outcome: ParticipationOutcome,
+) {
 	if let Err(err) = sender.feed(WorkerMessage::from_request(req, outcome)).await {
 		tracing::error!(
 			target: LOG_TARGET,

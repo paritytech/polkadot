@@ -102,10 +102,7 @@ impl ParticipationRequest {
 impl Queues {
 	/// Create new `Queues`.
 	pub fn new() -> Self {
-		Self {
-			best_effort: HashMap::new(),
-			priority: BTreeMap::new(),
-		}
+		Self { best_effort: HashMap::new(), priority: BTreeMap::new() }
 	}
 
 	/// Will put message in queue, either priority or best effort depending on whether a
