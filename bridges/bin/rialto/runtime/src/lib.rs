@@ -570,7 +570,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
+	PalletInstancesRevExSystem,
 >;
 
 impl_runtime_apis! {
@@ -843,7 +843,7 @@ impl_runtime_apis! {
 			);
 			list_benchmark!(list, extra, pallet_bridge_grandpa, BridgeMillauGrandpa);
 
-			let storage_info = AllPalletsWithSystem::storage_info();
+			let storage_info = PalletInstances::storage_info();
 
 			return (list, storage_info)
 		}

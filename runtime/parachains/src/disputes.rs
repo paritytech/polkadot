@@ -1208,7 +1208,7 @@ fn check_signature(
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, AccountId, AllPallets, Initializer, MockGenesisConfig, System, Test,
+		new_test_ext, AccountId, PalletInstancesRevExSystem, Initializer, MockGenesisConfig, System, Test,
 		PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
 		REWARD_VALIDATORS,
 	};
@@ -1240,12 +1240,12 @@ mod tests {
 				// circumvent requirement to have bitfields and headers in block for testing purposes
 				crate::paras_inherent::Included::<Test>::set(Some(()));
 
-				AllPallets::on_finalize(b);
+				PalletInstancesRevExSystem::on_finalize(b);
 				System::finalize();
 			}
 
 			System::initialize(&(b + 1), &Default::default(), &Default::default(), InitKind::Full);
-			AllPallets::on_initialize(b + 1);
+			PalletInstancesRevExSystem::on_initialize(b + 1);
 
 			if let Some(new_session) = new_session(b + 1) {
 				Initializer::test_trigger_on_new_session(

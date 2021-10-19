@@ -20,7 +20,7 @@ use frame_support::{
 	dispatch::{Dispatchable, Weight},
 	ensure,
 	weights::GetDispatchInfo,
-	traits::PalletInfoAccess,
+	traits::PalletsInfoAccess,
 };
 use parity_scale_codec::{Encode, Decode};
 use sp_runtime::traits::Saturating;
@@ -465,7 +465,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			QueryPallet { name, response_info } => {
-				let pallets = Config::AllPalletsInfo::infos()
+				let pallets = Config::PalletInstancesInfo::infos()
 					.into_iter()
 					.filter(|x| x.name.as_bytes() == &name[..])
 					.map(|x| PalletInfo {
@@ -494,10 +494,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				params,
 				response_info,
 			} => {
-				// We assume that the Relay-chain is allowed to use transact on this parachain.
 				let origin = self.origin.clone().ok_or(XcmError::BadOrigin)?;
 
-				let pallet = Config::AllPalletsInfo::infos()
+				let pallet = Config::PalletInstancesInfo::infos()
 					.into_iter()
 					.find(|x| x.index == pallet_index as usize)
 					.ok_or(XcmError::PalletNotFound)?;

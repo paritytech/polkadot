@@ -1134,7 +1134,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
+	PalletInstancesRevExSystem,
 	(StakingBagsListMigrationV8,),
 >;
 /// The payload being signed in transactions.
@@ -1509,7 +1509,7 @@ sp_api::impl_runtime_apis! {
 			// NOTE: Make sure you point to the individual modules below.
 			list_benchmark!(list, extra, pallet_xcm_benchmarks::fungible, XcmBalances);
 
-			let storage_info = AllPalletsWithSystem::storage_info();
+			let storage_info = PalletInstances::storage_info();
 
 			return (list, storage_info)
 		}

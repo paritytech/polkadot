@@ -19,7 +19,7 @@ use crate::traits::{
 	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::dispatch::{Dispatchable, Parameter};
-use frame_support::traits::PalletInfoAccess;
+use frame_support::traits::PalletsInfoAccess;
 use frame_support::weights::{GetDispatchInfo, PostDispatchInfo};
 use xcm::latest::SendXcm;
 
@@ -69,5 +69,5 @@ pub trait Config {
 	type SubscriptionService: VersionChangeNotifier;
 
 	/// Information on all pallets.
-	type AllPalletsInfo: PalletInfoAccess;
+	type PalletInstancesInfo: PalletsInfoAccess;
 }
