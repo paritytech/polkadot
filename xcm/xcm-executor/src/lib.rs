@@ -22,6 +22,7 @@ use frame_support::{
 	weights::GetDispatchInfo,
 	traits::PalletInfoAccess,
 };
+use parity_scale_codec::{Encode, Decode};
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{Error as XcmError, ExecuteXcm, Instruction::{self, *}, MaybeErrorCode, MultiAssets, MultiLocation, Outcome, PalletInfo, QueryResponseInfo, Response, SendXcm, Xcm};
@@ -498,7 +499,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 				let pallet = Config::AllPalletsInfo::infos()
 					.into_iter()
-					.find(|x| x.index == pallet_index)
+					.find(|x| x.index == pallet_index as usize)
 					.ok_or(XcmError::PalletNotFound)?;
 				ensure!(pallet.name.as_bytes() == &name[..], XcmError::NameMismatch);
 				ensure!(pallet.crate_version.major as u32 == major, XcmError::VersionIncompatible);
@@ -517,7 +518,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let (actual_weight, error_code) = match message_call.dispatch(dispatch_origin) {
 					Ok(post_info) => (post_info.actual_weight, MaybeErrorCode::Success),
 					Err(error_and_info) => {
-						let error = MaybeErrorCode::Error(error_and_info.error.encode();
+						let error = MaybeErrorCode::Error(error_and_info.error.encode());
 						let actual_weight = error_and_info.post_info.actual_weight;
 						(actual_weight, error)
 					},
@@ -537,7 +538,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					let response = Response::DispatchResult(error_code);
 					let instruction = QueryResponse { query_id, response, max_weight };
 					let message = Xcm(vec![instruction]);
-					Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
+					Config::XcmSender::send_xcm(destination, message).map_err(XcmError::from)?;
 				}
 				Ok(())
 			},
