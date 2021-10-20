@@ -157,7 +157,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	PalletInstancesRevExSystem,
+	AllPallets,
 	(),
 >;
 /// The payload being signed in transactions.
@@ -690,7 +690,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
-	type PalletInstancesInfo = PalletInstances;
+	type PalletInstancesInfo = AllPallets;
 }
 
 parameter_types! {
@@ -1604,7 +1604,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_parachains::disputes, ParasDisputes);
 			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
 
-			let storage_info = PalletInstances::storage_info();
+			let storage_info = AllPalletsWithSystem::storage_info();
 
 			return (list, storage_info)
 		}
