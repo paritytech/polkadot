@@ -70,6 +70,7 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for DisputedBitfield {
 	}
 }
 
+#[cfg(test)]
 impl DisputedBitfield {
 	/// Create a new bitfield, where each bit is set to `false`.
 	pub fn zeros(n: usize) -> Self {
@@ -195,7 +196,7 @@ pub mod pallet {
 						.iter()
 						.map(|backed_candidate| backed_candidate.hash())
 						.filter(|candidate| {
-							<T>::DisputesHandler::concluded_invalid(current_session, candidate)
+							<T>::DisputesHandler::concluded_invalid(current_session, *candidate)
 						})
 						.collect::<BTreeSet<CandidateHash>>();
 
@@ -496,18 +497,19 @@ pub(super) fn create_disputed_bitfield<'a, I: 'a + IntoIterator<Item = &'a CoreI
 }
 
 /// Calculate the weight of a single backed candidate.
-fn backed_candidate_weight<T: Config>(backed_candidate: &BackedCandidate<<T>::Hash>) -> Weight {
+fn backed_candidate_weight<T: Config>(_backed_candidate: &BackedCandidate<<T>::Hash>) -> Weight {
 	// XXX @Lldenaurois
 	// FIXME these weights are garbage
-	const CODE_UPGRADE_WEIGHT: Weight = 10_000 as Weight;
-	const DISPUTE_PER_STATEMENT_WEIGHT: Weight = 1_000 as Weight;
+	// const CODE_UPGRADE_WEIGHT: Weight = 10_000 as Weight;
+	// const DISPUTE_PER_STATEMENT_WEIGHT: Weight = 1_000 as Weight;
 
-	backed_candidate.validity_votes.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
-		if backed_candidate.candidate.commitments.new_validation_code.is_some() {
-			CODE_UPGRADE_WEIGHT
-		} else {
-			0 as Weight
-		}
+	// backed_candidate.validity_votes.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
+	// 	if backed_candidate.candidate.commitments.new_validation_code.is_some() {
+	// 		CODE_UPGRADE_WEIGHT
+	// 	} else {
+	// 		0 as Weight
+	// 	}
+	BACKED_CANDIDATE_WEIGHT
 }
 
 /// Calculate the weight of a individual bitfield.
@@ -857,7 +859,7 @@ mod tests {
 		use super::*;
 
 		use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
-		use primitives::v1::Header;
+		use primitives::v1::{Hash, Header, GroupIndex, Id as ParaId};
 
 		use frame_support::traits::UnfilteredDispatchable;
 
@@ -884,7 +886,13 @@ mod tests {
 				// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
 				let signed_bitfields = Vec::new();
 				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
-				let backed_candidates = vec![BackedCandidate::default(); 10];
+				let backed_candidates = std::iter::repeat_with(|| BackedCandidate::default())
+					.take(10)
+					.map(|mut x| {
+						x.candidate.descriptor.relay_parent = header.hash();
+						x
+					})
+					.collect::<Vec<_>>();
 
 				// the expected weight can always be computed by this formula
 				let expected_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT +
@@ -896,13 +904,37 @@ mod tests {
 				let used_block_weight = max_block_weight / 2;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
+				let chain_a = ParaId::from(1);
+				let chain_b = ParaId::from(2);
+
+				let chain_a_assignment = CoreAssignment {
+					core: CoreIndex::from(0),
+					para_id: chain_a,
+					kind: crate::scheduler::AssignmentKind::Parachain,
+					group_idx: GroupIndex::from(0),
+				};
+
+				let chain_b_assignment = CoreAssignment {
+					core: CoreIndex::from(1),
+					para_id: chain_b,
+					kind: crate::scheduler::AssignmentKind::Parachain,
+					group_idx: GroupIndex::from(1),
+				};
+               // TODO scheduled in ::enter is still empty11
+				crate::scheduler::AvailabilityCores::<Test>::set(vec![None, None]);
+				crate::paras::Parachains::<Test>::set(vec![chain_a, chain_b]);
+				<crate::scheduler::Pallet<Test>>::schedule(vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(1), FreedReason::Concluded)], <frame_system::Pallet<Test>>::block_number());
+
+				let scheduled = vec![chain_a_assignment, chain_b_assignment];
+				crate::scheduler::Scheduled::<Test>::set(scheduled);
+
 				// execute the paras inherent
 				let post_info = Call::<Test>::enter {
 					data: ParachainsInherentData {
 						bitfields: signed_bitfields,
 						backed_candidates,
 						disputes: Vec::new(),
-						parent_header: default_header(),
+						parent_header: header,
 					},
 				}
 				.dispatch_bypass_filter(None.into())
