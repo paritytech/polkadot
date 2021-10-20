@@ -863,7 +863,7 @@ mod tests {
 				// we've used half the block weight; there's plenty of margin
 				let max_block_weight =
 					<Test as frame_system::Config>::BlockWeights::get().max_block;
-				let used_block_weight = dbg!(max_block_weight / 2);
+				let used_block_weight = max_block_weight / 2;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
 				// execute the paras inherent
