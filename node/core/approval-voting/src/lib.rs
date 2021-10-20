@@ -42,11 +42,7 @@ use polkadot_node_subsystem::{
 	FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 	SubsystemResult, SubsystemSender,
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-	rolling_session_window::RollingSessionWindow,
-	TimeoutExt,
-};
+use polkadot_node_subsystem_util::{TimeoutExt, metrics::{self, prometheus}, rolling_session_window::{RollingSessionWindow, SessionWindowSize, SessionWindowUpdate, SessionsUnavailable}};
 use polkadot_primitives::v1::{
 	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
 	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
@@ -70,6 +66,8 @@ use std::{
 	time::Duration,
 };
 
+use lazy_static::lazy_static;
+
 use approval_checking::RequiredTranches;
 use criteria::{AssignmentCriteria, RealAssignmentCriteria};
 use persisted_entries::{ApprovalEntry, BlockEntry, CandidateEntry};
@@ -92,7 +90,11 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-const APPROVAL_SESSIONS: SessionIndex = 6;
+// Lazy static required until https://github.com/rust-lang/rust/issues/67441 is resolved.
+lazy_static! {
+	static ref APPROVAL_SESSIONS: SessionWindowSize = SessionWindowSize::new(6).expect("6 != 0 qed.");
+}
+
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 const APPROVAL_CACHE_SIZE: usize = 1024;
 const TICK_TOO_FAR_IN_FUTURE: Tick = 20; // 10 seconds.
@@ -568,7 +570,7 @@ impl CurrentlyCheckingSet {
 }
 
 struct State {
-	session_window: RollingSessionWindow,
+	session_window: Option<RollingSessionWindow>,
 	keystore: Arc<LocalKeystore>,
 	slot_duration_millis: u64,
 	clock: Box<dyn Clock + Send + Sync>,
@@ -577,9 +579,24 @@ struct State {
 
 impl State {
 	fn session_info(&self, i: SessionIndex) -> Option<&SessionInfo> {
-		self.session_window.session_info(i)
+		self.session_window.as_ref().and_then(|w| w.session_info(i))
 	}
 
+	/// Bring `session_window` up2date.
+	pub async fn cache_session_info_for_head(&mut self, ctx: &mut (impl SubsystemContext + overseer::SubsystemContext), head: Hash) -> Result<Option<SessionWindowUpdate>, SessionsUnavailable> {
+		let session_window = self.session_window.take();
+		match session_window {
+			None => {
+				self.session_window = Some(RollingSessionWindow::new(ctx, *APPROVAL_SESSIONS, head).await?);
+				Ok(None)
+			}
+			Some(mut session_window) => {
+				let r = session_window.cache_session_info_for_head(ctx, head).await.map(Option::Some);
+				self.session_window = Some(session_window);
+				r
+			}
+		}
+	}
 	// Compute the required tranches for approval for this block and candidate combo.
 	// Fails if there is no approval entry for the block under the candidate or no candidate entry
 	// under the block, or if the session is out of bounds.
@@ -671,7 +688,7 @@ where
 	B: Backend,
 {
 	let mut state = State {
-		session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
+		session_window: None,
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
 		clock,

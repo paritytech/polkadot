@@ -62,7 +62,7 @@ pub struct SessionsUnavailable {
 }
 
 /// Type of a session window size.
-type SessionWindowSize = NonZeroU32;
+pub type SessionWindowSize = NonZeroU32;
 
 /// An indicated update of the rolling session window.
 #[derive(Debug, PartialEq, Clone)]
