@@ -24,13 +24,11 @@ use crate::{
 };
 
 use frame_support::{
-	construct_runtime, parameter_types,
+	parameter_types,
 	traits::{
-		Contains, Everything, GenesisBuild, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		Nothing, OnRuntimeUpgrade,
+		GenesisBuild, KeyOwnerProofSystem,
 	},
 	weights::Weight,
-	PalletId, RuntimeDebug,
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;

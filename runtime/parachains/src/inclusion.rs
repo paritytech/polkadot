@@ -266,7 +266,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
-		disputed_bits: DisputedBitfield,
+		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
 	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
@@ -275,7 +275,7 @@ impl<T: Config> Pallet<T> {
 
 		let checked_bitfields = sanitize_bitfields::<T, true>(
 			signed_bitfields,
-			disputed_bits,
+			disputed_bitfield,
 			expected_bits,
 			parent_hash,
 			session_index,

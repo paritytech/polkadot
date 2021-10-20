@@ -155,29 +155,29 @@ pub mod pallet {
 			// filter out any unneeded dispute statements
 			T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
-			let fresh_disputes = frame_support::storage::with_transaction(|| {
-				frame_support::storage::TransactionOutcome::Rollback(
-					T::DisputesHandler::provide_multi_dispute_data(disputes.clone()),
-				)
-			})
-			.map_err(|e| {
-				log::warn!(target: LOG_TARGET, "MultiDisputesData failed to load: {:?}", e);
-				e
-			})
-			.unwrap_or_default();
+			let concluded_invalid_disputes = frame_support::storage::with_transaction(|| {
+				// we don't care about fresh or not disputes
+				// this writes them to storage, so let's query it via those means
+				// if this fails for whatever reason, that's ok
+				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())
+					.map_err(|e| {
+						log::warn!(target: LOG_TARGET, "MultiDisputesData failed to update: {:?}", e);
+						e
+					});
+				let concluded_invalid_disputes = disputes
+					.iter()
+					.filter(|dss| dss.session == current_session)
+					.map(|dss| (dss.session, dss.candidate_hash))
+					.filter(|(session, candidate)| {
+						<T>::DisputesHandler::concluded_invalid(*session, *candidate)
+					})
+					.map(|(_session, candidate)| candidate)
+					.collect::<BTreeSet<CandidateHash>>();
 
-			let concluded_invalid_disputes = disputes
-				.iter()
-				.filter(|dss| dss.session == current_session)
-				.map(|dss| (dss.session, dss.candidate_hash))
-				.filter(|(session, candidate)| {
-					// newly concluded votes are not accounted for _yet_
-					// as such we need to explicitly check for them
-					!fresh_disputes.contains(&(*session, *candidate)) &&
-						!<T>::DisputesHandler::concluded_invalid(*session, *candidate)
-				})
-				.map(|(_session, candidate)| candidate)
-				.collect::<BTreeSet<CandidateHash>>();
+				frame_support::storage::TransactionOutcome::Rollback(
+					concluded_invalid_disputes
+				)
+			});
 
 			// sanitize the bitfields and candidates by removing
 			// anything that does not pass a set of checks
@@ -185,6 +185,8 @@ pub mod pallet {
 			let validator_public = shared::Pallet::<T>::active_validator_keys();
 
 			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
+			let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
+
 
 			let bitfields = sanitize_bitfields::<T, false>(
 				bitfields,
@@ -196,12 +198,10 @@ pub mod pallet {
 			)
 			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
 
-			let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
-			let backed_candidates = sanitize_backed_candidates::<T, false>(
+			let backed_candidates = sanitize_backed_candidates::<T,_, false>(
 				parent_hash,
 				backed_candidates,
-				concluded_invalid_disputes,
-				current_session,
+				move |candidate_hash: CandidateHash| -> bool { <T>::DisputesHandler::concluded_invalid(current_session, candidate_hash) },
 				&scheduled[..],
 			)
 			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
@@ -392,11 +392,10 @@ pub mod pallet {
 			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
 
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
-			let backed_candidates = sanitize_backed_candidates::<T, true>(
+			let backed_candidates = sanitize_backed_candidates::<T, _, true>(
 				parent_hash,
 				backed_candidates,
-				concluded_invalid_disputed_candidates,
-				current_session,
+				move |candidate_hash: CandidateHash| -> bool { <T>::DisputesHandler::concluded_invalid(current_session, candidate_hash) },
 				&scheduled[..],
 			)
 			.unwrap_or_else(|err| {
@@ -668,22 +667,23 @@ pub(crate) fn sanitize_bitfields<
 /// guide: Currently `free` but might become `occupied`.
 /// For the filtering here the relevant part is only the current `free`
 /// state.
+///
+/// `candidate_has_concluded_invalid_dispute` must return `true` if the candidate
+/// is disputed, false otherwise
 fn sanitize_backed_candidates<
 	T: Config + crate::inclusion::Config + crate::paras_inherent::Config,
+	F: Fn(CandidateHash) -> bool,
 	const EARLY_RETURN: bool,
 >(
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
-	disputed_candidates: BTreeSet<CandidateHash>,
-	session_index: SessionIndex,
+	candidate_has_concluded_invalid_dispute: F,
 	scheduled: &[CoreAssignment],
 ) -> Result<Vec<BackedCandidate<T::Hash>>, Error<T>> {
 	let n = backed_candidates.len();
 	// Remove any candidates that were concluded invalid.
 	backed_candidates.retain(|backed_candidate| {
-		let candidate_hash = backed_candidate.candidate.hash();
-		!disputed_candidates.contains(&candidate_hash) &&
-			!T::DisputesHandler::concluded_invalid(session_index, candidate_hash)
+		!candidate_has_concluded_invalid_dispute(backed_candidate.candidate.hash())
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
