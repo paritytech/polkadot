@@ -173,8 +173,9 @@ pub mod pallet {
 							);
 							e
 						});
-					// all concluded invalid disputes, including the current block's votes
-					let concluded_invalid_disputes = disputes
+
+					// current concluded invalid disputes, only including the current block's votes
+					let current_concluded_invalid_disputes = disputes
 						.iter()
 						.filter(|dss| dss.session == current_session)
 						.map(|dss| (dss.session, dss.candidate_hash))
@@ -184,8 +185,19 @@ pub mod pallet {
 						.map(|(_session, candidate)| candidate)
 						.collect::<BTreeSet<CandidateHash>>();
 
-					let freed_cores =
-						<inclusion::Pallet<T>>::collect_disputed(&concluded_invalid_disputes);
+					let freed_cores = <inclusion::Pallet<T>>::collect_disputed(
+						&current_concluded_invalid_disputes,
+					);
+
+					// all concluded invalid disputes, that are relevant for the set of candidates
+					// the inherent provided
+					let concluded_invalid_disputes = backed_candidates
+						.iter()
+						.map(|backed_candidate| backed_candidate.hash())
+						.filter(|candidate| {
+							<T>::DisputesHandler::concluded_invalid(current_session, candidate)
+						})
+						.collect::<BTreeSet<CandidateHash>>();
 
 					frame_support::storage::TransactionOutcome::Rollback((
 						freed_cores,
@@ -248,6 +260,10 @@ pub mod pallet {
 
 			// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 			// See <https://github.com/paritytech/polkadot/issues/1327>
+
+			// Calling `Self::enter` here is a safe-guard, to avoid any discrepancy
+			// between on-chain logic and the logic that is executed
+			// at the block producer off-chain (this code path).
 			let inherent_data =
 				match Self::enter(frame_system::RawOrigin::None.into(), inherent_data.clone()) {
 					Ok(_) => inherent_data,
