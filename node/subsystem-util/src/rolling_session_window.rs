@@ -19,8 +19,6 @@
 //! This is useful for consensus components which need to stay up-to-date about recent sessions but don't
 //! care about the state of particular blocks.
 
-use std::num::NonZeroU32;
-
 use polkadot_primitives::v1::{Hash, SessionIndex, SessionInfo};
 
 use futures::channel::oneshot;
@@ -62,7 +60,51 @@ pub struct SessionsUnavailable {
 }
 
 /// Type of a session window size.
-pub type SessionWindowSize = NonZeroU32;
+///
+/// We are not using `NonZeroU32` here because `expect` and `unwrap` are not yet const, so global
+/// constants of `SessionWindowSize` would require `lazy_static` in that case.
+///
+/// See: https://github.com/rust-lang/rust/issues/67441
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct SessionWindowSize(SessionIndex);
+
+#[macro_export]
+/// Create a new checked `SessionWindowSize`
+///
+/// which cannot be 0.
+macro_rules! new_session_window_size {
+	(0) => {
+		compile_error!("Must be non zero");
+	};
+	(0_u32) => {
+		compile_error!("Must be non zero");
+	};
+	(0 as u32) => {
+		compile_error!("Must be non zero");
+	};
+	(0 as _) => {
+		compile_error!("Must be non zero");
+	};
+	($l:literal) => {
+		SessionWindowSize::unchecked_new($l as _)
+	};
+}
+
+pub use new_session_window_size;
+
+impl SessionWindowSize {
+	fn get(self) -> SessionIndex {
+		self.0
+	}
+
+	/// Helper function for `new_session_window_size`.
+	///
+	/// Don't use it. The only reason it is public, is because otherwise the macro would not work
+	/// outside of this module.
+	pub const fn unchecked_new(size: SessionIndex) -> Self {
+		Self(size)
+	}
+}
 
 /// An indicated update of the rolling session window.
 #[derive(Debug, PartialEq, Clone)]
@@ -264,8 +306,6 @@ async fn load_all_sessions(
 
 #[cfg(test)]
 mod tests {
-	use lazy_static::lazy_static;
-
 	use super::*;
 	use assert_matches::assert_matches;
 	use polkadot_node_subsystem::messages::{AllMessages, AvailabilityRecoveryMessage};
@@ -273,11 +313,7 @@ mod tests {
 	use polkadot_primitives::v1::Header;
 	use sp_core::testing::TaskExecutor;
 
-	// Lazy static required until https://github.com/rust-lang/rust/issues/67441 is resolved.
-	lazy_static! {
-		static ref TEST_WINDOW_SIZE: SessionWindowSize =
-			SessionWindowSize::new(6).expect("6 is not 0. qed.");
-	}
+	pub const TEST_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
@@ -318,7 +354,7 @@ mod tests {
 			Box::pin(async move {
 				let window = match window {
 					None =>
-						RollingSessionWindow::new(&mut ctx, *TEST_WINDOW_SIZE, hash).await.unwrap(),
+						RollingSessionWindow::new(&mut ctx, TEST_WINDOW_SIZE, hash).await.unwrap(),
 					Some(mut window) => {
 						window.cache_session_info_for_head(&mut ctx, hash).await.unwrap();
 						window
@@ -372,7 +408,7 @@ mod tests {
 		let window = RollingSessionWindow {
 			earliest_session: 1,
 			session_info: vec![dummy_session_info(1)],
-			window_size: *TEST_WINDOW_SIZE,
+			window_size: TEST_WINDOW_SIZE,
 		};
 
 		cache_session_info_test(1, 2, Some(window), 2);
@@ -397,7 +433,7 @@ mod tests {
 				dummy_session_info(51),
 				dummy_session_info(52),
 			],
-			window_size: *TEST_WINDOW_SIZE,
+			window_size: TEST_WINDOW_SIZE,
 		};
 
 		cache_session_info_test(
@@ -414,7 +450,7 @@ mod tests {
 		let window = RollingSessionWindow {
 			earliest_session: start,
 			session_info: (start..=99).map(dummy_session_info).collect(),
-			window_size: *TEST_WINDOW_SIZE,
+			window_size: TEST_WINDOW_SIZE,
 		};
 
 		cache_session_info_test(
@@ -431,7 +467,7 @@ mod tests {
 		let window = RollingSessionWindow {
 			earliest_session: start,
 			session_info: (start..=97).map(dummy_session_info).collect(),
-			window_size: *TEST_WINDOW_SIZE,
+			window_size: TEST_WINDOW_SIZE,
 		};
 
 		cache_session_info_test(
@@ -448,7 +484,7 @@ mod tests {
 		let window = RollingSessionWindow {
 			earliest_session: start,
 			session_info: (0..=1).map(dummy_session_info).collect(),
-			window_size: *TEST_WINDOW_SIZE,
+			window_size: TEST_WINDOW_SIZE,
 		};
 
 		cache_session_info_test(
@@ -465,7 +501,7 @@ mod tests {
 		let window = RollingSessionWindow {
 			earliest_session: start,
 			session_info: (0..=1).map(dummy_session_info).collect(),
-			window_size: *TEST_WINDOW_SIZE,
+			window_size: TEST_WINDOW_SIZE,
 		};
 
 		cache_session_info_test(0, 3, Some(window), 2);
@@ -491,7 +527,7 @@ mod tests {
 
 		let test_fut = {
 			Box::pin(async move {
-				let res = RollingSessionWindow::new(&mut ctx, *TEST_WINDOW_SIZE, hash).await;
+				let res = RollingSessionWindow::new(&mut ctx, TEST_WINDOW_SIZE, hash).await;
 				assert!(res.is_err());
 			})
 		};
@@ -551,7 +587,7 @@ mod tests {
 		let test_fut = {
 			Box::pin(async move {
 				let window =
-					RollingSessionWindow::new(&mut ctx, *TEST_WINDOW_SIZE, hash).await.unwrap();
+					RollingSessionWindow::new(&mut ctx, TEST_WINDOW_SIZE, hash).await.unwrap();
 
 				assert_eq!(window.earliest_session, session);
 				assert_eq!(window.session_info, vec![dummy_session_info(session)]);

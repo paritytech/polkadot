@@ -133,7 +133,11 @@ async fn imported_block_info(
 			Err(_) => return Ok(None),
 		};
 
-		if env.session_window.as_ref().map_or(true, |s| session_index < s.earliest_session()) {
+		if env
+			.session_window
+			.as_ref()
+			.map_or(true, |s| session_index < s.earliest_session())
+		{
 			tracing::debug!(
 				target: LOG_TARGET,
 				"Block {} is from ancient session {}. Skipping",
@@ -180,7 +184,8 @@ async fn imported_block_info(
 		}
 	};
 
-	let session_info = match env.session_window.as_ref().and_then(|s| s.session_info(session_index)) {
+	let session_info = match env.session_window.as_ref().and_then(|s| s.session_info(session_index))
+	{
 		Some(s) => s,
 		None => {
 			tracing::debug!(
@@ -741,7 +746,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &session_window,
+					session_window: &Some(session_window),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -850,7 +855,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &session_window,
+					session_window: &Some(session_window),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -943,7 +948,7 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_window = RollingSessionWindow::new(APPROVAL_SESSIONS);
+			let session_window = None;
 
 			let header = header.clone();
 			Box::pin(async move {
