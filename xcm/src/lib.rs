@@ -435,6 +435,33 @@ impl WrapVersion for AlwaysV2 {
 	}
 }
 
+/// `WrapVersion` implementation which first removes any `ClearOrigin` which follows `WithdrawAsset`
+/// and then always converts the resultant XCM to version 1 before wrapping it.
+///
+/// This is insecure, and should only be used when the message chain is known not to execute any
+/// XCM instructions (e.g. through the use of the insecure `BuyExecution`) as a part of the effects
+/// of `WithdrawAsset`.
+pub struct IntoUnsafeV1;
+impl WrapVersion for IntoUnsafeV1 {
+	fn wrap_version<Call>(
+		_: &latest::MultiLocation,
+		xcm: impl Into<VersionedXcm<Call>>,
+	) -> Result<VersionedXcm<Call>, ()> {
+		let xcm = Xcm(xcm.into().0
+			.into_iter()
+			.scan(false, (|withdraw_last, i| Some(match i {
+				ClearOrigin if *withdraw_last => None,
+				i => {
+					*withdraw_last = matches!(i, Withdraw { .. });
+					Some(i),
+				}
+			}))
+			.collect()
+		);
+		Ok(VersionedXcm::<Call>::V1(xcm.try_into()?))
+	}
+}
+
 /// `WrapVersion` implementation which attempts to always convert the XCM to the latest version before wrapping it.
 pub type AlwaysLatest = AlwaysV1;
 
