@@ -151,11 +151,15 @@ pub mod pallet {
 			};
 
 			let current_session = <shared::Pallet<T>>::session_index();
+			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
+			let validator_public = shared::Pallet::<T>::active_validator_keys();
 
 			// filter out any unneeded dispute statements
 			T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
-			let concluded_invalid_disputes = frame_support::storage::with_transaction(|| {
+			let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
+
+			let (freed_cores, concluded_invalid_disputes) = frame_support::storage::with_transaction(|| {
 				// we don't care about fresh or not disputes
 				// this writes them to storage, so let's query it via those means
 				// if this fails for whatever reason, that's ok
@@ -164,6 +168,7 @@ pub mod pallet {
 						log::warn!(target: LOG_TARGET, "MultiDisputesData failed to update: {:?}", e);
 						e
 					});
+				// all concluded invalid disputes, including the current block's votes
 				let concluded_invalid_disputes = disputes
 					.iter()
 					.filter(|dss| dss.session == current_session)
@@ -174,23 +179,18 @@ pub mod pallet {
 					.map(|(_session, candidate)| candidate)
 					.collect::<BTreeSet<CandidateHash>>();
 
+				let freed_cores = <inclusion::Pallet<T>>::collect_disputed(&concluded_invalid_disputes);
+
 				frame_support::storage::TransactionOutcome::Rollback(
-					concluded_invalid_disputes
+					(freed_cores, concluded_invalid_disputes)
 				)
 			});
 
-			// sanitize the bitfields and candidates by removing
-			// anything that does not pass a set of checks
-			// will be removed here
-			let validator_public = shared::Pallet::<T>::active_validator_keys();
-
-			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
-			let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
-
+			let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_cores.iter());
 
 			let bitfields = sanitize_bitfields::<T, false>(
 				bitfields,
-				DisputedBitfield::zeros(expected_bits), // TODO FIXME
+				disputed_bitfield,
 				expected_bits,
 				parent_hash,
 				current_session,
@@ -201,7 +201,7 @@ pub mod pallet {
 			let backed_candidates = sanitize_backed_candidates::<T,_, false>(
 				parent_hash,
 				backed_candidates,
-				move |candidate_hash: CandidateHash| -> bool { <T>::DisputesHandler::concluded_invalid(current_session, candidate_hash) },
+				move |candidate_hash: CandidateHash| -> bool { concluded_invalid_disputes.contains(&candidate_hash) },
 				&scheduled[..],
 			)
 			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
@@ -299,7 +299,7 @@ pub mod pallet {
 
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
-			let (disputed_bitfield, concluded_invalid_disputed_candidates) = {
+			let disputed_bitfield = {
 				let new_current_dispute_sets: Vec<_> = disputes
 					.iter()
 					.filter(|s| s.session == current_session)
@@ -313,7 +313,7 @@ pub mod pallet {
 					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
 				}
 
-				let (mut freed_disputed, concluded_invalid_disputed_candidates) =
+				let mut freed_disputed =
 					if !new_current_dispute_sets.is_empty() {
 						let concluded_invalid_disputes = new_current_dispute_sets
 							.iter()
@@ -328,25 +328,18 @@ pub mod pallet {
 								.into_iter()
 								.map(|core| (core, FreedReason::Concluded))
 								.collect();
-						(freed_disputed, concluded_invalid_disputes)
+						freed_disputed
 					} else {
-						(Vec::new(), BTreeSet::new())
+						Vec::new()
 					};
 
-				// create a bit index from the set of core indicies.
-				let disputed_bitfield = {
-					let mut bitvec = BitVec::with_capacity(expected_bits);
-					if expected_bits > 0 {
-						bitvec.set(expected_bits.saturating_sub(1), false);
-						for (core_idx, _) in &freed_disputed {
-							let core_idx = core_idx.0 as usize;
-							if core_idx < expected_bits {
-								bitvec.set(core_idx, true);
-							}
-						}
-					}
-					DisputedBitfield::from(bitvec)
-				};
+				// create a bit index from the set of core indicies
+				// where each index corresponds to a core index
+				// that was freed due to a dispute
+				let disputed_bitfield = create_disputed_bitfield(
+					expected_bits,
+					freed_disputed.iter().map(|(core_index, _)| core_index)
+				);
 
 				if !freed_disputed.is_empty() {
 					// unstable sort is fine, because core indices are unique
@@ -355,7 +348,7 @@ pub mod pallet {
 					<scheduler::Pallet<T>>::free_cores(freed_disputed);
 				}
 
-				(disputed_bitfield, concluded_invalid_disputed_candidates)
+				disputed_bitfield
 			};
 
 			// Process new availability bitfields, yielding any availability cores whose
@@ -459,6 +452,22 @@ macro_rules! ensure2 {
 			}
 		}
 	};
+}
+
+/// Derive a bitfield from dispute
+pub(super) fn create_disputed_bitfield<'a, I: 'a + IntoIterator<Item=&'a CoreIndex>>(expected_bits: usize, freed_cores: I) -> DisputedBitfield
+{
+	let mut bitvec = BitVec::with_capacity(expected_bits);
+	if expected_bits > 0 {
+		bitvec.set(expected_bits.saturating_sub(1), false);
+		for core_idx in freed_cores {
+			let core_idx = core_idx.0 as usize;
+			if core_idx < expected_bits {
+				bitvec.set(core_idx, true);
+			}
+		}
+	}
+	DisputedBitfield::from(bitvec)
 }
 
 /// Calculate the weight of a single backed candidate.
@@ -598,7 +607,7 @@ pub(crate) fn sanitize_bitfields<
 	const EARLY_RETURN: bool,
 >(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
-	disputed_bits: DisputedBitfield,
+	disputed_bitfield: DisputedBitfield,
 	expected_bits: usize,
 	parent_hash: T::Hash,
 	session_index: SessionIndex,
@@ -609,17 +618,24 @@ pub(crate) fn sanitize_bitfields<
 	let mut last_index = None;
 
 	ensure2!(
-		disputed_bits.0.len() == expected_bits,
+		disputed_bitfield.0.len() == expected_bits,
 		crate::inclusion::pallet::Error::<T>::WrongBitfieldSize,
 		EARLY_RETURN
 	);
 
+	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
 	for unchecked_bitfield in unchecked_bitfields {
 		let signing_context = SigningContext { parent_hash, session_index };
 
 		ensure2!(
 			unchecked_bitfield.unchecked_payload().0.len() == expected_bits,
 			crate::inclusion::pallet::Error::<T>::WrongBitfieldSize,
+			EARLY_RETURN,
+			continue
+		);
+
+		ensure2!(unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() != all_zeros,
+			crate::inclusion::pallet::Error::<T>::BitfieldReferencesFreedCore,
 			EARLY_RETURN,
 			continue
 		);
@@ -850,10 +866,8 @@ mod tests {
 				// we've used half the block weight; there's plenty of margin
 				let max_block_weight =
 					<Test as frame_system::Config>::BlockWeights::get().max_block;
-				let used_block_weight = max_block_weight / 2;
+				let used_block_weight = dbg!(max_block_weight / 2);
 				System::set_block_consumed_resources(used_block_weight, 0);
-
-				// TODO add scheduled cores
 
 				// execute the paras inherent
 				let post_info = Call::<Test>::enter {

@@ -216,6 +216,10 @@ pub mod pallet {
 		/// The `para_head` hash in the candidate descriptor doesn't match the hash of the actual para head in the
 		/// commitments.
 		ParaHeadMismatch,
+		/// A bitfield that references a freed core,
+		/// either intentionally or as part of a concluded
+		/// invalid dispute.
+		BitfieldReferencesFreedCore,
 	}
 
 	/// The latest bitfield for each validator, referred to by their index in the validator set.
