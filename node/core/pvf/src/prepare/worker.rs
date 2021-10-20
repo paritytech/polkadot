@@ -16,11 +16,13 @@
 
 use crate::{
 	artifacts::Artifact,
+	error::PrecheckError,
+	precheck::PrecheckResult,
 	worker_common::{
 		bytes_to_path, framed_recv, framed_send, path_to_bytes, spawn_with_program_path,
 		tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
 	},
-	LOG_TARGET,
+	Pvf, LOG_TARGET,
 };
 use async_std::{
 	io,
@@ -29,6 +31,7 @@ use async_std::{
 };
 use futures::FutureExt as _;
 use futures_timer::Delay;
+use parity_scale_codec::{Decode, Encode};
 use std::{sync::Arc, time::Duration};
 
 const NICENESS_BACKGROUND: i32 = 10;
@@ -46,7 +49,7 @@ pub async fn spawn(
 	spawn_with_program_path("prepare", program_path, &["prepare-worker"], spawn_timeout).await
 }
 
-pub enum Outcome {
+pub enum PrepareOutcome {
 	/// The worker has finished the work assigned to it.
 	Concluded(IdleWorker),
 	/// The host tried to reach the worker but failed. This is most likely because the worked was
@@ -62,15 +65,25 @@ pub enum Outcome {
 	DidntMakeIt,
 }
 
+pub enum PrecheckOutcome {
+	/// Worker responded with a result of prechecking and is ready to accept the next job.
+	Ok { precheck_result: PrecheckResult, idle_worker: IdleWorker },
+	/// The compilation was interrupted due to the time limit.
+	TimedOut,
+	/// An I/O error happened during communication with the worker. This may mean that the worker
+	/// process already died. The token is not returned in any case.
+	IoErr(io::Error),
+}
+
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
 /// returns the outcome.
-pub async fn start_work(
+pub async fn start_prepare_work(
 	worker: IdleWorker,
 	code: Arc<Vec<u8>>,
 	cache_path: &Path,
 	artifact_path: PathBuf,
 	background_priority: bool,
-) -> Outcome {
+) -> PrepareOutcome {
 	let IdleWorker { mut stream, pid } = worker;
 
 	tracing::debug!(
@@ -86,14 +99,14 @@ pub async fn start_work(
 	}
 
 	with_tmp_file(pid, cache_path, |tmp_file| async move {
-		if let Err(err) = send_request(&mut stream, code, &tmp_file).await {
+		if let Err(err) = send_prepare_request(&mut stream, code, &tmp_file).await {
 			tracing::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
 				"failed to send a prepare request: {:?}",
 				err,
 			);
-			return Outcome::Unreachable
+			return PrepareOutcome::Unreachable
 		}
 
 		// Wait for the result from the worker, keeping in mind that there may be a timeout, the
@@ -166,7 +179,7 @@ pub async fn start_work(
 		match selected {
 			Selected::Done => {
 				renice(pid, NICENESS_FOREGROUND);
-				Outcome::Concluded(IdleWorker { stream, pid })
+				PrepareOutcome::Concluded(IdleWorker { stream, pid })
 			},
 			Selected::IoErr | Selected::Deadline => {
 				let bytes = Artifact::DidntMakeIt.serialize();
@@ -180,20 +193,59 @@ pub async fn start_work(
 						err,
 					);
 				}
-				Outcome::DidntMakeIt
+				PrepareOutcome::DidntMakeIt
 			},
 		}
 	})
 	.await
 }
 
+pub async fn start_precheck_work(
+	worker: IdleWorker,
+	pvf: Pvf,
+	precheck_timeout: Duration,
+) -> PrecheckOutcome {
+	let IdleWorker { mut stream, pid } = worker;
+
+	tracing::debug!(
+		target: LOG_TARGET,
+		worker_pid = %pid,
+		validation_code_hash = ?pvf.code_hash,
+		"starting prechecking routine",
+	);
+
+	if let Err(error) = send_precheck_request(&mut stream, pvf.code).await {
+		tracing::warn!(
+			target: LOG_TARGET,
+			worker_pid = %pid,
+			validation_code_hash = ?pvf.code_hash,
+			?error,
+			"failed to send a precheck request",
+		);
+		return PrecheckOutcome::IoErr(error)
+	}
+
+	match async_std::future::timeout(precheck_timeout, recv_precheck_response(&mut stream)).await {
+		Ok(Ok(precheck_result)) =>
+			PrecheckOutcome::Ok { precheck_result, idle_worker: IdleWorker { stream, pid } },
+		Ok(Err(err)) => PrecheckOutcome::IoErr(err),
+		Err(_) => PrecheckOutcome::TimedOut,
+	}
+}
+
+#[derive(Encode, Decode)]
+enum Request {
+	Prepare { code: Vec<u8>, tmp_file: Vec<u8> },
+	Precheck { code: Vec<u8> },
+}
+
 /// Create a temporary file for an artifact at the given cache path and execute the given
 /// future/closure passing the file path in.
 ///
 /// The function will try best effort to not leave behind the temporary file.
-async fn with_tmp_file<F, Fut>(pid: u32, cache_path: &Path, f: F) -> Outcome
+async fn with_tmp_file<F, Fut>(pid: u32, cache_path: &Path, f: F) -> PrepareOutcome
 where
-	Fut: futures::Future<Output = Outcome>,
+	Fut: futures::Future<Output = PrepareOutcome>,
 	F: FnOnce(PathBuf) -> Fut,
 {
 	let tmp_file = match tmpfile_in("prepare-artifact-", cache_path).await {
@@ -205,7 +257,7 @@ where
 				"failed to create a temp file for the artifact: {:?}",
 				err,
 			);
-			return Outcome::DidntMakeIt
+			return PrepareOutcome::DidntMakeIt
 		},
 	};
 
@@ -232,26 +284,41 @@ where
 	outcome
 }
 
-async fn send_request(
+async fn send_prepare_request(
 	stream: &mut UnixStream,
 	code: Arc<Vec<u8>>,
 	tmp_file: &Path,
 ) -> io::Result<()> {
-	framed_send(stream, &*code).await?;
-	framed_send(stream, path_to_bytes(tmp_file)).await?;
+	let request =
+		Request::Prepare { code: code.to_vec(), tmp_file: path_to_bytes(tmp_file).into() };
+	framed_send(stream, &request.encode()).await?;
 	Ok(())
 }
 
-async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf)> {
-	let code = framed_recv(stream).await?;
-	let tmp_file = framed_recv(stream).await?;
-	let tmp_file = bytes_to_path(&tmp_file).ok_or_else(|| {
+async fn send_precheck_request(stream: &mut UnixStream, code: Arc<Vec<u8>>) -> io::Result<()> {
+	let request = Request::Precheck { code: code.to_vec() };
+	framed_send(stream, &request.encode()).await?;
+	Ok(())
+}
+
+async fn recv_precheck_response(stream: &mut UnixStream) -> io::Result<PrecheckResult> {
+	let response_bytes = framed_recv(stream).await?;
+	PrecheckResult::decode(&mut &response_bytes[..]).map_err(|e| {
 		io::Error::new(
 			io::ErrorKind::Other,
-			"prepare pvf recv_request: non utf-8 artifact path".to_string(),
+			format!("precheck pvf recv_response: decode error: {:?}", e),
 		)
-	})?;
-	Ok((code, tmp_file))
+	})
+}
+
+async fn recv_request(stream: &mut UnixStream) -> io::Result<Request> {
+	let response_bytes = framed_recv(stream).await?;
+	Request::decode(&mut response_bytes.as_slice()).map_err(|e| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			format!("prepare worker recv_response: decode error: {:?}", e),
+		)
+	})
 }
 
 pub fn bump_priority(handle: &WorkerHandle) {
@@ -281,26 +348,46 @@ fn renice(pid: u32, niceness: i32) {
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |mut stream| async move {
 		loop {
-			let (code, dest) = recv_request(&mut stream).await?;
+			let request = recv_request(&mut stream).await?;
 
-			tracing::debug!(
-				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
-				"worker: preparing artifact",
-			);
-			let artifact_bytes = prepare_artifact(&code).serialize();
+			match request {
+				Request::Prepare { code, tmp_file } => {
+					let path = bytes_to_path(&tmp_file).ok_or_else(|| {
+						io::Error::new(
+							io::ErrorKind::Other,
+							"prepare pvf recv_request: non utf-8 artifact path".to_string(),
+						)
+					})?;
+					tracing::debug!(
+						target: LOG_TARGET,
+						worker_pid = %std::process::id(),
+						"worker: preparing artifact",
+					);
+					let artifact_bytes = prepare_artifact(&code).serialize();
 
-			// Write the serialized artifact into into a temp file.
-			tracing::debug!(
-				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
-				"worker: writing artifact to {}",
-				dest.display(),
-			);
-			async_std::fs::write(&dest, &artifact_bytes).await?;
+					// Write the serialized artifact into into a temp file.
+					tracing::debug!(
+						target: LOG_TARGET,
+						worker_pid = %std::process::id(),
+						"worker: writing artifact to {}",
+						path.display(),
+					);
+					async_std::fs::write(&path, &artifact_bytes).await?;
 
-			// Return back a byte that signals finishing the work.
-			framed_send(&mut stream, &[1u8]).await?;
+					// Return back a byte that signals finishing the work.
+					framed_send(&mut stream, &[1u8]).await?;
+				},
+				Request::Precheck { code } => {
+					tracing::debug!(
+						target: LOG_TARGET,
+						worker_pid = %std::process::id(),
+						"worker: prechecking pvf",
+					);
+					let precheck_result = precheck_pvf(code.as_slice());
+
+					framed_send(&mut stream, &precheck_result.encode()).await?;
+				},
+			}
 		}
 	});
 }
@@ -314,5 +401,19 @@ fn prepare_artifact(code: &[u8]) -> Artifact {
 	match crate::executor_intf::prepare(blob) {
 		Ok(compiled_artifact) => Artifact::Compiled { compiled_artifact },
 		Err(err) => Artifact::PreparationErr(format!("{:?}", err)),
+	}
+}
+
+fn precheck_pvf(code: &[u8]) -> PrecheckResult {
+	let blob = crate::executor_intf::prevalidate(code)
+		.map_err(|err| PrecheckError::CompileError(format!("{:?}", err)))?;
+
+	// Try to compile the artifact on a single thread in order to reduce
+	// cpu number dependency and make this time easily reproducible.
+	//
+	// Also note that the artifact is not stored anywhere.
+	match crate::executor_intf::prepare_single_threaded(blob) {
+		Ok(_) => Ok(()),
+		Err(err) => Err(PrecheckError::CompileError(format!("{:?}", err))),
 	}
 }

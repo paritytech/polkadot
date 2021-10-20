@@ -102,7 +102,6 @@ pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
 
 pub use execute::worker_entrypoint as execute_worker_entrypoint;
-pub use precheck::worker_entrypoint as precheck_worker_entrypoint;
 pub use prepare::worker_entrypoint as prepare_worker_entrypoint;
 
 const LOG_TARGET: &str = "parachain::pvf";

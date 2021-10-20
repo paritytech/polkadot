@@ -14,11 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::worker::{self, Outcome};
+use super::worker::{self, PrecheckOutcome, PrepareOutcome};
 use crate::{
 	metrics::Metrics,
+	precheck::PrecheckResult,
 	worker_common::{IdleWorker, WorkerHandle},
-	LOG_TARGET,
+	PrecheckError, Pvf, LOG_TARGET,
 };
 use always_assert::never;
 use assert_matches::assert_matches;
@@ -64,12 +65,24 @@ pub enum ToPool {
 	///
 	/// In either case, the worker is considered busy and no further `StartWork` messages should be
 	/// sent until either `Concluded` or `Rip` message is received.
-	StartWork {
+	StartPrepareWork {
 		worker: Worker,
 		code: Arc<Vec<u8>>,
 		artifact_path: PathBuf,
 		background_priority: bool,
 	},
+	StartPrecheckWork {
+		worker: Worker,
+		pvf: Pvf,
+	},
+}
+
+#[derive(Debug)]
+pub enum JobFinished {
+	// No associated value since the artifact is written
+	// to the file.
+	Prepare,
+	Precheck(PrecheckResult),
 }
 
 /// A message sent from pool to its client.
@@ -80,7 +93,7 @@ pub enum FromPool {
 
 	/// The given worker either succeeded or failed the given job. Under any circumstances the
 	/// artifact file has been written. The `bool` says whether the worker ripped.
-	Concluded(Worker, bool),
+	Concluded { worker: Worker, rip: bool, result: JobFinished },
 
 	/// The given worker ceased to exist.
 	Rip(Worker),
@@ -99,7 +112,8 @@ impl fmt::Debug for WorkerData {
 
 enum PoolEvent {
 	Spawn(IdleWorker, WorkerHandle),
-	StartWork(Worker, Outcome),
+	StartPrepareWork(Worker, PrepareOutcome),
+	StartPrecheckWork(Worker, PrecheckOutcome),
 }
 
 type Mux = FuturesUnordered<BoxFuture<'static, PoolEvent>>;
@@ -206,12 +220,12 @@ fn handle_to_pool(
 			metrics.prepare_worker().on_begin_spawn();
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		},
-		ToPool::StartWork { worker, code, artifact_path, background_priority } => {
+		ToPool::StartPrepareWork { worker, code, artifact_path, background_priority } => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					let preparation_timer = metrics.time_preparation();
 					mux.push(
-						start_work_task(
+						start_prepare_work_task(
 							worker,
 							idle,
 							code,
@@ -228,13 +242,21 @@ fn handle_to_pool(
 					// items concluded;
 					// thus idle token is Some;
 					// qed.
-					never!("unexpected abscence of the idle token in prepare pool");
+					never!("unexpected absence of the idle token in prepare pool");
 				}
 			} else {
 				// That's a relatively normal situation since the queue may send `start_work` and
 				// before receiving it the pool would report that the worker died.
 			}
 		},
+		ToPool::StartPrecheckWork { worker, pvf } =>
+			if let Some(data) = spawned.get_mut(worker) {
+				if let Some(idle) = data.idle.take() {
+					mux.push(start_precheck_work_task(worker, idle, pvf).boxed());
+				} else {
+					never!("unexpected absence of the idle token in prepare pool");
+				}
+			},
 		ToPool::Kill(worker) => {
 			tracing::debug!(target: LOG_TARGET, ?worker, "killing prepare worker");
 			// It may be absent if it were previously already removed by `purge_dead`.
@@ -263,7 +285,7 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 	}
 }
 
-async fn start_work_task<Timer>(
+async fn start_prepare_work_task<Timer>(
 	worker: Worker,
 	idle: IdleWorker,
 	code: Arc<Vec<u8>>,
@@ -273,8 +295,14 @@ async fn start_work_task<Timer>(
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
 	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, background_priority).await;
-	PoolEvent::StartWork(worker, outcome)
+		worker::start_prepare_work(idle, code, &cache_path, artifact_path, background_priority)
+			.await;
+	PoolEvent::StartPrepareWork(worker, outcome)
+}
+
+async fn start_precheck_work_task(worker: Worker, idle: IdleWorker, pvf: Pvf) -> PoolEvent {
+	let outcome = worker::start_precheck_work(idle, pvf, Duration::from_secs(10)).await;
+	PoolEvent::StartPrecheckWork(worker, outcome)
 }
 
 fn handle_mux(
@@ -293,9 +321,9 @@ fn handle_mux(
 
 			Ok(())
 		},
-		PoolEvent::StartWork(worker, outcome) => {
+		PoolEvent::StartPrepareWork(worker, outcome) => {
 			match outcome {
-				Outcome::Concluded(idle) => {
+				PrepareOutcome::Concluded(idle) => {
 					let data = match spawned.get_mut(worker) {
 						None => {
 							// Perhaps the worker was killed meanwhile and the result is no longer
@@ -310,25 +338,77 @@ fn handle_mux(
 					let old = data.idle.replace(idle);
 					assert_matches!(old, None, "attempt to overwrite an idle worker");
 
-					reply(from_pool, FromPool::Concluded(worker, false))?;
+					reply(
+						from_pool,
+						FromPool::Concluded { worker, rip: false, result: JobFinished::Prepare },
+					)?;
 
 					Ok(())
 				},
-				Outcome::Unreachable => {
+				PrepareOutcome::Unreachable => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(from_pool, FromPool::Rip(worker))?;
 					}
 
 					Ok(())
 				},
-				Outcome::DidntMakeIt => {
+				PrepareOutcome::DidntMakeIt => {
 					if attempt_retire(metrics, spawned, worker) {
-						reply(from_pool, FromPool::Concluded(worker, true))?;
+						reply(
+							from_pool,
+							FromPool::Concluded { worker, rip: true, result: JobFinished::Prepare },
+						)?;
 					}
 
 					Ok(())
 				},
 			}
+		},
+		PoolEvent::StartPrecheckWork(worker, outcome) => match outcome {
+			PrecheckOutcome::Ok { precheck_result, idle_worker } => {
+				let data = match spawned.get_mut(worker) {
+					None => return Ok(()),
+					Some(data) => data,
+				};
+				let old = data.idle.replace(idle_worker);
+				assert_matches!(old, None, "attempt to overwrite an idle worker");
+				reply(
+					from_pool,
+					FromPool::Concluded {
+						worker,
+						rip: false,
+						result: JobFinished::Precheck(precheck_result),
+					},
+				)?;
+
+				Ok(())
+			},
+			PrecheckOutcome::TimedOut => {
+				let rip = attempt_retire(metrics, spawned, worker);
+				reply(
+					from_pool,
+					FromPool::Concluded {
+						worker,
+						rip,
+						result: JobFinished::Precheck(Err(PrecheckError::TimedOut)),
+					},
+				)?;
+				Ok(())
+			},
+			PrecheckOutcome::IoErr(err) => {
+				let rip = attempt_retire(metrics, spawned, worker);
+				reply(
+					from_pool,
+					FromPool::Concluded {
+						worker,
+						rip,
+						result: JobFinished::Precheck(Err(PrecheckError::Internal(
+							err.to_string(),
+						))),
+					},
+				)?;
+				Ok(())
+			},
 		},
 	}
 }

@@ -22,7 +22,7 @@ use std::{fmt, sync::Arc};
 /// A struct that carries code of a parachain validation function and it's hash.
 ///
 /// Should be cheap to clone.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Pvf {
 	pub(crate) code: Arc<Vec<u8>>,
 	pub(crate) code_hash: ValidationCodeHash,

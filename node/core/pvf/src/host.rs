@@ -24,7 +24,8 @@ use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
 	execute,
 	metrics::Metrics,
-	precheck, prepare, PrecheckResultSender, Priority, Pvf, ValidationError, LOG_TARGET,
+	precheck::PrecheckStatus,
+	prepare, PrecheckResult, PrecheckResultSender, Priority, Pvf, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use async_std::path::{Path, PathBuf};
@@ -172,13 +173,6 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 
 	let validation_host = ValidationHost { to_host_tx };
 
-	let (to_precheck_queue_tx, run_precheck_queue) = precheck::start_precheck_queue(
-		config.prepare_worker_program_path.clone(),
-		Duration::from_secs(5),
-		config.prepare_worker_spawn_timeout,
-		config.execute_workers_max_num,
-	);
-
 	let (to_prepare_pool, from_prepare_pool, run_prepare_pool) = prepare::start_pool(
 		metrics.clone(),
 		config.prepare_worker_program_path.clone(),
@@ -207,14 +201,9 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 
 	let run = async move {
 		let artifacts = Artifacts::new(&config.cache_path).await;
+		let precheck_statuses = HashMap::new();
 
-		futures::pin_mut!(
-			run_precheck_queue,
-			run_prepare_queue,
-			run_prepare_pool,
-			run_execute_queue,
-			run_sweeper
-		);
+		futures::pin_mut!(run_prepare_queue, run_prepare_pool, run_execute_queue, run_sweeper);
 
 		run(
 			Inner {
@@ -222,15 +211,14 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 				cleanup_pulse_interval: Duration::from_secs(3600),
 				artifact_ttl: Duration::from_secs(3600 * 24),
 				artifacts,
+				precheck_statuses,
 				to_host_rx,
-				to_precheck_queue_tx,
 				to_prepare_queue_tx,
 				from_prepare_queue_rx,
 				to_execute_queue_tx,
 				to_sweeper_tx,
 				awaiting_prepare: AwaitingPrepare::default(),
 			},
-			run_precheck_queue,
 			run_prepare_pool,
 			run_prepare_queue,
 			run_execute_queue,
@@ -281,10 +269,9 @@ struct Inner {
 	cleanup_pulse_interval: Duration,
 	artifact_ttl: Duration,
 	artifacts: Artifacts,
+	precheck_statuses: HashMap<ArtifactId, PrecheckStatus>,
 
 	to_host_rx: mpsc::Receiver<ToHost>,
-
-	to_precheck_queue_tx: mpsc::Sender<precheck::ToQueue>,
 
 	to_prepare_queue_tx: mpsc::Sender<prepare::ToQueue>,
 	from_prepare_queue_rx: mpsc::UnboundedReceiver<prepare::FromQueue>,
@@ -304,15 +291,14 @@ async fn run(
 		cleanup_pulse_interval,
 		artifact_ttl,
 		mut artifacts,
+		mut precheck_statuses,
 		to_host_rx,
-		mut to_precheck_queue_tx,
 		from_prepare_queue_rx,
 		mut to_prepare_queue_tx,
 		mut to_execute_queue_tx,
 		mut to_sweeper_tx,
 		mut awaiting_prepare,
 	}: Inner,
-	precheck_queue: impl Future<Output = ()> + Unpin,
 	prepare_pool: impl Future<Output = ()> + Unpin,
 	prepare_queue: impl Future<Output = ()> + Unpin,
 	execute_queue: impl Future<Output = ()> + Unpin,
@@ -334,7 +320,6 @@ async fn run(
 	let mut from_prepare_queue_rx = from_prepare_queue_rx.fuse();
 
 	// Make sure that the task-futures are fused.
-	let mut precheck_queue = precheck_queue.fuse();
 	let mut prepare_queue = prepare_queue.fuse();
 	let mut prepare_pool = prepare_pool.fuse();
 	let mut execute_queue = execute_queue.fuse();
@@ -343,10 +328,6 @@ async fn run(
 	loop {
 		// biased to make it behave deterministically for tests.
 		futures::select_biased! {
-			_ = precheck_queue => {
-				never!("precheck_queue: long-running task never concludes; qed");
-				break;
-			},
 			_ = prepare_queue => {
 				never!("prepare_pool: long-running task never concludes; qed");
 				break;
@@ -382,7 +363,7 @@ async fn run(
 				break_if_fatal!(handle_to_host(
 					&cache_path,
 					&mut artifacts,
-					&mut to_precheck_queue_tx,
+					&mut precheck_statuses,
 					&mut to_prepare_queue_tx,
 					&mut to_execute_queue_tx,
 					&mut awaiting_prepare,
@@ -391,25 +372,33 @@ async fn run(
 				.await);
 			},
 			from_prepare_queue = from_prepare_queue_rx.next() => {
-				let prepare::FromQueue::Prepared(artifact_id)
-					= break_if_fatal!(from_prepare_queue.ok_or(Fatal));
-
-				// Note that preparation always succeeds.
-				//
-				// That's because the error conditions are written into the artifact and will be
-				// reported at the time of the  execution. It potentially, but not necessarily,
-				// can be scheduled as a result of this function call, in case there are pending
-				// executions.
-				//
-				// We could be eager in terms of reporting and plumb the result from the prepartion
-				// worker but we don't for the sake of simplicity.
-				break_if_fatal!(handle_prepare_done(
-					&cache_path,
-					&mut artifacts,
-					&mut to_execute_queue_tx,
-					&mut awaiting_prepare,
-					artifact_id,
-				).await);
+				match break_if_fatal!(from_prepare_queue.ok_or(Fatal)) {
+					prepare::FromQueue::Prepared(artifact_id) => {
+						// Note that preparation always succeeds.
+						//
+						// That's because the error conditions are written into the artifact and will be
+						// reported at the time of the  execution. It potentially, but not necessarily,
+						// can be scheduled as a result of this function call, in case there are pending
+						// executions.
+						//
+						// We could be eager in terms of reporting and plumb the result from the prepartion
+						// worker but we don't for the sake of simplicity.
+						break_if_fatal!(handle_prepare_done(
+							&cache_path,
+							&mut artifacts,
+							&mut to_execute_queue_tx,
+							&mut awaiting_prepare,
+							artifact_id,
+						).await);
+					},
+					prepare::FromQueue::Prechecked { artifact_id, result } => {
+						handle_precheck_done(
+							&mut precheck_statuses,
+							artifact_id,
+							result,
+						)
+					}
+				}
 			},
 		}
 	}
@@ -418,7 +407,7 @@ async fn run(
 async fn handle_to_host(
 	cache_path: &Path,
 	artifacts: &mut Artifacts,
-	precheck_queue: &mut mpsc::Sender<precheck::ToQueue>,
+	precheck_statuses: &mut HashMap<ArtifactId, PrecheckStatus>,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
 	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
@@ -426,7 +415,8 @@ async fn handle_to_host(
 ) -> Result<(), Fatal> {
 	match to_host {
 		ToHost::PrecheckPvf { pvf, result_tx } => {
-			handle_precheck_pvf(&artifacts, pvf, precheck_queue, result_tx).await?;
+			handle_precheck_pvf(&artifacts, precheck_statuses, prepare_queue, pvf, result_tx)
+				.await?;
 		},
 		ToHost::ExecutePvf { pvf, execution_timeout, params, priority, result_tx } => {
 			handle_execute_pvf(
@@ -453,14 +443,31 @@ async fn handle_to_host(
 
 async fn handle_precheck_pvf(
 	artifacts: &Artifacts,
+	statuses: &mut HashMap<ArtifactId, PrecheckStatus>,
+	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
 	pvf: Pvf,
-	precheck_queue: &mut mpsc::Sender<precheck::ToQueue>,
 	result_sender: PrecheckResultSender,
 ) -> Result<(), Fatal> {
+	use std::collections::hash_map::Entry;
+
 	if let Some(_) = artifacts.artifact_state(&pvf.as_artifact_id()) {
 		let _ = result_sender.send(Ok(()));
 	} else {
-		send_request(precheck_queue, precheck::ToQueue { pvf, result_sender }).await?
+		match statuses.entry(pvf.as_artifact_id()) {
+			Entry::Occupied(mut occupied) => match occupied.get_mut() {
+				PrecheckStatus::InProgress { waiting_for_response } =>
+					waiting_for_response.push(result_sender),
+				PrecheckStatus::Done(result) => {
+					let _ = result_sender.send(result.clone());
+				},
+			},
+			Entry::Vacant(vacant) => {
+				vacant.insert(PrecheckStatus::InProgress {
+					waiting_for_response: vec![result_sender],
+				});
+				send_request(prepare_queue, prepare::ToQueue::Precheck { pvf }).await?;
+			},
+		}
 	}
 
 	Ok(())
@@ -516,6 +523,39 @@ async fn handle_execute_pvf(
 	}
 
 	return Ok(())
+}
+
+fn handle_precheck_done(
+	statuses: &mut HashMap<ArtifactId, PrecheckStatus>,
+	artifact_id: ArtifactId,
+	result: PrecheckResult,
+) {
+	let waiting_for_response = match statuses.remove(&artifact_id) {
+		Some(PrecheckStatus::InProgress { waiting_for_response }) => waiting_for_response,
+		Some(PrecheckStatus::Done(_)) => {
+			always_assert::never!(
+				"all requests are deduplicated by the host.
+				the `Done` status is set when the response from the queue is received.
+				thus, the status is `InProgress`; qed."
+			);
+			return
+		},
+		None => {
+			always_assert::never!(
+				"before sending request to the queue, the corresponding
+				artifact id is stored in the map;
+				thus, it cannot be `None`; qed."
+			);
+			return
+		},
+	};
+
+	for result_sender in waiting_for_response {
+		let _ = result_sender.send(result.clone());
+	}
+
+	// Cache the prechecking result.
+	statuses.insert(artifact_id, PrecheckStatus::Done(result));
 }
 
 async fn handle_heads_up(
@@ -737,7 +777,6 @@ mod tests {
 			let cache_path = PathBuf::from(std::env::temp_dir());
 
 			let (to_host_tx, to_host_rx) = mpsc::channel(10);
-			let (to_precheck_queue_tx, _to_precheck_queue_rx) = mpsc::channel(10);
 			let (to_prepare_queue_tx, to_prepare_queue_rx) = mpsc::channel(10);
 			let (from_prepare_queue_tx, from_prepare_queue_rx) = mpsc::unbounded();
 			let (to_execute_queue_tx, to_execute_queue_rx) = mpsc::channel(10);
@@ -745,21 +784,22 @@ mod tests {
 
 			let mk_dummy_loop = || std::future::pending().boxed();
 
+			let precheck_statuses = HashMap::new();
+
 			let run = run(
 				Inner {
 					cache_path,
 					cleanup_pulse_interval,
 					artifact_ttl,
 					artifacts,
+					precheck_statuses,
 					to_host_rx,
-					to_precheck_queue_tx,
 					to_prepare_queue_tx,
 					from_prepare_queue_rx,
 					to_execute_queue_tx,
 					to_sweeper_tx,
 					awaiting_prepare: AwaitingPrepare::default(),
 				},
-				mk_dummy_loop(),
 				mk_dummy_loop(),
 				mk_dummy_loop(),
 				mk_dummy_loop(),

@@ -276,53 +276,6 @@ impl futures::Future for WorkerHandle {
 	}
 }
 
-slotmap::new_key_type! { pub struct Worker; }
-
-pub struct WorkerData {
-	pub idle: Option<IdleWorker>,
-	pub handle: WorkerHandle,
-}
-
-impl fmt::Debug for WorkerData {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "WorkerData(pid={})", self.handle.id())
-	}
-}
-
-pub struct Workers {
-	/// The registry of running workers.
-	pub running: slotmap::HopSlotMap<Worker, WorkerData>,
-
-	/// The number of spawning but not yet spawned workers.
-	pub spawn_inflight: usize,
-
-	/// The maximum number of workers queue can have at once.
-	pub capacity: usize,
-}
-
-impl Workers {
-	pub fn with_capacity(capacity: usize) -> Self {
-		Self { running: slotmap::HopSlotMap::with_key(), spawn_inflight: 0, capacity }
-	}
-
-	pub fn can_afford_one_more(&self) -> bool {
-		self.spawn_inflight + self.running.len() < self.capacity
-	}
-
-	pub fn find_available(&self) -> Option<Worker> {
-		self.running
-			.iter()
-			.find_map(|d| if d.1.idle.is_some() { Some(d.0) } else { None })
-	}
-
-	/// Find the associated data by the worker token and extract it's [`IdleWorker`] token.
-	///
-	/// Returns `None` if either worker is not recognized or idle token is absent.
-	pub fn claim_idle(&mut self, worker: Worker) -> Option<IdleWorker> {
-		self.running.get_mut(worker)?.idle.take()
-	}
-}
-
 impl fmt::Debug for WorkerHandle {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "WorkerHandle(pid={})", self.id())

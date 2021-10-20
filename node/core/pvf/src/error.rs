@@ -17,7 +17,7 @@
 use parity_scale_codec::{Decode, Encode};
 
 /// An error reported during the prechecking routine.
-#[derive(Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub enum PrecheckError {
 	/// Failed to precheck the PVF due to the time limit.
 	TimedOut,

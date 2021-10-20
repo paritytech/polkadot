@@ -14,11 +14,21 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-mod queue;
-mod worker;
-
-pub use queue::{start as start_precheck_queue, PrecheckResultSender, ToQueue};
-pub use worker::worker_entrypoint;
+use crate::error::PrecheckError;
+use futures::channel::oneshot;
 
 /// Result of PVF prechecking performed by the validation host.
-pub type PrecheckResult = Result<(), crate::error::PrecheckError>;
+pub type PrecheckResult = Result<(), PrecheckError>;
+
+/// Transmission end used for sending the PVF prechecking result.
+pub type PrecheckResultSender = oneshot::Sender<PrecheckResult>;
+
+/// Status of the PVF prechecking. Only makes sense for requests whose
+/// processing was initiated, i.e. a worker was previously assigned to it.
+/// Queued requests are stored separately in the queue.
+pub enum PrecheckStatus {
+	/// A worker is currently busy with the prechecking.
+	InProgress { waiting_for_response: Vec<PrecheckResultSender> },
+	/// Cached result for processed requests.
+	Done(PrecheckResult),
+}
