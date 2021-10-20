@@ -25,9 +25,7 @@ use crate::{
 
 use frame_support::{
 	parameter_types,
-	traits::{
-		GenesisBuild, KeyOwnerProofSystem,
-	},
+	traits::{GenesisBuild, KeyOwnerProofSystem},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;

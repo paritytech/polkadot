@@ -159,32 +159,39 @@ pub mod pallet {
 
 			let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
 
-			let (freed_cores, concluded_invalid_disputes) = frame_support::storage::with_transaction(|| {
-				// we don't care about fresh or not disputes
-				// this writes them to storage, so let's query it via those means
-				// if this fails for whatever reason, that's ok
-				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())
-					.map_err(|e| {
-						log::warn!(target: LOG_TARGET, "MultiDisputesData failed to update: {:?}", e);
-						e
-					});
-				// all concluded invalid disputes, including the current block's votes
-				let concluded_invalid_disputes = disputes
-					.iter()
-					.filter(|dss| dss.session == current_session)
-					.map(|dss| (dss.session, dss.candidate_hash))
-					.filter(|(session, candidate)| {
-						<T>::DisputesHandler::concluded_invalid(*session, *candidate)
-					})
-					.map(|(_session, candidate)| candidate)
-					.collect::<BTreeSet<CandidateHash>>();
+			let (freed_cores, concluded_invalid_disputes) =
+				frame_support::storage::with_transaction(|| {
+					// we don't care about fresh or not disputes
+					// this writes them to storage, so let's query it via those means
+					// if this fails for whatever reason, that's ok
+					let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())
+						.map_err(|e| {
+							log::warn!(
+								target: LOG_TARGET,
+								"MultiDisputesData failed to update: {:?}",
+								e
+							);
+							e
+						});
+					// all concluded invalid disputes, including the current block's votes
+					let concluded_invalid_disputes = disputes
+						.iter()
+						.filter(|dss| dss.session == current_session)
+						.map(|dss| (dss.session, dss.candidate_hash))
+						.filter(|(session, candidate)| {
+							<T>::DisputesHandler::concluded_invalid(*session, *candidate)
+						})
+						.map(|(_session, candidate)| candidate)
+						.collect::<BTreeSet<CandidateHash>>();
 
-				let freed_cores = <inclusion::Pallet<T>>::collect_disputed(&concluded_invalid_disputes);
+					let freed_cores =
+						<inclusion::Pallet<T>>::collect_disputed(&concluded_invalid_disputes);
 
-				frame_support::storage::TransactionOutcome::Rollback(
-					(freed_cores, concluded_invalid_disputes)
-				)
-			});
+					frame_support::storage::TransactionOutcome::Rollback((
+						freed_cores,
+						concluded_invalid_disputes,
+					))
+				});
 
 			let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_cores.iter());
 
@@ -198,10 +205,12 @@ pub mod pallet {
 			)
 			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
 
-			let backed_candidates = sanitize_backed_candidates::<T,_, false>(
+			let backed_candidates = sanitize_backed_candidates::<T, _, false>(
 				parent_hash,
 				backed_candidates,
-				move |candidate_hash: CandidateHash| -> bool { concluded_invalid_disputes.contains(&candidate_hash) },
+				move |candidate_hash: CandidateHash| -> bool {
+					concluded_invalid_disputes.contains(&candidate_hash)
+				},
 				&scheduled[..],
 			)
 			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
@@ -313,32 +322,31 @@ pub mod pallet {
 					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
 				}
 
-				let mut freed_disputed =
-					if !new_current_dispute_sets.is_empty() {
-						let concluded_invalid_disputes = new_current_dispute_sets
-							.iter()
-							.filter(|(session, candidate)| {
-								T::DisputesHandler::concluded_invalid(*session, *candidate)
-							})
-							.map(|(_, candidate)| *candidate)
-							.collect::<BTreeSet<CandidateHash>>();
+				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
+					let concluded_invalid_disputes = new_current_dispute_sets
+						.iter()
+						.filter(|(session, candidate)| {
+							T::DisputesHandler::concluded_invalid(*session, *candidate)
+						})
+						.map(|(_, candidate)| *candidate)
+						.collect::<BTreeSet<CandidateHash>>();
 
-						let freed_disputed =
-							<inclusion::Pallet<T>>::collect_disputed(&concluded_invalid_disputes)
-								.into_iter()
-								.map(|core| (core, FreedReason::Concluded))
-								.collect();
-						freed_disputed
-					} else {
-						Vec::new()
-					};
+					let freed_disputed =
+						<inclusion::Pallet<T>>::collect_disputed(&concluded_invalid_disputes)
+							.into_iter()
+							.map(|core| (core, FreedReason::Concluded))
+							.collect();
+					freed_disputed
+				} else {
+					Vec::new()
+				};
 
 				// create a bit index from the set of core indicies
 				// where each index corresponds to a core index
 				// that was freed due to a dispute
 				let disputed_bitfield = create_disputed_bitfield(
 					expected_bits,
-					freed_disputed.iter().map(|(core_index, _)| core_index)
+					freed_disputed.iter().map(|(core_index, _)| core_index),
 				);
 
 				if !freed_disputed.is_empty() {
@@ -388,7 +396,9 @@ pub mod pallet {
 			let backed_candidates = sanitize_backed_candidates::<T, _, true>(
 				parent_hash,
 				backed_candidates,
-				move |candidate_hash: CandidateHash| -> bool { <T>::DisputesHandler::concluded_invalid(current_session, candidate_hash) },
+				move |candidate_hash: CandidateHash| -> bool {
+					<T>::DisputesHandler::concluded_invalid(current_session, candidate_hash)
+				},
 				&scheduled[..],
 			)
 			.unwrap_or_else(|err| {
@@ -455,8 +465,10 @@ macro_rules! ensure2 {
 }
 
 /// Derive a bitfield from dispute
-pub(super) fn create_disputed_bitfield<'a, I: 'a + IntoIterator<Item=&'a CoreIndex>>(expected_bits: usize, freed_cores: I) -> DisputedBitfield
-{
+pub(super) fn create_disputed_bitfield<'a, I: 'a + IntoIterator<Item = &'a CoreIndex>>(
+	expected_bits: usize,
+	freed_cores: I,
+) -> DisputedBitfield {
 	let mut bitvec = BitVec::repeat(false, expected_bits);
 	for core_idx in freed_cores {
 		let core_idx = core_idx.0 as usize;
@@ -631,7 +643,9 @@ pub(crate) fn sanitize_bitfields<
 			continue
 		);
 
-		ensure2!(unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() != all_zeros,
+		ensure2!(
+			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() !=
+				all_zeros,
 			crate::inclusion::pallet::Error::<T>::BitfieldReferencesFreedCore,
 			EARLY_RETURN,
 			continue
