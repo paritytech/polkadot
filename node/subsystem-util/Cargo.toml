@@ -22,6 +22,7 @@ polkadot-node-jaeger = { path = "../jaeger" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
+polkadot-node-primitives = { path = "../primitives" }
 polkadot-overseer = { path = "../overseer" }
 metered-channel = { path = "../metered-channel" }
 

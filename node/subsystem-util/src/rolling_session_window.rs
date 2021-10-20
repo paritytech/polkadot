@@ -20,6 +20,7 @@
 //! care about the state of particular blocks.
 
 use polkadot_primitives::v1::{Hash, SessionIndex, SessionInfo};
+pub use polkadot_node_primitives::{SessionWindowSize, new_session_window_size};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{
@@ -57,53 +58,6 @@ pub struct SessionsUnavailable {
 	kind: SessionsUnavailableKind,
 	/// The info about the session window, if any.
 	info: Option<SessionsUnavailableInfo>,
-}
-
-/// Type of a session window size.
-///
-/// We are not using `NonZeroU32` here because `expect` and `unwrap` are not yet const, so global
-/// constants of `SessionWindowSize` would require `lazy_static` in that case.
-///
-/// See: https://github.com/rust-lang/rust/issues/67441
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub struct SessionWindowSize(SessionIndex);
-
-#[macro_export]
-/// Create a new checked `SessionWindowSize`
-///
-/// which cannot be 0.
-macro_rules! new_session_window_size {
-	(0) => {
-		compile_error!("Must be non zero");
-	};
-	(0_u32) => {
-		compile_error!("Must be non zero");
-	};
-	(0 as u32) => {
-		compile_error!("Must be non zero");
-	};
-	(0 as _) => {
-		compile_error!("Must be non zero");
-	};
-	($l:literal) => {
-		SessionWindowSize::unchecked_new($l as _)
-	};
-}
-
-pub use new_session_window_size;
-
-impl SessionWindowSize {
-	fn get(self) -> SessionIndex {
-		self.0
-	}
-
-	/// Helper function for `new_session_window_size`.
-	///
-	/// Don't use it. The only reason it is public, is because otherwise the macro would not work
-	/// outside of this module.
-	pub const fn unchecked_new(size: SessionIndex) -> Self {
-		Self(size)
-	}
 }
 
 /// An indicated update of the rolling session window.
