@@ -457,14 +457,11 @@ macro_rules! ensure2 {
 /// Derive a bitfield from dispute
 pub(super) fn create_disputed_bitfield<'a, I: 'a + IntoIterator<Item=&'a CoreIndex>>(expected_bits: usize, freed_cores: I) -> DisputedBitfield
 {
-	let mut bitvec = BitVec::with_capacity(expected_bits);
-	if expected_bits > 0 {
-		bitvec.set(expected_bits.saturating_sub(1), false);
-		for core_idx in freed_cores {
-			let core_idx = core_idx.0 as usize;
-			if core_idx < expected_bits {
-				bitvec.set(core_idx, true);
-			}
+	let mut bitvec = BitVec::repeat(false, expected_bits);
+	for core_idx in freed_cores {
+		let core_idx = core_idx.0 as usize;
+		if core_idx < expected_bits {
+			bitvec.set(core_idx, true);
 		}
 	}
 	DisputedBitfield::from(bitvec)
