@@ -68,7 +68,7 @@ const CONFIG: Config = Config {
 			native_stack_max: 256 * 1024 * 1024,
 		}),
 		canonicalize_nans: true,
-		parallel_compilation: true,
+		parallel_compilation: false,
 	},
 };
 
