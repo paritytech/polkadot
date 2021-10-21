@@ -25,7 +25,7 @@ use xcm::latest::{
 	Fungibility::{Fungible, NonFungible},
 	MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation,
 	WildFungibility::{Fungible as WildFungible, NonFungible as WildNonFungible},
-	WildMultiAsset::{All, AllOf},
+	WildMultiAsset::{All, AllOf, AllCounted, AllOfCounted},
 };
 
 /// List of non-wildcard fungible and non-fungible assets.
@@ -245,17 +245,18 @@ impl Assets {
 		&mut self,
 		mask: MultiAssetFilter,
 		saturate: bool,
-		limit: usize,
 	) -> Result<Assets, TakeError> {
 		let mut taken = Assets::new();
+		let maybe_limit = mask.limit().map(|x| x as usize);
 		match mask {
-			MultiAssetFilter::Wild(All) =>
-				if self.fungible.len() + self.non_fungible.len() <= limit {
+			// TODO: Counted variants where we define `limit`.
+			MultiAssetFilter::Wild(All) | MultiAssetFilter::Wild(AllCounted(_)) => {
+				if maybe_limit.map_or(true, |l| self.len() <= l) {
 					return Ok(self.swapped(Assets::new()))
 				} else {
 					let fungible = mem::replace(&mut self.fungible, Default::default());
 					fungible.into_iter().for_each(|(c, amount)| {
-						if taken.len() < limit {
+						if maybe_limit.map_or(true, |l| taken.len() < l) {
 							taken.fungible.insert(c, amount);
 						} else {
 							self.fungible.insert(c, amount);
@@ -263,22 +264,27 @@ impl Assets {
 					});
 					let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
 					non_fungible.into_iter().for_each(|(c, instance)| {
-						if taken.len() < limit {
+						if maybe_limit.map_or(true, |l| taken.len() < l) {
 							taken.non_fungible.insert((c, instance));
 						} else {
 							self.non_fungible.insert((c, instance));
 						}
 					});
-				},
-			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) => {
+				}
+			},
+			MultiAssetFilter::Wild(AllOfCounted { fun: WildFungible, id, .. })
+			| MultiAssetFilter::Wild(AllOf { fun: WildFungible, id })
+			=> if maybe_limit.map_or(true, |l| l >= 1) {
 				if let Some((id, amount)) = self.fungible.remove_entry(&id) {
 					taken.fungible.insert(id, amount);
 				}
 			},
-			MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id }) => {
+			MultiAssetFilter::Wild(AllOfCounted { fun: WildNonFungible, id, .. })
+			| MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id })
+			=> {
 				let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
 				non_fungible.into_iter().for_each(|(c, instance)| {
-					if c == id && taken.len() < limit {
+					if c == id && maybe_limit.map_or(true, |l| taken.len() < l) {
 						taken.non_fungible.insert((c, instance));
 					} else {
 						self.non_fungible.insert((c, instance));
@@ -314,9 +320,6 @@ impl Assets {
 							}
 						},
 					}
-					if taken.len() == limit {
-						break
-					}
 				}
 			},
 		}
@@ -328,16 +331,7 @@ impl Assets {
 	/// Returns `Ok` with the non-wildcard equivalence of `mask` taken and mutates `self` to its value minus
 	/// `mask` if `self` contains `asset`, and return `Err` otherwise.
 	pub fn saturating_take(&mut self, asset: MultiAssetFilter) -> Assets {
-		self.general_take(asset, true, usize::max_value())
-			.expect("general_take never results in error when saturating")
-	}
-
-	/// Mutates `self` to its original value less `mask` and returns `true` iff it contains at least `mask`.
-	///
-	/// Returns `Ok` with the non-wildcard equivalence of `mask` taken and mutates `self` to its value minus
-	/// `mask` if `self` contains `asset`, and return `Err` otherwise.
-	pub fn limited_saturating_take(&mut self, asset: MultiAssetFilter, limit: usize) -> Assets {
-		self.general_take(asset, true, limit)
+		self.general_take(asset, true)
 			.expect("general_take never results in error when saturating")
 	}
 
@@ -346,7 +340,7 @@ impl Assets {
 	/// Returns `Ok` with the non-wildcard equivalence of `asset` taken and mutates `self` to its value minus
 	/// `asset` if `self` contains `asset`, and return `Err` otherwise.
 	pub fn try_take(&mut self, mask: MultiAssetFilter) -> Result<Assets, TakeError> {
-		self.general_take(mask, false, usize::max_value())
+		self.general_take(mask, false)
 	}
 
 	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least `asset`.
@@ -396,19 +390,41 @@ impl Assets {
 	/// ```
 	pub fn min(&self, mask: &MultiAssetFilter) -> Assets {
 		let mut masked = Assets::new();
+		let maybe_limit = mask.limit().map(|x| x as usize);
+		if maybe_limit.map_or(false, |l| l == 0) { return masked }
 		match mask {
-			MultiAssetFilter::Wild(All) => return self.clone(),
-			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) => {
-				if let Some(&amount) = self.fungible.get(&id) {
-					masked.fungible.insert(id.clone(), amount);
+			MultiAssetFilter::Wild(All) | MultiAssetFilter::Wild(AllCounted(_)) => {
+				if maybe_limit.map_or(true, |l| self.len() <= l) {
+					return self.clone();
+				} else {
+					for (c, &amount) in self.fungible.iter() {
+						masked.fungible.insert(c.clone(), amount);
+						if maybe_limit.map_or(false, |l| masked.len() >= l) {
+							return masked;
+						}
+					}
+					for (c, instance) in self.non_fungible.iter() {
+						masked.non_fungible.insert((c.clone(), instance.clone()));
+						if maybe_limit.map_or(false, |l| masked.len() >= l) {
+							return masked;
+						}
+					}
 				}
 			},
-			MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id }) => {
-				self.non_fungible.iter().for_each(|(ref c, ref instance)| {
-					if c == id {
-						masked.non_fungible.insert((c.clone(), instance.clone()));
+			MultiAssetFilter::Wild(AllOfCounted { fun: WildFungible, id, .. })
+			| MultiAssetFilter::Wild(AllOf { fun: WildFungible, id })
+			=> if let Some(&amount) = self.fungible.get(&id) {
+				masked.fungible.insert(id.clone(), amount);
+			},
+			MultiAssetFilter::Wild(AllOfCounted { fun: WildNonFungible, id, .. })
+			| MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id })
+			=> for (c, instance) in self.non_fungible.iter() {
+				if c == id {
+					masked.non_fungible.insert((c.clone(), instance.clone()));
+					if maybe_limit.map_or(false, |l| masked.len() >= l) {
+						return masked;
 					}
-				});
+				}
 			},
 			MultiAssetFilter::Definite(assets) =>
 				for asset in assets.inner().iter() {

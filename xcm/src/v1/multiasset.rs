@@ -23,6 +23,9 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
+use crate::v3::{
+	MultiAssetFilter as NewMultiAssetFilter, WildMultiAsset as NewWildMultiAsset,
+};
 use super::MultiLocation;
 use alloc::{vec, vec::Vec};
 use core::{
@@ -562,6 +565,26 @@ impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAssetFilter {
 			Ok(MultiAssetFilter::Wild(old.remove(0).try_into()?))
 		} else {
 			Ok(MultiAssetFilter::Definite(old.try_into()?))
+		}
+	}
+}
+
+impl From<NewWildMultiAsset> for WildMultiAsset {
+	fn from(old: NewWildMultiAsset) -> Self {
+		use NewWildMultiAsset::*;
+		match old {
+			AllOf { id, fun } | AllOfCounted { id, fun, .. } => Self::AllOf { id, fun },
+			All | AllCounted(_) => Self::All,
+		}
+	}
+}
+
+impl From<NewMultiAssetFilter> for MultiAssetFilter {
+	fn from(old: NewMultiAssetFilter) -> Self {
+		use NewMultiAssetFilter::*;
+		match old {
+			Definite(x) => Self::Definite(x),
+			Wild(x) => Self::Wild(x.into()),
 		}
 	}
 }

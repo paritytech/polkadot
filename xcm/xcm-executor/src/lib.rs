@@ -354,15 +354,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// destination if one was registered.
 				Self::respond(Response::ExecutionResult(self.error), response_info)
 			},
-			DepositAsset { assets, max_assets, beneficiary } => {
-				let deposited = self.holding.limited_saturating_take(assets, max_assets as usize);
+			DepositAsset { assets, beneficiary } => {
+				let deposited = self.holding.saturating_take(assets);
 				for asset in deposited.into_assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &beneficiary)?;
 				}
 				Ok(())
 			},
-			DepositReserveAsset { assets, max_assets, dest, xcm } => {
-				let deposited = self.holding.limited_saturating_take(assets, max_assets as usize);
+			DepositReserveAsset { assets, dest, xcm } => {
+				let deposited = self.holding.saturating_take(assets);
 				for asset in deposited.assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}

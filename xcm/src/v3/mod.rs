@@ -29,16 +29,19 @@ use parity_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;
 
 mod traits;
+mod multiasset;
 
 pub use traits::{
 	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
 };
-// These parts of XCM v1 have been unchanged in XCM v2, and are re-imported here.
+pub use multiasset::{
+	MultiAsset, MultiAssetFilter, MultiAssets, WildMultiAsset, WildFungibility, AssetId,
+	AssetInstance, Fungibility,
+};
+// These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{
-	Ancestor, AncestorThen, AssetId, AssetInstance, BodyId, BodyPart, Fungibility,
-	InteriorMultiLocation, Junction, Junctions, MultiAsset, MultiAssetFilter, MultiAssets,
-	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WeightLimit, WildFungibility,
-	WildMultiAsset,
+	Ancestor, AncestorThen, BodyId, BodyPart, InteriorMultiLocation, Junction, Junctions,
+	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WeightLimit,
 };
 
 /// This module's XCM version.
@@ -420,9 +423,6 @@ pub enum Instruction<Call> {
 	/// the ownership of `beneficiary` within this consensus system.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
-	/// - `max_assets`: The maximum number of unique assets/asset instances to remove from holding.
-	///   Only the first `max_assets` assets/instances of those matched by `assets` will be removed,
-	///   prioritized under standard asset ordering. Any others will remain in holding.
 	/// - `beneficiary`: The new owner for the assets.
 	///
 	/// Kind: *Instruction*
@@ -430,8 +430,6 @@ pub enum Instruction<Call> {
 	/// Errors:
 	DepositAsset {
 		assets: MultiAssetFilter,
-		#[codec(compact)]
-		max_assets: u32,
 		beneficiary: MultiLocation,
 	},
 
@@ -442,9 +440,6 @@ pub enum Instruction<Call> {
 	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the given `effects`.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
-	/// - `max_assets`: The maximum number of unique assets/asset instances to remove from holding.
-	///   Only the first `max_assets` assets/instances of those matched by `assets` will be removed,
-	///   prioritized under standard asset ordering. Any others will remain in holding.
 	/// - `dest`: The location whose sovereign account will own the assets and thus the effective
 	///   beneficiary for the assets and the notification target for the reserve asset deposit
 	///   message.
@@ -456,8 +451,6 @@ pub enum Instruction<Call> {
 	/// Errors:
 	DepositReserveAsset {
 		assets: MultiAssetFilter,
-		#[codec(compact)]
-		max_assets: u32,
 		dest: MultiLocation,
 		xcm: Xcm<()>,
 	},
@@ -761,10 +754,10 @@ impl<Call> Instruction<Call> {
 			Transact { origin_kind, require_weight_at_most, call } =>
 				Transact { origin_kind, require_weight_at_most, call: call.into() },
 			ReportError(response_info) => ReportError(response_info),
-			DepositAsset { assets, max_assets, beneficiary } =>
-				DepositAsset { assets, max_assets, beneficiary },
-			DepositReserveAsset { assets, max_assets, dest, xcm } =>
-				DepositReserveAsset { assets, max_assets, dest, xcm },
+			DepositAsset { assets, beneficiary } =>
+				DepositAsset { assets, beneficiary },
+			DepositReserveAsset { assets, dest, xcm } =>
+				DepositReserveAsset { assets, dest, xcm },
 			ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
 			InitiateReserveWithdraw { assets, reserve, xcm } =>
 				InitiateReserveWithdraw { assets, reserve, xcm },
@@ -818,10 +811,10 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ClearOrigin => W::clear_origin(),
 			DescendOrigin(who) => W::descend_origin(who),
 			ReportError(response_info) => W::report_error(&response_info),
-			DepositAsset { assets, max_assets, beneficiary } =>
-				W::deposit_asset(assets, max_assets, beneficiary),
-			DepositReserveAsset { assets, max_assets, dest, xcm } =>
-				W::deposit_reserve_asset(assets, max_assets, dest, xcm),
+			DepositAsset { assets, beneficiary } =>
+				W::deposit_asset(assets, beneficiary),
+			DepositReserveAsset { assets, dest, xcm } =>
+				W::deposit_reserve_asset(assets, dest, xcm),
 			ExchangeAsset { give, receive } => W::exchange_asset(give, receive),
 			InitiateReserveWithdraw { assets, reserve, xcm } =>
 				W::initiate_reserve_withdraw(assets, reserve, xcm),
@@ -914,21 +907,24 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				Self::ReportError(response_info)
 			},
 			DepositAsset { assets, max_assets, beneficiary } =>
-				Self::DepositAsset { assets, max_assets, beneficiary },
-			DepositReserveAsset { assets, max_assets, dest, xcm } =>
-				Self::DepositReserveAsset { assets, max_assets, dest, xcm: xcm.try_into()? },
-			ExchangeAsset { give, receive } => Self::ExchangeAsset { give, receive },
-			InitiateReserveWithdraw { assets, reserve, xcm } =>
-				Self::InitiateReserveWithdraw { assets, reserve, xcm: xcm.try_into()? },
+				Self::DepositAsset { assets: (assets, max_assets).try_into()?, beneficiary },
+			DepositReserveAsset { assets, max_assets, dest, xcm } => {
+				let assets = (assets, max_assets).try_into()?;
+				Self::DepositReserveAsset { assets, dest, xcm: xcm.try_into()? }
+			},
+			ExchangeAsset { give, receive } => Self::ExchangeAsset { give: give.into(), receive },
+			InitiateReserveWithdraw { assets, reserve, xcm } => {
+				Self::InitiateReserveWithdraw { assets: assets.into(), reserve, xcm: xcm.try_into()? }
+			},
 			InitiateTeleport { assets, dest, xcm } =>
-				Self::InitiateTeleport { assets, dest, xcm: xcm.try_into()? },
+				Self::InitiateTeleport { assets: assets.into(), dest, xcm: xcm.try_into()? },
 			QueryHolding { query_id, dest, assets, max_response_weight } => {
 				let response_info = QueryResponseInfo {
 					destination: dest,
 					query_id,
 					max_weight: max_response_weight,
 				};
-				Self::ReportHolding { response_info, assets }
+				Self::ReportHolding { response_info, assets: assets.into() }
 			},
 			BuyExecution { fees, weight_limit } => Self::BuyExecution { fees, weight_limit },
 			ClearOrigin => Self::ClearOrigin,
@@ -968,7 +964,7 @@ mod tests {
 		let xcm = Xcm::<()>(vec![
 			ReceiveTeleportedAsset((Here, 1).into()),
 			ClearOrigin,
-			DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },
+			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 		]);
 		let old_xcm: OldXcm<()> = OldXcm::<()>(vec![
 			OldInstruction::ReceiveTeleportedAsset((Here, 1).into()),
@@ -990,7 +986,7 @@ mod tests {
 			ReserveAssetDeposited((Here, 1).into()),
 			ClearOrigin,
 			BuyExecution { fees: (Here, 1).into(), weight_limit: Some(1).into() },
-			DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Here.into() },
+			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 		]);
 		let old_xcm = OldXcm::<()>(vec![
 			OldInstruction::ReserveAssetDeposited((Here, 1).into()),

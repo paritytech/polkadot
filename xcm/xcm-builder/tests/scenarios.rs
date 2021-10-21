@@ -52,8 +52,7 @@ fn withdraw_and_deposit_works() {
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
-					assets: All.into(),
-					max_assets: 1,
+					assets: AllCounted(1).into(),
 					beneficiary: Parachain(other_para_id).into(),
 				},
 			]),
@@ -94,8 +93,7 @@ fn query_holding_works() {
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
-					assets: All.into(),
-					max_assets: 1,
+					assets: AllCounted(1).into(),
 					beneficiary: OnlyChild.into(), // invalid destination
 				},
 				// is not triggered becasue the deposit fails
@@ -121,12 +119,11 @@ fn query_holding_works() {
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositAsset {
-					assets: All.into(),
-					max_assets: 1,
+					assets: AllCounted(1).into(),
 					beneficiary: Parachain(other_para_id).into(),
 				},
 				// used to get a notification in case of success
-				ReportHolding { response_info: response_info.clone(), assets: All.into() },
+				ReportHolding { response_info: response_info.clone(), assets: AllCounted(1).into() },
 			]),
 			weight,
 		);
@@ -168,8 +165,7 @@ fn teleport_to_statemine_works() {
 		let teleport_effects = vec![
 			buy_execution(), // unchecked mock value
 			DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
+				assets: AllCounted(1).into(),
 				beneficiary: (1, Parachain(PARA_ID)).into(),
 			},
 		];
@@ -257,8 +253,7 @@ fn reserve_based_transfer_works() {
 		let transfer_effects = vec![
 			buy_execution(), // unchecked mock value
 			DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
+				assets: AllCounted(1).into(),
 				beneficiary: (1, Parachain(PARA_ID)).into(),
 			},
 		];
@@ -269,8 +264,7 @@ fn reserve_based_transfer_works() {
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
 				DepositReserveAsset {
-					assets: All.into(),
-					max_assets: 1,
+					assets: AllCounted(1).into(),
 					dest: Parachain(other_para_id).into(),
 					xcm: Xcm(transfer_effects.clone()),
 				},

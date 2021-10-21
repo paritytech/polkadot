@@ -914,19 +914,30 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 				dest: response_info.destination,
 				max_response_weight: response_info.max_weight,
 			},
-			DepositAsset { assets, max_assets, beneficiary } =>
-				Self::DepositAsset { assets, max_assets, beneficiary },
-			DepositReserveAsset { assets, max_assets, dest, xcm } =>
-				Self::DepositReserveAsset { assets, max_assets, dest, xcm: xcm.try_into()? },
-			ExchangeAsset { give, receive } => Self::ExchangeAsset { give, receive },
-			InitiateReserveWithdraw { assets, reserve, xcm } =>
-				Self::InitiateReserveWithdraw { assets, reserve, xcm: xcm.try_into()? },
-			InitiateTeleport { assets, dest, xcm } =>
-				Self::InitiateTeleport { assets, dest, xcm: xcm.try_into()? },
+			DepositAsset { assets, beneficiary } => {
+				let max_assets = assets.count().ok_or(())?;
+				Self::DepositAsset { assets: assets.into(), max_assets, beneficiary }
+			},
+			DepositReserveAsset { assets, dest, xcm } => {
+				let max_assets = assets.count().ok_or(())?;
+				Self::DepositReserveAsset { assets: assets.into(), max_assets, dest, xcm: xcm.try_into()? }
+			},
+			ExchangeAsset { give, receive } =>
+				Self::ExchangeAsset { give: give.into(), receive },
+			InitiateReserveWithdraw { assets, reserve, xcm } => {
+				// No `max_assets` here, so if there's a connt, then we cannot translate.
+				let assets = assets.try_into().map_err(|_| ())?;
+				Self::InitiateReserveWithdraw { assets, reserve, xcm: xcm.try_into()? }
+			},
+			InitiateTeleport { assets, dest, xcm } => {
+				// No `max_assets` here, so if there's a connt, then we cannot translate.
+				let assets = assets.try_into().map_err(|_| ())?;
+				Self::InitiateTeleport { assets, dest, xcm: xcm.try_into()? }
+			},
 			ReportHolding { response_info, assets } => Self::QueryHolding {
 				query_id: response_info.query_id,
 				dest: response_info.destination,
-				assets,
+				assets: assets.try_into().map_err(|_| ())?,
 				max_response_weight: response_info.max_weight,
 			},
 			BuyExecution { fees, weight_limit } => Self::BuyExecution { fees, weight_limit },

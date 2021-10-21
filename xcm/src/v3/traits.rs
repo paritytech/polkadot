@@ -392,12 +392,10 @@ pub trait XcmWeightInfo<Call> {
 	fn relayed_from(who: &Junctions, message: &alloc::boxed::Box<Xcm<Call>>) -> Weight;
 	fn deposit_asset(
 		assets: &MultiAssetFilter,
-		max_assets: &u32,
 		beneficiary: &MultiLocation,
 	) -> Weight;
 	fn deposit_reserve_asset(
 		assets: &MultiAssetFilter,
-		max_assets: &u32,
 		dest: &MultiLocation,
 		xcm: &Xcm<()>,
 	) -> Weight;

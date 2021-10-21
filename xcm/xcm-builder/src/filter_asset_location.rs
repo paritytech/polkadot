@@ -34,6 +34,6 @@ pub struct Case<T>(PhantomData<T>);
 impl<T: Get<(MultiAssetFilter, MultiLocation)>> FilterAssetLocation for Case<T> {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		let (a, o) = T::get();
-		a.contains(asset) && &o == origin
+		a.matches(asset) && &o == origin
 	}
 }

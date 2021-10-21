@@ -47,7 +47,7 @@ fn weigher_should_work() {
 	let mut message = Xcm(vec![
 		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees: (Parent, 1).into(), weight_limit: Limited(30) },
-		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 	assert_eq!(<TestConfig as Config>::Weigher::weight(&mut message), Ok(30));
 }
@@ -109,7 +109,7 @@ fn allow_paid_should_work() {
 	let mut underpaying_message = Xcm::<()>(vec![
 		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees, weight_limit: Limited(20) },
-		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
@@ -124,7 +124,7 @@ fn allow_paid_should_work() {
 	let mut paying_message = Xcm::<()>(vec![
 		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees, weight_limit: Limited(30) },
-		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 
 	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
@@ -154,7 +154,7 @@ fn paying_reserve_deposit_should_work() {
 	let message = Xcm(vec![
 		ReserveAssetDeposited((Parent, 100).into()),
 		BuyExecution { fees, weight_limit: Limited(30) },
-		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: Here.into() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
 	]);
 	let weight_limit = 50;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
@@ -196,8 +196,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			WithdrawAsset((Here, 100).into()),
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 0, //< Whoops!
+				assets: Wild(AllCounted(0)),	// <<< 0 is an error.
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -214,8 +213,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(1).into() },
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 1,
+				assets: Wild(AllCounted(1)),
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -233,8 +231,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 1,
+				assets: Wild(AllCounted(1)),
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -252,8 +249,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 101).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 1,
+				assets: Wild(AllCounted(1)),
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -269,8 +265,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 1,
+				assets: Wild(AllCounted(1)),
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -286,8 +281,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
-				assets: Wild(All),
-				max_assets: 1,
+				assets: Wild(AllCounted(1)),
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),
@@ -438,8 +432,7 @@ fn reserve_transfer_should_work() {
 			assets: (Here, 100).into(),
 			dest: Parachain(2).into(),
 			xcm: Xcm::<()>(vec![DepositAsset {
-				assets: All.into(),
-				max_assets: 1,
+				assets: AllCounted(1).into(),
 				beneficiary: three.clone(),
 			}]),
 		}]),
@@ -455,7 +448,7 @@ fn reserve_transfer_should_work() {
 			Xcm::<()>(vec![
 				ReserveAssetDeposited((Parent, 100).into()),
 				ClearOrigin,
-				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: three },
+				DepositAsset { assets: AllCounted(1).into(), beneficiary: three },
 			]),
 		)]
 	);
@@ -634,7 +627,7 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 			call: TestCall::Any(50, Some(10)).encode().into(),
 		},
 		RefundSurplus,
-		DepositAsset { assets: All.into(), max_assets: 1, beneficiary: one.clone() },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: one.clone() },
 	]);
 	let weight_limit = 100;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, weight_limit);

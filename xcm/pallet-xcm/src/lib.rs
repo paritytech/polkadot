@@ -491,9 +491,14 @@ pub mod pallet {
 			match (maybe_assets, maybe_dest) {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
+					let count = assets.len() as u32;
 					let mut message = Xcm(vec![
 						WithdrawAsset(assets),
-						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
+						InitiateTeleport {
+							assets: Wild(AllCounted(count)),
+							dest,
+							xcm: Xcm(vec![]),
+						},
 					]);
 					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
 				},
@@ -529,7 +534,7 @@ pub mod pallet {
 			let assets = assets.into();
 			let mut remote_message = Xcm(vec![
 				BuyExecution { fees, weight_limit: Limited(0) },
-				DepositAsset { assets: Wild(All), max_assets, beneficiary },
+				DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 			]);
 			// use local weight for remote message and hope for the best.
 			let remote_weight = T::Weigher::weight(&mut remote_message)
@@ -541,7 +546,7 @@ pub mod pallet {
 			}
 			let mut message = Xcm(vec![
 				WithdrawAsset(assets),
-				InitiateTeleport { assets: Wild(All), dest, xcm: remote_message.into() },
+				InitiateTeleport { assets: Wild(AllCounted(max_assets)), dest, xcm: remote_message.into() },
 			]);
 			let weight =
 				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
@@ -605,7 +610,7 @@ pub mod pallet {
 			let assets = assets.into();
 			let mut remote_message = Xcm(vec![
 				BuyExecution { fees, weight_limit: Limited(0) },
-				DepositAsset { assets: Wild(All), max_assets, beneficiary },
+				DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 			]);
 			// use local weight for remote message and hope for the best.
 			let remote_weight = T::Weigher::weight(&mut remote_message)
