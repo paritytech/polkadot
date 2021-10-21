@@ -147,6 +147,7 @@ impl Config for XcmConfig {
 	type AssetTrap = ();
 	type AssetClaims = ();
 	type SubscriptionService = ();
+	type PalletInstancesInfo = ();
 	type MaxHoldingAssetCount = MaxHoldingAssetCount;
 }
 

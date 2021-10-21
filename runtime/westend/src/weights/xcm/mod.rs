@@ -155,10 +155,8 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::initiate_teleport())
 	}
 	fn report_holding(
-		_query_id: &u64,
-		_dest: &MultiLocation,
+		_response_info: &QueryResponseInfo,
 		_assets: &MultiAssetFilter,
-		_max_response_weight: &u64,
 	) -> Weight {
 		XcmGeneric::<Runtime>::report_holding()
 	}
