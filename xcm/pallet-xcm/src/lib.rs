@@ -526,16 +526,21 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
 			let assets = assets.into();
+			let mut remote_message = Xcm(vec![
+				BuyExecution { fees, weight_limit: Limited(0) },
+				DepositAsset { assets: Wild(All), max_assets, beneficiary },
+			]);
+			// use local weight for remote message and hope for the best.
+			let remote_weight = T::Weigher::weight(&mut remote_message)
+				.map_err(|()| Error::<T>::UnweighableMessage)?;
+			if let Some(BuyExecution { weight_limit: Limited(ref mut limit), .. }) =
+				remote_message.0.get_mut(0)
+			{
+				*limit = remote_weight;
+			}
 			let mut message = Xcm(vec![
 				WithdrawAsset(assets),
-				InitiateTeleport {
-					assets: Wild(All),
-					dest,
-					xcm: Xcm(vec![
-						BuyExecution { fees, weight_limit: Unlimited },
-						DepositAsset { assets: Wild(All), max_assets, beneficiary },
-					]),
-				},
+				InitiateTeleport { assets: Wild(All), dest, xcm: remote_message.into() },
 			]);
 			let weight =
 				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
@@ -597,14 +602,20 @@ pub mod pallet {
 				.map_err(|_| Error::<T>::CannotReanchor)?;
 			let max_assets = assets.len() as u32;
 			let assets = assets.into();
-			let mut message = Xcm(vec![TransferReserveAsset {
-				assets,
-				dest,
-				xcm: Xcm(vec![
-					BuyExecution { fees, weight_limit: Unlimited },
-					DepositAsset { assets: Wild(All), max_assets, beneficiary },
-				]),
-			}]);
+			let mut remote_message = Xcm(vec![
+				BuyExecution { fees, weight_limit: Limited(0) },
+				DepositAsset { assets: Wild(All), max_assets, beneficiary },
+			]);
+			// use local weight for remote message and hope for the best.
+			let remote_weight = T::Weigher::weight(&mut remote_message)
+				.map_err(|()| Error::<T>::UnweighableMessage)?;
+			if let Some(BuyExecution { weight_limit: Limited(ref mut limit), .. }) =
+				remote_message.0.get_mut(0)
+			{
+				*limit = remote_weight;
+			}
+			let mut message =
+				Xcm(vec![TransferReserveAsset { assets, dest, xcm: remote_message.into() }]);
 			let weight =
 				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
 			let outcome =
