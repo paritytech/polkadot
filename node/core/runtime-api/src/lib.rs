@@ -219,8 +219,8 @@ where
 				// This request is side-effecting and thus cannot be cached.
 				None
 			},
-			Request::PvfsRequirePrecheck(sender) =>
-				query!(pvfs_require_precheck(), sender).map(|sender| Request::PvfsRequirePrecheck(sender)),
+			Request::PvfsRequirePrecheck(sender) => query!(pvfs_require_precheck(), sender)
+				.map(|sender| Request::PvfsRequirePrecheck(sender)),
 		}
 	}
 
@@ -368,7 +368,8 @@ where
 		Request::FetchOnChainVotes(sender) => query!(FetchOnChainVotes, on_chain_votes(), sender),
 		Request::SubmitPvfCheckStatement(stmt, signature, sender) =>
 			query!(@NoCache, submit_pvf_check_statement(stmt, signature), sender),
-		Request::PvfsRequirePrecheck(sender) => query!(PvfsRequirePrecheck, pvfs_require_precheck(), sender),
+		Request::PvfsRequirePrecheck(sender) =>
+			query!(PvfsRequirePrecheck, pvfs_require_precheck(), sender),
 	}
 }
 

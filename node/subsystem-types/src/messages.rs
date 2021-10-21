@@ -43,9 +43,9 @@ use polkadot_primitives::v1::{
 	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
 	CoreState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
 	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
-	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature, PvfCheckStatement,
+	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
+	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use polkadot_statement_table::v1::Misbehavior;
 use std::{
@@ -137,6 +137,7 @@ pub enum CandidateValidationMessage {
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
+	PreCheck(/* relay-parent */ Hash, ValidationCodeHash, oneshot::Sender<bool>),
 }
 
 impl CandidateValidationMessage {
@@ -145,6 +146,7 @@ impl CandidateValidationMessage {
 		match self {
 			Self::ValidateFromChainState(_, _, _, _) => None,
 			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
+			Self::PreCheck(relay_parent, _, _) => Some(*relay_parent),
 		}
 	}
 }
@@ -878,4 +880,14 @@ pub enum GossipSupportMessage {
 	/// Dummy constructor, so we can receive networking events.
 	#[from]
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::GossipSuppportNetworkMessage>),
+}
+
+/// TODO:
+#[derive(Debug)]
+pub enum PvfCheckerMessage {}
+
+impl BoundToRelayParent for PvfCheckerMessage {
+	fn relay_parent(&self) -> Hash {
+		match *self {}
+	}
 }
