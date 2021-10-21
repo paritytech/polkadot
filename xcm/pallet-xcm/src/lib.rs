@@ -388,20 +388,21 @@ pub mod pallet {
 		StorageValue<_, VersionMigrationStage, OptionQuery>;
 
 	#[pallet::genesis_config]
-	pub struct GenesisConfig {
+	pub struct GenesisConfig<T: Config> {
 		/// The default version to encode outgoing XCM messages with.
 		pub safe_xcm_version: Option<XcmVersion>,
+		pub phantom: sp_std::marker::PhantomData<T>,
 	}
 
 	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
+	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
-			Self { safe_xcm_version: Some(XCM_VERSION) }
+			Self { safe_xcm_version: Some(XCM_VERSION), phantom: Default::default() }
 		}
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
 			SafeXcmVersion::<T>::set(self.safe_xcm_version);
 		}
