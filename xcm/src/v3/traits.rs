@@ -105,6 +105,9 @@ pub enum Error {
 	/// The given pallet's version has an incompatible version to that expected.
 	#[codec(index = 25)]
 	VersionIncompatible,
+	/// The given operation would lead to an overflow of the Holding Register.
+	#[codec(index = 26)]
+	HoldingWouldOverflow,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.

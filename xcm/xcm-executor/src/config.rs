@@ -20,7 +20,7 @@ use crate::traits::{
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
-	traits::PalletsInfoAccess,
+	traits::{Get, PalletsInfoAccess},
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
 use xcm::latest::SendXcm;
@@ -72,4 +72,10 @@ pub trait Config {
 
 	/// Information on all pallets.
 	type PalletInstancesInfo: PalletsInfoAccess;
+
+	/// The maximum number of assets we target to have in the Holding Register at any one time.
+	///
+	/// NOTE: In the worse case, the Holding Register may contain up to twice as many assets as this
+	/// and any benchmarks should take that into account.
+	type MaxHoldingAssetCount: Get<usize>;
 }

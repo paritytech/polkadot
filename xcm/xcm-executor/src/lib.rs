@@ -19,7 +19,7 @@
 use frame_support::{
 	dispatch::{Dispatchable, Weight},
 	ensure,
-	traits::PalletsInfoAccess,
+	traits::{Get, PalletsInfoAccess},
 	weights::GetDispatchInfo,
 };
 use parity_scale_codec::Encode;
@@ -28,8 +28,8 @@ use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{
 	Error as XcmError, ExecuteXcm,
 	Instruction::{self, *},
-	MaybeErrorCode, MultiAssets, MultiLocation, Outcome, PalletInfo, QueryResponseInfo, Response,
-	SendXcm, Xcm,
+	MaybeErrorCode, MultiAsset, MultiAssets, MultiLocation, Outcome, PalletInfo, QueryResponseInfo,
+	Response, SendXcm, Xcm,
 };
 
 pub mod traits;
@@ -46,6 +46,7 @@ pub use config::Config;
 /// The XCM executor.
 pub struct XcmExecutor<Config: config::Config> {
 	pub holding: Assets,
+	pub holding_limit: usize,
 	pub origin: Option<MultiLocation>,
 	pub original_origin: MultiLocation,
 	pub trader: Config::Trader,
@@ -65,9 +66,6 @@ pub struct XcmExecutor<Config: config::Config> {
 	pub transact_status: MaybeErrorCode,
 	_config: PhantomData<Config>,
 }
-
-/// The maximum recursion limit for `execute_xcm` and `execute_effects`.
-pub const MAX_RECURSION_LIMIT: u32 = 8;
 
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 	fn execute_xcm_in_credit(
@@ -114,7 +112,9 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			}
 		}
 
-		vm.refund_surplus();
+		// We silently drop any error from our attempt to refund the surplus as it's a charitable
+		// thing so best-effort is all we will do.
+		let _ = vm.refund_surplus();
 		drop(vm.trader);
 
 		let mut weight_used = xcm_weight.saturating_sub(vm.total_surplus);
@@ -158,6 +158,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let origin = origin.into();
 		Self {
 			holding: Assets::new(),
+			holding_limit: Config::MaxHoldingAssetCount::get(),
 			origin: Some(origin.clone()),
 			original_origin: origin,
 			trader: Config::Trader::new(),
@@ -223,15 +224,29 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		r
 	}
 
+	fn subsume_asset(&mut self, asset: MultiAsset) -> Result<(), XcmError> {
+		ensure!(self.holding.len() <= self.holding_limit, XcmError::HoldingWouldOverflow);
+		self.holding.subsume(asset);
+		Ok(())
+	}
+
+	fn subsume_assets(&mut self, assets: Assets) -> Result<(), XcmError> {
+		ensure!(self.holding.len() <= self.holding_limit, XcmError::HoldingWouldOverflow);
+		ensure!(assets.len() <= self.holding_limit, XcmError::HoldingWouldOverflow);
+		self.holding.subsume_assets(assets);
+		Ok(())
+	}
+
 	/// Refund any unused weight.
-	fn refund_surplus(&mut self) {
+	fn refund_surplus(&mut self) -> Result<(), XcmError> {
 		let current_surplus = self.total_surplus.saturating_sub(self.total_refunded);
 		if current_surplus > 0 {
 			self.total_refunded.saturating_accrue(current_surplus);
 			if let Some(w) = self.trader.refund_weight(current_surplus) {
-				self.holding.subsume(w);
+				self.subsume_asset(w)?;
 			}
 		}
+		Ok(())
 	}
 
 	/// Process a single XCM instruction, mutating the state of the XCM virtual machine.
@@ -239,23 +254,23 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		match instr {
 			WithdrawAsset(assets) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
-				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				for asset in assets.drain().into_iter() {
-					Config::AssetTransactor::withdraw_asset(&asset, origin)?;
-					self.holding.subsume(asset);
+					Config::AssetTransactor::withdraw_asset(&asset, &origin)?;
+					self.subsume_asset(asset)?;
 				}
 				Ok(())
 			},
 			ReserveAssetDeposited(assets) => {
 				// check whether we trust origin to be our reserve location for this asset.
-				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				for asset in assets.drain().into_iter() {
 					// Must ensure that we recognise the asset as being managed by the origin.
 					ensure!(
-						Config::IsReserve::filter_asset_location(&asset, origin),
+						Config::IsReserve::filter_asset_location(&asset, &origin),
 						XcmError::UntrustedReserveLocation
 					);
-					self.holding.subsume(asset);
+					self.subsume_asset(asset)?;
 				}
 				Ok(())
 			},
@@ -281,13 +296,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			ReceiveTeleportedAsset(assets) => {
-				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
 				// check whether we trust origin to teleport this asset to us via config trait.
 				for asset in assets.inner() {
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.
 					ensure!(
-						Config::IsTeleporter::filter_asset_location(asset, origin),
+						Config::IsTeleporter::filter_asset_location(asset, &origin),
 						XcmError::UntrustedTeleportLocation
 					);
 					// We should check that the asset can actually be teleported in (for this to be in error, there
@@ -296,8 +311,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Config::AssetTransactor::can_check_in(&origin, asset)?;
 				}
 				for asset in assets.drain().into_iter() {
-					Config::AssetTransactor::check_in(origin, &asset);
-					self.holding.subsume(asset);
+					Config::AssetTransactor::check_in(&origin, &asset);
+					self.subsume_asset(asset)?;
 				}
 				Ok(())
 			},
@@ -403,14 +418,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					let max_fee =
 						self.holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
 					let unspent = self.trader.buy_weight(weight, max_fee)?;
-					self.holding.subsume_assets(unspent);
+					self.subsume_assets(unspent)?;
 				}
 				Ok(())
 			},
-			RefundSurplus => {
-				self.refund_surplus();
-				Ok(())
-			},
+			RefundSurplus => self.refund_surplus(),
 			SetErrorHandler(mut handler) => {
 				let handler_weight = Config::Weigher::weight(&mut handler)
 					.map_err(|()| XcmError::WeightNotComputable)?;
@@ -436,7 +448,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let ok = Config::AssetClaims::claim_assets(origin, &ticket, &assets);
 				ensure!(ok, XcmError::UnknownClaim);
 				for asset in assets.drain().into_iter() {
-					self.holding.subsume(asset);
+					self.subsume_asset(asset)?;
 				}
 				Ok(())
 			},
