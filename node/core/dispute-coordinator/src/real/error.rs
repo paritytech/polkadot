@@ -106,6 +106,9 @@ pub enum NonFatal {
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information: {0}")]
 	Runtime(#[from] runtime::NonFatal),
+
+	#[error(transparent)]
+	QueueError(#[from] participation::QueueError),
 }
 
 impl From<db::v1::Error> for Error {

@@ -42,6 +42,7 @@ use super::{
 mod queues;
 pub use queues::ParticipationRequest;
 use queues::Queues;
+pub use queues::Error as QueueError;
 
 /// How many participation processes do we want to run in parallel the most.
 ///
@@ -132,20 +133,20 @@ impl Participation {
 		ctx: &mut Context,
 		comparator: Option<CandidateComparator>,
 		req: ParticipationRequest,
-	) -> Result<bool> {
+	) -> Result<()> {
 		// Participation already running - we can ignore that request:
 		if self.running_participations.contains(req.candidate_hash()) {
-			return Ok(true)
+			return Ok(())
 		}
 		// Available capacity - participate right away (if we already have a recent block):
 		if let Some((_, h)) = self.recent_block {
 			if self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
 				self.fork_participation(ctx, req, h)?;
-				return Ok(true)
+				return Ok(())
 			}
 		}
 		// Out of capacity - queue:
-		Ok(self.queue.queue(comparator, req))
+		Ok(self.queue.queue(comparator, req)?)
 	}
 
 	/// Message from a worker task was received - get the outcome.

@@ -16,6 +16,8 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use thiserror::Error;
+
 use polkadot_node_subsystem::messages::DisputeParticipationMessage;
 use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, SessionIndex};
 
@@ -71,6 +73,15 @@ struct BestEffortEntry {
 	added_count: BestEffortCount,
 }
 
+/// What can go wrong when queuing a request.
+#[derive(Debug, Error)]
+pub enum Error {
+	#[error("Request could not be queued, because best effort queue was already full.")]
+	BestEffortFull,
+	#[error("Request could not be queued, because priority queue was already full.")]
+	PriorityFull,
+}
+
 impl ParticipationRequest {
 	/// Create a new `ParticipationRequest` to be queued.
 	pub fn new(
@@ -112,29 +123,29 @@ impl Queues {
 	/// if a `CandidateComparator` has been passed now, otherwise the `added_count` on the best
 	/// effort queue will be bumped.
 	///
-	/// Returns: true if queued successfully, false if queues are full.
+	/// Returns error in case a queue was found full already.
 	pub fn queue(
 		&mut self,
 		comparator: Option<CandidateComparator>,
 		req: ParticipationRequest,
-	) -> bool {
+	) -> Result<(), Error> {
 		if let Some(comparator) = comparator {
 			if self.priority.len() >= PRIORITY_QUEUE_SIZE {
-				return false
+				return Err(Error::PriorityFull)
 			}
 			// Remove any best effort entry:
 			self.best_effort.remove(&req.candidate_hash);
 			self.priority.insert(comparator, req);
 		} else {
 			if self.best_effort.len() >= BEST_EFFORT_QUEUE_SIZE {
-				return false
+				return Err(Error::BestEffortFull)
 			}
 			self.best_effort
 				.entry(req.candidate_hash)
 				.or_insert(BestEffortEntry { req, added_count: 0 })
 				.added_count += 1;
 		}
-		true
+		Ok(())
 	}
 
 	/// Get the next best request for dispute participation
