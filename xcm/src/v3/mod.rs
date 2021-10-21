@@ -643,11 +643,13 @@ pub enum Instruction<Call> {
 
 	/// Reduce Holding by up to the given assets.
 	///
-	/// Holding is reduced by up to the assets in the parameter. If this is less than the
+	/// Holding is reduced by as much as possible up to the assets in the parameter. It is not an
+	/// error if the Holding does not contain the assets (to make this an error, use `ExpectAsset`
+	/// prior).
 	///
 	/// Kind: *Instruction*
 	///
-	/// Errors: *Fallible*
+	/// Errors: *Infallible*
 	BurnAsset(MultiAssets),
 
 	/// Throw an error if Holding does not contain at least the given assets.
