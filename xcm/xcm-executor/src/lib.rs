@@ -461,8 +461,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			ExpectAsset(assets) =>
 				self.holding.ensure_contains(&assets).map_err(|_| XcmError::ExpectationFalse),
 			ExpectOrigin(origin) => {
-				let origin_ref = self.origin.as_ref().ok_or(XcmError::ExpectationFalse)?;
-				ensure!(origin_ref == &origin, XcmError::ExpectationFalse);
+				ensure!(self.origin == origin, XcmError::ExpectationFalse);
 				Ok(())
 			},
 			ExpectError(error) => {

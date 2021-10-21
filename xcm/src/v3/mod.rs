@@ -663,9 +663,8 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	/// - `ExpectationFalse`: If Origin Register is not some value, or if that value is not equal to
-	///   the parameter.
-	ExpectOrigin(MultiLocation),
+	/// - `ExpectationFalse`: If Origin Register is not equal to the parameter.
+	ExpectOrigin(Option<MultiLocation>),
 
 	/// Ensure that the Error Register equals some given value and throw an error if not.
 	///

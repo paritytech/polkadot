@@ -429,7 +429,7 @@ pub trait XcmWeightInfo<Call> {
 	fn expect_asset(_assets: &MultiAssets) -> Weight {
 		0
 	}
-	fn expect_origin(_origin: &MultiLocation) -> Weight {
+	fn expect_origin(_origin: &Option<MultiLocation>) -> Weight {
 		0
 	}
 	fn expect_error(_error: &Option<(u32, Error)>) -> Weight {
