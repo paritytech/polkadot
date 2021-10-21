@@ -154,7 +154,7 @@ fn query_response_fires() {
 			assert_eq!(
 				polkadot_test_runtime::Xcm::query(query_id),
 				Some(QueryStatus::Ready {
-					response: VersionedResponse::V2(Response::ExecutionResult(None)),
+					response: VersionedResponse::V3(Response::ExecutionResult(None)),
 					at: 2u32.into()
 				}),
 			)
