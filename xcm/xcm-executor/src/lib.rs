@@ -158,7 +158,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let origin = origin.into();
 		Self {
 			holding: Assets::new(),
-			holding_limit: Config::MaxHoldingAssetCount::get(),
+			holding_limit: Config::MaxHoldingAssetCount::get() as usize,
 			origin: Some(origin.clone()),
 			original_origin: origin,
 			trader: Config::Trader::new(),
@@ -479,10 +479,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(self.error == error, XcmError::ExpectationFalse);
 				Ok(())
 			},
-			QueryPallet { name, response_info } => {
+			QueryPallet { module_name, response_info } => {
 				let pallets = Config::PalletInstancesInfo::infos()
 					.into_iter()
-					.filter(|x| x.name.as_bytes() == &name[..])
+					.filter(|x| x.module_name.as_bytes() == &module_name[..])
 					.map(|x| PalletInfo {
 						index: x.index as u32,
 						name: x.name.as_bytes().into(),

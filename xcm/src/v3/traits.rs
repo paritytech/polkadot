@@ -327,7 +327,7 @@ pub type SendResult = result::Result<(), SendError>;
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm(vec![Instruction::Transact {
-///     origin_type: OriginKind::Superuser,
+///     origin_kind: OriginKind::Superuser,
 ///     require_weight_at_most: 0,
 ///     call: call.into(),
 /// }]);

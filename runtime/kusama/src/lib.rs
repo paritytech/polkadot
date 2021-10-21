@@ -1329,6 +1329,7 @@ pub type XcmRouter = (
 parameter_types! {
 	pub const Kusama: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(KsmLocation::get()) });
 	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1000).into());
+	pub const MaxHoldingAssetCount: u32 = 64;
 }
 pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemine>,);
 
@@ -1360,6 +1361,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPallets;
+	type MaxHoldingAssetCount = MaxHoldingAssetCount;
 }
 
 parameter_types! {

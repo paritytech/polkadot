@@ -143,7 +143,6 @@ benchmarks_instance_pallet! {
 		executor.holding = holding;
 		let instruction = Instruction::<XcmCallOf<T>>::DepositAsset {
 			assets: asset.into(),
-			max_assets: 1,
 			beneficiary: dest_location,
 		};
 		let xcm = Xcm(vec![instruction]);
@@ -170,7 +169,6 @@ benchmarks_instance_pallet! {
 		executor.holding = holding;
 		let instruction = Instruction::<XcmCallOf<T>>::DepositReserveAsset {
 			assets: asset.into(),
-			max_assets: 1,
 			dest: dest_location,
 			xcm: Xcm::new(),
 		};

@@ -126,14 +126,12 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 
 	fn deposit_asset(
 		assets: &MultiAssetFilter,
-		_max_assets: &u32, // TODO use max assets?
 		_dest: &MultiLocation,
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_asset())
 	}
 	fn deposit_reserve_asset(
 		assets: &MultiAssetFilter,
-		_max_assets: &u32, // TODO use max assets?
 		_dest: &MultiLocation,
 		_xcm: &Xcm<()>,
 	) -> Weight {

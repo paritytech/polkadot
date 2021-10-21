@@ -77,5 +77,5 @@ pub trait Config {
 	///
 	/// NOTE: In the worse case, the Holding Register may contain up to twice as many assets as this
 	/// and any benchmarks should take that into account.
-	type MaxHoldingAssetCount: Get<usize>;
+	type MaxHoldingAssetCount: Get<u32>;
 }

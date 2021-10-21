@@ -650,7 +650,7 @@ pub enum Instruction<Call> {
 
 	/// Query the existence of a particular pallet type.
 	///
-	/// - `name`: The name of the pallet to query.
+	/// - `module_name`: The module name of the pallet to query.
 	/// - `response_info`: Information for making the response.
 	///
 	/// Sends a `QueryResponse` to Origin whose data field `PalletsInfo` containing the information
@@ -662,7 +662,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors: *Fallible*.
-	QueryPallet { name: Vec<u8>, response_info: QueryResponseInfo },
+	QueryPallet { module_name: Vec<u8>, response_info: QueryResponseInfo },
 
 	/// Ensure that a particular pallet with a particular version exists.
 	///
@@ -767,7 +767,7 @@ impl<Call> Instruction<Call> {
 			ExpectAsset(assets) => ExpectAsset(assets),
 			ExpectOrigin(origin) => ExpectOrigin(origin),
 			ExpectError(error) => ExpectError(error),
-			QueryPallet { name, response_info } => QueryPallet { name, response_info },
+			QueryPallet { module_name, response_info } => QueryPallet { module_name, response_info },
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
 				ExpectPallet { index, name, module_name, crate_major, min_crate_minor },
 			ReportTransactStatus(repsonse_info) => ReportTransactStatus(repsonse_info),
@@ -961,7 +961,7 @@ mod tests {
 			OldInstruction::ReceiveTeleportedAsset((Here, 1).into()),
 			OldInstruction::ClearOrigin,
 			OldInstruction::DepositAsset {
-				assets: Wild(All),
+				assets: crate::v2::MultiAssetFilter::Wild(crate::v2::WildMultiAsset::All),
 				max_assets: 1,
 				beneficiary: Here.into(),
 			},
@@ -984,7 +984,7 @@ mod tests {
 			OldInstruction::ClearOrigin,
 			OldInstruction::BuyExecution { fees: (Here, 1).into(), weight_limit: Some(1).into() },
 			OldInstruction::DepositAsset {
-				assets: Wild(All),
+				assets: crate::v2::MultiAssetFilter::Wild(crate::v2::WildMultiAsset::All),
 				max_assets: 1,
 				beneficiary: Here.into(),
 			},

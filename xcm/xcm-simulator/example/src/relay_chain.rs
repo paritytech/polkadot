@@ -117,6 +117,7 @@ parameter_types! {
 	pub const BaseXcmWeight: Weight = 1_000;
 	pub KsmPerSecond: (AssetId, u128) = (Concrete(KsmLocation::get()), 1);
 	pub const MaxInstructions: u32 = 100;
+	pub const MaxHoldingAssetCount: u32 = 64;
 }
 
 pub type XcmRouter = super::RelayChainXcmRouter;
@@ -138,6 +139,7 @@ impl Config for XcmConfig {
 	type AssetTrap = ();
 	type AssetClaims = ();
 	type SubscriptionService = ();
+	type MaxHoldingAssetCount = MaxHoldingAssetCount;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;

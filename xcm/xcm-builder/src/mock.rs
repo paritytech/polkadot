@@ -306,7 +306,7 @@ impl ClaimAssets for TestAssetTrap {
 
 parameter_types! {
 	pub static SubscriptionRequests: Vec<(MultiLocation, Option<(QueryId, u64)>)> = vec![];
-	pub static MaxHoldingAssetCount: usize = 4;
+	pub static MaxHoldingAssetCount: u32 = 4;
 }
 pub struct TestSubscriptionService;
 

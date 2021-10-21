@@ -239,6 +239,7 @@ parameter_types! {
 	pub CurrencyPerSecond: (AssetId, u128) = (Concrete(RelayLocation::get()), 1);
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 	pub const MaxInstructions: u32 = 100;
+	pub const MaxHoldingAssetCount: u32 = 64;
 }
 
 pub type Barrier = (
@@ -265,6 +266,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPallets;
+	type MaxHoldingAssetCount = MaxHoldingAssetCount;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;

@@ -25,7 +25,7 @@ use frame_support::{
 use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
 use sp_runtime::traits::{BlakeTwo256, Hash};
 use std::convert::TryInto;
-use xcm::prelude::*;
+use xcm::{latest::QueryResponseInfo, prelude::*};
 use xcm_builder::AllowKnownQueryResponses;
 use xcm_executor::{traits::ShouldExecute, XcmExecutor};
 
@@ -55,11 +55,11 @@ fn report_outcome_notify_works() {
 		assert_eq!(
 			message,
 			Xcm(vec![
-				SetAppendix(Xcm(vec![ReportError {
+				SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
+					destination: Parent.into(),
 					query_id: 0,
-					dest: Parent.into(),
-					max_response_weight: 1_000_000
-				},])),
+					max_weight: 1_000_000
+				}),])),
 				TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
 			])
 		);
@@ -109,11 +109,11 @@ fn report_outcome_works() {
 		assert_eq!(
 			message,
 			Xcm(vec![
-				SetAppendix(Xcm(vec![ReportError {
+				SetAppendix(Xcm(vec![ReportError(QueryResponseInfo {
+					destination: Parent.into(),
 					query_id: 0,
-					dest: Parent.into(),
-					max_response_weight: 0
-				},])),
+					max_weight: 0
+				}),])),
 				TransferAsset { assets: (Here, SEND_AMOUNT).into(), beneficiary: sender.clone() },
 			])
 		);
@@ -158,7 +158,7 @@ fn send_works() {
 			ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 			ClearOrigin,
 			buy_execution((Parent, SEND_AMOUNT)),
-			DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
+			DepositAsset { assets: AllCounted(1).into(), beneficiary: sender.clone() },
 		]);
 		let versioned_dest = Box::new(RelayLocation::get().into());
 		let versioned_message = Box::new(VersionedXcm::from(message.clone()));
@@ -194,7 +194,7 @@ fn send_fails_when_xcm_router_blocks() {
 		let message = Xcm(vec![
 			ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 			buy_execution((Parent, SEND_AMOUNT)),
-			DepositAsset { assets: All.into(), max_assets: 1, beneficiary: sender.clone() },
+			DepositAsset { assets: AllCounted(1).into(), beneficiary: sender.clone() },
 		]);
 		assert_noop!(
 			XcmPallet::send(
@@ -235,7 +235,7 @@ fn teleport_assets_works() {
 					ReceiveTeleportedAsset((Here, SEND_AMOUNT).into()),
 					ClearOrigin,
 					buy_limited_execution((Here, SEND_AMOUNT), 2000),
-					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]
 		);
@@ -281,7 +281,7 @@ fn reserve_transfer_assets_works() {
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
 					buy_limited_execution((Parent, SEND_AMOUNT), 2000),
-					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]
 		);
@@ -312,7 +312,7 @@ fn execute_withdraw_to_deposit_works() {
 			Box::new(VersionedXcm::from(Xcm(vec![
 				WithdrawAsset((Here, SEND_AMOUNT).into()),
 				buy_execution((Here, SEND_AMOUNT)),
-				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+				DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 			]))),
 			weight
 		));
@@ -344,7 +344,7 @@ fn trapped_assets_can_be_claimed() {
 				// This will make an error.
 				Trap(0),
 				// This would succeed, but we never get to it.
-				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest.clone() },
+				DepositAsset { assets: AllCounted(1).into(), beneficiary: dest.clone() },
 			]))),
 			weight
 		));
@@ -374,7 +374,7 @@ fn trapped_assets_can_be_claimed() {
 			Box::new(VersionedXcm::from(Xcm(vec![
 				ClaimAsset { assets: (Here, SEND_AMOUNT).into(), ticket: Here.into() },
 				buy_execution((Here, SEND_AMOUNT)),
-				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest.clone() },
+				DepositAsset { assets: AllCounted(1).into(), beneficiary: dest.clone() },
 			]))),
 			weight
 		));
@@ -389,7 +389,7 @@ fn trapped_assets_can_be_claimed() {
 			Box::new(VersionedXcm::from(Xcm(vec![
 				ClaimAsset { assets: (Here, SEND_AMOUNT).into(), ticket: Here.into() },
 				buy_execution((Here, SEND_AMOUNT)),
-				DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+				DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 			]))),
 			weight
 		));
