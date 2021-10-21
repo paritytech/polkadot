@@ -22,7 +22,7 @@ use frame_support::{
 	traits::PalletsInfoAccess,
 	weights::GetDispatchInfo,
 };
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::{
@@ -62,6 +62,7 @@ pub struct XcmExecutor<Config: config::Config> {
 	pub error_handler_weight: u64,
 	pub appendix: Xcm<Config::Call>,
 	pub appendix_weight: u64,
+	pub transact_status: MaybeErrorCode,
 	_config: PhantomData<Config>,
 }
 
@@ -167,6 +168,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			error_handler_weight: 0,
 			appendix: Xcm(vec![]),
 			appendix_weight: 0,
+			transact_status: Default::default(),
 			_config: PhantomData,
 		}
 	}
@@ -299,25 +301,27 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Ok(())
 			},
-			Transact { origin_type, require_weight_at_most, mut call } => {
+			Transact { origin_kind, require_weight_at_most, mut call } => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
 				let origin = self.origin.clone().ok_or(XcmError::BadOrigin)?;
 
 				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
 				let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
-				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
+				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_kind)
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
 				ensure!(weight <= require_weight_at_most, XcmError::TooMuchWeightRequired);
-				let actual_weight = match message_call.dispatch(dispatch_origin) {
-					Ok(post_info) => post_info.actual_weight,
+				let maybe_actual_weight = match message_call.dispatch(dispatch_origin) {
+					Ok(post_info) => {
+						self.transact_status = MaybeErrorCode::Success;
+						post_info.actual_weight
+					},
 					Err(error_and_info) => {
-						// Not much to do with the result as it is. It's up to the parachain to ensure that the
-						// message makes sense.
+						self.transact_status = MaybeErrorCode::Error(error_and_info.error.encode());
 						error_and_info.post_info.actual_weight
 					},
-				}
-				.unwrap_or(weight);
+				};
+				let actual_weight = maybe_actual_weight.unwrap_or(weight);
 				let surplus = weight.saturating_sub(actual_weight);
 				// We assume that the `Config::Weigher` will counts the `require_weight_at_most`
 				// for the estimate of how much weight this instruction will take. Now that we know
@@ -487,65 +491,29 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let message = Xcm(vec![instruction]);
 				Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
 			},
-			Dispatch {
-				origin_kind,
-				require_weight_at_most,
-				name,
-				major,
-				minor,
-				pallet_index,
-				call_index,
-				params,
-				response_info,
-			} => {
-				let origin = self.origin.clone().ok_or(XcmError::BadOrigin)?;
-
+			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } => {
 				let pallet = Config::PalletInstancesInfo::infos()
 					.into_iter()
-					.find(|x| x.index == pallet_index as usize)
+					.find(|x| x.index == index as usize)
 					.ok_or(XcmError::PalletNotFound)?;
 				ensure!(pallet.name.as_bytes() == &name[..], XcmError::NameMismatch);
-				ensure!(pallet.crate_version.major as u32 == major, XcmError::VersionIncompatible);
-				ensure!(pallet.crate_version.minor as u32 >= minor, XcmError::VersionIncompatible);
-
-				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
-				let mut encoded_call = vec![pallet_index as u8, call_index as u8];
-				encoded_call.extend(params);
-				let message_call = Config::Call::decode(&mut &encoded_call[..])
-					.map_err(|_| XcmError::FailedToDecode)?;
-
-				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_kind)
-					.map_err(|_| XcmError::BadOrigin)?;
-				let weight = message_call.get_dispatch_info().weight;
-				ensure!(weight <= require_weight_at_most, XcmError::TooMuchWeightRequired);
-				let (actual_weight, error_code) = match message_call.dispatch(dispatch_origin) {
-					Ok(post_info) => (post_info.actual_weight, MaybeErrorCode::Success),
-					Err(error_and_info) => {
-						let error = MaybeErrorCode::Error(error_and_info.error.encode());
-						let actual_weight = error_and_info.post_info.actual_weight;
-						(actual_weight, error)
-					},
-				};
-				let actual_weight = actual_weight.unwrap_or(weight);
-				let surplus = weight.saturating_sub(actual_weight);
-				// We assume that the `Config::Weigher` will counts the `require_weight_at_most`
-				// for the estimate of how much weight this instruction will take. Now that we know
-				// that it's less, we credit it.
-				//
-				// We make the adjustment for the total surplus, which is used eventually
-				// reported back to the caller and this ensures that they account for the total
-				// weight consumed correctly (potentially allowing them to do more operations in a
-				// block than they otherwise would).
-				self.total_surplus.saturating_accrue(surplus);
-				if let Some(QueryResponseInfo { destination, query_id, max_weight }) = response_info
-				{
-					let response = Response::DispatchResult(error_code);
-					let instruction = QueryResponse { query_id, response, max_weight };
-					let message = Xcm(vec![instruction]);
-					Config::XcmSender::send_xcm(destination, message).map_err(XcmError::from)?;
-				}
+				ensure!(pallet.module_name.as_bytes() == &module_name[..], XcmError::NameMismatch);
+				let major = pallet.crate_version.major as u32;
+				ensure!(major == crate_major, XcmError::VersionIncompatible);
+				let minor = pallet.crate_version.minor as u32;
+				ensure!(minor >= min_crate_minor, XcmError::VersionIncompatible);
 				Ok(())
 			},
+			ReportTransactStatus(QueryResponseInfo { destination, query_id, max_weight }) => {
+				let response = Response::DispatchResult(self.transact_status.clone());
+				let instruction = QueryResponse { query_id, response, max_weight };
+				let message = Xcm(vec![instruction]);
+				Config::XcmSender::send_xcm(destination, message).map_err(XcmError::from)
+			}
+			ClearTransactStatus => {
+				self.transact_status = Default::default();
+				Ok(())
+			}
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),

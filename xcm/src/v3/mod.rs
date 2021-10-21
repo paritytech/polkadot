@@ -165,6 +165,12 @@ pub enum MaybeErrorCode {
 	Error(Vec<u8>),
 }
 
+impl Default for MaybeErrorCode {
+	fn default() -> MaybeErrorCode {
+		MaybeErrorCode::Success
+	}
+}
+
 /// Response data to a query.
 #[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
 pub enum Response {
@@ -178,7 +184,7 @@ pub enum Response {
 	Version(super::Version),
 	/// The index, instance name, pallet name and version of some pallets.
 	PalletsInfo(Vec<PalletInfo>),
-	/// The error of a dispatch attempt, or `None` if the dispatch executed without error.
+	/// The status of a dispatch attempt using `Transact`.
 	DispatchResult(MaybeErrorCode),
 }
 
@@ -306,9 +312,11 @@ pub enum Instruction<Call> {
 	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed
 	/// by the kind of origin `origin_type`.
 	///
-	/// - `origin_type`: The means of expressing the message origin as a dispatch origin.
-	/// - `max_weight`: The weight of `call`; this should be at least the chain's calculated weight
-	///   and will be used in the weight determination arithmetic.
+	/// The Transact Status Register is set according to the result of dispatching the call.
+	///
+	/// - `origin_kind`: The means of expressing the message origin as a dispatch origin.
+	/// - `require_weight_at_most`: The weight of `call`; this should be at least the chain's
+	///   calculated weight and will be used in the weight determination arithmetic.
 	/// - `call`: The encoded transaction to be applied.
 	///
 	/// Safety: No concerns.
@@ -317,7 +325,7 @@ pub enum Instruction<Call> {
 	///
 	/// Errors:
 	Transact {
-		origin_type: OriginKind,
+		origin_kind: OriginKind,
 		#[codec(compact)]
 		require_weight_at_most: u64,
 		call: DoubleEncoded<Call>,
@@ -692,44 +700,52 @@ pub enum Instruction<Call> {
 	/// Errors: *Fallible*.
 	QueryPallet { name: Vec<u8>, response_info: QueryResponseInfo },
 
-	/// Dispatch a call into a pallet in the Frame system. This provides a means of ensuring that
-	/// the pallet continues to exist with a known version.
+	/// Ensure that a particular pallet with a particular version exists.
 	///
-	/// - `origin_kind`: The means of expressing the message origin as a dispatch origin.
-	/// - `name`: The name of the pallet to which to dispatch a message.
-	/// - `major`, `minor`: The major and minor version of the pallet. The major version
-	///   must be equal and the minor version of the pallet must be at least as great.
-	/// - `pallet_index`: The index of the pallet to be called.
-	/// - `call_index`: The index of the dispatchable to be called.
-	/// - `params`: The encoded parameters of the dispatchable.
-	/// - `query_id`: If present, then a `QueryResponse`
-	///   whose `query_id` and `max_weight` are the given `QueryId`and `Weight` values is sent to
-	///   the given `MultiLocation` value with a `DispatchResult` response corresponding to the
-	///   error status of the "inner" dispatch. This only happens if the dispatch was actually
-	///   made - if an error happened prior to dispatch, then the Error Register is set and the
-	///   operation aborted as usual.
+	/// - `index: Compact`: The index which identifies the pallet. An error if no pallet exists at this index.
+	/// - `name: Vec<u8>`: Name which must be equal to the name of the pallet.
+	/// - `module_name: Vec<u8>`: Module name which must be equal to the name of the module in which the pallet exists.
+	/// - `crate_major: Compact`: Version number which must be equal to the major version of the crate which implements the pallet.
+	/// - `min_crate_minor: Compact`: Version number which must be at most the minor version of the crate which implements the pallet.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
+	/// - `ExpectationFalse`: In case any of the expectations are broken.
+	ExpectPallet {
+		#[codec(compact)]
+		index: u32,
+		name: Vec<u8>,
+		module_name: Vec<u8>,
+		#[codec(compact)]
+		crate_major: u32,
+		#[codec(compact)]
+		min_crate_minor: u32,
+	},
+
+	/// Send a `QueryRepsonse` message containing the value of the Transact Status Register to some
+	/// destination.
+	///
+	/// - `query_response_info`: The information needed for constructing and sending the
+	///   `QueryResponse` message.
 	///
 	/// Safety: No concerns.
 	///
 	/// Kind: *Instruction*
 	///
 	/// Errors: *Fallible*.
-	Dispatch {
-		origin_kind: OriginKind,
-		#[codec(compact)]
-		require_weight_at_most: Weight,
-		name: Vec<u8>,
-		#[codec(compact)]
-		major: u32,
-		#[codec(compact)]
-		minor: u32,
-		#[codec(compact)]
-		pallet_index: u32,
-		#[codec(compact)]
-		call_index: u32,
-		params: Vec<u8>,
-		response_info: Option<QueryResponseInfo>,
-	},
+	ReportTransactStatus(QueryResponseInfo),
+
+	/// Set the Transact Status Register to its default, cleared, value.
+	///
+	/// Safety: No concerns.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: *Infallible*.
+	ClearTransactStatus,
 }
 
 impl<Call> Xcm<Call> {
@@ -761,8 +777,8 @@ impl<Call> Instruction<Call> {
 			HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
 			HrmpChannelClosing { initiator, sender, recipient } =>
 				HrmpChannelClosing { initiator, sender, recipient },
-			Transact { origin_type, require_weight_at_most, call } =>
-				Transact { origin_type, require_weight_at_most, call: call.into() },
+			Transact { origin_kind, require_weight_at_most, call } =>
+				Transact { origin_kind, require_weight_at_most, call: call.into() },
 			ReportError { query_id, dest, max_response_weight } =>
 				ReportError { query_id, dest, max_response_weight },
 			DepositAsset { assets, max_assets, beneficiary } =>
@@ -792,27 +808,10 @@ impl<Call> Instruction<Call> {
 			ExpectOrigin(origin) => ExpectOrigin(origin),
 			ExpectError(error) => ExpectError(error),
 			QueryPallet { name, response_info } => QueryPallet { name, response_info },
-			Dispatch {
-				origin_kind,
-				require_weight_at_most,
-				name,
-				major,
-				minor,
-				pallet_index,
-				call_index,
-				params,
-				response_info,
-			} => Dispatch {
-				origin_kind,
-				require_weight_at_most,
-				name,
-				major,
-				minor,
-				pallet_index,
-				call_index,
-				params,
-				response_info,
-			},
+			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
+				ExpectPallet { index, name, module_name, crate_major, min_crate_minor },
+			ReportTransactStatus(repsonse_info) => ReportTransactStatus(repsonse_info),
+			ClearTransactStatus => ClearTransactStatus,
 		}
 	}
 }
@@ -830,8 +829,8 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			TransferAsset { assets, beneficiary } => W::transfer_asset(assets, beneficiary),
 			TransferReserveAsset { assets, dest, xcm } =>
 				W::transfer_reserve_asset(&assets, dest, xcm),
-			Transact { origin_type, require_weight_at_most, call } =>
-				W::transact(origin_type, require_weight_at_most, call),
+			Transact { origin_kind, require_weight_at_most, call } =>
+				W::transact(origin_kind, require_weight_at_most, call),
 			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
 				W::hrmp_new_channel_open_request(sender, max_message_size, max_capacity),
 			HrmpChannelAccepted { recipient } => W::hrmp_channel_accepted(recipient),
@@ -866,22 +865,9 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ExpectOrigin(origin) => W::expect_origin(origin),
 			ExpectError(error) => W::expect_error(error),
 			QueryPallet { .. } => W::query_pallet(),
-			Dispatch {
-				origin_kind,
-				require_weight_at_most,
-				pallet_index,
-				call_index,
-				params,
-				response_info,
-				..
-			} => W::dispatch(
-				origin_kind,
-				require_weight_at_most,
-				pallet_index,
-				call_index,
-				params,
-				response_info,
-			),
+			ExpectPallet { index, .. } => W::expect_pallet(index),
+			ReportTransactStatus(response_info) => W::report_transact_status(response_info),
+			ClearTransactStatus => W::clear_transact_status(),
 		}
 	}
 }
@@ -940,7 +926,7 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			HrmpChannelClosing { initiator, sender, recipient } =>
 				Self::HrmpChannelClosing { initiator, sender, recipient },
 			Transact { origin_type, require_weight_at_most, call } =>
-				Self::Transact { origin_type, require_weight_at_most, call: call.into() },
+				Self::Transact { origin_kind: origin_type, require_weight_at_most, call: call.into() },
 			ReportError { query_id, dest, max_response_weight } =>
 				Self::ReportError { query_id, dest, max_response_weight },
 			DepositAsset { assets, max_assets, beneficiary } =>

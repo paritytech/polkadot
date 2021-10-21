@@ -907,8 +907,8 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 			HrmpChannelAccepted { recipient } => Self::HrmpChannelAccepted { recipient },
 			HrmpChannelClosing { initiator, sender, recipient } =>
 				Self::HrmpChannelClosing { initiator, sender, recipient },
-			Transact { origin_type, require_weight_at_most, call } =>
-				Self::Transact { origin_type, require_weight_at_most, call: call.into() },
+			Transact { origin_kind, require_weight_at_most, call } =>
+				Self::Transact { origin_type: origin_kind, require_weight_at_most, call: call.into() },
 			ReportError { query_id, dest, max_response_weight } =>
 				Self::ReportError { query_id, dest, max_response_weight },
 			DepositAsset { assets, max_assets, beneficiary } =>

@@ -438,14 +438,13 @@ pub trait XcmWeightInfo<Call> {
 	fn query_pallet() -> Weight {
 		0
 	}
-	fn dispatch(
-		_origin_kind: &OriginKind,
-		require_weight_at_most: &Weight,
-		_pallet_index: &u32,
-		_call_index: &u32,
-		_params: &Vec<u8>,
-		_response_info: &Option<QueryResponseInfo>,
-	) -> Weight {
-		*require_weight_at_most
+	fn expect_pallet(_pallet_index: &u32) -> Weight {
+		0
+	}
+	fn report_transact_status(_response_info: &QueryResponseInfo) -> Weight {
+		0
+	}
+	fn clear_transact_status() -> Weight {
+		0
 	}
 }
