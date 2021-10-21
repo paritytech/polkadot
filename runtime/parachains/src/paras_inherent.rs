@@ -409,7 +409,7 @@ pub mod pallet {
 			<scheduler::Pallet<T>>::clear();
 			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
 
-			let scheduled = <scheduler::Pallet<T>>::scheduled();
+			let scheduled = dbg!(<scheduler::Pallet<T>>::scheduled());
 			let backed_candidates = sanitize_backed_candidates::<T, _, true>(
 				parent_hash,
 				backed_candidates,
@@ -737,8 +737,8 @@ fn sanitize_backed_candidates<
 	// Also checks the candidate references the correct relay parent.
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
-		desc.relay_parent == relay_parent &&
-			scheduled.iter().any(|core| core.para_id == desc.para_id)
+		dbg!(desc.relay_parent) == dbg!(relay_parent) &&
+			dbg!(scheduled.iter().any(|core| dbg!(core.para_id) == dbg!(desc.para_id)))
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 

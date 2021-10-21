@@ -540,7 +540,7 @@ impl<T: Config> Pallet<T> {
 								|idx| {
 									group_vals
 										.get(idx)
-										.and_then(|i| validators.get(i.0 as usize))
+										.and_then(|i| validators.get(dbg!(i.0) as usize))
 										.map(|v| v.clone())
 								},
 							);
@@ -1058,6 +1058,7 @@ pub(crate) mod tests {
 
 		for (idx_in_group, val_idx) in group.iter().enumerate().take(signing) {
 			let key: Sr25519Keyring = validators[val_idx.0 as usize];
+			println!("Signing candidate {:?} with val[{}]", candidate.hash(), val_idx.0);
 			*validator_indices.get_mut(idx_in_group).unwrap() = true;
 
 			let signature = SignedStatement::sign(
