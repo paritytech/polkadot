@@ -43,7 +43,6 @@ pub use crate::Origin as ParachainOrigin;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-pub mod weights;
 
 pub use pallet::*;
 
@@ -277,6 +276,25 @@ pub trait WeightInfo {
 	fn force_schedule_code_upgrade(c: u32) -> Weight;
 	fn force_note_new_head(s: u32) -> Weight;
 	fn force_queue_action() -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn force_set_current_code(_c: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_set_current_head(_s: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_schedule_code_upgrade(_c: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_note_new_head(_s: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_queue_action() -> Weight {
+		Weight::MAX
+	}
 }
 
 #[frame_support::pallet]

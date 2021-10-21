@@ -27,6 +27,7 @@ blockchain/MS
 borked
 broadcast/UDSMG
 BTC/S
+canonicalization
 canonicalize/D
 CentOS
 CLI/MS
@@ -66,6 +67,7 @@ encodable
 enqueue/D
 enqueue/DMSG
 entrypoint/MS
+enum
 ERC-20
 ETH/S
 ethereum/MS
@@ -180,6 +182,7 @@ phragmen
 picosecond/SM
 PoA/MS
 polkadot/MS
+Polkadot/MS
 PoS/MS
 PoV/MS
 PoW/MS
@@ -198,6 +201,7 @@ proxy/G
 proxying
 PRs
 PVF/S
+p2p
 README/MS
 redhat/M
 register/CD
@@ -213,6 +217,7 @@ rpc
 RPC/MS
 runtime/MS
 rustc/MS
+sybil
 SAFT
 scalable
 scalability
@@ -227,6 +232,7 @@ spawn/SR
 spawner
 SS58
 sr25519
+SSL
 startup/MS
 stateful
 str
@@ -248,6 +254,8 @@ teleporter/SM
 teleporters
 testnet/MS
 timestamp/MS
+timeframe
+tradeoff
 transitionary
 trie/MS
 trustless/Y
@@ -257,6 +265,7 @@ typesystem
 ubuntu/M
 UDP
 UI
+unconcluded
 unfinalize/B
 unfinalized
 union/MSG
@@ -283,8 +292,10 @@ versa
 version/DMSG
 versioned
 VMP/SM
+VPS
 VRF/SM
 w3f/MS
+wakeup
 wakeups
 warming/S
 wasm/M
@@ -293,9 +304,12 @@ Westend/M
 wildcard/MS
 WND/S
 Wococo
+WS
 XCM/S
 XCMP/M
 yeet
+yml
 decrement
 DM
 ParaId
+functor

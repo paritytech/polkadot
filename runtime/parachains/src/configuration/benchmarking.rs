@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::configuration::*;
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite, BenchmarkError, BenchmarkResult};
+use frame_benchmarking::{benchmarks, BenchmarkError, BenchmarkResult};
 use frame_system::RawOrigin;
 use sp_runtime::traits::One;
 
@@ -35,10 +35,10 @@ benchmarks! {
 	}
 
 	set_config_with_balance {}: set_hrmp_sender_deposit(RawOrigin::Root, 100_000_000_000)
-}
 
-impl_benchmark_test_suite!(
-	Pallet,
-	crate::mock::new_test_ext(Default::default()),
-	crate::mock::Test
-);
+	impl_benchmark_test_suite!(
+		Pallet,
+		crate::mock::new_test_ext(Default::default()),
+		crate::mock::Test
+	);
+}

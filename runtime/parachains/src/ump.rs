@@ -91,7 +91,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 	) -> Result<Weight, (MessageId, Weight)> {
 		use parity_scale_codec::DecodeLimit;
 		use xcm::{
-			latest::{Error as XcmError, Junction, MultiLocation, Xcm},
+			latest::{Error as XcmError, Junction, Xcm},
 			VersionedXcm,
 		};
 
@@ -111,9 +111,8 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 				Ok(0)
 			},
 			Ok(Ok(xcm_message)) => {
-				let xcm_junction: Junction = Junction::Parachain(origin.into());
-				let xcm_location: MultiLocation = xcm_junction.into();
-				let outcome = XcmExecutor::execute_xcm(xcm_location, xcm_message, max_weight);
+				let xcm_junction = Junction::Parachain(origin.into());
+				let outcome = XcmExecutor::execute_xcm(xcm_junction, xcm_message, max_weight);
 				match outcome {
 					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
 					outcome => {
@@ -203,20 +202,20 @@ pub mod pallet {
 		/// Upward message executed with the given outcome.
 		/// \[ id, outcome \]
 		ExecutedUpward(MessageId, Outcome),
-		/// The weight limit for handling downward messages was reached.
+		/// The weight limit for handling upward messages was reached.
 		/// \[ id, remaining, required \]
 		WeightExhausted(MessageId, Weight, Weight),
-		/// Some downward messages have been received and will be processed.
+		/// Some upward messages have been received and will be processed.
 		/// \[ para, count, size \]
 		UpwardMessagesReceived(ParaId, u32, u32),
-		/// The weight budget was exceeded for an individual downward message.
+		/// The weight budget was exceeded for an individual upward message.
 		///
 		/// This message can be later dispatched manually using `service_overweight` dispatchable
 		/// using the assigned `overweight_index`.
 		///
 		/// \[ para, id, overweight_index, required \]
 		OverweightEnqueued(ParaId, MessageId, OverweightIndex, Weight),
-		/// Downward message from the overweight queue was executed with the given actual weight
+		/// Upward message from the overweight queue was executed with the given actual weight
 		/// used.
 		///
 		/// \[ overweight_index, used \]

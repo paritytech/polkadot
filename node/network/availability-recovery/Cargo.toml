@@ -1,15 +1,15 @@
 [package]
 name = "polkadot-availability-recovery"
-version = "0.9.9"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 futures = "0.3.17"
-lru = "0.6.6"
+lru = "0.7.0"
 rand = "0.8.3"
-thiserror = "1.0.26"
-tracing = "0.1.28"
+thiserror = "1.0.30"
+tracing = "0.1.29"
 
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-primitives = { path = "../../../primitives" }
@@ -17,7 +17,7 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
-parity-scale-codec = { version = "2.3.0", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
