@@ -180,12 +180,15 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 /// Run a function with an `OverlayedBackend` if the function succeeds, write the overlay to the
 /// backend.
-pub async fn with_overlayed_backend<B, F, R, E, Fut>(backend: &mut B, f: F) -> std::result::Result<R, E>
+pub async fn with_overlayed_backend<B, F, R, E, Fut>(
+	backend: &mut B,
+	f: F,
+) -> std::result::Result<R, E>
 where
-B: Backend,
-F: FnOnce(&mut OverlayedBackend<B>) -> Fut,
-Fut: Future< Output = std::result::Result<R, E>> {
-
+	B: Backend,
+	F: FnOnce(&mut OverlayedBackend<B>) -> Fut,
+	Fut: Future<Output = std::result::Result<R, E>>,
+{
 	let mut overlay_db = OverlayedBackend::new(backend);
 
 	let r = f(&mut overlay_db).await?;

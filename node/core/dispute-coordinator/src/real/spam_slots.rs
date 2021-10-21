@@ -55,9 +55,7 @@ impl SpamSlots {
 	/// Recover `SpamSlots` from state on startup.
 	///
 	/// Initialize based on already existing active disputes.
-	pub fn recover_from_state(
-		unconfirmed_disputes: UnconfirmedDisputes,
-	) -> Self {
+	pub fn recover_from_state(unconfirmed_disputes: UnconfirmedDisputes) -> Self {
 		let mut slots: HashMap<(SessionIndex, ValidatorIndex), SpamCount> = HashMap::new();
 		for ((session, candidate), validators) in unconfirmed_disputes.iter() {
 			for validator in validators {

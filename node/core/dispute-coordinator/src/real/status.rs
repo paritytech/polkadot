@@ -65,7 +65,9 @@ impl DisputeStatus {
 	/// Check whether the dispute is not a spam dispute.
 	pub fn is_confirmed_concluded(&self) -> bool {
 		match self {
-			&DisputeStatus::Confirmed | &DisputeStatus::ConcludedFor(_) | DisputeStatus::ConcludedAgainst(_) => true,
+			&DisputeStatus::Confirmed |
+			&DisputeStatus::ConcludedFor(_) |
+			DisputeStatus::ConcludedAgainst(_) => true,
 			&DisputeStatus::Active => false,
 		}
 	}
@@ -84,7 +86,8 @@ impl DisputeStatus {
 	/// This may be a no-op if the status was already concluded.
 	pub fn concluded_against(self, now: Timestamp) -> DisputeStatus {
 		match self {
-			DisputeStatus::Active | DisputeStatus::Confirmed => DisputeStatus::ConcludedAgainst(now),
+			DisputeStatus::Active | DisputeStatus::Confirmed =>
+				DisputeStatus::ConcludedAgainst(now),
 			DisputeStatus::ConcludedFor(at) =>
 				DisputeStatus::ConcludedAgainst(std::cmp::min(at, now)),
 			DisputeStatus::ConcludedAgainst(at) =>
@@ -95,7 +98,9 @@ impl DisputeStatus {
 	/// Whether the disputed candidate is possibly invalid.
 	pub fn is_possibly_invalid(&self) -> bool {
 		match self {
-			DisputeStatus::Active | DisputeStatus:: Confirmed | DisputeStatus::ConcludedAgainst(_) => true,
+			DisputeStatus::Active |
+			DisputeStatus::Confirmed |
+			DisputeStatus::ConcludedAgainst(_) => true,
 			DisputeStatus::ConcludedFor(_) => false,
 		}
 	}
@@ -122,16 +127,13 @@ pub fn get_active(
 	recent_disputes: RecentDisputes,
 	now: Timestamp,
 ) -> impl Iterator<Item = ((SessionIndex, CandidateHash), DisputeStatus)> {
-	recent_disputes
-		.iter()
-		.filter_map(|(disputed, status)| {
-			status
-				.concluded_at()
-				.filter(|at| at + ACTIVE_DURATION_SECS < now)
-				.map_or(Some((*disputed, status)), |_| None)
-		})
+	recent_disputes.iter().filter_map(|(disputed, status)| {
+		status
+			.concluded_at()
+			.filter(|at| at + ACTIVE_DURATION_SECS < now)
+			.map_or(Some((*disputed, status)), |_| None)
+	})
 }
-
 
 pub trait Clock: Send + Sync {
 	fn now(&self) -> Timestamp;

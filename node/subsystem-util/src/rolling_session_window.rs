@@ -19,8 +19,8 @@
 //! This is useful for consensus components which need to stay up-to-date about recent sessions but don't
 //! care about the state of particular blocks.
 
+pub use polkadot_node_primitives::{new_session_window_size, SessionWindowSize};
 use polkadot_primitives::v1::{Hash, SessionIndex, SessionInfo};
-pub use polkadot_node_primitives::{SessionWindowSize, new_session_window_size};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{

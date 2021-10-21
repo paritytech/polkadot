@@ -65,7 +65,6 @@ pub struct Participation {
 	recent_block: Option<(BlockNumber, Hash)>,
 }
 
-
 /// Message from worker tasks.
 pub struct WorkerMessage(ParticipationStatement);
 

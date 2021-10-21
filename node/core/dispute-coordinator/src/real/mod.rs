@@ -25,7 +25,11 @@
 //! another node, this will trigger the dispute participation subsystem to recover and validate the block and call
 //! back to this subsystem.
 
-use std::{collections::{HashMap, HashSet}, sync::Arc, time::{SystemTime, UNIX_EPOCH}};
+use std::{
+	collections::{HashMap, HashSet},
+	sync::Arc,
+	time::{SystemTime, UNIX_EPOCH},
+};
 
 use bitvec::order;
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
@@ -35,11 +39,17 @@ use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
 	DISPUTE_WINDOW,
 };
-use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError, messages::{
+use polkadot_node_subsystem::{
+	messages::{
 		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		DisputeParticipationMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
-	}, overseer};
-use polkadot_node_subsystem_util::rolling_session_window::{self, RollingSessionWindow, SessionWindowUpdate};
+	},
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	SubsystemContext, SubsystemError,
+};
+use polkadot_node_subsystem_util::rolling_session_window::{
+	self, RollingSessionWindow, SessionWindowUpdate,
+};
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
@@ -52,12 +62,18 @@ use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
 use error::{FatalResult, Result};
 
-use self::{backend::with_overlayed_backend, error::{Error, NonFatal, log_error}, ordering::CandidateComparator, participation::ParticipationRequest, spam_slots::{SpamSlots, UnconfirmedDisputes}, status::{SystemClock, get_active}};
+use self::{
+	backend::with_overlayed_backend,
+	error::{log_error, Error, NonFatal},
+	ordering::CandidateComparator,
+	participation::ParticipationRequest,
+	spam_slots::{SpamSlots, UnconfirmedDisputes},
+	status::{get_active, SystemClock},
+};
 
 mod backend;
 mod db;
 mod error;
-
 
 /// Subsystem after receiving the first active leaf.
 mod initialized;
@@ -127,16 +143,16 @@ where
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let backend = DbBackend::new(self.store.clone(), self.config.column_config());
 		let future = async {
-
 			let (participations, initialized) = self
 				.initialize(ctx, backend, Box::new(SystemClock))
 				.await
 				.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))?;
 
-			initialized.run(self, ctx, backend, Box::new(SystemClock)).await
-			.await
-			.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
-
+			initialized
+				.run(self, ctx, backend, Box::new(SystemClock))
+				.await
+				.await
+				.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
 		}
 		.boxed();
 
@@ -152,12 +168,7 @@ impl DisputeCoordinatorSubsystem {
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,
 	) -> Self {
-		Self {
-			store,
-			config,
-			keystore,
-			metrics,
-		}
+		Self { store, config, keystore, metrics }
 	}
 
 	/// Make sure to recover participations properly on startup.
@@ -172,32 +183,42 @@ impl DisputeCoordinatorSubsystem {
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend,
 	{
-		 loop {
-			 let (first_leaf, rolling_session_window) =
-				 match get_rolling_session_window(&mut ctx).await {
+		loop {
+			let (first_leaf, rolling_session_window) =
+				match get_rolling_session_window(&mut ctx).await {
 					Ok(Some(update)) => update,
-					Ok(None) =>  {
+					Ok(None) => {
 						tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 						return Ok(())
-					}
+					},
 					Err(Error::Fatal(f)) => return Err(f),
 					Err(Error::NonFatal(e)) => {
 						e.log();
 						continue
-					}
+					},
 				};
-			 let r = with_overlayed_backend(&mut backend, |overlay_db|
+			let r = with_overlayed_backend(&mut backend, |overlay_db| {
 				self.handle_startup(&mut ctx, first_leaf, &rolling_session_window, overlay_db)
-			 ).await;
-			 let (participations, spam_slots, ordering_provider) = match r {
-				 Ok(v) => v,
-				 Err(Error::Fatal(f)) => return Err(f),
-				 Err(Error::NonFatal(e)) => {
-					 e.log();
-					 continue
-				 }
-			 };
-			 return Ok((participations, Initialized::new(self, first_leaf, rolling_session_window, spam_slots, ordering_provider)))
+			})
+			.await;
+			let (participations, spam_slots, ordering_provider) = match r {
+				Ok(v) => v,
+				Err(Error::Fatal(f)) => return Err(f),
+				Err(Error::NonFatal(e)) => {
+					e.log();
+					continue
+				},
+			};
+			return Ok((
+				participations,
+				Initialized::new(
+					self,
+					first_leaf,
+					rolling_session_window,
+					spam_slots,
+					ordering_provider,
+				),
+			))
 		}
 	}
 
@@ -286,28 +307,33 @@ impl DisputeCoordinatorSubsystem {
 							.map_or(false, |v| v.is_some())
 				});
 
-			let candidate_comparator = ordering_provider.candidate_comparator(&votes.candidate_receipt);
+			let candidate_comparator =
+				ordering_provider.candidate_comparator(&votes.candidate_receipt);
 			let is_included = candidate_comparator.is_some();
 
 			if !status.is_confirmed_concluded() && !is_included {
-				unconfirmed_disputes.insert((session, *candidate_hash) , voted_indices);
+				unconfirmed_disputes.insert((session, *candidate_hash), voted_indices);
 			}
 
 			// Send a `DisputeParticipationMessage` for all non-concluded disputes which do not have a
 			// recorded local statement.
 			if missing_local_statement {
 				participation_requests.push((
-						candidate_comparator,
-						ParticipationRequest::new(
-							votes.candidates_receipt.clone(),
-							session,
-							n_validators as u32,
-						)
+					candidate_comparator,
+					ParticipationRequest::new(
+						votes.candidates_receipt.clone(),
+						session,
+						n_validators as u32,
+					),
 				));
 			}
 		}
 
-		Ok((participation_requests, SpamSlots::recover_from_state(unconfirmed_disputes), ordering_provider))
+		Ok((
+			participation_requests,
+			SpamSlots::recover_from_state(unconfirmed_disputes),
+			ordering_provider,
+		))
 	}
 }
 
@@ -327,9 +353,7 @@ where
 }
 
 /// Wait for `ActiveLeavesUpdate`, returns `None` if `Conclude` signal came first.
-async fn wait_for_first_leaf<B, Context>(
-	ctx: &mut Context,
-) -> Result<Option<ActivatedLeaf>>
+async fn wait_for_first_leaf<B, Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>>
 where
 	Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 	Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
@@ -344,11 +368,11 @@ where
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
 			FromOverseer::Communication { msg } =>
-				// Note: It seems we really should not receive any messages before the first
-				// `ActiveLeavesUpdate`, if that proves wrong over time and we do receive
-				// messages before the first `ActiveLeavesUpdate` that should not be dropped,
-				// this can easily be fixed by collecting those messages and passing them on to
-				// `Initialized::new()`.
+			// Note: It seems we really should not receive any messages before the first
+			// `ActiveLeavesUpdate`, if that proves wrong over time and we do receive
+			// messages before the first `ActiveLeavesUpdate` that should not be dropped,
+			// this can easily be fixed by collecting those messages and passing them on to
+			// `Initialized::new()`.
 				tracing::warn!(
 					target: LOG_TARGET,
 					?msg,
@@ -357,4 +381,3 @@ where
 		}
 	}
 }
-

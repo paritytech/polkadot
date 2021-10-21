@@ -93,15 +93,13 @@ impl Ord for CandidateComparator {
 
 impl OrderingProvider {
 	/// Create a properly initialized `OrderingProvider`.
-	pub async fn new<Sender: SubsystemSender>(sender: &mut Sender, initial_head: ActivatedLeaf) -> Result<Self> {
-		let s = Self {
-			cached_comparators: HashMap::new(),
-			candidates_by_relay_chain: HashMap::new(),
-		};
-		let update = ActiveLeavesUpdate {
-			activated: initial_head,
-			deactivated: Vec::new()
-		};
+	pub async fn new<Sender: SubsystemSender>(
+		sender: &mut Sender,
+		initial_head: ActivatedLeaf,
+	) -> Result<Self> {
+		let s =
+			Self { cached_comparators: HashMap::new(), candidates_by_relay_chain: HashMap::new() };
+		let update = ActiveLeavesUpdate { activated: initial_head, deactivated: Vec::new() };
 		s.process_active_leaves_update(sender, &update)?;
 		Ok(s)
 	}

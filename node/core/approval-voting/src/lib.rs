@@ -44,9 +44,9 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
-	new_session_window_size,
 	rolling_session_window::{
-		RollingSessionWindow, SessionWindowSize, SessionWindowUpdate, SessionsUnavailable,
+		new_session_window_size, RollingSessionWindow, SessionWindowSize, SessionWindowUpdate,
+		SessionsUnavailable,
 	},
 	TimeoutExt,
 };
