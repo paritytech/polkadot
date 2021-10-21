@@ -45,18 +45,21 @@ pub struct SpamSlots {
 	slots: HashMap<(SessionIndex, ValidatorIndex), SpamCount>,
 
 	/// All unconfirmed candidates we are aware of right now.
-	unconfirmed_candidates: HashMap<(SessionIndex, CandidateHash), HashSet<ValidatorIndex>>,
+	unconfirmed: UnconfirmedDisputes,
 }
+
+/// Unconfirmed disputes to be passed at initialization.
+pub type UnconfirmedDisputes = HashMap<(SessionIndex, CandidateHash), HashSet<ValidatorIndex>>;
 
 impl SpamSlots {
 	/// Recover `SpamSlots` from state on startup.
 	///
 	/// Initialize based on already existing active disputes.
 	pub fn recover_from_state(
-		active_disputes: HashMap<(SessionIndex, CandidateHash), HashSet<ValidatorIndex>>,
+		unconfirmed_disputes: UnconfirmedDisputes,
 	) -> Self {
 		let mut slots: HashMap<(SessionIndex, ValidatorIndex), SpamCount> = HashMap::new();
-		for ((session, candidate), validators) in active_disputes.iter() {
+		for ((session, candidate), validators) in unconfirmed_disputes.iter() {
 			for validator in validators {
 				let e = slots.entry((*session, *validator)).or_default();
 				*e += 1;
@@ -72,7 +75,7 @@ impl SpamSlots {
 			}
 		}
 
-		Self { slots, unconfirmed_candidates: active_disputes }
+		Self { slots, unconfirmed: unconfirmed_disputes }
 	}
 
 	/// Add an unconfirmed dispute if free slots are available.
@@ -87,7 +90,7 @@ impl SpamSlots {
 			return false
 		}
 		*c += 1;
-		let validators = self.unconfirmed_candidates.entry((session, candidate)).or_default();
+		let validators = self.unconfirmed.entry((session, candidate)).or_default();
 		validators.insert(validator);
 		true
 	}
@@ -98,7 +101,7 @@ impl SpamSlots {
 	/// for that candidate. You should call this function once a dispute became obsolete or got
 	/// confirmed and thus votes for it should no longer be treated as potential spam.
 	pub fn clear(&mut self, key: &(SessionIndex, CandidateHash)) {
-		if let Some(validators) = self.unconfirmed_candidates.remove(key) {
+		if let Some(validators) = self.unconfirmed.remove(key) {
 			let (session, candidate) = key;
 			for validator in validators {
 				if let Some(c) = self.slots.remove(&(*session, validator)) {

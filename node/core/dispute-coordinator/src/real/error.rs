@@ -21,7 +21,7 @@ use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	SubsystemError,
 };
-use polkadot_node_subsystem_util::runtime;
+use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
 
 use super::db;
 use crate::real::{CodecError, LOG_TARGET};
@@ -99,6 +99,10 @@ pub enum NonFatal {
 	#[error(transparent)]
 	Codec(#[from] CodecError),
 
+	/// `RollingSessionWindow` was not able to retrieve session infos.
+	#[error(transparent)]
+	RollingSessionWindow(#[from] SessionsUnavailable),
+
 	/// Errors coming from runtime::Runtime.
 	#[error("Error while accessing runtime information: {0}")]
 	Runtime(#[from] runtime::NonFatal),
@@ -121,15 +125,22 @@ pub fn log_error(result: Result<()>) -> std::result::Result<(), Fatal> {
 	match result {
 		Err(Error::Fatal(f)) => Err(f),
 		Err(Error::NonFatal(error)) => {
-			match error {
-				// don't spam the log with spurious errors
-				NonFatal::RuntimeApi(_) | NonFatal::Oneshot(_) =>
-					tracing::debug!(target: LOG_TARGET, ?error),
-				// it's worth reporting otherwise
-				_ => tracing::warn!(target: LOG_TARGET, ?error),
-			}
+			error.log();
 			Ok(())
 		},
 		Ok(()) => Ok(()),
+	}
+}
+
+impl NonFatal {
+	/// Log a `NonFatal`.
+	pub fn log(self) {
+		match self {
+			// don't spam the log with spurious errors
+			Self::RuntimeApi(_) | Self::Oneshot(_) =>
+				tracing::debug!(target: LOG_TARGET, error = ?self),
+				// it's worth reporting otherwise
+			_ => tracing::warn!(target: LOG_TARGET, error = ?self),
+		}
 	}
 }

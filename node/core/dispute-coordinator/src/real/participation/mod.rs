@@ -54,19 +54,26 @@ const MAX_PARALLEL_PARTICIPATIONS: usize = 3;
 ///
 /// - Prioritize and queue participations
 /// - Dequeue participation requests in order and launch participation worker.
-struct Participation {
+pub struct Participation {
 	/// Participations currently being processed.
 	running_participations: HashSet<CandidateHash>,
 	/// Priority and best effort queues.
 	queue: Queues,
 	/// Sender to be passed to worker tasks.
-	worker_sender: mpsc::Sender<WorkerMessage>,
+	worker_sender: WorkerMessageSender,
 	/// Some recent block for retrieving validation code from chain.
 	recent_block: Option<(BlockNumber, Hash)>,
 }
 
+
 /// Message from worker tasks.
 pub struct WorkerMessage(ParticipationStatement);
+
+/// Sender use by worker tasks.
+pub type WorkerMessageSender = mpsc::Sender<WorkerMessage>;
+
+/// Receiver to receive messages from worker tasks.
+pub type WorkerMessageReceiver = mpsc::Receiver<WorkerMessage>;
 
 /// Statement as result of the validation process.
 struct ParticipationStatement {
@@ -106,7 +113,7 @@ impl Participation {
 	/// The passed in sender will be used by background workers to communicate back their results.
 	/// The calling context should make sure to call `Participation::on_worker_message()` for the
 	/// received messages.
-	pub fn new(sender: mpsc::Sender<WorkerMessage>) -> Self {
+	pub fn new(sender: WorkerMessageSender) -> Self {
 		Self {
 			running_participations: HashSet::new(),
 			queue: Queues::new(),
@@ -221,7 +228,7 @@ impl Participation {
 }
 
 async fn participate(
-	mut result_sender: mpsc::Sender<WorkerMessage>,
+	mut result_sender: WorkerMessageSender,
 	mut sender: impl SubsystemSender,
 	block_hash: Hash,
 	req: ParticipationRequest,
@@ -417,7 +424,7 @@ async fn participate(
 
 /// Helper function for sending the result back and report any error.
 async fn send_result(
-	sender: &mut mpsc::Sender<WorkerMessage>,
+	sender: &mut WorkerMessageSender,
 	req: ParticipationRequest,
 	outcome: ParticipationOutcome,
 ) {

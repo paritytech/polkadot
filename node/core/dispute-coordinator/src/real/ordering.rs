@@ -19,7 +19,7 @@ use std::{
 	collections::{HashMap, HashSet},
 };
 
-use polkadot_node_subsystem::{ActiveLeavesUpdate, SubsystemSender};
+use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender};
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Id,
@@ -92,6 +92,20 @@ impl Ord for CandidateComparator {
 }
 
 impl OrderingProvider {
+	/// Create a properly initialized `OrderingProvider`.
+	pub async fn new<Sender: SubsystemSender>(sender: &mut Sender, initial_head: ActivatedLeaf) -> Result<Self> {
+		let s = Self {
+			cached_comparators: HashMap::new(),
+			candidates_by_relay_chain: HashMap::new(),
+		};
+		let update = ActiveLeavesUpdate {
+			activated: initial_head,
+			deactivated: Vec::new()
+		};
+		s.process_active_leaves_update(sender, &update)?;
+		Ok(s)
+	}
+
 	/// Check whether a candidate is included on chains known to this node.
 	pub async fn is_known_included(&mut self, candidate: &CandidateReceipt) -> bool {
 		self.cached_comparators.contains_key(&candidate.hash())
@@ -101,7 +115,7 @@ impl OrderingProvider {
 	///
 	/// If not available, we can treat disputes concerning this candidate with low priority and
 	/// should use spam slots for such disputes.
-	pub async fn candidate_comparator<'a>(
+	pub fn candidate_comparator<'a>(
 		&'a mut self,
 		candidate: &CandidateReceipt,
 	) -> Option<&'a CandidateComparator> {
