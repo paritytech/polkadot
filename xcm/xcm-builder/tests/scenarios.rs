@@ -21,7 +21,7 @@ use mock::{
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
-use xcm::latest::prelude::*;
+use xcm::latest::{QueryResponseInfo, prelude::*};
 use xcm_executor::XcmExecutor;
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
@@ -82,9 +82,12 @@ fn query_holding_works() {
 	kusama_like_with_balances(balances).execute_with(|| {
 		let other_para_id = 3000;
 		let amount = REGISTER_AMOUNT;
-		let query_id = 1234;
 		let weight = 4 * BaseXcmWeight::get();
-		let max_response_weight = 1_000_000_000;
+		let response_info = QueryResponseInfo {
+			destination: Parachain(PARA_ID).into(),
+			query_id: 1234,
+			max_weight: 1_000_000_000,
+		};
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
 			Parachain(PARA_ID).into(),
 			Xcm(vec![
@@ -96,12 +99,7 @@ fn query_holding_works() {
 					beneficiary: OnlyChild.into(), // invalid destination
 				},
 				// is not triggered becasue the deposit fails
-				QueryHolding {
-					query_id,
-					dest: Parachain(PARA_ID).into(),
-					assets: All.into(),
-					max_response_weight,
-				},
+				ReportHolding { response_info: response_info.clone(), assets: All.into() },
 			]),
 			weight,
 		);
@@ -128,12 +126,7 @@ fn query_holding_works() {
 					beneficiary: Parachain(other_para_id).into(),
 				},
 				// used to get a notification in case of success
-				QueryHolding {
-					query_id,
-					dest: Parachain(PARA_ID).into(),
-					assets: All.into(),
-					max_response_weight: 1_000_000_000,
-				},
+				ReportHolding { response_info: response_info.clone(), assets: All.into() },
 			]),
 			weight,
 		);
@@ -146,9 +139,9 @@ fn query_holding_works() {
 			vec![(
 				Parachain(PARA_ID).into(),
 				Xcm(vec![QueryResponse {
-					query_id,
+					query_id: response_info.query_id,
 					response: Response::Assets(vec![].into()),
-					max_weight: 1_000_000_000,
+					max_weight: response_info.max_weight,
 				}]),
 			)]
 		);

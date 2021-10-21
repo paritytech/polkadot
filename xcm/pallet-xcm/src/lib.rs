@@ -40,6 +40,7 @@ use sp_std::{
 };
 use xcm::prelude::*;
 use xcm_executor::traits::ConvertOrigin;
+use xcm::latest::QueryResponseInfo;
 
 use frame_support::PalletId;
 pub use pallet::*;
@@ -970,10 +971,11 @@ pub mod pallet {
 			timeout: T::BlockNumber,
 		) -> Result<QueryId, XcmError> {
 			let responder = responder.into();
-			let dest = T::LocationInverter::invert_location(&responder)
+			let destination = T::LocationInverter::invert_location(&responder)
 				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 			let query_id = Self::new_query(responder, timeout);
-			let report_error = Xcm(vec![ReportError { dest, query_id, max_response_weight: 0 }]);
+			let response_info = QueryResponseInfo { destination, query_id, max_weight: 0 };
+			let report_error = Xcm(vec![ReportError(response_info)]);
 			message.0.insert(0, SetAppendix(report_error));
 			Ok(query_id)
 		}
@@ -1005,12 +1007,13 @@ pub mod pallet {
 			timeout: T::BlockNumber,
 		) -> Result<(), XcmError> {
 			let responder = responder.into();
-			let dest = T::LocationInverter::invert_location(&responder)
+			let destination = T::LocationInverter::invert_location(&responder)
 				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
 			let notify: <T as Config>::Call = notify.into();
-			let max_response_weight = notify.get_dispatch_info().weight;
+			let max_weight = notify.get_dispatch_info().weight;
 			let query_id = Self::new_notify_query(responder, notify, timeout);
-			let report_error = Xcm(vec![ReportError { dest, query_id, max_response_weight }]);
+			let response_info = QueryResponseInfo { destination, query_id, max_weight };
+			let report_error = Xcm(vec![ReportError(response_info)]);
 			message.0.insert(0, SetAppendix(report_error));
 			Ok(())
 		}

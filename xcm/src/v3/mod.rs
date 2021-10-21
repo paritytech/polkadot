@@ -826,7 +826,7 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			InitiateReserveWithdraw { assets, reserve, xcm } =>
 				W::initiate_reserve_withdraw(assets, reserve, xcm),
 			InitiateTeleport { assets, dest, xcm } => W::initiate_teleport(assets, dest, xcm),
-			ReportHolding { response_info: QueryResponseInfo, assets } =>
+			ReportHolding { response_info, assets } =>
 				W::report_holding(&response_info, &assets),
 			BuyExecution { fees, weight_limit } => W::buy_execution(fees, weight_limit),
 			RefundSurplus => W::refund_surplus(),
@@ -922,7 +922,7 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				Self::InitiateReserveWithdraw { assets, reserve, xcm: xcm.try_into()? },
 			InitiateTeleport { assets, dest, xcm } =>
 				Self::InitiateTeleport { assets, dest, xcm: xcm.try_into()? },
-			ReportHolding { query_id, dest, assets, max_response_weight } => {
+			QueryHolding { query_id, dest, assets, max_response_weight } => {
 				let response_info = QueryResponseInfo {
 					destination: dest,
 					query_id,

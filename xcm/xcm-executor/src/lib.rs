@@ -388,8 +388,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
-			ReportHolding { response_info: QueryResponseInfo, assets } => {
-				let assets = Self::reanchored(self.holding.min(&assets), &dest)?;
+			ReportHolding { response_info, assets } => {
+				let assets = Self::reanchored(self.holding.min(&assets), &response_info.destination)?;
 				Self::respond(Response::Assets(assets), response_info)
 			},
 			BuyExecution { fees, weight_limit } => {
@@ -516,7 +516,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	fn respond(response: Response, info: QueryResponseInfo) -> Result<(), XcmError> {
 		let QueryResponseInfo { destination, query_id, max_weight } = info;
 		let instruction = QueryResponse { query_id, response, max_weight };
-		let message = Xcm([instruction]);
+		let message = Xcm(vec![instruction]);
 		Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
 	}
 
