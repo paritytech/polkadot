@@ -29,8 +29,6 @@ use async_std::{
 	os::unix::net::UnixStream,
 	path::{Path, PathBuf},
 };
-use futures::FutureExt as _;
-use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
 use std::{sync::Arc, time::Duration};
