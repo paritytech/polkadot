@@ -16,10 +16,11 @@
 
 //! A queue that handles requests for PVF preparation.
 
-use super::pool::{self, Worker};
-use crate::{
-	artifacts::ArtifactId, error::PrepareError, metrics::Metrics, Priority, Pvf, LOG_TARGET,
+use super::{
+	pool::{self, Worker},
+	PrepareResult,
 };
+use crate::{artifacts::ArtifactId, metrics::Metrics, Priority, Pvf, LOG_TARGET};
 use always_assert::{always, never};
 use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
@@ -44,8 +45,9 @@ pub struct FromQueue {
 	/// Identifier of an artifact.
 	pub(crate) artifact_id: ArtifactId,
 	/// Outcome of the PVF processing. [`Ok`] indicates that compiled artifact
-	/// is successfully stored on disk. Otherwise, an [error](PrepareError) is supplied.
-	pub(crate) result: Result<(), PrepareError>,
+	/// is successfully stored on disk. Otherwise, an [error](crate::error::PrepareError)
+	/// is supplied.
+	pub(crate) result: PrepareResult,
 }
 
 #[derive(Default)]
@@ -327,7 +329,7 @@ async fn handle_worker_concluded(
 	queue: &mut Queue,
 	worker: Worker,
 	rip: bool,
-	result: Result<(), PrepareError>,
+	result: PrepareResult,
 ) -> Result<(), Fatal> {
 	queue.metrics.prepare_concluded();
 

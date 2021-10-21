@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::worker::{self, Outcome};
+use super::{
+	worker::{self, Outcome},
+	PrepareResult,
+};
 use crate::{
 	error::PrepareError,
 	metrics::Metrics,
@@ -87,7 +90,7 @@ pub enum FromPool {
 		rip: bool,
 		/// [`Ok`] indicates that compiled artifact is successfully stored on disk.
 		/// Otherwise, an [error](PrepareError) is supplied.
-		result: Result<(), PrepareError>,
+		result: PrepareResult,
 	},
 
 	/// The given worker ceased to exist.
@@ -340,6 +343,15 @@ fn handle_mux(
 							},
 						)?;
 					}
+
+					Ok(())
+				},
+				Outcome::TimedOut => {
+					let rip = attempt_retire(metrics, spawned, worker);
+					reply(
+						from_pool,
+						FromPool::Concluded { worker, rip, result: Err(PrepareError::TimedOut) },
+					)?;
 
 					Ok(())
 				},

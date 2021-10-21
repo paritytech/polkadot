@@ -24,7 +24,7 @@ use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
 	execute,
 	metrics::Metrics,
-	prepare, Priority, Pvf, ValidationError, LOG_TARGET,
+	prepare, PrepareResult, Priority, Pvf, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use async_std::path::{Path, PathBuf};
@@ -41,6 +41,9 @@ use std::{
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
 
+/// Transmission end used for sending the PVF preparation result.
+pub(crate) type PrepareResultSender = oneshot::Sender<prepare::PrepareResult>;
+
 /// A handle to the async process serving the validation host requests.
 #[derive(Clone)]
 pub struct ValidationHost {
@@ -48,6 +51,24 @@ pub struct ValidationHost {
 }
 
 impl ValidationHost {
+	/// Precheck PVF with the given code, i.e. verify that it compiles within a reasonable time limit.
+	/// The result of execution will be sent to the provided result sender.
+	///
+	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// situations this function should return immediately.
+	///
+	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
+	pub async fn precheck_pvf(
+		&mut self,
+		pvf: Pvf,
+		result_tx: PrepareResultSender,
+	) -> Result<(), String> {
+		self.to_host_tx
+			.send(ToHost::PrecheckPvf { pvf, result_tx })
+			.await
+			.map_err(|_| "the inner loop hung up".to_string())
+	}
+
 	/// Execute PVF with the given code, execution timeout, parameters and priority.
 	/// The result of execution will be sent to the provided result sender.
 	///
@@ -84,6 +105,10 @@ impl ValidationHost {
 }
 
 enum ToHost {
+	PrecheckPvf {
+		pvf: Pvf,
+		result_tx: PrepareResultSender,
+	},
 	ExecutePvf {
 		pvf: Pvf,
 		execution_timeout: Duration,
@@ -376,6 +401,9 @@ async fn handle_to_host(
 	to_host: ToHost,
 ) -> Result<(), Fatal> {
 	match to_host {
+		ToHost::PrecheckPvf { pvf, result_tx } => {
+			handle_precheck_pvf(artifacts, prepare_queue, pvf, result_tx).await?;
+		},
 		ToHost::ExecutePvf { pvf, execution_timeout, params, priority, result_tx } => {
 			handle_execute_pvf(
 				cache_path,
@@ -396,6 +424,34 @@ async fn handle_to_host(
 		},
 	}
 
+	Ok(())
+}
+
+async fn handle_precheck_pvf(
+	artifacts: &mut Artifacts,
+	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
+	pvf: Pvf,
+	result_sender: PrepareResultSender,
+) -> Result<(), Fatal> {
+	let artifact_id = pvf.as_artifact_id();
+
+	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
+		match state {
+			ArtifactState::Prepared { last_time_needed } => {
+				*last_time_needed = SystemTime::now();
+				let _ = result_sender.send(Ok(()));
+			},
+			ArtifactState::Preparing { waiting_for_response } =>
+				waiting_for_response.push(result_sender),
+			ArtifactState::FailedToProcess(result) => {
+				let _ = result_sender.send(PrepareResult::Err(result.clone()));
+			},
+		}
+	} else {
+		artifacts.insert_preparing(artifact_id, vec![result_sender]);
+		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf })
+			.await?;
+	}
 	Ok(())
 }
 
@@ -429,7 +485,7 @@ async fn handle_execute_pvf(
 				)
 				.await?;
 			},
-			ArtifactState::Preparing => {
+			ArtifactState::Preparing { waiting_for_response: _ } => {
 				send_prepare(
 					prepare_queue,
 					prepare::ToQueue::Amend { priority, artifact_id: artifact_id.clone() },
@@ -445,7 +501,7 @@ async fn handle_execute_pvf(
 	} else {
 		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
 		//
-		artifacts.insert_preparing(artifact_id.clone());
+		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
 		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
 
 		awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
@@ -468,7 +524,7 @@ async fn handle_heads_up(
 				ArtifactState::Prepared { last_time_needed, .. } => {
 					*last_time_needed = now;
 				},
-				ArtifactState::Preparing => {
+				ArtifactState::Preparing { waiting_for_response: _ } => {
 					// Already preparing. We don't need to send a priority amend either because
 					// it can't get any lower than the background.
 				},
@@ -476,7 +532,7 @@ async fn handle_heads_up(
 			}
 		} else {
 			// The artifact is unknown: register it and put a background job into the prepare queue.
-			artifacts.insert_preparing(artifact_id.clone());
+			artifacts.insert_preparing(artifact_id.clone(), Vec::new());
 
 			send_prepare(
 				prepare_queue,
@@ -524,8 +580,14 @@ async fn handle_prepare_done(
 			never!("the artifact is already processed unsuccessfully: {:?}", artifact_id);
 			return Ok(())
 		},
-		Some(state @ ArtifactState::Preparing) => state,
+		Some(state @ ArtifactState::Preparing { waiting_for_response: _ }) => state,
 	};
+
+	if let ArtifactState::Preparing { waiting_for_response } = state {
+		for result_sender in waiting_for_response.drain(..) {
+			let _ = result_sender.send(result.clone());
+		}
+	}
 
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
