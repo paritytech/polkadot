@@ -23,7 +23,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
 
-use super::db;
+use super::{db, participation};
 use crate::real::{CodecError, LOG_TARGET};
 
 /// Errors for this subsystem.
@@ -73,6 +73,13 @@ pub enum Fatal {
 	/// ctx.spawn failed with an error.
 	#[error("Spawning a task failed: {0}")]
 	SpawnFailed(SubsystemError),
+
+	#[error("Participation worker receiver exhausted.")]
+	ParticipationWorkerReceiverExhausted,
+
+	/// Receiving subsystem message from overseer failed.
+	#[error("Receiving message from overseer failed: {0}")]
+	SubsystemReceive(#[source] SubsystemError),
 }
 
 #[derive(Debug, thiserror::Error)]

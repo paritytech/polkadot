@@ -16,26 +16,33 @@
 
 //! Dispute coordinator subsystem in initialized state (after first active leaf is received).
 
-
-
 use std::{
 	collections::HashSet,
 	sync::Arc,
 	time::{SystemTime, UNIX_EPOCH},
 };
 
-use futures::{FutureExt, TryFutureExt, channel::{mpsc, oneshot}};
+use futures::{
+	channel::{mpsc, oneshot},
+	FutureExt, TryFutureExt,
+};
 use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
 	DISPUTE_WINDOW,
 };
-use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError, messages::{
+use polkadot_node_subsystem::{
+	messages::{
 		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		DisputeParticipationMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
-	}, overseer};
-use polkadot_node_subsystem_util::rolling_session_window::{self, RollingSessionWindow, SessionWindowUpdate};
+	},
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	SubsystemContext, SubsystemError,
+};
+use polkadot_node_subsystem_util::rolling_session_window::{
+	self, RollingSessionWindow, SessionWindowUpdate,
+};
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
@@ -48,9 +55,12 @@ use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
 use error::{FatalResult, Result};
 
-use self::{error::{log_error, NonFatal}, spam_slots::SpamSlots};
+use self::{
+	error::{log_error, NonFatal},
+	spam_slots::SpamSlots,
+};
 
-use super::{ordering::OrderingProvider, participation::{self, Participation, WorkerMessageReceiver, WorkerMessageSender}, spam_slots::SpamSlots};
+use super::{LOG_TARGET, ordering::{OrderingProvider, CandidateComparator}, participation::{self, Participation, WorkerMessageReceiver, WorkerMessageSender, ParticipationRequest}, spam_slots::SpamSlots, status::Clock, error::Fatal};
 
 /// After the first active leaves update we transition to `Initialized` state.
 ///
@@ -71,25 +81,38 @@ pub struct Initialized {
 	metrics: Metrics,
 }
 
-
 impl Initialized {
-	fn new(subsystem: DisputeCoordinatorSubsystem, leaf: ActivatedLeaf, rolling_session_window: RollingSessionWindow, spam_slots: SpamSlots, ordering_provider: OrderingProvider) -> Self {
+	fn new(
+		subsystem: DisputeCoordinatorSubsystem,
+		leaf: ActivatedLeaf,
+		rolling_session_window: RollingSessionWindow,
+		spam_slots: SpamSlots,
+		ordering_provider: OrderingProvider,
+	) -> Self {
 		let DisputeCoordinatorSubsystem { config, store, keystore, metrics } = subsystem;
 
 		let (participation_sender, participation_receiver) = mpsc::channel(1);
 		let participation = Participation::new(participation_sender);
 
 		Self {
-			config, store, keystore, rolling_session_window, highest_session: rolling_session_window.latest_session(),
-			spam_slots, ordering_provider, participation, participation_receiver, metrics,
+			config,
+			store,
+			keystore,
+			rolling_session_window,
+			highest_session: rolling_session_window.latest_session(),
+			spam_slots,
+			ordering_provider,
+			participation,
+			participation_receiver,
+			metrics,
 		}
-
 	}
 
 	async fn run<B, Context>(
 		mut self,
 		mut ctx: Context,
 		mut backend: B,
+        mut participations: Vec<(Option<CandidateComparator>, ParticipationRequest)>,
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
@@ -98,7 +121,7 @@ impl Initialized {
 		B: Backend,
 	{
 		loop {
-			let res = self.run_until_error(&mut ctx, &mut backend, &*clock).await;
+			let res = self.run_until_error(&mut ctx, &mut backend, &mut participations, &*clock).await;
 			if let Ok(()) = res {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				return Ok(())
@@ -116,6 +139,7 @@ impl Initialized {
 		&mut self,
 		ctx: &mut Context,
 		backend: &mut B,
+        participations: &mut Vec<(Option<CandidateComparator>, ParticipationRequest)>,
 		clock: &dyn Clock,
 	) -> Result<()>
 	where
@@ -123,9 +147,15 @@ impl Initialized {
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend,
 	{
+        for (comparator, request) in std::mem::take(participations).into_iter() {
+            self.participation.queue_participation(ctx, comparator, request).await?;
+        }
+
 		loop {
 			let mut overlay_db = OverlayedBackend::new(backend);
-			match ctx.recv().await? {
+			match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
+			}
+			{
 				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
 					self.handle_new_activations(
@@ -135,9 +165,6 @@ impl Initialized {
 						clock.now(),
 					)
 					.await?;
-					if !self.handled_startup {
-						self.handle_startup(ctx, &mut overlay_db).await?;
-					}
 				},
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
 				FromOverseer::Communication { msg } =>
@@ -396,7 +423,7 @@ impl Initialized {
 	}
 
 	async fn handle_incoming(
-        &mut self,
+		&mut self,
 		ctx: &mut impl SubsystemContext,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		message: DisputeCoordinatorMessage,
@@ -410,16 +437,17 @@ impl Initialized {
 				statements,
 				pending_confirmation,
 			} => {
-				let outcome = self.handle_import_statements(
-					ctx,
-					overlay_db,
-					candidate_hash,
-					MaybeCandidateReceipt::Provides(candidate_receipt),
-					session,
-					statements,
-					now,
-				)
-				.await?;
+				let outcome = self
+					.handle_import_statements(
+						ctx,
+						overlay_db,
+						candidate_hash,
+						MaybeCandidateReceipt::Provides(candidate_receipt),
+						session,
+						statements,
+						now,
+					)
+					.await?;
 				pending_confirmation
 					.send(outcome)
 					.map_err(|_| NonFatal::DisputeImportOneshotSend)?;
@@ -792,6 +820,31 @@ impl Initialized {
 	}
 }
 
+/// Messages to be handled in this subsystem.
+#[derive(Debug)]
+enum MuxedMessage {
+	/// Messages from other subsystems.
+	Subsystem(FromOverseer<DisputeDistributionMessage>),
+	/// Messages from participation workers.
+	Participation(participation::WorkerMessage),
+}
+
+impl MuxedMessage {
+	async fn receive(
+		ctx: &mut (impl SubsystemContext<Message = DisputeDistributionMessage>
+		          + overseer::SubsystemContext<Message = DisputeDistributionMessage>),
+		from_sender: &mut participation::WorkerMessageReceiver,
+	) -> FatalResult<Self> {
+		// We are only fusing here to make `select` happy, in reality we will quit if the stream
+		// ends.
+		let from_overseer = ctx.recv().fuse();
+		futures::pin_mut!(from_overseer, from_sender);
+		futures::select!(
+			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(Fatal::SubsystemReceive)?),
+			msg = from_sender.next() => MuxedMessage::Sender(msg.ok_or(Fatal::ParticipationWorkerReceiverExhausted)?),
+		)
+	}
+}
 
 fn insert_into_statement_vec<T>(
 	vec: &mut Vec<(T, ValidatorIndex, ValidatorSignature)>,

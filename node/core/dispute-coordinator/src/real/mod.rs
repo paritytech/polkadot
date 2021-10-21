@@ -149,7 +149,7 @@ where
 				.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))?;
 
 			initialized
-				.run(self, ctx, backend, Box::new(SystemClock))
+				.run(self, ctx, backend, participations, Box::new(SystemClock))
 				.await
 				.await
 				.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
@@ -177,7 +177,7 @@ impl DisputeCoordinatorSubsystem {
 		mut ctx: Context,
 		mut backend: B,
 		clock: Box<dyn Clock>,
-	) -> FatalResult<(Vec<(CandidateComparator, ParticipationRequest)>, Initialized)>
+	) -> FatalResult<(Vec<(Option<CandidateComparator>, ParticipationRequest)>, Initialized)>
 	where
 		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
@@ -234,7 +234,7 @@ impl DisputeCoordinatorSubsystem {
 		rolling_session_window: &RollingSessionWindow,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		clock: &dyn Clock,
-	) -> Result<(Vec<(CandidateComparator, ParticipationRequest)>, SpamSlots, OrderingProvider)>
+	) -> Result<(Vec<(Option<CandidateComparator>, ParticipationRequest)>, SpamSlots, OrderingProvider)>
 	where
 		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
