@@ -25,35 +25,35 @@ rialto-runtime = { path = "../runtime" }
 # Substrate Dependencies
 
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
-node-inspect = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["wasmtime"] }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+node-inspect = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-cli = { git = "https://github.com/paritytech/substrate", features = ["wasmtime"] , branch = "kpp-libp2p-0.40.0-rc1" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
 
 [features]
 default = []

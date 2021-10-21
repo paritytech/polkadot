@@ -14,16 +14,16 @@ scale-info = { version = "1.0", default-features = false, features = ["derive"] 
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.40.0-rc1" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.40.0-rc1" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.40.0-rc1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.40.0-rc1" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.40.0-rc1" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.40.0-rc1" }
+sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "kpp-libp2p-0.40.0-rc1" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
 
 
 [features]

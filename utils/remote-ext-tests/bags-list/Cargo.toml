@@ -8,17 +8,17 @@ edition = "2018"
 polkadot-runtime = { version = "0.9.8", path = "../../../runtime/polkadot" }
 kusama-runtime = { version = "0.9.8", path = "../../../runtime/kusama" }
 
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
 tokio = { version = "1", features = ["macros"] }
 log = { version = "0.4.14" }
 structopt = {version = "0.3.25" }

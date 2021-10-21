@@ -24,9 +24,9 @@ pallet-bridge-dispatch = { path = "../../modules/dispatch" }
 pallet-bridge-messages = { path = "../../modules/messages" }
 
 # Substrate Dependencies
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "kpp-libp2p-0.40.0-rc1" }
