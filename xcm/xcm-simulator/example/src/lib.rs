@@ -106,7 +106,7 @@ mod tests {
 
 	use codec::Encode;
 	use frame_support::assert_ok;
-	use xcm::latest::{QueryResponseInfo, prelude::*};
+	use xcm::latest::{prelude::*, QueryResponseInfo};
 	use xcm_simulator::TestExt;
 
 	// Helper function for forming buy execution message
@@ -240,10 +240,7 @@ mod tests {
 			let message = Xcm(vec![
 				WithdrawAsset((Here, send_amount).into()),
 				buy_execution((Here, send_amount)),
-				DepositAsset {
-					assets: AllCounted(1).into(),
-					beneficiary: Parachain(2).into(),
-				},
+				DepositAsset { assets: AllCounted(1).into(), beneficiary: Parachain(2).into() },
 			]);
 			// Send withdraw and deposit
 			assert_ok!(ParachainPalletXcm::send_xcm(Here, Parent, message.clone()));
@@ -275,10 +272,7 @@ mod tests {
 			let message = Xcm(vec![
 				WithdrawAsset((Here, send_amount).into()),
 				buy_execution((Here, send_amount)),
-				DepositAsset {
-					assets: AllCounted(1).into(),
-					beneficiary: Parachain(2).into(),
-				},
+				DepositAsset { assets: AllCounted(1).into(), beneficiary: Parachain(2).into() },
 				ReportHolding {
 					response_info: QueryResponseInfo {
 						destination: Parachain(1).into(),

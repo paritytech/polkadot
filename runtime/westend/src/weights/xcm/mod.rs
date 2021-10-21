@@ -124,10 +124,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		XcmGeneric::<Runtime>::relayed_from()
 	}
 
-	fn deposit_asset(
-		assets: &MultiAssetFilter,
-		_dest: &MultiLocation,
-	) -> Weight {
+	fn deposit_asset(assets: &MultiAssetFilter, _dest: &MultiLocation) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::deposit_asset())
 	}
 	fn deposit_reserve_asset(
@@ -154,10 +151,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::initiate_teleport())
 	}
-	fn report_holding(
-		_response_info: &QueryResponseInfo,
-		_assets: &MultiAssetFilter,
-	) -> Weight {
+	fn report_holding(_response_info: &QueryResponseInfo, _assets: &MultiAssetFilter) -> Weight {
 		XcmGeneric::<Runtime>::report_holding()
 	}
 	fn buy_execution(_fees: &MultiAsset, _weight_limit: &WeightLimit) -> Weight {

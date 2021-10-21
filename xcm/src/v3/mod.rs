@@ -767,7 +767,8 @@ impl<Call> Instruction<Call> {
 			ExpectAsset(assets) => ExpectAsset(assets),
 			ExpectOrigin(origin) => ExpectOrigin(origin),
 			ExpectError(error) => ExpectError(error),
-			QueryPallet { module_name, response_info } => QueryPallet { module_name, response_info },
+			QueryPallet { module_name, response_info } =>
+				QueryPallet { module_name, response_info },
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
 				ExpectPallet { index, name, module_name, crate_major, min_crate_minor },
 			ReportTransactStatus(repsonse_info) => ReportTransactStatus(repsonse_info),
