@@ -23,10 +23,8 @@
 //! - `MultiAssetFilter`: A combination of `Wild` and `MultiAssets` designed for efficiently filtering an XCM holding
 //!   account.
 
-use crate::v3::{
-	MultiAssetFilter as NewMultiAssetFilter, WildMultiAsset as NewWildMultiAsset,
-};
 use super::MultiLocation;
+use crate::v3::{MultiAssetFilter as NewMultiAssetFilter, WildMultiAsset as NewWildMultiAsset};
 use alloc::{vec, vec::Vec};
 use core::{
 	cmp::Ordering,

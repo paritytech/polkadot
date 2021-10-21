@@ -21,7 +21,7 @@ use mock::{
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::AccountIdConversion;
-use xcm::latest::{QueryResponseInfo, prelude::*};
+use xcm::latest::{prelude::*, QueryResponseInfo};
 use xcm_executor::XcmExecutor;
 
 pub const ALICE: AccountId = AccountId::new([0u8; 32]);
@@ -123,7 +123,10 @@ fn query_holding_works() {
 					beneficiary: Parachain(other_para_id).into(),
 				},
 				// used to get a notification in case of success
-				ReportHolding { response_info: response_info.clone(), assets: AllCounted(1).into() },
+				ReportHolding {
+					response_info: response_info.clone(),
+					assets: AllCounted(1).into(),
+				},
 			]),
 			weight,
 		);

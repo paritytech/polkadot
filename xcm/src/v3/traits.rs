@@ -390,10 +390,7 @@ pub trait XcmWeightInfo<Call> {
 	fn descend_origin(who: &InteriorMultiLocation) -> Weight;
 	fn report_error(response_info: &QueryResponseInfo) -> Weight;
 	fn relayed_from(who: &Junctions, message: &alloc::boxed::Box<Xcm<Call>>) -> Weight;
-	fn deposit_asset(
-		assets: &MultiAssetFilter,
-		beneficiary: &MultiLocation,
-	) -> Weight;
+	fn deposit_asset(assets: &MultiAssetFilter, beneficiary: &MultiLocation) -> Weight;
 	fn deposit_reserve_asset(
 		assets: &MultiAssetFilter,
 		dest: &MultiLocation,
@@ -406,10 +403,7 @@ pub trait XcmWeightInfo<Call> {
 		xcm: &Xcm<()>,
 	) -> Weight;
 	fn initiate_teleport(assets: &MultiAssetFilter, dest: &MultiLocation, xcm: &Xcm<()>) -> Weight;
-	fn report_holding(
-		response_info: &QueryResponseInfo,
-		assets: &MultiAssetFilter,
-	) -> Weight;
+	fn report_holding(response_info: &QueryResponseInfo, assets: &MultiAssetFilter) -> Weight;
 	fn buy_execution(fees: &MultiAsset, weight_limit: &WeightLimit) -> Weight;
 	fn refund_surplus() -> Weight;
 	fn set_error_handler(xcm: &Xcm<Call>) -> Weight;

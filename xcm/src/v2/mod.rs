@@ -907,8 +907,11 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 			HrmpChannelAccepted { recipient } => Self::HrmpChannelAccepted { recipient },
 			HrmpChannelClosing { initiator, sender, recipient } =>
 				Self::HrmpChannelClosing { initiator, sender, recipient },
-			Transact { origin_kind, require_weight_at_most, call } =>
-				Self::Transact { origin_type: origin_kind, require_weight_at_most, call: call.into() },
+			Transact { origin_kind, require_weight_at_most, call } => Self::Transact {
+				origin_type: origin_kind,
+				require_weight_at_most,
+				call: call.into(),
+			},
 			ReportError(response_info) => Self::ReportError {
 				query_id: response_info.query_id,
 				dest: response_info.destination,
@@ -920,10 +923,14 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 			},
 			DepositReserveAsset { assets, dest, xcm } => {
 				let max_assets = assets.count().ok_or(())?;
-				Self::DepositReserveAsset { assets: assets.into(), max_assets, dest, xcm: xcm.try_into()? }
+				Self::DepositReserveAsset {
+					assets: assets.into(),
+					max_assets,
+					dest,
+					xcm: xcm.try_into()?,
+				}
 			},
-			ExchangeAsset { give, receive } =>
-				Self::ExchangeAsset { give: give.into(), receive },
+			ExchangeAsset { give, receive } => Self::ExchangeAsset { give: give.into(), receive },
 			InitiateReserveWithdraw { assets, reserve, xcm } => {
 				// No `max_assets` here, so if there's a connt, then we cannot translate.
 				let assets = assets.try_into().map_err(|_| ())?;

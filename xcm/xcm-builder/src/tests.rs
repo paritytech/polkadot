@@ -196,7 +196,7 @@ fn basic_asset_trap_should_work() {
 		Xcm(vec![
 			WithdrawAsset((Here, 100).into()),
 			DepositAsset {
-				assets: Wild(AllCounted(0)),	// <<< 0 is an error.
+				assets: Wild(AllCounted(0)), // <<< 0 is an error.
 				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
 			},
 		]),

@@ -340,5 +340,5 @@ impl Config for TestConfig {
 	type AssetTrap = TestAssetTrap;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
-	type PalletInstancesInfo = ();	// TODO: TestAllPallets, for testing new instructions.
+	type PalletInstancesInfo = (); // TODO: TestAllPallets, for testing new instructions.
 }

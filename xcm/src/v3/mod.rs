@@ -28,15 +28,15 @@ use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;
 
-mod traits;
 mod multiasset;
+mod traits;
 
+pub use multiasset::{
+	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
+	WildFungibility, WildMultiAsset,
+};
 pub use traits::{
 	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
-};
-pub use multiasset::{
-	MultiAsset, MultiAssetFilter, MultiAssets, WildMultiAsset, WildFungibility, AssetId,
-	AssetInstance, Fungibility,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{
@@ -428,10 +428,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	DepositAsset {
-		assets: MultiAssetFilter,
-		beneficiary: MultiLocation,
-	},
+	DepositAsset { assets: MultiAssetFilter, beneficiary: MultiLocation },
 
 	/// Remove the asset(s) (`assets`) from the Holding Register and place equivalent assets under
 	/// the ownership of `dest` within this consensus system (i.e. deposit them into its sovereign
@@ -449,11 +446,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	DepositReserveAsset {
-		assets: MultiAssetFilter,
-		dest: MultiLocation,
-		xcm: Xcm<()>,
-	},
+	DepositReserveAsset { assets: MultiAssetFilter, dest: MultiLocation, xcm: Xcm<()> },
 
 	/// Remove the asset(s) (`give`) from the Holding Register and replace them with alternative
 	/// assets.
@@ -513,10 +506,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	ReportHolding {
-		response_info: QueryResponseInfo,
-		assets: MultiAssetFilter,
-	},
+	ReportHolding { response_info: QueryResponseInfo, assets: MultiAssetFilter },
 
 	/// Pay for the execution of some XCM `xcm` and `orders` with up to `weight`
 	/// picoseconds of execution time, paying for this with up to `fees` from the Holding Register.
@@ -754,10 +744,8 @@ impl<Call> Instruction<Call> {
 			Transact { origin_kind, require_weight_at_most, call } =>
 				Transact { origin_kind, require_weight_at_most, call: call.into() },
 			ReportError(response_info) => ReportError(response_info),
-			DepositAsset { assets, beneficiary } =>
-				DepositAsset { assets, beneficiary },
-			DepositReserveAsset { assets, dest, xcm } =>
-				DepositReserveAsset { assets, dest, xcm },
+			DepositAsset { assets, beneficiary } => DepositAsset { assets, beneficiary },
+			DepositReserveAsset { assets, dest, xcm } => DepositReserveAsset { assets, dest, xcm },
 			ExchangeAsset { give, receive } => ExchangeAsset { give, receive },
 			InitiateReserveWithdraw { assets, reserve, xcm } =>
 				InitiateReserveWithdraw { assets, reserve, xcm },
@@ -811,16 +799,14 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ClearOrigin => W::clear_origin(),
 			DescendOrigin(who) => W::descend_origin(who),
 			ReportError(response_info) => W::report_error(&response_info),
-			DepositAsset { assets, beneficiary } =>
-				W::deposit_asset(assets, beneficiary),
+			DepositAsset { assets, beneficiary } => W::deposit_asset(assets, beneficiary),
 			DepositReserveAsset { assets, dest, xcm } =>
 				W::deposit_reserve_asset(assets, dest, xcm),
 			ExchangeAsset { give, receive } => W::exchange_asset(give, receive),
 			InitiateReserveWithdraw { assets, reserve, xcm } =>
 				W::initiate_reserve_withdraw(assets, reserve, xcm),
 			InitiateTeleport { assets, dest, xcm } => W::initiate_teleport(assets, dest, xcm),
-			ReportHolding { response_info, assets } =>
-				W::report_holding(&response_info, &assets),
+			ReportHolding { response_info, assets } => W::report_holding(&response_info, &assets),
 			BuyExecution { fees, weight_limit } => W::buy_execution(fees, weight_limit),
 			RefundSurplus => W::refund_surplus(),
 			SetErrorHandler(xcm) => W::set_error_handler(xcm),
@@ -896,8 +882,11 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			HrmpChannelAccepted { recipient } => Self::HrmpChannelAccepted { recipient },
 			HrmpChannelClosing { initiator, sender, recipient } =>
 				Self::HrmpChannelClosing { initiator, sender, recipient },
-			Transact { origin_type, require_weight_at_most, call } =>
-				Self::Transact { origin_kind: origin_type, require_weight_at_most, call: call.into() },
+			Transact { origin_type, require_weight_at_most, call } => Self::Transact {
+				origin_kind: origin_type,
+				require_weight_at_most,
+				call: call.into(),
+			},
 			ReportError { query_id, dest, max_response_weight } => {
 				let response_info = QueryResponseInfo {
 					destination: dest,
@@ -913,8 +902,10 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				Self::DepositReserveAsset { assets, dest, xcm: xcm.try_into()? }
 			},
 			ExchangeAsset { give, receive } => Self::ExchangeAsset { give: give.into(), receive },
-			InitiateReserveWithdraw { assets, reserve, xcm } => {
-				Self::InitiateReserveWithdraw { assets: assets.into(), reserve, xcm: xcm.try_into()? }
+			InitiateReserveWithdraw { assets, reserve, xcm } => Self::InitiateReserveWithdraw {
+				assets: assets.into(),
+				reserve,
+				xcm: xcm.try_into()?,
 			},
 			InitiateTeleport { assets, dest, xcm } =>
 				Self::InitiateTeleport { assets: assets.into(), dest, xcm: xcm.try_into()? },

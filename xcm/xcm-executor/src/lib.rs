@@ -389,7 +389,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
 			ReportHolding { response_info, assets } => {
-				let assets = Self::reanchored(self.holding.min(&assets), &response_info.destination)?;
+				let assets =
+					Self::reanchored(self.holding.min(&assets), &response_info.destination)?;
 				Self::respond(Response::Assets(assets), response_info)
 			},
 			BuyExecution { fees, weight_limit } => {
@@ -498,13 +499,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(minor >= min_crate_minor, XcmError::VersionIncompatible);
 				Ok(())
 			},
-			ReportTransactStatus(response_info) => {
-				Self::respond(Response::DispatchResult(self.transact_status.clone()), response_info)
-			}
+			ReportTransactStatus(response_info) =>
+				Self::respond(Response::DispatchResult(self.transact_status.clone()), response_info),
 			ClearTransactStatus => {
 				self.transact_status = Default::default();
 				Ok(())
-			}
+			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),
 			HrmpNewChannelOpenRequest { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),

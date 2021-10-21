@@ -38,9 +38,8 @@ use sp_std::{
 	result::Result,
 	vec,
 };
-use xcm::prelude::*;
+use xcm::{latest::QueryResponseInfo, prelude::*};
 use xcm_executor::traits::ConvertOrigin;
-use xcm::latest::QueryResponseInfo;
 
 use frame_support::PalletId;
 pub use pallet::*;
@@ -546,7 +545,11 @@ pub mod pallet {
 			}
 			let mut message = Xcm(vec![
 				WithdrawAsset(assets),
-				InitiateTeleport { assets: Wild(AllCounted(max_assets)), dest, xcm: remote_message.into() },
+				InitiateTeleport {
+					assets: Wild(AllCounted(max_assets)),
+					dest,
+					xcm: remote_message.into(),
+				},
 			]);
 			let weight =
 				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
