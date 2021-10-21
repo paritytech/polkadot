@@ -537,10 +537,10 @@ impl<T: Config> Pallet<T> {
 								&backed_candidate,
 								&signing_context,
 								group_vals.len(),
-								|idx| {
+								|intra_group_vi| {
 									group_vals
-										.get(idx)
-										.and_then(|i| validators.get(dbg!(i.0) as usize))
+										.get(intra_group_vi)
+										.and_then(|vi| validators.get(vi.0 as usize))
 										.map(|v| v.clone())
 								},
 							);

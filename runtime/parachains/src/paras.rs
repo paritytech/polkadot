@@ -350,7 +350,7 @@ pub mod pallet {
 	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
 	#[pallet::storage]
 	#[pallet::getter(fn parachains)]
-	pub(super) type Parachains<T: Config> = StorageValue<_, Vec<ParaId>, ValueQuery>;
+	pub(crate) type Parachains<T: Config> = StorageValue<_, Vec<ParaId>, ValueQuery>;
 
 	/// The current lifecycle of a all known Para IDs.
 	#[pallet::storage]

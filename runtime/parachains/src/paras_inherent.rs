@@ -737,8 +737,8 @@ fn sanitize_backed_candidates<
 	// Also checks the candidate references the correct relay parent.
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
-		dbg!(desc.relay_parent) == dbg!(relay_parent) &&
-			dbg!(scheduled.iter().any(|core| dbg!(core.para_id) == dbg!(desc.para_id)))
+		desc.relay_parent == relay_parent &&
+			scheduled.iter().any(|core| core.para_id == desc.para_id)
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
@@ -859,7 +859,7 @@ mod tests {
 		use super::*;
 		use crate::inclusion::tests::*;
 
-		use primitives::v1::{CoreOccupied, GroupIndex, Hash, Header, Id as ParaId, ValidatorIndex};
+		use primitives::v1::{GroupIndex, Hash, Header, Id as ParaId, ValidatorIndex};
 
 		use frame_support::traits::UnfilteredDispatchable;
 		use crate::{
@@ -940,6 +940,22 @@ mod tests {
 				crate::paras::Parachains::<Test>::set(chains.clone());
 				dbg!(crate::paras::Parachains::<Test>::get());
 
+
+				crate::scheduler::ValidatorGroups::<Test>::set(vec![
+					group_validators(GroupIndex::from(0)),
+					group_validators(GroupIndex::from(1)),
+				]);
+
+				crate::scheduler::AvailabilityCores::<Test>::set(vec![None, None]);
+
+				let core_a = CoreIndex::from(0);
+				let grp_idx_a = crate::scheduler::Pallet::<Test>::group_assigned_to_core(core_a, System::block_number()).unwrap();
+
+				let core_b = CoreIndex::from(1);
+				let grp_idx_b = crate::scheduler::Pallet::<Test>::group_assigned_to_core(core_b, System::block_number()).unwrap();
+
+				let grp_indices = vec![grp_idx_a.clone(), grp_idx_b.clone()];
+
 				let backed_candidates = chains.iter().cloned().enumerate()
 					.map(|(idx, para_id)| {
 						let mut candidate = TestCandidateBuilder {
@@ -957,10 +973,14 @@ mod tests {
 							&mut candidate,
 						);
 
+						let group_to_use_for_signing = grp_indices[idx].clone();
+						let backing_validators =
+							group_validators(group_to_use_for_signing)
+						;
 						let backed_candidate = block_on(back_candidate(
 							candidate,
 							&validators,
-							group_validators(GroupIndex::from(((1 + idx) % chains.len()) as u32)).as_slice(),
+							backing_validators.as_slice(),
 							&keystore,
 							&signing_context,
 							BackingKind::Threshold,
@@ -989,29 +1009,25 @@ mod tests {
 
 				// before these are used, schedule is called
 				// and the assignments change ag
-				let chain_a_assignment = CoreAssignment {
-					core: CoreIndex::from(0),
-					para_id: chain_a,
-					kind: crate::scheduler::AssignmentKind::Parachain,
-					group_idx: GroupIndex::from(1),
-				};
 
-				let chain_b_assignment = CoreAssignment {
-					core: CoreIndex::from(1),
-					para_id: chain_b,
-					kind: crate::scheduler::AssignmentKind::Parachain,
-					group_idx: GroupIndex::from(0),
-				};
-				crate::scheduler::ValidatorGroups::<Test>::set(vec![
-					group_validators(GroupIndex::from(0)),
-					group_validators(GroupIndex::from(1)),
-				]);
+				// let chain_a_assignment = CoreAssignment {
+				// 	core: core_a,
+				// 	para_id: chain_a,
+				// 	kind: crate::scheduler::AssignmentKind::Parachain,
+				// 	group_idx: grp_idx_a,
+				// };
 
-				crate::scheduler::AvailabilityCores::<Test>::set(vec![None, None]);
-				// crate::scheduler::AvailabilityCores::<Test>::set(vec![Some(CoreOccupied::Parachain), Some(CoreOccupied::Parachain)]);
-				let scheduled = vec![chain_a_assignment, chain_b_assignment];
-				crate::scheduler::Scheduled::<Test>::set(scheduled);
-				dbg!(<crate::scheduler::Pallet<Test>>::scheduled());
+				// let chain_b_assignment = CoreAssignment {
+				// 	core: core_b,
+				// 	para_id: chain_b,
+				// 	kind: crate::scheduler::AssignmentKind::Parachain,
+				// 	group_idx: grp_idx_b,
+				// };
+
+
+				// let scheduled = vec![chain_a_assignment, chain_b_assignment];
+				// crate::scheduler::Scheduled::<Test>::set(scheduled);
+				// dbg!(<crate::scheduler::Pallet<Test>>::scheduled());
 
 				// execute the paras inherent
 				let post_info = Call::<Test>::enter {
