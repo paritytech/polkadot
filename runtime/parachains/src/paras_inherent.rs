@@ -857,11 +857,24 @@ mod tests {
 
 	mod paras_inherent_weight {
 		use super::*;
+		use crate::inclusion::tests::*;
 
-		use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
-		use primitives::v1::{Hash, Header, GroupIndex, Id as ParaId};
+		use primitives::v1::{CoreOccupied, GroupIndex, Hash, Header, Id as ParaId, ValidatorIndex};
 
 		use frame_support::traits::UnfilteredDispatchable;
+		use crate::{
+			mock::{
+				new_test_ext, MockGenesisConfig,
+				System, Test,
+			},
+		};
+		use futures::executor::block_on;
+		use primitives::{
+			v0::PARACHAIN_KEY_TYPE_ID,
+		};
+		use sc_keystore::LocalKeystore;
+		use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+		use std::sync::Arc;
 
 		fn default_header() -> Header {
 			Header {
@@ -873,24 +886,87 @@ mod tests {
 			}
 		}
 
+
 		/// We expect the weight of the paras inherent not to change when no truncation occurs:
 		/// its weight is dynamically computed from the size of the backed candidates list, and is
 		/// already incorporated into the current block weight when it is selected by the provisioner.
 		#[test]
 		fn weight_does_not_change_on_happy_path() {
-			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+
+			let chain_a = ParaId::from(1);
+			let chain_b = ParaId::from(2);
+			let chains = vec![chain_a, chain_b];
+
+			new_test_ext(genesis_config(vec![(chain_a, true), (chain_b, true)])).execute_with(|| {
 				let header = default_header();
 				System::set_block_number(1);
 				System::set_parent_hash(header.hash());
 
+				let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+				let validators = vec![
+					keyring::Sr25519Keyring::Alice,
+					keyring::Sr25519Keyring::Bob,
+					keyring::Sr25519Keyring::Charlie,
+					keyring::Sr25519Keyring::Dave,
+					keyring::Sr25519Keyring::Ferdie,
+				];
+				for validator in validators.iter() {
+					SyncCryptoStore::sr25519_generate_new(
+						&*keystore,
+						PARACHAIN_KEY_TYPE_ID,
+						Some(&validator.to_seed()),
+					)
+					.unwrap();
+				}
+				let validator_public = validator_pubkeys(&validators);
+
+				shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+
+				let group_validators = |group_index: GroupIndex| {
+					match group_index {
+						group_index if group_index == GroupIndex::from(0) => vec![0, 1],
+						group_index if group_index == GroupIndex::from(1) => vec![2, 3],
+						x => panic!("Group index out of bounds for 2 parachains and 1 parathread core {}", x.0),
+					}
+					.into_iter().map(ValidatorIndex).collect::<Vec<_>>()
+				};
+
+				let signing_context =
+					SigningContext { parent_hash: System::parent_hash(), session_index: 5 };
+
 				// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
 				let signed_bitfields = Vec::new();
 				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
-				let backed_candidates = std::iter::repeat_with(|| BackedCandidate::default())
-					.take(10)
-					.map(|mut x| {
-						x.candidate.descriptor.relay_parent = header.hash();
-						x
+				crate::paras::Parachains::<Test>::set(chains.clone());
+				dbg!(crate::paras::Parachains::<Test>::get());
+
+				let backed_candidates = chains.iter().cloned().enumerate()
+					.map(|(idx, para_id)| {
+						let mut candidate = TestCandidateBuilder {
+							para_id,
+							relay_parent: header.hash(),
+							pov_hash: Hash::repeat_byte(1_u8 + idx as u8),
+							persisted_validation_data_hash: make_vdata_hash(para_id).unwrap(),
+							hrmp_watermark: 0,
+							..Default::default()
+						}
+						.build();
+
+						collator_sign_candidate(
+							keyring::Sr25519Keyring::One,
+							&mut candidate,
+						);
+
+						let backed_candidate = block_on(back_candidate(
+							candidate,
+							&validators,
+							group_validators(GroupIndex::from(((1 + idx) % chains.len()) as u32)).as_slice(),
+							&keystore,
+							&signing_context,
+							BackingKind::Threshold,
+						));
+						backed_candidate
+
 					})
 					.collect::<Vec<_>>();
 
@@ -901,32 +977,41 @@ mod tests {
 				// we've used half the block weight; there's plenty of margin
 				let max_block_weight =
 					<Test as frame_system::Config>::BlockWeights::get().max_block;
+
+				dbg!(backed_candidates
+					.iter()
+					.map(backed_candidate_weight::<Test>)
+					.sum::<Weight>());
+				dbg!(MINIMAL_INCLUSION_INHERENT_WEIGHT);
+
 				let used_block_weight = max_block_weight / 2;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
-				let chain_a = ParaId::from(1);
-				let chain_b = ParaId::from(2);
-
+				// before these are used, schedule is called
+				// and the assignments change ag
 				let chain_a_assignment = CoreAssignment {
 					core: CoreIndex::from(0),
 					para_id: chain_a,
 					kind: crate::scheduler::AssignmentKind::Parachain,
-					group_idx: GroupIndex::from(0),
+					group_idx: GroupIndex::from(1),
 				};
 
 				let chain_b_assignment = CoreAssignment {
 					core: CoreIndex::from(1),
 					para_id: chain_b,
 					kind: crate::scheduler::AssignmentKind::Parachain,
-					group_idx: GroupIndex::from(1),
+					group_idx: GroupIndex::from(0),
 				};
-               // TODO scheduled in ::enter is still empty11
-				crate::scheduler::AvailabilityCores::<Test>::set(vec![None, None]);
-				crate::paras::Parachains::<Test>::set(vec![chain_a, chain_b]);
-				<crate::scheduler::Pallet<Test>>::schedule(vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(1), FreedReason::Concluded)], <frame_system::Pallet<Test>>::block_number());
+				crate::scheduler::ValidatorGroups::<Test>::set(vec![
+					group_validators(GroupIndex::from(0)),
+					group_validators(GroupIndex::from(1)),
+				]);
 
+				crate::scheduler::AvailabilityCores::<Test>::set(vec![None, None]);
+				// crate::scheduler::AvailabilityCores::<Test>::set(vec![Some(CoreOccupied::Parachain), Some(CoreOccupied::Parachain)]);
 				let scheduled = vec![chain_a_assignment, chain_b_assignment];
 				crate::scheduler::Scheduled::<Test>::set(scheduled);
+				dbg!(<crate::scheduler::Pallet<Test>>::scheduled());
 
 				// execute the paras inherent
 				let post_info = Call::<Test>::enter {
@@ -947,7 +1032,7 @@ mod tests {
 				// In this case, the weight system can update the actual weight with the same amount,
 				// or return `None` to indicate that the pre-computed weight should not change.
 				// Either option is acceptable for our purposes.
-				if let Some(actual_weight) = post_info.actual_weight {
+				if let Some(actual_weight) = dbg!(post_info).actual_weight {
 					assert_eq!(actual_weight, expected_weight);
 				}
 			});

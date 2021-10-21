@@ -948,7 +948,7 @@ impl<T: Config> CandidateCheckContext<T> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
 	use super::*;
 	use crate::{
 		configuration::HostConfiguration,
@@ -984,7 +984,7 @@ mod tests {
 		config
 	}
 
-	fn genesis_config(paras: Vec<(ParaId, bool)>) -> MockGenesisConfig {
+	pub(crate) fn genesis_config(paras: Vec<(ParaId, bool)>) -> MockGenesisConfig {
 		MockGenesisConfig {
 			paras: paras::GenesisConfig {
 				paras: paras
@@ -1011,14 +1011,14 @@ mod tests {
 	}
 
 	#[derive(Debug, Clone, Copy, PartialEq)]
-	enum BackingKind {
+	pub(crate) enum BackingKind {
 		#[allow(unused)]
 		Unanimous,
 		Threshold,
 		Lacking,
 	}
 
-	fn collator_sign_candidate(
+	pub(crate) fn collator_sign_candidate(
 		collator: Sr25519Keyring,
 		candidate: &mut CommittedCandidateReceipt,
 	) {
@@ -1036,7 +1036,7 @@ mod tests {
 		assert!(candidate.descriptor().check_collator_signature().is_ok());
 	}
 
-	async fn back_candidate(
+	pub(crate) async fn back_candidate(
 		candidate: CommittedCandidateReceipt,
 		validators: &[Sr25519Keyring],
 		group: &[ValidatorIndex],
@@ -1078,11 +1078,6 @@ mod tests {
 
 		let backed = BackedCandidate { candidate, validity_votes, validator_indices };
 
-		let should_pass = match kind {
-			BackingKind::Unanimous | BackingKind::Threshold => true,
-			BackingKind::Lacking => false,
-		};
-
 		let successfully_backed =
 			primitives::v1::check_candidate_backing(&backed, signing_context, group.len(), |i| {
 				Some(validators[group[i].0 as usize].public().into())
@@ -1091,16 +1086,15 @@ mod tests {
 			.unwrap_or(0) * 2 >
 				group.len();
 
-		if should_pass {
-			assert!(successfully_backed);
-		} else {
-			assert!(!successfully_backed);
-		}
+		match kind {
+			BackingKind::Unanimous | BackingKind::Threshold => assert!(successfully_backed),
+			BackingKind::Lacking => assert!(!successfully_backed),
+		};
 
 		backed
 	}
 
-	fn run_to_block(
+	pub(crate) fn run_to_block(
 		to: BlockNumber,
 		new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
 	) {
@@ -1133,7 +1127,7 @@ mod tests {
 		}
 	}
 
-	fn expected_bits() -> usize {
+	pub(crate) fn expected_bits() -> usize {
 		Paras::parachains().len() + Configuration::config().parathread_cores as usize
 	}
 
@@ -1157,11 +1151,11 @@ mod tests {
 		b
 	}
 
-	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+	pub(crate) fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 		val_ids.iter().map(|v| v.public().into()).collect()
 	}
 
-	async fn sign_bitfield(
+	pub(crate) async fn sign_bitfield(
 		keystore: &SyncCryptoStorePtr,
 		key: &Sr25519Keyring,
 		validator_index: ValidatorIndex,
@@ -1181,20 +1175,20 @@ mod tests {
 	}
 
 	#[derive(Default)]
-	struct TestCandidateBuilder {
-		para_id: ParaId,
-		head_data: HeadData,
-		para_head_hash: Option<Hash>,
-		pov_hash: Hash,
-		relay_parent: Hash,
-		persisted_validation_data_hash: Hash,
-		new_validation_code: Option<ValidationCode>,
-		validation_code: ValidationCode,
-		hrmp_watermark: BlockNumber,
+	pub(crate) struct TestCandidateBuilder {
+		pub(crate) para_id: ParaId,
+		pub(crate) head_data: HeadData,
+		pub(crate) para_head_hash: Option<Hash>,
+		pub(crate) pov_hash: Hash,
+		pub(crate) relay_parent: Hash,
+		pub(crate) persisted_validation_data_hash: Hash,
+		pub(crate) new_validation_code: Option<ValidationCode>,
+		pub(crate) validation_code: ValidationCode,
+		pub(crate) hrmp_watermark: BlockNumber,
 	}
 
 	impl TestCandidateBuilder {
-		fn build(self) -> CommittedCandidateReceipt {
+		pub(crate) fn build(self) -> CommittedCandidateReceipt {
 			CommittedCandidateReceipt {
 				descriptor: CandidateDescriptor {
 					para_id: self.para_id,
@@ -1215,7 +1209,7 @@ mod tests {
 		}
 	}
 
-	fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
+	pub(crate) fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
 		let relay_parent_number = <frame_system::Pallet<Test>>::block_number() - 1;
 		let persisted_validation_data = crate::util::make_persisted_validation_data::<Test>(
 			para_id,
