@@ -115,9 +115,7 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 		XcmGeneric::<Runtime>::descend_origin(who)
 	}
 	fn report_error(
-		_query_id: &QueryId,
-		_dest: &MultiLocation,
-		_max_response_weight: &u64,
+		_query_repsonse_info: &QueryResponseInfo,
 	) -> Weight {
 		XcmGeneric::<Runtime>::report_error()
 	}
@@ -157,13 +155,13 @@ impl<Call> XcmWeightInfo<Call> for WestendXcmWeight<Call> {
 	) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::initiate_teleport())
 	}
-	fn query_holding(
+	fn report_holding(
 		_query_id: &u64,
 		_dest: &MultiLocation,
 		_assets: &MultiAssetFilter,
 		_max_response_weight: &u64,
 	) -> Weight {
-		XcmGeneric::<Runtime>::query_holding()
+		XcmGeneric::<Runtime>::report_holding()
 	}
 	fn buy_execution(_fees: &MultiAsset, _weight_limit: &WeightLimit) -> Weight {
 		XcmGeneric::<Runtime>::buy_execution()

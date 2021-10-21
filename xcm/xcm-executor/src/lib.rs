@@ -349,13 +349,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				self.origin = None;
 				Ok(())
 			},
-			ReportError { query_id, dest, max_response_weight: max_weight } => {
+			ReportError(response_info) => {
 				// Report the given result by sending a QueryResponse XCM to a previously given outcome
 				// destination if one was registered.
-				let response = Response::ExecutionResult(self.error);
-				let message = QueryResponse { query_id, response, max_weight };
-				Config::XcmSender::send_xcm(dest, Xcm(vec![message]))?;
-				Ok(())
+				Self::respond(Response::ExecutionResult(self.error), response_info)
 			},
 			DepositAsset { assets, max_assets, beneficiary } => {
 				let deposited = self.holding.limited_saturating_take(assets, max_assets as usize);
@@ -391,12 +388,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				message.extend(xcm.0.into_iter());
 				Config::XcmSender::send_xcm(dest, Xcm(message)).map_err(Into::into)
 			},
-			QueryHolding { query_id, dest, assets, max_response_weight } => {
+			ReportHolding { response_info: QueryResponseInfo, assets } => {
 				let assets = Self::reanchored(self.holding.min(&assets), &dest)?;
-				let max_weight = max_response_weight;
-				let response = Response::Assets(assets);
-				let instruction = QueryResponse { query_id, response, max_weight };
-				Config::XcmSender::send_xcm(dest, Xcm(vec![instruction])).map_err(Into::into)
+				Self::respond(Response::Assets(assets), response_info)
 			},
 			BuyExecution { fees, weight_limit } => {
 				// There is no need to buy any weight is `weight_limit` is `Unlimited` since it
@@ -504,11 +498,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(minor >= min_crate_minor, XcmError::VersionIncompatible);
 				Ok(())
 			},
-			ReportTransactStatus(QueryResponseInfo { destination, query_id, max_weight }) => {
-				let response = Response::DispatchResult(self.transact_status.clone());
-				let instruction = QueryResponse { query_id, response, max_weight };
-				let message = Xcm(vec![instruction]);
-				Config::XcmSender::send_xcm(destination, message).map_err(XcmError::from)
+			ReportTransactStatus(response_info) => {
+				Self::respond(Response::DispatchResult(self.transact_status.clone()), response_info)
 			}
 			ClearTransactStatus => {
 				self.transact_status = Default::default();
@@ -519,6 +510,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			HrmpChannelAccepted { .. } => Err(XcmError::Unimplemented),
 			HrmpChannelClosing { .. } => Err(XcmError::Unimplemented),
 		}
+	}
+
+	/// Send a bare `QueryResponse` message containing `response` informed by the given `info`.
+	fn respond(response: Response, info: QueryResponseInfo) -> Result<(), XcmError> {
+		let QueryResponseInfo { destination, query_id, max_weight } = info;
+		let instruction = QueryResponse { query_id, response, max_weight };
+		let message = Xcm([instruction]);
+		Config::XcmSender::send_xcm(destination, message).map_err(Into::into)
 	}
 
 	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> Result<MultiAssets, XcmError> {

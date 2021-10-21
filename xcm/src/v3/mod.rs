@@ -407,25 +407,14 @@ pub enum Instruction<Call> {
 
 	/// Immediately report the contents of the Error Register to the given destination via XCM.
 	///
-	/// A `QueryResponse` message of type `ExecutionOutcome` is sent to `dest` with the given
-	/// `query_id` and the outcome of the XCM.
+	/// A `QueryResponse` message of type `ExecutionOutcome` is sent to the described destination.
 	///
-	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
-	/// - `dest`: A valid destination for the returned XCM message.
-	/// - `max_response_weight`: The maximum amount of weight that the `QueryResponse` item which
-	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
-	///   response may not execute at all.
+	/// - `response_info`: Information for making the response.
 	///
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	ReportError {
-		#[codec(compact)]
-		query_id: QueryId,
-		dest: MultiLocation,
-		#[codec(compact)]
-		max_response_weight: Weight,
-	},
+	ReportError(QueryResponseInfo),
 
 	/// Remove the asset(s) (`assets`) from the Holding Register and place equivalent assets under
 	/// the ownership of `beneficiary` within this consensus system.
@@ -519,29 +508,21 @@ pub enum Instruction<Call> {
 	/// Errors:
 	InitiateTeleport { assets: MultiAssetFilter, dest: MultiLocation, xcm: Xcm<()> },
 
-	/// Send a `Balances` XCM message with the `assets` value equal to the holding contents, or a
-	/// portion thereof.
+	/// Report to a given destination the contents of the Holding Register.
 	///
-	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
-	/// - `dest`: A valid destination for the returned XCM message. This may be limited to the
-	///   current origin.
+	/// A `QueryResponse` message of type `Assets` is sent to the described destination.
+	///
+	/// - `response_info`: Information for making the response.
 	/// - `assets`: A filter for the assets that should be reported back. The assets reported back
 	///   will be, asset-wise, *the lesser of this value and the holding register*. No wildcards
 	///   will be used when reporting assets back.
-	/// - `max_response_weight`: The maximum amount of weight that the `QueryResponse` item which
-	///   is sent as a reply may take to execute. NOTE: If this is unexpectedly large then the
-	///   response may not execute at all.
 	///
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	QueryHolding {
-		#[codec(compact)]
-		query_id: QueryId,
-		dest: MultiLocation,
+	ReportHolding {
+		response_info: QueryResponseInfo,
 		assets: MultiAssetFilter,
-		#[codec(compact)]
-		max_response_weight: Weight,
 	},
 
 	/// Pay for the execution of some XCM `xcm` and `orders` with up to `weight`
@@ -779,8 +760,7 @@ impl<Call> Instruction<Call> {
 				HrmpChannelClosing { initiator, sender, recipient },
 			Transact { origin_kind, require_weight_at_most, call } =>
 				Transact { origin_kind, require_weight_at_most, call: call.into() },
-			ReportError { query_id, dest, max_response_weight } =>
-				ReportError { query_id, dest, max_response_weight },
+			ReportError(response_info) => ReportError(response_info),
 			DepositAsset { assets, max_assets, beneficiary } =>
 				DepositAsset { assets, max_assets, beneficiary },
 			DepositReserveAsset { assets, max_assets, dest, xcm } =>
@@ -789,8 +769,7 @@ impl<Call> Instruction<Call> {
 			InitiateReserveWithdraw { assets, reserve, xcm } =>
 				InitiateReserveWithdraw { assets, reserve, xcm },
 			InitiateTeleport { assets, dest, xcm } => InitiateTeleport { assets, dest, xcm },
-			QueryHolding { query_id, dest, assets, max_response_weight } =>
-				QueryHolding { query_id, dest, assets, max_response_weight },
+			ReportHolding { response_info, assets } => ReportHolding { response_info, assets },
 			BuyExecution { fees, weight_limit } => BuyExecution { fees, weight_limit },
 			ClearOrigin => ClearOrigin,
 			DescendOrigin(who) => DescendOrigin(who),
@@ -838,8 +817,7 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 				W::hrmp_channel_closing(initiator, sender, recipient),
 			ClearOrigin => W::clear_origin(),
 			DescendOrigin(who) => W::descend_origin(who),
-			ReportError { query_id, dest, max_response_weight } =>
-				W::report_error(query_id, dest, max_response_weight),
+			ReportError(response_info) => W::report_error(&response_info),
 			DepositAsset { assets, max_assets, beneficiary } =>
 				W::deposit_asset(assets, max_assets, beneficiary),
 			DepositReserveAsset { assets, max_assets, dest, xcm } =>
@@ -848,8 +826,8 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			InitiateReserveWithdraw { assets, reserve, xcm } =>
 				W::initiate_reserve_withdraw(assets, reserve, xcm),
 			InitiateTeleport { assets, dest, xcm } => W::initiate_teleport(assets, dest, xcm),
-			QueryHolding { query_id, dest, assets, max_response_weight } =>
-				W::query_holding(query_id, dest, assets, max_response_weight),
+			ReportHolding { response_info: QueryResponseInfo, assets } =>
+				W::report_holding(&response_info, &assets),
 			BuyExecution { fees, weight_limit } => W::buy_execution(fees, weight_limit),
 			RefundSurplus => W::refund_surplus(),
 			SetErrorHandler(xcm) => W::set_error_handler(xcm),
@@ -927,8 +905,14 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				Self::HrmpChannelClosing { initiator, sender, recipient },
 			Transact { origin_type, require_weight_at_most, call } =>
 				Self::Transact { origin_kind: origin_type, require_weight_at_most, call: call.into() },
-			ReportError { query_id, dest, max_response_weight } =>
-				Self::ReportError { query_id, dest, max_response_weight },
+			ReportError { query_id, dest, max_response_weight } => {
+				let response_info = QueryResponseInfo {
+					destination: dest,
+					query_id,
+					max_weight: max_response_weight,
+				};
+				Self::ReportError(response_info)
+			},
 			DepositAsset { assets, max_assets, beneficiary } =>
 				Self::DepositAsset { assets, max_assets, beneficiary },
 			DepositReserveAsset { assets, max_assets, dest, xcm } =>
@@ -938,8 +922,14 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				Self::InitiateReserveWithdraw { assets, reserve, xcm: xcm.try_into()? },
 			InitiateTeleport { assets, dest, xcm } =>
 				Self::InitiateTeleport { assets, dest, xcm: xcm.try_into()? },
-			QueryHolding { query_id, dest, assets, max_response_weight } =>
-				Self::QueryHolding { query_id, dest, assets, max_response_weight },
+			ReportHolding { query_id, dest, assets, max_response_weight } => {
+				let response_info = QueryResponseInfo {
+					destination: dest,
+					query_id,
+					max_weight: max_response_weight,
+				};
+				Self::ReportHolding { response_info, assets }
+			},
 			BuyExecution { fees, weight_limit } => Self::BuyExecution { fees, weight_limit },
 			ClearOrigin => Self::ClearOrigin,
 			DescendOrigin(who) => Self::DescendOrigin(who),

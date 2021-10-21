@@ -909,8 +909,11 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 				Self::HrmpChannelClosing { initiator, sender, recipient },
 			Transact { origin_kind, require_weight_at_most, call } =>
 				Self::Transact { origin_type: origin_kind, require_weight_at_most, call: call.into() },
-			ReportError { query_id, dest, max_response_weight } =>
-				Self::ReportError { query_id, dest, max_response_weight },
+			ReportError(response_info) => Self::ReportError {
+				query_id: response_info.query_id,
+				dest: response_info.destination,
+				max_response_weight: response_info.max_weight,
+			},
 			DepositAsset { assets, max_assets, beneficiary } =>
 				Self::DepositAsset { assets, max_assets, beneficiary },
 			DepositReserveAsset { assets, max_assets, dest, xcm } =>
@@ -920,8 +923,12 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 				Self::InitiateReserveWithdraw { assets, reserve, xcm: xcm.try_into()? },
 			InitiateTeleport { assets, dest, xcm } =>
 				Self::InitiateTeleport { assets, dest, xcm: xcm.try_into()? },
-			QueryHolding { query_id, dest, assets, max_response_weight } =>
-				Self::QueryHolding { query_id, dest, assets, max_response_weight },
+			ReportHolding { response_info, assets } => Self::QueryHolding {
+				query_id: response_info.query_id,
+				dest: response_info.destination,
+				assets,
+				max_response_weight: response_info.max_weight,
+			},
 			BuyExecution { fees, weight_limit } => Self::BuyExecution { fees, weight_limit },
 			ClearOrigin => Self::ClearOrigin,
 			DescendOrigin(who) => Self::DescendOrigin(who),

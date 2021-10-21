@@ -388,7 +388,7 @@ pub trait XcmWeightInfo<Call> {
 	fn hrmp_channel_closing(initiator: &u32, sender: &u32, recipient: &u32) -> Weight;
 	fn clear_origin() -> Weight;
 	fn descend_origin(who: &InteriorMultiLocation) -> Weight;
-	fn report_error(query_id: &QueryId, dest: &MultiLocation, max_response_weight: &u64) -> Weight;
+	fn report_error(response_info: &QueryResponseInfo) -> Weight;
 	fn relayed_from(who: &Junctions, message: &alloc::boxed::Box<Xcm<Call>>) -> Weight;
 	fn deposit_asset(
 		assets: &MultiAssetFilter,
@@ -408,11 +408,9 @@ pub trait XcmWeightInfo<Call> {
 		xcm: &Xcm<()>,
 	) -> Weight;
 	fn initiate_teleport(assets: &MultiAssetFilter, dest: &MultiLocation, xcm: &Xcm<()>) -> Weight;
-	fn query_holding(
-		query_id: &u64,
-		dest: &MultiLocation,
+	fn report_holding(
+		response_info: &QueryResponseInfo,
 		assets: &MultiAssetFilter,
-		max_response_weight: &u64,
 	) -> Weight;
 	fn buy_execution(fees: &MultiAsset, weight_limit: &WeightLimit) -> Weight;
 	fn refund_surplus() -> Weight;

@@ -4,7 +4,7 @@ use frame_support::dispatch::Weight;
 
 pub struct WeightInfo<T>(sp_std::marker::PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo<T> {
-	pub fn query_holding() -> Weight {
+	pub fn report_holding() -> Weight {
 		1_000_000_000
 	}
 	pub fn buy_execution() -> Weight {
