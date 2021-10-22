@@ -35,6 +35,8 @@ candidate branch or started an additional release candidate branch (rc-2, rc-3, 
     networks.
 - [ ] Verify [Polkadot JS API](#polkadot-js) are up to date with the latest
     runtime changes.
+- [ ] Verify [SubXt](#substrate-subxt) is up to date with the latest
+    runtime changes.
 - [ ] Push runtime upgrade to Westend and verify network stability.
 
 ### All Releases
@@ -143,4 +145,9 @@ release-time. To initialise a benchmark run for each production runtime
 ### Polkadot JS
 
 Ensure that a release of [Polkadot JS API]() contains any new types or
+interfaces necessary to interact with the new runtime.
+
+### Substrate-SubXt
+
+Ensure that a release of [SubXt]() contains any new types or
 interfaces necessary to interact with the new runtime.
