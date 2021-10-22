@@ -238,7 +238,7 @@ impl<C> ExecuteXcm<C> for () {
 /// // A call to send via XCM. We don't really care about this.
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
-/// let message = Xcm::Transact { origin_kind: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
+/// let message = Xcm::Transact { origin_type: OriginKind::Superuser, require_weight_at_most: 0, call: call.into() };
 ///
 /// assert!(
 ///     // Sender2 will block this.
