@@ -528,11 +528,11 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::error::PrepareError;
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
 	use slotmap::SlotMap;
 	use std::task::Poll;
-	use crate::error::PrepareError;
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn pvf(descriminator: u32) -> Pvf {
