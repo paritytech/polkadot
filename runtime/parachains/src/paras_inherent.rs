@@ -651,8 +651,8 @@ pub(crate) fn sanitize_bitfields<
 	);
 
 	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
+	let signing_context = SigningContext { parent_hash, session_index };
 	for unchecked_bitfield in unchecked_bitfields {
-		let signing_context = SigningContext { parent_hash, session_index };
 
 		ensure2!(
 			unchecked_bitfield.unchecked_payload().0.len() == expected_bits,
@@ -932,7 +932,7 @@ mod tests {
 				};
 
 				let signing_context =
-					SigningContext { parent_hash: System::parent_hash(), session_index: 5 };
+					SigningContext { parent_hash: System::parent_hash(), session_index: current_session };
 
 				// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
 				let signed_bitfields = Vec::new();
