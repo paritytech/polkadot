@@ -55,6 +55,8 @@ pub enum Outcome {
 	/// killed by the system.
 	Unreachable,
 	/// The worker failed to finish the job until the given deadline.
+	///
+	/// The worker is no longer usable and should be killed.
 	TimedOut,
 	/// The execution was interrupted abruptly and the worker is not available anymore.
 	///
