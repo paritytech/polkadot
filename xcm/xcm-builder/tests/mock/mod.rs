@@ -153,7 +153,7 @@ parameter_types! {
 	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) =
 		(MultiAssetFilter::Wild(WildMultiAsset::AllOf { id: Concrete(MultiLocation::here()), fun: WildFungible }), X1(Parachain(1000)).into());
 	pub const MaxInstructions: u32 = 100;
-	pub const MaxHoldingAssetCount: u32 = 4;
+	pub const MaxAssetsIntoHolding: u32 = 4;
 }
 pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemine>,);
 
@@ -174,7 +174,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPallets;
-	type MaxHoldingAssetCount = MaxHoldingAssetCount;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;

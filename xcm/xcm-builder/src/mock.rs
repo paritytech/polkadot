@@ -306,7 +306,7 @@ impl ClaimAssets for TestAssetTrap {
 
 parameter_types! {
 	pub static SubscriptionRequests: Vec<(MultiLocation, Option<(QueryId, u64)>)> = vec![];
-	pub static MaxHoldingAssetCount: u32 = 4;
+	pub static MaxAssetsIntoHolding: u32 = 4;
 }
 pub struct TestSubscriptionService;
 
@@ -342,5 +342,5 @@ impl Config for TestConfig {
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
 	type PalletInstancesInfo = (); // TODO: TestAllPallets, for testing new instructions.
-	type MaxHoldingAssetCount = MaxHoldingAssetCount;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }

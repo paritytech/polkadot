@@ -647,7 +647,7 @@ parameter_types! {
 	pub const RococoForRockmine: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1001).into());
 	pub const RococoForCanvas: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Parachain(1002).into());
 	pub const MaxInstructions: u32 = 100;
-	pub const MaxHoldingAssetCount: u32 = 64;
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 pub type TrustedTeleporters = (
 	xcm_builder::Case<RococoForTick>,
@@ -692,7 +692,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPallets;
-	type MaxHoldingAssetCount = MaxHoldingAssetCount;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 parameter_types! {

@@ -25,7 +25,7 @@ use xcm_executor::{
 parameter_types! {
 	pub const OurNetwork: NetworkId = NetworkId::Polkadot;
 	pub const MaxInstructions: u32 = 100;
-	pub const MaxHoldingAssetCount: u32 = 16;
+	pub const MaxAssetsIntoHolding: u32 = 16;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
@@ -91,5 +91,5 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetClaims = super::Xcm;
 	type SubscriptionService = super::Xcm;
 	type PalletInstancesInfo = ();
-	type MaxHoldingAssetCount = MaxHoldingAssetCount;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }

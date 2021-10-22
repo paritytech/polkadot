@@ -158,7 +158,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let origin = origin.into();
 		Self {
 			holding: Assets::new(),
-			holding_limit: Config::MaxHoldingAssetCount::get() as usize,
+			holding_limit: Config::MaxAssetsIntoHolding::get() as usize,
 			origin: Some(origin.clone()),
 			original_origin: origin,
 			trader: Config::Trader::new(),

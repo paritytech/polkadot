@@ -122,7 +122,7 @@ parameter_types! {
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;
-	pub const MaxHoldingAssetCount: u32 = 64;
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
 pub struct XcmConfig;
@@ -142,7 +142,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetClaims = ();
 	type SubscriptionService = ();
 	type PalletInstancesInfo = ();
-	type MaxHoldingAssetCount = MaxHoldingAssetCount;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 impl crate::Config for Test {

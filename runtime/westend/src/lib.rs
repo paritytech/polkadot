@@ -966,7 +966,7 @@ parameter_types! {
 	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Westmint::get());
 	pub const MaxInstructions: u32 = 100;
-	pub const MaxHoldingAssetCount: u32 = 64;
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 pub type TrustedTeleporters = (xcm_builder::Case<WestendForWestmint>,);
 
@@ -997,7 +997,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetClaims = XcmPallet;
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPallets;
-	type MaxHoldingAssetCount = MaxHoldingAssetCount;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location

@@ -63,7 +63,8 @@ const HOLDING_NON_FUNGIBLES: u32 = 99;
 
 pub fn worst_case_holding<T: Config>(depositable_count: u32) -> Assets {
 	let fungibles_amount: u128 = 100; // TODO probably update
-	let holding_fungibles = (<T::XcmConfig as XcmConfig>::MaxHoldingAssetCount::get()) / 2 - depositable_count;
+	let holding_fungibles =
+		(<T::XcmConfig as XcmConfig>::MaxAssetsIntoHolding::get()) / 2 - depositable_count;
 	let holding_non_fungibles = holding_fungibles;
 	(0..holding_fungibles)
 		.map(|i| {
