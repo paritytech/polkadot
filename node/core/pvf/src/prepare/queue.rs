@@ -16,11 +16,8 @@
 
 //! A queue that handles requests for PVF preparation.
 
-use super::{
-	pool::{self, Worker},
-	PrepareResult,
-};
-use crate::{artifacts::ArtifactId, metrics::Metrics, Priority, Pvf, LOG_TARGET};
+use super::pool::{self, Worker};
+use crate::{artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, Pvf, LOG_TARGET};
 use always_assert::{always, never};
 use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};

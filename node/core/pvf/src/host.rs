@@ -42,7 +42,7 @@ use std::{
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
 
 /// Transmission end used for sending the PVF preparation result.
-pub(crate) type PrepareResultSender = oneshot::Sender<prepare::PrepareResult>;
+pub(crate) type PrepareResultSender = oneshot::Sender<PrepareResult>;
 
 /// A handle to the async process serving the validation host requests.
 #[derive(Clone)]

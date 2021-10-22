@@ -29,6 +29,3 @@ mod worker;
 pub use pool::start as start_pool;
 pub use queue::{start as start_queue, FromQueue, ToQueue};
 pub use worker::worker_entrypoint;
-
-/// Result of PVF preparation performed by the validation host.
-pub type PrepareResult = Result<(), crate::error::PrepareError>;

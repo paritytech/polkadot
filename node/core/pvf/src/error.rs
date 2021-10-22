@@ -16,6 +16,9 @@
 
 use parity_scale_codec::{Decode, Encode};
 
+/// Result of PVF preparation performed by the validation host.
+pub type PrepareResult = Result<(), PrepareError>;
+
 /// An error that occurred during the prepare part of the PVF pipeline.
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum PrepareError {

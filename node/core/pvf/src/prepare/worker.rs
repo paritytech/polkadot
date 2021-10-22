@@ -14,10 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::PrepareResult;
 use crate::{
 	artifacts::CompiledArtifact,
-	error::PrepareError,
+	error::{PrepareError, PrepareResult},
 	worker_common::{
 		bytes_to_path, framed_recv, framed_send, path_to_bytes, spawn_with_program_path,
 		tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,

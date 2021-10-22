@@ -14,12 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{
-	worker::{self, Outcome},
-	PrepareResult,
-};
+use super::worker::{self, Outcome};
 use crate::{
-	error::PrepareError,
+	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
