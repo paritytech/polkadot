@@ -188,9 +188,8 @@ impl<T: Config> BenchBuilder<T> {
 	}
 
 	fn max_validators() -> u32 {
-		/*let config_max = configuration::Pallet::<T>::config().max_validators.unwrap_or(200);
-		config_max*/
-		5
+		let config_max = configuration::Pallet::<T>::config().max_validators.unwrap_or(200);
+		config_max
 	}
 
 	fn max_validators_per_core() -> u32 {

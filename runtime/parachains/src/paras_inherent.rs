@@ -847,7 +847,6 @@ fn limit_backed_candidates<T: Config>(
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
 
 	let max_block = <T as frame_system::Config>::BlockWeights::get().max_block;
-	assert_eq!(max_block, 0);
 	if frame_system::Pallet::<T>::block_weight().total() > max_block
 	// shouldn't this check be moved to top of fn?
 	{
