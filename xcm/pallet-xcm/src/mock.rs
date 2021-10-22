@@ -324,10 +324,6 @@ pub(crate) fn new_test_ext_with_balances(
 		.assimilate_storage(&mut t)
 		.unwrap();
 
-	pallet_xcm::GenesisConfig::<Test> { safe_xcm_version: Some(2), ..Default::default() }
-		.assimilate_storage(&mut t)
-		.unwrap();
-
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
 	ext
