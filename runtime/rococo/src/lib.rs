@@ -255,7 +255,7 @@ construct_runtime! {
 		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>},
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 
 	}
 }
