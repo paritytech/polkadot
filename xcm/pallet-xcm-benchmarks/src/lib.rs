@@ -57,10 +57,6 @@ pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as XcmConfig>::AssetTr
 /// The call type of executor's config. Should eventually resolve to the same overarching call type.
 pub type XcmCallOf<T> = <<T as Config>::XcmConfig as XcmConfig>::Call;
 
-/// The worst case number of assets in the holding.
-const HOLDING_FUNGIBLES: u32 = 99;
-const HOLDING_NON_FUNGIBLES: u32 = 99;
-
 pub fn worst_case_holding<T: Config>(depositable_count: u32) -> Assets {
 	let fungibles_amount: u128 = 100; // TODO probably update
 	let holding_fungibles =
