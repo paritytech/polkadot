@@ -507,7 +507,6 @@ impl pallet_authority_discovery::Config for Runtime {
 parameter_types! {
 	pub const NposSolutionPriority: TransactionPriority = TransactionPriority::max_value() / 2;
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
-	pub const MaxKeys: u32 = 10_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
@@ -520,7 +519,7 @@ impl pallet_im_online::Config for Runtime {
 	type ReportUnresponsiveness = Offences;
 	type UnsignedPriority = ImOnlineUnsignedPriority;
 	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
-	type MaxKeys = MaxKeys;
+	type MaxKeys = MaxValidatorsCount;
 	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
 	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
