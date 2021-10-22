@@ -29,6 +29,7 @@ variables:
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
   SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v14"
+  ZOMBIENET_IMAGE:                 "docker.io/paritypr/zombienet"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
@@ -701,3 +702,42 @@ simnet-tests-malus-dispute-valid:
   retry: 2
   tags:
     - polkadot-simnet
+
+zombienet-tests-malus-dispute-valid:
+  stage:                           deploy
+  image:                           "${ZOMBIENET_IMAGE}"
+  <<:                              *kubernetes-env
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  needs:
+    - job:                         publish-polkadot-image
+    - job:                         publish-malus-image
+    - job:                         publish-adder-collator-image
+
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx-zombienet/zombienet_tests'
+    # FIXME: use the master after the merge of the malus pr
+    # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/simnet_tests'
+    # FIXME: copy config of tests in simnet_test and use proper values
+  # `malus.env` brings here `$MALUS_IMAGE_NAME` and `$MALUS_IMAGE_TAG`
+  # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
+  # For local tests with docker `$MALUS_IMAGE_TAG` can be replaced with `master` tag.
+
+  before_script:
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+
+  script:
+    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test=001-dispute-valid-block.feature
+  allow_failure:                   true
+  retry: 2
+  tags:
+    - parity-zombienet
