@@ -83,14 +83,14 @@ pub enum FromPool {
 	Spawned(Worker),
 
 	/// The given worker either succeeded or failed the given job.
-	/// The artifact file has only been written if the preparation was successful.
-	/// The `bool` says whether the worker ripped.
 	Concluded {
+		/// A key for retrieving the worker data from the pool.
 		worker: Worker,
+		/// Indicates whether the worker process was killed.
 		rip: bool,
 		/// [`Ok`] indicates that compiled artifact is successfully stored on disk.
 		/// Otherwise, an [error](PrepareError) is supplied.
-		result: PrepareResult,
+		result: Result<(), PrepareError>,
 	},
 
 	/// The given worker ceased to exist.
