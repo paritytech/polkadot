@@ -668,7 +668,7 @@ fn subscriber_side_subscription_works() {
 		assert_eq!(r, Outcome::Complete(weight));
 		assert_eq!(take_sent_xcm(), vec![]);
 
-		// This message cannot be sent to a v1 remote.
+		// This message cannot be sent to a v2 remote.
 		let v2_msg = xcm::v2::Xcm::<()>(vec![xcm::v2::Instruction::Trap(0)]);
 		assert_eq!(XcmPallet::wrap_version(&remote, v2_msg.clone()), Err(()));
 

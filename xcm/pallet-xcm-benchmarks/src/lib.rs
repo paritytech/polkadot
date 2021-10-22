@@ -20,9 +20,10 @@
 
 use codec::Encode;
 use frame_benchmarking::account;
+use frame_support::traits::Get;
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
-use xcm_executor::{traits::Convert, Assets};
+use xcm_executor::{traits::Convert, Assets, Config as XcmConfig};
 
 pub mod fungible;
 
@@ -35,7 +36,7 @@ pub trait Config: frame_system::Config {
 	///
 	/// These might affect the execution of XCM messages, such as defining how the
 	/// `TransactAsset` is implemented.
-	type XcmConfig: xcm_executor::Config;
+	type XcmConfig: XcmConfig;
 
 	/// A converter between a multi-location to a sovereign account.
 	type AccountIdConverter: Convert<MultiLocation, Self::AccountId>;
@@ -52,17 +53,19 @@ pub type ExecutorOf<T> = xcm_executor::XcmExecutor<<T as Config>::XcmConfig>;
 /// The overarching call type.
 pub type OverArchingCallOf<T> = <T as frame_system::Config>::Call;
 /// The asset transactor of our executor
-pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::AssetTransactor;
+pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as XcmConfig>::AssetTransactor;
 /// The call type of executor's config. Should eventually resolve to the same overarching call type.
-pub type XcmCallOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::Call;
+pub type XcmCallOf<T> = <<T as Config>::XcmConfig as XcmConfig>::Call;
 
 /// The worst case number of assets in the holding.
 const HOLDING_FUNGIBLES: u32 = 99;
 const HOLDING_NON_FUNGIBLES: u32 = 99;
 
-pub fn worst_case_holding() -> Assets {
+pub fn worst_case_holding<T: Config>(depositable_count: u32) -> Assets {
 	let fungibles_amount: u128 = 100; // TODO probably update
-	(0..HOLDING_FUNGIBLES)
+	let holding_fungibles = (<T::XcmConfig as XcmConfig>::MaxHoldingAssetCount::get()) / 2 - depositable_count;
+	let holding_non_fungibles = holding_fungibles;
+	(0..holding_fungibles)
 		.map(|i| {
 			MultiAsset {
 				id: Concrete(GeneralIndex(i as u128).into()),
@@ -71,7 +74,7 @@ pub fn worst_case_holding() -> Assets {
 			.into()
 		})
 		.chain(core::iter::once(MultiAsset { id: Concrete(Here.into()), fun: Fungible(u128::MAX) }))
-		.chain((0..HOLDING_NON_FUNGIBLES).map(|i| MultiAsset {
+		.chain((0..holding_non_fungibles).map(|i| MultiAsset {
 			id: Concrete(GeneralIndex(i as u128).into()),
 			fun: NonFungible(asset_instance_from(i)),
 		}))

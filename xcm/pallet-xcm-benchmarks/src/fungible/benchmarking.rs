@@ -38,7 +38,7 @@ benchmarks_instance_pallet! {
 
 	withdraw_asset {
 		let (sender_account, sender_location) = account_and_location::<T>(1);
-		let worst_case_holding = worst_case_holding();
+		let worst_case_holding = worst_case_holding::<T>(0);
 		let asset = T::get_multi_asset();
 
 		<AssetTransactorOf<T>>::deposit_asset(&asset, &sender_location).unwrap();
@@ -129,7 +129,7 @@ benchmarks_instance_pallet! {
 
 	deposit_asset {
 		let asset = T::get_multi_asset();
-		let mut holding = worst_case_holding();
+		let mut holding = worst_case_holding::<T>(1);
 
 		// Add our asset to the holding.
 		holding.subsume(asset.clone());
@@ -155,7 +155,7 @@ benchmarks_instance_pallet! {
 
 	deposit_reserve_asset {
 		let asset = T::get_multi_asset();
-		let mut holding = worst_case_holding();
+		let mut holding = worst_case_holding::<T>(1);
 
 		// Add our asset to the holding.
 		holding.subsume(asset.clone());
@@ -182,7 +182,7 @@ benchmarks_instance_pallet! {
 
 	initiate_teleport {
 		let asset = T::get_multi_asset();
-		let mut holding = worst_case_holding();
+		let mut holding = worst_case_holding::<T>(0);
 
 		// Add our asset to the holding.
 		holding.subsume(asset.clone());
