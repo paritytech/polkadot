@@ -889,7 +889,7 @@ impl<T: Config> Pallet<T> {
 
 	/// The validation code of live para.
 	pub(crate) fn current_code(para_id: &ParaId) -> Option<ValidationCode> {
-		CurrentCodeHash::<T>::get(para_id).and_then(|code_hash| {
+		Self::current_code_hash(para_id).and_then(|code_hash| {
 			let code = CodeByHash::<T>::get(&code_hash);
 			if code.is_none() {
 				log::error!(
