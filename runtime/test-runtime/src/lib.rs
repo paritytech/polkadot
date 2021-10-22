@@ -801,6 +801,16 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
 
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			runtime_impl::assumed_validation_data::<Runtime>(
+				para_id,
+				expected_persisted_validation_data_hash,
+			)
+		}
+
 		fn check_validation_outputs(
 			para_id: ParaId,
 			outputs: primitives::v1::CandidateCommitments,

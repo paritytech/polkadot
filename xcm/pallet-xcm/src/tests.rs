@@ -218,14 +218,29 @@ fn teleport_assets_works() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
+		let dest: MultiLocation = AccountId32 { network: Any, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::teleport_assets(
 			Origin::signed(ALICE),
 			Box::new(RelayLocation::get().into()),
-			Box::new(AccountId32 { network: Any, id: BOB.into() }.into().into()),
+			Box::new(dest.clone().into()),
 			Box::new((Here, SEND_AMOUNT).into()),
 			0,
 		));
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE - SEND_AMOUNT);
+		assert_eq!(
+			sent_xcm(),
+			vec![(
+				RelayLocation::get().into(),
+				Xcm(vec![
+					ReceiveTeleportedAsset((Here, SEND_AMOUNT).into()),
+					ClearOrigin,
+					buy_limited_execution((Here, SEND_AMOUNT), 2000),
+					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+				]),
+			)]
+		);
+		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
+		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
@@ -265,11 +280,13 @@ fn reserve_transfer_assets_works() {
 				Xcm(vec![
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
-					buy_execution((Parent, SEND_AMOUNT)),
+					buy_limited_execution((Parent, SEND_AMOUNT), 2000),
 					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
 				]),
 			)]
 		);
+		let versioned_sent = VersionedXcm::from(sent_xcm().into_iter().next().unwrap().1);
+		let _check_v0_ok: xcm::v0::Xcm<()> = versioned_sent.try_into().unwrap();
 		assert_eq!(
 			last_event(),
 			Event::XcmPallet(crate::Event::Attempted(Outcome::Complete(weight)))
