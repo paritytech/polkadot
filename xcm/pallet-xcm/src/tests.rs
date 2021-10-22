@@ -429,7 +429,7 @@ fn basic_subscription_works() {
 		);
 		assert_eq!(
 			VersionNotifiers::<Test>::iter().collect::<Vec<_>>(),
-			vec![(2, remote.clone().into(), 0)]
+			vec![(XCM_VERSION, remote.clone().into(), 0)]
 		);
 
 		assert_eq!(
@@ -610,9 +610,9 @@ fn subscription_side_upgrades_work_with_notify() {
 		assert_eq!(
 			contents,
 			vec![
-				(2, Parachain(1000).into().versioned(), (69, 0, 2)),
-				(2, Parachain(1001).into().versioned(), (70, 0, 2)),
-				(2, Parachain(1002).into().versioned(), (71, 0, 2)),
+				(XCM_VERSION, Parachain(1000).into().versioned(), (69, 0, 2)),
+				(XCM_VERSION, Parachain(1001).into().versioned(), (70, 0, 2)),
+				(XCM_VERSION, Parachain(1002).into().versioned(), (71, 0, 2)),
 			]
 		);
 	});
@@ -639,9 +639,9 @@ fn subscription_side_upgrades_work_without_notify() {
 		assert_eq!(
 			contents,
 			vec![
-				(2, Parachain(1000).into().versioned(), (69, 0, 2)),
-				(2, Parachain(1001).into().versioned(), (70, 0, 2)),
-				(2, Parachain(1002).into().versioned(), (71, 0, 2)),
+				(XCM_VERSION, Parachain(1000).into().versioned(), (69, 0, 2)),
+				(XCM_VERSION, Parachain(1001).into().versioned(), (70, 0, 2)),
+				(XCM_VERSION, Parachain(1002).into().versioned(), (71, 0, 2)),
 			]
 		);
 	});
@@ -669,7 +669,7 @@ fn subscriber_side_subscription_works() {
 		assert_eq!(take_sent_xcm(), vec![]);
 
 		// This message cannot be sent to a v1 remote.
-		let v2_msg = Xcm::<()>(vec![Trap(0)]);
+		let v2_msg = xcm::v2::Xcm::<()>(vec![xcm::v2::Instruction::Trap(0)]);
 		assert_eq!(XcmPallet::wrap_version(&remote, v2_msg.clone()), Err(()));
 
 		let message = Xcm(vec![
@@ -701,7 +701,7 @@ fn auto_subscription_works() {
 			query_id: 1,
 			response: xcm::v1::Response::Assets(vec![].into()),
 		};
-		let v2_msg = Xcm::<()>(vec![Trap(0)]);
+		let v2_msg = xcm::v2::Xcm::<()>(vec![xcm::v2::Instruction::Trap(0)]);
 		assert_eq!(
 			XcmPallet::wrap_version(&remote0, v1_msg.clone()),
 			Ok(VersionedXcm::from(v1_msg.clone())),
@@ -815,9 +815,9 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		assert_eq!(
 			contents,
 			vec![
-				(2, Parachain(1000).into().versioned(), (69, 0, 2)),
-				(2, Parachain(1001).into().versioned(), (70, 0, 2)),
-				(2, Parachain(1002).into().versioned(), (71, 0, 2)),
+				(XCM_VERSION, Parachain(1000).into().versioned(), (69, 0, 2)),
+				(XCM_VERSION, Parachain(1001).into().versioned(), (70, 0, 2)),
+				(XCM_VERSION, Parachain(1002).into().versioned(), (71, 0, 2)),
 			]
 		);
 	});
