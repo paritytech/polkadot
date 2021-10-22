@@ -409,7 +409,7 @@ pub mod pallet {
 			<scheduler::Pallet<T>>::clear();
 			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
 
-			let scheduled = dbg!(<scheduler::Pallet<T>>::scheduled());
+			let scheduled = <scheduler::Pallet<T>>::scheduled();
 			let backed_candidates = sanitize_backed_candidates::<T, _, true>(
 				parent_hash,
 				backed_candidates,
@@ -651,7 +651,6 @@ pub(crate) fn sanitize_bitfields<
 	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
 	let signing_context = SigningContext { parent_hash, session_index };
 	for unchecked_bitfield in unchecked_bitfields {
-
 		ensure2!(
 			unchecked_bitfield.unchecked_payload().0.len() == expected_bits,
 			crate::inclusion::pallet::Error::<T>::WrongBitfieldSize,
@@ -853,177 +852,251 @@ mod tests {
 		}
 	}
 
-	mod paras_inherent_weight {
+	fn default_header() -> primitives::v1::Header {
+		primitives::v1::Header {
+			parent_hash: Default::default(),
+			number: 0,
+			state_root: Default::default(),
+			extrinsics_root: Default::default(),
+			digest: Default::default(),
+		}
+	}
+
+	mod sanitizers {
 		use super::*;
-		use crate::inclusion::tests::*;
+		use assert_matches::assert_matches;
 
 		use primitives::v1::{GroupIndex, Hash, Header, Id as ParaId, ValidatorIndex};
 
+		use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
 		use frame_support::traits::UnfilteredDispatchable;
-		use crate::{
-			mock::{
-				new_test_ext, MockGenesisConfig,
-				System, Test,
-			},
-		};
 		use futures::executor::block_on;
-		use primitives::{
-			v0::PARACHAIN_KEY_TYPE_ID,
-		};
+		use primitives::v0::PARACHAIN_KEY_TYPE_ID;
 		use sc_keystore::LocalKeystore;
 		use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 		use std::sync::Arc;
 
-		fn default_header() -> Header {
-			Header {
-				parent_hash: Default::default(),
-				number: 0,
-				state_root: Default::default(),
-				extrinsics_root: Default::default(),
-				digest: Default::default(),
+		fn validator_pubkeys(val_ids: &[keyring::Sr25519Keyring]) -> Vec<ValidatorId> {
+			val_ids.iter().map(|v| v.public().into()).collect()
+		}
+
+		#[test]
+		fn bitfields() {
+			let header = default_header();
+			let parent_hash = header.hash();
+			// 2 cores means two bits
+			let expected_bits = 2;
+			let unchecked_bitfields = vec![];
+			let disputed_bitfield = DisputedBitfield::zeros(expected_bits);
+			let session_index = SessionIndex::from(0_u32);
+
+			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+			let validators = vec![
+				keyring::Sr25519Keyring::Alice,
+				keyring::Sr25519Keyring::Bob,
+				keyring::Sr25519Keyring::Charlie,
+				keyring::Sr25519Keyring::Dave,
+			];
+			for validator in validators.iter() {
+				SyncCryptoStore::sr25519_generate_new(
+					&*keystore,
+					PARACHAIN_KEY_TYPE_ID,
+					Some(&validator.to_seed()),
+				)
+				.unwrap();
+			}
+			let validator_public = validator_pubkeys(&validators);
+
+			{
+				assert_matches!(
+					sanitize_bitfields::<Test, true>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					),
+					Ok(_)
+				);
+				assert_eq!(
+					sanitize_bitfields::<Test, false>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					),
+					Ok(unchecked_bitfields.clone())
+				);
 			}
 		}
 
+		#[test]
+		fn candidates() {}
+	}
+
+	mod paras_inherent_weight {
+		use super::*;
+		use crate::inclusion::tests::*;
+
+		use primitives::v1::{GroupIndex, Hash, Id as ParaId, ValidatorIndex};
+
+		use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
+		use frame_support::traits::UnfilteredDispatchable;
+		use futures::executor::block_on;
+		use primitives::v0::PARACHAIN_KEY_TYPE_ID;
+		use sc_keystore::LocalKeystore;
+		use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+		use std::sync::Arc;
 
 		/// We expect the weight of the paras inherent not to change when no truncation occurs:
 		/// its weight is dynamically computed from the size of the backed candidates list, and is
 		/// already incorporated into the current block weight when it is selected by the provisioner.
 		#[test]
 		fn weight_does_not_change_on_happy_path() {
-
 			let chain_a = ParaId::from(1);
 			let chain_b = ParaId::from(2);
 			let chains = vec![chain_a, chain_b];
 
-			new_test_ext(genesis_config(vec![(chain_a, true), (chain_b, true)])).execute_with(|| {
-				let header = default_header();
-				System::set_block_number(1);
-				System::set_parent_hash(header.hash());
-				let session_index = SessionIndex::from(0_u32);
-				crate::shared::CurrentSessionIndex::<Test>::set(session_index);
-				let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-				let validators = vec![
-					keyring::Sr25519Keyring::Alice,
-					keyring::Sr25519Keyring::Bob,
-					keyring::Sr25519Keyring::Charlie,
-					keyring::Sr25519Keyring::Dave,
-				];
-				for validator in validators.iter() {
-					SyncCryptoStore::sr25519_generate_new(
-						&*keystore,
-						PARACHAIN_KEY_TYPE_ID,
-						Some(&validator.to_seed()),
-					)
-					.unwrap();
-				}
-				let validator_public = validator_pubkeys(&validators);
+			new_test_ext(genesis_config(vec![(chain_a, true), (chain_b, true)])).execute_with(
+				|| {
+					let header = default_header();
+					System::set_block_number(1);
+					System::set_parent_hash(header.hash());
+					let session_index = SessionIndex::from(0_u32);
+					crate::shared::CurrentSessionIndex::<Test>::set(session_index);
+					let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+					let validators = vec![
+						keyring::Sr25519Keyring::Alice,
+						keyring::Sr25519Keyring::Bob,
+						keyring::Sr25519Keyring::Charlie,
+						keyring::Sr25519Keyring::Dave,
+					];
+					for validator in validators.iter() {
+						SyncCryptoStore::sr25519_generate_new(
+							&*keystore,
+							PARACHAIN_KEY_TYPE_ID,
+							Some(&validator.to_seed()),
+						)
+						.unwrap();
+					}
+					let validator_public = validator_pubkeys(&validators);
 
-				shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
+					shared::Pallet::<Test>::set_active_validators_ascending(
+						validator_public.clone(),
+					);
 
-				let group_validators = |group_index: GroupIndex| {
-					match group_index {
+					let group_validators = |group_index: GroupIndex| {
+						match group_index {
 						group_index if group_index == GroupIndex::from(0) => vec![0, 1],
 						group_index if group_index == GroupIndex::from(1) => vec![2, 3],
 						x => panic!("Group index out of bounds for 2 parachains and 1 parathread core {}", x.0),
 					}
 					.into_iter().map(ValidatorIndex).collect::<Vec<_>>()
-				};
+					};
 
-				let signing_context =
-					SigningContext { parent_hash: System::parent_hash(), session_index };
+					let signing_context =
+						SigningContext { parent_hash: System::parent_hash(), session_index };
 
-				// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
-				let signed_bitfields = Vec::new();
-				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
-				crate::paras::Parachains::<Test>::set(chains.clone());
+					// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
+					let signed_bitfields = Vec::new();
+					// backed candidates must not be empty, so we can demonstrate that the weight has not changed
+					crate::paras::Parachains::<Test>::set(chains.clone());
 
+					crate::scheduler::ValidatorGroups::<Test>::set(vec![
+						group_validators(GroupIndex::from(0)),
+						group_validators(GroupIndex::from(1)),
+					]);
 
-				crate::scheduler::ValidatorGroups::<Test>::set(vec![
-					group_validators(GroupIndex::from(0)),
-					group_validators(GroupIndex::from(1)),
-				]);
+					crate::scheduler::AvailabilityCores::<Test>::set(vec![None, None]);
 
-				crate::scheduler::AvailabilityCores::<Test>::set(vec![None, None]);
+					let core_a = CoreIndex::from(0);
+					let grp_idx_a = crate::scheduler::Pallet::<Test>::group_assigned_to_core(
+						core_a,
+						System::block_number(),
+					)
+					.unwrap();
 
-				let core_a = CoreIndex::from(0);
-				let grp_idx_a = crate::scheduler::Pallet::<Test>::group_assigned_to_core(core_a, System::block_number()).unwrap();
+					let core_b = CoreIndex::from(1);
+					let grp_idx_b = crate::scheduler::Pallet::<Test>::group_assigned_to_core(
+						core_b,
+						System::block_number(),
+					)
+					.unwrap();
 
-				let core_b = CoreIndex::from(1);
-				let grp_idx_b = crate::scheduler::Pallet::<Test>::group_assigned_to_core(core_b, System::block_number()).unwrap();
+					let grp_indices = vec![grp_idx_a.clone(), grp_idx_b.clone()];
 
-				let grp_indices = vec![grp_idx_a.clone(), grp_idx_b.clone()];
+					let backed_candidates = chains
+						.iter()
+						.cloned()
+						.enumerate()
+						.map(|(idx, para_id)| {
+							let mut candidate = TestCandidateBuilder {
+								para_id,
+								relay_parent: header.hash(),
+								pov_hash: Hash::repeat_byte(1_u8 + idx as u8),
+								persisted_validation_data_hash: make_vdata_hash(para_id).unwrap(),
+								hrmp_watermark: 0,
+								..Default::default()
+							}
+							.build();
 
-				let backed_candidates = chains.iter().cloned().enumerate()
-					.map(|(idx, para_id)| {
-						let mut candidate = TestCandidateBuilder {
-							para_id,
-							relay_parent: header.hash(),
-							pov_hash: Hash::repeat_byte(1_u8 + idx as u8),
-							persisted_validation_data_hash: make_vdata_hash(para_id).unwrap(),
-							hrmp_watermark: 0,
-							..Default::default()
-						}
-						.build();
+							collator_sign_candidate(keyring::Sr25519Keyring::One, &mut candidate);
 
-						collator_sign_candidate(
-							keyring::Sr25519Keyring::One,
-							&mut candidate,
-						);
+							let group_to_use_for_signing = grp_indices[idx].clone();
+							let backing_validators = group_validators(group_to_use_for_signing);
+							let backed_candidate = block_on(back_candidate(
+								candidate,
+								&validators,
+								backing_validators.as_slice(),
+								&keystore,
+								&signing_context,
+								BackingKind::Threshold,
+							));
+							backed_candidate
+						})
+						.collect::<Vec<_>>();
 
-						let group_to_use_for_signing = grp_indices[idx].clone();
-						let backing_validators =
-							group_validators(group_to_use_for_signing)
-						;
-						let backed_candidate = block_on(back_candidate(
-							candidate,
-							&validators,
-							backing_validators.as_slice(),
-							&keystore,
-							&signing_context,
-							BackingKind::Threshold,
-						));
-						backed_candidate
+					// the expected weight can always be computed by this formula
+					let expected_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT +
+						(backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT);
 
-					})
-					.collect::<Vec<_>>();
+					// we've used half the block weight; there's plenty of margin
+					let max_block_weight =
+						<Test as frame_system::Config>::BlockWeights::get().max_block;
 
-				// the expected weight can always be computed by this formula
-				let expected_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT +
-					(backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT);
+					let used_block_weight = max_block_weight / 2;
+					System::set_block_consumed_resources(used_block_weight, 0);
 
-				// we've used half the block weight; there's plenty of margin
-				let max_block_weight =
-					<Test as frame_system::Config>::BlockWeights::get().max_block;
+					// no need to schedule anything, `schedule(..)` is called
+					// form the `fn` under test.
 
-				let used_block_weight = max_block_weight / 2;
-				System::set_block_consumed_resources(used_block_weight, 0);
+					// execute the paras inherent
+					let post_info = Call::<Test>::enter {
+						data: ParachainsInherentData {
+							bitfields: signed_bitfields,
+							backed_candidates,
+							disputes: Vec::new(),
+							parent_header: header,
+						},
+					}
+					.dispatch_bypass_filter(None.into())
+					.unwrap();
 
-				// no need to schedule anything, `schedule(..)` is called
-				// form the `fn` under test.
-
-				// execute the paras inherent
-				let post_info = Call::<Test>::enter {
-					data: ParachainsInherentData {
-						bitfields: signed_bitfields,
-						backed_candidates,
-						disputes: Vec::new(),
-						parent_header: header,
-					},
-				}
-				.dispatch_bypass_filter(None.into())
-				.unwrap();
-
-				// we don't directly check the block's weight post-call. Instead, we check that the
-				// call has returned the appropriate post-dispatch weight for refund, and trust
-				// Substrate to do the right thing with that information.
-				//
-				// In this case, the weight system can update the actual weight with the same amount,
-				// or return `None` to indicate that the pre-computed weight should not change.
-				// Either option is acceptable for our purposes.
-				if let Some(actual_weight) = post_info.actual_weight {
-					assert_eq!(actual_weight, expected_weight);
-				}
-			});
+					// we don't directly check the block's weight post-call. Instead, we check that the
+					// call has returned the appropriate post-dispatch weight for refund, and trust
+					// Substrate to do the right thing with that information.
+					//
+					// In this case, the weight system can update the actual weight with the same amount,
+					// or return `None` to indicate that the pre-computed weight should not change.
+					// Either option is acceptable for our purposes.
+					if let Some(actual_weight) = post_info.actual_weight {
+						assert_eq!(actual_weight, expected_weight);
+					}
+				},
+			);
 		}
 
 		/// We expect the weight of the paras inherent to change when truncation occurs: its

@@ -632,7 +632,6 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 		let payload = attestation.signed_payload(hash.clone(), signing_context);
 		let sig = attestation.signature();
 
-		println!("Verify candidate {:?} with val[group_idx={}]", &hash, val_in_group_idx);
 		if sig.verify(&payload[..], &validator_id) {
 			signed += 1;
 		} else {

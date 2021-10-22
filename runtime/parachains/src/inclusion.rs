@@ -1058,7 +1058,6 @@ pub(crate) mod tests {
 
 		for (idx_in_group, val_idx) in group.iter().enumerate().take(signing) {
 			let key: Sr25519Keyring = validators[val_idx.0 as usize];
-			println!("Signing candidate {:?} with val[{}]", candidate.hash(), val_idx.0);
 			*validator_indices.get_mut(idx_in_group).unwrap() = true;
 
 			let signature = SignedStatement::sign(
