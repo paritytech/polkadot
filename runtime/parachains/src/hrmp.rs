@@ -480,7 +480,7 @@ pub mod pallet {
 		/// This cancels a pending open channel request. It can be canceled be either of the sender
 		/// or the recipient for that request. The origin must be either of those.
 		///
-		/// The cancelling happens immediately. It is not possible to cancel the request if it is
+		/// The cancellation happens immediately. It is not possible to cancel the request if it is
 		/// already accepted.
 		#[pallet::weight(0)]
 		pub fn hrmp_cancel_open_request(

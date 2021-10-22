@@ -270,6 +270,27 @@ build-adder-collator:
 
 #### stage:                        build
 
+.check-dependent-project:          &check-dependent-project
+  stage:                           build
+  <<:                              *docker-env
+  <<:                              *vault-secrets
+  script:
+    - git clone
+        --depth=1
+        "--branch=$PIPELINE_SCRIPTS_TAG"
+        https://github.com/paritytech/pipeline-scripts
+    - ./pipeline-scripts/check_dependent_project.sh
+        paritytech
+        polkadot
+        --polkadot
+        "$DEPENDENT_REPO"
+        "$GITHUB_PR_TOKEN"
+
+check-dependent-cumulus:
+  <<: *check-dependent-project
+  variables:
+    DEPENDENT_REPO: cumulus
+
 check-transaction-versions:
   # image must be ubuntu:20.04 based to match the linkers, this image has npm installed
   image:                           paritytech/contracts-ci-linux:production

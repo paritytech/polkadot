@@ -167,9 +167,12 @@ impl Contains<Call> for BaseFilter {
 			Call::Dmp(_) |
 			Call::Ump(_) |
 			Call::Hrmp(_) |
-			Call::Slots(_) => true,
-			// Disable paras registration, crowdloans, and auctions for now.
-			Call::Registrar(_) | Call::Auctions(_) | Call::Crowdloan(_) => false,
+			Call::Slots(_) |
+			Call::Registrar(_) |
+			Call::Auctions(_) |
+			Call::Crowdloan(_) => true,
+			// All pallets are allowed, but exhaustive match is defensive
+			// in the case of adding new pallets.
 		}
 	}
 }
@@ -1349,145 +1352,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(
-		SetInitialHostConfiguration,
-		BountiesPrefixMigration,
-		CouncilStoragePrefixMigration,
-		TechnicalCommitteeStoragePrefixMigration,
-		TechnicalMembershipStoragePrefixMigration,
-		MigrateTipsPalletPrefix,
-	),
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-const BOUNTIES_OLD_PREFIX: &str = "Treasury";
-
-/// Migrate from 'Treasury' to the new prefix 'Bounties'
-pub struct BountiesPrefixMigration;
-
-impl OnRuntimeUpgrade for BountiesPrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
-			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::migrate::<Runtime, Bounties, _>(BOUNTIES_OLD_PREFIX, name)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
-			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::pre_migration::<Runtime, Bounties, _>(
-			BOUNTIES_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
-			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::post_migration::<Runtime, Bounties, _>(
-			BOUNTIES_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-}
-
-const COUNCIL_OLD_PREFIX: &str = "Instance1Collective";
-/// Migrate from `Instance1Collective` to the new pallet prefix `Council`
-pub struct CouncilStoragePrefixMigration;
-
-impl OnRuntimeUpgrade for CouncilStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_collective::migrations::v4::migrate::<Runtime, Council, _>(COUNCIL_OLD_PREFIX)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::pre_migrate::<Council, _>(COUNCIL_OLD_PREFIX);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::post_migrate::<Council, _>(COUNCIL_OLD_PREFIX);
-		Ok(())
-	}
-}
-
-const TECHNICAL_COMMITTEE_OLD_PREFIX: &str = "Instance2Collective";
-/// Migrate from `Instance2Collective` to the new pallet prefix `TechnicalCommittee`
-pub struct TechnicalCommitteeStoragePrefixMigration;
-
-impl OnRuntimeUpgrade for TechnicalCommitteeStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_collective::migrations::v4::migrate::<Runtime, TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-		)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::pre_migrate::<TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::post_migrate::<TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-		);
-		Ok(())
-	}
-}
-
-const TECHNICAL_MEMBERSHIP_OLD_PREFIX: &str = "Instance1Membership";
-/// Migrate from `Instance1Membership` to the new pallet prefix `TechnicalMembership`
-pub struct TechnicalMembershipStoragePrefixMigration;
-
-impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("TechnialMembership is part of runtime, so it has a name; qed");
-		pallet_membership::migrations::v4::migrate::<Runtime, TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
-		pallet_membership::migrations::v4::pre_migrate::<TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
-		pallet_membership::migrations::v4::post_migrate::<TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-}
 
 /// Set the initial host configuration for Polkadot.
 pub struct SetInitialHostConfiguration;
@@ -1664,6 +1532,16 @@ sp_api::impl_runtime_apis! {
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			parachains_runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			parachains_runtime_api_impl::assumed_validation_data::<Runtime>(
+				para_id,
+				expected_persisted_validation_data_hash,
+			)
 		}
 
 		fn check_validation_outputs(
