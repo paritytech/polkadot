@@ -14,18 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{
-	cmp::{Ord, Ordering, PartialOrd},
-	collections::{HashMap, HashSet},
-};
+use std::{cmp::{Ord, Ordering, PartialOrd}, collections::{BTreeMap, HashMap, HashSet}};
 
-use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender};
+use futures::channel::oneshot;
+use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender, messages::ChainApiMessage};
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Id,
 };
 
-use super::error::Result;
+use super::error::{Fatal, FatalResult, Result};
 
 /// Provider of `CandidateComparator` for candidates.
 pub struct OrderingProvider {
@@ -34,7 +32,7 @@ pub struct OrderingProvider {
 	/// including block -> `CandidateHash`
 	///
 	/// We need this to clean up `cached_comparators` on `ActiveLeavesUpdate`.
-	candidates_by_relay_chain: HashMap<Hash, HashSet<CandidateHash>>,
+	candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
 }
 
 /// Comparator for ordering of disputes for candidates.
@@ -152,6 +150,10 @@ impl OrderingProvider {
 			}
 		}
 
+		// Block can get deactivated because they got a child or because they have been finalized,
+		// we only care about finalized blocks - we want to keep candidates around until they are
+		// finalized, then they become low priority.
+		let latest_finalized = request_finalized_block_number(sender).await?;
 		for deactivated in update.deactivated.iter() {
 			if let Some(candidates) = self.candidates_by_relay_chain.remove(deactivated) {
 				for candidate in candidates {
@@ -160,5 +162,16 @@ impl OrderingProvider {
 			}
 		}
 		Ok(())
+	}
+}
+
+/// Request the latest finalized block from the chain API.
+async fn request_finalized_block_number<Sender: SubsystemSender>(sender: &mut Sender) -> FatalResult<BlockNumber> {
+	let (tx, rx) = oneshot::channel();
+	sender.send_message(ChainApiMessage::FinalizedBlockNumber(tx).into()).await;
+
+	match rx.await.map_err(|_| Fatal::ChainApiRequestCanceled)? {
+		Ok(n) => Ok(n + 1),
+		Err(err) => Err(err.into()),
 	}
 }
