@@ -581,6 +581,7 @@ async fn handle_prepare_done(
 			return Ok(())
 		},
 		Some(state @ ArtifactState::Preparing { waiting_for_response: _ }) => state,
+
 	};
 
 	if let ArtifactState::Preparing { waiting_for_response } = state {
