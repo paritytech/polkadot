@@ -571,25 +571,36 @@ mod tests {
 
 	#[test]
 	fn min_counted_works() {
-		let mut assets = test_assets();
+		let mut assets = Assets::new();
 		assets.subsume(AF(1, 100));
 		assets.subsume(ANF(2, 20));
-		assets.subsume(CF(300));
 		assets.subsume(CNF(40));
-		// Push same group of tokens again
-		assets.subsume(AF(1, 100));
-		assets.subsume(ANF(2, 20));
-		assets.subsume(CF(300));
-		assets.subsume(CNF(40));
+		assets.subsume(AF(10, 50));
+		assets.subsume(ANF(2, 40));
+		assets.subsume(ANF(2, 30));
+		assets.subsume(CF(3000));
+		assets.subsume(CNF(80));
+		assets.subsume(ANF(3, 10));
 		let fungible = WildMultiAsset::from((vec![1], WildFungible)).counted(2).into();
-		let non_fungible = WildMultiAsset::from((vec![1], WildFungible)).counted(2).into();
+		let non_fungible = WildMultiAsset::from((vec![2], WildNonFungible)).counted(2).into();
+		let all = WildMultiAsset::AllCounted(6).into();
 
 		let fungible = assets.min(&fungible);
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();
 		assert_eq!(fungible, vec![AF(1, 100)]);
 		let non_fungible = assets.min(&non_fungible);
 		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
-		assert_eq!(non_fungible, vec![ANF(2, 20)]);
+		assert_eq!(non_fungible, vec![ANF(2, 20), ANF(2, 30)]);
+		let all = assets.min(&all);
+		let all = all.assets_iter().collect::<Vec<_>>();
+		assert_eq!(all, vec![
+			CF(3000),
+			AF(1, 100),
+			AF(10, 50),
+			CNF(40),
+			CNF(80),
+			ANF(2, 20),
+		]);
 	}
 
 	#[test]
@@ -708,5 +719,89 @@ mod tests {
 
 		let assets = assets1.into_assets_iter().collect::<Vec<_>>();
 		assert_eq!(assets, vec![AF(1, 50), ANF(2, 20)]);
+	}
+
+	#[test]
+	fn try_take_all_counted_works() {
+		let mut assets = Assets::new();
+		assets.subsume(AF(1, 100));
+		assets.subsume(ANF(2, 20));
+		assets.subsume(CNF(40));
+		assets.subsume(AF(10, 50));
+		assets.subsume(ANF(2, 40));
+		assets.subsume(ANF(2, 30));
+		assets.subsume(CF(3000));
+		assets.subsume(CNF(80));
+		assets.subsume(ANF(3, 10));
+		let all = assets.try_take(WildMultiAsset::AllCounted(6).into()).unwrap();
+		assert_eq!(MultiAssets::from(all).inner(), &vec![
+			CF(3000),
+			AF(1, 100),
+			AF(10, 50),
+			CNF(40),
+			CNF(80),
+			ANF(2, 20),
+		]);
+		assert_eq!(MultiAssets::from(assets).inner(), &vec![
+			ANF(2, 30),
+			ANF(2, 40),
+			ANF(3, 10),
+		]);
+	}
+
+	#[test]
+	fn try_take_fungibles_counted_works() {
+		let mut assets = Assets::new();
+		assets.subsume(AF(1, 100));
+		assets.subsume(ANF(2, 20));
+		assets.subsume(CNF(40));
+		assets.subsume(AF(10, 50));
+		assets.subsume(ANF(2, 40));
+		assets.subsume(ANF(2, 30));
+		assets.subsume(CF(3000));
+		assets.subsume(CNF(80));
+		assets.subsume(ANF(3, 10));
+		let mask = WildMultiAsset::from((vec![1], WildFungible)).counted(2).into();
+		let taken = assets.try_take(mask).unwrap();
+		assert_eq!(MultiAssets::from(taken).inner(), &vec![ AF(1, 100) ]);
+		assert_eq!(MultiAssets::from(assets).inner(), &vec![
+			CF(3000),
+			AF(10, 50),
+			CNF(40),
+			CNF(80),
+			ANF(2, 20),
+			ANF(2, 30),
+			ANF(2, 40),
+			ANF(3, 10),
+		]);
+	}
+
+	#[test]
+	fn try_take_non_fungibles_counted_works() {
+		let mut assets = Assets::new();
+		assets.subsume(AF(1, 100));
+		assets.subsume(ANF(2, 20));
+		assets.subsume(CNF(40));
+		assets.subsume(AF(10, 50));
+		assets.subsume(ANF(2, 40));
+		assets.subsume(ANF(2, 30));
+		assets.subsume(CF(3000));
+		assets.subsume(CNF(80));
+		assets.subsume(ANF(3, 10));
+		let mask = WildMultiAsset::from((vec![2], WildNonFungible)).counted(2).into();
+		let taken = assets.try_take(mask).unwrap();
+		assert_eq!(MultiAssets::from(taken).inner(), &vec![
+			ANF(2, 20),
+			ANF(2, 30),
+		]);
+		assert_eq!(MultiAssets::from(assets).inner(), &vec![
+			CF(3000),
+			AF(1, 100),
+			AF(10, 50),
+			CNF(40),
+			CNF(80),
+			ANF(2, 40),
+			ANF(3, 10),
+		]);
 	}
 }
