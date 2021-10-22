@@ -29,7 +29,7 @@ use super::db::v1::RecentDisputes;
 const ACTIVE_DURATION_SECS: Timestamp = 180;
 
 /// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
-type Timestamp = u64;
+pub type Timestamp = u64;
 
 /// The status of dispute. This is a state machine which can be altered by the
 /// helper methods.
@@ -60,6 +60,15 @@ impl DisputeStatus {
 	/// Initialize the status to the active state.
 	pub fn active() -> DisputeStatus {
 		DisputeStatus::Active
+	}
+
+	/// Move status to confirmed status, if not yet concluded/confirmed already.
+	pub fn confirm(self) -> DisputeStatus {
+		match self {
+			DisputeStatus::Active => DisputeStatus::Confirmed,
+			DisputeStatus::Confirmed => DisputeStatus::Confirmed,
+			DisputeStatus::ConcludedFor(_) | DisputeStatus::ConcludedAgainst(_) => self,
+		}
 	}
 
 	/// Check whether the dispute is not a spam dispute.

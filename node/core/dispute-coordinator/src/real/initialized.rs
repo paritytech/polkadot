@@ -50,7 +50,7 @@ use polkadot_primitives::v1::{
 };
 use sc_keystore::LocalKeystore;
 
-use crate::{Config, DisputeCoordinatorSubsystem, metrics::Metrics};
+use crate::{Config, DisputeCoordinatorSubsystem, metrics::Metrics, real::status::DisputeStatus};
 use backend::{Backend, OverlayedBackend};
 use db::v1::{DbBackend, RecentDisputes};
 use error::{FatalResult, Result};
@@ -60,7 +60,10 @@ use self::{
 	spam_slots::SpamSlots,
 };
 
-use super::{LOG_TARGET, ordering::{OrderingProvider, CandidateComparator}, participation::{self, Participation, WorkerMessageReceiver, WorkerMessageSender, ParticipationRequest}, spam_slots::SpamSlots, status::Clock, error::Fatal};
+use super::{LOG_TARGET, error::Fatal, ordering::{CandidateComparator, OrderingProvider}, participation::{
+		self, Participation, ParticipationRequest, ParticipationStatement, WorkerMessageReceiver,
+		WorkerMessageSender,
+	}, spam_slots::SpamSlots, status::{Clock, Timestamp}};
 
 /// After the first active leaves update we transition to `Initialized` state.
 ///
@@ -79,6 +82,24 @@ pub struct Initialized {
 	ordering_provider: OrderingProvider,
 	participation_receiver: WorkerMessageReceiver,
 	metrics: Metrics,
+}
+
+/// Kind of vote import
+enum ImportKind {
+	/// We are currently importing local statements (from `issue_local_statement`).
+	Local,
+	/// Votes are from other (untrusted) nodes.
+	Foreign,
+}
+
+impl ImportKind {
+	/// Whether or not the import concerns votes from this very node.
+	pub fn is_local(&self) -> bool {
+		match self {
+			Self::Local => true,
+			_ => false,
+		}
+	}
 }
 
 impl Initialized {
@@ -112,7 +133,7 @@ impl Initialized {
 		mut self,
 		mut ctx: Context,
 		mut backend: B,
-        mut participations: Vec<(Option<CandidateComparator>, ParticipationRequest)>,
+		mut participations: Vec<(Option<CandidateComparator>, ParticipationRequest)>,
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
@@ -121,7 +142,8 @@ impl Initialized {
 		B: Backend,
 	{
 		loop {
-			let res = self.run_until_error(&mut ctx, &mut backend, &mut participations, &*clock).await;
+			let res =
+				self.run_until_error(&mut ctx, &mut backend, &mut participations, &*clock).await;
 			if let Ok(()) = res {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				return Ok(())
@@ -139,7 +161,7 @@ impl Initialized {
 		&mut self,
 		ctx: &mut Context,
 		backend: &mut B,
-        participations: &mut Vec<(Option<CandidateComparator>, ParticipationRequest)>,
+		participations: &mut Vec<(Option<CandidateComparator>, ParticipationRequest)>,
 		clock: &dyn Clock,
 	) -> Result<()>
 	where
@@ -147,28 +169,50 @@ impl Initialized {
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend,
 	{
-        for (comparator, request) in std::mem::take(participations).into_iter() {
-            self.participation.queue_participation(ctx, comparator, request).await?;
-        }
+		for (comparator, request) in std::mem::take(participations).into_iter() {
+			self.participation.queue_participation(ctx, comparator, request).await?;
+		}
 
 		loop {
 			let mut overlay_db = OverlayedBackend::new(backend);
 			match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
-			}
-			{
-				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-				FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-					self.handle_new_activations(
-						ctx,
-						&mut overlay_db,
-						update.activated.into_iter().map(|a| a.hash),
-						clock.now(),
-					)
-					.await?;
+				MuxedMessage::Participation(msg) => {
+					let ParticipationStatement {
+						session,
+						candidate_hash,
+						candidate_receipt,
+						outcome,
+					} = self.participation.get_participation_result(ctx, msg).await?;
+					if let Some(valid) = outcome.validity() {
+						self.issue_local_statement(
+							ctx,
+							overlay_db,
+							candidate_hash,
+							candidate_receipt,
+							session,
+							valid,
+							clock.now(),
+						)
+						.await?;
+					}
 				},
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},
-				FromOverseer::Communication { msg } =>
-					self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?,
+				MuxedMessage::Subsystem(msg) => match msg {
+					FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
+					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+						self.process_active_leaves_update(
+							ctx,
+							&mut overlay_db,
+							update,
+							clock.now(),
+						)
+						.await?;
+					},
+					FromOverseer::Signal(OverseerSignal::BlockFinalized(_, n)) => {
+						self.ordering.process_finalized_block(n);
+					},
+					FromOverseer::Communication { msg } =>
+						self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?,
+				},
 			}
 
 			if !overlay_db.is_empty() {
@@ -178,14 +222,19 @@ impl Initialized {
 		}
 	}
 
-	async fn handle_new_activations(
+	async fn process_active_leaves_update(
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>
 		          + overseer::SubsystemContext<Message = DisputeCoordinatorMessage>),
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
-		new_activations: impl IntoIterator<Item = Hash>,
+		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
+
+		self.ordering.process_active_leaves_update(ctx.sender(), &update).await?;
+		self.participation.process_active_leaves_update(ctx, &update).await?;
+
+		let new_activations = update.activated.into_iter().map(|a| a.hash);
 		for new_leaf in new_activations {
 			match self.rolling_session_window.cache_session_info_for_head(ctx, new_leaf).await {
 				Err(e) => {
@@ -196,8 +245,11 @@ impl Initialized {
 					);
 					continue
 				},
-				Ok(SessionWindowUpdate::Initialized { window_end, .. }) |
-				Ok(SessionWindowUpdate::Advanced { new_window_end: window_end, .. }) => {
+				Ok(SessionWindowUpdate::Advanced {
+					new_window_end: window_end,
+					new_window_start,
+					..
+				}) => {
 					let session = window_end;
 					if self.highest_session.map_or(true, |s| s < session) {
 						tracing::trace!(
@@ -209,6 +261,7 @@ impl Initialized {
 						self.highest_session = Some(session);
 
 						db::v1::note_current_session(overlay_db, session)?;
+						self.spam_slots.prune_old(new_window_start);
 					}
 				},
 				Ok(SessionWindowUpdate::Unchanged) => {},
@@ -522,7 +575,7 @@ impl Initialized {
 		statements: impl IntoIterator<Item = (SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
 	) -> Result<ImportStatementsResult> {
-		if self.highest_session.map_or(true, |h| session + DISPUTE_WINDOW < h) {
+		if session + DISPUTE_WINDOW < self.highest_session {
 			// It is not valid to participate in an ancient dispute (spam?).
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
@@ -572,6 +625,45 @@ impl Initialized {
 				},
 		};
 		let candidate_receipt = votes.candidate_receipt.clone();
+		let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
+		let controlled_indices =
+			find_controlled_validator_indices(&self.keystore, &validators);
+
+		// Whether we already cast a vote in that dispute:
+		let voted_already = !votes.voted_indices().retain(|index| controlled_indices.contains(index)).empty();
+		let was_confirmed = recent_disputes.get(&(session, candidate_hash)).map_or(false, |s| s.is_confirmed_concluded());
+        let comparator = self.ordering_provider.candidate_comparator(&candidate_receipt);
+        let is_included = comparator.is_some();
+		let is_local = statements.iter().find(|index| controlled_indices.contains(index)).is_some();
+
+		// Whether or not we know already that this is a good dispute:
+		let is_confirmed = is_included || was_confirmed || is_local;
+
+		// Potential spam:
+		if !is_confirmed {
+			let mut free_spam_slots = false;
+			for (_, index) in statements.iter() {
+				free_spam_slots |= self.spam_slots.add_unconfirmed(session, candidate_hash, index);
+			}
+			// No reporting validator had a free spam slot:
+			if !free_spam_slots {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					?statements,
+					"Rejecting import because of full spam slots."
+				);
+				return Ok(ImportStatementsResult::InvalidImport)
+			}
+		}
+
+		// Participate if the imported vote was not local & we did not vote before either:
+		if !is_local && !voted_already {
+			// Participate whenever the imported vote was local & we did not had no cast
+			// previously:
+			self.queue_participation(ctx, comparator, ParticipationRequest::new(candidate_receipt, session, n_validators)).await?;
+		}
 
 		// Update candidate votes.
 		for (statement, val_index) in statements {
@@ -617,8 +709,6 @@ impl Initialized {
 		let concluded_valid = votes.valid.len() >= supermajority_threshold;
 		let concluded_invalid = votes.invalid.len() >= supermajority_threshold;
 
-		let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
-
 		let prev_status = recent_disputes.get(&(session, candidate_hash)).map(|x| x.clone());
 
 		let status = if is_disputed {
@@ -631,6 +721,10 @@ impl Initialized {
 				);
 				DisputeStatus::active()
 			});
+
+			if is_confirmed {
+				status = status.confirm()
+			}
 
 			// Note: concluded-invalid overwrites concluded-valid,
 			// so we do this check first. Dispute state machine is
@@ -651,32 +745,18 @@ impl Initialized {
 		if status != prev_status {
 			// This branch is only hit when the candidate is freshly disputed -
 			// status was previously `None`, and now is not.
-			if prev_status.is_none() && {
-				let controlled_indices =
-					find_controlled_validator_indices(&self.keystore, &validators);
-				let voted_indices = votes.voted_indices();
-
-				!controlled_indices.iter().all(|val_index| voted_indices.contains(&val_index))
-			} {
-				ctx.send_message(DisputeParticipationMessage::Participate {
-					candidate_hash,
-					candidate_receipt,
-					session,
-					n_validators: n_validators as u32,
-				})
-				.await;
-
+			if prev_status.is_none() { 
 				self.metrics.on_open();
+			} 
 
-				if concluded_valid {
-					self.metrics.on_concluded_valid();
-				}
-				if concluded_invalid {
-					self.metrics.on_concluded_invalid();
-				}
+			if concluded_valid {
+				self.metrics.on_concluded_valid();
+			}
+			if concluded_invalid {
+				self.metrics.on_concluded_invalid();
 			}
 
-			// Only write when updated and vote is available.
+			// Only write when updated:
 			overlay_db.write_recent_disputes(recent_disputes);
 		}
 
@@ -817,6 +897,19 @@ impl Initialized {
 		}
 
 		Ok(())
+	}
+
+	/// Find out with which `ValidatorIndices` we already participated in a dispute, if any.
+	///
+	/// Usually this will only be one index or none, if we had not yet participated in the dispute.
+	fn participated_with(&self, session_validators: &[ValidatorId], votes: &CandidateVotes) -> Vec<ValidatorIndex> {
+		let mut voted_indices = votes.voted_indices();
+
+		let controlled_indices = find_controlled_validator_indices(&self.keystore, session_validators);
+
+		voted_indices.retain(|i| controlled_indices.contains(&i));
+
+		voted_indices
 	}
 }
 

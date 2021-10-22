@@ -40,9 +40,8 @@ use super::{
 };
 
 mod queues;
-pub use queues::ParticipationRequest;
 use queues::Queues;
-pub use queues::Error as QueueError;
+pub use queues::{Error as QueueError, ParticipationRequest};
 
 /// How many participation processes do we want to run in parallel the most.
 ///
@@ -76,7 +75,7 @@ pub type WorkerMessageSender = mpsc::Sender<WorkerMessage>;
 pub type WorkerMessageReceiver = mpsc::Receiver<WorkerMessage>;
 
 /// Statement as result of the validation process.
-struct ParticipationStatement {
+pub struct ParticipationStatement {
 	/// Relevant session.
 	pub session: SessionIndex,
 	/// The candidate the worker has been spawned for.
@@ -88,6 +87,7 @@ struct ParticipationStatement {
 }
 
 /// Outcome of the validation process.
+#[derive(Copy, Clone)]
 pub enum ParticipationOutcome {
 	/// Candidate was found to be valid.
 	Valid,
@@ -97,6 +97,17 @@ pub enum ParticipationOutcome {
 	Unavailable,
 	/// Something went wrong (bug), details can be found in the logs.
 	Error,
+}
+
+impl ParticipationOutcome {
+	/// If validation was successful, get whether the candidate was valid or invalid.
+	pub fn validity(self) -> Option<bool> {
+		match self {
+			Self::Valid => Some(true),
+			Self::Invalid => Some(false),
+			Self::Unavailable | Self::Error => None,
+		}
+	}
 }
 
 impl WorkerMessage {

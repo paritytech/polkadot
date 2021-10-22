@@ -80,12 +80,6 @@ pub enum Fatal {
 	/// Receiving subsystem message from overseer failed.
 	#[error("Receiving message from overseer failed: {0}")]
 	SubsystemReceive(#[source] SubsystemError),
-
-	#[error("Chain API request got cancelled.")]
-	ChainApiRequestCanceled,
-
-	#[error("Infallible finalized block number request failed: {0}")]
-	ChainApiFinalizedBlockNumber(#[from] ChainApiError),
 }
 
 #[derive(Debug, thiserror::Error)]
