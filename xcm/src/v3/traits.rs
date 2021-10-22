@@ -288,7 +288,7 @@ pub type SendResult = result::Result<(), SendError>;
 ///
 /// # Example
 /// ```rust
-/// # use xcm::v2::prelude::*;
+/// # use xcm::v3::prelude::*;
 /// # use parity_scale_codec::Encode;
 ///
 /// /// A sender that only passes the message through and does nothing.
@@ -327,7 +327,7 @@ pub type SendResult = result::Result<(), SendError>;
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm(vec![Instruction::Transact {
-///     origin_kind: OriginKind::Superuser,
+///     origin_type: OriginKind::Superuser,
 ///     require_weight_at_most: 0,
 ///     call: call.into(),
 /// }]);
