@@ -1,6 +1,6 @@
 [package]
 name = "xcm-simulator"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Test kit to simulate cross-chain message passing and XCM execution"
 edition = "2018"
