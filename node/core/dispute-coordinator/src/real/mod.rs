@@ -308,7 +308,7 @@ impl DisputeCoordinatorSubsystem {
 				unconfirmed_disputes.insert((session, *candidate_hash), voted_indices);
 			}
 
-			// Send a `DisputeParticipationMessage` for all non-concluded disputes which do not have a
+			// Participate for all non-concluded disputes which do not have a
 			// recorded local statement.
 			if missing_local_statement {
 				participation_requests.push((

@@ -275,22 +275,6 @@ pub enum ImportStatementsResult {
 	ValidImport,
 }
 
-/// Messages received by the dispute participation subsystem.
-#[derive(Debug)]
-pub enum DisputeParticipationMessage {
-	/// Validate a candidate for the purposes of participating in a dispute.
-	Participate {
-		/// The hash of the candidate
-		candidate_hash: CandidateHash,
-		/// The candidate receipt itself.
-		candidate_receipt: CandidateReceipt,
-		/// The session the candidate appears in.
-		session: SessionIndex,
-		/// The number of validators in the session.
-		n_validators: u32,
-	},
-}
-
 /// Messages going to the dispute distribution subsystem.
 #[derive(Debug)]
 pub enum DisputeDistributionMessage {

@@ -80,9 +80,9 @@ use polkadot_node_subsystem_types::messages::{
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
-	DisputeCoordinatorMessage, DisputeDistributionMessage, DisputeParticipationMessage,
-	GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage,
-	RuntimeApiMessage, StatementDistributionMessage,
+	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
+	NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage, RuntimeApiMessage,
+	StatementDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
@@ -461,9 +461,6 @@ pub struct Overseer<SupportsParachains> {
 
 	#[subsystem(no_dispatch, DisputeCoordinatorMessage)]
 	dispute_coordinator: DisputeCoordinator,
-
-	#[subsystem(no_dispatch, DisputeParticipationMessage)]
-	dispute_participation: DisputeParticipation,
 
 	#[subsystem(no_dispatch, DisputeDistributionMessage)]
 	dispute_distribution: DisputeDistribution,

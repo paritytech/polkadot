@@ -56,11 +56,10 @@ Input: [`DisputeCoordinatorMessage`][DisputeCoordinatorMessage]
 
 Output:
   - [`RuntimeApiMessage`][RuntimeApiMessage]
-  - [`DisputeParticipationMessage`][DisputeParticipationMessage]
 
 ## Functionality
 
-This assumes a constant `DISPUTE_WINDOW: SessionIndex`. This should correspond to at least 1 day.
+This assumes a constant `DISPUTE_WINDOW: SessionWindowSize`. This should correspond to at least 1 day.
 
 Ephemeral in-memory state:
 
@@ -75,8 +74,7 @@ struct State {
 
 Check DB for recorded votes for non concluded disputes we have not yet
 recorded a local statement for.
-For all of those send `DisputeParticipationMessage::Participate` message to
-dispute participation subsystem.
+For all of those initiate dispute participation.
 
 ### On `OverseerSignal::ActiveLeavesUpdate`
 
@@ -171,4 +169,3 @@ Do nothing.
 [DisputeStatement]: ../../types/disputes.md#disputestatement
 [DisputeCoordinatorMessage]: ../../types/overseer-protocol.md#dispute-coordinator-message
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
-[DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message

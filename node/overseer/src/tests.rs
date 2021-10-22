@@ -888,15 +888,6 @@ fn test_dispute_coordinator_msg() -> DisputeCoordinatorMessage {
 	DisputeCoordinatorMessage::RecentDisputes(sender)
 }
 
-fn test_dispute_participation_msg() -> DisputeParticipationMessage {
-	DisputeParticipationMessage::Participate {
-		candidate_hash: Default::default(),
-		candidate_receipt: Default::default(),
-		session: 0,
-		n_validators: 0,
-	}
-}
-
 fn test_dispute_distribution_msg() -> DisputeDistributionMessage {
 	let dummy_dispute_message = UncheckedDisputeMessage {
 		candidate_receipt: Default::default(),
@@ -1006,9 +997,6 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			.await;
 		handle
 			.send_msg_anon(AllMessages::DisputeCoordinator(test_dispute_coordinator_msg()))
-			.await;
-		handle
-			.send_msg_anon(AllMessages::DisputeParticipation(test_dispute_participation_msg()))
 			.await;
 		handle
 			.send_msg_anon(AllMessages::DisputeDistribution(test_dispute_distribution_msg()))
