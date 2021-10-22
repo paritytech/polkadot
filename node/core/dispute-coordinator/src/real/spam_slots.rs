@@ -111,4 +111,9 @@ impl SpamSlots {
 			}
 		}
 	}
+	/// Prune all spam slots for sessions older than the given index.
+	pub fn prune_old(&mut self, oldest_index: SessionIndex) {
+		self.unconfirmed.retain(|(session, _), _| *session >= oldest_index);
+		self.slots.retain(|(session, _), _| *session >= oldest_index);
+	}
 }
