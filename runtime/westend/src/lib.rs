@@ -322,6 +322,8 @@ impl pallet_session::Config for Runtime {
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type WeightInfo = weights::pallet_session::WeightInfo<Runtime>;
+	type MaxValidatorsCount = MaxValidatorsCount;
+	type MaxKeysEncodingSize = MaxKeysEncodingSize;
 }
 
 impl pallet_session::historical::Config for Runtime {
@@ -391,6 +393,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
 	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
+	type MaxTargets = MaxValidatorsCount;
 }
 
 parameter_types! {
@@ -432,6 +435,7 @@ parameter_types! {
 	pub const MaxReportersCount: u32 = 1_000;
 	pub const MaxPriorSlashingSpans: u32 = 1_000;
 	pub const MaxValidatorsCount: u32 = 4_000;
+	pub const MaxKeysEncodingSize: u32 = 1_000;
 	pub const MaxUnlockingChunks: u32 = 32;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }
@@ -439,6 +443,8 @@ parameter_types! {
 impl frame_election_provider_support::onchain::Config for Runtime {
 	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
 	type DataProvider = Staking;
+	type MaxNominations = MaxNominations;
+	type MaxTargets = MaxValidatorsCount;
 }
 
 impl pallet_staking::Config for Runtime {
@@ -772,11 +778,11 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::Staking => {
 				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
-			},
+			}
 			ProxyType::SudoBalances => match c {
 				Call::Sudo(pallet_sudo::Call::sudo { call: ref x }) => {
 					matches!(x.as_ref(), &Call::Balances(..))
-				},
+				}
 				Call::Utility(..) => true,
 				_ => false,
 			},
@@ -786,7 +792,7 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
-			},
+			}
 			ProxyType::Auction => matches!(
 				c,
 				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)

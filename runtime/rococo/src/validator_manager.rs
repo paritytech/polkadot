@@ -107,6 +107,7 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId, T::MaxValidatorsC
 
 		let mut validators = Session::<T>::validators();
 
+		// It's crucial to remove validators first and then add for the BoundedVec not to overflow
 		ValidatorsToRetire::<T>::take().iter().for_each(|v| {
 			if let Some(pos) = validators.iter().position(|r| r == v) {
 				validators.swap_remove(pos);
@@ -115,7 +116,12 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId, T::MaxValidatorsC
 
 		ValidatorsToAdd::<T>::take().into_iter().for_each(|v| {
 			if !validators.contains(&v) {
-				validators.push(v);
+				if validators.try_push(v).is_err() {
+					log::error!(
+						target: "Validator Managers",
+						"new_session: Too many validators to add, will be truncated"
+					);
+				};
 			}
 		});
 
@@ -134,15 +140,15 @@ impl<T: Config>
 	fn new_session(
 		new_index: SessionIndex,
 	) -> Option<BoundedVec<(T::ValidatorId, ()), T::MaxValidatorsCount>> {
-		<Self as pallet_session::SessionManager<_>>::new_session(new_index)
+		<Self as pallet_session::SessionManager<_, _>>::new_session(new_index)
 			.map(|r| r.map_collect(|v| (v, Default::default())))
 	}
 
 	fn start_session(start_index: SessionIndex) {
-		<Self as pallet_session::SessionManager<_>>::start_session(start_index)
+		<Self as pallet_session::SessionManager<_, _>>::start_session(start_index)
 	}
 
 	fn end_session(end_index: SessionIndex) {
-		<Self as pallet_session::SessionManager<_>>::end_session(end_index)
+		<Self as pallet_session::SessionManager<_, _>>::end_session(end_index)
 	}
 }
