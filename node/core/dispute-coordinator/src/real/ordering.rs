@@ -14,10 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{cmp::{Ord, Ordering, PartialOrd}, collections::{BTreeMap, HashMap, HashSet}};
+use std::{
+	cmp::{Ord, Ordering, PartialOrd},
+	collections::{BTreeMap, HashMap, HashSet},
+};
 
 use futures::channel::oneshot;
-use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender, messages::ChainApiMessage};
+use polkadot_node_subsystem::{
+	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender,
+};
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Id,
@@ -120,7 +125,7 @@ impl OrderingProvider {
 
 	/// Query active leaves for any candidate `CandidateEvent::CandidateIncluded` events.
 	///
-	/// and updates current heads, so we can query candidates for all active heads.
+	/// and updates current heads, so we can query candidates for all non finalized blocks.
 	pub async fn process_active_leaves_update<Sender: SubsystemSender>(
 		&mut self,
 		sender: &mut Sender,
@@ -143,35 +148,27 @@ impl OrderingProvider {
 					para_id: receipt.descriptor.para_id,
 				};
 				self.cached_comparators.insert(candidate_hash, comparator);
-				self.candidates_by_relay_chain
-					.entry(activated.hash)
+				self.candidates_by_block_number
+					.entry(activated.number)
 					.or_default()
 					.insert(candidate_hash);
 			}
 		}
 
-		// Block can get deactivated because they got a child or because they have been finalized,
-		// we only care about finalized blocks - we want to keep candidates around until they are
-		// finalized, then they become low priority.
-		let latest_finalized = request_finalized_block_number(sender).await?;
-		for deactivated in update.deactivated.iter() {
-			if let Some(candidates) = self.candidates_by_relay_chain.remove(deactivated) {
-				for candidate in candidates {
-					self.cached_comparators.remove(&candidate);
-				}
-			}
-		}
 		Ok(())
 	}
-}
 
-/// Request the latest finalized block from the chain API.
-async fn request_finalized_block_number<Sender: SubsystemSender>(sender: &mut Sender) -> FatalResult<BlockNumber> {
-	let (tx, rx) = oneshot::channel();
-	sender.send_message(ChainApiMessage::FinalizedBlockNumber(tx).into()).await;
-
-	match rx.await.map_err(|_| Fatal::ChainApiRequestCanceled)? {
-		Ok(n) => Ok(n + 1),
-		Err(err) => Err(err.into()),
+	/// Prune finalized candidates.
+	///
+	/// Once a candidate lives in a relay chain block that's behind the finalized chain/got
+	/// finalized, we can treat it as low priority.
+	pub fn process_finalized_block(&mut self, finalized: &BlockNumber) {
+		let not_finalized = self.candidates_by_block_number.split_off(finalized);
+		let finalized = self.candidates_by_block_number;
+		self.candidates_by_block_number = not_finalized;
+		// Clean up finalized:
+		for finalized_candidate in finalized.into_values().flatten() {
+			self.cached_comparators.remove(&finalized_candidate);
+		}
 	}
 }
