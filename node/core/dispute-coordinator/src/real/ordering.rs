@@ -19,16 +19,13 @@ use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 };
 
-use futures::channel::oneshot;
-use polkadot_node_subsystem::{
-	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender,
-};
+use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender};
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Id,
 };
 
-use super::error::{Fatal, FatalResult, Result};
+use super::error::Result;
 
 /// Provider of `CandidateComparator` for candidates.
 pub struct OrderingProvider {
@@ -56,7 +53,7 @@ pub struct OrderingProvider {
 /// treated as low priority when it comes to disputes, as even in the case of a negative outcome,
 /// we are already too late. The ordering mechanism here serves to prevent this from happening in
 /// the first place.
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct CandidateComparator {
 	/// Relay chain block number the candidate got included in.
 	included_block_number: BlockNumber,
@@ -100,10 +97,13 @@ impl OrderingProvider {
 		sender: &mut Sender,
 		initial_head: ActivatedLeaf,
 	) -> Result<Self> {
-		let s =
-			Self { cached_comparators: HashMap::new(), candidates_by_relay_chain: HashMap::new() };
-		let update = ActiveLeavesUpdate { activated: initial_head, deactivated: Vec::new() };
-		s.process_active_leaves_update(sender, &update)?;
+		let mut s = Self {
+			cached_comparators: HashMap::new(),
+			candidates_by_block_number: BTreeMap::new(),
+		};
+		let update =
+			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
+		s.process_active_leaves_update(sender, &update).await?;
 		Ok(s)
 	}
 
@@ -164,7 +164,7 @@ impl OrderingProvider {
 	/// finalized, we can treat it as low priority.
 	pub fn process_finalized_block(&mut self, finalized: &BlockNumber) {
 		let not_finalized = self.candidates_by_block_number.split_off(finalized);
-		let finalized = self.candidates_by_block_number;
+		let finalized = std::mem::take(&mut self.candidates_by_block_number);
 		self.candidates_by_block_number = not_finalized;
 		// Clean up finalized:
 		for finalized_candidate in finalized.into_values().flatten() {

@@ -63,7 +63,7 @@ pub struct ParticipationRequest {
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
-	n_validators: u32,
+	n_validators: usize,
 }
 
 /// Entry for the best effort queue.
@@ -87,7 +87,7 @@ impl ParticipationRequest {
 	pub fn new(
 		candidate_receipt: CandidateReceipt,
 		session: SessionIndex,
-		n_validators: u32,
+		n_validators: usize,
 	) -> Self {
 		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session, n_validators }
 	}
@@ -101,7 +101,7 @@ impl ParticipationRequest {
 	pub fn session(&self) -> SessionIndex {
 		self.session
 	}
-	pub fn n_validators(&self) -> u32 {
+	pub fn n_validators(&self) -> usize {
 		self.n_validators
 	}
 	pub fn into_candidate_info(self) -> (CandidateHash, CandidateReceipt) {

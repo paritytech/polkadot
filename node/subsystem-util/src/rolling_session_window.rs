@@ -28,6 +28,7 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest},
 	overseer, SubsystemContext,
 };
+use thiserror::Error;
 
 /// Sessions unavailable in state to cache.
 #[derive(Debug)]
@@ -52,12 +53,18 @@ pub struct SessionsUnavailableInfo {
 }
 
 /// Sessions were unavailable to fetch from the state for some reason.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub struct SessionsUnavailable {
 	/// The error kind.
 	kind: SessionsUnavailableKind,
 	/// The info about the session window, if any.
 	info: Option<SessionsUnavailableInfo>,
+}
+
+impl core::fmt::Display for SessionsUnavailable {
+	fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
+		write!(f, "Sessions unavailable: {:?}, info: {:?}", self.kind, self.info)
+	}
 }
 
 /// An indicated update of the rolling session window.

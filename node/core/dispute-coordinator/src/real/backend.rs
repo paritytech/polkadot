@@ -22,12 +22,15 @@
 //! before any commit to the underlying storage is made.
 
 use futures::Future;
-use polkadot_node_subsystem::SubsystemResult;
+use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_primitives::v1::{CandidateHash, SessionIndex};
 
 use std::collections::HashMap;
 
-use super::db::v1::{CandidateVotes, RecentDisputes};
+use super::{
+	db::v1::{CandidateVotes, RecentDisputes},
+	error::FatalResult,
+};
 
 #[derive(Debug)]
 pub enum BackendWriteOp {
@@ -54,7 +57,7 @@ pub trait Backend {
 
 	/// Atomically writes the list of operations, with later operations taking precedence over
 	/// prior.
-	fn write<I>(&mut self, ops: I) -> SubsystemResult<()>
+	fn write<I>(&mut self, ops: I) -> FatalResult<()>
 	where
 		I: IntoIterator<Item = BackendWriteOp>;
 }
@@ -176,26 +179,4 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 
 		earliest_session_ops.chain(recent_dispute_ops).chain(candidate_vote_ops)
 	}
-}
-
-/// Run a function with an `OverlayedBackend` if the function succeeds, write the overlay to the
-/// backend.
-pub async fn with_overlayed_backend<B, F, R, E, Fut>(
-	backend: &mut B,
-	f: F,
-) -> std::result::Result<R, E>
-where
-	B: Backend,
-	F: FnOnce(&mut OverlayedBackend<B>) -> Fut,
-	Fut: Future<Output = std::result::Result<R, E>>,
-{
-	let mut overlay_db = OverlayedBackend::new(backend);
-
-	let r = f(&mut overlay_db).await?;
-
-	if !overlay_db.is_empty() {
-		let ops = overlay_db.into_write_ops();
-		backend.write(ops)?;
-	}
-	Ok(r)
 }

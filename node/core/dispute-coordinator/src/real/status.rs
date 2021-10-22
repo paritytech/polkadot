@@ -25,7 +25,8 @@ use super::db::v1::RecentDisputes;
 
 /// The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
 /// is not worth considering anymore. Changing this value has little to no bearing on consensus,
-/// and really only affects the work that the node might do on startup during periods of many disputes.
+/// and really only affects the work that the node might do on startup during periods of many
+/// disputes.
 const ACTIVE_DURATION_SECS: Timestamp = 180;
 
 /// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
@@ -127,20 +128,20 @@ impl DisputeStatus {
 pub fn collect_active(
 	recent_disputes: RecentDisputes,
 	now: Timestamp,
-) -> Vec<(SessionIndex, CandidateHash, DisputeStatus)> {
-	get_active(recent_disputes, now).collect()
+) -> Vec<(SessionIndex, CandidateHash)> {
+	get_active_with_status(recent_disputes, now).map(|(k, v)| k).collect()
 }
 
 /// Get active disputes as iterator, preserving its `DisputeStatus`.
-pub fn get_active(
+pub fn get_active_with_status(
 	recent_disputes: RecentDisputes,
 	now: Timestamp,
 ) -> impl Iterator<Item = ((SessionIndex, CandidateHash), DisputeStatus)> {
-	recent_disputes.iter().filter_map(|(disputed, status)| {
+	recent_disputes.into_iter().filter_map(move |(disputed, status)| {
 		status
 			.concluded_at()
-			.filter(|at| at + ACTIVE_DURATION_SECS < now)
-			.map_or(Some((*disputed, status)), |_| None)
+			.filter(|at| *at + ACTIVE_DURATION_SECS < now)
+			.map_or(Some((disputed, status)), |_| None)
 	})
 }
 

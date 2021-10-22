@@ -19,6 +19,7 @@ use thiserror::Error;
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
+	messages::ImportStatementsResult,
 	SubsystemError,
 };
 use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};
@@ -27,19 +28,21 @@ use super::{db, participation};
 use crate::real::{CodecError, LOG_TARGET};
 
 /// Errors for this subsystem.
-#[derive(Debug, Error, derive_more::From)]
+#[derive(Debug, Error)]
 #[error(transparent)]
 pub enum Error {
 	/// All fatal errors.
-	Fatal(Fatal),
+	Fatal(#[from] Fatal),
 	/// All nonfatal/potentially recoverable errors.
-	NonFatal(NonFatal),
+	NonFatal(#[from] NonFatal),
 }
 
 /// General `Result` type for dispute coordinator.
 pub type Result<R> = std::result::Result<R, Error>;
 /// Result type with only fatal errors.
 pub type FatalResult<R> = std::result::Result<R, Fatal>;
+/// Result type with only non fatal errors.
+pub type NonFatalResult<R> = std::result::Result<R, NonFatal>;
 
 impl From<runtime::Error> for Error {
 	fn from(o: runtime::Error) -> Self {
@@ -80,6 +83,9 @@ pub enum Fatal {
 	/// Receiving subsystem message from overseer failed.
 	#[error("Receiving message from overseer failed: {0}")]
 	SubsystemReceive(#[source] SubsystemError),
+
+	#[error("Writing to database failed: {0}")]
+	DbWriteFailed(std::io::Error),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -97,7 +103,7 @@ pub enum NonFatal {
 	#[error(transparent)]
 	Oneshot(#[from] oneshot::Canceled),
 
-	#[error("Dispute import confirmation send failed.")]
+	#[error("Dispute import confirmation send failed (receiver canceled)")]
 	DisputeImportOneshotSend,
 
 	#[error(transparent)]
@@ -107,7 +113,7 @@ pub enum NonFatal {
 	Codec(#[from] CodecError),
 
 	/// `RollingSessionWindow` was not able to retrieve session infos.
-	#[error(transparent)]
+	#[error("Sessions unavailable in `RollingSessionWindow`: {0}")]
 	RollingSessionWindow(#[from] SessionsUnavailable),
 
 	/// Errors coming from runtime::Runtime.

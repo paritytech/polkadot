@@ -889,13 +889,11 @@ fn test_dispute_coordinator_msg() -> DisputeCoordinatorMessage {
 }
 
 fn test_dispute_participation_msg() -> DisputeParticipationMessage {
-	let (sender, _) = oneshot::channel();
 	DisputeParticipationMessage::Participate {
 		candidate_hash: Default::default(),
 		candidate_receipt: Default::default(),
 		session: 0,
 		n_validators: 0,
-		report_availability: sender,
 	}
 }
 

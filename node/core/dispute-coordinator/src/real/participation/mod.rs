@@ -23,10 +23,7 @@ use futures::{
 
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
-	messages::{
-		AvailabilityRecoveryMessage, AvailabilityStoreMessage, CandidateValidationMessage,
-		RuntimeApiMessage, RuntimeApiRequest,
-	},
+	messages::{AvailabilityRecoveryMessage, AvailabilityStoreMessage, CandidateValidationMessage},
 	ActiveLeavesUpdate, RecoveryError, SubsystemContext, SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
@@ -35,7 +32,7 @@ use polkadot_primitives::v1::{BlockNumber, CandidateHash, CandidateReceipt, Hash
 use crate::real::LOG_TARGET;
 
 use super::{
-	error::{Fatal, FatalResult, Result},
+	error::{Fatal, FatalResult, NonFatal, Result},
 	ordering::CandidateComparator,
 };
 
@@ -157,7 +154,7 @@ impl Participation {
 			}
 		}
 		// Out of capacity - queue:
-		Ok(self.queue.queue(comparator, req)?)
+		Ok(self.queue.queue(comparator, req).map_err(NonFatal::QueueError)?)
 	}
 
 	/// Message from a worker task was received - get the outcome.
@@ -284,20 +281,6 @@ async fn participate(
 
 	// we also need to fetch the validation code which we can reference by its
 	// hash as taken from the candidate descriptor
-	let (code_tx, code_rx) = oneshot::channel();
-	sender
-		.send_message(
-			RuntimeApiMessage::Request(
-				block_hash,
-				RuntimeApiRequest::ValidationCodeByHash(
-					req.candidate_receipt().descriptor.validation_code_hash,
-					code_tx,
-				),
-			)
-			.into(),
-		)
-		.await;
-
 	let validation_code = match get_validation_code_by_hash(
 		&mut sender,
 		block_hash,
@@ -332,7 +315,7 @@ async fn participate(
 		.send_message(
 			AvailabilityStoreMessage::StoreAvailableData {
 				candidate_hash: *req.candidate_hash(),
-				n_validators: req.n_validators(),
+				n_validators: req.n_validators() as u32,
 				available_data: available_data.clone(),
 				tx: store_available_data_tx,
 			}
@@ -442,6 +425,7 @@ async fn send_result(
 	if let Err(err) = sender.feed(WorkerMessage::from_request(req, outcome)).await {
 		tracing::error!(
 			target: LOG_TARGET,
+			?err,
 			"Sending back participation result failed. Dispute coordinator not working properly!"
 		);
 	}

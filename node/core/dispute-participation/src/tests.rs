@@ -80,7 +80,7 @@ async fn activate_leaf(virtual_overseer: &mut VirtualOverseer, block_number: Blo
 		.await;
 }
 
-async fn participate(virtual_overseer: &mut VirtualOverseer) -> oneshot::Receiver<bool> {
+async fn participate(virtual_overseer: &mut VirtualOverseer) {
 	let commitments = CandidateCommitments::default();
 	let candidate_receipt = {
 		let mut receipt = CandidateReceipt::default();
@@ -91,8 +91,6 @@ async fn participate(virtual_overseer: &mut VirtualOverseer) -> oneshot::Receive
 	let session = 1;
 	let n_validators = 10;
 
-	let (report_availability, receive_availability) = oneshot::channel();
-
 	virtual_overseer
 		.send(FromOverseer::Communication {
 			msg: DisputeParticipationMessage::Participate {
@@ -100,11 +98,9 @@ async fn participate(virtual_overseer: &mut VirtualOverseer) -> oneshot::Receive
 				candidate_receipt: candidate_receipt.clone(),
 				session,
 				n_validators,
-				report_availability,
 			},
 		})
 		.await;
-	receive_availability
 }
 
 async fn recover_available_data(
