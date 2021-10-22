@@ -899,14 +899,14 @@ mod tests {
 				let header = default_header();
 				System::set_block_number(1);
 				System::set_parent_hash(header.hash());
-
+				let session_index = SessionIndex::from(0_u32);
+				crate::shared::CurrentSessionIndex::<Test>::set(session_index);
 				let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 				let validators = vec![
 					keyring::Sr25519Keyring::Alice,
 					keyring::Sr25519Keyring::Bob,
 					keyring::Sr25519Keyring::Charlie,
 					keyring::Sr25519Keyring::Dave,
-					keyring::Sr25519Keyring::Ferdie,
 				];
 				for validator in validators.iter() {
 					SyncCryptoStore::sr25519_generate_new(
@@ -930,13 +930,12 @@ mod tests {
 				};
 
 				let signing_context =
-					SigningContext { parent_hash: System::parent_hash(), session_index: current_session };
+					SigningContext { parent_hash: System::parent_hash(), session_index };
 
 				// number of bitfields doesn't affect the paras inherent weight, so we can mock it with an empty one
 				let signed_bitfields = Vec::new();
 				// backed candidates must not be empty, so we can demonstrate that the weight has not changed
 				crate::paras::Parachains::<Test>::set(chains.clone());
-				dbg!(crate::paras::Parachains::<Test>::get());
 
 
 				crate::scheduler::ValidatorGroups::<Test>::set(vec![
@@ -996,36 +995,11 @@ mod tests {
 				let max_block_weight =
 					<Test as frame_system::Config>::BlockWeights::get().max_block;
 
-				dbg!(backed_candidates
-					.iter()
-					.map(backed_candidate_weight::<Test>)
-					.sum::<Weight>());
-				dbg!(MINIMAL_INCLUSION_INHERENT_WEIGHT);
-
 				let used_block_weight = max_block_weight / 2;
 				System::set_block_consumed_resources(used_block_weight, 0);
 
-				// before these are used, schedule is called
-				// and the assignments change ag
-
-				// let chain_a_assignment = CoreAssignment {
-				// 	core: core_a,
-				// 	para_id: chain_a,
-				// 	kind: crate::scheduler::AssignmentKind::Parachain,
-				// 	group_idx: grp_idx_a,
-				// };
-
-				// let chain_b_assignment = CoreAssignment {
-				// 	core: core_b,
-				// 	para_id: chain_b,
-				// 	kind: crate::scheduler::AssignmentKind::Parachain,
-				// 	group_idx: grp_idx_b,
-				// };
-
-
-				// let scheduled = vec![chain_a_assignment, chain_b_assignment];
-				// crate::scheduler::Scheduled::<Test>::set(scheduled);
-				// dbg!(<crate::scheduler::Pallet<Test>>::scheduled());
+				// no need to schedule anything, `schedule(..)` is called
+				// form the `fn` under test.
 
 				// execute the paras inherent
 				let post_info = Call::<Test>::enter {
@@ -1046,7 +1020,7 @@ mod tests {
 				// In this case, the weight system can update the actual weight with the same amount,
 				// or return `None` to indicate that the pre-computed weight should not change.
 				// Either option is acceptable for our purposes.
-				if let Some(actual_weight) = dbg!(post_info).actual_weight {
+				if let Some(actual_weight) = post_info.actual_weight {
 					assert_eq!(actual_weight, expected_weight);
 				}
 			});

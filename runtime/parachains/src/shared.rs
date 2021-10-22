@@ -49,7 +49,7 @@ pub mod pallet {
 	/// The current session index.
 	#[pallet::storage]
 	#[pallet::getter(fn session_index)]
-	pub(super) type CurrentSessionIndex<T: Config> = StorageValue<_, SessionIndex, ValueQuery>;
+	pub(crate) type CurrentSessionIndex<T: Config> = StorageValue<_, SessionIndex, ValueQuery>;
 
 	/// All the validators actively participating in parachain consensus.
 	/// Indices are into the broader validator set.
