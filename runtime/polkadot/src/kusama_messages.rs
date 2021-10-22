@@ -69,6 +69,8 @@ pub type FromKusamaMessageDispatch = messages::target::FromBridgedChainMessageDi
 
 /// Error that happens when message is sent by anyone but `AllowedMessageSender`.
 const NOT_ALLOWED_MESSAGE_SENDER: &str = "Cannot accept message from this account";
+/// Error that happens when we are receiving incoming message via unexpected lane.
+const INBOUND_LANE_DISABLED: &str = "The inbound message lane is disaled.";
 
 /// Message verifier for Polkadot -> Kusama messages.
 #[derive(RuntimeDebug)]
@@ -277,11 +279,23 @@ impl SourceHeaderChain<bp_kusama::Balance> for Kusama {
 		proof: Self::MessagesProof,
 		messages_count: u32,
 	) -> Result<ProvedMessages<Message<bp_kusama::Balance>>, Self::Error> {
-		messages::target::verify_messages_proof::<WithKusamaMessageBridge, Runtime, crate::KusamaGrandpaInstance>(
-			proof,
-			messages_count,
-		)
+		messages::target::verify_messages_proof::<
+			WithKusamaMessageBridge,
+			Runtime,
+			crate::KusamaGrandpaInstance,
+		>(proof, messages_count).and_then(verify_inbound_messages_lane)
 	}
+}
+
+/// Verify that lanes of inbound messages are enabled.
+fn verify_inbound_messages_lane(
+	messages: ProvedMessages<Message<bp_polkadot::Balance>>,
+) -> Result<ProvedMessages<Message<bp_polkadot::Balance>>, &'static str> {
+	let allowed_incoming_lanes = [[0, 0, 0, 0]];
+	if messages.keys().any(|lane_id| !allowed_incoming_lanes.contains(lane_id)) {
+		return Err(INBOUND_LANE_DISABLED);
+	}
+	Ok(messages)
 }
 
 /// Polkadot <> Kusama messages pallet parameters.
@@ -333,6 +347,7 @@ impl Contains<Call> for FromKusamaCallFilter {
 
 #[cfg(test)]
 mod tests {
+	use bp_messages::{target_chain::ProvedLaneMessages, MessageData, MessageKey};
 	use runtime_common::RocksDbWeight;
 	use crate::*;
 	use super::*;
@@ -411,5 +426,45 @@ mod tests {
 				Ok(()),
 			);
 		});
+	}
+
+	fn proved_messages(lane_id: LaneId) -> ProvedMessages<Message<bp_kusama::Balance>> {
+		vec![
+			(
+				lane_id,
+				ProvedLaneMessages {
+					lane_state: None,
+					messages: vec![Message {
+						key: MessageKey { lane_id, nonce: 0 },
+						data: MessageData { payload: vec![], fee: 0 },
+					}],
+				},
+			)
+		].into_iter().collect()
+	}
+
+	#[test]
+	fn verify_inbound_messages_lane_succeeds() {
+		assert_eq!(
+			verify_inbound_messages_lane(proved_messages([0, 0, 0, 0])),
+			Ok(proved_messages([0, 0, 0, 0])),
+		);
+	}
+
+	#[test]
+	fn verify_inbound_messages_lane_fails() {
+		assert_eq!(
+			verify_inbound_messages_lane(proved_messages([0, 0, 0, 1])),
+			Err(INBOUND_LANE_DISABLED),
+		);
+
+		let proved_messages = proved_messages([0, 0, 0, 0])
+			.into_iter()
+			.chain(proved_messages([0, 0, 0, 1]))
+			.collect();
+		assert_eq!(
+			verify_inbound_messages_lane(proved_messages),
+			Err(INBOUND_LANE_DISABLED),
+		);
 	}
 }
