@@ -113,9 +113,7 @@ pub async fn start_work(
 				Ok(Ok(response_bytes)) => {
 					// Received bytes from worker within the time limit.
 					// By convention we expect encoded `PrepareResult`.
-					if let Ok(result) =
-						PrepareResult::decode(&mut response_bytes.clone().as_slice())
-					{
+					if let Ok(result) = PrepareResult::decode(&mut response_bytes.as_slice()) {
 						if result.is_ok() {
 							tracing::debug!(
 								target: LOG_TARGET,
