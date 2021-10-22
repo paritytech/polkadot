@@ -775,7 +775,11 @@ mod tests {
 
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
-		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: true, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: true,
+			result: Err(PrepareError::DidNotMakeIt),
+		});
 		test.poll_ensure_to_pool_is_empty().await;
 	}
 
