@@ -604,9 +604,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		max_weight,
 	);
 	let bitfields = indices.into_iter().map(move |idx| bitfields[idx].clone()).collect::<Vec<_>>();
-	// pick all bitfields, and
-	// fill the remaining space with candidates
-	(total, candidates, bitfields)
+	(total, vec![], bitfields)
 }
 
 /// Filter bitfields based on freed core indices, validity, and other sanity checks.
