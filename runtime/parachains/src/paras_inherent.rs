@@ -58,10 +58,11 @@ const LOG_TARGET: &str = "runtime::inclusion-inherent";
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
-
 pub trait WeightInfo {
 	fn enter_backed_dominant(b: u32) -> Weight;
 	fn enter_dispute_dominant(d: u32) -> Weight;
+	fn enter_disputes_only(d: u32) -> Weight;
+	fn enter_backed_only(b: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -70,6 +71,12 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn enter_dispute_dominant(_d: u32) -> Weight {
+		Weight::MAX
+	}
+	fn enter_disputes_only(_d: u32) -> Weight {
+		Weight::MAX
+	}
+	fn enter_backed_only(b: u32) -> Weight {
 		Weight::MAX
 	}
 }
@@ -838,8 +845,10 @@ fn limit_backed_candidates<T: Config>(
 
 	// the weight of the paras inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
-	if frame_system::Pallet::<T>::block_weight().total() >
-		<T as frame_system::Config>::BlockWeights::get().max_block
+
+	let max_block = <T as frame_system::Config>::BlockWeights::get().max_block;
+	assert_eq!(max_block, 0);
+	if frame_system::Pallet::<T>::block_weight().total() > max_block
 	// shouldn't this check be moved to top of fn?
 	{
 		Vec::new()
