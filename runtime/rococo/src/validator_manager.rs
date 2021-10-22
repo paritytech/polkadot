@@ -16,7 +16,9 @@
 
 //! A pallet for managing validators on Rococo.
 
-use frame_support::{decl_error, decl_event, decl_module, decl_storage, traits::EnsureOrigin};
+use frame_support::{
+	decl_error, decl_event, decl_module, decl_storage, traits::EnsureOrigin, BoundedVec,
+};
 use sp_staking::SessionIndex;
 use sp_std::vec::Vec;
 
@@ -93,10 +95,14 @@ decl_module! {
 
 impl<T: Config> Module<T> {}
 
-impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
-	fn new_session(new_index: SessionIndex) -> Option<Vec<T::ValidatorId>> {
+impl<T: Config> pallet_session::SessionManager<T::ValidatorId, T::MaxValidatorsCount>
+	for Module<T>
+{
+	fn new_session(
+		new_index: SessionIndex,
+	) -> Option<BoundedVec<T::ValidatorId, T::MaxValidatorsCount>> {
 		if new_index <= 1 {
-			return None
+			return None;
 		}
 
 		let mut validators = Session::<T>::validators();
@@ -121,10 +127,15 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Module<T> {
 	fn start_session(_start_index: SessionIndex) {}
 }
 
-impl<T: Config> pallet_session::historical::SessionManager<T::ValidatorId, ()> for Module<T> {
-	fn new_session(new_index: SessionIndex) -> Option<Vec<(T::ValidatorId, ())>> {
+impl<T: Config>
+	pallet_session::historical::SessionManager<T::ValidatorId, (), T::MaxValidatorsCount>
+	for Module<T>
+{
+	fn new_session(
+		new_index: SessionIndex,
+	) -> Option<BoundedVec<(T::ValidatorId, ()), T::MaxValidatorsCount>> {
 		<Self as pallet_session::SessionManager<_>>::new_session(new_index)
-			.map(|r| r.into_iter().map(|v| (v, Default::default())).collect())
+			.map(|r| r.map_collect(|v| (v, Default::default())))
 	}
 
 	fn start_session(start_index: SessionIndex) {

@@ -456,6 +456,8 @@ parameter_types! {
 	/// This value increases the priority of `Operational` transactions by adding
 	/// a "virtual tip" that's equal to the `OperationalFeeMultiplier * final_fee`.
 	pub const OperationalFeeMultiplier: u8 = 5;
+	pub const MaxValidatorsCount: u32 = 4_000;
+	pub const MaxKeysEncodingSize: u32 = 1_000;
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -483,6 +485,8 @@ impl pallet_session::Config for Runtime {
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, ValidatorManager>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
+	type MaxValidatorsCount = MaxValidatorsCount;
+	type MaxKeysEncodingSize = MaxKeysEncodingSize;
 	type WeightInfo = ();
 }
 
@@ -1079,14 +1083,15 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			ProxyType::CancelProxy =>
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. })),
+			ProxyType::CancelProxy => {
+				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
+			}
 			ProxyType::Auction => matches!(
 				c,
-				Call::Auctions { .. } |
-					Call::Crowdloan { .. } |
-					Call::Registrar { .. } |
-					Call::Multisig(..) | Call::Slots { .. }
+				Call::Auctions { .. }
+					| Call::Crowdloan { .. }
+					| Call::Registrar { .. }
+					| Call::Multisig(..) | Call::Slots { .. }
 			),
 		}
 	}
