@@ -707,3 +707,11 @@ fn weight_trader_tuple_should_work() {
 	// and no refund
 	assert_eq!(traders.refund_weight(2), None);
 }
+
+// TODO: Tests for:
+// - `QueryPallet`
+// - `ExpectPallet`
+// - `ReportTransactStatus`
+// - `ClearTransactStatus`
+// - `BurnAsset`
+// - `MaxAssetsIntoHolding`

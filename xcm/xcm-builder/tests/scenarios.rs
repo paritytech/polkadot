@@ -35,7 +35,7 @@ fn buy_execution<C>() -> Instruction<C> {
 }
 
 /// Scenario:
-/// A parachain transfers funds on the relaychain to another parachain's account.
+/// A parachain transfers funds on the relay-chain to another parachain's account.
 ///
 /// Asserts that the parachain accounts are updated as expected.
 #[test]
@@ -74,7 +74,7 @@ fn withdraw_and_deposit_works() {
 ///
 /// Asserts that the balances are updated correctly and the expected XCM is sent.
 #[test]
-fn query_holding_works() {
+fn report_holding_works() {
 	use xcm::opaque::latest::prelude::*;
 	let para_acc: AccountId = ParaId::from(PARA_ID).into_account();
 	let balances = vec![(ALICE, INITIAL_BALANCE), (para_acc.clone(), INITIAL_BALANCE)];

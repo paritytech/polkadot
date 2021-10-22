@@ -19,6 +19,7 @@ pub use crate::{
 	AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	FixedRateOfFungible, FixedWeightBounds, LocationInverter, TakeWeightCredit,
 };
+use frame_support::traits::{CrateVersion, PalletInfoData, PalletsInfoAccess};
 pub use frame_support::{
 	dispatch::{
 		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, Parameter, Weight,
@@ -325,6 +326,27 @@ impl VersionChangeNotifier for TestSubscriptionService {
 	}
 }
 
+pub struct TestPalletsInfo;
+impl PalletsInfoAccess for TestPalletsInfo {
+	fn count() -> usize {
+		2
+	}
+	fn accumulate(acc: &mut Vec<PalletInfoData>) {
+		acc.push(PalletInfoData {
+			index: 0,
+			name: "System",
+			module_name: "pallet_system",
+			crate_version: CrateVersion { major: 1, minor: 10, patch: 1 },
+		});
+		acc.push(PalletInfoData {
+			index: 1,
+			name: "Balances",
+			module_name: "pallet_balances",
+			crate_version: CrateVersion { major: 1, minor: 42, patch: 69 },
+		});
+	}
+}
+
 pub struct TestConfig;
 impl Config for TestConfig {
 	type Call = TestCall;
@@ -341,6 +363,6 @@ impl Config for TestConfig {
 	type AssetTrap = TestAssetTrap;
 	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = TestSubscriptionService;
-	type PalletInstancesInfo = (); // TODO: TestAllPallets, for testing new instructions.
+	type PalletInstancesInfo = TestPalletsInfo;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 }

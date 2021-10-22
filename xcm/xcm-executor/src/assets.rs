@@ -593,14 +593,7 @@ mod tests {
 		assert_eq!(non_fungible, vec![ANF(2, 20), ANF(2, 30)]);
 		let all = assets.min(&all);
 		let all = all.assets_iter().collect::<Vec<_>>();
-		assert_eq!(all, vec![
-			CF(3000),
-			AF(1, 100),
-			AF(10, 50),
-			CNF(40),
-			CNF(80),
-			ANF(2, 20),
-		]);
+		assert_eq!(all, vec![CF(3000), AF(1, 100), AF(10, 50), CNF(40), CNF(80), ANF(2, 20),]);
 	}
 
 	#[test]
@@ -734,19 +727,11 @@ mod tests {
 		assets.subsume(CNF(80));
 		assets.subsume(ANF(3, 10));
 		let all = assets.try_take(WildMultiAsset::AllCounted(6).into()).unwrap();
-		assert_eq!(MultiAssets::from(all).inner(), &vec![
-			CF(3000),
-			AF(1, 100),
-			AF(10, 50),
-			CNF(40),
-			CNF(80),
-			ANF(2, 20),
-		]);
-		assert_eq!(MultiAssets::from(assets).inner(), &vec![
-			ANF(2, 30),
-			ANF(2, 40),
-			ANF(3, 10),
-		]);
+		assert_eq!(
+			MultiAssets::from(all).inner(),
+			&vec![CF(3000), AF(1, 100), AF(10, 50), CNF(40), CNF(80), ANF(2, 20),]
+		);
+		assert_eq!(MultiAssets::from(assets).inner(), &vec![ANF(2, 30), ANF(2, 40), ANF(3, 10),]);
 	}
 
 	#[test]
@@ -763,17 +748,20 @@ mod tests {
 		assets.subsume(ANF(3, 10));
 		let mask = WildMultiAsset::from((vec![1], WildFungible)).counted(2).into();
 		let taken = assets.try_take(mask).unwrap();
-		assert_eq!(MultiAssets::from(taken).inner(), &vec![ AF(1, 100) ]);
-		assert_eq!(MultiAssets::from(assets).inner(), &vec![
-			CF(3000),
-			AF(10, 50),
-			CNF(40),
-			CNF(80),
-			ANF(2, 20),
-			ANF(2, 30),
-			ANF(2, 40),
-			ANF(3, 10),
-		]);
+		assert_eq!(MultiAssets::from(taken).inner(), &vec![AF(1, 100)]);
+		assert_eq!(
+			MultiAssets::from(assets).inner(),
+			&vec![
+				CF(3000),
+				AF(10, 50),
+				CNF(40),
+				CNF(80),
+				ANF(2, 20),
+				ANF(2, 30),
+				ANF(2, 40),
+				ANF(3, 10),
+			]
+		);
 	}
 
 	#[test]
@@ -790,18 +778,10 @@ mod tests {
 		assets.subsume(ANF(3, 10));
 		let mask = WildMultiAsset::from((vec![2], WildNonFungible)).counted(2).into();
 		let taken = assets.try_take(mask).unwrap();
-		assert_eq!(MultiAssets::from(taken).inner(), &vec![
-			ANF(2, 20),
-			ANF(2, 30),
-		]);
-		assert_eq!(MultiAssets::from(assets).inner(), &vec![
-			CF(3000),
-			AF(1, 100),
-			AF(10, 50),
-			CNF(40),
-			CNF(80),
-			ANF(2, 40),
-			ANF(3, 10),
-		]);
+		assert_eq!(MultiAssets::from(taken).inner(), &vec![ANF(2, 20), ANF(2, 30),]);
+		assert_eq!(
+			MultiAssets::from(assets).inner(),
+			&vec![CF(3000), AF(1, 100), AF(10, 50), CNF(40), CNF(80), ANF(2, 40), ANF(3, 10),]
+		);
 	}
 }
