@@ -327,7 +327,7 @@ pub type SendResult = result::Result<(), SendError>;
 /// # fn main() {
 /// let call: Vec<u8> = ().encode();
 /// let message = Xcm(vec![Instruction::Transact {
-///     origin_type: OriginKind::Superuser,
+///     origin_kind: OriginKind::Superuser,
 ///     require_weight_at_most: 0,
 ///     call: call.into(),
 /// }]);
@@ -378,7 +378,7 @@ pub trait XcmWeightInfo<Call> {
 	fn transfer_asset(assets: &MultiAssets, beneficiary: &MultiLocation) -> Weight;
 	fn transfer_reserve_asset(assets: &MultiAssets, dest: &MultiLocation, xcm: &Xcm<()>) -> Weight;
 	fn transact(
-		origin_type: &OriginKind,
+		origin_kind: &OriginKind,
 		require_weight_at_most: &u64,
 		call: &DoubleEncoded<Call>,
 	) -> Weight;
