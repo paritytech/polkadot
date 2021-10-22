@@ -57,7 +57,7 @@ impl SpamSlots {
 	/// Initialize based on already existing active disputes.
 	pub fn recover_from_state(unconfirmed_disputes: UnconfirmedDisputes) -> Self {
 		let mut slots: HashMap<(SessionIndex, ValidatorIndex), SpamCount> = HashMap::new();
-		for ((session, candidate), validators) in unconfirmed_disputes.iter() {
+		for ((session, _), validators) in unconfirmed_disputes.iter() {
 			for validator in validators {
 				let e = slots.entry((*session, *validator)).or_default();
 				*e += 1;
@@ -100,7 +100,7 @@ impl SpamSlots {
 	/// confirmed and thus votes for it should no longer be treated as potential spam.
 	pub fn clear(&mut self, key: &(SessionIndex, CandidateHash)) {
 		if let Some(validators) = self.unconfirmed.remove(key) {
-			let (session, candidate) = key;
+			let (session, _) = key;
 			for validator in validators {
 				if let Some(c) = self.slots.remove(&(*session, validator)) {
 					let new = c - 1;

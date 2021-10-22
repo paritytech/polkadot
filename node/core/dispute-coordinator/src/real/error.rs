@@ -19,7 +19,6 @@ use thiserror::Error;
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
-	messages::ImportStatementsResult,
 	SubsystemError,
 };
 use polkadot_node_subsystem_util::{rolling_session_window::SessionsUnavailable, runtime};

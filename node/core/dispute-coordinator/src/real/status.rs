@@ -129,7 +129,7 @@ pub fn collect_active(
 	recent_disputes: RecentDisputes,
 	now: Timestamp,
 ) -> Vec<(SessionIndex, CandidateHash)> {
-	get_active_with_status(recent_disputes, now).map(|(k, v)| k).collect()
+	get_active_with_status(recent_disputes, now).map(|(k, _)| k).collect()
 }
 
 /// Get active disputes as iterator, preserving its `DisputeStatus`.

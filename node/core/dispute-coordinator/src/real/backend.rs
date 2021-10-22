@@ -21,8 +21,7 @@
 //! [`Backend`], maintaining consistency between queries and temporary writes,
 //! before any commit to the underlying storage is made.
 
-use futures::Future;
-use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
+use polkadot_node_subsystem::SubsystemResult;
 use polkadot_primitives::v1::{CandidateHash, SessionIndex};
 
 use std::collections::HashMap;

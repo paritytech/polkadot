@@ -191,7 +191,7 @@ impl Participation {
 					// Work got potentially unblocked:
 					self.dequeue_until_capacity(ctx, activated.hash).await?;
 				},
-				Some((number, hash)) if activated.number > number => {
+				Some((number, _)) if activated.number > number => {
 					self.recent_block = Some((activated.number, activated.hash));
 				},
 				Some(_) => {},

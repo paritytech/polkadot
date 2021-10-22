@@ -107,11 +107,6 @@ impl OrderingProvider {
 		Ok(s)
 	}
 
-	/// Check whether a candidate is included on chains known to this node.
-	pub async fn is_known_included(&mut self, candidate: &CandidateReceipt) -> bool {
-		self.cached_comparators.contains_key(&candidate.hash())
-	}
-
 	/// Retrieve a candidate comparator if available.
 	///
 	/// If not available, we can treat disputes concerning this candidate with low priority and

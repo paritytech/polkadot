@@ -22,7 +22,6 @@ use futures::{
 	channel::{mpsc, oneshot},
 	FutureExt, StreamExt,
 };
-use kvdb::KeyValueDB;
 
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
@@ -33,19 +32,19 @@ use polkadot_node_subsystem::{
 		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SubsystemContext,
+	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SubsystemContext,
 };
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate,
 };
 use polkadot_primitives::v1::{
-	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
-	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	byzantine_threshold, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement,
+	DisputeStatement, DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 
-use crate::{metrics::Metrics, Config, DisputeCoordinatorSubsystem};
+use crate::{metrics::Metrics, DisputeCoordinatorSubsystem};
 
 use super::{
 	backend::Backend,
@@ -66,10 +65,7 @@ use super::{
 /// statements for validity, we cannot query orderings, we have no valid `RollingSessionWindow`,
 /// ...
 pub struct Initialized {
-	config: Config,
-	store: Arc<dyn KeyValueDB>,
 	keystore: Arc<LocalKeystore>,
-
 	rolling_session_window: RollingSessionWindow,
 	highest_session: SessionIndex,
 	spam_slots: SpamSlots,
@@ -82,20 +78,17 @@ pub struct Initialized {
 impl Initialized {
 	pub fn new(
 		subsystem: DisputeCoordinatorSubsystem,
-		leaf: ActivatedLeaf,
 		rolling_session_window: RollingSessionWindow,
 		spam_slots: SpamSlots,
 		ordering_provider: OrderingProvider,
 	) -> Self {
-		let DisputeCoordinatorSubsystem { config, store, keystore, metrics } = subsystem;
+		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
 		let (participation_sender, participation_receiver) = mpsc::channel(1);
 		let participation = Participation::new(participation_sender);
 		let highest_session = rolling_session_window.latest_session();
 
 		Self {
-			config,
-			store,
 			keystore,
 			rolling_session_window,
 			highest_session,
@@ -645,43 +638,8 @@ impl Initialized {
 			.find(|(_, index)| controlled_indices.contains(index))
 			.is_some();
 
-		// Whether or not we know already that this is a good dispute:
-		let is_confirmed = is_included || was_confirmed || is_local;
-
-		// Potential spam:
-		if !is_confirmed {
-			let mut free_spam_slots = false;
-			for (_, index) in statements.iter() {
-				free_spam_slots |= self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
-			}
-			// No reporting validator had a free spam slot:
-			if !free_spam_slots {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					?session,
-					?statements,
-					"Rejecting import because of full spam slots."
-				);
-				return Ok(ImportStatementsResult::InvalidImport)
-			}
-		}
-
-		// Participate if the imported vote was not local & we did not vote before either:
-		if !is_local && !voted_already {
-			// Participate whenever the imported vote was local & we did not had no cast
-			// previously:
-			self.participation
-				.queue_participation(
-					ctx,
-					comparator.cloned(),
-					ParticipationRequest::new(candidate_receipt, session, n_validators),
-				)
-				.await?;
-		}
-
 		// Update candidate votes.
-		for (statement, val_index) in statements {
+		for (statement, val_index) in &statements {
 			if validators
 				.get(val_index.0 as usize)
 				.map_or(true, |v| v != statement.validator_public())
@@ -703,7 +661,7 @@ impl Initialized {
 					insert_into_statement_vec(
 						&mut votes.valid,
 						valid_kind,
-						val_index,
+						*val_index,
 						statement.validator_signature().clone(),
 					);
 				},
@@ -712,11 +670,56 @@ impl Initialized {
 					insert_into_statement_vec(
 						&mut votes.invalid,
 						invalid_kind,
-						val_index,
+						*val_index,
 						statement.validator_signature().clone(),
 					);
 				},
 			}
+		}
+
+		// Whether or not we know already that this is a good dispute:
+		//
+		// Note we can only know for sure whether we reached the `byzantine_threshold`  after updating candidate votes above, therefore the spam checking is afterwards:
+		let is_confirmed = is_included ||
+			was_confirmed ||
+			is_local || votes.voted_indices().len() >
+			byzantine_threshold(n_validators);
+
+		// Potential spam:
+		if !is_confirmed {
+			let mut free_spam_slots = false;
+			for (_, index) in statements.iter() {
+				free_spam_slots |= self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
+			}
+			// No reporting validator had a free spam slot:
+			if !free_spam_slots {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					?statements,
+					"Rejecting import because of full spam slots."
+				);
+				return Ok(ImportStatementsResult::InvalidImport)
+			}
+		}
+
+		if is_confirmed && !was_confirmed {
+			// Former spammers have not been spammers after all:
+			self.spam_slots.clear(&(session, candidate_hash));
+		}
+
+		// Participate if the imported vote was not local & we did not vote before either:
+		if !is_local && !voted_already {
+			// Participate whenever the imported vote was local & we did not had no cast
+			// previously:
+			self.participation
+				.queue_participation(
+					ctx,
+					comparator.cloned(),
+					ParticipationRequest::new(candidate_receipt, session, n_validators),
+				)
+				.await?;
 		}
 
 		// Check if newly disputed.
@@ -758,8 +761,6 @@ impl Initialized {
 		};
 
 		if status != prev_status {
-			// This branch is only hit when the candidate is freshly disputed -
-			// status was previously `None`, and now is not.
 			if prev_status.is_none() {
 				self.metrics.on_open();
 			}

@@ -190,13 +190,7 @@ impl DisputeCoordinatorSubsystem {
 
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
 			let (participations, spam_slots, ordering_provider) = match self
-				.handle_startup(
-					ctx,
-					first_leaf.clone(),
-					&rolling_session_window,
-					&mut overlay_db,
-					clock,
-				)
+				.handle_startup(ctx, first_leaf, &rolling_session_window, &mut overlay_db, clock)
 				.await
 			{
 				Ok(v) => v,
@@ -213,13 +207,7 @@ impl DisputeCoordinatorSubsystem {
 
 			return Ok(Some((
 				participations,
-				Initialized::new(
-					self,
-					first_leaf,
-					rolling_session_window,
-					spam_slots,
-					ordering_provider,
-				),
+				Initialized::new(self, rolling_session_window, spam_slots, ordering_provider),
 				backend,
 			)))
 		}
