@@ -20,7 +20,6 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
-use frame_support::traits::OnRuntimeUpgrade;
 use pallet_transaction_payment::CurrencyAdapter;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v1::{
@@ -59,7 +58,9 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing},
+	traits::{
+		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
+	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -1102,7 +1103,7 @@ construct_runtime! {
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 64,
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 	}
 }
 
@@ -1135,16 +1136,16 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(SessionHistoricalModulePrefixMigration, StakingBagsListMigrationV8),
+	(SessionHistoricalPalletPrefixMigration,),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
 const SESSION_HISTORICAL_OLD_PREFIX: &str = "Session";
 /// Migrate session-historical from `Session` to the new pallet prefix `Historical`
-pub struct SessionHistoricalModulePrefixMigration;
+pub struct SessionHistoricalPalletPrefixMigration;
 
-impl OnRuntimeUpgrade for SessionHistoricalModulePrefixMigration {
+impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		pallet_session::migrations::v1::migrate::<Runtime, Historical, _>(
 			SESSION_HISTORICAL_OLD_PREFIX,
@@ -1165,25 +1166,6 @@ impl OnRuntimeUpgrade for SessionHistoricalModulePrefixMigration {
 			SESSION_HISTORICAL_OLD_PREFIX,
 		);
 		Ok(())
-	}
-}
-
-// Migration to generate pallet staking's `SortedListProvider` from pre-existing nominators.
-pub struct StakingBagsListMigrationV8;
-
-impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_staking::migrations::v8::migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v8::pre_migrate::<Runtime>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_staking::migrations::v8::post_migrate::<Runtime>()
 	}
 }
 
