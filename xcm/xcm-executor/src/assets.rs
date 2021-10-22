@@ -236,7 +236,8 @@ impl Assets {
 	/// reducing it by assets it does not contain. In this case, the function is infallible. If `saturate` is `false`
 	/// and `mask` references a definite asset which `self` does not contain then an error is returned.
 	///
-	/// The number of unique assets which are removed will never be any greater than `limit`.
+	/// The number of unique assets which are removed will respect the `count` parameter in the
+	/// counted wildcard variants.
 	///
 	/// Returns `Ok` with the definite assets token from `self` and mutates `self` to its value minus
 	/// `mask`. Returns `Err` in the non-saturating case where `self` did not contain (enough of) a definite asset to
@@ -372,7 +373,8 @@ impl Assets {
 
 	/// Return the assets in `self`, but (asset-wise) of no greater value than `mask`.
 	///
-	/// Result is undefined if `mask` includes elements which match to the same asset more than once.
+	/// The number of unique assets which are returned will respect the `count` parameter in the
+	/// counted wildcard variants of `mask`.
 	///
 	/// Example:
 	///
@@ -565,6 +567,29 @@ mod tests {
 		assert_eq!(None, none_min.assets_iter().next());
 		let all_min = assets.min(&all);
 		assert!(all_min.assets_iter().eq(assets.assets_iter()));
+	}
+
+	#[test]
+	fn min_counted_works() {
+		let mut assets = test_assets();
+		assets.subsume(AF(1, 100));
+		assets.subsume(ANF(2, 20));
+		assets.subsume(CF(300));
+		assets.subsume(CNF(40));
+		// Push same group of tokens again
+		assets.subsume(AF(1, 100));
+		assets.subsume(ANF(2, 20));
+		assets.subsume(CF(300));
+		assets.subsume(CNF(40));
+		let fungible = WildMultiAsset::from((vec![1], WildFungible)).counted(2).into();
+		let non_fungible = WildMultiAsset::from((vec![1], WildFungible)).counted(2).into();
+
+		let fungible = assets.min(&fungible);
+		let fungible = fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(fungible, vec![AF(1, 100)]);
+		let non_fungible = assets.min(&non_fungible);
+		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(non_fungible, vec![ANF(2, 20)]);
 	}
 
 	#[test]

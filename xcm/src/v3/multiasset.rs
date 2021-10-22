@@ -114,6 +114,16 @@ impl WildMultiAsset {
 	pub fn limit(&self) -> Option<u32> {
 		self.count()
 	}
+
+	/// Consume self and return the equivalent version but counted and with the `count` set to the
+	/// given parameter.
+	pub fn counted(self, count: u32) -> Self {
+		use WildMultiAsset::*;
+		match self {
+			AllOfCounted { fun, id, .. } | AllOf { fun, id } => AllOfCounted { fun, id, count },
+			All | AllCounted(_) => AllCounted(count),
+		}
+	}
 }
 
 impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset {

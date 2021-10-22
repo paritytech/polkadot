@@ -689,7 +689,7 @@ pub enum Instruction<Call> {
 		min_crate_minor: u32,
 	},
 
-	/// Send a `QueryRepsonse` message containing the value of the Transact Status Register to some
+	/// Send a `QueryResponse` message containing the value of the Transact Status Register to some
 	/// destination.
 	///
 	/// - `query_response_info`: The information needed for constructing and sending the
