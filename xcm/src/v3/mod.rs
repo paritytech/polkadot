@@ -937,6 +937,7 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 #[cfg(test)]
 mod tests {
 	use super::{prelude::*, *};
+	use crate::v2::{MultiAssetFilter as OldMultiAssetFilter, WildMultiAsset as OldWildMultiAsset};
 
 	#[test]
 	fn basic_roundtrip_works() {
@@ -988,6 +989,49 @@ mod tests {
 				assets: crate::v2::MultiAssetFilter::Wild(crate::v2::WildMultiAsset::All),
 				max_assets: 1,
 				beneficiary: Here.into(),
+			},
+		]);
+		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
+		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
+		assert_eq!(new_xcm, xcm);
+	}
+
+	#[test]
+	fn deposit_asset_roundtrip_works() {
+		let xcm = Xcm::<()>(vec![
+			WithdrawAsset((Here, 1).into()),
+			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
+		]);
+		let old_xcm = OldXcm::<()>(vec![
+			OldInstruction::WithdrawAsset((Here, 1).into()),
+			OldInstruction::DepositAsset {
+				assets: OldMultiAssetFilter::Wild(OldWildMultiAsset::All),
+				max_assets: 1,
+				beneficiary: Here.into(),
+			},
+		]);
+		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
+		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
+		assert_eq!(new_xcm, xcm);
+	}
+
+	#[test]
+	fn deposit_reserve_asset_roundtrip_works() {
+		let xcm = Xcm::<()>(vec![
+			WithdrawAsset((Here, 1).into()),
+			DepositReserveAsset {
+				assets: Wild(AllCounted(1)),
+				dest: Here.into(),
+				xcm: Xcm::<()>(vec![]),
+			},
+		]);
+		let old_xcm = OldXcm::<()>(vec![
+			OldInstruction::WithdrawAsset((Here, 1).into()),
+			OldInstruction::DepositReserveAsset {
+				assets: OldMultiAssetFilter::Wild(OldWildMultiAsset::All),
+				max_assets: 1,
+				dest: Here.into(),
+				xcm: OldXcm::<()>(vec![]),
 			},
 		]);
 		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
