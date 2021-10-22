@@ -696,6 +696,7 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::{InvalidCandidate, PrepareError};
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
 
@@ -966,8 +967,6 @@ mod tests {
 
 	#[async_std::test]
 	async fn execute_pvf_requests() {
-		use crate::error::InvalidCandidate;
-
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
 
@@ -1062,6 +1061,103 @@ mod tests {
 			result_rx_pvf_2.now_or_never().unwrap().unwrap(),
 			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
 		);
+	}
+
+	#[async_std::test]
+	async fn test_prepare_done() {
+		let mut test = Builder::default().build();
+		let mut host = test.host_handle();
+
+		// First, test a simple precheck request.
+		let (result_tx, result_rx) = oneshot::channel();
+		host.precheck_pvf(Pvf::from_discriminator(1), result_tx).await.unwrap();
+
+		// The queue received the prepare request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+		// Send `Ok` right away and poll the host.
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.await
+			.unwrap();
+		test.poll_ensure_to_execute_queue_is_empty().await;
+		// Received the precheck result.
+		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
+
+		// Send another PVF for the execution and request the prechecking for it.
+		let (result_tx, result_rx_execute) = oneshot::channel();
+		host.execute_pvf(
+			Pvf::from_discriminator(2),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf2".to_vec(),
+			Priority::Critical,
+			result_tx,
+		)
+		.await
+		.unwrap();
+
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+
+		let (result_tx, result_rx) = oneshot::channel();
+		host.precheck_pvf(Pvf::from_discriminator(2), result_tx).await.unwrap();
+
+		// Suppose the preparation failed, the execution queue is empty and both
+		// "clients" receive their results.
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(2),
+				result: Err(PrepareError::TimedOut),
+			})
+			.await
+			.unwrap();
+		test.poll_ensure_to_execute_queue_is_empty().await;
+		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Err(PrepareError::TimedOut));
+		assert_matches!(
+			result_rx_execute.now_or_never().unwrap().unwrap(),
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(_)))
+		);
+
+		// Reversed case: first send multiple precheck requests, then ask for an execution.
+		let mut precheck_receivers = Vec::new();
+		for _ in 0..3 {
+			let (result_tx, result_rx) = oneshot::channel();
+			host.precheck_pvf(Pvf::from_discriminator(3), result_tx).await.unwrap();
+			precheck_receivers.push(result_rx);
+		}
+
+		let (result_tx, _result_rx_execute) = oneshot::channel();
+		host.execute_pvf(
+			Pvf::from_discriminator(3),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf3".to_vec(),
+			Priority::Critical,
+			result_tx,
+		)
+		.await
+		.unwrap();
+		// Received prepare request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue { artifact_id: artifact_id(3), result: Ok(()) })
+			.await
+			.unwrap();
+		// The execute queue receives new request, preckecking is finished and we can
+		// fetch results.
+		assert_matches!(
+			test.poll_and_recv_to_execute_queue().await,
+			execute::ToQueue::Enqueue { .. }
+		);
+		for result_rx in precheck_receivers {
+			assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
+		}
 	}
 
 	#[async_std::test]
