@@ -667,9 +667,13 @@ parameter_types! {
 		];
 }
 
-use xcm_builder::{AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, TakeWeightCredit};
+use xcm_builder::{
+	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
+	TakeWeightCredit,
+};
 pub type Barrier = (
 	TakeWeightCredit,
+	AllowSubscriptionsFrom<Everything>,
 	AllowTopLevelPaidExecutionFrom<Everything>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>, // <- Trusted parachains get free execution
 );
