@@ -16,7 +16,7 @@
 
 use super::{mock::*, *};
 use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
-use xcm::latest::prelude::*;
+use xcm::latest::{PalletInfo, QueryResponseInfo, prelude::*};
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]
@@ -706,6 +706,244 @@ fn weight_trader_tuple_should_work() {
 	);
 	// and no refund
 	assert_eq!(traders.refund_weight(2), None);
+}
+
+#[test]
+fn pallet_query_should_work() {
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
+	// and let them know to hand it to account #3.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			QueryPallet {
+				module_name: "Error".into(),
+				response_info: QueryResponseInfo {
+					destination: Parachain(1).into(),
+					query_id: 1,
+					max_weight: 50,
+				},
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(10));
+
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parachain(1).into(),
+			Xcm::<()>(vec![
+				QueryResponse {
+					query_id: 1,
+					max_weight: 50,
+					response: Response::PalletsInfo(vec![]),
+				}
+			]),
+		)]
+	);
+}
+
+#[test]
+fn pallet_query_with_results_should_work() {
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
+	// and let them know to hand it to account #3.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			QueryPallet {
+				module_name: "pallet_balances".into(),
+				response_info: QueryResponseInfo {
+					destination: Parachain(1).into(),
+					query_id: 1,
+					max_weight: 50,
+				},
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(10));
+
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parachain(1).into(),
+			Xcm::<()>(vec![
+				QueryResponse {
+					query_id: 1,
+					max_weight: 50,
+					response: Response::PalletsInfo(vec![
+						PalletInfo {
+							index: 1,
+							name: b"Balances".as_ref().into(),
+							module_name: b"pallet_balances".as_ref().into(),
+							major: 1,
+							minor: 42,
+							patch: 69,
+						},
+					]),
+				}
+			]),
+		)]
+	);
+}
+
+
+#[test]
+fn expect_pallet_should_work() {
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
+	// and let them know to hand it to account #3.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ExpectPallet {
+				index: 1,
+				name: b"Balances".as_ref().into(),
+				module_name: b"pallet_balances".as_ref().into(),
+				crate_major: 1,
+				min_crate_minor: 42,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(10));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ExpectPallet {
+				index: 1,
+				name: b"Balances".as_ref().into(),
+				module_name: b"pallet_balances".as_ref().into(),
+				crate_major: 1,
+				min_crate_minor: 41,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(10));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ExpectPallet {
+				index: 1,
+				name: b"Balances".as_ref().into(),
+				module_name: b"pallet_balances".as_ref().into(),
+				crate_major: 1,
+				min_crate_minor: 60,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ExpectPallet {
+				index: 1,
+				name: b"System".as_ref().into(),
+				module_name: b"pallet_balances".as_ref().into(),
+				crate_major: 1,
+				min_crate_minor: 42,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ExpectPallet {
+				index: 1,
+				name: b"Balances".as_ref().into(),
+				module_name: b"pallet_system".as_ref().into(),
+				crate_major: 1,
+				min_crate_minor: 42,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ExpectPallet {
+				index: 0,
+				name: b"Balances".as_ref().into(),
+				module_name: b"pallet_balances".as_ref().into(),
+				crate_major: 1,
+				min_crate_minor: 42,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ExpectPallet {
+				index: 2,
+				name: b"Balances".as_ref().into(),
+				module_name: b"pallet_balances".as_ref().into(),
+				crate_major: 1,
+				min_crate_minor: 42,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::PalletNotFound));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ExpectPallet {
+				index: 1,
+				name: b"Balances".as_ref().into(),
+				module_name: b"pallet_balances".as_ref().into(),
+				crate_major: 2,
+				min_crate_minor: 42,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ExpectPallet {
+				index: 1,
+				name: b"Balances".as_ref().into(),
+				module_name: b"pallet_balances".as_ref().into(),
+				crate_major: 0,
+				min_crate_minor: 42,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
+
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			ExpectPallet {
+				index: 1,
+				name: b"Balances".as_ref().into(),
+				module_name: b"pallet_balances".as_ref().into(),
+				crate_major: 1,
+				min_crate_minor: 43,
+			},
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
 }
 
 // TODO: Tests for:
