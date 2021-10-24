@@ -668,11 +668,12 @@ parameter_types! {
 }
 
 use xcm_builder::{
-	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	TakeWeightCredit,
+	AllowKnownQueryResponses, AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom,
+	AllowUnpaidExecutionFrom, TakeWeightCredit,
 };
 pub type Barrier = (
 	TakeWeightCredit,
+	AllowKnownQueryResponses<XcmPallet>,
 	AllowSubscriptionsFrom<Everything>,
 	AllowTopLevelPaidExecutionFrom<Everything>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>, // <- Trusted parachains get free execution
