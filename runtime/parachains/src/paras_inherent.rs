@@ -155,7 +155,6 @@ pub mod pallet {
 			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 			let validator_public = shared::Pallet::<T>::active_validator_keys();
 
-			// filter out any unneeded dispute statements
 			T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
 			let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
@@ -915,6 +914,11 @@ mod tests {
 			let unchecked_bitfields = [
 				BitVec::<Lsb0, u8>::repeat(true, expected_bits),
 				BitVec::<Lsb0, u8>::repeat(true, expected_bits),
+				{
+					let mut bv = BitVec::<Lsb0, u8>::repeat(false, expected_bits);
+					bv.set(expected_bits - 1, true);
+					bv
+				},
 			]
 			.iter()
 			.enumerate()
@@ -959,10 +963,142 @@ mod tests {
 					Ok(unchecked_bitfields.clone())
 				);
 			}
+
+			// disputed bitfield is non-zero
+			{
+				let mut disputed_bitfield = DisputedBitfield::zeros(expected_bits);
+				// pretend the first core was freed by either a malicious validator
+				// or by resolved dispute
+				disputed_bitfield.0.set(0, true);
+
+				assert_eq!(
+					sanitize_bitfields::<Test, true>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					),
+					Err(inclusion::Error::<Test>::BitfieldReferencesFreedCore.into())
+				);
+				assert_matches!(
+					sanitize_bitfields::<Test, false>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					),
+					Ok(unchecked_bitfields) => {
+						assert_eq!(unchecked_bitfields.len(), 1);
+					}
+				);
+			}
+
+			// bitfield size mismatch
+			{
+				assert_eq!(
+					sanitize_bitfields::<Test, true>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits + 1,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					),
+					Err(inclusion::Error::<Test>::WrongBitfieldSize.into())
+				);
+				assert_matches!(
+					sanitize_bitfields::<Test, false>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits + 1,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					),
+					Ok(unchecked_bitfields) => {
+						assert!(unchecked_bitfields.is_empty());
+					}
+				);
+			}
+
+			// remove the last validator
+			{
+				let shortened = validator_public.len() - 2;
+				assert_eq!(
+					sanitize_bitfields::<Test, true>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..shortened]
+					),
+					Err(inclusion::Error::<Test>::ValidatorIndexOutOfBounds.into())
+				);
+				assert_matches!(
+					sanitize_bitfields::<Test, false>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..shortened]
+					),
+					Ok(unchecked_bitfields_filtered) => {
+						assert_eq!(
+							&unchecked_bitfields_filtered[..],
+							&unchecked_bitfields[..shortened]
+						);
+					}
+				);
+			}
+
+			// switch ordering of bitfields, bail
+			{
+				let mut unchecked_bitfields = unchecked_bitfields.clone();
+				let x = unchecked_bitfields.swap_remove(0);
+				unchecked_bitfields.push(x);
+				assert_eq!(
+					sanitize_bitfields::<Test, true>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					),
+					Err(inclusion::Error::<Test>::BitfieldDuplicateOrUnordered.into())
+				);
+				assert_matches!(
+					sanitize_bitfields::<Test, false>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					),
+					Ok(unchecked_bitfields_filtered) => {
+						// the last element is out of order
+						// hence sanitization will have removed only that
+						// one
+						assert_eq!(
+							&unchecked_bitfields[..(unchecked_bitfields.len()-2)],
+							&unchecked_bitfields_filtered[..]
+							);
+					}
+				);
+			}
 		}
 
 		#[test]
-		fn candidates() {}
+		fn candidates() {
+			todo!("check sanitize_candidates here!");
+		}
 	}
 
 	mod paras_inherent_weight {
@@ -1018,11 +1154,11 @@ mod tests {
 
 					let group_validators = |group_index: GroupIndex| {
 						match group_index {
-						group_index if group_index == GroupIndex::from(0) => vec![0, 1],
-						group_index if group_index == GroupIndex::from(1) => vec![2, 3],
-						x => panic!("Group index out of bounds for 2 parachains and 1 parathread core {}", x.0),
-					}
-					.into_iter().map(ValidatorIndex).collect::<Vec<_>>()
+							group_index if group_index == GroupIndex::from(0) => vec![0, 1],
+							group_index if group_index == GroupIndex::from(1) => vec![2, 3],
+							x => panic!("Group index out of bounds for 2 parachains and 1 parathread core {}", x.0),
+						}
+						.into_iter().map(ValidatorIndex).collect::<Vec<_>>()
 					};
 
 					let signing_context =
