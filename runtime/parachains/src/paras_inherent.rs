@@ -866,7 +866,11 @@ mod tests {
 		use super::*;
 		use assert_matches::assert_matches;
 
-		use primitives::v1::{GroupIndex, Hash, Header, Id as ParaId, ValidatorIndex};
+		use bitvec::order::Lsb0;
+		use primitives::v1::{
+			AvailabilityBitfield, GroupIndex, Hash, Header, Id as ParaId,
+			SignedAvailabilityBitfield, ValidatorIndex,
+		};
 
 		use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
 		use frame_support::traits::UnfilteredDispatchable;
@@ -886,11 +890,12 @@ mod tests {
 			let parent_hash = header.hash();
 			// 2 cores means two bits
 			let expected_bits = 2;
-			let unchecked_bitfields = vec![];
-			let disputed_bitfield = DisputedBitfield::zeros(expected_bits);
 			let session_index = SessionIndex::from(0_u32);
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+			let crypto_store = LocalKeystore::in_memory();
+			let crypto_store = Arc::new(crypto_store) as SyncCryptoStorePtr;
+			let signing_context = SigningContext { parent_hash, session_index };
+
 			let validators = vec![
 				keyring::Sr25519Keyring::Alice,
 				keyring::Sr25519Keyring::Bob,
@@ -899,13 +904,36 @@ mod tests {
 			];
 			for validator in validators.iter() {
 				SyncCryptoStore::sr25519_generate_new(
-					&*keystore,
+					&*crypto_store,
 					PARACHAIN_KEY_TYPE_ID,
 					Some(&validator.to_seed()),
 				)
 				.unwrap();
 			}
 			let validator_public = validator_pubkeys(&validators);
+
+			let unchecked_bitfields = [
+				BitVec::<Lsb0, u8>::repeat(true, expected_bits),
+				BitVec::<Lsb0, u8>::repeat(true, expected_bits),
+			]
+			.iter()
+			.enumerate()
+			.map(|(vi, ab)| {
+				let validator_index = ValidatorIndex::from(vi as u32);
+				block_on(SignedAvailabilityBitfield::sign(
+					&crypto_store,
+					AvailabilityBitfield::from(ab.clone()),
+					&signing_context,
+					validator_index,
+					&validator_public[vi],
+				))
+				.unwrap()
+				.unwrap()
+				.into_unchecked()
+			})
+			.collect::<Vec<_>>();
+
+			let disputed_bitfield = DisputedBitfield::zeros(expected_bits);
 
 			{
 				assert_matches!(
