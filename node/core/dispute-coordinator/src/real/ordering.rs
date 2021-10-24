@@ -21,9 +21,7 @@ use std::{
 
 use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender};
 use polkadot_node_subsystem_util::runtime::get_candidate_events;
-use polkadot_primitives::v1::{
-	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Id,
-};
+use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, Hash, Id};
 
 use super::error::Result;
 
@@ -113,9 +111,9 @@ impl OrderingProvider {
 	/// should use spam slots for such disputes.
 	pub fn candidate_comparator<'a>(
 		&'a mut self,
-		candidate: &CandidateReceipt,
+		candidate: &CandidateHash,
 	) -> Option<&'a CandidateComparator> {
-		self.cached_comparators.get(&candidate.hash())
+		self.cached_comparators.get(candidate)
 	}
 
 	/// Query active leaves for any candidate `CandidateEvent::CandidateIncluded` events.

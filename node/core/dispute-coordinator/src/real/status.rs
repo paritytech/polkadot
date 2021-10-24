@@ -21,8 +21,6 @@ use polkadot_primitives::v1::{CandidateHash, SessionIndex};
 
 use crate::real::LOG_TARGET;
 
-use super::db::v1::RecentDisputes;
-
 /// The choice here is fairly arbitrary. But any dispute that concluded more than a few minutes ago
 /// is not worth considering anymore. Changing this value has little to no bearing on consensus,
 /// and really only affects the work that the node might do on startup during periods of many
@@ -124,20 +122,12 @@ impl DisputeStatus {
 	}
 }
 
-/// Collect active disputes based on the given time.
-pub fn collect_active(
-	recent_disputes: RecentDisputes,
-	now: Timestamp,
-) -> Vec<(SessionIndex, CandidateHash)> {
-	get_active_with_status(recent_disputes, now).map(|(k, _)| k).collect()
-}
-
 /// Get active disputes as iterator, preserving its `DisputeStatus`.
 pub fn get_active_with_status(
-	recent_disputes: RecentDisputes,
+	recent_disputes: impl Iterator<Item = ((SessionIndex, CandidateHash), DisputeStatus)>,
 	now: Timestamp,
 ) -> impl Iterator<Item = ((SessionIndex, CandidateHash), DisputeStatus)> {
-	recent_disputes.into_iter().filter_map(move |(disputed, status)| {
+	recent_disputes.filter_map(move |(disputed, status)| {
 		status
 			.concluded_at()
 			.filter(|at| *at + ACTIVE_DURATION_SECS < now)

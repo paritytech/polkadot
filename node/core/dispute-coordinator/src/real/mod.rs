@@ -238,7 +238,8 @@ impl DisputeCoordinatorSubsystem {
 		db::v1::note_current_session(overlay_db, rolling_session_window.latest_session())?;
 
 		let active_disputes = match overlay_db.load_recent_disputes() {
-			Ok(Some(disputes)) => get_active_with_status(disputes, clock.now()).collect(),
+			Ok(Some(disputes)) =>
+				get_active_with_status(disputes.into_iter(), clock.now()).collect(),
 			Ok(None) => Vec::new(),
 			Err(e) => {
 				tracing::error!(
@@ -300,8 +301,7 @@ impl DisputeCoordinatorSubsystem {
 							.map_or(false, |v| v.is_some())
 				});
 
-			let candidate_comparator =
-				ordering_provider.candidate_comparator(&votes.candidate_receipt);
+			let candidate_comparator = ordering_provider.candidate_comparator(&candidate_hash);
 			let is_included = candidate_comparator.is_some();
 
 			if !status.is_confirmed_concluded() && !is_included {
