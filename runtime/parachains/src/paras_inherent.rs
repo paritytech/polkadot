@@ -659,7 +659,7 @@ pub(crate) fn sanitize_bitfields<
 		);
 
 		ensure2!(
-			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() !=
+			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() ==
 				all_zeros,
 			crate::inclusion::pallet::Error::<T>::BitfieldReferencesFreedCore,
 			EARLY_RETURN,
