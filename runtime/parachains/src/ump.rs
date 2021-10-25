@@ -18,14 +18,11 @@ use crate::{
 	configuration::{self, HostConfiguration},
 	initializer,
 };
-use frame_support::pallet_prelude::*;
+use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
+use frame_system::pallet_prelude::*;
 use primitives::v1::{Id as ParaId, UpwardMessage};
 use sp_std::{
-	collections::{btree_map::BTreeMap, vec_deque::VecDeque},
-	convert::TryFrom,
-	fmt,
-	marker::PhantomData,
-	prelude::*,
+	collections::btree_map::BTreeMap, convert::TryFrom, fmt, marker::PhantomData, mem, prelude::*,
 };
 use xcm::latest::Outcome;
 
@@ -74,9 +71,17 @@ impl UmpSink for () {
 /// if the message content is unique.
 pub type MessageId = [u8; 32];
 
+/// Index used to identify overweight messages.
+pub type OverweightIndex = u64;
+
 /// A specific implementation of a `UmpSink` where messages are in the XCM format
 /// and will be forwarded to the XCM Executor.
 pub struct XcmSink<XcmExecutor, Config>(PhantomData<(XcmExecutor, Config)>);
+
+/// Returns a [`MessageId`] for the given upward message payload.
+fn upward_message_id(data: &[u8]) -> MessageId {
+	sp_io::hashing::blake2_256(data)
+}
 
 impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSink<XcmExecutor, C> {
 	fn process_upward_message(
@@ -86,11 +91,11 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 	) -> Result<Weight, (MessageId, Weight)> {
 		use parity_scale_codec::DecodeLimit;
 		use xcm::{
-			latest::{Error as XcmError, Junction, MultiLocation, Xcm},
+			latest::{Error as XcmError, Junction, Xcm},
 			VersionedXcm,
 		};
 
-		let id = sp_io::hashing::blake2_256(&data[..]);
+		let id = upward_message_id(&data[..]);
 		let maybe_msg = VersionedXcm::<C::Call>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut &data[..],
@@ -106,9 +111,8 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 				Ok(0)
 			},
 			Ok(Ok(xcm_message)) => {
-				let xcm_junction: Junction = Junction::Parachain(origin.into());
-				let xcm_location: MultiLocation = xcm_junction.into();
-				let outcome = XcmExecutor::execute_xcm(xcm_location, xcm_message, max_weight);
+				let xcm_junction = Junction::Parachain(origin.into());
+				let outcome = XcmExecutor::execute_xcm(xcm_junction, xcm_message, max_weight);
 				match outcome {
 					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
 					outcome => {
@@ -181,6 +185,9 @@ pub mod pallet {
 		///
 		/// Generally you'll want this to be a bit more - 150 or 200 would be good values.
 		type FirstMessageFactorPercent: Get<Weight>;
+
+		/// Origin which is allowed to execute overweight messages.
+		type ExecuteOverweightOrigin: EnsureOrigin<Self::Origin>;
 	}
 
 	#[pallet::event]
@@ -195,12 +202,32 @@ pub mod pallet {
 		/// Upward message executed with the given outcome.
 		/// \[ id, outcome \]
 		ExecutedUpward(MessageId, Outcome),
-		/// The weight limit for handling downward messages was reached.
+		/// The weight limit for handling upward messages was reached.
 		/// \[ id, remaining, required \]
 		WeightExhausted(MessageId, Weight, Weight),
-		/// Some downward messages have been received and will be processed.
+		/// Some upward messages have been received and will be processed.
 		/// \[ para, count, size \]
 		UpwardMessagesReceived(ParaId, u32, u32),
+		/// The weight budget was exceeded for an individual upward message.
+		///
+		/// This message can be later dispatched manually using `service_overweight` dispatchable
+		/// using the assigned `overweight_index`.
+		///
+		/// \[ para, id, overweight_index, required \]
+		OverweightEnqueued(ParaId, MessageId, OverweightIndex, Weight),
+		/// Upward message from the overweight queue was executed with the given actual weight
+		/// used.
+		///
+		/// \[ overweight_index, used \]
+		OverweightServiced(OverweightIndex, Weight),
+	}
+
+	#[pallet::error]
+	pub enum Error<T> {
+		/// The message index given is unknown.
+		UnknownMessageIndex,
+		/// The amount of weight given is possibly not enough for executing the message.
+		WeightOverLimit,
 	}
 
 	/// The messages waiting to be handled by the relay-chain originating from a certain parachain.
@@ -211,7 +238,7 @@ pub mod pallet {
 	/// The messages are processed in FIFO order.
 	#[pallet::storage]
 	pub type RelayDispatchQueues<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, VecDeque<UpwardMessage>, ValueQuery>;
+		StorageMap<_, Twox64Concat, ParaId, Vec<UpwardMessage>, ValueQuery>;
 
 	/// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 	///
@@ -246,8 +273,49 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type NextDispatchRoundStartWith<T: Config> = StorageValue<_, ParaId>;
 
+	/// The messages that exceeded max individual message weight budget.
+	///
+	/// These messages stay there until manually dispatched.
+	#[pallet::storage]
+	pub type Overweight<T: Config> =
+		StorageMap<_, Twox64Concat, OverweightIndex, (ParaId, Vec<u8>), OptionQuery>;
+
+	/// The number of overweight messages ever recorded in `Overweight` (and thus the lowest free
+	/// index).
+	#[pallet::storage]
+	pub type OverweightCount<T: Config> = StorageValue<_, OverweightIndex, ValueQuery>;
+
 	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
+	impl<T: Config> Pallet<T> {
+		/// Service a single overweight upward message.
+		///
+		/// - `origin`: Must pass `ExecuteOverweightOrigin`.
+		/// - `index`: The index of the overweight message to service.
+		/// - `weight_limit`: The amount of weight that message execution may take.
+		///
+		/// Errors:
+		/// - `UnknownMessageIndex`: Message of `index` is unknown.
+		/// - `WeightOverLimit`: Message execution may use greater than `weight_limit`.
+		///
+		/// Events:
+		/// - `OverweightServiced`: On success.
+		#[pallet::weight(weight_limit.saturating_add(1_000_000))]
+		pub fn service_overweight(
+			origin: OriginFor<T>,
+			index: OverweightIndex,
+			weight_limit: Weight,
+		) -> DispatchResultWithPostInfo {
+			T::ExecuteOverweightOrigin::ensure_origin(origin)?;
+
+			let (sender, data) =
+				Overweight::<T>::get(index).ok_or(Error::<T>::UnknownMessageIndex)?;
+			let used = T::UmpSink::process_upward_message(sender, &data[..], weight_limit)
+				.map_err(|_| Error::<T>::WeightOverLimit)?;
+			Overweight::<T>::remove(index);
+			Self::deposit_event(Event::OverweightServiced(index, used));
+			Ok(Some(used.saturating_add(1_000_000)).into())
+		}
+	}
 }
 
 /// Routines related to the upward message passing.
@@ -407,25 +475,39 @@ impl<T: Config> Pallet<T> {
 				config.ump_service_total_weight - weight_used
 			};
 
-			// dequeue the next message from the queue of the dispatchee
-			let (upward_message, became_empty) = queue_cache.dequeue::<T>(dispatchee);
-			if let Some(upward_message) = upward_message {
-				match T::UmpSink::process_upward_message(
-					dispatchee,
-					&upward_message[..],
-					max_weight,
-				) {
-					Ok(used) => weight_used += used,
+			// attempt to process the next message from the queue of the dispatchee; if not beyond
+			// our remaining weight limit, then consume it.
+			let maybe_next = queue_cache.peek_front::<T>(dispatchee);
+			if let Some(upward_message) = maybe_next {
+				match T::UmpSink::process_upward_message(dispatchee, upward_message, max_weight) {
+					Ok(used) => {
+						weight_used += used;
+						let _ = queue_cache.consume_front::<T>(dispatchee);
+					},
 					Err((id, required)) => {
-						// we process messages in order and don't drop them if we run out of weight, so need to break
-						// here.
-						Self::deposit_event(Event::WeightExhausted(id, max_weight, required));
-						break
+						if required > config.ump_max_individual_weight {
+							// overweight - add to overweight queue and continue with message
+							// execution consuming the message.
+							let upward_message = queue_cache.consume_front::<T>(dispatchee).expect(
+								"`consume_front` should return the same msg as `peek_front`;\
+								if we get into this branch then `peek_front` returned `Some`;\
+								thus `upward_message` cannot be `None`; qed",
+							);
+							let index = Self::stash_overweight(dispatchee, upward_message);
+							Self::deposit_event(Event::OverweightEnqueued(
+								dispatchee, id, index, required,
+							));
+						} else {
+							// we process messages in order and don't drop them if we run out of weight,
+							// so need to break here without calling `consume_front`.
+							Self::deposit_event(Event::WeightExhausted(id, max_weight, required));
+							break
+						}
 					},
 				}
 			}
 
-			if became_empty {
+			if queue_cache.is_empty::<T>(dispatchee) {
 				// the queue is empty now - this para doesn't need attention anymore.
 				cursor.remove();
 			} else {
@@ -438,12 +520,25 @@ impl<T: Config> Pallet<T> {
 
 		weight_used
 	}
+
+	/// Puts a given upward message into the list of overweight messages allowing it to be executed
+	/// later.
+	fn stash_overweight(sender: ParaId, upward_message: Vec<u8>) -> OverweightIndex {
+		let index = <Self as Store>::OverweightCount::mutate(|count| {
+			let index = *count;
+			*count += 1;
+			index
+		});
+
+		<Self as Store>::Overweight::insert(index, (sender, upward_message));
+		index
+	}
 }
 
 /// To avoid constant fetching, deserializing and serialization the queues are cached.
 ///
-/// After an item dequeued from a queue for the first time, the queue is stored in this struct rather
-/// than being serialized and persisted.
+/// After an item dequeued from a queue for the first time, the queue is stored in this struct
+/// rather than being serialized and persisted.
 ///
 /// This implementation works best when:
 ///
@@ -461,9 +556,10 @@ impl<T: Config> Pallet<T> {
 struct QueueCache(BTreeMap<ParaId, QueueCacheEntry>);
 
 struct QueueCacheEntry {
-	queue: VecDeque<UpwardMessage>,
-	count: u32,
+	queue: Vec<UpwardMessage>,
 	total_size: u32,
+	consumed_count: usize,
+	consumed_size: usize,
 }
 
 impl QueueCache {
@@ -471,26 +567,46 @@ impl QueueCache {
 		Self(BTreeMap::new())
 	}
 
-	/// Dequeues one item from the upward message queue of the given para.
-	///
-	/// Returns `(upward_message, became_empty)`, where
-	///
-	/// - `upward_message` a dequeued message or `None` if the queue _was_ empty.
-	/// - `became_empty` is true if the queue _became_ empty.
-	fn dequeue<T: Config>(&mut self, para: ParaId) -> (Option<UpwardMessage>, bool) {
-		let cache_entry = self.0.entry(para).or_insert_with(|| {
-			let queue = <Pallet<T> as Store>::RelayDispatchQueues::get(&para);
-			let (count, total_size) = <Pallet<T> as Store>::RelayDispatchQueueSize::get(&para);
-			QueueCacheEntry { queue, count, total_size }
-		});
-		let upward_message = cache_entry.queue.pop_front();
-		if let Some(ref msg) = upward_message {
-			cache_entry.count -= 1;
-			cache_entry.total_size -= msg.len() as u32;
-		}
+	fn ensure_cached<T: Config>(&mut self, para: ParaId) -> &mut QueueCacheEntry {
+		self.0.entry(para).or_insert_with(|| {
+			let queue = RelayDispatchQueues::<T>::get(&para);
+			let (_, total_size) = RelayDispatchQueueSize::<T>::get(&para);
+			QueueCacheEntry { queue, total_size, consumed_count: 0, consumed_size: 0 }
+		})
+	}
 
-		let became_empty = cache_entry.queue.is_empty();
-		(upward_message, became_empty)
+	/// Returns the message at the front of `para`'s queue, or `None` if the queue is empty.
+	///
+	/// Does not mutate the queue.
+	fn peek_front<T: Config>(&mut self, para: ParaId) -> Option<&UpwardMessage> {
+		let entry = self.ensure_cached::<T>(para);
+		entry.queue.get(entry.consumed_count)
+	}
+
+	/// Attempts to remove one message from the front of `para`'s queue. If the queue is empty, then
+	/// does nothing.
+	fn consume_front<T: Config>(&mut self, para: ParaId) -> Option<UpwardMessage> {
+		let cache_entry = self.ensure_cached::<T>(para);
+
+		match cache_entry.queue.get_mut(cache_entry.consumed_count) {
+			Some(msg) => {
+				cache_entry.consumed_count += 1;
+				cache_entry.consumed_size += msg.len();
+
+				Some(mem::take(msg))
+			},
+			None => None,
+		}
+	}
+
+	/// Returns if the queue for the given para is empty.
+	///
+	/// That is, if this returns `true` then the next call to [`peek_front`] will return `None`.
+	///
+	/// Does not mutate the queue.
+	fn is_empty<T: Config>(&mut self, para: ParaId) -> bool {
+		let cache_entry = self.ensure_cached::<T>(para);
+		cache_entry.consumed_count >= cache_entry.queue.len()
 	}
 
 	/// Flushes the updated queues into the storage.
@@ -498,14 +614,16 @@ impl QueueCache {
 		// NOTE we use an explicit method here instead of Drop impl because it has unwanted semantics
 		// within runtime. It is dangerous to use because of double-panics and flushing on a panic
 		// is not necessary as well.
-		for (para, QueueCacheEntry { queue, count, total_size }) in self.0 {
-			if queue.is_empty() {
+		for (para, entry) in self.0 {
+			if entry.consumed_count >= entry.queue.len() {
 				// remove the entries altogether.
-				<Pallet<T> as Store>::RelayDispatchQueues::remove(&para);
-				<Pallet<T> as Store>::RelayDispatchQueueSize::remove(&para);
-			} else {
-				<Pallet<T> as Store>::RelayDispatchQueues::insert(&para, queue);
-				<Pallet<T> as Store>::RelayDispatchQueueSize::insert(&para, (count, total_size));
+				RelayDispatchQueues::<T>::remove(&para);
+				RelayDispatchQueueSize::<T>::remove(&para);
+			} else if entry.consumed_count > 0 {
+				RelayDispatchQueues::<T>::insert(&para, &entry.queue[entry.consumed_count..]);
+				let count = (entry.queue.len() - entry.consumed_count) as u32;
+				let size = entry.total_size.saturating_sub(entry.consumed_size as u32);
+				RelayDispatchQueueSize::<T>::insert(&para, (count, size));
 			}
 		}
 	}
@@ -586,137 +704,13 @@ impl NeedsDispatchCursor {
 }
 
 #[cfg(test)]
-pub(crate) mod mock_sink {
-	//! An implementation of a mock UMP sink that allows attaching a probe for mocking the weights
-	//! and checking the sent messages.
-	//!
-	//! A default behavior of the UMP sink is to ignore an incoming message and return 0 weight.
-	//!
-	//! A probe can be attached to the mock UMP sink. When attached, the mock sink would consult the
-	//! probe to check whether the received message was expected and what weight it should return.
-	//!
-	//! There are two rules on how to use a probe:
-	//!
-	//! 1. There can be only one active probe at a time. Creation of another probe while there is
-	//!    already an active one leads to a panic. The probe is scoped to a thread where it was created.
-	//!
-	//! 2. All messages expected by the probe must be received by the time of dropping it. Unreceived
-	//!    messages will lead to a panic while dropping a probe.
-
-	use super::{MessageId, ParaId, UmpSink, UpwardMessage};
-	use frame_support::weights::Weight;
-	use std::{cell::RefCell, collections::vec_deque::VecDeque};
-
-	#[derive(Debug)]
-	struct UmpExpectation {
-		expected_origin: ParaId,
-		expected_msg: UpwardMessage,
-		mock_weight: Weight,
-	}
-
-	std::thread_local! {
-		// `Some` here indicates that there is an active probe.
-		static HOOK: RefCell<Option<VecDeque<UmpExpectation>>> = RefCell::new(None);
-	}
-
-	pub struct MockUmpSink;
-	impl UmpSink for MockUmpSink {
-		fn process_upward_message(
-			actual_origin: ParaId,
-			actual_msg: &[u8],
-			_max_weight: Weight,
-		) -> Result<Weight, (MessageId, Weight)> {
-			Ok(HOOK
-				.with(|opt_hook| {
-					opt_hook.borrow_mut().as_mut().map(|hook| {
-						let UmpExpectation { expected_origin, expected_msg, mock_weight } =
-							match hook.pop_front() {
-								Some(expectation) => expectation,
-								None => {
-									panic!(
-							"The probe is active but didn't expect the message:\n\n\t{:?}.",
-							actual_msg,
-						);
-								},
-							};
-						assert_eq!(expected_origin, actual_origin);
-						assert_eq!(expected_msg, &actual_msg[..]);
-						mock_weight
-					})
-				})
-				.unwrap_or(0))
-		}
-	}
-
-	pub struct Probe {
-		_private: (),
-	}
-
-	impl Probe {
-		pub fn new() -> Self {
-			HOOK.with(|opt_hook| {
-				let prev = opt_hook.borrow_mut().replace(VecDeque::default());
-
-				// that can trigger if there were two probes were created during one session which
-				// is may be a bit strict, but may save time figuring out what's wrong.
-				// if you land here and you do need the two probes in one session consider
-				// dropping the the existing probe explicitly.
-				assert!(prev.is_none());
-			});
-			Self { _private: () }
-		}
-
-		/// Add an expected message.
-		///
-		/// The enqueued messages are processed in FIFO order.
-		pub fn assert_msg(
-			&mut self,
-			expected_origin: ParaId,
-			expected_msg: UpwardMessage,
-			mock_weight: Weight,
-		) {
-			HOOK.with(|opt_hook| {
-				opt_hook.borrow_mut().as_mut().unwrap().push_back(UmpExpectation {
-					expected_origin,
-					expected_msg,
-					mock_weight,
-				})
-			});
-		}
-	}
-
-	impl Drop for Probe {
-		fn drop(&mut self) {
-			let _ = HOOK.try_with(|opt_hook| {
-				let prev = opt_hook.borrow_mut().take().expect(
-					"this probe was created and hasn't been yet destroyed;
-					the probe cannot be replaced;
-					there is only one probe at a time allowed;
-					thus it cannot be `None`;
-					qed",
-				);
-
-				if !prev.is_empty() {
-					// some messages are left unchecked. We should notify the developer about this.
-					// however, we do so only if the thread doesn't panic already. Otherwise, the
-					// developer would get a SIGILL or SIGABRT without a meaningful error message.
-					if !std::thread::panicking() {
-						panic!(
-							"the probe is dropped and not all expected messages arrived: {:?}",
-							prev
-						);
-					}
-				}
-			});
-			// an `Err` here signals here that the thread local was already destroyed.
-		}
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::{mock_sink::Probe, *};
-	use crate::mock::{new_test_ext, Configuration, MockGenesisConfig, Ump};
+pub(crate) mod tests {
+	use super::*;
+	use crate::mock::{
+		assert_last_event, new_test_ext, take_processed, Configuration, MockGenesisConfig, Origin,
+		System, Test, Ump,
+	};
+	use frame_support::{assert_noop, assert_ok, weights::Weight};
 	use std::collections::HashSet;
 
 	struct GenesisConfigBuilder {
@@ -725,6 +719,7 @@ mod tests {
 		max_upward_queue_count: u32,
 		max_upward_queue_size: u32,
 		ump_service_total_weight: Weight,
+		ump_max_individual_weight: Weight,
 	}
 
 	impl Default for GenesisConfigBuilder {
@@ -735,6 +730,7 @@ mod tests {
 				max_upward_queue_count: 4,
 				max_upward_queue_size: 64,
 				ump_service_total_weight: 1000,
+				ump_max_individual_weight: 100,
 			}
 		}
 	}
@@ -749,6 +745,7 @@ mod tests {
 			config.max_upward_queue_count = self.max_upward_queue_count;
 			config.max_upward_queue_size = self.max_upward_queue_size;
 			config.ump_service_total_weight = self.ump_service_total_weight;
+			config.ump_max_individual_weight = self.ump_max_individual_weight;
 			genesis
 		}
 	}
@@ -826,15 +823,12 @@ mod tests {
 	#[test]
 	fn dispatch_single_message() {
 		let a = ParaId::from(228);
-		let msg = vec![1, 2, 3];
+		let msg = 1000u32.encode();
 
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-			let mut probe = Probe::new();
-
-			probe.assert_msg(a, msg.clone(), 0);
-			queue_upward_msg(a, msg);
-
+			queue_upward_msg(a, msg.clone());
 			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, msg)]);
 
 			assert_storage_consistency_exhaustive();
 		});
@@ -846,11 +840,11 @@ mod tests {
 		let c = ParaId::from(228);
 		let q = ParaId::from(911);
 
-		let a_msg_1 = vec![1, 2, 3];
-		let a_msg_2 = vec![3, 2, 1];
-		let c_msg_1 = vec![4, 5, 6];
-		let c_msg_2 = vec![9, 8, 7];
-		let q_msg = b"we are Q".to_vec();
+		let a_msg_1 = (200u32, "a_msg_1").encode();
+		let a_msg_2 = (100u32, "a_msg_2").encode();
+		let c_msg_1 = (300u32, "c_msg_1").encode();
+		let c_msg_2 = (100u32, "c_msg_2").encode();
+		let q_msg = (500u32, "q_msg").encode();
 
 		new_test_ext(
 			GenesisConfigBuilder { ump_service_total_weight: 500, ..Default::default() }.build(),
@@ -864,52 +858,65 @@ mod tests {
 			assert_storage_consistency_exhaustive();
 
 			// we expect only two first messages to fit in the first iteration.
-			{
-				let mut probe = Probe::new();
-
-				probe.assert_msg(a, a_msg_1.clone(), 300);
-				probe.assert_msg(c, c_msg_1.clone(), 300);
-				Ump::process_pending_upward_messages();
-				assert_storage_consistency_exhaustive();
-
-				drop(probe);
-			}
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, a_msg_1), (c, c_msg_1)]);
+			assert_storage_consistency_exhaustive();
 
 			queue_upward_msg(c, c_msg_2.clone());
 			assert_storage_consistency_exhaustive();
 
 			// second iteration should process the second message.
-			{
-				let mut probe = Probe::new();
-
-				probe.assert_msg(q, q_msg.clone(), 500);
-				Ump::process_pending_upward_messages();
-				assert_storage_consistency_exhaustive();
-
-				drop(probe);
-			}
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(q, q_msg)]);
+			assert_storage_consistency_exhaustive();
 
 			// 3rd iteration.
-			{
-				let mut probe = Probe::new();
-
-				probe.assert_msg(a, a_msg_2.clone(), 100);
-				probe.assert_msg(c, c_msg_2.clone(), 100);
-				Ump::process_pending_upward_messages();
-				assert_storage_consistency_exhaustive();
-
-				drop(probe);
-			}
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, a_msg_2), (c, c_msg_2)]);
+			assert_storage_consistency_exhaustive();
 
 			// finally, make sure that the queue is empty.
-			{
-				let probe = Probe::new();
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![]);
+			assert_storage_consistency_exhaustive();
+		});
+	}
 
-				Ump::process_pending_upward_messages();
-				assert_storage_consistency_exhaustive();
+	#[test]
+	fn dispatch_keeps_message_after_weight_exhausted() {
+		let a = ParaId::from(128);
 
-				drop(probe);
+		let a_msg_1 = (300u32, "a_msg_1").encode();
+		let a_msg_2 = (300u32, "a_msg_2").encode();
+
+		new_test_ext(
+			GenesisConfigBuilder {
+				ump_service_total_weight: 500,
+				ump_max_individual_weight: 300,
+				..Default::default()
 			}
+			.build(),
+		)
+		.execute_with(|| {
+			queue_upward_msg(a, a_msg_1.clone());
+			queue_upward_msg(a, a_msg_2.clone());
+
+			assert_storage_consistency_exhaustive();
+
+			// we expect only one message to fit in the first iteration.
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, a_msg_1)]);
+			assert_storage_consistency_exhaustive();
+
+			// second iteration should process the remaining message.
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, a_msg_2)]);
+			assert_storage_consistency_exhaustive();
+
+			// finally, make sure that the queue is empty.
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![]);
+			assert_storage_consistency_exhaustive();
 		});
 	}
 
@@ -918,9 +925,9 @@ mod tests {
 		let a = ParaId::from(1991);
 		let b = ParaId::from(1999);
 
-		let a_msg_1 = vec![1, 2, 3];
-		let a_msg_2 = vec![3, 2, 1];
-		let b_msg_1 = vec![4, 5, 6];
+		let a_msg_1 = (300u32, "a_msg_1").encode();
+		let a_msg_2 = (300u32, "a_msg_2").encode();
+		let b_msg_1 = (300u32, "b_msg_1").encode();
 
 		new_test_ext(
 			GenesisConfigBuilder { ump_service_total_weight: 900, ..Default::default() }.build(),
@@ -935,18 +942,8 @@ mod tests {
 			queue_upward_msg(a, a_msg_1.clone());
 			queue_upward_msg(a, a_msg_2.clone());
 			queue_upward_msg(b, b_msg_1.clone());
-
-			{
-				let mut probe = Probe::new();
-
-				probe.assert_msg(a, a_msg_1.clone(), 300);
-				probe.assert_msg(b, b_msg_1.clone(), 300);
-				probe.assert_msg(a, a_msg_2.clone(), 300);
-
-				Ump::process_pending_upward_messages();
-
-				drop(probe);
-			}
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(a, a_msg_1), (b, b_msg_1), (a, a_msg_2)]);
 		});
 	}
 
@@ -974,6 +971,73 @@ mod tests {
 
 			assert_eq!(cnt, 1);
 			assert_eq!(size, 3);
+		});
+	}
+
+	#[test]
+	fn service_overweight_unknown() {
+		// This test just makes sure that 0 is not a valid index and we can use it not worrying in
+		// the next test.
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			assert_noop!(
+				Ump::service_overweight(Origin::root(), 0, 1000),
+				Error::<Test>::UnknownMessageIndex
+			);
+		});
+	}
+
+	#[test]
+	fn overweight_queue_works() {
+		let para_a = ParaId::from(2021);
+
+		let a_msg_1 = (301u32, "a_msg_1").encode();
+		let a_msg_2 = (500u32, "a_msg_2").encode();
+		let a_msg_3 = (500u32, "a_msg_3").encode();
+
+		new_test_ext(
+			GenesisConfigBuilder {
+				ump_service_total_weight: 900,
+				ump_max_individual_weight: 300,
+				..Default::default()
+			}
+			.build(),
+		)
+		.execute_with(|| {
+			// HACK: Start with the block number 1. This is needed because should an event be
+			// emitted during the genesis block they will be implicitly wiped.
+			System::set_block_number(1);
+
+			// This one is overweight. However, the weight is plenty and we can afford to execute
+			// this message, thus expect it.
+			queue_upward_msg(para_a, a_msg_1.clone());
+			Ump::process_pending_upward_messages();
+			assert_eq!(take_processed(), vec![(para_a, a_msg_1)]);
+
+			// This is overweight and this message cannot fit into the total weight budget.
+			queue_upward_msg(para_a, a_msg_2.clone());
+			queue_upward_msg(para_a, a_msg_3.clone());
+			Ump::process_pending_upward_messages();
+			assert_last_event(
+				Event::OverweightEnqueued(para_a, upward_message_id(&a_msg_3[..]), 0, 500).into(),
+			);
+
+			// Now verify that if we wanted to service this overweight message with less than enough
+			// weight it will fail.
+			assert_noop!(
+				Ump::service_overweight(Origin::root(), 0, 499),
+				Error::<Test>::WeightOverLimit
+			);
+
+			// ... and if we try to service it with just enough weight it will succeed as well.
+			assert_ok!(Ump::service_overweight(Origin::root(), 0, 500));
+			assert_last_event(Event::OverweightServiced(0, 500).into());
+
+			// ... and if we try to service a message with index that doesn't exist it will error
+			// out.
+			assert_noop!(
+				Ump::service_overweight(Origin::root(), 1, 1000),
+				Error::<Test>::UnknownMessageIndex
+			);
 		});
 	}
 }

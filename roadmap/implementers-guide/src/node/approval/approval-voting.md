@@ -111,6 +111,9 @@ CandidateHash => CandidateEntry
 
 ```rust
 const APPROVAL_SESSIONS: SessionIndex = 6;
+
+// The minimum amount of ticks that an assignment must have been known for.
+const APPROVAL_DELAY: Tick = 2;
 ```
 
 In-memory state:
@@ -268,7 +271,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * If the `approval_entry` is approved, this doesn't need to be woken up again.
   * If `RequiredTranches::All` - no wakeup. We assume other incoming votes will trigger wakeup and potentially re-schedule.
   * If `RequiredTranches::Pending { considered, next_no_show, uncovered, maximum_broadcast, clock_drift }` - schedule at the lesser of the next no-show tick, or the tick, offset positively by `clock_drift` of the next non-empty tranche we are aware of after `considered`, including any tranche containing our own unbroadcast assignment. This can lead to no wakeup in the case that we have already broadcast our assignment and there are no pending no-shows; that is, we have approval votes for every assignment we've received that is not already a no-show. In this case, we will be re-triggered by other validators broadcasting their assignments.
-  * If `RequiredTranches::Exact { next_no_show, .. }` - set a wakeup for the next no-show tick.
+  * If `RequiredTranches::Exact { next_no_show, latest_assignment_tick, .. }` - set a wakeup for the earlier of the next no-show tick or the latest assignment tick + `APPROVAL_DELAY`.
 
 #### Launch Approval Work
 
@@ -278,7 +281,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 * Load the historical validation code of the parachain by dispatching a `RuntimeApiRequest::ValidationCodeByHash(descriptor.validation_code_hash)` against the state of `block_hash`.
 * Spawn a background task with a clone of `background_tx`
   * Wait for the available data
-  * Issue a `CandidateValidationMessage::ValidateFromExhaustive` message
+  * Issue a `CandidateValidationMessage::ValidateFromExhaustive` message with `APPROVAL_EXECUTION_TIMEOUT` as the timeout parameter.
   * Wait for the result of validation
   * Check that the result of validation, if valid, matches the commitments in the receipt.
   * If valid, issue a message on `background_tx` detailing the request.
@@ -335,6 +338,8 @@ enum RequiredTranches {
     /// event that there are some assignments that don't have corresponding approval votes. If this
     /// is `None`, all assignments have approvals.
     next_no_show: Option<Tick>,
+    /// The last tick at which a needed assignment was received.
+    last_assignment_tick: Option<Tick>,
   }
 }
 ```
@@ -355,8 +360,9 @@ Likewise, when considering how many tranches to take, the no-show depth should b
   * Set a clock drift of `depth * no_show_duration`
   * Take tranches up to `tranche_now - clock_drift` until all needed assignments are met.
   * Keep track of the `next_no_show` according to the clock drift, as we go.
+  * Keep track of the `last_assignment_tick` as we go.
   * If running out of tranches before then, return `Pending { considered, next_no_show, maximum_broadcast, clock_drift }`
-  * If there are no no-shows, return `Exact { needed, tolerated_missing, next_no_show }`
+  * If there are no no-shows, return `Exact { needed, tolerated_missing, next_no_show, last_assignment_tick }`
   * `maximum_broadcast` is either `DelayTranche::max_value()` at tranche 0 or otherwise by the last considered tranche + the number of uncovered no-shows at this point.
   * If there are no-shows, return to the beginning, incrementing `depth` and attempting to cover the number of no-shows. Each no-show must be covered by a non-empty tranche, which are tranches that have at least one assignment. Each non-empty tranche covers exactly one no-show.
   * If at any point, it seems that all validators are required, do an early return with `RequiredTranches::All` which indicates that everyone should broadcast.
@@ -367,7 +373,9 @@ Likewise, when considering how many tranches to take, the no-show depth should b
   * If we have `3 * n_approvals > n_validators`, return true. This is because any set with f+1 validators must have at least one honest validator, who has approved the candidate.
   * If `n_tranches` is `RequiredTranches::Pending`, return false
   * If `n_tranches` is `RequiredTranches::All`, return false.
-  * If `n_tranches` is `RequiredTranches::Exact { tranche, tolerated_missing, .. }`, then we return whether all assigned validators up to `tranche` less `tolerated_missing` have approved. e.g. if we had 5 tranches and 1 tolerated missing, we would accept only if all but 1 of assigned validators in tranches 0..=5 have approved. In that example, we also accept all validators in tranches 0..=5 having approved, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. `tolerated_missing` actually represents covered no-shows. If there are more missing approvals than there are tolerated missing, that indicates that there are some assignments which are not yet no-shows, but may become no-shows, and we should wait for the validators to either approve or become no-shows.
+  * If `n_tranches` is `RequiredTranches::Exact { tranche, tolerated_missing, latest_assignment_tick, .. }`, then we return whether all assigned validators up to `tranche` less `tolerated_missing` have approved and `latest_assignment_tick + APPROVAL_DELAY >= tick_now`. 
+    * e.g. if we had 5 tranches and 1 tolerated missing, we would accept only if all but 1 of assigned validators in tranches 0..=5 have approved. In that example, we also accept all validators in tranches 0..=5 having approved, but that would indicate that the `RequiredTranches` value was incorrectly constructed, so it is not realistic. `tolerated_missing` actually represents covered no-shows. If there are more missing approvals than there are tolerated missing, that indicates that there are some assignments which are not yet no-shows, but may become no-shows, and we should wait for the validators to either approve or become no-shows. 
+    * e.g. If the above passes and the `latest_assignment_tick` was 5 and the current tick was 6, then we'd return false.
 
 ### Time
 

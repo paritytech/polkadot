@@ -50,8 +50,8 @@ pub struct ValidationHost {
 }
 
 impl ValidationHost {
-	/// Execute PVF with the given code, parameters and priority. The result of execution will be sent
-	/// to the provided result sender.
+	/// Execute PVF with the given code, execution timeout, parameters and priority.
+	/// The result of execution will be sent to the provided result sender.
 	///
 	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
 	/// situations this function should return immediately.
@@ -60,12 +60,13 @@ impl ValidationHost {
 	pub async fn execute_pvf(
 		&mut self,
 		pvf: Pvf,
+		execution_timeout: Duration,
 		params: Vec<u8>,
 		priority: Priority,
 		result_tx: ResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
-			.send(ToHost::ExecutePvf { pvf, params, priority, result_tx })
+			.send(ToHost::ExecutePvf { pvf, execution_timeout, params, priority, result_tx })
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
 	}
@@ -85,8 +86,16 @@ impl ValidationHost {
 }
 
 enum ToHost {
-	ExecutePvf { pvf: Pvf, params: Vec<u8>, priority: Priority, result_tx: ResultSender },
-	HeadsUp { active_pvfs: Vec<PvfCode> },
+	ExecutePvf {
+		pvf: Pvf,
+		execution_timeout: Duration,
+		params: Vec<u8>,
+		priority: Priority,
+		result_tx: ResultSender,
+	},
+	HeadsUp {
+		active_pvfs: Vec<PvfCode>,
+	},
 }
 
 /// Configuration for the validation host.
@@ -202,6 +211,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 /// to the given result sender.
 #[derive(Debug)]
 struct PendingExecutionRequest {
+	execution_timeout: Duration,
 	params: Vec<u8>,
 	result_tx: ResultSender,
 }
@@ -212,11 +222,18 @@ struct PendingExecutionRequest {
 struct AwaitingPrepare(HashMap<ArtifactId, Vec<PendingExecutionRequest>>);
 
 impl AwaitingPrepare {
-	fn add(&mut self, artifact_id: ArtifactId, params: Vec<u8>, result_tx: ResultSender) {
-		self.0
-			.entry(artifact_id)
-			.or_default()
-			.push(PendingExecutionRequest { params, result_tx });
+	fn add(
+		&mut self,
+		artifact_id: ArtifactId,
+		execution_timeout: Duration,
+		params: Vec<u8>,
+		result_tx: ResultSender,
+	) {
+		self.0.entry(artifact_id).or_default().push(PendingExecutionRequest {
+			execution_timeout,
+			params,
+			result_tx,
+		});
 	}
 
 	fn take(&mut self, artifact_id: &ArtifactId) -> Vec<PendingExecutionRequest> {
@@ -329,8 +346,7 @@ async fn run(
 				.await);
 			},
 			from_prepare_queue = from_prepare_queue_rx.next() => {
-				let prepare::FromQueue::Prepared(artifact_id)
-					= break_if_fatal!(from_prepare_queue.ok_or(Fatal));
+				let from_queue = break_if_fatal!(from_prepare_queue.ok_or(Fatal));
 
 				// Note that preparation always succeeds.
 				//
@@ -346,7 +362,7 @@ async fn run(
 					&mut artifacts,
 					&mut to_execute_queue_tx,
 					&mut awaiting_prepare,
-					artifact_id,
+					from_queue,
 				).await);
 			},
 		}
@@ -362,7 +378,7 @@ async fn handle_to_host(
 	to_host: ToHost,
 ) -> Result<(), Fatal> {
 	match to_host {
-		ToHost::ExecutePvf { pvf, params, priority, result_tx } => {
+		ToHost::ExecutePvf { pvf, execution_timeout, params, priority, result_tx } => {
 			handle_execute_pvf(
 				cache_path,
 				artifacts,
@@ -370,6 +386,7 @@ async fn handle_to_host(
 				execute_queue,
 				awaiting_prepare,
 				pvf,
+				execution_timeout,
 				params,
 				priority,
 				result_tx,
@@ -391,6 +408,7 @@ async fn handle_execute_pvf(
 	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
 	pvf: Pvf,
+	execution_timeout: Duration,
 	params: Vec<u8>,
 	priority: Priority,
 	result_tx: ResultSender,
@@ -406,6 +424,7 @@ async fn handle_execute_pvf(
 					execute_queue,
 					execute::ToQueue::Enqueue {
 						artifact: ArtifactPathId::new(artifact_id, cache_path),
+						execution_timeout,
 						params,
 						result_tx,
 					},
@@ -419,19 +438,22 @@ async fn handle_execute_pvf(
 				)
 				.await?;
 
-				awaiting_prepare.add(artifact_id, params, result_tx);
+				awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
+			},
+			ArtifactState::FailedToProcess(error) => {
+				let _ = result_tx.send(Err(ValidationError::from(error.clone())));
 			},
 		}
 	} else {
-		if let Pvf::Preimage(inner) = pvf {
+		if let Pvf::Preimage(code) = pvf {
 			// Artifact is unknown: register it and enqueue a job with the corresponding priority and
 			//
 			artifacts.insert_preparing(artifact_id.clone());
-			send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf: inner }).await?;
+			send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf: code }).await?;
 
-			awaiting_prepare.add(artifact_id, params, result_tx);
+			awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 		} else {
-			// Expect another request with PVF provided.
+			// Expect another request with PVF code provided.
 			let _ = result_tx.send(Err(ValidationError::ArtifactNotFound));
 		}
 	}
@@ -457,6 +479,7 @@ async fn handle_heads_up(
 					// Already preparing. We don't need to send a priority amend either because
 					// it can't get any lower than the background.
 				},
+				ArtifactState::FailedToProcess(_) => {},
 			}
 		} else {
 			// The artifact is unknown: register it and put a background job into the prepare queue.
@@ -478,8 +501,10 @@ async fn handle_prepare_done(
 	artifacts: &mut Artifacts,
 	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
-	artifact_id: ArtifactId,
+	from_queue: prepare::FromQueue,
 ) -> Result<(), Fatal> {
+	let prepare::FromQueue { artifact_id, result } = from_queue;
+
 	// Make some sanity checks and extract the current state.
 	let state = match artifacts.artifact_state_mut(&artifact_id) {
 		None => {
@@ -500,16 +525,28 @@ async fn handle_prepare_done(
 			never!("the artifact is already prepared: {:?}", artifact_id);
 			return Ok(())
 		},
+		Some(ArtifactState::FailedToProcess(_)) => {
+			// The reasoning is similar to the above, the artifact cannot be
+			// processed at this point.
+			never!("the artifact is already processed unsuccessfully: {:?}", artifact_id);
+			return Ok(())
+		},
 		Some(state @ ArtifactState::Preparing) => state,
 	};
 
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
 	let pending_requests = awaiting_prepare.take(&artifact_id);
-	for PendingExecutionRequest { params, result_tx } in pending_requests {
+	for PendingExecutionRequest { execution_timeout, params, result_tx } in pending_requests {
 		if result_tx.is_canceled() {
 			// Preparation could've taken quite a bit of time and the requester may be not interested
 			// in execution anymore, in which case we just skip the request.
+			continue
+		}
+
+		// Don't send failed artifacts to the execution's queue.
+		if let Err(ref error) = result {
+			let _ = result_tx.send(Err(ValidationError::from(error.clone())));
 			continue
 		}
 
@@ -517,6 +554,7 @@ async fn handle_prepare_done(
 			execute_queue,
 			execute::ToQueue::Enqueue {
 				artifact: ArtifactPathId::new(artifact_id.clone(), cache_path),
+				execution_timeout,
 				params,
 				result_tx,
 			},
@@ -524,8 +562,10 @@ async fn handle_prepare_done(
 		.await?;
 	}
 
-	// Now consider the artifact prepared.
-	*state = ArtifactState::Prepared { last_time_needed: SystemTime::now() };
+	*state = match result {
+		Ok(()) => ArtifactState::Prepared { last_time_needed: SystemTime::now() },
+		Err(error) => ArtifactState::FailedToProcess(error.clone()),
+	};
 
 	Ok(())
 }
@@ -603,6 +643,8 @@ mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
+
+	const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 
 	#[async_std::test]
 	async fn pulse_test() {
@@ -855,9 +897,15 @@ mod tests {
 		.await;
 
 		let (result_tx, _result_rx) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(1), vec![], Priority::Critical, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			vec![],
+			Priority::Critical,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		run_until(
 			&mut test.run,
@@ -877,13 +925,20 @@ mod tests {
 		let mut host = test.host_handle();
 
 		let (result_tx, result_rx_pvf_1_1) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(1), b"pvf1".to_vec(), Priority::Normal, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf1".to_vec(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		let (result_tx, result_rx_pvf_1_2) = oneshot::channel();
 		host.execute_pvf(
 			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
 			Priority::Critical,
 			result_tx,
@@ -892,9 +947,15 @@ mod tests {
 		.unwrap();
 
 		let (result_tx, result_rx_pvf_2) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(2), b"pvf2".to_vec(), Priority::Normal, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Pvf::from_discriminator(2),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf2".to_vec(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,
@@ -910,7 +971,7 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Prepared(artifact_id(1)))
+			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
 			.await
 			.unwrap();
 		let result_tx_pvf_1_1 = assert_matches!(
@@ -923,7 +984,7 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Prepared(artifact_id(2)))
+			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
 			.await
 			.unwrap();
 		let result_tx_pvf_2 = assert_matches!(
@@ -962,9 +1023,15 @@ mod tests {
 		let mut host = test.host_handle();
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.execute_pvf(Pvf::from_discriminator(1), b"pvf1".to_vec(), Priority::Normal, result_tx)
-			.await
-			.unwrap();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf1".to_vec(),
+			Priority::Normal,
+			result_tx,
+		)
+		.await
+		.unwrap();
 
 		assert_matches!(
 			test.poll_and_recv_to_prepare_queue().await,
@@ -972,7 +1039,7 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Prepared(artifact_id(1)))
+			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
 			.await
 			.unwrap();
 

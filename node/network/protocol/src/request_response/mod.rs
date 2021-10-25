@@ -89,6 +89,9 @@ const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(3);
 /// peer set as well).
 const DEFAULT_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_secs(1);
 
+/// Timeout for requesting availability chunks.
+pub const CHUNK_REQUEST_TIMEOUT: Duration = DEFAULT_REQUEST_TIMEOUT_CONNECTED;
+
 /// This timeout is based on what seems sensible from a time budget perspective, considering 6
 /// second block time. This is going to be tough, if we have multiple forks and large PoVs, but we
 /// only have so much time.
@@ -132,7 +135,7 @@ impl Protocol {
 				max_request_size: 1_000,
 				max_response_size: POV_RESPONSE_SIZE as u64 / 10,
 				// We are connected to all validators:
-				request_timeout: DEFAULT_REQUEST_TIMEOUT_CONNECTED,
+				request_timeout: CHUNK_REQUEST_TIMEOUT,
 				inbound_queue: Some(tx),
 			},
 			Protocol::CollationFetching => RequestResponseConfig {

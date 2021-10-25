@@ -47,8 +47,8 @@ pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 }
 pub struct TestSendXcm;
 impl SendXcm for TestSendXcm {
-	fn send_xcm(dest: MultiLocation, msg: opaque::Xcm) -> XcmResult {
-		SENT_XCM.with(|q| q.borrow_mut().push((dest, msg)));
+	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
+		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
 		Ok(())
 	}
 }
@@ -107,7 +107,9 @@ impl pallet_balances::Config for Runtime {
 
 impl shared::Config for Runtime {}
 
-impl configuration::Config for Runtime {}
+impl configuration::Config for Runtime {
+	type WeightInfo = configuration::TestWeightInfo;
+}
 
 // aims to closely emulate the Kusama XcmConfig
 parameter_types! {
@@ -148,10 +150,11 @@ pub type Barrier = (
 );
 
 parameter_types! {
-	pub const KusamaForStatemint: (MultiAssetFilter, MultiLocation) =
+	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) =
 		(MultiAssetFilter::Wild(WildMultiAsset::AllOf { id: Concrete(MultiLocation::here()), fun: WildFungible }), X1(Parachain(1000)).into());
+	pub const MaxInstructions: u32 = 100;
 }
-pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemint>,);
+pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemine>,);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -163,9 +166,12 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
-	type ResponseHandler = ();
+	type ResponseHandler = XcmPallet;
+	type AssetTrap = XcmPallet;
+	type AssetClaims = XcmPallet;
+	type SubscriptionService = XcmPallet;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;
@@ -181,7 +187,11 @@ impl pallet_xcm::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Call = Call;
+	type Origin = Origin;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
 
 impl origin::Config for Runtime {}
@@ -198,7 +208,7 @@ construct_runtime!(
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>},
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin},
 	}
 );
 

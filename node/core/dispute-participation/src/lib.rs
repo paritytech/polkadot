@@ -22,7 +22,7 @@
 
 use futures::{channel::oneshot, prelude::*};
 
-use polkadot_node_primitives::ValidationResult;
+use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
 	errors::{RecoveryError, RuntimeApiError},
 	messages::{
@@ -248,13 +248,12 @@ async fn participate(
 	// we dispatch a request to store the available data for the candidate. we
 	// want to maximize data availability for other potential checkers involved
 	// in the dispute
-	ctx.send_message(AvailabilityStoreMessage::StoreAvailableData(
+	ctx.send_message(AvailabilityStoreMessage::StoreAvailableData {
 		candidate_hash,
-		None,
 		n_validators,
-		available_data.clone(),
-		store_available_data_tx,
-	))
+		available_data: available_data.clone(),
+		tx: store_available_data_tx,
+	})
 	.await;
 
 	match store_available_data_rx.await? {
@@ -270,11 +269,16 @@ async fn participate(
 
 	// we issue a request to validate the candidate with the provided exhaustive
 	// parameters
+	//
+	// We use the approval execution timeout because this is intended to
+	// be run outside of backing and therefore should be subject to the
+	// same level of leeway.
 	ctx.send_message(CandidateValidationMessage::ValidateFromExhaustive(
 		available_data.validation_data,
 		validation_code,
 		candidate_receipt.descriptor.clone(),
 		available_data.pov,
+		APPROVAL_EXECUTION_TIMEOUT,
 		validation_tx,
 	))
 	.await;

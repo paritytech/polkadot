@@ -11,3 +11,4 @@ polkadot.*
 !.rpm/*
 .DS_Store
 .cargo
+.env

@@ -207,8 +207,13 @@ impl frame_system::Config for Runtime {
 
 impl pallet_randomness_collective_flip::Config for Runtime {}
 
+parameter_types! {
+	pub const MaxAuthorities: u32 = 10;
+}
+
 impl pallet_aura::Config for Runtime {
 	type AuthorityId = AuraId;
+	type MaxAuthorities = MaxAuthorities;
 }
 impl pallet_bridge_dispatch::Config for Runtime {
 	type Event = Event;
@@ -302,7 +307,6 @@ impl pallet_session::Config for Runtime {
 	type SessionManager = pallet_shift_session_manager::Pallet<Runtime>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
-	type DisabledValidatorsThreshold = ();
 	// TODO: update me (https://github.com/paritytech/parity-bridges-common/issues/78)
 	type WeightInfo = ();
 }
@@ -460,7 +464,7 @@ impl_runtime_apis! {
 
 	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
-			Runtime::metadata().into()
+			OpaqueMetadata::new(Runtime::metadata().into())
 		}
 	}
 

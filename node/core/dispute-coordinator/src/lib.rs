@@ -25,6 +25,8 @@
 //! another node, this will trigger the dispute participation subsystem to recover and validate the block and call
 //! back to this subsystem.
 
+mod metrics;
+
 #[cfg(feature = "disputes")]
 mod real;
 #[cfg(feature = "disputes")]

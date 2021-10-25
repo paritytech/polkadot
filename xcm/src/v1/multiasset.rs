@@ -31,9 +31,10 @@ use core::{
 	result,
 };
 use parity_scale_codec::{self as codec, Decode, Encode};
+use scale_info::TypeInfo;
 
 /// A general identifier for an instance of a non-fungible asset class.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
 pub enum AssetInstance {
 	/// Undefined - used if the non-fungible asset class has only one instance.
 	Undefined,
@@ -95,7 +96,7 @@ impl From<Vec<u8>> for AssetInstance {
 }
 
 /// Classification of an asset being concrete or abstract.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
 pub enum AssetId {
 	Concrete(MultiLocation),
 	Abstract(Vec<u8>),
@@ -135,7 +136,7 @@ impl AssetId {
 }
 
 /// Classification of whether an asset is fungible or not, along with a mandatory amount or instance.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
 pub enum Fungibility {
 	Fungible(#[codec(compact)] u128),
 	NonFungible(AssetInstance),
@@ -162,7 +163,7 @@ impl<T: Into<AssetInstance>> From<T> for Fungibility {
 	}
 }
 
-#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo)]
 pub struct MultiAsset {
 	pub id: AssetId,
 	pub fun: Fungibility,
@@ -266,7 +267,7 @@ impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAsset {
 }
 
 /// A `Vec` of `MultiAsset`s. There may be no duplicate fungible items in here and when decoding, they must be sorted.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo)]
 pub struct MultiAssets(Vec<MultiAsset>);
 
 impl Decode for MultiAssets {
@@ -422,14 +423,14 @@ impl MultiAssets {
 	}
 }
 /// Classification of whether an asset is fungible or not.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
 pub enum WildFungibility {
 	Fungible,
 	NonFungible,
 }
 
 /// A wildcard representing a set of assets.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
 pub enum WildMultiAsset {
 	/// All assets in the holding register, up to `usize` individual assets (different instances of non-fungibles could
 	/// be separate assets).
@@ -501,7 +502,7 @@ impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset
 ///
 /// Note: Vectors of wildcards whose encoding is supported in XCM v0 are unsupported
 /// in this implementation and will result in a decode error.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
 pub enum MultiAssetFilter {
 	Definite(MultiAssets),
 	Wild(WildMultiAsset),

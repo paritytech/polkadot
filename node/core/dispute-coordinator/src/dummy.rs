@@ -30,6 +30,8 @@ use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use sc_keystore::LocalKeystore;
 
+use crate::metrics::Metrics;
+
 const LOG_TARGET: &str = "parachain::dispute-coordinator";
 
 /// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
@@ -52,7 +54,7 @@ pub struct DisputeCoordinatorSubsystem {}
 
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
-	pub fn new(_: Arc<dyn KeyValueDB>, _: Config, _: Arc<LocalKeystore>) -> Self {
+	pub fn new(_: Arc<dyn KeyValueDB>, _: Config, _: Arc<LocalKeystore>, _: Metrics) -> Self {
 		DisputeCoordinatorSubsystem {}
 	}
 }
@@ -233,13 +235,14 @@ async fn handle_incoming(
 		},
 		DisputeCoordinatorMessage::IssueLocalStatement(_, _, _, _) => {},
 		DisputeCoordinatorMessage::DetermineUndisputedChain {
-			base_number,
+			base: (base_number, base_hash),
 			block_descriptions,
 			tx,
 		} => {
 			let undisputed_chain = block_descriptions
 				.last()
-				.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash));
+				.map(|e| (base_number + block_descriptions.len() as BlockNumber, e.block_hash))
+				.unwrap_or((base_number, base_hash));
 
 			let _ = tx.send(undisputed_chain);
 		},
