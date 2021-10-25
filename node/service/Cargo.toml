@@ -152,8 +152,6 @@ full-node = [
 	"kvdb-rocksdb"
 ]
 
-light-node = []
-
 # Configure the native runtimes to use. Polkadot is enabled by default.
 #
 # Validators require the native runtime currently
