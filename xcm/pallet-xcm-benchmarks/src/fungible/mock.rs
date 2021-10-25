@@ -153,7 +153,6 @@ impl crate::Config for Test {
 	}
 }
 
-
 pub type TrustedTeleporters = (xcm_builder::Case<TeleConcreteFung>,);
 
 parameter_types! {

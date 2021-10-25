@@ -17,7 +17,10 @@
 use super::*;
 use crate::{account_and_location, new_executor, worst_case_holding, AssetTransactorOf, XcmCallOf};
 use frame_benchmarking::{benchmarks_instance_pallet, BenchmarkError, BenchmarkResult};
-use frame_support::{pallet_prelude::Get, traits::fungible::{Inspect, Mutate}};
+use frame_support::{
+	pallet_prelude::Get,
+	traits::fungible::{Inspect, Mutate},
+};
 use sp_runtime::traits::{Bounded, Zero};
 use sp_std::{convert::TryInto, prelude::*, vec};
 use xcm::latest::prelude::*;
