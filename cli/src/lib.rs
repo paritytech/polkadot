@@ -23,7 +23,6 @@ mod cli;
 #[cfg(feature = "cli")]
 mod command;
 
-#[cfg(feature = "full-node")]
 pub use service::RuntimeApiCollection;
 #[cfg(feature = "service")]
 pub use service::{self, Block, CoreApi, IdentifyVariant, ProvideRuntimeApi, TFullClient};

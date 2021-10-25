@@ -23,16 +23,13 @@ mod grandpa_support;
 mod parachains_db;
 mod relay_chain_selection;
 
-#[cfg(feature = "full-node")]
 pub mod overseer;
 
-#[cfg(feature = "full-node")]
 pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
 
 #[cfg(all(test, feature = "disputes"))]
 mod tests;
 
-#[cfg(feature = "full-node")]
 use {
 	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
 	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
@@ -50,7 +47,7 @@ use {
 };
 
 pub use sp_core::traits::SpawnNamed;
-#[cfg(feature = "full-node")]
+
 pub use {
 	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
 	polkadot_primitives::v1::ParachainHost,
@@ -61,17 +58,14 @@ pub use {
 	sp_consensus_babe::BabeApi,
 };
 
-#[cfg(feature = "full-node")]
 use polkadot_subsystem::jaeger;
 
 use std::{sync::Arc, time::Duration};
 
 use prometheus_endpoint::Registry;
-#[cfg(feature = "full-node")]
 use service::KeystoreContainer;
 use service::RpcHandlers;
 use telemetry::TelemetryWorker;
-#[cfg(feature = "full-node")]
 use telemetry::{Telemetry, TelemetryWorkerHandle};
 
 #[cfg(feature = "rococo-native")]
@@ -88,7 +82,6 @@ pub use polkadot_client::PolkadotExecutorDispatch;
 
 pub use chain_spec::{KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, WestendChainSpec};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
-#[cfg(feature = "full-node")]
 pub use polkadot_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
 	RuntimeApiCollection,
@@ -122,7 +115,6 @@ pub use rococo_runtime;
 pub use westend_runtime;
 
 /// The maximum number of active leaves we forward to the [`Overseer`] on startup.
-#[cfg(any(test, feature = "full-node"))]
 const MAX_ACTIVE_LEAVES: usize = 4;
 
 /// Provides the header and block number for a hash.
@@ -221,18 +213,15 @@ pub enum Error {
 	#[error(transparent)]
 	Jaeger(#[from] polkadot_subsystem::jaeger::JaegerError),
 
-	#[cfg(feature = "full-node")]
 	#[error(transparent)]
 	Availability(#[from] AvailabilityError),
 
 	#[error("Authorities require the real overseer implementation")]
 	AuthoritiesRequireRealOverseer,
 
-	#[cfg(feature = "full-node")]
 	#[error("Creating a custom database is required for validators")]
 	DatabasePathRequired,
 
-	#[cfg(feature = "full-node")]
 	#[error("Expected at least one of polkadot, kusama, westend or rococo runtime feature")]
 	NoRuntime,
 }
@@ -284,7 +273,6 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 
 /// Initialize the `Jeager` collector. The destination must listen
 /// on the given address and port for `UDP` packets.
-#[cfg(any(test, feature = "full-node"))]
 fn jaeger_launch_collector_with_agent(
 	spawner: impl SpawnNamed,
 	config: &Configuration,
@@ -301,9 +289,8 @@ fn jaeger_launch_collector_with_agent(
 	Ok(())
 }
 
-#[cfg(feature = "full-node")]
 type FullSelectChain = relay_chain_selection::SelectRelayChain<FullBackend>;
-#[cfg(feature = "full-node")]
+
 type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullSelectChain> =
 	grandpa::GrandpaBlockImport<
 		FullBackend,
@@ -312,7 +299,6 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
 		ChainSelection,
 	>;
 
-#[cfg(feature = "full-node")]
 struct Basics<RuntimeApi, ExecutorDispatch>
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
@@ -330,7 +316,6 @@ where
 	telemetry: Option<Telemetry>,
 }
 
-#[cfg(feature = "full-node")]
 fn new_partial_basics<RuntimeApi, ExecutorDispatch>(
 	config: &mut Configuration,
 	jaeger_agent: Option<std::net::SocketAddr>,
@@ -390,7 +375,6 @@ where
 	Ok(Basics { task_manager, client, backend, keystore_container, telemetry })
 }
 
-#[cfg(feature = "full-node")]
 fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 	config: &mut Configuration,
 	Basics { task_manager, backend, client, keystore_container, telemetry }: Basics<
@@ -553,7 +537,6 @@ where
 	})
 }
 
-#[cfg(feature = "full-node")]
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
@@ -563,7 +546,6 @@ pub struct NewFull<C> {
 	pub backend: Arc<FullBackend>,
 }
 
-#[cfg(feature = "full-node")]
 impl<C> NewFull<C> {
 	/// Convert the client type using the given `func`.
 	pub fn with_client<NC>(self, func: impl FnOnce(C) -> NC) -> NewFull<NC> {
@@ -579,7 +561,6 @@ impl<C> NewFull<C> {
 }
 
 /// Is this node a collator?
-#[cfg(feature = "full-node")]
 #[derive(Clone)]
 pub enum IsCollator {
 	/// This node is a collator.
@@ -588,7 +569,6 @@ pub enum IsCollator {
 	No,
 }
 
-#[cfg(feature = "full-node")]
 impl std::fmt::Debug for IsCollator {
 	fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
 		use sp_core::Pair;
@@ -599,7 +579,6 @@ impl std::fmt::Debug for IsCollator {
 	}
 }
 
-#[cfg(feature = "full-node")]
 impl IsCollator {
 	/// Is this a collator?
 	fn is_collator(&self) -> bool {
@@ -608,7 +587,6 @@ impl IsCollator {
 }
 
 /// Returns the active leaves the overseer should start with.
-#[cfg(feature = "full-node")]
 async fn active_leaves<RuntimeApi, ExecutorDispatch>(
 	select_chain: &impl SelectChain<Block>,
 	client: &FullClient<RuntimeApi, ExecutorDispatch>,
@@ -661,7 +639,6 @@ where
 ///
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
 /// a better choice.
-#[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	mut config: Configuration,
 	is_collator: IsCollator,
@@ -1119,7 +1096,6 @@ where
 	Ok(NewFull { task_manager, client, overseer_handle, network, rpc_handlers, backend })
 }
 
-#[cfg(feature = "full-node")]
 macro_rules! chain_ops {
 	($config:expr, $jaeger_agent:expr, $telemetry_worker_handle:expr; $scope:ident, $executor:ident, $variant:ident) => {{
 		let telemetry_worker_handle = $telemetry_worker_handle;
@@ -1146,7 +1122,6 @@ macro_rules! chain_ops {
 }
 
 /// Builds a new object suitable for chain operations.
-#[cfg(feature = "full-node")]
 pub fn new_chain_ops(
 	mut config: &mut Configuration,
 	jaeger_agent: Option<std::net::SocketAddr>,
@@ -1186,7 +1161,6 @@ pub fn new_chain_ops(
 	Err(Error::NoRuntime)
 }
 
-#[cfg(feature = "full-node")]
 pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,

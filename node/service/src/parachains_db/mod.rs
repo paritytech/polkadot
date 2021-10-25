@@ -13,13 +13,10 @@
 
 //! A `RocksDB` instance for storing parachain data; availability data, and approvals.
 
-#[cfg(feature = "full-node")]
 use {kvdb::KeyValueDB, std::io, std::path::PathBuf, std::sync::Arc};
 
-#[cfg(feature = "full-node")]
 mod upgrade;
 
-#[cfg(any(test, feature = "full-node"))]
 pub(crate) mod columns {
 	pub mod v0 {
 		pub const NUM_COLUMNS: u32 = 3;
@@ -34,7 +31,6 @@ pub(crate) mod columns {
 }
 
 /// Columns used by different subsystems.
-#[cfg(any(test, feature = "full-node"))]
 #[derive(Debug, Clone)]
 pub struct ColumnsConfig {
 	/// The column used by the av-store for data.
@@ -50,7 +46,6 @@ pub struct ColumnsConfig {
 }
 
 /// The real columns used by the parachains DB.
-#[cfg(any(test, feature = "full-node"))]
 pub const REAL_COLUMNS: ColumnsConfig = ColumnsConfig {
 	col_availability_data: columns::COL_AVAILABILITY_DATA,
 	col_availability_meta: columns::COL_AVAILABILITY_META,
@@ -76,13 +71,11 @@ impl Default for CacheSizes {
 	}
 }
 
-#[cfg(feature = "full-node")]
 pub(crate) fn other_io_error(err: String) -> io::Error {
 	io::Error::new(io::ErrorKind::Other, err)
 }
 
 /// Open the database on disk, creating it if it doesn't exist.
-#[cfg(feature = "full-node")]
 pub fn open_creating(root: PathBuf, cache_sizes: CacheSizes) -> io::Result<Arc<dyn KeyValueDB>> {
 	use kvdb_rocksdb::{Database, DatabaseConfig};
 
