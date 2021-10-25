@@ -20,7 +20,6 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
-use frame_support::traits::OnRuntimeUpgrade;
 use pallet_transaction_payment::CurrencyAdapter;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v1::{
@@ -1102,7 +1101,7 @@ construct_runtime! {
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 64,
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 	}
 }
 
@@ -1135,6 +1134,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
+	(),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1214,6 +1214,16 @@ sp_api::impl_runtime_apis! {
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			parachains_runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			parachains_runtime_api_impl::assumed_validation_data::<Runtime>(
+				para_id,
+				expected_persisted_validation_data_hash,
+			)
 		}
 
 		fn check_validation_outputs(

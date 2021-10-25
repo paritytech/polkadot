@@ -49,10 +49,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{
-		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, Nothing,
-		OnRuntimeUpgrade,
-	},
+	traits::{Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, Nothing},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -1328,9 +1325,9 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Kusama: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(KsmLocation::get()) });
-	pub const KusamaForStatemint: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1000).into());
+	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1000).into());
 }
-pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemint>,);
+pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemine>,);
 
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (
@@ -1524,7 +1521,7 @@ construct_runtime! {
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 73,
 
 		// Pallet for sending XCM.
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin} = 99,
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 	}
 }
 
@@ -1557,165 +1554,10 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(
-		CouncilStoragePrefixMigration,
-		TechnicalCommitteeStoragePrefixMigration,
-		TechnicalMembershipStoragePrefixMigration,
-		MigrateTipsPalletPrefix,
-		BountiesPrefixMigration,
-	),
+	(),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
-
-const BOUNTIES_OLD_PREFIX: &str = "Treasury";
-
-/// Migrate from 'Treasury' to the new prefix 'Bounties'
-pub struct BountiesPrefixMigration;
-
-impl OnRuntimeUpgrade for BountiesPrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
-			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::migrate::<Runtime, Bounties, _>(BOUNTIES_OLD_PREFIX, name)
-	}
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
-			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::pre_migration::<Runtime, Bounties, _>(
-			BOUNTIES_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
-			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::post_migration::<Runtime, Bounties, _>(
-			BOUNTIES_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-}
-
-const COUNCIL_OLD_PREFIX: &str = "Instance1Collective";
-/// Migrate from `Instance1Collective` to the new pallet prefix `Council`
-pub struct CouncilStoragePrefixMigration;
-
-impl OnRuntimeUpgrade for CouncilStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_collective::migrations::v4::migrate::<Runtime, Council, _>(COUNCIL_OLD_PREFIX)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::pre_migrate::<Council, _>(COUNCIL_OLD_PREFIX);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::post_migrate::<Council, _>(COUNCIL_OLD_PREFIX);
-		Ok(())
-	}
-}
-
-const TECHNICAL_COMMITTEE_OLD_PREFIX: &str = "Instance2Collective";
-/// Migrate from `Instance2Collective` to the new pallet prefix `TechnicalCommittee`
-pub struct TechnicalCommitteeStoragePrefixMigration;
-
-impl OnRuntimeUpgrade for TechnicalCommitteeStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_collective::migrations::v4::migrate::<Runtime, TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-		)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::pre_migrate::<TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::post_migrate::<TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-		);
-		Ok(())
-	}
-}
-
-const TECHNICAL_MEMBERSHIP_OLD_PREFIX: &str = "Instance1Membership";
-/// Migrate from `Instance1Membership` to the new pallet prefix `TechnicalMembership`
-pub struct TechnicalMembershipStoragePrefixMigration;
-
-impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
-		pallet_membership::migrations::v4::migrate::<Runtime, TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
-		pallet_membership::migrations::v4::pre_migrate::<TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
-		pallet_membership::migrations::v4::post_migrate::<TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-}
-
-const TIPS_OLD_PREFIX: &str = "Treasury";
-/// Migrate pallet-tips from `Treasury` to the new pallet prefix `Tips`
-pub struct MigrateTipsPalletPrefix;
-
-impl OnRuntimeUpgrade for MigrateTipsPalletPrefix {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_tips::migrations::v4::migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_tips::migrations::v4::pre_migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_tips::migrations::v4::post_migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX);
-		Ok(())
-	}
-}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
@@ -1792,6 +1634,16 @@ sp_api::impl_runtime_apis! {
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			parachains_runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			parachains_runtime_api_impl::assumed_validation_data::<Runtime>(
+				para_id,
+				expected_persisted_validation_data_hash,
+			)
 		}
 
 		fn check_validation_outputs(
