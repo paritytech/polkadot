@@ -16,7 +16,7 @@
 
 use super::{mock::*, *};
 use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
-use xcm::latest::{MaybeErrorCode, PalletInfo, QueryResponseInfo, prelude::*};
+use xcm::latest::{prelude::*, MaybeErrorCode, PalletInfo, QueryResponseInfo};
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]
@@ -715,16 +715,14 @@ fn pallet_query_should_work() {
 	// and let them know to hand it to account #3.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			QueryPallet {
-				module_name: "Error".into(),
-				response_info: QueryResponseInfo {
-					destination: Parachain(1).into(),
-					query_id: 1,
-					max_weight: 50,
-				},
+		Xcm(vec![QueryPallet {
+			module_name: "Error".into(),
+			response_info: QueryResponseInfo {
+				destination: Parachain(1).into(),
+				query_id: 1,
+				max_weight: 50,
 			},
-		]),
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
@@ -733,13 +731,11 @@ fn pallet_query_should_work() {
 		sent_xcm(),
 		vec![(
 			Parachain(1).into(),
-			Xcm::<()>(vec![
-				QueryResponse {
-					query_id: 1,
-					max_weight: 50,
-					response: Response::PalletsInfo(vec![]),
-				}
-			]),
+			Xcm::<()>(vec![QueryResponse {
+				query_id: 1,
+				max_weight: 50,
+				response: Response::PalletsInfo(vec![]),
+			}]),
 		)]
 	);
 }
@@ -751,16 +747,14 @@ fn pallet_query_with_results_should_work() {
 	// and let them know to hand it to account #3.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			QueryPallet {
-				module_name: "pallet_balances".into(),
-				response_info: QueryResponseInfo {
-					destination: Parachain(1).into(),
-					query_id: 1,
-					max_weight: 50,
-				},
+		Xcm(vec![QueryPallet {
+			module_name: "pallet_balances".into(),
+			response_info: QueryResponseInfo {
+				destination: Parachain(1).into(),
+				query_id: 1,
+				max_weight: 50,
 			},
-		]),
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
@@ -769,22 +763,18 @@ fn pallet_query_with_results_should_work() {
 		sent_xcm(),
 		vec![(
 			Parachain(1).into(),
-			Xcm::<()>(vec![
-				QueryResponse {
-					query_id: 1,
-					max_weight: 50,
-					response: Response::PalletsInfo(vec![
-						PalletInfo {
-							index: 1,
-							name: b"Balances".as_ref().into(),
-							module_name: b"pallet_balances".as_ref().into(),
-							major: 1,
-							minor: 42,
-							patch: 69,
-						},
-					]),
-				}
-			]),
+			Xcm::<()>(vec![QueryResponse {
+				query_id: 1,
+				max_weight: 50,
+				response: Response::PalletsInfo(vec![PalletInfo {
+					index: 1,
+					name: b"Balances".as_ref().into(),
+					module_name: b"pallet_balances".as_ref().into(),
+					major: 1,
+					minor: 42,
+					patch: 69,
+				},]),
+			}]),
 		)]
 	);
 }
@@ -808,13 +798,17 @@ fn report_successful_transact_status_should_work() {
 	let weight_limit = 70;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(70));
-	assert_eq!(sent_xcm(), vec![
-		(Parent.into(), Xcm(vec![QueryResponse {
-			response: Response::DispatchResult(MaybeErrorCode::Success),
-			query_id: 42,
-			max_weight: 5000,
-		}]))
-	]);
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parent.into(),
+			Xcm(vec![QueryResponse {
+				response: Response::DispatchResult(MaybeErrorCode::Success),
+				query_id: 42,
+				max_weight: 5000,
+			}])
+		)]
+	);
 }
 
 #[test]
@@ -836,13 +830,17 @@ fn report_failed_transact_status_should_work() {
 	let weight_limit = 70;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(70));
-	assert_eq!(sent_xcm(), vec![
-		(Parent.into(), Xcm(vec![QueryResponse {
-			response: Response::DispatchResult(MaybeErrorCode::Error(vec![2])),
-			query_id: 42,
-			max_weight: 5000,
-		}]))
-	]);
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parent.into(),
+			Xcm(vec![QueryResponse {
+				response: Response::DispatchResult(MaybeErrorCode::Error(vec![2])),
+				query_id: 42,
+				max_weight: 5000,
+			}])
+		)]
+	);
 }
 
 #[test]
@@ -865,13 +863,17 @@ fn clear_transact_status_should_work() {
 	let weight_limit = 80;
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
 	assert_eq!(r, Outcome::Complete(80));
-	assert_eq!(sent_xcm(), vec![
-		(Parent.into(), Xcm(vec![QueryResponse {
-			response: Response::DispatchResult(MaybeErrorCode::Success),
-			query_id: 42,
-			max_weight: 5000,
-		}]))
-	]);
+	assert_eq!(
+		sent_xcm(),
+		vec![(
+			Parent.into(),
+			Xcm(vec![QueryResponse {
+				response: Response::DispatchResult(MaybeErrorCode::Success),
+				query_id: 42,
+				max_weight: 5000,
+			}])
+		)]
+	);
 }
 
 #[test]
@@ -1029,30 +1031,26 @@ fn expect_pallet_should_work() {
 	// and let them know to hand it to account #3.
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			ExpectPallet {
-				index: 1,
-				name: b"Balances".as_ref().into(),
-				module_name: b"pallet_balances".as_ref().into(),
-				crate_major: 1,
-				min_crate_minor: 42,
-			},
-		]),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 42,
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			ExpectPallet {
-				index: 1,
-				name: b"Balances".as_ref().into(),
-				module_name: b"pallet_balances".as_ref().into(),
-				crate_major: 1,
-				min_crate_minor: 41,
-			},
-		]),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 41,
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
@@ -1063,120 +1061,104 @@ fn expect_pallet_should_fail_correctly() {
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			ExpectPallet {
-				index: 1,
-				name: b"Balances".as_ref().into(),
-				module_name: b"pallet_balances".as_ref().into(),
-				crate_major: 1,
-				min_crate_minor: 60,
-			},
-		]),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 60,
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			ExpectPallet {
-				index: 1,
-				name: b"System".as_ref().into(),
-				module_name: b"pallet_balances".as_ref().into(),
-				crate_major: 1,
-				min_crate_minor: 42,
-			},
-		]),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"System".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 42,
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			ExpectPallet {
-				index: 1,
-				name: b"Balances".as_ref().into(),
-				module_name: b"pallet_system".as_ref().into(),
-				crate_major: 1,
-				min_crate_minor: 42,
-			},
-		]),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_system".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 42,
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			ExpectPallet {
-				index: 0,
-				name: b"Balances".as_ref().into(),
-				module_name: b"pallet_balances".as_ref().into(),
-				crate_major: 1,
-				min_crate_minor: 42,
-			},
-		]),
+		Xcm(vec![ExpectPallet {
+			index: 0,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 42,
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::NameMismatch));
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			ExpectPallet {
-				index: 2,
-				name: b"Balances".as_ref().into(),
-				module_name: b"pallet_balances".as_ref().into(),
-				crate_major: 1,
-				min_crate_minor: 42,
-			},
-		]),
+		Xcm(vec![ExpectPallet {
+			index: 2,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 42,
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::PalletNotFound));
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			ExpectPallet {
-				index: 1,
-				name: b"Balances".as_ref().into(),
-				module_name: b"pallet_balances".as_ref().into(),
-				crate_major: 2,
-				min_crate_minor: 42,
-			},
-		]),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 2,
+			min_crate_minor: 42,
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			ExpectPallet {
-				index: 1,
-				name: b"Balances".as_ref().into(),
-				module_name: b"pallet_balances".as_ref().into(),
-				crate_major: 0,
-				min_crate_minor: 42,
-			},
-		]),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 0,
+			min_crate_minor: 42,
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
 
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
-		Xcm(vec![
-			ExpectPallet {
-				index: 1,
-				name: b"Balances".as_ref().into(),
-				module_name: b"pallet_balances".as_ref().into(),
-				crate_major: 1,
-				min_crate_minor: 43,
-			},
-		]),
+		Xcm(vec![ExpectPallet {
+			index: 1,
+			name: b"Balances".as_ref().into(),
+			module_name: b"pallet_balances".as_ref().into(),
+			crate_major: 1,
+			min_crate_minor: 43,
+		}]),
 		50,
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
