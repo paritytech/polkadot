@@ -39,7 +39,7 @@ fn collator_sign(descriptor: &mut CandidateDescriptor, collator: Sr25519Keyring)
 }
 
 #[test]
-fn correctly_checks_included_assumption_for_data() {
+fn correctly_finds_assumed_validation_data() {
 	let validation_data: PersistedValidationData = Default::default();
 
 	let persisted_validation_data_hash = validation_data.hash();
@@ -55,32 +55,29 @@ fn correctly_checks_included_assumption_for_data() {
 	let (mut ctx, mut ctx_handle) =
 		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data(
-		ctx.sender(),
-		&candidate,
-		OccupiedCoreAssumption::Included,
-	)
-	.remote_handle();
+	let (check_fut, check_result) =
+		request_assumed_validation_data(ctx.sender(), &candidate).remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
 			ctx_handle.recv().await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				rp,
-				RuntimeApiRequest::PersistedValidationData(
+				RuntimeApiRequest::AssumedValidationData(
 					p,
-					OccupiedCoreAssumption::Included,
+					hash,
 					tx
 				),
 			)) => {
 				assert_eq!(rp, relay_parent);
 				assert_eq!(p, para_id);
+				assert_eq!(hash, persisted_validation_data_hash);
 
-				let _ = tx.send(Ok(Some(validation_data.clone())));
+				let _ = tx.send(Ok(Some((validation_data.clone(), Default::default()))));
 			}
 		);
 
-		assert_matches!(check_result.await, AssumptionCheckOutcome::Matches(d) => {
+		assert_matches!(check_result.await, Ok(Some((d, _))) => {
 			assert_eq!(d, validation_data);
 		});
 	};
@@ -90,106 +87,7 @@ fn correctly_checks_included_assumption_for_data() {
 }
 
 #[test]
-fn correctly_checks_timed_out_assumption() {
-	let validation_data: PersistedValidationData = Default::default();
-
-	let persisted_validation_data_hash = validation_data.hash();
-	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
-
-	let mut candidate = CandidateDescriptor::default();
-	candidate.relay_parent = relay_parent;
-	candidate.persisted_validation_data_hash = persisted_validation_data_hash;
-	candidate.para_id = para_id;
-
-	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) =
-		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
-
-	let (check_fut, check_result) = check_assumption_validation_data(
-		ctx.sender(),
-		&candidate,
-		OccupiedCoreAssumption::TimedOut,
-	)
-	.remote_handle();
-
-	let test_fut = async move {
-		assert_matches!(
-			ctx_handle.recv().await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				rp,
-				RuntimeApiRequest::PersistedValidationData(
-					p,
-					OccupiedCoreAssumption::TimedOut,
-					tx
-				),
-			)) => {
-				assert_eq!(rp, relay_parent);
-				assert_eq!(p, para_id);
-
-				let _ = tx.send(Ok(Some(validation_data.clone())));
-			}
-		);
-
-		assert_matches!(check_result.await, AssumptionCheckOutcome::Matches(d) => {
-			assert_eq!(d, validation_data);
-		});
-	};
-
-	let test_fut = future::join(test_fut, check_fut);
-	executor::block_on(test_fut);
-}
-
-#[test]
-fn check_is_bad_request_if_no_validation_data() {
-	let validation_data: PersistedValidationData = Default::default();
-	let persisted_validation_data_hash = validation_data.hash();
-	let relay_parent = [2; 32].into();
-	let para_id = 5.into();
-
-	let mut candidate = CandidateDescriptor::default();
-	candidate.relay_parent = relay_parent;
-	candidate.persisted_validation_data_hash = persisted_validation_data_hash;
-	candidate.para_id = para_id;
-
-	let pool = TaskExecutor::new();
-	let (mut ctx, mut ctx_handle) =
-		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
-
-	let (check_fut, check_result) = check_assumption_validation_data(
-		ctx.sender(),
-		&candidate,
-		OccupiedCoreAssumption::Included,
-	)
-	.remote_handle();
-
-	let test_fut = async move {
-		assert_matches!(
-			ctx_handle.recv().await,
-			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				rp,
-				RuntimeApiRequest::PersistedValidationData(
-					p,
-					OccupiedCoreAssumption::Included,
-					tx
-				),
-			)) => {
-				assert_eq!(rp, relay_parent);
-				assert_eq!(p, para_id);
-
-				let _ = tx.send(Ok(None));
-			}
-		);
-
-		assert_matches!(check_result.await, AssumptionCheckOutcome::BadRequest);
-	};
-
-	let test_fut = future::join(test_fut, check_fut);
-	executor::block_on(test_fut);
-}
-
-#[test]
-fn check_is_bad_request_if_no_validation_code() {
+fn check_is_none_if_no_validation_data() {
 	let validation_data: PersistedValidationData = Default::default();
 	let persisted_validation_data_hash = validation_data.hash();
 	let relay_parent = [2; 32].into();
@@ -205,16 +103,21 @@ fn check_is_bad_request_if_no_validation_code() {
 		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
 	let (check_fut, check_result) =
-		request_validation_code_by_hash(ctx.sender(), &candidate).remote_handle();
+		request_assumed_validation_data(ctx.sender(), &candidate).remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
 			ctx_handle.recv().await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				rp,
-				RuntimeApiRequest::ValidationCodeByHash(_, tx)
+				RuntimeApiRequest::AssumedValidationData(
+					p,
+					_,
+					tx
+				),
 			)) => {
 				assert_eq!(rp, relay_parent);
+				assert_eq!(p, para_id);
 
 				let _ = tx.send(Ok(None));
 			}
@@ -228,8 +131,7 @@ fn check_is_bad_request_if_no_validation_code() {
 }
 
 #[test]
-fn check_does_not_match() {
-	let validation_data: PersistedValidationData = Default::default();
+fn check_runtime_api_error() {
 	let relay_parent = [2; 32].into();
 	let para_id = 5.into();
 
@@ -242,32 +144,28 @@ fn check_does_not_match() {
 	let (mut ctx, mut ctx_handle) =
 		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
 
-	let (check_fut, check_result) = check_assumption_validation_data(
-		ctx.sender(),
-		&candidate,
-		OccupiedCoreAssumption::Included,
-	)
-	.remote_handle();
+	let (check_fut, check_result) =
+		request_assumed_validation_data(ctx.sender(), &candidate).remote_handle();
 
 	let test_fut = async move {
 		assert_matches!(
 			ctx_handle.recv().await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				rp,
-				RuntimeApiRequest::PersistedValidationData(
+				RuntimeApiRequest::AssumedValidationData(
 					p,
-					OccupiedCoreAssumption::Included,
+					_,
 					tx
 				),
 			)) => {
 				assert_eq!(rp, relay_parent);
 				assert_eq!(p, para_id);
 
-				let _ = tx.send(Ok(Some(validation_data.clone())));
+				let _ = tx.send(Err(RuntimeApiError::from(String::new())));
 			}
 		);
 
-		assert_matches!(check_result.await, AssumptionCheckOutcome::DoesNotMatch);
+		assert_matches!(check_result.await, Err(RuntimeRequestFailed));
 	};
 
 	let test_fut = future::join(test_fut, check_fut);
@@ -675,4 +573,134 @@ fn pov_decompression_failure_is_invalid() {
 	));
 
 	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure)));
+}
+
+#[test]
+fn requests_code_from_api_if_not_found() {
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+	let pov = PoV { block_data: BlockData(vec![1; 32]) };
+	let head_data = HeadData(vec![1, 1, 1]);
+	let validation_code = ValidationCode(vec![2; 16]);
+	let validation_code_hash = validation_code.hash();
+
+	let mut descriptor = CandidateDescriptor::default();
+	descriptor.pov_hash = pov.hash();
+	descriptor.para_head = head_data.hash();
+	descriptor.validation_code_hash = validation_code.hash();
+	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+	let validation_result = WasmValidationResult {
+		head_data,
+		new_validation_code: Some(vec![2, 2, 2].into()),
+		upward_messages: Vec::new(),
+		horizontal_messages: Vec::new(),
+		processed_downward_messages: 0,
+		hrmp_watermark: 0,
+	};
+
+	let metrics = Default::default();
+
+	let (check_fut, check_result) = validate_candidate_exhaustive(
+		ctx.sender(),
+		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		validation_data,
+		None,
+		descriptor,
+		Arc::new(pov),
+		Duration::from_secs(0),
+		&metrics,
+	)
+	.remote_handle();
+
+	let test_fut = async move {
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_rp,
+				RuntimeApiRequest::ValidationCodeByHash(
+					code_hash,
+					tx
+				),
+			)) => {
+				assert_eq!(code_hash, validation_code_hash);
+
+				let _ = tx.send(Ok(Some(validation_code)));
+			}
+		);
+
+		assert_matches!(check_result.await, Ok(ValidationResult::Valid(_, _)));
+	};
+
+	let test_fut = future::join(test_fut, check_fut);
+	executor::block_on(test_fut);
+}
+
+#[test]
+fn code_hash_mismatch_error() {
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
+	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
+
+	let pov = PoV { block_data: BlockData(vec![1; 32]) };
+	let head_data = HeadData(vec![1, 1, 1]);
+	let validation_code = ValidationCode(vec![2; 16]);
+
+	let mut descriptor = CandidateDescriptor::default();
+	descriptor.pov_hash = pov.hash();
+	descriptor.para_head = head_data.hash();
+	descriptor.validation_code_hash = validation_code.hash();
+	collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+	let validation_result = WasmValidationResult {
+		head_data,
+		new_validation_code: Some(vec![2, 2, 2].into()),
+		upward_messages: Vec::new(),
+		horizontal_messages: Vec::new(),
+		processed_downward_messages: 0,
+		hrmp_watermark: 0,
+	};
+
+	let metrics = Default::default();
+
+	let (check_fut, check_result) = validate_from_chain_state(
+		ctx.sender(),
+		MockValidatorBackend::with_hardcoded_result(Ok(validation_result)),
+		descriptor,
+		Arc::new(pov),
+		Duration::from_secs(0),
+		&metrics,
+	)
+	.remote_handle();
+
+	let test_fut = async move {
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_rp,
+				RuntimeApiRequest::AssumedValidationData(
+					_p,
+					_hash,
+					tx
+				),
+			)) => {
+				let code_hash = ValidationCodeHash::from(Hash::zero());
+				let _ = tx.send(Ok(Some((validation_data, code_hash))));
+			}
+		);
+
+		assert_matches!(
+			check_result.await,
+			Ok(ValidationResult::Invalid(InvalidCandidate::CodeHashMismatch))
+		);
+	};
+
+	let test_fut = future::join(test_fut, check_fut);
+	executor::block_on(test_fut);
 }

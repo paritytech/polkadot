@@ -40,8 +40,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
 use polkadot_primitives::v1::{
-	CandidateCommitments, CandidateDescriptor, Hash, OccupiedCoreAssumption,
-	PersistedValidationData, ValidationCode, ValidationCodeHash,
+	BlockNumber, CandidateCommitments, CandidateDescriptor, Hash, PersistedValidationData,
+	ValidationCode, ValidationCodeHash,
 };
 
 use parity_scale_codec::Encode;
@@ -238,13 +238,6 @@ where
 		})
 }
 
-#[derive(Debug)]
-enum AssumptionCheckOutcome {
-	Matches(PersistedValidationData),
-	DoesNotMatch,
-	BadRequest,
-}
-
 async fn request_validation_code_by_hash<Sender>(
 	sender: &mut Sender,
 	descriptor: &CandidateDescriptor,
@@ -262,76 +255,33 @@ where
 	.await
 }
 
-async fn check_assumption_validation_data<Sender>(
+async fn request_assumed_validation_data<Sender>(
 	sender: &mut Sender,
 	descriptor: &CandidateDescriptor,
-	assumption: OccupiedCoreAssumption,
-) -> AssumptionCheckOutcome
+) -> Result<
+	Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)>,
+	RuntimeRequestFailed,
+>
 where
 	Sender: SubsystemSender,
 {
-	let validation_data = {
-		let (tx, rx) = oneshot::channel();
-		let data = runtime_api_request(
-			sender,
-			descriptor.relay_parent,
-			RuntimeApiRequest::PersistedValidationData(descriptor.para_id, assumption, tx),
-			rx,
-		)
-		.await;
-
-		match data {
-			Ok(None) | Err(RuntimeRequestFailed) => return AssumptionCheckOutcome::BadRequest,
-			Ok(Some(data)) => data,
-		}
-	};
-
-	let persisted_validation_data_hash = validation_data.hash();
-
-	if descriptor.persisted_validation_data_hash == persisted_validation_data_hash {
-		AssumptionCheckOutcome::Matches(validation_data)
-	} else {
-		AssumptionCheckOutcome::DoesNotMatch
-	}
-}
-
-async fn find_assumed_validation_data<Sender>(
-	sender: &mut Sender,
-	descriptor: &CandidateDescriptor,
-) -> AssumptionCheckOutcome
-where
-	Sender: SubsystemSender,
-{
-	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
-	// one of up to two possible values that we can derive from the state of the
-	// relay-parent. We can fetch these values by getting the persisted validation data
-	// based on the different `OccupiedCoreAssumption`s.
-
-	const ASSUMPTIONS: &[OccupiedCoreAssumption] = &[
-		OccupiedCoreAssumption::Included,
-		OccupiedCoreAssumption::TimedOut,
-		// `TimedOut` and `Free` both don't perform any speculation and therefore should be the same
-		// for our purposes here. In other words, if `TimedOut` matched then the `Free` must be
-		// matched as well.
-	];
-
-	// Consider running these checks in parallel to reduce validation latency.
-	for assumption in ASSUMPTIONS {
-		let outcome = check_assumption_validation_data(sender, descriptor, *assumption).await;
-
-		match outcome {
-			AssumptionCheckOutcome::Matches(_) => return outcome,
-			AssumptionCheckOutcome::BadRequest => return outcome,
-			AssumptionCheckOutcome::DoesNotMatch => continue,
-		}
-	}
-
-	AssumptionCheckOutcome::DoesNotMatch
+	let (tx, rx) = oneshot::channel();
+	runtime_api_request(
+		sender,
+		descriptor.relay_parent,
+		RuntimeApiRequest::AssumedValidationData(
+			descriptor.para_id,
+			descriptor.persisted_validation_data_hash,
+			tx,
+		),
+		rx,
+	)
+	.await
 }
 
 async fn validate_from_chain_state<Sender>(
 	sender: &mut Sender,
-	validation_host: ValidationHost,
+	validation_host: impl ValidationBackend,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	timeout: Duration,
@@ -340,17 +290,25 @@ async fn validate_from_chain_state<Sender>(
 where
 	Sender: SubsystemSender,
 {
-	let validation_data = match find_assumed_validation_data(sender, &descriptor).await {
-		AssumptionCheckOutcome::Matches(validation_data) => validation_data,
-		AssumptionCheckOutcome::DoesNotMatch => {
-			// If neither the assumption of the occupied core having the para included or the assumption
-			// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
-			// is not based on the relay parent and is thus invalid.
-			return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent))
-		},
-		AssumptionCheckOutcome::BadRequest =>
-			return Err(ValidationFailed("Assumption Check: Bad request".into())),
-	};
+	let (validation_data, validation_code_hash) =
+		match request_assumed_validation_data(sender, &descriptor).await {
+			Ok(Some((data, code_hash))) => (data, code_hash),
+			Ok(None) => {
+				// TODO: update comment.
+				// If neither the assumption of the occupied core having the para included or the assumption
+				// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
+				// is not based on the relay parent and is thus invalid.
+				return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent))
+			},
+			Err(_) =>
+				return Err(ValidationFailed(
+					"Failed to request persisted validation data from the Runtime API".into(),
+				)),
+		};
+
+	if descriptor.validation_code_hash != validation_code_hash {
+		return Ok(ValidationResult::Invalid(InvalidCandidate::CodeHashMismatch))
+	}
 
 	let validation_result = validate_candidate_exhaustive(
 		sender,
@@ -477,6 +435,7 @@ where
 			let validation_code = match request_validation_code_by_hash(sender, &descriptor).await {
 				Ok(Some(validation_code)) => validation_code,
 				Ok(None) =>
+					// TODO: code not found by hash by the runtime, is this candidate invalid?
 					return Err(ValidationFailed(
 						"Runtime API didn't return validation code by hash".into(),
 					)),
