@@ -435,7 +435,7 @@ where
 			let validation_code = match request_validation_code_by_hash(sender, &descriptor).await {
 				Ok(Some(validation_code)) => validation_code,
 				Ok(None) =>
-					// TODO: code not found by hash by the runtime, is this candidate invalid?
+				// TODO: code not found by hash by the runtime, is this candidate invalid?
 					return Err(ValidationFailed(
 						"Runtime API didn't return validation code by hash".into(),
 					)),
