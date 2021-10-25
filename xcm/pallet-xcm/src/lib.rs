@@ -179,7 +179,7 @@ pub mod pallet {
 		/// \[ origin location, id, expected location \]
 		InvalidResponder(MultiLocation, QueryId, Option<MultiLocation>),
 		/// Expected query response has been received but the expected origin location placed in
-		/// storate by this runtime previously cannot be decoded. The query remains registered.
+		/// storage by this runtime previously cannot be decoded. The query remains registered.
 		///
 		/// This is unexpected (since a location placed in storage in a previously executing
 		/// runtime should be readable prior to query timeout) and dangerous since the possibly
