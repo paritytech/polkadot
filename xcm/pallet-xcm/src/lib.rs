@@ -546,7 +546,14 @@ pub mod pallet {
 			assets: Box<VersionedMultiAssets>,
 			fee_asset_item: u32,
 		) -> DispatchResult {
-			Self::do_reserve_transfer_assets(origin, dest, beneficiary, assets, fee_asset_item, None)
+			Self::do_reserve_transfer_assets(
+				origin,
+				dest,
+				beneficiary,
+				assets,
+				fee_asset_item,
+				None,
+			)
 		}
 
 		/// Execute an XCM message from a local, signed, origin.
@@ -693,7 +700,14 @@ pub mod pallet {
 			fee_asset_item: u32,
 			weight_limit: WeightLimit,
 		) -> DispatchResult {
-			Self::do_reserve_transfer_assets(origin, dest, beneficiary, assets, fee_asset_item, Some(weight_limit))
+			Self::do_reserve_transfer_assets(
+				origin,
+				dest,
+				beneficiary,
+				assets,
+				fee_asset_item,
+				Some(weight_limit),
+			)
 		}
 
 		/// Teleport some assets from the local chain to some destination chain.
@@ -733,7 +747,14 @@ pub mod pallet {
 			fee_asset_item: u32,
 			weight_limit: WeightLimit,
 		) -> DispatchResult {
-			Self::do_teleport_assets(origin, dest, beneficiary, assets, fee_asset_item, Some(weight_limit))
+			Self::do_teleport_assets(
+				origin,
+				dest,
+				beneficiary,
+				assets,
+				fee_asset_item,
+				Some(weight_limit),
+			)
 		}
 	}
 
@@ -748,7 +769,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
-			let beneficiary: MultiLocation = (*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let beneficiary: MultiLocation =
+				(*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
 			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
@@ -805,7 +827,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
-			let beneficiary: MultiLocation = (*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let beneficiary: MultiLocation =
+				(*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
 			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
 			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
@@ -843,10 +866,8 @@ pub mod pallet {
 				BuyExecution { fees, weight_limit },
 				DepositAsset { assets: Wild(All), max_assets, beneficiary },
 			]);
-			let mut message = Xcm(vec![
-				WithdrawAsset(assets),
-				InitiateTeleport { assets: Wild(All), dest, xcm },
-			]);
+			let mut message =
+				Xcm(vec![WithdrawAsset(assets), InitiateTeleport { assets: Wild(All), dest, xcm }]);
 			let weight =
 				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
 			let outcome =
