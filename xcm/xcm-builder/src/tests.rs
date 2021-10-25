@@ -16,7 +16,7 @@
 
 use super::{mock::*, *};
 use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
-use xcm::latest::{PalletInfo, QueryResponseInfo, prelude::*};
+use xcm::latest::{MaybeErrorCode, PalletInfo, QueryResponseInfo, prelude::*};
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]
@@ -789,6 +789,238 @@ fn pallet_query_with_results_should_work() {
 	);
 }
 
+#[test]
+fn report_successful_transact_status_should_work() {
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+
+	let message = Xcm::<TestCall>(vec![
+		Transact {
+			origin_kind: OriginKind::Native,
+			require_weight_at_most: 50,
+			call: TestCall::Any(50, None).encode().into(),
+		},
+		ReportTransactStatus(QueryResponseInfo {
+			destination: Parent.into(),
+			query_id: 42,
+			max_weight: 5000,
+		}),
+	]);
+	let weight_limit = 70;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(70));
+	assert_eq!(sent_xcm(), vec![
+		(Parent.into(), Xcm(vec![QueryResponse {
+			response: Response::DispatchResult(MaybeErrorCode::Success),
+			query_id: 42,
+			max_weight: 5000,
+		}]))
+	]);
+}
+
+#[test]
+fn report_failed_transact_status_should_work() {
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+
+	let message = Xcm::<TestCall>(vec![
+		Transact {
+			origin_kind: OriginKind::Native,
+			require_weight_at_most: 50,
+			call: TestCall::OnlyRoot(50, None).encode().into(),
+		},
+		ReportTransactStatus(QueryResponseInfo {
+			destination: Parent.into(),
+			query_id: 42,
+			max_weight: 5000,
+		}),
+	]);
+	let weight_limit = 70;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(70));
+	assert_eq!(sent_xcm(), vec![
+		(Parent.into(), Xcm(vec![QueryResponse {
+			response: Response::DispatchResult(MaybeErrorCode::Error(vec![2])),
+			query_id: 42,
+			max_weight: 5000,
+		}]))
+	]);
+}
+
+#[test]
+fn clear_transact_status_should_work() {
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+
+	let message = Xcm::<TestCall>(vec![
+		Transact {
+			origin_kind: OriginKind::Native,
+			require_weight_at_most: 50,
+			call: TestCall::OnlyRoot(50, None).encode().into(),
+		},
+		ClearTransactStatus,
+		ReportTransactStatus(QueryResponseInfo {
+			destination: Parent.into(),
+			query_id: 42,
+			max_weight: 5000,
+		}),
+	]);
+	let weight_limit = 80;
+	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, weight_limit);
+	assert_eq!(r, Outcome::Complete(80));
+	assert_eq!(sent_xcm(), vec![
+		(Parent.into(), Xcm(vec![QueryResponse {
+			response: Response::DispatchResult(MaybeErrorCode::Success),
+			query_id: 42,
+			max_weight: 5000,
+		}]))
+	]);
+}
+
+#[test]
+fn max_assets_limit_should_work() {
+	// we'll let them have message execution for free.
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// Child parachain #1 owns 1000 tokens held by us in reserve.
+	add_asset(1001, (vec![1], 1000));
+	add_asset(1001, (vec![2], 1000));
+	add_asset(1001, (vec![3], 1000));
+	add_asset(1001, (vec![4], 1000));
+	add_asset(1001, (vec![5], 1000));
+	add_asset(1001, (vec![6], 1000));
+	add_asset(1001, (vec![7], 1000));
+	add_asset(1001, (vec![8], 1000));
+	add_asset(1001, (vec![9], 1000));
+
+	// Attempt to withdraw 8 (=2x4)different assets. This will succeed.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset((vec![5], 100).into()),
+			WithdrawAsset((vec![6], 100).into()),
+			WithdrawAsset((vec![7], 100).into()),
+			WithdrawAsset((vec![8], 100).into()),
+		]),
+		100,
+	);
+	assert_eq!(r, Outcome::Complete(85));
+
+	// Attempt to withdraw 9 different assets will fail.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset((vec![5], 100).into()),
+			WithdrawAsset((vec![6], 100).into()),
+			WithdrawAsset((vec![7], 100).into()),
+			WithdrawAsset((vec![8], 100).into()),
+			WithdrawAsset((vec![9], 100).into()),
+		]),
+		100,
+	);
+	assert_eq!(r, Outcome::Incomplete(95, XcmError::HoldingWouldOverflow));
+
+	// Attempt to withdraw 4 different assets and then the same 4 and then a different 4 will succeed.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset((vec![5], 100).into()),
+			WithdrawAsset((vec![6], 100).into()),
+			WithdrawAsset((vec![7], 100).into()),
+			WithdrawAsset((vec![8], 100).into()),
+		]),
+		200,
+	);
+	assert_eq!(r, Outcome::Complete(125));
+
+	// Attempt to withdraw 4 different assets and then a different 4 and then the same 4 will fail.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+			WithdrawAsset((vec![5], 100).into()),
+			WithdrawAsset((vec![6], 100).into()),
+			WithdrawAsset((vec![7], 100).into()),
+			WithdrawAsset((vec![8], 100).into()),
+			WithdrawAsset((vec![1], 100).into()),
+			WithdrawAsset((vec![2], 100).into()),
+			WithdrawAsset((vec![3], 100).into()),
+			WithdrawAsset((vec![4], 100).into()),
+		]),
+		200,
+	);
+	assert_eq!(r, Outcome::Incomplete(95, XcmError::HoldingWouldOverflow));
+
+	// Attempt to withdraw 4 different assets and then a different 4 and then the same 4 will fail.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset(MultiAssets::from(vec![
+				(vec![1], 100).into(),
+				(vec![2], 100).into(),
+				(vec![3], 100).into(),
+				(vec![4], 100).into(),
+				(vec![5], 100).into(),
+				(vec![6], 100).into(),
+				(vec![7], 100).into(),
+				(vec![8], 100).into(),
+			])),
+			WithdrawAsset((vec![1], 100).into()),
+		]),
+		200,
+	);
+	assert_eq!(r, Outcome::Incomplete(25, XcmError::HoldingWouldOverflow));
+}
+
+#[test]
+fn burn_should_work() {
+	// we'll let them have message execution for free.
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// Child parachain #1 owns 1000 tokens held by us in reserve.
+	add_asset(1001, (Here, 1000));
+	// They want to burn 100 of them
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((Here, 1000).into()),
+			BurnAsset((Here, 100).into()),
+			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Parachain(1).into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(30));
+	assert_eq!(assets(1001), vec![(Here, 900).into()]);
+	assert_eq!(sent_xcm(), vec![]);
+
+	// Now they want to burn 1000 of them, which will actually only burn 900.
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![
+			WithdrawAsset((Here, 900).into()),
+			BurnAsset((Here, 1000).into()),
+			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Parachain(1).into() },
+		]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(30));
+	assert_eq!(assets(1001), vec![]);
+	assert_eq!(sent_xcm(), vec![]);
+}
 
 #[test]
 fn expect_pallet_should_work() {
@@ -824,7 +1056,11 @@ fn expect_pallet_should_work() {
 		50,
 	);
 	assert_eq!(r, Outcome::Complete(10));
+}
 
+#[test]
+fn expect_pallet_should_fail_correctly() {
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(
 		Parachain(1),
 		Xcm(vec![
@@ -945,9 +1181,3 @@ fn expect_pallet_should_work() {
 	);
 	assert_eq!(r, Outcome::Incomplete(10, XcmError::VersionIncompatible));
 }
-
-// TODO: Tests for:
-// - `ReportTransactStatus`
-// - `ClearTransactStatus`
-// - `BurnAsset`
-// - `MaxAssetsIntoHolding`
