@@ -68,7 +68,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	}
 	// Storage: Benchmark Override (r:0 w:0)
 	pub(crate) fn receive_teleported_asset() -> Weight {
-		(2_000_000_000_000 as Weight)
+		(1_000_000_000 as Weight)
 	}
 	// Storage: System Account (r:1 w:1)
 	pub(crate) fn deposit_asset() -> Weight {
