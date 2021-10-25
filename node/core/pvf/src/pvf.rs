@@ -23,30 +23,30 @@ use std::{fmt, sync::Arc};
 ///
 /// Should be cheap to clone.
 #[derive(Clone)]
-pub struct PvfPreimage {
+pub struct PvfCode {
 	pub(crate) code: Arc<Vec<u8>>,
 	pub(crate) code_hash: ValidationCodeHash,
 }
 
-impl fmt::Debug for PvfPreimage {
+impl fmt::Debug for PvfCode {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "Pvf {{ code, code_hash: {:?} }}", self.code_hash)
 	}
 }
 
-impl PvfPreimage {
+impl PvfCode {
 	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
 		ArtifactId::new(self.code_hash)
 	}
 }
 
 /// An enum that either contains full preimage of validation function along
-/// with its hash (see [`PvfPreimage`]) or the hash only.
+/// with its hash (see [`PvfCode`]) or the hash only.
 #[derive(Clone, Debug)]
 pub enum Pvf {
 	/// Hash-preimage of the validation function, contains both the code
 	/// and the hash itself.
-	Preimage(PvfPreimage),
+	Preimage(PvfCode),
 	/// Hash of the validation function without its validation code.
 	Hash(ValidationCodeHash),
 }
@@ -56,7 +56,7 @@ impl Pvf {
 	pub fn from_code(code: Vec<u8>) -> Self {
 		let code = Arc::new(code);
 		let code_hash = blake2_256(&code).into();
-		Self::Preimage(PvfPreimage { code, code_hash })
+		Self::Preimage(PvfCode { code, code_hash })
 	}
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.

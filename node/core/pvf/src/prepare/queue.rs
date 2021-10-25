@@ -17,7 +17,7 @@
 //! A queue that handles requests for PVF preparation.
 
 use super::pool::{self, Worker};
-use crate::{artifacts::ArtifactId, metrics::Metrics, pvf::PvfPreimage, Priority, LOG_TARGET};
+use crate::{artifacts::ArtifactId, metrics::Metrics, pvf::PvfCode, Priority, LOG_TARGET};
 use always_assert::{always, never};
 use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
@@ -31,7 +31,7 @@ pub enum ToQueue {
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue::Prepared`] response. In case there is a need to bump the priority, use
 	/// [`ToQueue::Amend`].
-	Enqueue { priority: Priority, pvf: PvfPreimage },
+	Enqueue { priority: Priority, pvf: PvfCode },
 	/// Amends the priority for the given [`ArtifactId`] if it is running. If it's not, then it's noop.
 	Amend { priority: Priority, artifact_id: ArtifactId },
 }
@@ -73,7 +73,7 @@ slotmap::new_key_type! { pub struct Job; }
 struct JobData {
 	/// The priority of this job. Can be bumped.
 	priority: Priority,
-	pvf: PvfPreimage,
+	pvf: PvfCode,
 	worker: Option<Worker>,
 }
 
@@ -215,11 +215,7 @@ async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fat
 	Ok(())
 }
 
-async fn handle_enqueue(
-	queue: &mut Queue,
-	priority: Priority,
-	pvf: PvfPreimage,
-) -> Result<(), Fatal> {
+async fn handle_enqueue(queue: &mut Queue, priority: Priority, pvf: PvfCode) -> Result<(), Fatal> {
 	tracing::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?pvf.code_hash,
@@ -532,7 +528,7 @@ mod tests {
 	use std::task::Poll;
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	fn pvf(discriminator: u32) -> PvfPreimage {
+	fn pvf(discriminator: u32) -> PvfCode {
 		match Pvf::from_discriminator(discriminator) {
 			Pvf::Preimage(inner) => inner,
 			Pvf::Hash(_) => unreachable!(),

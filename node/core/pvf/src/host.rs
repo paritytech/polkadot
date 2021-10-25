@@ -25,7 +25,7 @@ use crate::{
 	execute,
 	metrics::Metrics,
 	prepare,
-	pvf::{Pvf, PvfPreimage},
+	pvf::{Pvf, PvfCode},
 	Priority, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
@@ -76,7 +76,7 @@ impl ValidationHost {
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
-	pub async fn heads_up(&mut self, active_pvfs: Vec<PvfPreimage>) -> Result<(), String> {
+	pub async fn heads_up(&mut self, active_pvfs: Vec<PvfCode>) -> Result<(), String> {
 		self.to_host_tx
 			.send(ToHost::HeadsUp { active_pvfs })
 			.await
@@ -86,7 +86,7 @@ impl ValidationHost {
 
 enum ToHost {
 	ExecutePvf { pvf: Pvf, params: Vec<u8>, priority: Priority, result_tx: ResultSender },
-	HeadsUp { active_pvfs: Vec<PvfPreimage> },
+	HeadsUp { active_pvfs: Vec<PvfCode> },
 }
 
 /// Configuration for the validation host.
@@ -442,7 +442,7 @@ async fn handle_execute_pvf(
 async fn handle_heads_up(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	active_pvfs: Vec<PvfPreimage>,
+	active_pvfs: Vec<PvfCode>,
 ) -> Result<(), Fatal> {
 	let now = SystemTime::now();
 
@@ -784,7 +784,7 @@ mod tests {
 	}
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	fn pvf(discriminator: u32) -> PvfPreimage {
+	fn pvf(discriminator: u32) -> PvfCode {
 		match Pvf::from_discriminator(discriminator) {
 			Pvf::Preimage(inner) => inner,
 			Pvf::Hash(_) => unreachable!(),
