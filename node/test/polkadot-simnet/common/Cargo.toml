@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-simnet"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -33,7 +33,7 @@ polkadot-runtime = { path = "../../../../runtime/polkadot" }
 polkadot-runtime-common = { path = "../../../../runtime/common" }
 
 codec = { package = "parity-scale-codec", version = "2.0.0" }
-structopt = "0.3.23"
+structopt = "0.3.25"
 
 [dev-dependencies]
 log = "0.4.14"

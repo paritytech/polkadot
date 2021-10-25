@@ -67,6 +67,7 @@ encodable
 enqueue/D
 enqueue/DMSG
 entrypoint/MS
+enum
 ERC-20
 ETH/S
 ethereum/MS
@@ -253,6 +254,8 @@ teleporter/SM
 teleporters
 testnet/MS
 timestamp/MS
+timeframe
+tradeoff
 transitionary
 trie/MS
 trustless/Y
@@ -262,6 +265,7 @@ typesystem
 ubuntu/M
 UDP
 UI
+unconcluded
 unfinalize/B
 unfinalized
 union/MSG
@@ -291,6 +295,7 @@ VMP/SM
 VPS
 VRF/SM
 w3f/MS
+wakeup
 wakeups
 warming/S
 wasm/M
