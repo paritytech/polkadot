@@ -947,8 +947,6 @@ fn expect_pallet_should_work() {
 }
 
 // TODO: Tests for:
-// - `QueryPallet`
-// - `ExpectPallet`
 // - `ReportTransactStatus`
 // - `ClearTransactStatus`
 // - `BurnAsset`
