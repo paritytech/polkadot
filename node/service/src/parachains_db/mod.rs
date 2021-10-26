@@ -13,8 +13,7 @@
 
 //! A `RocksDB` instance for storing parachain data; availability data, and approvals.
 
-use kvdb::KeyValueDB;
-use std::{io, path::PathBuf, sync::Arc};
+use {kvdb::KeyValueDB, std::io, std::path::PathBuf, std::sync::Arc};
 
 mod upgrade;
 

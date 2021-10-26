@@ -30,36 +30,43 @@ pub use self::overseer::{OverseerGen, OverseerGenArgs, RealOverseerGen};
 #[cfg(all(test, feature = "disputes"))]
 mod tests;
 
-use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
-use polkadot_node_core_approval_voting::Config as ApprovalVotingConfig;
-use polkadot_node_core_av_store::{Config as AvailabilityConfig, Error as AvailabilityError};
-use polkadot_node_core_candidate_validation::Config as CandidateValidationConfig;
-use polkadot_node_core_chain_selection::{
-	self as chain_selection_subsystem, Config as ChainSelectionConfig,
+use {
+	grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider},
+	polkadot_node_core_approval_voting::Config as ApprovalVotingConfig,
+	polkadot_node_core_av_store::Config as AvailabilityConfig,
+	polkadot_node_core_av_store::Error as AvailabilityError,
+	polkadot_node_core_candidate_validation::Config as CandidateValidationConfig,
+	polkadot_node_core_chain_selection::{
+		self as chain_selection_subsystem, Config as ChainSelectionConfig,
+	},
+	polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig,
+	polkadot_overseer::BlockInfo,
+	sc_client_api::ExecutorProvider,
+	sp_trie::PrefixedMemoryDB,
+	tracing::info,
 };
-use polkadot_node_core_dispute_coordinator::Config as DisputeCoordinatorConfig;
-use polkadot_overseer::BlockInfo;
-use sc_client_api::ExecutorProvider;
-use sp_trie::PrefixedMemoryDB;
-use tracing::info;
 
 pub use sp_core::traits::SpawnNamed;
 
-pub use polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle};
-pub use polkadot_primitives::v1::ParachainHost;
-pub use relay_chain_selection::SelectRelayChain;
-pub use sc_client_api::AuxStore;
-pub use sp_authority_discovery::AuthorityDiscoveryApi;
-pub use sp_blockchain::HeaderBackend;
-pub use sp_consensus_babe::BabeApi;
+pub use {
+	polkadot_overseer::{Handle, Overseer, OverseerConnector, OverseerHandle},
+	polkadot_primitives::v1::ParachainHost,
+	relay_chain_selection::SelectRelayChain,
+	sc_client_api::AuxStore,
+	sp_authority_discovery::AuthorityDiscoveryApi,
+	sp_blockchain::HeaderBackend,
+	sp_consensus_babe::BabeApi,
+};
 
 use polkadot_subsystem::jaeger;
 
 use std::{sync::Arc, time::Duration};
 
 use prometheus_endpoint::Registry;
-use service::{KeystoreContainer, RpcHandlers};
-use telemetry::{Telemetry, TelemetryWorker, TelemetryWorkerHandle};
+use service::KeystoreContainer;
+use service::RpcHandlers;
+use telemetry::TelemetryWorker;
+use telemetry::{Telemetry, TelemetryWorkerHandle};
 
 #[cfg(feature = "rococo-native")]
 pub use polkadot_client::RococoExecutorDispatch;
