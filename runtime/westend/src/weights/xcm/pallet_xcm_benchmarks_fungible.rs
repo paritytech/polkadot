@@ -66,9 +66,11 @@ impl<T: frame_system::Config> WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(4 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
-	// Storage: Benchmark Override (r:0 w:0)
+	// Storage: System Account (r:1 w:1)
 	pub(crate) fn receive_teleported_asset() -> Weight {
-		(2_000_000_000_000 as Weight)
+		(38_670_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	// Storage: System Account (r:1 w:1)
 	pub(crate) fn deposit_asset() -> Weight {
