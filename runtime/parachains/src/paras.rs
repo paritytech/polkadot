@@ -1170,11 +1170,6 @@ impl<T: Config> Pallet<T> {
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	pub(crate) fn parachains_append(para_id: ParaId) {
-		Parachains::<T>::append(para_id)
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
 	pub(crate) fn heads_insert(para_id: &ParaId, head_data: HeadData) {
 		Heads::<T>::insert(para_id, head_data)
 	}

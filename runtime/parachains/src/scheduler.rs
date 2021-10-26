@@ -466,6 +466,8 @@ impl<T: Config> Pallet<T> {
 				};
 
 				let core = CoreIndex(core_index as u32);
+				let session_start_block = <SessionStartBlock<T>>::get();
+				println!("ACTUAL SESSION START BLOCK {:?}", session_start_block);
 
 				let core_assignment = if core_index < parachains.len() {
 					// parachain core.
@@ -584,7 +586,7 @@ impl<T: Config> Pallet<T> {
 	) -> Option<GroupIndex> {
 		let config = <configuration::Pallet<T>>::config();
 		let session_start_block = <SessionStartBlock<T>>::get();
-
+		println!("SESSION START BLOCK {:?}", session_start_block);
 		if at < session_start_block {
 			return None
 		}

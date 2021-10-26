@@ -401,13 +401,14 @@ pub mod pallet {
 
 			ensure_none(origin)?;
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
-
+			println!("STEP 2 {:?}", <frame_system::Pallet<T>>::block_number());
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
 			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 			ensure!(
 				parent_header.hash().as_ref() == parent_hash.as_ref(),
 				Error::<T>::InvalidParentHeader,
 			);
+			println!("STEP 3 {:?}", <frame_system::Pallet<T>>::block_number());
 
 			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 
@@ -419,13 +420,16 @@ pub mod pallet {
 					.filter(|s| s.session == current_session)
 					.map(|s| (s.session, s.candidate_hash))
 					.collect();
+				println!("STEP 5 {:?}", <frame_system::Pallet<T>>::block_number());
 
 				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
+				println!("STEP 6 {:?}", <frame_system::Pallet<T>>::block_number());
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
 					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
 				}
+				println!("STEP 7 {:?}", <frame_system::Pallet<T>>::block_number());
 
 				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
 					let concluded_invalid_disputes = new_current_dispute_sets
@@ -443,6 +447,7 @@ pub mod pallet {
 							.collect();
 					freed_disputed
 				} else {
+					println!("STEP 10 {:?}", <frame_system::Pallet<T>>::block_number());
 					Vec::new()
 				};
 
@@ -457,12 +462,15 @@ pub mod pallet {
 				if !freed_disputed.is_empty() {
 					// unstable sort is fine, because core indices are unique
 					// i.e. the same candidate can't occupy 2 cores at once.
+					println!("STEP 11 {:?}", <frame_system::Pallet<T>>::block_number());
 					freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+					println!("STEP 12 {:?}", <frame_system::Pallet<T>>::block_number());
 					<scheduler::Pallet<T>>::free_cores(freed_disputed);
 				}
 
 				disputed_bitfield
 			};
+			println!("STEP 13 {:?}", <frame_system::Pallet<T>>::block_number());
 
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
@@ -472,18 +480,25 @@ pub mod pallet {
 				disputed_bitfield,
 				<scheduler::Pallet<T>>::core_para,
 			)?;
+			println!("STEP 15 {:?}", <frame_system::Pallet<T>>::block_number());
 
 			// Inform the disputes module of all included candidates.
 			let now = <frame_system::Pallet<T>>::block_number();
+			println!("STEP 16 {:?}", <frame_system::Pallet<T>>::block_number());
 			for (_, candidate_hash) in &freed_concluded {
+				println!("STEP 17 {:?}", <frame_system::Pallet<T>>::block_number());
 				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
 			}
+			println!("STEP 18 {:?}", <frame_system::Pallet<T>>::block_number());
 
 			// Handle timeouts for any availability core work.
 			let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
+			println!("STEP 19 {:?}", <frame_system::Pallet<T>>::block_number());
 			let freed_timeout = if let Some(pred) = availability_pred {
+				println!("STEP 20 {:?}", <frame_system::Pallet<T>>::block_number());
 				<inclusion::Pallet<T>>::collect_pending(pred)
 			} else {
+				println!("STEP 21 {:?}", <frame_system::Pallet<T>>::block_number());
 				Vec::new()
 			};
 
@@ -495,7 +510,9 @@ pub mod pallet {
 				.collect::<BTreeMap<CoreIndex, FreedReason>>();
 
 			<scheduler::Pallet<T>>::clear();
+			println!("STEP 24 {:?}", <frame_system::Pallet<T>>::block_number());
 			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
+			println!("STEP 25 {:?}", <frame_system::Pallet<T>>::block_number());
 
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
 			let backed_candidates = sanitize_backed_candidates::<T, _, true>(
@@ -520,6 +537,7 @@ pub mod pallet {
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
+			println!("STEP 30");
 			let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
 				core_indices: occupied,
 				candidate_receipt_with_backing_validator_indices,
@@ -530,6 +548,7 @@ pub mod pallet {
 				<scheduler::Pallet<T>>::group_validators,
 			)?;
 
+			println!("STEP 31");
 			// The number of disputes included in a block is
 			// limited by the weight as well as the number of candidate blocks.
 			OnChainVotes::<T>::put(ScrapedOnChainVotes::<<T::Header as HeaderT>::Hash> {
@@ -537,16 +556,20 @@ pub mod pallet {
 				backing_validators_per_candidate: candidate_receipt_with_backing_validator_indices,
 				disputes,
 			});
+			println!("STEP 32");
 
 			// Note which of the scheduled cores were actually occupied by a backed candidate.
 			<scheduler::Pallet<T>>::occupied(&occupied);
+			println!("STEP 33");
 
 			// Give some time slice to dispatch pending upward messages.
 			// this is max config.ump_service_total_weight
 			let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
+			println!("STEP 34");
 
 			// And track that we've finished processing the inherent for this block.
 			Included::<T>::set(Some(()));
+			println!("STEP 34");
 
 			Ok(Some(paras_inherent_total_weight::<T>(
 				backed_candidates_len,
