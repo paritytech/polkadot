@@ -33,6 +33,8 @@
 //!
 //! [chain-selection-guide]: https://w3f.github.io/parachain-implementers-guide/protocol-chain-selection.html
 
+#![cfg(feature = "full-node")]
+
 use super::{HeaderProvider, HeaderProviderProvider};
 use consensus_common::{Error as ConsensusError, SelectChain};
 use futures::channel::oneshot;

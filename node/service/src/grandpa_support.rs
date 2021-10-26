@@ -22,6 +22,7 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 
 use crate::HeaderProvider;
 
+#[cfg(feature = "full-node")]
 use polkadot_primitives::v1::Hash;
 
 /// Returns the block hash of the block at the given `target_number` by walking
@@ -113,6 +114,7 @@ where
 /// intermediary pending changes are replaced with a static list comprised of
 /// w3f validators and randomly selected validators from the latest session (at
 /// #1500988).
+#[cfg(feature = "full-node")]
 pub(crate) fn kusama_hard_forks() -> Vec<(
 	grandpa_primitives::SetId,
 	(Hash, polkadot_primitives::v1::BlockNumber),

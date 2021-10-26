@@ -13,6 +13,8 @@
 
 //! Migration code for the parachain's DB.
 
+#![cfg(feature = "full-node")]
+
 use std::{
 	fs, io,
 	path::{Path, PathBuf},
