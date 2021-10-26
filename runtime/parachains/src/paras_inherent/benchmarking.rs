@@ -23,8 +23,9 @@ use primitives::v1::{
 	byzantine_threshold, collator_signature_payload, AvailabilityBitfield, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CollatorId, CommittedCandidateReceipt, CompactStatement,
 	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
-	Id as ParaId, InvalidDisputeStatementKind, PersistedValidationData, SigningContext,
-	UncheckedSigned, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidityAttestation,
+	Id as ParaId, InvalidDisputeStatementKind, PersistedValidationData, SessionIndex,
+	SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
+	ValidityAttestation,
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -32,7 +33,7 @@ use sp_runtime::{
 	traits::{One, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::convert::TryInto;
+use sp_std::{collections::btree_set::BTreeSet, convert::TryInto};
 
 fn byte32_slice_from(n: u32) -> [u8; 32] {
 	let mut slice = [0u8; 32];
@@ -54,6 +55,8 @@ fn byte32_slice_from(n: u32) -> [u8; 32] {
 /// Paras inherent `enter` benchmark scenario builder.
 struct BenchBuilder<T: Config> {
 	validators: Option<Vec<ValidatorId>>,
+	block_number: T::BlockNumber,
+	session: SessionIndex,
 	_phantom: sp_std::marker::PhantomData<T>,
 }
 
@@ -66,14 +69,16 @@ impl<T: Config> BenchBuilder<T> {
 	fn new() -> Self {
 		BenchBuilder {
 			validators: None,
+			block_number: Zero::zero(),
+			session: SessionIndex::from(0u32),
 			_phantom: sp_std::marker::PhantomData::<T>,
 		}
 	}
 
-	/// Mock header for block #1.
-	fn header() -> T::Header {
+	/// Mock header
+	fn header(block_number: T::BlockNumber) -> T::Header {
 		T::Header::new(
-			One::one(),         // number
+			block_number,       // block_number,
 			Default::default(), // extrinsics_root,
 			Default::default(), // storage_root,
 			Default::default(), // parent_hash,
@@ -85,7 +90,7 @@ impl<T: Config> BenchBuilder<T> {
 		let para_id = ParaId::from(seed);
 		let core_idx = CoreIndex(seed);
 		let group_idx =
-			scheduler::Pallet::<T>::group_assigned_to_core(core_idx, 2u32.into()).unwrap();
+			scheduler::Pallet::<T>::group_assigned_to_core(core_idx, 3u32.into()).unwrap();
 
 		(para_id, core_idx, group_idx)
 	}
@@ -129,7 +134,7 @@ impl<T: Config> BenchBuilder<T> {
 		inclusion::PendingAvailabilityCommitments::<T>::insert(&para_id, commitments);
 	}
 
-	fn availability_bitvec(concluding: Vec<u32>) -> AvailabilityBitfield {
+	fn availability_bitvec(concluding: &BTreeSet<u32>) -> AvailabilityBitfield {
 		let mut bitfields = bitvec::bitvec![bitvec::order::Lsb0, u8; 0; 0];
 		for i in 0..Self::cores() {
 			// the first `availability` cores are marked as available
@@ -164,7 +169,16 @@ impl<T: Config> BenchBuilder<T> {
 		// make sure parachains exist prior to session change.
 		for i in 0..cores {
 			let para_id = ParaId::from(i as u32);
-			paras::Pallet::<T>::parachains_append(para_id);
+
+			paras::Pallet::<T>::schedule_para_initialize(
+				para_id,
+				paras::ParaGenesisArgs {
+					genesis_head: Default::default(),
+					validation_code: Default::default(),
+					parachain: true,
+				},
+			)
+			.unwrap();
 		}
 	}
 
@@ -182,8 +196,11 @@ impl<T: Config> BenchBuilder<T> {
 			.collect()
 	}
 
-	fn signing_context() -> SigningContext<T::Hash> {
-		SigningContext { parent_hash: Self::header().hash(), session_index: 1 }
+	fn signing_context(&self) -> SigningContext<T::Hash> {
+		SigningContext {
+			parent_hash: Self::header(self.block_number.clone()).hash(),
+			session_index: self.session.clone(),
+		}
 	}
 
 	fn max_validators() -> u32 {
@@ -214,22 +231,41 @@ impl<T: Config> BenchBuilder<T> {
 	}
 
 	/// Setup session 1 and create `self.validators_map` and `self.validators`.
-	fn setup_session_1(mut self, validators: Vec<(T::AccountId, ValidatorId)>) -> Self {
-		// initialize session 1.
-		initializer::Pallet::<T>::test_trigger_on_new_session(
-			true, // indicate the validator set has changed
-			1,    // session index
-			validators.clone().iter().map(|(a, v)| (a, v.clone())), // validators
-			None, // queued - when this is None validators are considered queued
-		);
+	fn setup_session(
+		mut self,
+		target_session: SessionIndex,
+		validators: Vec<(T::AccountId, ValidatorId)>,
+	) -> Self {
+		let mut block = 1;
+		for session in 0..target_session {
+			// initialize session 1.
+			if block == 1 {
+				initializer::Pallet::<T>::test_trigger_on_new_session(
+					true, // indicate the validator set has changed because there are no validators in the system yet
+					session + 1, // session index
+					Vec::new().into_iter(), // There are currently no validators
+					Some(validators.iter().map(|(a, v)| (a, v.clone())).collect::<Vec<_>>())
+						.map(|v| v.into_iter()), // validators
+				);
+			} else {
+				// initialize session 2.
+				initializer::Pallet::<T>::test_trigger_on_new_session(
+					false,                                          // indicate the validator set has changed
+					session + 1,                                    // session index
+					validators.iter().map(|(a, v)| (a, v.clone())), // We don't want to change the validator set
+					None, // queued - when this is None validators are considered queued
+				);
+			}
+			block += 1;
+			Self::run_to_block(block);
+		}
 
-		Self::run_to_block(2);
+		let block_number = <T as frame_system::Config>::BlockNumber::from(block);
+		let header = Self::header(block_number.clone());
 
-		// we use this because we want to make sure `frame_system::ParentHash` is set. The storage
-		// item itself is private.
 		frame_system::Pallet::<T>::initialize(
-			&2u32.into(),
-			&Self::header().hash(),
+			&header.number(),
+			&header.hash(),
 			&Digest::<T::Hash> { logs: Vec::new() },
 			Default::default(),
 		);
@@ -237,50 +273,48 @@ impl<T: Config> BenchBuilder<T> {
 		// confirm setup at session change.
 		// assert_eq!(scheduler::AvailabilityCores::<T>::get().len(), Self::cores() as usize);
 		assert_eq!(scheduler::ValidatorGroups::<T>::get().len(), Self::cores() as usize);
-		assert_eq!(<shared::Pallet<T>>::session_index(), 1);
+		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
 
-				log::info!(target: LOG_TARGET, "b");
+		log::info!(target: LOG_TARGET, "b");
 
 		// get validators from session info. We need to refetch them since they have been shuffled.
-		let validators_shuffled: Vec<_> =
-			session_info::Pallet::<T>::session_info(1)
-				.unwrap()
-				.validators
-				.clone()
-				.into_iter()
-				.enumerate()
-				.map(|(val_idx, public)| {
-					// TODO we don't actually need to map here anymore, can just to a for loop to
-					// sanity check things.
-					{
-						// sanity check that the validator keys line up as expected.
-						let active_val_keys = shared::Pallet::<T>::active_validator_keys();
-						let public_check = active_val_keys.get(val_idx).unwrap();
-						assert_eq!(public, *public_check);
-					}
+		let validators_shuffled: Vec<_> = session_info::Pallet::<T>::session_info(target_session)
+			.unwrap()
+			.validators
+			.clone()
+			.into_iter()
+			.enumerate()
+			.map(|(val_idx, public)| {
+				// TODO we don't actually need to map here anymore, can just to a for loop to
+				// sanity check things.
+				{
+					// sanity check that the validator keys line up as expected.
+					let active_val_keys = shared::Pallet::<T>::active_validator_keys();
+					let public_check = active_val_keys.get(val_idx).unwrap();
+					assert_eq!(public, *public_check);
+				}
 
-					public
-				})
-				.collect();
+				public
+			})
+			.collect();
 
 		self.validators = Some(validators_shuffled);
+		self.block_number = block_number;
+		self.session = target_session;
+		assert_eq!(paras::Pallet::<T>::parachains().len(), Self::cores() as usize);
 
 		self
 	}
 
 	fn create_fully_available_and_new_backed(
 		&self,
-		first: u32,
-		last: u32,
+		concluding_cores: BTreeSet<u32>,
 	) -> (Vec<BackedCandidate<T::Hash>>, Vec<UncheckedSigned<AvailabilityBitfield>>) {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 		let config = configuration::Pallet::<T>::config();
 
-		let backed_rng = first..last;
-
-		let concluding_cores: Vec<_> = backed_rng.clone().map(|i| i as u32).collect();
-		let availability_bitvec = Self::availability_bitvec(concluding_cores);
+		let availability_bitvec = Self::availability_bitvec(&concluding_cores);
 
 		let bitfields: Vec<UncheckedSigned<AvailabilityBitfield>> = validators
 			.iter()
@@ -289,10 +323,9 @@ impl<T: Config> BenchBuilder<T> {
 				let unchecked_signed = UncheckedSigned::<AvailabilityBitfield>::benchmark_sign(
 					public,
 					availability_bitvec.clone(),
-					&Self::signing_context(),
+					&self.signing_context(),
 					ValidatorIndex(i as u32),
 				);
-
 
 				unchecked_signed
 			})
@@ -300,39 +333,38 @@ impl<T: Config> BenchBuilder<T> {
 
 		log::info!(target: LOG_TARGET, "c");
 
-		for seed in backed_rng.clone() {
+		for seed in concluding_cores.iter() {
 			// make sure the candidates that are concluding by becoming available are marked as
 			// pending availability.
-			let (para_id, core_idx, group_idx) = Self::create_indexes(seed);
+			let (para_id, core_idx, group_idx) = Self::create_indexes(seed.clone());
 			Self::add_availability(
 				para_id,
 				core_idx,
 				group_idx,
 				Self::validator_availability_votes_yes(),
-				CandidateHash(H256::from(byte32_slice_from(seed))),
+				CandidateHash(H256::from(byte32_slice_from(seed.clone()))),
 			);
 
 			scheduler::AvailabilityCores::<T>::mutate(|cores| {
-				cores[seed as usize] = Some(CoreOccupied::Parachain)
+				cores[*seed as usize] = Some(CoreOccupied::Parachain)
 			});
 		}
 
 		log::info!(target: LOG_TARGET, "d");
 
-
-		let backed_candidates: Vec<BackedCandidate<T::Hash>> = backed_rng
-			.clone()
+		let backed_candidates: Vec<BackedCandidate<T::Hash>> = concluding_cores
+			.iter()
 			.map(|seed| {
-				let (para_id, _core_idx, group_idx) = Self::create_indexes(seed);
+				let (para_id, _core_idx, group_idx) = Self::create_indexes(seed.clone());
 
 				// generate a pair and add it to the keystore.
 				let collator_public = CollatorId::generate_pair(None);
-
-				let relay_parent = Self::header().hash();
+				let header = Self::header(self.block_number.clone());
+				let relay_parent = header.hash();
 				let head_data: HeadData = Default::default();
 				let persisted_validation_data_hash = PersistedValidationData::<H256> {
 					parent_head: head_data.clone(), // dummy parent_head
-					relay_parent_number: (*Self::header().number())
+					relay_parent_number: (*header.number())
 						.try_into()
 						.map_err(|_| ())
 						.expect("header.number is valid"),
@@ -397,12 +429,11 @@ impl<T: Config> BenchBuilder<T> {
 					.iter()
 					.map(|val_idx| {
 						let public = validators.get(val_idx.0 as usize).unwrap();
-
 						// let pair = validator_map.get(public).unwrap();
 						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
 							public,
 							CompactStatement::Valid(candidate_hash.clone()),
-							&Self::signing_context(),
+							&self.signing_context(),
 							*val_idx,
 						)
 						.benchmark_signature();
@@ -419,7 +450,7 @@ impl<T: Config> BenchBuilder<T> {
 			})
 			.collect();
 
-			log::info!(target: LOG_TARGET, "e");
+		log::info!(target: LOG_TARGET, "e");
 
 		(backed_candidates, bitfields)
 	}
@@ -428,7 +459,6 @@ impl<T: Config> BenchBuilder<T> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 		let config = configuration::Pallet::<T>::config();
-
 
 		log::info!(target: LOG_TARGET, "f");
 		log::info!(target: LOG_TARGET, "disputes with spam start {}, last {}", start, last);
@@ -475,8 +505,7 @@ impl<T: Config> BenchBuilder<T> {
 						} else {
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
-						let data = dispute_statement
-							.payload_data(candidate_hash.clone(), 1);
+						let data = dispute_statement.payload_data(candidate_hash.clone(), 2);
 
 						// let debug_res = validator_pair.public().sign(&data);
 						// println!("debug res validator sign {}", debug_res);
@@ -493,7 +522,7 @@ impl<T: Config> BenchBuilder<T> {
 				// return dispute statements with metadata.
 				DisputeStatementSet {
 					candidate_hash: candidate_hash.clone(),
-					session: 1,
+					session: 2,
 					statements,
 				}
 			})
@@ -506,18 +535,33 @@ impl<T: Config> BenchBuilder<T> {
 		inclusion::PendingAvailabilityCommitments::<T>::remove_all(None);
 		inclusion::PendingAvailability::<T>::remove_all(None);
 
+		// Setup para_ids traverses each core,
+		// creates a ParaId for that CoreIndex,
+		// inserts ParaLifeCycle::Onboarding for that ParaId,
+		// inserts the upcoming paras genesis
+		// subsequently inserts the ParaId into the ActionsQueue
+		// Note that there is an n+2 session delay for these actions to take effect
+		// We are currently in Session 0, so these changes will take effect in Session 2
 		Self::setup_para_ids(Self::cores());
 
+		// As there are not validator public keys in the system yet, we must generate them here
 		let validator_ids = Self::generate_validator_pairs(Self::max_validators());
-		let builder = self.setup_session_1(validator_ids);
+		// Setup for session 1 and 2 along with the proper run_to_block logic
 
+		println!("Setting up session");
+		let target_session = SessionIndex::from(2u32);
+		let builder = self.setup_session(target_session, validator_ids);
+		println!("Session setup");
+
+		let concluding_cores: BTreeSet<_> = (0..backed_and_concluding).into_iter().collect();
 		let (backed_candidates, bitfields) =
-			builder.create_fully_available_and_new_backed(0, backed_and_concluding);
+			builder.create_fully_available_and_new_backed(concluding_cores);
+		println!("Candidates setup");
 
 		let last_disputed = backed_and_concluding + disputed;
 		assert!(last_disputed <= Self::cores());
 		let disputes = builder.create_disputes_with_some_spam(backed_and_concluding, last_disputed);
-		log::info!(target: LOG_TARGET, "i");
+		println!("Disputes created");
 
 		// spam slots are empty prior.
 		// TODO
@@ -531,15 +575,13 @@ impl<T: Config> BenchBuilder<T> {
 			(disputed + backed_and_concluding) as usize
 		);
 
-		log::info!(target: LOG_TARGET, "k");
-
-
+		println!("Benching");
 		Bench::<T> {
 			data: ParachainsInherentData {
 				bitfields,
 				backed_candidates,
 				disputes, // Vec<DisputeStatementSet>
-				parent_header: Self::header(),
+				parent_header: Self::header(builder.block_number.clone()),
 			},
 		}
 	}
@@ -548,7 +590,7 @@ impl<T: Config> BenchBuilder<T> {
 // Variant over `d`, the number of cores with a disputed candidate. Remainder of cores are concluding
 // and backed candidates.
 benchmarks! {
-	enter_dispute_dominant {
+	/*enter_dispute_dominant {
 		let d in 0..BenchBuilder::<T>::cores();
 
 		let backed_and_concluding = BenchBuilder::<T>::cores() - d;
@@ -595,10 +637,11 @@ benchmarks! {
 		assert_eq!(
 			scheduler::AvailabilityCores::<T>::get().len(), BenchBuilder::<T>::cores() as usize
 		);
-	}
+	}*/
 
 	enter_disputes_only {
-		let d in 0..BenchBuilder::<T>::cores();
+		//let d in 0..BenchBuilder::<T>::cores();
+		let d = BenchBuilder::<T>::cores();
 
 		log::info!(target: LOG_TARGET, "a");
 		let backed_and_concluding = 0;
@@ -606,8 +649,8 @@ benchmarks! {
 		let config = configuration::Pallet::<T>::config();
 		let scenario = BenchBuilder::<T>::new()
 			.build(backed_and_concluding, d);
-		log::info!(target: LOG_TARGET, "x");
-
+		let b = frame_system::Pallet::<T>::block_number();
+		println!("WE ARE BENCHING NOW {:?}", b);
 	}: enter(RawOrigin::None, scenario.data.clone())
 	verify {
 		log::warn!(target: LOG_TARGET, "y");
@@ -653,7 +696,7 @@ benchmarks! {
 
 	// Variant of over `b`, the number of cores concluding and immediately receiving a new
 	// backed candidate. Remainder of cores are occupied by disputes.
-	enter_backed_dominant {
+	/*enter_backed_dominant {
 		let b in 0..BenchBuilder::<T>::cores();
 
 		let disputed = BenchBuilder::<T>::cores() - b;
@@ -707,7 +750,7 @@ benchmarks! {
 		assert_eq!(
 			scheduler::AvailabilityCores::<T>::get().len(), BenchBuilder::<T>::cores() as usize
 		);
-	}
+	}*/
 }
 
 // - no spam scenario
