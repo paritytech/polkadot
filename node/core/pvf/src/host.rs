@@ -447,7 +447,6 @@ async fn handle_execute_pvf(
 	} else {
 		if let Pvf::Preimage(code) = pvf {
 			// Artifact is unknown: register it and enqueue a job with the corresponding priority and
-			//
 			artifacts.insert_preparing(artifact_id.clone());
 			send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf: code }).await?;
 
