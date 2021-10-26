@@ -83,7 +83,12 @@ use polkadot_parachain::primitives::Id as ParaId;
 use constants::{currency::*, fee::*, time::*};
 use frame_support::traits::InstanceFilter;
 use xcm::latest::prelude::*;
-use xcm_builder::{AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom, BackingToPlurality, ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, UsingComponents};
+use xcm_builder::{
+	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom, BackingToPlurality,
+	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsConcrete, LocationInverter,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, UsingComponents,
+};
 use xcm_executor::XcmExecutor;
 
 //mod bridge_messages;
