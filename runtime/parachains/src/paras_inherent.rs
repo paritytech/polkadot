@@ -67,7 +67,7 @@ impl WeightInfo for TestWeightInfo {
 	fn enter_disputes_only(_d: u32) -> Weight {
 		Weight::MAX
 	}
-	fn enter_backed_only(b: u32) -> Weight {
+	fn enter_backed_only(_b: u32) -> Weight {
 		Weight::MAX
 	}
 }
