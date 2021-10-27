@@ -524,10 +524,7 @@ where
 		match res {
 			Err(e) => {
 				e.trace();
-
-				if let Error::Subsystem(SubsystemError::Context(_)) = e {
-					break
-				}
+				break
 			},
 			Ok(true) => {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
@@ -840,8 +837,17 @@ where
 			let (tx, rx) = oneshot::channel();
 			ctx.send_message(ChainApiMessage::FinalizedBlockHash(batch_num, tx)).await;
 
-			match rx.await?? {
-				None => {
+			match rx.await? {
+				Err(err) => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						batch_num,
+						"Failed to retrieve finalized block number.",
+					);
+
+					break
+				},
+				Ok(None) => {
 					tracing::warn!(
 						target: LOG_TARGET,
 						"Availability store was informed that block #{} is finalized, \
@@ -851,7 +857,7 @@ where
 
 					break
 				},
-				Some(h) => h,
+				Ok(Some(h)) => h,
 			}
 		};
 
