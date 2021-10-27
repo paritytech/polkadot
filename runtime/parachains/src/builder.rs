@@ -51,6 +51,9 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 /// Paras inherent `enter` benchmark scenario.
 pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) data: ParachainsInherentData<T::Header>,
+	pub(crate) validators: Option<Vec<ValidatorId>>,
+	pub(crate) block_number: T::BlockNumber,
+	pub(crate) session: SessionIndex,
 }
 
 impl<T: paras_inherent::Config> BenchBuilder<T> {
@@ -64,7 +67,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Mock header
-	fn header(block_number: T::BlockNumber) -> T::Header {
+	pub(crate) fn header(block_number: T::BlockNumber) -> T::Header {
 		T::Header::new(
 			block_number,       // block_number,
 			Default::default(), // extrinsics_root,
@@ -333,10 +336,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				Self::validator_availability_votes_yes(),
 				CandidateHash(H256::from(byte32_slice_from(seed.clone()))),
 			);
-
-			scheduler::AvailabilityCores::<T>::mutate(|cores| {
-				cores[*seed as usize] = Some(CoreOccupied::Parachain)
-			});
 		}
 
 		bitfields
@@ -560,6 +559,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				disputes, // Vec<DisputeStatementSet>
 				parent_header: Self::header(builder.block_number.clone()),
 			},
+			validators: builder.validators,
+			session: builder.session,
+			block_number: builder.block_number,
 		}
 	}
 }
