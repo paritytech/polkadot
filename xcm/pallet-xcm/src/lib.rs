@@ -811,7 +811,7 @@ pub mod pallet {
 			};
 			let xcm = Xcm(vec![
 				BuyExecution { fees, weight_limit },
-				DepositAsset { assets: Wild(All), max_assets, beneficiary },
+				DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 			]);
 			let mut message = Xcm(vec![TransferReserveAsset { assets, dest, xcm }]);
 			let weight =
@@ -869,7 +869,7 @@ pub mod pallet {
 			};
 			let xcm = Xcm(vec![
 				BuyExecution { fees, weight_limit },
-				DepositAsset { assets: Wild(All), max_assets, beneficiary },
+				DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 			]);
 			let mut message =
 				Xcm(vec![WithdrawAsset(assets), InitiateTeleport { assets: Wild(All), dest, xcm }]);
