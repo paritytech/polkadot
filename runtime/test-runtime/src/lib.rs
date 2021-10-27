@@ -188,7 +188,7 @@ impl pallet_babe::Config for Runtime {
 	type HandleEquivocation = ();
 
 	type WeightInfo = ();
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 parameter_types! {
@@ -312,7 +312,6 @@ parameter_types! {
 	pub storage MaxRewardableIndividualExposures: u32 = 64;
 	pub const MaxIndividualExposures: u32 = 1_000;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
-	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxNominations: u32 = 16;
 	pub const MaxUnappliedSlashes: u32 = 1_000;
 	pub const MaxInvulnerablesCount: u32 = 10;
@@ -382,7 +381,7 @@ impl pallet_grandpa::Config for Runtime {
 	type HandleEquivocation = ();
 
 	type WeightInfo = ();
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -436,7 +435,7 @@ impl pallet_offences::Config for Runtime {
 }
 
 impl pallet_authority_discovery::Config for Runtime {
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 parameter_types! {

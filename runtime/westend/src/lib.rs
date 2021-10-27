@@ -226,7 +226,7 @@ impl pallet_babe::Config for Runtime {
 
 	type WeightInfo = ();
 
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 parameter_types! {
@@ -491,7 +491,6 @@ parameter_types! {
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 10 * MILLICENTS;
 	pub const InstantAllowed: bool = true;
-	pub const MaxAuthorities: u32 = 100_000;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -501,7 +500,7 @@ impl pallet_offences::Config for Runtime {
 }
 
 impl pallet_authority_discovery::Config for Runtime {
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 parameter_types! {
@@ -545,7 +544,7 @@ impl pallet_grandpa::Config for Runtime {
 	>;
 
 	type WeightInfo = ();
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension

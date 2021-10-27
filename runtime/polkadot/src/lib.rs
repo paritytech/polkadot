@@ -270,7 +270,7 @@ impl pallet_babe::Config for Runtime {
 
 	type WeightInfo = ();
 
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 parameter_types! {
@@ -736,7 +736,6 @@ parameter_types! {
 	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
 	pub const BountyValueMinimum: Balance = 10 * DOLLARS;
 	pub const MaxApprovals: u32 = 100;
-	pub const MaxAuthorities: u32 = 100_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 }
@@ -794,7 +793,7 @@ impl pallet_offences::Config for Runtime {
 }
 
 impl pallet_authority_discovery::Config for Runtime {
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 parameter_types! {
@@ -837,7 +836,7 @@ impl pallet_grandpa::Config for Runtime {
 	>;
 
 	type WeightInfo = ();
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension

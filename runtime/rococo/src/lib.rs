@@ -427,7 +427,6 @@ where
 
 parameter_types! {
 	pub const MaxRetries: u32 = 3;
-	pub const MaxAuthorities: u32 = 100_000;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -437,7 +436,7 @@ impl pallet_offences::Config for Runtime {
 }
 
 impl pallet_authority_discovery::Config for Runtime {
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 parameter_types! {
@@ -520,7 +519,7 @@ impl pallet_babe::Config for Runtime {
 
 	type WeightInfo = ();
 
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 parameter_types! {
@@ -560,7 +559,7 @@ impl pallet_grandpa::Config for Runtime {
 	>;
 
 	type WeightInfo = ();
-	type MaxAuthorities = MaxAuthorities;
+	type MaxAuthorities = MaxValidatorsCount;
 }
 
 parameter_types! {
