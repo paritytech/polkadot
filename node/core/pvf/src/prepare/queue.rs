@@ -530,7 +530,6 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::pvf::Pvf;
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
 	use slotmap::SlotMap;
@@ -538,10 +537,7 @@ mod tests {
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn pvf(discriminator: u32) -> PvfCode {
-		match Pvf::from_discriminator(discriminator) {
-			Pvf::Preimage(inner) => inner,
-			Pvf::Hash(_) => unreachable!(),
-		}
+		PvfCode::from_discriminator(discriminator)
 	}
 
 	async fn run_until<R>(

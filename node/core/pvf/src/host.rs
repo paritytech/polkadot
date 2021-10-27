@@ -661,7 +661,7 @@ mod tests {
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn artifact_id(discriminator: u32) -> ArtifactId {
-		Pvf::from_discriminator(discriminator).as_artifact_id()
+		PvfCode::from_discriminator(discriminator).as_artifact_id()
 	}
 
 	fn artifact_path(discriminator: u32) -> PathBuf {
@@ -826,10 +826,7 @@ mod tests {
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
 	fn pvf(discriminator: u32) -> PvfCode {
-		match Pvf::from_discriminator(discriminator) {
-			Pvf::Preimage(inner) => inner,
-			Pvf::Hash(_) => unreachable!(),
-		}
+		PvfCode::from_discriminator(discriminator)
 	}
 
 	#[async_std::test]
@@ -897,7 +894,7 @@ mod tests {
 
 		let (result_tx, _result_rx) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			Pvf::Preimage(PvfCode::from_discriminator(1)),
 			TEST_EXECUTION_TIMEOUT,
 			vec![],
 			Priority::Critical,
@@ -925,7 +922,7 @@ mod tests {
 
 		let (result_tx, result_rx_pvf_1_1) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			Pvf::Preimage(PvfCode::from_discriminator(1)),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
 			Priority::Normal,
@@ -936,7 +933,7 @@ mod tests {
 
 		let (result_tx, result_rx_pvf_1_2) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			Pvf::Preimage(PvfCode::from_discriminator(1)),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
 			Priority::Critical,
@@ -947,7 +944,7 @@ mod tests {
 
 		let (result_tx, result_rx_pvf_2) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(2),
+			Pvf::Preimage(PvfCode::from_discriminator(2)),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
 			Priority::Normal,
@@ -1023,7 +1020,7 @@ mod tests {
 
 		let (result_tx, result_rx) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			Pvf::Preimage(PvfCode::from_discriminator(1)),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
 			Priority::Normal,

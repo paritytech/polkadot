@@ -28,6 +28,22 @@ pub struct PvfCode {
 	pub(crate) code_hash: ValidationCodeHash,
 }
 
+impl PvfCode {
+	/// Returns an instance of the PVF out of the given PVF code.
+	pub fn from_code(code: Vec<u8>) -> Self {
+		let code = Arc::new(code);
+		let code_hash = blake2_256(&code).into();
+		Self { code, code_hash }
+	}
+
+	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
+	#[cfg(test)]
+	pub(crate) fn from_discriminator(num: u32) -> Self {
+		let discriminator_buf = num.to_le_bytes().to_vec();
+		Self::from_code(discriminator_buf)
+	}
+}
+
 impl fmt::Debug for PvfCode {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "Pvf {{ code, code_hash: {:?} }}", self.code_hash)
@@ -54,16 +70,7 @@ pub enum Pvf {
 impl Pvf {
 	/// Returns an instance of the PVF out of the given PVF code.
 	pub fn from_code(code: Vec<u8>) -> Self {
-		let code = Arc::new(code);
-		let code_hash = blake2_256(&code).into();
-		Self::Preimage(PvfCode { code, code_hash })
-	}
-
-	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	#[cfg(test)]
-	pub(crate) fn from_discriminator(num: u32) -> Self {
-		let discriminator_buf = num.to_le_bytes().to_vec();
-		Pvf::from_code(discriminator_buf)
+		Self::Preimage(PvfCode::from_code(code))
 	}
 
 	/// Returns the artifact ID that corresponds to this PVF.
