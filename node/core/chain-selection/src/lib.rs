@@ -352,10 +352,7 @@ async fn run<Context, B>(
 		match res {
 			Err(e) => {
 				e.trace();
-
-				if let Error::Subsystem(SubsystemError::Context(_)) = e {
-					break
-				}
+				break
 			},
 			Ok(()) => {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
@@ -444,14 +441,23 @@ async fn fetch_finalized(
 
 	ctx.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx)).await;
 
-	let number = number_rx.await??;
+	let number = match number_rx.await? {
+		Ok(number) => number,
+		Err(e) => {
+			tracing::warn!(target: LOG_TARGET, "Fetching finalized number failed");
+			return Ok(None)
+		},
+	};
 
 	ctx.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx)).await;
 
-	match hash_rx.await?? {
-		None => {
+	match hash_rx.await? {
+		Err(e) => {
+			tracing::warn!(target: LOG_TARGET, number, "Fetching finzalied block number failed");
+			return Ok(None)
+		},
+		Ok(None) => {
 			tracing::warn!(target: LOG_TARGET, number, "Missing hash for finalized block number");
-
 			return Ok(None)
 		},
 		Some(h) => Ok(Some((h, number))),
@@ -462,10 +468,21 @@ async fn fetch_header(
 	ctx: &mut impl SubsystemContext,
 	hash: Hash,
 ) -> Result<Option<Header>, Error> {
-	let (h_tx, h_rx) = oneshot::channel();
-	ctx.send_message(ChainApiMessage::BlockHeader(hash, h_tx)).await;
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(ChainApiMessage::BlockHeader(hash, tx)).await;
 
-	h_rx.await?.map_err(Into::into)
+	match rx.await? {
+		Err(err) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				number,
+				?err,
+				"Missing hash for finalized block number"
+			);
+			Ok(None)
+		},
+		ok_header => ok_header,
+	}
 }
 
 async fn fetch_block_weight(
@@ -475,7 +492,18 @@ async fn fetch_block_weight(
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(ChainApiMessage::BlockWeight(hash, tx)).await;
 
-	rx.await?.map_err(Into::into)
+	match rx.await? {
+		Err(err) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				number,
+				?err,
+				"Missing hash for finalized block number"
+			);
+			Ok(None)
+		},
+		ok_weight => ok_weight,
+	}
 }
 
 // Handle a new active leaf.
@@ -590,7 +618,7 @@ fn extract_reversion_logs(header: &Header) -> Vec<BlockNumber> {
 	logs
 }
 
-// Handle a finalized block event.
+/// Handle a finalized block event.
 fn handle_finalized_block(
 	backend: &mut impl Backend,
 	finalized_hash: Hash,
