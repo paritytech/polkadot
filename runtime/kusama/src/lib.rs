@@ -48,7 +48,7 @@ use runtime_parachains::{
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
-	construct_runtime, parameter_types,
+	construct_runtime, match_type, parameter_types,
 	traits::{Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, Nothing},
 	weights::Weight,
 	PalletId, RuntimeDebug,
@@ -77,11 +77,12 @@ use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
-	BackingToPlurality, ChildParachainAsNative, ChildParachainConvertsVia,
-	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
-	IsChildSystemParachain, IsConcrete, LocationInverter, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
+	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
+	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, BackingToPlurality,
+	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
+	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	TakeWeightCredit, UsingComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -101,7 +102,7 @@ use constants::{currency::*, fee::*, time::*};
 mod weights;
 
 // Voter bag threshold definitions.
-mod voter_bags;
+mod bag_thresholds;
 
 #[cfg(test)]
 mod tests;
@@ -409,7 +410,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 }
 
 parameter_types! {
-	pub const BagThresholds: &'static [u64] = &voter_bags::THRESHOLDS;
+	pub const BagThresholds: &'static [u64] = &bag_thresholds::THRESHOLDS;
 }
 
 impl pallet_bags_list::Config for Runtime {
@@ -525,8 +526,7 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
-	// Use the nominators map to iter voters, but also perform the bags-list migration and keep
-	// it up-to-date.
+	// Use the nominators map to iter voters, but also keep bags-list up-to-date.
 	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
@@ -1079,7 +1079,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Registrar(paras_registrar::Call::reserve {..}) |
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
-				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
+				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
+				Call::BagsList(..)
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1330,6 +1331,12 @@ parameter_types! {
 }
 pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemine>,);
 
+match_type! {
+	pub type OnlyParachains: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+}
+
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (
 	// Weight that is paid for may be consumed.
@@ -1338,6 +1345,10 @@ pub type Barrier = (
 	AllowTopLevelPaidExecutionFrom<Everything>,
 	// Messages coming from system parachains need not pay for execution.
 	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
+	// Expected responses are OK.
+	AllowKnownQueryResponses<XcmPallet>,
+	// Subscriptions for version tracking are OK.
+	AllowSubscriptionsFrom<OnlyParachains>,
 );
 
 pub struct XcmConfig;
