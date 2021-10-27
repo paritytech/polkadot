@@ -277,7 +277,7 @@ fn limmited_teleport_assets_works() {
 					ReceiveTeleportedAsset((Here, SEND_AMOUNT).into()),
 					ClearOrigin,
 					buy_limited_execution((Here, SEND_AMOUNT), 5000),
-					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]
 		);
@@ -319,7 +319,7 @@ fn unlimmited_teleport_assets_works() {
 					ReceiveTeleportedAsset((Here, SEND_AMOUNT).into()),
 					ClearOrigin,
 					buy_execution((Here, SEND_AMOUNT)),
-					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]
 		);
@@ -457,7 +457,7 @@ fn unlimited_reserve_transfer_assets_works() {
 					ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 					ClearOrigin,
 					buy_execution((Parent, SEND_AMOUNT)),
-					DepositAsset { assets: All.into(), max_assets: 1, beneficiary: dest },
+					DepositAsset { assets: AllCounted(1).into(), beneficiary: dest },
 				]),
 			)]
 		);
