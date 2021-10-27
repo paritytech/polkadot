@@ -308,7 +308,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			return Err(XcmError::RecursionLimitReached)
 		}
 
-		let mut total_surplus = 0;
 		match order {
 			Order::DepositAsset { assets, max_assets, beneficiary } => {
 				let deposited = holding.limited_saturating_take(assets, max_assets as usize);
@@ -344,37 +343,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Xcm::QueryResponse { query_id, response: Response::Assets(assets) },
 				)?;
 			},
-			Order::BuyExecution { fees, weight, debt, halt_on_error, instructions } => {
-				// pay for `weight` using up to `fees` of the holding register.
-				let purchasing_weight =
-					Weight::from(weight.checked_add(debt).ok_or(XcmError::Overflow)?);
-				let max_fee =
-					holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
+			Order::BuyExecution { fees, debt, instructions, .. } if instructions.is_empty() => {
+				// pay for `debt` using up to `fees` of the holding register.
+				let purchasing_weight = Weight::from(debt);
+				let max_fee = holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
 				let unspent = trader.buy_weight(purchasing_weight, max_fee)?;
 				holding.subsume_assets(unspent);
-
-				let mut remaining_weight = weight;
-				for instruction in instructions.into_iter() {
-					match Self::do_execute_xcm(
-						origin.clone(),
-						false,
-						instruction,
-						&mut remaining_weight,
-						None,
-						trader,
-						num_recursions + 1,
-					) {
-						Err(e) if halt_on_error => return Err(e),
-						Err(_) => {},
-						Ok(surplus) => total_surplus += surplus,
-					}
-				}
-				if let Some(w) = trader.refund_weight(remaining_weight) {
-					holding.subsume(w);
-				}
 			},
 			_ => return Err(XcmError::UnhandledEffect)?,
 		}
-		Ok(total_surplus)
+		Ok(0)
 	}
 }
