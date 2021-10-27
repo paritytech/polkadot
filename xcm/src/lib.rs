@@ -447,19 +447,54 @@ impl WrapVersion for IntoUnsafeV1 {
 		_: &latest::MultiLocation,
 		xcm: impl Into<VersionedXcm<Call>>,
 	) -> Result<VersionedXcm<Call>, ()> {
-		let xcm = Xcm(xcm.into().0
-			.into_iter()
-			.scan(false, (|withdraw_last, i| Some(match i {
-				ClearOrigin if *withdraw_last => None,
-				i => {
-					*withdraw_last = matches!(i, Withdraw { .. });
-					Some(i),
-				}
-			}))
-			.collect()
-		);
+		let xcm: VersionedXcm<Call> = match xcm.into() {
+			VersionedXcm::V2(v2_xcm) => {
+				let filtered = v2_xcm.0
+					.into_iter()
+					.scan(false, |withdraw_last, i| Some(match i {
+						v2::Instruction::ClearOrigin if *withdraw_last => None,
+						i => {
+							*withdraw_last = matches!(i, v2::Instruction::WithdrawAsset { .. });
+							Some(i)
+						},
+					}))
+        			.filter_map(|x| x)
+					.collect::<Vec<_>>();
+				VersionedXcm::V2(v2::Xcm(filtered))
+			}
+			x => x,
+		};
 		Ok(VersionedXcm::<Call>::V1(xcm.try_into()?))
 	}
+}
+
+#[test]
+fn check_into_unsafe_v1() {
+	use v2::prelude::*;
+	use alloc::vec;
+	let message: Xcm<()> = Xcm(vec![
+		WithdrawAsset(MultiAssets::from(vec![(Here, 1).into()])),
+		ClearOrigin,
+		BuyExecution { fees: (Here, 1).into(), weight_limit: WeightLimit::Limited(1) },
+		ClearOrigin,
+	]);
+	IntoUnsafeV1::wrap_version(&Here.into(), message).expect_err("");
+	let message: Xcm<()> = Xcm(vec![
+		WithdrawAsset(MultiAssets::from(vec![(Here, 1).into()])),
+		ClearOrigin,
+		BuyExecution { fees: (Here, 1).into(), weight_limit: WeightLimit::Limited(1) },
+	]);
+	let converted = IntoUnsafeV1::wrap_version(&Here.into(), message).unwrap();
+	assert_eq!(converted, VersionedXcm::V1(v1::Xcm::WithdrawAsset {
+		assets: v1::MultiAssets::from(vec![(Here, 1).into()]),
+		effects: vec![v1::Order::BuyExecution {
+			fees: (Here, 1).into(),
+			weight: 0,
+			debt: 1,
+			halt_on_error: true,
+			instructions: vec![],
+		}],
+	}));
 }
 
 /// `WrapVersion` implementation which attempts to always convert the XCM to the latest version before wrapping it.
