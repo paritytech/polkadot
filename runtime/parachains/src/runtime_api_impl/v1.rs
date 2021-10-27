@@ -23,7 +23,7 @@ use crate::{
 };
 use primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
-	CoreState, GroupIndex, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
+	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
 	ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex,
@@ -173,6 +173,16 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	core_states
 }
 
+/// Returns current block number being processed and the corresponding root hash.
+fn current_relay_parent<T: frame_system::Config>(
+) -> (<T as frame_system::Config>::BlockNumber, <T as frame_system::Config>::Hash) {
+	use parity_scale_codec::Decode as _;
+	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
+	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root()[..])
+		.expect("storage root must decode to the Hash type; qed");
+	(relay_parent_number, relay_parent_storage_root)
+}
+
 fn with_assumption<Config, T, F>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
@@ -203,10 +213,7 @@ pub fn persisted_validation_data<T: initializer::Config>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<PersistedValidationData<T::Hash, T::BlockNumber>> {
-	use parity_scale_codec::Decode as _;
-	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
-	let relay_parent_storage_root = T::Hash::decode(&mut &sp_io::storage::root()[..])
-		.expect("storage root must decode to the Hash type; qed");
+	let (relay_parent_number, relay_parent_storage_root) = current_relay_parent::<T>();
 	with_assumption::<T, _, _>(para_id, assumption, || {
 		crate::util::make_persisted_validation_data::<T>(
 			para_id,
@@ -214,6 +221,35 @@ pub fn persisted_validation_data<T: initializer::Config>(
 			relay_parent_storage_root,
 		)
 	})
+}
+
+/// Implementation for the `assumed_validation_data` function of the runtime API.
+pub fn assumed_validation_data<T: initializer::Config>(
+	para_id: ParaId,
+	expected_persisted_validation_data_hash: Hash,
+) -> Option<(PersistedValidationData<T::Hash, T::BlockNumber>, ValidationCodeHash)> {
+	let (relay_parent_number, relay_parent_storage_root) = current_relay_parent::<T>();
+	// This closure obtains the `persisted_validation_data` for the given `para_id` and matches
+	// its hash against an expected one.
+	let make_validation_data = || {
+		crate::util::make_persisted_validation_data::<T>(
+			para_id,
+			relay_parent_number,
+			relay_parent_storage_root,
+		)
+		.filter(|validation_data| validation_data.hash() == expected_persisted_validation_data_hash)
+	};
+
+	let persisted_validation_data = make_validation_data().or_else(|| {
+		// Try again with force enacting the core. This check only makes sense if
+		// the core is occupied.
+		<inclusion::Pallet<T>>::pending_availability(para_id).and_then(|_| {
+			<inclusion::Pallet<T>>::force_enact(para_id);
+			make_validation_data()
+		})
+	});
+	// If we were successful, also query current validation code hash.
+	persisted_validation_data.zip(<paras::Pallet<T>>::current_code_hash(&para_id))
 }
 
 /// Implementation for the `check_validation_outputs` function of the runtime API.
