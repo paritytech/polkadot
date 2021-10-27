@@ -475,10 +475,11 @@ where
 		Err(ValidationError::ArtifactNotFound) => {
 			// The code was supplied on the second attempt, this
 			// error should be unreachable.
-			let error_message =
-				"Validation host failed to find artifact even though it was supplied";
-			tracing::error!(target: LOG_TARGET, error_message);
-			Err(ValidationFailed(error_message.to_string()))
+			let err = ValidationFailed(
+				"Validation host failed to find artifact even though it was supplied".to_string(),
+			);
+			tracing::error!(target: LOG_TARGET, error = ?err, "Unexpected error reported by the validation backend");
+			Err(err)
 		},
 		Ok(res) =>
 			if res.head_data.hash() != descriptor.para_head {
