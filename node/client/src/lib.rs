@@ -40,14 +40,6 @@ pub type FullBackend = sc_service::TFullBackend<Block>;
 pub type FullClient<RuntimeApi, ExecutorDispatch> =
 	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 
-#[cfg(not(any(
-	feature = "rococo",
-	feature = "kusama",
-	feature = "westend",
-	feature = "polkadot"
-)))]
-compile_error!("at least one runtime feature must be enabled");
-
 /// The native executor instance for Polkadot.
 #[cfg(feature = "polkadot")]
 pub struct PolkadotExecutorDispatch;
@@ -234,6 +226,12 @@ pub trait ClientHandle {
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output;
 }
 
+#[cfg(any(
+	feature = "rococo",
+	feature = "kusama",
+	feature = "westend",
+	feature = "polkadot"
+))]
 macro_rules! with_client {
 	{
 		$self:ident,
@@ -258,6 +256,12 @@ macro_rules! with_client {
 /// A client instance of Polkadot.
 ///
 /// See [`ExecuteWithClient`] for more information.
+#[cfg(any(
+	feature = "rococo",
+	feature = "kusama",
+	feature = "westend",
+	feature = "polkadot"
+))]
 #[derive(Clone)]
 pub enum Client {
 	#[cfg(feature = "polkadot")]
@@ -270,6 +274,12 @@ pub enum Client {
 	Rococo(Arc<FullClient<rococo_runtime::RuntimeApi, RococoExecutorDispatch>>),
 }
 
+#[cfg(any(
+	feature = "rococo",
+	feature = "kusama",
+	feature = "westend",
+	feature = "polkadot"
+))]
 impl ClientHandle for Client {
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
 		with_client! {
@@ -282,6 +292,12 @@ impl ClientHandle for Client {
 	}
 }
 
+#[cfg(any(
+	feature = "rococo",
+	feature = "kusama",
+	feature = "westend",
+	feature = "polkadot"
+))]
 impl UsageProvider<Block> for Client {
 	fn usage_info(&self) -> sc_client_api::ClientInfo<Block> {
 		with_client! {
@@ -294,6 +310,12 @@ impl UsageProvider<Block> for Client {
 	}
 }
 
+#[cfg(any(
+	feature = "rococo",
+	feature = "kusama",
+	feature = "westend",
+	feature = "polkadot"
+))]
 impl sc_client_api::BlockBackend<Block> for Client {
 	fn block_body(
 		&self,
@@ -378,6 +400,12 @@ impl sc_client_api::BlockBackend<Block> for Client {
 	}
 }
 
+#[cfg(any(
+	feature = "rococo",
+	feature = "kusama",
+	feature = "westend",
+	feature = "polkadot"
+))]
 impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	fn storage(
 		&self,
@@ -546,6 +574,12 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	}
 }
 
+#[cfg(any(
+	feature = "rococo",
+	feature = "kusama",
+	feature = "westend",
+	feature = "polkadot"
+))]
 impl sp_blockchain::HeaderBackend<Block> for Client {
 	fn header(&self, id: BlockId<Block>) -> sp_blockchain::Result<Option<Header>> {
 		with_client! {
