@@ -84,10 +84,10 @@ use constants::{currency::*, fee::*, time::*};
 use frame_support::traits::InstanceFilter;
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, BackingToPlurality, ChildParachainAsNative, ChildParachainConvertsVia,
-	ChildSystemParachainAsSuperuser, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
-	IsConcrete, LocationInverter, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, UsingComponents,
+	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom, BackingToPlurality,
+	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsConcrete, LocationInverter,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, UsingComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -672,6 +672,10 @@ pub type Barrier = (
 	TakeWeightCredit,
 	AllowTopLevelPaidExecutionFrom<Everything>,
 	AllowUnpaidExecutionFrom<IsInVec<AllowUnpaidFrom>>, // <- Trusted parachains get free execution
+	// Expected responses are OK.
+	AllowKnownQueryResponses<XcmPallet>,
+	// Subscriptions for version tracking are OK.
+	AllowSubscriptionsFrom<Everything>,
 );
 
 pub struct XcmConfig;
