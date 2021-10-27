@@ -158,13 +158,23 @@ fn query_inner<D: Decode>(
 ) -> Result<Option<D>, Error> {
 	match db.get(column, key) {
 		Ok(Some(raw)) => {
-			let res = D::decode(&mut &raw[..])?;
-			Ok(Some(res))
+			let res = D::decode(&mut &raw[..])
+				.map_err(|err| {
+					tracing::warn!(
+						target: LOG_TARGET,
+						?err,
+						column,
+						"Error decoding value for key."
+					);
+					err
+				})
+				.ok();
+			Ok(res)
 		},
 		Ok(None) => Ok(None),
-		Err(e) => {
-			tracing::warn!(target: LOG_TARGET, err = ?e, "Error reading from the availability store");
-			Err(e.into())
+		Err(err) => {
+			tracing::warn!(target: LOG_TARGET, ?err, "Error reading from the availability store");
+			Err(err.into())
 		},
 	}
 }
