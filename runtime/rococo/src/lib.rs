@@ -384,6 +384,7 @@ parameter_types! {
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
+	pub const MaxReportersCount: u32 = 1_000;
 }
 
 impl pallet_im_online::Config for Runtime {
@@ -397,6 +398,7 @@ impl pallet_im_online::Config for Runtime {
 	type MaxKeys = MaxValidatorsCount;
 	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
 	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
+	type MaxReportersCount = MaxReportersCount;
 }
 
 parameter_types! {
@@ -433,6 +435,7 @@ impl pallet_offences::Config for Runtime {
 	type Event = Event;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = ();
+	type MaxReportersCount = MaxReportersCount;
 }
 
 impl pallet_authority_discovery::Config for Runtime {
@@ -520,6 +523,7 @@ impl pallet_babe::Config for Runtime {
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxValidatorsCount;
+	type MaxReportersCount = MaxReportersCount;
 }
 
 parameter_types! {
@@ -560,6 +564,7 @@ impl pallet_grandpa::Config for Runtime {
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxValidatorsCount;
+	type MaxReportersCount = MaxReportersCount;
 }
 
 parameter_types! {

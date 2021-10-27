@@ -271,6 +271,7 @@ impl pallet_babe::Config for Runtime {
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxValidatorsCount;
+	type MaxReportersCount = MaxReportersCount;
 }
 
 parameter_types! {
@@ -790,6 +791,7 @@ impl pallet_offences::Config for Runtime {
 	type Event = Event;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
+	type MaxReportersCount = MaxReportersCount;
 }
 
 impl pallet_authority_discovery::Config for Runtime {
@@ -813,6 +815,7 @@ impl pallet_im_online::Config for Runtime {
 	type MaxKeys = MaxValidatorsCount;
 	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
 	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
+	type MaxReportersCount = MaxReportersCount;
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -837,6 +840,7 @@ impl pallet_grandpa::Config for Runtime {
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxValidatorsCount;
+	type MaxReportersCount = MaxReportersCount;
 }
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
