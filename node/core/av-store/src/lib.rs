@@ -852,6 +852,7 @@ where
 					tracing::warn!(
 						target: LOG_TARGET,
 						batch_num,
+						?err,
 						"Failed to retrieve finalized block number.",
 					);
 
