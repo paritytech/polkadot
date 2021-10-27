@@ -44,6 +44,8 @@ mod util;
 
 #[cfg(test)]
 mod mock;
+#[cfg(any(test, feature = "runtime-benchmarks"))]
+mod builder;
 
 pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;
