@@ -413,20 +413,13 @@ where
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};
 
-	let mut result = validation_backend
+	let result = match validation_backend
 		.validate_candidate(validation_code, timeout, params.clone())
-		.await;
-
-	if let Err(ref e) = result {
-		tracing::debug!(
-			target: LOG_TARGET,
-			error = ?e,
-			"Failed to validate candidate",
-		);
-
-		// In case preimage for the supplied code hash was not found by the
-		// validation host, request the code from Runtime API and try again.
-		if let &ValidationError::ArtifactNotFound = e {
+		.await
+	{
+		Err(ValidationError::ArtifactNotFound) => {
+			// In case preimage for the supplied code hash was not found by the
+			// validation host, request the code from Runtime API and try again.
 			tracing::debug!(
 				target: LOG_TARGET,
 				"Validation host failed to find artifact by provided hash",
@@ -455,8 +448,17 @@ where
 				},
 			};
 			let validation_code = Pvf::from_code(raw_code.to_vec());
-			result = validation_backend.validate_candidate(validation_code, timeout, params).await;
-		}
+			validation_backend.validate_candidate(validation_code, timeout, params).await
+		},
+		result => result,
+	};
+
+	if let Err(ref e) = result {
+		tracing::debug!(
+			target: LOG_TARGET,
+			error = ?e,
+			"Failed to validate candidate",
+		);
 	}
 
 	match result {
