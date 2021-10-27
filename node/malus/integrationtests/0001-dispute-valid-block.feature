@@ -1,29 +1,29 @@
-Feature: Disputes
+Description: Disputes
+Network: ./0001-dispute-valid-block.toml
+Creds: config.gcloud
 
-  Scenario: Dispute Valid Block
-    Given a test network
-    Then sleep 60 seconds
-    Then alice is up
-    Then bob is up
-    Then charlie is up
-    Then david is up
-    And alice reports node_roles is 4
-    And alice reports sub_libp2p_is_major_syncing is 0
-    Then sleep 15 seconds
-    Then alice reports block height is at least 2
-    And alice reports peers count is at least 2
-    And bob reports block height is at least 2
-    And bob reports peers count is at least 2
-    And charlie reports block height is at least 2
-    And charlie reports peers count is at least 2
-    Then sleep 121 seconds
-    And alice reports parachain_candidate_disputes_total is at least 1
-    And bob reports parachain_candidate_disputes_total is at least 1
-    And charlie reports parachain_candidate_disputes_total is at least 1
-    Then alice reports parachain_candidate_dispute_votes{validity="valid"} is at least 1
-    And bob reports parachain_candidate_dispute_votes{validity="valid"} is at least 2
-    And charlie reports parachain_candidate_dispute_votes{validity="valid"} is at least 2
-    Then alice reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
-    Then alice reports parachain_candidate_dispute_concluded{validity="invalid"} is 0
-    Then bob reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
-    And charlie reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
+
+alice: is up
+bob: is up
+charlie: is up
+#david is up
+alice: reports node_roles is 4
+alice: reports sub_libp2p_is_major_syncing is 0
+#sleep 15 seconds
+alice: reports block height is at least 2 within 15 seconds
+alice: reports peers count is at least 2
+bob: reports block height is at least 2
+bob: reports peers count is at least 2
+charlie: reports block height is at least 2
+charlie: reports peers count is at least 2
+#sleep 121 seconds
+alice: reports parachain_candidate_disputes_total is at least 1 within 121 seconds
+bob: reports parachain_candidate_disputes_total is at least 1
+charlie: reports parachain_candidate_disputes_total is at least 1
+alice: reports parachain_candidate_dispute_votes{validity="valid"} is at least 1
+bob: reports parachain_candidate_dispute_votes{validity="valid"} is at least 2
+charlie: reports parachain_candidate_dispute_votes{validity="valid"} is at least 2
+alice: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
+alice: reports parachain_candidate_dispute_concluded{validity="invalid"} is 0
+bob: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
+charlie: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1

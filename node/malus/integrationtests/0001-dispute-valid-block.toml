@@ -1,68 +1,33 @@
-[settings.setup]
-timeout = 300
-
-[settings.defaults]
-image = "{{get_env(name="SYNTHIMAGE") | safe }}"
+[relaychain]
+default_image = "paritypr/synth-wave:3639-0.9.9-7edc6602-ed5fb773"
+chain = "wococo-local"
 command = "polkadot"
-chain-spec = "wococo-local.json"
-chain-name = "wococo-local"
-timeout = 300
 
-[init_nodes.chainspec]
-image = "{{get_env(name="SYNTHIMAGE") | safe }}"
-command = "polkadot build-spec --chain wococo-local --disable-default-bootnode --raw > /cfg/wococo-local.json"
-fetch-files = [ "/cfg/wococo-local.json" ]
-timeout = 300
+  [[relaychain.nodes]]
+  name = "alice"
+  validator = true
+  extra_args = [ "--alice", "-lparachain=debug" ]
 
-[init_nodes.parachain-specs]
-image = "{{get_env(name="COLIMAGE") | safe }}"
-command = """
-/usr/local/bin/adder-collator export-genesis-state > /cfg/genesis-state &&
-/usr/local/bin/adder-collator export-genesis-wasm > /cfg/genesis-wasm
-"""
-fetch-files = [ "/cfg/genesis-wasm", "/cfg/genesis-state" ]
-timeout = 300
+  [[relaychain.nodes]]
+  name = "bob"
+  validator = true
+  extra_args = [ "--bob", "-lparachain=debug" ]
 
-[nodes.collator01]
-image = "{{get_env(name="COLIMAGE") | safe }}"
-command-with-args = "/usr/local/bin/adder-collator -lparachain=debug --chain /cfg/wococo-local.json --port 30333 --no-mdns --bootnodes /dns/bootnode/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp"
+  [[relaychain.nodes]]
+  name = "charlie"
+  validator = true
+  extra_args = [ "--charlie", "-lparachain=debug" ]
 
-[nodes.nodejs]
-image = "{{get_env(name="SCRIPTSIMAGE") | safe }}"
-command-with-args = """
-cd simnet_scripts;
-npm run build;
-node /usr/local/bin/simnet_scripts/dist/index.js register_parachain /cfg/genesis-wasm /cfg/genesis-state 100 true ws://bootnode:9944;
-tail -f /dev/null
-"""
-copy-files = [
-	"genesis-state",
-	"genesis-wasm",
-]
-timeout = 1000
+  [[relaychain.nodes]]
+  name = "david"
+  validator = true
+  commandWithArgs = "/usr/local/bin/malus dispute-ancestor --dave -lparachain=debug"
+  image = "paritypr/malus:3639-7edc6602"
+  autoConnectApi = false
 
-[nodes.alice]
-validator = true
-image = "{{get_env(name="SYNTHIMAGE") | safe }}"
-command = "polkadot"
-extra-args = ["--alice", "-lparachain=debug"]
+[[parachains]]
+id = 100
 
-[nodes.bob]
-validator = true
-image = "{{get_env(name="SYNTHIMAGE") | safe }}"
-command = "polkadot"
-extra-args = ["--bob", "-lparachain=debug"]
-
-[nodes.charlie]
-validator = true
-image = "{{get_env(name="SYNTHIMAGE") | safe }}"
-command = "polkadot"
-extra-args = ["--charlie", "-lparachain=debug"]
-
-[nodes.david]
-validator = true
-image = "{{get_env(name="MALUSIMAGE") | safe }}"
-command = "/usr/local/bin/malus"
-subcommand = "dispute-ancestor"
-extra-args = ["--dave","-lparachain=debug"]
-
+  [parachains.collator]
+  name = "collator01"
+  commandWithArgs = "/usr/local/bin/adder-collator -lparachain=debug --chain /cfg/wococo-local.json --port 30333 --no-mdns --bootnodes /dns/bootnode/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp"

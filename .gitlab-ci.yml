@@ -718,7 +718,7 @@ zombienet-tests-malus-dispute-valid:
     - job:                         publish-adder-collator-image
 
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx-zombienet/zombienet_tests'
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx-zombienet/node/malus/integrationtests'
     # FIXME: use the master after the merge of the malus pr
     # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/simnet_tests'
     # FIXME: copy config of tests in simnet_test and use proper values
@@ -732,6 +732,7 @@ zombienet-tests-malus-dispute-valid:
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
+    - export DEBUG=zombie*
 
   script:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
