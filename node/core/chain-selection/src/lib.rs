@@ -437,30 +437,36 @@ async fn fetch_finalized(
 	ctx: &mut impl SubsystemContext,
 ) -> Result<Option<(Hash, BlockNumber)>, Error> {
 	let (number_tx, number_rx) = oneshot::channel();
-	let (hash_tx, hash_rx) = oneshot::channel();
 
 	ctx.send_message(ChainApiMessage::FinalizedBlockNumber(number_tx)).await;
 
 	let number = match number_rx.await? {
 		Ok(number) => number,
-		Err(e) => {
-			tracing::warn!(target: LOG_TARGET, "Fetching finalized number failed");
+		Err(err) => {
+			tracing::warn!(target: LOG_TARGET, ?err, "Fetching finalized number failed");
 			return Ok(None)
 		},
 	};
 
+	let (hash_tx, hash_rx) = oneshot::channel();
+
 	ctx.send_message(ChainApiMessage::FinalizedBlockHash(number, hash_tx)).await;
 
 	match hash_rx.await? {
-		Err(e) => {
-			tracing::warn!(target: LOG_TARGET, number, "Fetching finzalied block number failed");
-			return Ok(None)
+		Err(err) => {
+			tracing::warn!(
+				target: LOG_TARGET,
+				number,
+				?err,
+				"Fetching finzalied block number failed"
+			);
+			Ok(None)
 		},
 		Ok(None) => {
 			tracing::warn!(target: LOG_TARGET, number, "Missing hash for finalized block number");
-			return Ok(None)
+			Ok(None)
 		},
-		Some(h) => Ok(Some((h, number))),
+		Ok(Some(h)) => Ok(Some((h, number))),
 	}
 }
 
@@ -471,18 +477,10 @@ async fn fetch_header(
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(ChainApiMessage::BlockHeader(hash, tx)).await;
 
-	match rx.await? {
-		Err(err) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				number,
-				?err,
-				"Missing hash for finalized block number"
-			);
-			Ok(None)
-		},
-		ok_header => ok_header,
-	}
+	Ok(rx.await?.unwrap_or_else(|err| {
+		tracing::warn!(target: LOG_TARGET, ?hash, ?err, "Missing hash for finalized block number");
+		None
+	}))
 }
 
 async fn fetch_block_weight(
@@ -492,18 +490,12 @@ async fn fetch_block_weight(
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(ChainApiMessage::BlockWeight(hash, tx)).await;
 
-	match rx.await? {
-		Err(err) => {
-			tracing::warn!(
-				target: LOG_TARGET,
-				number,
-				?err,
-				"Missing hash for finalized block number"
-			);
-			Ok(None)
-		},
-		ok_weight => ok_weight,
-	}
+	let res = rx.await?;
+
+	Ok(res.unwrap_or_else(|err| {
+		tracing::warn!(target: LOG_TARGET, ?hash, ?err, "Missing hash for finalized block number");
+		None
+	}))
 }
 
 // Handle a new active leaf.
