@@ -1393,30 +1393,23 @@ impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
 	}
 }
 
-const SESSION_HISTORICAL_OLD_PREFIX: &str = "Session";
 /// Migrate session-historical from `Session` to the new pallet prefix `Historical`
 pub struct SessionHistoricalPalletPrefixMigration;
 
 impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_session::migrations::v1::migrate::<Runtime, Historical, _>(
-			SESSION_HISTORICAL_OLD_PREFIX,
-		)
+		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical, _>(
-			SESSION_HISTORICAL_OLD_PREFIX,
-		);
+		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
 		Ok(())
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_session::migrations::v1::post_migrate::<Runtime, Historical, _>(
-			SESSION_HISTORICAL_OLD_PREFIX,
-		);
+		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
 		Ok(())
 	}
 }
