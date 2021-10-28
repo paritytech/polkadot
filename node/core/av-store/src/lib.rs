@@ -162,9 +162,9 @@ fn query_inner<D: Decode>(
 			Ok(Some(res))
 		},
 		Ok(None) => Ok(None),
-		Err(e) => {
-			tracing::warn!(target: LOG_TARGET, err = ?e, "Error reading from the availability store");
-			Err(e.into())
+		Err(err) => {
+			tracing::warn!(target: LOG_TARGET, ?err, "Error reading from the availability store");
+			Err(err.into())
 		},
 	}
 }
@@ -366,6 +366,20 @@ pub enum Error {
 }
 
 impl Error {
+	/// Determine if the error is irrecoverable
+	/// or notifying the user via means of logging
+	/// is sufficient.
+	fn is_fatal(&self) -> bool {
+		match self {
+			Self::Io(_) => true,
+			Self::Oneshot(_) => true,
+			Self::CustomDatabase => true,
+			_ => false,
+		}
+	}
+}
+
+impl Error {
 	fn trace(&self) {
 		match self {
 			// don't spam the log with spurious errors
@@ -524,8 +538,7 @@ where
 		match res {
 			Err(e) => {
 				e.trace();
-
-				if let Error::Subsystem(SubsystemError::Context(_)) = e {
+				if e.is_fatal() {
 					break
 				}
 			},
@@ -840,8 +853,18 @@ where
 			let (tx, rx) = oneshot::channel();
 			ctx.send_message(ChainApiMessage::FinalizedBlockHash(batch_num, tx)).await;
 
-			match rx.await?? {
-				None => {
+			match rx.await? {
+				Err(err) => {
+					tracing::warn!(
+						target: LOG_TARGET,
+						batch_num,
+						?err,
+						"Failed to retrieve finalized block number.",
+					);
+
+					break
+				},
+				Ok(None) => {
 					tracing::warn!(
 						target: LOG_TARGET,
 						"Availability store was informed that block #{} is finalized, \
@@ -851,7 +874,7 @@ where
 
 					break
 				},
-				Some(h) => h,
+				Ok(Some(h)) => h,
 			}
 		};
 
@@ -1093,7 +1116,7 @@ fn process_message(
 				},
 				Err(e) => {
 					let _ = tx.send(Err(()));
-					return Err(e)
+					return Err(e.into())
 				},
 			}
 		},

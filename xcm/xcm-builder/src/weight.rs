@@ -156,7 +156,7 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight as u128) / 1_000_000_000_000u128;
+		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {

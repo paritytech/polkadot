@@ -117,11 +117,11 @@ macro_rules! dry_run_cmd_for { ($runtime:ident) => { paste::paste! {
 		let mut ext = crate::create_election_ext::<Runtime, Block>(
 			shared.uri.clone(),
 			config.at,
-			vec!["Staking".to_string(), "System".to_string(), "Balances".to_string()]
+			vec!["Staking".to_string(), "System".to_string()],
 		).await?;
 		force_create_snapshot::<Runtime>(&mut ext)?;
 
-		let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext)?;
+		let (raw_solution, witness) = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
 
 		let nonce = crate::get_account_info::<Runtime>(client, &signer.account, config.at)
 			.await?

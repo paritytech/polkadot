@@ -95,6 +95,8 @@ use frame_support::traits::InstanceFilter;
 // Weights used in the runtime.
 mod weights;
 
+mod bag_thresholds;
+
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -105,7 +107,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9120,
+	spec_version: 9130,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -167,9 +169,13 @@ impl Contains<Call> for BaseFilter {
 			Call::Dmp(_) |
 			Call::Ump(_) |
 			Call::Hrmp(_) |
-			Call::Slots(_) => true,
-			// Disable paras registration, crowdloans, and auctions for now.
-			Call::Registrar(_) | Call::Auctions(_) | Call::Crowdloan(_) => false,
+			Call::Slots(_) |
+			Call::Registrar(_) |
+			Call::Auctions(_) |
+			Call::Crowdloan(_) |
+			Call::BagsList(_) => true,
+			// All pallets are allowed, but exhaustive match is defensive
+			// in the case of adding new pallets.
 		}
 	}
 }
@@ -435,6 +441,17 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
 }
 
+parameter_types! {
+	pub const BagThresholds: &'static [u64] = &bag_thresholds::THRESHOLDS;
+}
+
+impl pallet_bags_list::Config for Runtime {
+	type Event = Event;
+	type VoteWeightProvider = Staking;
+	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
+	type BagThresholds = BagThresholds;
+}
+
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
 // re-built in case input parameters have changed. The `ideal_stake` should be determined by the
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
@@ -495,9 +512,8 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
-	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
-	// to bags-list is a no-op, but the storage version will be updated.
-	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
+	// Use the nominators map to iter voters, but also keep bags-list up-to-date.
+	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -1047,7 +1063,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Registrar(paras_registrar::Call::reserve {..}) |
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
-				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
+				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
+				Call::BagsList(..)
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1298,6 +1315,9 @@ construct_runtime! {
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
 
+		// Provides a semi-sorted list of nominators for staking.
+		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
+
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
@@ -1350,143 +1370,27 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(
-		SetInitialHostConfiguration,
-		BountiesPrefixMigration,
-		CouncilStoragePrefixMigration,
-		TechnicalCommitteeStoragePrefixMigration,
-		TechnicalMembershipStoragePrefixMigration,
-		MigrateTipsPalletPrefix,
-	),
+	StakingBagsListMigrationV8,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-const BOUNTIES_OLD_PREFIX: &str = "Treasury";
+// Migration to generate pallet staking's `SortedListProvider` from pre-existing nominators.
+pub struct StakingBagsListMigrationV8;
 
-/// Migrate from 'Treasury' to the new prefix 'Bounties'
-pub struct BountiesPrefixMigration;
-
-impl OnRuntimeUpgrade for BountiesPrefixMigration {
+impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
-			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::migrate::<Runtime, Bounties, _>(BOUNTIES_OLD_PREFIX, name)
+		pallet_staking::migrations::v8::migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
-			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::pre_migration::<Runtime, Bounties, _>(
-			BOUNTIES_OLD_PREFIX,
-			name,
-		);
-		Ok(())
+		pallet_staking::migrations::v8::pre_migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<Bounties>()
-			.expect("Bounties is part of runtime, so it has a name; qed");
-		pallet_bounties::migrations::v4::post_migration::<Runtime, Bounties, _>(
-			BOUNTIES_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-}
-
-const COUNCIL_OLD_PREFIX: &str = "Instance1Collective";
-/// Migrate from `Instance1Collective` to the new pallet prefix `Council`
-pub struct CouncilStoragePrefixMigration;
-
-impl OnRuntimeUpgrade for CouncilStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_collective::migrations::v4::migrate::<Runtime, Council, _>(COUNCIL_OLD_PREFIX)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::pre_migrate::<Council, _>(COUNCIL_OLD_PREFIX);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::post_migrate::<Council, _>(COUNCIL_OLD_PREFIX);
-		Ok(())
-	}
-}
-
-const TECHNICAL_COMMITTEE_OLD_PREFIX: &str = "Instance2Collective";
-/// Migrate from `Instance2Collective` to the new pallet prefix `TechnicalCommittee`
-pub struct TechnicalCommitteeStoragePrefixMigration;
-
-impl OnRuntimeUpgrade for TechnicalCommitteeStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_collective::migrations::v4::migrate::<Runtime, TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-		)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::pre_migrate::<TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_collective::migrations::v4::post_migrate::<TechnicalCommittee, _>(
-			TECHNICAL_COMMITTEE_OLD_PREFIX,
-		);
-		Ok(())
-	}
-}
-
-const TECHNICAL_MEMBERSHIP_OLD_PREFIX: &str = "Instance1Membership";
-/// Migrate from `Instance1Membership` to the new pallet prefix `TechnicalMembership`
-pub struct TechnicalMembershipStoragePrefixMigration;
-
-impl OnRuntimeUpgrade for TechnicalMembershipStoragePrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("TechnialMembership is part of runtime, so it has a name; qed");
-		pallet_membership::migrations::v4::migrate::<Runtime, TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
-		pallet_membership::migrations::v4::pre_migrate::<TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		use frame_support::traits::PalletInfo;
-		let name = <Runtime as frame_system::Config>::PalletInfo::name::<TechnicalMembership>()
-			.expect("TechnicalMembership is part of runtime, so it has a name; qed");
-		pallet_membership::migrations::v4::post_migrate::<TechnicalMembership, _>(
-			TECHNICAL_MEMBERSHIP_OLD_PREFIX,
-			name,
-		);
-		Ok(())
+		pallet_staking::migrations::v8::post_migrate::<Runtime>()
 	}
 }
 
@@ -1665,6 +1569,16 @@ sp_api::impl_runtime_apis! {
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			parachains_runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			parachains_runtime_api_impl::assumed_validation_data::<Runtime>(
+				para_id,
+				expected_persisted_validation_data_hash,
+			)
 		}
 
 		fn check_validation_outputs(
@@ -1918,6 +1832,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_parachains::initializer, Initializer);
 			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
 			// Substrate
+			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_bounties, Bounties);
 			list_benchmark!(list, extra, pallet_collective, Council);
@@ -1993,6 +1908,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
 			// Substrate
+			add_benchmark!(params, batches, pallet_bags_list, BagsList);
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
 			add_benchmark!(params, batches, pallet_collective, Council);
