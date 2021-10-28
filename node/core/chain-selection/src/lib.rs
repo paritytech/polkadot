@@ -458,7 +458,7 @@ async fn fetch_finalized(
 				target: LOG_TARGET,
 				number,
 				?err,
-				"Fetching finzalied block number failed"
+				"Fetching finalized block number failed"
 			);
 			Ok(None)
 		},

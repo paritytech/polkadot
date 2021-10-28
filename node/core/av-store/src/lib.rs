@@ -366,6 +366,9 @@ pub enum Error {
 }
 
 impl Error {
+	/// Determine if the error is irrecoverable
+	/// or notifying the user via means of logging
+	/// is sufficient.
 	fn is_fatal(&self) -> bool {
 		match self {
 			Self::Io(_) => true,
