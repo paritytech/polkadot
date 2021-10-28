@@ -1,6 +1,6 @@
 
 Description: Disputes
-Network: ./0002-dispute-unavailable-block.toml
+Network: ./0003-dispute-unavailable-block.toml
 Creds: config.gcloud
 
 

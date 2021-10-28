@@ -1,8 +1,10 @@
+[settings]
+timeout = 1000
+
 [relaychain]
 default_image = "paritypr/synth-wave:3639-0.9.9-7edc6602-ed5fb773"
 chain = "polkadot-local"
 command = "polkadot"
-timeout = "1000"
 
   [[relaychain.nodes]]
   name = "alice"
