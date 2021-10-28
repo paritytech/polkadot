@@ -203,6 +203,10 @@ impl<T: Config> Pallet<T> {
 		T::DbWeight::get().reads_writes(1, 1)
 	}
 
+	pub(crate) fn prune_dmq_weight() -> Weight {
+		T::DbWeight::get().reads_writes(1, 1)
+	}
+
 	/// Returns the Head of Message Queue Chain for the given para or `None` if there is none
 	/// associated with it.
 	#[cfg(test)]

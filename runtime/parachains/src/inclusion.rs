@@ -257,15 +257,17 @@ impl<T: Config> Pallet<T> {
 
 	/// Process a set of incoming bitfields.
 	///
-	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
-	/// and cores free.
+	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became
+	/// available, cores free, and enactment weight.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
 		unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
+	) -> Result<(Vec<(CoreIndex, CandidateHash)>, Weight)
+	, DispatchError> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
+		let mut enacted_candidate_weight = 0;
 
 		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
@@ -383,7 +385,7 @@ impl<T: Config> Pallet<T> {
 					descriptor: pending_availability.descriptor,
 					commitments,
 				};
-				Self::enact_candidate(
+				enacted_candidate_weight += Self::enact_candidate(
 					pending_availability.relay_parent_number,
 					receipt,
 					pending_availability.backers,
@@ -398,7 +400,7 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		Ok(freed_cores)
+		Ok((freed_cores, enacted_candidate_weight))
 	}
 
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
@@ -717,6 +719,8 @@ impl<T: Config> Pallet<T> {
 		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
 		let config = <configuration::Pallet<T>>::config();
+		// initial weight is config read.
+		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 
 		T::RewardValidators::reward_backing(
 			backers
@@ -734,8 +738,6 @@ impl<T: Config> Pallet<T> {
 				.map(|(i, _)| ValidatorIndex(i as _)),
 		);
 
-		// initial weight is config read.
-		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 		if let Some(new_code) = commitments.new_validation_code {
 			weight += <paras::Pallet<T>>::schedule_code_upgrade(
 				receipt.descriptor.para_id,
@@ -776,6 +778,26 @@ impl<T: Config> Pallet<T> {
 				commitments.head_data,
 				relay_parent_number,
 			)
+	}
+
+	/// Worst case weight for `enact_candidate`. `enact_candidate` should return actual weight used.
+	pub(crate) fn enact_candidate_weight(
+		hrmp_max_message_num_per_candidate: u32,
+		max_upward_message_num_per_candidate: u32,
+		hrmp_max_parachain_inbound_channels: u32,
+		hrmp_max_parathread_inbound_channels: u32,
+	) -> Weight {
+		T::DbWeight::get().reads(1) // initial weight is config read.
+			// enact the messaging facet of the candidate.
+			+ <paras::Pallet<T>>::schedule_code_upgrade_weight()
+			+ <dmp::Pallet<T>>::prune_dmq_weight()
+			+ <ump::Pallet<T>>::receive_upward_messages_weight(max_upward_message_num_per_candidate)
+			+ <hrmp::Pallet<T>>::prune_hrmp_weight(
+					hrmp_max_parachain_inbound_channels,
+					hrmp_max_parathread_inbound_channels
+				)
+			+ <hrmp::Pallet<T>>::queue_outbound_hrmp_weight(hrmp_max_message_num_per_candidate)
+			+ <paras::Pallet<T>>::note_new_head_weight()
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
@@ -1451,8 +1473,8 @@ mod tests {
 						expected_bits(),
 						vec![signed.into()],
 						&core_lookup,
-					),
-					Ok(vec![])
+					).unwrap().0,
+					vec![]
 				);
 			}
 
@@ -1556,8 +1578,8 @@ mod tests {
 						expected_bits(),
 						vec![signed.into()],
 						&core_lookup,
-					),
-					Ok(vec![]),
+					).unwrap().0,
+					vec![],
 				);
 			}
 		});

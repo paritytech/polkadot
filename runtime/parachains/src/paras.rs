@@ -1002,6 +1002,11 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
+	/// Worst case weight for `schedule_code_upgrade`.
+	pub(crate) fn schedule_code_upgrade_weight() -> Weight {
+		T::DbWeight::get().reads_writes(2 + 1, 3 + 2)
+	}
+
 	/// Note that a para has progressed to a new head, where the new head was executed in the context
 	/// of a relay-chain block with given number. This will apply pending code upgrades based
 	/// on the relay-parent block number provided.
@@ -1038,6 +1043,11 @@ impl<T: Config> Pallet<T> {
 		} else {
 			T::DbWeight::get().reads_writes(1, 1)
 		}
+	}
+
+	/// Worst case weight for `note_new_head`.
+	pub(crate) fn note_new_head_weight() -> Weight {
+		T::DbWeight::get().reads_writes(2 + 3, 3 + 1 + 3)
 	}
 
 	/// Fetches the validation code hash for the validation code to be used when validating a block

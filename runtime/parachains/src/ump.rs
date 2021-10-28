@@ -451,6 +451,18 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
+	/// Worst case weight for `receive_upward_messages`.
+	pub(crate) fn receive_upward_messages_weight(
+		max_upward_message_num_per_candidate: u32,
+	) -> Weight {
+		use sp_runtime::traits::Zero;
+		if !max_upward_message_num_per_candidate.is_zero() {
+			T::DbWeight::get().reads_writes(3, 3)
+		} else {
+			0
+		}
+	}
+
 	/// Devote some time into dispatching pending upward messages.
 	pub(crate) fn process_pending_upward_messages() -> Weight {
 		let mut weight_used = 0;

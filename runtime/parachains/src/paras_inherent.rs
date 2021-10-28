@@ -25,7 +25,7 @@ use crate::{
 	disputes::DisputesHandler,
 	inclusion,
 	scheduler::{self, FreedReason},
-	shared, ump,
+	shared, ump, configuration
 };
 use frame_support::{
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
@@ -58,7 +58,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config: inclusion::Config + scheduler::Config {}
+	pub trait Config: inclusion::Config + scheduler::Config + configuration::Config {}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -153,7 +153,17 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[pallet::weight((
-			MINIMAL_INCLUSION_INHERENT_WEIGHT + data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
+			{
+				let c = <configuration::Pallet<T>>::config();
+				MINIMAL_INCLUSION_INHERENT_WEIGHT
+				+ data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT
+				+ <inclusion::Pallet<T>>::enact_candidate_weight(
+					c.hrmp_max_message_num_per_candidate,
+					c.max_upward_message_num_per_candidate,
+					c.hrmp_max_parachain_inbound_channels,
+					c.hrmp_max_parathread_inbound_channels,
+				)
+			},
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(
@@ -219,7 +229,7 @@ pub mod pallet {
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
 			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
-			let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
+			let (freed_concluded, enacted_weight) = <inclusion::Pallet<T>>::process_bitfields(
 				expected_bits,
 				signed_bitfields,
 				<scheduler::Pallet<T>>::core_para,
@@ -296,7 +306,7 @@ pub mod pallet {
 			Included::<T>::set(Some(()));
 
 			Ok(Some(
-				MINIMAL_INCLUSION_INHERENT_WEIGHT +
+				enacted_weight + MINIMAL_INCLUSION_INHERENT_WEIGHT +
 					(backed_candidates_len * BACKED_CANDIDATE_WEIGHT),
 			)
 			.into())
