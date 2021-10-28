@@ -41,7 +41,7 @@ use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Contains, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
-	weights::{constants::WEIGHT_PER_MILLIS, Weight},
+	weights::Weight,
 	PalletId, RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
@@ -1390,106 +1390,6 @@ impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
 		pallet_staking::migrations::v8::post_migrate::<Runtime>()
-	}
-}
-
-/// Set the initial host configuration for Polkadot.
-pub struct SetInitialHostConfiguration;
-impl OnRuntimeUpgrade for SetInitialHostConfiguration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use parachains_configuration::HostConfiguration;
-
-		let active_config: HostConfiguration<BlockNumber> = HostConfiguration {
-			max_code_size: 10_485_760,
-			max_head_data_size: 20_480,
-			max_upward_queue_count: 10,
-			max_upward_queue_size: 51_200,
-			max_upward_message_size: 51_200,
-			max_upward_message_num_per_candidate: 10,
-			hrmp_max_message_num_per_candidate: 10,
-			validation_upgrade_frequency: 14_400,
-			validation_upgrade_delay: 600,
-			max_pov_size: 5_242_880,
-			max_downward_message_size: 51_200,
-			ump_service_total_weight: 100_000_000_000,
-			hrmp_max_parachain_outbound_channels: 10,
-			hrmp_max_parathread_outbound_channels: 0,
-			hrmp_sender_deposit: deposit(1004, 100 * 1024),
-			hrmp_recipient_deposit: deposit(1004, 100 * 1024),
-			hrmp_channel_max_capacity: 1_000,
-			hrmp_channel_max_total_size: 102_400,
-			hrmp_max_parachain_inbound_channels: 10,
-			hrmp_max_parathread_inbound_channels: 0,
-			hrmp_channel_max_message_size: 102_400,
-			code_retention_period: EPOCH_DURATION_IN_SLOTS * 6,
-			parathread_cores: 0,
-			parathread_retries: 0,
-			group_rotation_frequency: 10,
-			chain_availability_period: 10,
-			thread_availability_period: 10,
-			scheduling_lookahead: 1,
-			max_validators_per_core: Some(5),
-			max_validators: Some(200),
-			dispute_period: 6,
-			dispute_post_conclusion_acceptance_period: 600,
-			dispute_max_spam_slots: 2,
-			dispute_conclusion_by_time_out_period: 600,
-			no_show_slots: 2,
-			n_delay_tranches: 89,
-			zeroth_delay_tranche_width: 0,
-			needed_approvals: 30,
-			relay_vrf_modulo_samples: 40,
-			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
-		};
-
-		// Only set the config if it's needed to be set explicitly.
-		if Configuration::config() == Default::default() {
-			Configuration::force_set_active_config(active_config);
-		}
-
-		{
-			// At the moment, the `parachains_configuration` crate has already had one runtime
-			// storage migration (performed as part of [#3575]). As the result a call to
-			// `StorageVersion::get::<Configuration>` will return `Some(1)`
-			//
-			// However, Polkadot is just about to have its first version of parachains runtime
-			// pallets and thus there is no existing storage which needs to be migrated. Above
-			// we just have set the active configuration of the actual version, i.e. the same as the
-			// version 1 on Kusama.
-			//
-			// The caveat here is when we deploy a module for the first time, it's runtime version
-			// will be empty and thus it will be considered as version 0. Since we want to avoid
-			// the situation where the same storage structure has version 0 on Polkadot and
-			// version 1 on Kusama we need to set the storage version explicitly.
-			//
-			// [#3575]: https://github.com/paritytech/polkadot/pull/3575
-			use frame_support::traits::StorageVersion;
-			StorageVersion::new(1).put::<Configuration>();
-		}
-
-		RocksDbWeight::get().reads(1) + RocksDbWeight::get().writes(1)
-	}
-}
-
-const TIPS_OLD_PREFIX: &str = "Treasury";
-/// Migrate pallet-tips from `Treasury` to the new pallet prefix `Tips`
-pub struct MigrateTipsPalletPrefix;
-
-impl OnRuntimeUpgrade for MigrateTipsPalletPrefix {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_tips::migrations::v4::migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_tips::migrations::v4::pre_migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX);
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_tips::migrations::v4::post_migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX);
-		Ok(())
 	}
 }
 
