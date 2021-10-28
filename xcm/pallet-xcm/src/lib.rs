@@ -1298,26 +1298,6 @@ pub mod pallet {
 	}
 }
 
-#[cfg(feature = "std")]
-impl GenesisConfig {
-	/// Direct implementation of `GenesisBuild::build_storage`.
-	///
-	/// Kept in order not to break dependency.
-	pub fn build_storage<T: Config>(&self) -> Result<sp_runtime::Storage, String> {
-		<Self as frame_support::traits::GenesisBuild<T>>::build_storage(self)
-	}
-
-	/// Direct implementation of `GenesisBuild::assimilate_storage`.
-	///
-	/// Kept in order not to break dependency.
-	pub fn assimilate_storage<T: Config>(
-		&self,
-		storage: &mut sp_runtime::Storage,
-	) -> Result<(), String> {
-		<Self as frame_support::traits::GenesisBuild<T>>::assimilate_storage(self, storage)
-	}
-}
-
 /// Ensure that the origin `o` represents an XCM (`Transact`) origin.
 ///
 /// Returns `Ok` with the location of the XCM sender or an `Err` otherwise.
