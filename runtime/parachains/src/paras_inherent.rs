@@ -155,6 +155,9 @@ pub mod pallet {
 		#[pallet::weight((
 			{
 				let c = <configuration::Pallet<T>>::config();
+				let num_cores = c.max_validators // TODO check if better way to do this
+					.unwrap_or_default()
+					/ c.max_validators_per_core.unwrap_or_default();
 				MINIMAL_INCLUSION_INHERENT_WEIGHT
 				+ data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT
 				+ <inclusion::Pallet<T>>::enact_candidate_weight(
@@ -162,7 +165,7 @@ pub mod pallet {
 					c.max_upward_message_num_per_candidate,
 					c.hrmp_max_parachain_inbound_channels,
 					c.hrmp_max_parathread_inbound_channels,
-				)
+				) * num_cores as u64
 			},
 			DispatchClass::Mandatory,
 		))]
