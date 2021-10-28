@@ -861,7 +861,7 @@ fn subscriber_side_subscription_works() {
 	});
 }
 
-/// We should autosubscribe when we don't know the remote's version.
+/// We should auto-subscribe when we don't know the remote's version.
 #[test]
 fn auto_subscription_works() {
 	new_test_ext_with_balances(vec![]).execute_with(|| {
