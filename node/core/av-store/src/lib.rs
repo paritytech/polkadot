@@ -158,18 +158,8 @@ fn query_inner<D: Decode>(
 ) -> Result<Option<D>, Error> {
 	match db.get(column, key) {
 		Ok(Some(raw)) => {
-			let res = D::decode(&mut &raw[..])
-				.map_err(|err| {
-					tracing::warn!(
-						target: LOG_TARGET,
-						?err,
-						column,
-						"Error decoding value for key."
-					);
-					err
-				})
-				.ok();
-			Ok(res)
+			let res = D::decode(&mut &raw[..])?;
+			Ok(Some(res))
 		},
 		Ok(None) => Ok(None),
 		Err(err) => {
@@ -376,6 +366,17 @@ pub enum Error {
 }
 
 impl Error {
+	fn is_fatal(&self) -> bool {
+		match self {
+			Self::Io(_) => true,
+			Self::Oneshot(_) => true,
+			Self::CustomDatabase => true,
+			_ => false,
+		}
+	}
+}
+
+impl Error {
 	fn trace(&self) {
 		match self {
 			// don't spam the log with spurious errors
@@ -534,7 +535,9 @@ where
 		match res {
 			Err(e) => {
 				e.trace();
-				break
+				if e.is_fatal() {
+					break
+				}
 			},
 			Ok(true) => {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
@@ -1110,7 +1113,7 @@ fn process_message(
 				},
 				Err(e) => {
 					let _ = tx.send(Err(()));
-					return Err(e)
+					return Err(e.into())
 				},
 			}
 		},
