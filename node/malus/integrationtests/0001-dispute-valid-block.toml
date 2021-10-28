@@ -2,6 +2,7 @@
 default_image = "paritypr/synth-wave:3639-0.9.9-7edc6602-ed5fb773"
 chain = "wococo-local"
 command = "polkadot"
+timeout = "600"
 
   [[relaychain.nodes]]
   name = "alice"

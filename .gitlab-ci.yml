@@ -737,7 +737,6 @@ zombienet-tests-malus-dispute-valid:
   script:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --test=001-dispute-valid-block.feature
   allow_failure:                   true
   retry: 2
   tags:
