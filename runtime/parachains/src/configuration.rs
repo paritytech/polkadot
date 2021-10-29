@@ -77,6 +77,20 @@ pub struct HostConfiguration<BlockNumber> {
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
 
+	// TODO: Which section do these belong to?
+	/// Additional delay applied for parachains when they upgrade their runtime (see `pvf_upgrade_delay`).
+	pub min_upgrade_delay: BlockNumber,
+	/// Disables PVF prechecking.
+	pub pvf_prechecking_bypass: bool,
+
+	// TODO: Is this additional field needed? Could simply keep validation_upgrade_delay.
+	// Also the naming is questionable.
+	/// The delay, in blocks, before the stored PVF becomes usable.
+	pub pvf_upgrade_delay: BlockNumber,
+	/// The number of session changes a PVF pre-checking voting can observe, exclusive,
+	/// i.e. observing at least this many would cause a PVF to get rejected.
+	pub pvf_voting_ttl: SessionIndex,
+
 	/**
 	 * The parameters that are not essential, but still may be of interest for parachains.
 	 */
@@ -188,6 +202,11 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			no_show_slots: 1u32.into(),
 			validation_upgrade_frequency: Default::default(),
 			validation_upgrade_delay: Default::default(),
+			// TODO: defaults for migration.
+			min_upgrade_delay: Default::default(),
+			pvf_prechecking_bypass: Default::default(),
+			pvf_upgrade_delay: Default::default(),
+			pvf_voting_ttl: Default::default(),
 			code_retention_period: Default::default(),
 			max_code_size: Default::default(),
 			max_pov_size: Default::default(),
@@ -382,6 +401,58 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.validation_upgrade_delay, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the minimum upgrade delay.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_block_number(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_min_upgrade_delay(origin: OriginFor<T>, new: T::BlockNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.min_upgrade_delay, new) != new
+			});
+			Ok(())
+		}
+
+		/// Enable or disable PVF prechecking.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_block_number(), // TODO: weight for booleans.
+			DispatchClass::Operational,
+		))]
+		pub fn set_pvf_prechecking_bypass(origin: OriginFor<T>, new: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.pvf_prechecking_bypass, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the minimum delay in blocks for PVF upgrades.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_block_number(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_pvf_upgrade_delay(origin: OriginFor<T>, new: T::BlockNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.pvf_upgrade_delay, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of session changes a PVF pre-checking voting can observe.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_u32(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_pvf_voting_ttl(origin: OriginFor<T>, new: SessionIndex) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.pvf_voting_ttl, new) != new
 			});
 			Ok(())
 		}
@@ -1048,6 +1119,10 @@ mod tests {
 			let new_config = HostConfiguration {
 				validation_upgrade_frequency: 100,
 				validation_upgrade_delay: 10,
+				min_upgrade_delay: 15,
+				pvf_prechecking_bypass: false,
+				pvf_upgrade_delay: 10,
+				pvf_voting_ttl: 100,
 				code_retention_period: 5,
 				max_code_size: 100_000,
 				max_pov_size: 1024,
@@ -1100,6 +1175,16 @@ mod tests {
 				new_config.validation_upgrade_delay,
 			)
 			.unwrap();
+			Configuration::set_min_upgrade_delay(Origin::root(), new_config.min_upgrade_delay)
+				.unwrap();
+			Configuration::set_pvf_prechecking_bypass(
+				Origin::root(),
+				new_config.pvf_prechecking_bypass,
+			)
+			.unwrap();
+			Configuration::set_pvf_upgrade_delay(Origin::root(), new_config.pvf_upgrade_delay)
+				.unwrap();
+			Configuration::set_pvf_voting_ttl(Origin::root(), new_config.pvf_voting_ttl).unwrap();
 			Configuration::set_code_retention_period(
 				Origin::root(),
 				new_config.code_retention_period,
