@@ -46,13 +46,11 @@ fn queue_upward_msg<T: Config>(
 	assert_last_event::<T>(Event::UpwardMessagesReceived(para, 1, len).into());
 }
 
-fn create_message<T: Config>(weight: u64) -> Vec<u8> {
+fn create_message<T: Config>(weight: u64, size: u32) -> Vec<u8> {
 	// fill the remark but leave some bytes for the encoding of the message
-	let max_size = configuration::ActiveConfig::<T>::get()
-		.max_upward_message_size
-		.saturating_sub(20) as usize;
+	let size = size.saturating_sub(20) as usize;
 	let mut remark = Vec::new();
-	remark.resize(max_size, 0u8);
+	remark.resize(size, 0u8);
 	let call = frame_system::Call::<T>::remark_with_event { remark };
 	VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_type: OriginKind::SovereignAccount,
@@ -63,14 +61,26 @@ fn create_message<T: Config>(weight: u64) -> Vec<u8> {
 }
 
 frame_benchmarking::benchmarks! {
+	process_upward_message {
+		let s in 0..configuration::ActiveConfig::<T>::get().max_upward_message_size;
+		let para = ParaId::from(1978);
+		let host_conf = configuration::ActiveConfig::<T>::get();
+		let weight = host_conf.ump_max_individual_weight + 1;
+		let data = create_message::<T>(weight, s);
+	}: {
+		assert!(T::UmpSink::process_upward_message(para, &data[..], Weight::MAX).is_ok());
+	}
+
 	service_overweight {
 		let host_conf = configuration::ActiveConfig::<T>::get();
 		let weight = host_conf.ump_max_individual_weight + 1;
 		let para = ParaId::from(1978);
 		// The message's weight does not really matter here, as we add service_overweight's
 		// max_weight parameter to the extrinsic's weight in the weight calculation.
-		// The size of the message influences decoding time, so we create a max-sized message here.
-		let msg = create_message::<T>(weight.into());
+		// The size of the message influences decoding time, so we create a min-sized message here
+		// and take the decoding weight into account by adding it to the extrinsic execution weight
+		// in the process_upward_message function.
+		let msg = create_message::<T>(weight.into(), 0);
 
 		// This just makes sure that 0 is not a valid index and we can use it later on.
 		let _ = Ump::<T>::service_overweight(RawOrigin::Root.into(), 0, 1000);
@@ -81,7 +91,7 @@ frame_benchmarking::benchmarks! {
 		Ump::<T>::process_pending_upward_messages();
 		assert_last_event_type::<T>(
 			Event::OverweightEnqueued(para, upward_message_id(&msg), 0, 0).into()
-		);
+			);
 	}: _(RawOrigin::Root, 0, Weight::MAX)
 	verify {
 		assert_last_event_type::<T>(Event::OverweightServiced(0, 0).into());

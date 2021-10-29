@@ -103,25 +103,30 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut &data[..],
 		)
-		.map(Xcm::<C::Call>::try_from);
+		.map(|xcm| {
+			(
+				Xcm::<C::Call>::try_from(xcm),
+				<C as Config>::WeightInfo::process_upward_message(data.len() as u32),
+			)
+		});
 		match maybe_msg {
 			Err(_) => {
 				Pallet::<C>::deposit_event(Event::InvalidFormat(id));
 				Ok(0)
 			},
-			Ok(Err(())) => {
+			Ok((Err(()), weight_used)) => {
 				Pallet::<C>::deposit_event(Event::UnsupportedVersion(id));
-				Ok(0)
+				Ok(weight_used)
 			},
-			Ok(Ok(xcm_message)) => {
+			Ok((Ok(xcm_message), weight_used)) => {
 				let xcm_junction = Junction::Parachain(origin.into());
 				let outcome = XcmExecutor::execute_xcm(xcm_junction, xcm_message, max_weight);
 				match outcome {
 					Outcome::Error(XcmError::WeightLimitReached(required)) => Err((id, required)),
 					outcome => {
-						let weight_used = outcome.weight_used();
+						let outcome_weight = outcome.weight_used();
 						Pallet::<C>::deposit_event(Event::ExecutedUpward(id, outcome));
-						Ok(weight_used)
+						Ok(weight_used.saturating_add(outcome_weight))
 					},
 				}
 			},
@@ -167,11 +172,16 @@ impl fmt::Debug for AcceptanceCheckErr {
 
 pub trait WeightInfo {
 	fn service_overweight() -> Weight;
+	fn process_upward_message(s: u32) -> Weight;
 }
 
 // fallback implementation
 impl WeightInfo for () {
 	fn service_overweight() -> Weight {
+		BlockWeights::default().max_block
+	}
+
+	fn process_upward_message(s: u32) -> Weight {
 		BlockWeights::default().max_block
 	}
 }
