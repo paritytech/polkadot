@@ -181,7 +181,7 @@ impl WeightInfo for () {
 		BlockWeights::default().max_block
 	}
 
-	fn process_upward_message(s: u32) -> Weight {
+	fn process_upward_message(_msg_size: u32) -> Weight {
 		BlockWeights::default().max_block
 	}
 }
