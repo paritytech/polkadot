@@ -733,6 +733,8 @@ zombienet-tests-malus-dispute-valid:
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
     - export DEBUG=zombie*,-zombie::port-forwarder
+    - export SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
 
   script:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
