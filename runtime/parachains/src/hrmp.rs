@@ -992,7 +992,7 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
-	/// Worst case weight for queue outbound hrmp.
+	/// Worst case weight for `queue_outbound_hrmp`.
 	pub(crate) fn queue_outbound_hrmp_weight(hrmp_max_message_num_per_candidate: u32) -> Weight {
 		let reads = (3 * hrmp_max_message_num_per_candidate).into();
 		let writes = (2 * hrmp_max_message_num_per_candidate).into();
