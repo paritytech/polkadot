@@ -1104,7 +1104,6 @@ mod tests {
 
 			let header = default_header();
 			let relay_parent = header.hash();
-			// 2 cores means two bits
 			let session_index = SessionIndex::from(0_u32);
 
 			let keystore = LocalKeystore::in_memory();
@@ -1128,13 +1127,13 @@ mod tests {
 
 			let has_concluded_invalid = |_candidate: CandidateHash| -> bool { false };
 
-			let scheduled = (1_usize..4)
+			let scheduled = (0_usize..2)
 				.into_iter()
 				.map(|idx| {
 					let ca = CoreAssignment {
 						kind: scheduler::AssignmentKind::Parachain,
 						group_idx: GroupIndex::from(idx as u32),
-						para_id: ParaId::from(idx as u32),
+						para_id: ParaId::from(1_u32 + idx as u32),
 						core: CoreIndex::from(idx as u32),
 					};
 					ca
@@ -1146,19 +1145,19 @@ mod tests {
 				match group_index {
 					group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1]),
 					group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
-					group_index if group_index == GroupIndex::from(2) => Some(vec![4]),
 					_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
 				}
 				.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
 			};
 
-			let backed_candidates = (1_usize..4)
+			let backed_candidates = (0_usize..2)
 				.into_iter()
-				.map(|idx| {
+				.map(|idx0| {
+					let idx1 = idx0 + 1;
 					let mut candidate = TestCandidateBuilder {
-						para_id: ParaId::from(idx),
+						para_id: ParaId::from(idx1),
 						relay_parent,
-						pov_hash: Hash::repeat_byte(idx as u8),
+						pov_hash: Hash::repeat_byte(idx1 as u8),
 						persisted_validation_data_hash: [42u8; 32].into(),
 						hrmp_watermark: RELAY_PARENT_NUM,
 						..Default::default()
@@ -1170,7 +1169,7 @@ mod tests {
 					let backed = block_on(back_candidate(
 						candidate,
 						&validators,
-						group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+						group_validators(GroupIndex::from(idx0 as u32)).unwrap().as_ref(),
 						&keystore,
 						&signing_context,
 						BackingKind::Threshold,
@@ -1207,12 +1206,13 @@ mod tests {
 			// nothing is scheduled, so no paraids match,
 			// hence no backed candidate makes it through
 			{
+				let scheduled = &[][..];
 				assert_matches!(
 					sanitize_backed_candidates::<Test, _, true>(
 						relay_parent,
 						backed_candidates.clone(),
 						has_concluded_invalid,
-						&[][..]
+						scheduled
 					),
 					Err(Error::<Test>::CandidateConcludedInvalid)
 				);
@@ -1221,7 +1221,7 @@ mod tests {
 						relay_parent,
 						backed_candidates.clone(),
 						has_concluded_invalid,
-						&[][..]
+						scheduled
 					),
 					Ok(sanitized_backed_candidates) => {
 						assert_eq!(0, sanitized_backed_candidates.len());
@@ -1256,6 +1256,7 @@ mod tests {
 
 			// relay parent mismatch
 			{
+				// mark every second one as concluded invalid
 				let set = {
 					let mut set = std::collections::HashSet::new();
 					for (idx, backed_candidate) in backed_candidates.iter().enumerate() {
@@ -1283,7 +1284,7 @@ mod tests {
 						scheduled
 					),
 					Ok(sanitized_backed_candidates) => {
-						assert_eq!(0, sanitized_backed_candidates.len() >> 1);
+						assert_eq!(0, sanitized_backed_candidates.len() / 2);
 					}
 				);
 			}
