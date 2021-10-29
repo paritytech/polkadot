@@ -1191,6 +1191,7 @@ where
 				);
 				dequeue_next_collation_and_fetch(&mut ctx, &mut state, relay_parent, collator_id).await;
 			}
+			default => {}, // if no future is ready, poll requested collations
 		}
 
 		let mut retained_requested = HashSet::new();
