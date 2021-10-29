@@ -1190,8 +1190,8 @@ where
 							&mut state,
 						).await;
 					}
-					Ok(FromOverseer::Signal(Conclude)) => break,
-					_ => {},
+					Ok(FromOverseer::Signal(Conclude)) | Err(_) => break,
+					Ok(FromOverseer::Signal(_)) => continue,
 				}
 			}
 			_ = next_inactivity_stream.next() => {
@@ -1209,27 +1209,47 @@ where
 				);
 				dequeue_next_collation_and_fetch(&mut ctx, &mut state, relay_parent, collator_id).await;
 			}
-			default => {}, // if no future is ready, poll requested collations
-		}
-
-		let mut retained_requested = HashSet::new();
-		for (pending_collation, per_req) in state.requested_collations.iter_mut() {
-			// Despite the await, this won't block on the response itself.
-			let finished = poll_collation_response(
-				&mut ctx,
+			reputation_changes = advance_collations(
+				&mut state.requested_collations,
 				&state.metrics,
 				&state.span_per_relay_parent,
-				pending_collation,
-				per_req,
-			)
-			.await;
-			if !finished {
-				retained_requested.insert(pending_collation.clone());
-			}
+			).fuse() => {
+				for (peer_id, rep) in reputation_changes {
+					modify_reputation(&mut ctx, peer_id, rep).await;
+				}
+			},
 		}
-		state.requested_collations.retain(|k, _| retained_requested.contains(k));
 	}
+
 	Ok(())
+}
+
+async fn advance_collations(
+	requested_collations: &mut HashMap<PendingCollation, PerRequest>,
+	metrics: &Metrics,
+	span_per_relay_parent: &HashMap<Hash, PerLeafSpan>,
+) -> Vec<(PeerId, Rep)> {
+	let mut retained_requested = HashSet::new();
+	let mut reputation_changes = Vec::new();
+	for (pending_collation, per_req) in requested_collations.iter_mut() {
+		// Despite the await, this won't block on the response itself.
+		let (finished, maybe_rep) = poll_collation_response(
+			metrics,
+			span_per_relay_parent,
+			pending_collation,
+			per_req,
+		)
+		.await;
+
+		if !finished {
+			retained_requested.insert(pending_collation.clone());
+		}
+		if let Some(rep) = maybe_rep {
+			reputation_changes.push((pending_collation.peer_id.clone(), rep));
+		}
+	}
+	requested_collations.retain(|k, _| retained_requested.contains(k));
+	reputation_changes
 }
 
 /// Dequeue another collation and fetch.
@@ -1338,24 +1358,19 @@ async fn disconnect_inactive_peers<Context>(
 /// Ready responses are handled, by logging and decreasing peer's reputation on error and by
 /// forwarding proper responses to the requester.
 ///
-/// Returns: `true` if `from_collator` future was ready.
-async fn poll_collation_response<Context>(
-	ctx: &mut Context,
+/// Returns: `true` if `from_collator` future was ready and maybe a reputation change.
+async fn poll_collation_response(
 	metrics: &Metrics,
 	spans: &HashMap<Hash, PerLeafSpan>,
 	pending_collation: &PendingCollation,
 	per_req: &mut PerRequest,
-) -> bool
-where
-	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
-	Context: SubsystemContext,
-{
+) -> (bool, Option<Rep>) {
 	if never!(per_req.from_collator.is_terminated()) {
 		tracing::error!(
 			target: LOG_TARGET,
 			"We remove pending responses once received, this should not happen."
 		);
-		return true
+		return (true, None)
 	}
 
 	if let Poll::Ready(response) = futures::poll!(&mut per_req.from_collator) {
@@ -1367,7 +1382,7 @@ where
 		let mut metrics_result = Err(());
 		let mut success = "false";
 
-		match response {
+		let reputation_change = match response {
 			Err(RequestError::InvalidResponse(err)) => {
 				tracing::warn!(
 					target: LOG_TARGET,
@@ -1377,8 +1392,7 @@ where
 					err = ?err,
 					"Collator provided response that could not be decoded"
 				);
-				modify_reputation(ctx, pending_collation.peer_id.clone(), COST_CORRUPTED_MESSAGE)
-					.await;
+				Some(COST_CORRUPTED_MESSAGE)
 			},
 			Err(RequestError::NetworkError(err)) => {
 				tracing::debug!(
@@ -1393,7 +1407,7 @@ where
 				// sensible. In theory this could be exploited, by DoSing this node,
 				// which would result in reduced reputation for proper nodes, but the
 				// same can happen for penalties on timeouts, which we also have.
-				modify_reputation(ctx, pending_collation.peer_id.clone(), COST_NETWORK_ERROR).await;
+				Some(COST_NETWORK_ERROR)
 			},
 			Err(RequestError::Canceled(_)) => {
 				tracing::debug!(
@@ -1407,8 +1421,7 @@ where
 				// sensible. In theory this could be exploited, by DoSing this node,
 				// which would result in reduced reputation for proper nodes, but the
 				// same can happen for penalties on timeouts, which we also have.
-				modify_reputation(ctx, pending_collation.peer_id.clone(), COST_REQUEST_TIMED_OUT)
-					.await;
+				Some(COST_REQUEST_TIMED_OUT)
 			},
 			Ok(CollationFetchingResponse::Collation(receipt, _))
 				if receipt.descriptor().para_id != pending_collation.para_id =>
@@ -1421,7 +1434,7 @@ where
 					"Got wrong para ID for requested collation."
 				);
 
-				modify_reputation(ctx, pending_collation.peer_id.clone(), COST_WRONG_PARA).await;
+				Some(COST_WRONG_PARA)
 			}
 			Ok(CollationFetchingResponse::Collation(receipt, pov)) => {
 				tracing::debug!(
@@ -1449,12 +1462,14 @@ where
 					metrics_result = Ok(());
 					success = "true";
 				}
+
+				None
 			},
 		};
 		metrics.on_request(metrics_result);
 		per_req.span.as_mut().map(|s| s.add_string_tag("success", success));
-		true
+		(true, reputation_change)
 	} else {
-		false
+		(false, None)
 	}
 }
