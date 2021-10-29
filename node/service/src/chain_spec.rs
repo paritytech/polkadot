@@ -181,7 +181,7 @@ fn default_parachains_host_configuration(
 		thread_availability_period: 4,
 		max_upward_queue_count: 8,
 		max_upward_queue_size: 1024 * 1024,
-		max_downward_message_size: 1024,
+		max_downward_message_size: 1024 * 1024,
 		// this is approximatelly 4ms.
 		//
 		// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
@@ -558,6 +558,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		registrar: westend_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
 		},
+		xcm_pallet: westend_runtime::XcmPalletConfig { safe_xcm_version: Some(2) },
 	}
 }
 
@@ -755,6 +756,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		},
 		gilt: Default::default(),
 		paras: Default::default(),
+		xcm_pallet: kusama::XcmPalletConfig { safe_xcm_version: Some(2) },
 	}
 }
 
@@ -1054,6 +1056,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		registrar: rococo_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
 		},
+		xcm_pallet: rococo_runtime::XcmPalletConfig { safe_xcm_version: Some(2) },
 		// bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
 		// 	owner: Some(endowed_accounts[0].clone()),
 		// 	..Default::default()
@@ -1411,6 +1414,7 @@ pub fn kusama_testnet_genesis(
 		},
 		gilt: Default::default(),
 		paras: Default::default(),
+		xcm_pallet: kusama::XcmPalletConfig { safe_xcm_version: Some(2) },
 	}
 }
 
@@ -1492,6 +1496,7 @@ pub fn westend_testnet_genesis(
 		registrar: westend_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
 		},
+		xcm_pallet: westend_runtime::XcmPalletConfig { safe_xcm_version: Some(2) },
 	}
 }
 
@@ -1568,6 +1573,7 @@ pub fn rococo_testnet_genesis(
 		registrar: rococo_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
 		},
+		xcm_pallet: rococo_runtime::XcmPalletConfig { safe_xcm_version: Some(2) },
 		// bridge_rococo_grandpa: rococo_runtime::BridgeRococoGrandpaConfig {
 		// 	owner: Some(root_key.clone()),
 		// 	..Default::default()
