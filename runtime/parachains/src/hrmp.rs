@@ -908,7 +908,7 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
-	/// Worst case weight for prune hrmp weight.
+	/// Worst case weight for `prune_hrmp`.
 	pub(crate) fn prune_hrmp_weight(
 		hrmp_max_parachain_inbound_channels: u32,
 		hrmp_max_parathread_inbound_channels: u32,
