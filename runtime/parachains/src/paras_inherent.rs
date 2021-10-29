@@ -865,15 +865,18 @@ mod tests {
 		use super::*;
 		use assert_matches::assert_matches;
 
+		use crate::inclusion::tests::{
+			back_candidate, collator_sign_candidate, BackingKind, TestCandidateBuilder,
+		};
 		use bitvec::order::Lsb0;
 		use primitives::v1::{
-			AvailabilityBitfield, GroupIndex, Hash, Header, Id as ParaId,
-			SignedAvailabilityBitfield, ValidatorIndex,
+			AvailabilityBitfield, GroupIndex, Hash, Id as ParaId, SignedAvailabilityBitfield,
+			ValidatorIndex,
 		};
 
-		use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
-		use frame_support::traits::UnfilteredDispatchable;
+		use crate::mock::Test;
 		use futures::executor::block_on;
+		use keyring::Sr25519Keyring;
 		use primitives::v0::PARACHAIN_KEY_TYPE_ID;
 		use sc_keystore::LocalKeystore;
 		use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
@@ -1097,7 +1100,193 @@ mod tests {
 
 		#[test]
 		fn candidates() {
-			todo!("check sanitize_candidates here!");
+			const RELAY_PARENT_NUM: u32 = 3;
+
+			let header = default_header();
+			let relay_parent = header.hash();
+			// 2 cores means two bits
+			let session_index = SessionIndex::from(0_u32);
+
+			let keystore = LocalKeystore::in_memory();
+			let keystore = Arc::new(keystore) as SyncCryptoStorePtr;
+			let signing_context = SigningContext { parent_hash: relay_parent, session_index };
+
+			let validators = vec![
+				keyring::Sr25519Keyring::Alice,
+				keyring::Sr25519Keyring::Bob,
+				keyring::Sr25519Keyring::Charlie,
+				keyring::Sr25519Keyring::Dave,
+			];
+			for validator in validators.iter() {
+				SyncCryptoStore::sr25519_generate_new(
+					&*keystore,
+					PARACHAIN_KEY_TYPE_ID,
+					Some(&validator.to_seed()),
+				)
+				.unwrap();
+			}
+
+			let has_concluded_invalid = |_candidate: CandidateHash| -> bool { false };
+
+			let scheduled = (1_usize..4)
+				.into_iter()
+				.map(|idx| {
+					let ca = CoreAssignment {
+						kind: scheduler::AssignmentKind::Parachain,
+						group_idx: GroupIndex::from(idx as u32),
+						para_id: ParaId::from(idx as u32),
+						core: CoreIndex::from(idx as u32),
+					};
+					ca
+				})
+				.collect::<Vec<_>>();
+			let scheduled = &scheduled[..];
+
+			let group_validators = |group_index: GroupIndex| {
+				match group_index {
+					group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1]),
+					group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
+					group_index if group_index == GroupIndex::from(2) => Some(vec![4]),
+					_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
+				}
+				.map(|m| m.into_iter().map(ValidatorIndex).collect::<Vec<_>>())
+			};
+
+			let backed_candidates = (1_usize..4)
+				.into_iter()
+				.map(|idx| {
+					let mut candidate = TestCandidateBuilder {
+						para_id: ParaId::from(idx),
+						relay_parent,
+						pov_hash: Hash::repeat_byte(idx as u8),
+						persisted_validation_data_hash: [42u8; 32].into(),
+						hrmp_watermark: RELAY_PARENT_NUM,
+						..Default::default()
+					}
+					.build();
+
+					collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
+
+					let backed = block_on(back_candidate(
+						candidate,
+						&validators,
+						group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+						&keystore,
+						&signing_context,
+						BackingKind::Threshold,
+					));
+					backed
+				})
+				.collect::<Vec<_>>();
+
+			{
+				assert_matches!(
+					sanitize_backed_candidates::<Test, _, true>(
+						relay_parent,
+						backed_candidates.clone(),
+						has_concluded_invalid,
+						scheduled
+					),
+					Ok(sanitized_backed_candidates) => {
+						assert_eq!(backed_candidates, sanitized_backed_candidates);
+					}
+				);
+				assert_matches!(
+					sanitize_backed_candidates::<Test, _, false>(
+						relay_parent,
+						backed_candidates.clone(),
+						has_concluded_invalid,
+						scheduled
+					),
+					Ok(sanitized_backed_candidates) => {
+						assert_eq!(backed_candidates, sanitized_backed_candidates);
+					}
+				);
+			}
+
+			// nothing is scheduled, so no paraids match,
+			// hence no backed candidate makes it through
+			{
+				assert_matches!(
+					sanitize_backed_candidates::<Test, _, true>(
+						relay_parent,
+						backed_candidates.clone(),
+						has_concluded_invalid,
+						&[][..]
+					),
+					Err(Error::<Test>::CandidateConcludedInvalid)
+				);
+				assert_matches!(
+					sanitize_backed_candidates::<Test, _, false>(
+						relay_parent,
+						backed_candidates.clone(),
+						has_concluded_invalid,
+						&[][..]
+					),
+					Ok(sanitized_backed_candidates) => {
+						assert_eq!(0, sanitized_backed_candidates.len());
+					}
+				);
+			}
+
+			// relay parent mismatch
+			{
+				let relay_parent = Hash::repeat_byte(0xFA);
+				assert_matches!(
+					sanitize_backed_candidates::<Test, _, true>(
+						relay_parent,
+						backed_candidates.clone(),
+						has_concluded_invalid,
+						scheduled
+					),
+					Err(Error::<Test>::CandidateConcludedInvalid)
+				);
+				assert_matches!(
+					sanitize_backed_candidates::<Test, _, false>(
+						relay_parent,
+						backed_candidates.clone(),
+						has_concluded_invalid,
+						scheduled
+					),
+					Ok(sanitized_backed_candidates) => {
+						assert_eq!(0, sanitized_backed_candidates.len());
+					}
+				);
+			}
+
+			// relay parent mismatch
+			{
+				let set = {
+					let mut set = std::collections::HashSet::new();
+					for (idx, backed_candidate) in backed_candidates.iter().enumerate() {
+						if idx & 0x01 == 0 {
+							set.insert(backed_candidate.hash().clone());
+						}
+					}
+					set
+				};
+				let has_concluded_invalid = |candidate: CandidateHash| set.contains(&candidate);
+				assert_matches!(
+					sanitize_backed_candidates::<Test, _, true>(
+						relay_parent,
+						backed_candidates.clone(),
+						has_concluded_invalid,
+						scheduled
+					),
+					Err(Error::<Test>::CandidateConcludedInvalid)
+				);
+				assert_matches!(
+					sanitize_backed_candidates::<Test, _, false>(
+						relay_parent,
+						backed_candidates.clone(),
+						has_concluded_invalid,
+						scheduled
+					),
+					Ok(sanitized_backed_candidates) => {
+						assert_eq!(0, sanitized_backed_candidates.len() >> 1);
+					}
+				);
+			}
 		}
 	}
 
