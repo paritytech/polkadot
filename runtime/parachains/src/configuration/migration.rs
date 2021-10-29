@@ -25,6 +25,7 @@ use frame_support::{
 /// The current storage version.
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
+/// Migrates the pallet storage to the most recent version, checking and setting the `StorageVersion`.
 pub fn migrate_to_latest<T: Config>() -> Weight {
 	let mut weight: Weight = 0;
 
