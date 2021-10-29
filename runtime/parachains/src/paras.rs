@@ -997,14 +997,14 @@ impl<T: Config> Pallet<T> {
 
 				let (reads, writes) = Self::increase_code_ref(&new_code_hash, &new_code);
 				FutureCodeHash::<T>::insert(&id, new_code_hash);
-				T::DbWeight::get().reads_writes(3 + reads, 3 + writes)
+				T::DbWeight::get().reads_writes(3 + reads, 5 + writes)
 			}
 		})
 	}
 
 	/// Worst case weight for `schedule_code_upgrade`.
 	pub(crate) fn schedule_code_upgrade_weight() -> Weight {
-		T::DbWeight::get().reads_writes(4, 5)
+		T::DbWeight::get().reads_writes(4, 8)
 	}
 
 	/// Note that a para has progressed to a new head, where the new head was executed in the context
