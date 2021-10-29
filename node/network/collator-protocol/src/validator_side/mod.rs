@@ -1233,13 +1233,9 @@ async fn advance_collations(
 	let mut reputation_changes = Vec::new();
 	for (pending_collation, per_req) in requested_collations.iter_mut() {
 		// Despite the await, this won't block on the response itself.
-		let (finished, maybe_rep) = poll_collation_response(
-			metrics,
-			span_per_relay_parent,
-			pending_collation,
-			per_req,
-		)
-		.await;
+		let (finished, maybe_rep) =
+			poll_collation_response(metrics, span_per_relay_parent, pending_collation, per_req)
+				.await;
 
 		if !finished {
 			retained_requested.insert(pending_collation.clone());
