@@ -513,10 +513,8 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash, MallocSizeOf))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
-	// TODO bound
 	pub upward_messages: Vec<UpwardMessage>,
 	/// Horizontal messages sent by the parachain.
-	// TODO bound
 	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
