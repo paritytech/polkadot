@@ -467,6 +467,10 @@ impl ActiveParas {
 	fn is_current_or_next(&self, id: ParaId) -> bool {
 		self.current_assignments.contains_key(&id) || self.next_assignments.contains_key(&id)
 	}
+
+	fn is_current(&self, id: &ParaId) -> bool {
+		self.current_assignments.contains_key(id)
+	}
 }
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
@@ -885,6 +889,20 @@ async fn process_incoming_peer_message<Context>(
 				},
 				Some(p) => p,
 			};
+
+			if let PeerState::Collating(ref collating_state) = peer_data.state {
+				let para_id = collating_state.para_id;
+				if !state.active_paras.is_current(&para_id) {
+					tracing::debug!(
+						target: LOG_TARGET,
+						peer_id = ?origin,
+						%para_id,
+						?relay_parent,
+						"Received advertise collation, but we are assigned to the next group",
+					);
+					return
+				}
+			}
 
 			match peer_data.insert_advertisement(relay_parent, &state.view) {
 				Ok((id, para_id)) => {
