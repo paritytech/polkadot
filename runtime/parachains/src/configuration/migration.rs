@@ -267,7 +267,7 @@ mod tests {
 				assert_eq!(old.ump_max_individual_weight                , new.ump_max_individual_weight);
 
 				// TODO: add tests for new values after figuring out their defaults.
-			}
+			};
 		});
 	}
 }
