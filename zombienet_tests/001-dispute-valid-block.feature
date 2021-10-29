@@ -17,8 +17,8 @@ bob: reports peers count is at least 2
 charlie: reports block height is at least 2
 charlie: reports peers count is at least 2
 #sleep 121 seconds # do we want to support spleep?
-alice: reports parachain_candidate_disputes_total is at least 1 within 121 seconds
-bob: reports parachain_candidate_disputes_total is at least 1 within 121 seconds
+alice: reports parachain_candidate_disputes_total is at least 1 within 12 seconds
+bob: reports parachain_candidate_disputes_total is at least 1 within 12 seconds
 charlie: reports parachain_candidate_disputes_total is at least 1
 alice: reports parachain_candidate_dispute_votes{validity="valid"} is at least 1
 bob reports parachain_candidate_dispute_votes{validity="valid"} is at least 2
