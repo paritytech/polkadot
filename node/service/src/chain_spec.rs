@@ -181,7 +181,7 @@ fn default_parachains_host_configuration(
 		thread_availability_period: 4,
 		max_upward_queue_count: 8,
 		max_upward_queue_size: 1024 * 1024,
-		max_downward_message_size: 1024,
+		max_downward_message_size: 1024 * 1024,
 		// this is approximatelly 4ms.
 		//
 		// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
