@@ -263,8 +263,7 @@ impl<T: Config> Pallet<T> {
 		expected_bits: usize,
 		unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Result<(Vec<(CoreIndex, CandidateHash)>, Weight)
-	, DispatchError> {
+	) -> Result<(Vec<(CoreIndex, CandidateHash)>, Weight), DispatchError> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 		let mut enacted_candidate_weight = 0;
@@ -780,7 +779,7 @@ impl<T: Config> Pallet<T> {
 			)
 	}
 
-	/// Worst case weight for `enact_candidate`. `enact_candidate` should return actual weight used.
+	/// Worst case weight for `enact_candidate`.
 	pub(crate) fn enact_candidate_weight(
 		hrmp_max_message_num_per_candidate: u32,
 		max_upward_message_num_per_candidate: u32,
@@ -1473,7 +1472,9 @@ mod tests {
 						expected_bits(),
 						vec![signed.into()],
 						&core_lookup,
-					).unwrap().0,
+					)
+					.unwrap()
+					.0,
 					vec![]
 				);
 			}
@@ -1578,7 +1579,9 @@ mod tests {
 						expected_bits(),
 						vec![signed.into()],
 						&core_lookup,
-					).unwrap().0,
+					)
+					.unwrap()
+					.0,
 					vec![],
 				);
 			}

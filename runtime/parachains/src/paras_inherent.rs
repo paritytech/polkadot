@@ -22,10 +22,11 @@
 //! this module.
 
 use crate::{
+	configuration,
 	disputes::DisputesHandler,
 	inclusion,
 	scheduler::{self, FreedReason},
-	shared, ump, configuration
+	shared, ump,
 };
 use frame_support::{
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
@@ -155,17 +156,18 @@ pub mod pallet {
 		#[pallet::weight((
 			{
 				let c = <configuration::Pallet<T>>::config();
-				let num_cores = c.max_validators // TODO check if better way to do this
-					.unwrap_or_default()
-					/ c.max_validators_per_core.unwrap_or_default();
-				MINIMAL_INCLUSION_INHERENT_WEIGHT
-				+ data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT
-				+ <inclusion::Pallet<T>>::enact_candidate_weight(
+				let enact_candidate_weight = <inclusion::Pallet<T>>::enact_candidate_weight(
 					c.hrmp_max_message_num_per_candidate,
 					c.max_upward_message_num_per_candidate,
 					c.hrmp_max_parachain_inbound_channels,
 					c.hrmp_max_parathread_inbound_channels,
-				) * num_cores as u64
+				)
+				// NOTE: this will need to updated if the max number of cores changes.
+				* 40u64;
+
+				MINIMAL_INCLUSION_INHERENT_WEIGHT
+				+ data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT
+				+ enact_candidate_weight
 			},
 			DispatchClass::Mandatory,
 		))]
@@ -309,7 +311,8 @@ pub mod pallet {
 			Included::<T>::set(Some(()));
 
 			Ok(Some(
-				enacted_weight + MINIMAL_INCLUSION_INHERENT_WEIGHT +
+				enacted_weight +
+					MINIMAL_INCLUSION_INHERENT_WEIGHT +
 					(backed_candidates_len * BACKED_CANDIDATE_WEIGHT),
 			)
 			.into())
