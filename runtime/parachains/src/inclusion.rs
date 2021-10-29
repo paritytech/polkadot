@@ -786,16 +786,15 @@ impl<T: Config> Pallet<T> {
 		hrmp_max_parachain_inbound_channels: u32,
 		hrmp_max_parathread_inbound_channels: u32,
 	) -> Weight {
-		T::DbWeight::get().reads(1)
-			+ <paras::Pallet<T>>::schedule_code_upgrade_weight()
-			+ <dmp::Pallet<T>>::prune_dmq_weight()
-			+ <ump::Pallet<T>>::receive_upward_messages_weight(max_upward_message_num_per_candidate)
-			+ <hrmp::Pallet<T>>::prune_hrmp_weight(
-					hrmp_max_parachain_inbound_channels,
-					hrmp_max_parathread_inbound_channels
-				)
-			+ <hrmp::Pallet<T>>::queue_outbound_hrmp_weight(hrmp_max_message_num_per_candidate)
-			+ <paras::Pallet<T>>::note_new_head_weight()
+		T::DbWeight::get().reads(1) +
+			<paras::Pallet<T>>::schedule_code_upgrade_weight() +
+			<dmp::Pallet<T>>::prune_dmq_weight() +
+			<ump::Pallet<T>>::receive_upward_messages_weight(max_upward_message_num_per_candidate) +
+			<hrmp::Pallet<T>>::prune_hrmp_weight(
+				hrmp_max_parachain_inbound_channels,
+				hrmp_max_parathread_inbound_channels,
+			) + <hrmp::Pallet<T>>::queue_outbound_hrmp_weight(hrmp_max_message_num_per_candidate) +
+			<paras::Pallet<T>>::note_new_head_weight()
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
