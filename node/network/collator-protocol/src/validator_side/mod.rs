@@ -19,7 +19,7 @@ use futures::{
 	channel::oneshot,
 	future::{BoxFuture, Fuse, FusedFuture},
 	select,
-	stream::FuturesUnordered,
+	stream::{FusedStream, FuturesUnordered},
 	FutureExt, StreamExt,
 };
 use futures_timer::Delay;
@@ -93,6 +93,10 @@ const ACTIVITY_POLL: Duration = Duration::from_secs(1);
 
 #[cfg(test)]
 const ACTIVITY_POLL: Duration = Duration::from_millis(10);
+
+// How often to poll collation responses.
+// This is a hack that should be removed in a refactoring.
+const CHECK_COLLATIONS_POLL: Duration = Duration::from_millis(5);
 
 #[derive(Clone, Default)]
 pub struct Metrics(Option<MetricsInner>);
@@ -1154,6 +1158,13 @@ async fn wait_until_next_check(last_poll: Instant) -> Instant {
 	Instant::now()
 }
 
+fn infinite_stream(every: Duration) -> impl FusedStream<Item = ()> {
+	futures::stream::unfold(Instant::now() + every, |next_check| async move {
+		Some(((), wait_until_next_check(next_check).await))
+	})
+	.fuse()
+}
+
 /// The main run loop.
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
@@ -1165,17 +1176,13 @@ where
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 {
-	use OverseerSignal::*;
-
 	let mut state = State { metrics, ..Default::default() };
 
-	let next_inactivity_stream =
-		futures::stream::unfold(Instant::now() + ACTIVITY_POLL, |next_check| async move {
-			Some(((), wait_until_next_check(next_check).await))
-		})
-		.fuse();
-
+	let next_inactivity_stream = infinite_stream(ACTIVITY_POLL);
 	futures::pin_mut!(next_inactivity_stream);
+
+	let check_collations_stream = infinite_stream(CHECK_COLLATIONS_POLL);
+	futures::pin_mut!(check_collations_stream);
 
 	loop {
 		select! {
@@ -1190,7 +1197,7 @@ where
 							&mut state,
 						).await;
 					}
-					Ok(FromOverseer::Signal(Conclude)) | Err(_) => break,
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) | Err(_) => break,
 					Ok(FromOverseer::Signal(_)) => continue,
 				}
 			}
@@ -1209,11 +1216,13 @@ where
 				);
 				dequeue_next_collation_and_fetch(&mut ctx, &mut state, relay_parent, collator_id).await;
 			}
-			reputation_changes = advance_collations(
-				&mut state.requested_collations,
-				&state.metrics,
-				&state.span_per_relay_parent,
-			).fuse() => {
+			_ = check_collations_stream.next() => {
+				let reputation_changes = poll_requests(
+					&mut state.requested_collations,
+					&state.metrics,
+					&state.span_per_relay_parent,
+				).await;
+
 				for (peer_id, rep) in reputation_changes {
 					modify_reputation(&mut ctx, peer_id, rep).await;
 				}
@@ -1224,7 +1233,7 @@ where
 	Ok(())
 }
 
-async fn advance_collations(
+async fn poll_requests(
 	requested_collations: &mut HashMap<PendingCollation, PerRequest>,
 	metrics: &Metrics,
 	span_per_relay_parent: &HashMap<Hash, PerLeafSpan>,
@@ -1351,7 +1360,7 @@ async fn disconnect_inactive_peers<Context>(
 
 /// Poll collation response, return immediately if there is none.
 ///
-/// Ready responses are handled, by logging and decreasing peer's reputation on error and by
+/// Ready responses are handled, by logging and by
 /// forwarding proper responses to the requester.
 ///
 /// Returns: `true` if `from_collator` future was ready and maybe a reputation change.
