@@ -37,7 +37,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: sp_version::create_runtime_str!("westend"),
 	impl_name: sp_version::create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 52,
+	spec_version: 51,
 	impl_version: 0,
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 5,
