@@ -900,6 +900,8 @@ async fn handle_import_statements(
 			},
 	};
 	let candidate_receipt = votes.candidate_receipt.clone();
+	let was_concluded_valid = votes.valid.len() >= supermajority_threshold;
+	let was_concluded_invalid = votes.invalid.len() >= supermajority_threshold;
 
 	// Update candidate votes.
 	for (statement, val_index) in statements {
@@ -1016,13 +1018,14 @@ async fn handle_import_statements(
 				return Ok(ImportStatementsResult::InvalidImport)
 			}
 			metrics.on_open();
+		}
 
-			if concluded_valid {
-				metrics.on_concluded_valid();
-			}
-			if concluded_invalid {
-				metrics.on_concluded_invalid();
-			}
+		if !was_concluded_valid && concluded_valid {
+			metrics.on_concluded_valid();
+		}
+
+		if !was_concluded_invalid && concluded_invalid {
+			metrics.on_concluded_invalid();
 		}
 
 		// Only write when updated and vote is available.
