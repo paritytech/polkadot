@@ -927,7 +927,7 @@ impl auctions::Config for Runtime {
 
 parameter_types! {
 	pub const WndLocation: MultiLocation = Here.into();
-	pub const Ancestry: MultiLocation = Here.into();
+	pub const Ancestry: InteriorMultiLocation = GeneralKey(b"westend".into());
 	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
@@ -1003,6 +1003,7 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPallets;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type UniversalAliases = Nothing;
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location

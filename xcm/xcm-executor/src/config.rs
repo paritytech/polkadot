@@ -20,10 +20,10 @@ use crate::traits::{
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
-	traits::{Get, PalletsInfoAccess},
+	traits::{Get, PalletsInfoAccess, Contains},
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
-use xcm::latest::SendXcm;
+use xcm::latest::{MultiLocation, Junction, SendXcm};
 
 /// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
@@ -78,4 +78,8 @@ pub trait Config {
 	/// NOTE: In the worse case, the Holding Register may contain up to twice as many assets as this
 	/// and any benchmarks should take that into account.
 	type MaxAssetsIntoHolding: Get<u32>;
+
+	/// The origin locations and specific universal junctions to which they are allowed to elevate
+	/// themselves.
+	type UniversalAliases: Contains<(MultiLocation, Junction)>;
 }

@@ -30,6 +30,8 @@ use scale_info::TypeInfo;
 
 mod multiasset;
 mod traits;
+mod junction;
+mod multilocation;
 
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
@@ -38,11 +40,12 @@ pub use multiasset::{
 pub use traits::{
 	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
 };
-// These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
-pub use super::v2::{
-	Ancestor, AncestorThen, BodyId, BodyPart, InteriorMultiLocation, Junction, Junctions,
-	MultiLocation, NetworkId, OriginKind, Parent, ParentThen, WeightLimit,
+pub use junction::{Junction, NetworkId};
+pub use multilocation::{
+	Ancestor, AncestorThen, InteriorMultiLocation, Junctions, MultiLocation, Parent, ParentThen,
 };
+// These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
+pub use super::v2::{BodyId, BodyPart, OriginKind, WeightLimit};
 
 /// This module's XCM version.
 pub const VERSION: super::Version = 3;
@@ -126,12 +129,13 @@ pub mod prelude {
 			InteriorMultiLocation,
 			Junction::{self, *},
 			Junctions::{self, *},
+			MaybeErrorCode,
 			MultiAsset,
 			MultiAssetFilter::{self, *},
 			MultiAssets, MultiLocation,
 			NetworkId::{self, *},
-			OriginKind, Outcome, Parent, ParentThen, QueryId, Response, Result as XcmResult,
-			SendError, SendResult, SendXcm,
+			OriginKind, Outcome, PalletInfo, Parent, ParentThen, QueryId, Response,
+			Result as XcmResult, QueryResponseInfo, SendError, SendResult, SendXcm,
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},
@@ -710,6 +714,18 @@ pub enum Instruction<Call> {
 	///
 	/// Errors: *Infallible*.
 	ClearTransactStatus,
+
+	/// Set the Origin Register to be some child of the Universal Ancestor.
+	///
+	/// Safety: Should only be usable if the Origin is trusted to represent the Universal Ancestor
+	/// child in general. In general, no Origin should be able to represent the Universal Ancester
+	/// child which is the root of the local consensus system since it would by extension
+	/// allow it to act as any location within the local consensus.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: *Fallible*.
+	UniversalOrigin(Junction),
 }
 
 impl<Call> Xcm<Call> {
@@ -773,6 +789,7 @@ impl<Call> Instruction<Call> {
 				ExpectPallet { index, name, module_name, crate_major, min_crate_minor },
 			ReportTransactStatus(repsonse_info) => ReportTransactStatus(repsonse_info),
 			ClearTransactStatus => ClearTransactStatus,
+			UniversalOrigin(j) => UniversalOrigin(j),
 		}
 	}
 }
@@ -826,6 +843,7 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ExpectPallet { index, .. } => W::expect_pallet(index),
 			ReportTransactStatus(response_info) => W::report_transact_status(response_info),
 			ClearTransactStatus => W::clear_transact_status(),
+			UniversalOrigin(j) => W::universal_origin(j),
 		}
 	}
 }
@@ -845,7 +863,7 @@ impl TryFrom<OldResponse> for Response {
 	type Error = ();
 	fn try_from(old_response: OldResponse) -> result::Result<Self, ()> {
 		match old_response {
-			OldResponse::Assets(assets) => Ok(Self::Assets(assets)),
+			OldResponse::Assets(assets) => Ok(Self::Assets(assets.try_into()?)),
 			OldResponse::Version(version) => Ok(Self::Version(version)),
 			OldResponse::ExecutionResult(error) => Ok(Self::ExecutionResult(match error {
 				Some((i, e)) => Some((i, e.try_into()?)),
@@ -870,14 +888,14 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 	fn try_from(old_instruction: OldInstruction<Call>) -> result::Result<Self, ()> {
 		use OldInstruction::*;
 		Ok(match old_instruction {
-			WithdrawAsset(assets) => Self::WithdrawAsset(assets),
-			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets),
-			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets),
+			WithdrawAsset(assets) => Self::WithdrawAsset(assets.try_into()?),
+			ReserveAssetDeposited(assets) => Self::ReserveAssetDeposited(assets.try_into()?),
+			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets.try_into()?),
 			QueryResponse { query_id, response, max_weight } =>
 				Self::QueryResponse { query_id, response: response.try_into()?, max_weight },
-			TransferAsset { assets, beneficiary } => Self::TransferAsset { assets, beneficiary },
+			TransferAsset { assets, beneficiary } => Self::TransferAsset { assets: assets.try_into()?, beneficiary: beneficiary.try_into()? },
 			TransferReserveAsset { assets, dest, xcm } =>
-				Self::TransferReserveAsset { assets, dest, xcm: xcm.try_into()? },
+				Self::TransferReserveAsset { assets: assets.try_into()?, dest: dest.try_into()?, xcm: xcm.try_into()? },
 			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
 				Self::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
 			HrmpChannelAccepted { recipient } => Self::HrmpChannelAccepted { recipient },
@@ -890,42 +908,52 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			},
 			ReportError { query_id, dest, max_response_weight } => {
 				let response_info = QueryResponseInfo {
-					destination: dest,
+					destination: dest.try_into()?,
 					query_id,
 					max_weight: max_response_weight,
 				};
 				Self::ReportError(response_info)
 			},
 			DepositAsset { assets, max_assets, beneficiary } =>
-				Self::DepositAsset { assets: (assets, max_assets).try_into()?, beneficiary },
+				Self::DepositAsset { assets: (assets, max_assets).try_into()?, beneficiary: beneficiary.try_into()? },
 			DepositReserveAsset { assets, max_assets, dest, xcm } => {
 				let assets = (assets, max_assets).try_into()?;
-				Self::DepositReserveAsset { assets, dest, xcm: xcm.try_into()? }
+				Self::DepositReserveAsset { assets, dest: dest.try_into()?, xcm: xcm.try_into()? }
 			},
-			ExchangeAsset { give, receive } => Self::ExchangeAsset { give: give.into(), receive },
+			ExchangeAsset { give, receive } => {
+				let give = give.try_into()?;
+				let receive = receive.try_into()?;
+				Self::ExchangeAsset { give, receive }
+			},
 			InitiateReserveWithdraw { assets, reserve, xcm } => Self::InitiateReserveWithdraw {
-				assets: assets.into(),
-				reserve,
+				assets: assets.try_into()?,
+				reserve: reserve.try_into()?,
 				xcm: xcm.try_into()?,
 			},
 			InitiateTeleport { assets, dest, xcm } =>
-				Self::InitiateTeleport { assets: assets.into(), dest, xcm: xcm.try_into()? },
+				Self::InitiateTeleport { assets: assets.try_into()?, dest: dest.try_into()?, xcm: xcm.try_into()? },
 			QueryHolding { query_id, dest, assets, max_response_weight } => {
 				let response_info = QueryResponseInfo {
-					destination: dest,
+					destination: dest.try_into()?,
 					query_id,
 					max_weight: max_response_weight,
 				};
-				Self::ReportHolding { response_info, assets: assets.into() }
+				Self::ReportHolding { response_info, assets: assets.try_into()? }
 			},
-			BuyExecution { fees, weight_limit } => Self::BuyExecution { fees, weight_limit },
+			BuyExecution { fees, weight_limit } => {
+				Self::BuyExecution { fees: fees.try_into()?, weight_limit }
+			},
 			ClearOrigin => Self::ClearOrigin,
-			DescendOrigin(who) => Self::DescendOrigin(who),
+			DescendOrigin(who) => Self::DescendOrigin(who.try_into()?),
 			RefundSurplus => Self::RefundSurplus,
 			SetErrorHandler(xcm) => Self::SetErrorHandler(xcm.try_into()?),
 			SetAppendix(xcm) => Self::SetAppendix(xcm.try_into()?),
 			ClearError => Self::ClearError,
-			ClaimAsset { assets, ticket } => Self::ClaimAsset { assets, ticket },
+			ClaimAsset { assets, ticket } => {
+				let assets = assets.try_into()?;
+				let ticket = ticket.try_into()?;
+				Self::ClaimAsset { assets, ticket }
+			},
 			Trap(code) => Self::Trap(code),
 			SubscribeVersion { query_id, max_response_weight } =>
 				Self::SubscribeVersion { query_id, max_response_weight },
@@ -937,15 +965,18 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 #[cfg(test)]
 mod tests {
 	use super::{prelude::*, *};
-	use crate::v2::{MultiAssetFilter as OldMultiAssetFilter, WildMultiAsset as OldWildMultiAsset};
+	use crate::v2::{
+		MultiAssetFilter as OldMultiAssetFilter, WildMultiAsset as OldWildMultiAsset,
+		Junctions::Here as OldHere,
+	};
 
 	#[test]
 	fn basic_roundtrip_works() {
 		let xcm =
 			Xcm::<()>(vec![TransferAsset { assets: (Here, 1).into(), beneficiary: Here.into() }]);
 		let old_xcm = OldXcm::<()>(vec![OldInstruction::TransferAsset {
-			assets: (Here, 1).into(),
-			beneficiary: Here.into(),
+			assets: (OldHere, 1).into(),
+			beneficiary: OldHere.into(),
 		}]);
 		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
 		let new_xcm: Xcm<()> = old_xcm.try_into().unwrap();
@@ -960,12 +991,12 @@ mod tests {
 			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 		]);
 		let old_xcm: OldXcm<()> = OldXcm::<()>(vec![
-			OldInstruction::ReceiveTeleportedAsset((Here, 1).into()),
+			OldInstruction::ReceiveTeleportedAsset((OldHere, 1).into()),
 			OldInstruction::ClearOrigin,
 			OldInstruction::DepositAsset {
 				assets: crate::v2::MultiAssetFilter::Wild(crate::v2::WildMultiAsset::All),
 				max_assets: 1,
-				beneficiary: Here.into(),
+				beneficiary: OldHere.into(),
 			},
 		]);
 		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
@@ -982,13 +1013,13 @@ mod tests {
 			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 		]);
 		let old_xcm = OldXcm::<()>(vec![
-			OldInstruction::ReserveAssetDeposited((Here, 1).into()),
+			OldInstruction::ReserveAssetDeposited((OldHere, 1).into()),
 			OldInstruction::ClearOrigin,
-			OldInstruction::BuyExecution { fees: (Here, 1).into(), weight_limit: Some(1).into() },
+			OldInstruction::BuyExecution { fees: (OldHere, 1).into(), weight_limit: Some(1).into() },
 			OldInstruction::DepositAsset {
 				assets: crate::v2::MultiAssetFilter::Wild(crate::v2::WildMultiAsset::All),
 				max_assets: 1,
-				beneficiary: Here.into(),
+				beneficiary: OldHere.into(),
 			},
 		]);
 		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
@@ -1003,11 +1034,11 @@ mod tests {
 			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 		]);
 		let old_xcm = OldXcm::<()>(vec![
-			OldInstruction::WithdrawAsset((Here, 1).into()),
+			OldInstruction::WithdrawAsset((OldHere, 1).into()),
 			OldInstruction::DepositAsset {
 				assets: OldMultiAssetFilter::Wild(OldWildMultiAsset::All),
 				max_assets: 1,
-				beneficiary: Here.into(),
+				beneficiary: OldHere.into(),
 			},
 		]);
 		assert_eq!(old_xcm, OldXcm::<()>::try_from(xcm.clone()).unwrap());
@@ -1026,11 +1057,11 @@ mod tests {
 			},
 		]);
 		let old_xcm = OldXcm::<()>(vec![
-			OldInstruction::WithdrawAsset((Here, 1).into()),
+			OldInstruction::WithdrawAsset((OldHere, 1).into()),
 			OldInstruction::DepositReserveAsset {
 				assets: OldMultiAssetFilter::Wild(OldWildMultiAsset::All),
 				max_assets: 1,
-				dest: Here.into(),
+				dest: OldHere.into(),
 				xcm: OldXcm::<()>(vec![]),
 			},
 		]);

@@ -39,7 +39,7 @@ const SEND_AMOUNT: u128 = 10;
 fn report_outcome_notify_works() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
-	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
+	let sender = AccountId32 { network: NoneNetwork::get(), id: ALICE.into() }.into();
 	let mut message = Xcm(vec![TransferAsset {
 		assets: (Here, SEND_AMOUNT).into(),
 		beneficiary: sender.clone(),
@@ -99,7 +99,7 @@ fn report_outcome_notify_works() {
 fn report_outcome_works() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
-	let sender = AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
+	let sender = AccountId32 { network: NoneNetwork::get(), id: ALICE.into() }.into();
 	let mut message = Xcm(vec![TransferAsset {
 		assets: (Here, SEND_AMOUNT).into(),
 		beneficiary: sender.clone(),
@@ -153,7 +153,7 @@ fn send_works() {
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let sender: MultiLocation =
-			AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
+			AccountId32 { network: NoneNetwork::get(), id: ALICE.into() }.into();
 		let message = Xcm(vec![
 			ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 			ClearOrigin,
@@ -190,7 +190,7 @@ fn send_fails_when_xcm_router_blocks() {
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let sender: MultiLocation =
-			Junction::AccountId32 { network: AnyNetwork::get(), id: ALICE.into() }.into();
+			Junction::AccountId32 { network: NoneNetwork::get(), id: ALICE.into() }.into();
 		let message = Xcm(vec![
 			ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 			buy_execution((Parent, SEND_AMOUNT)),
@@ -218,7 +218,7 @@ fn teleport_assets_works() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
-		let dest: MultiLocation = AccountId32 { network: Any, id: BOB.into() }.into();
+		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::teleport_assets(
 			Origin::signed(ALICE),
 			Box::new(RelayLocation::get().into()),
@@ -259,7 +259,7 @@ fn limmited_teleport_assets_works() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
-		let dest: MultiLocation = AccountId32 { network: Any, id: BOB.into() }.into();
+		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::limited_teleport_assets(
 			Origin::signed(ALICE),
 			Box::new(RelayLocation::get().into()),
@@ -301,7 +301,7 @@ fn unlimmited_teleport_assets_works() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 2 * BaseXcmWeight::get();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
-		let dest: MultiLocation = AccountId32 { network: Any, id: BOB.into() }.into();
+		let dest: MultiLocation = AccountId32 { network: None, id: BOB.into() }.into();
 		assert_ok!(XcmPallet::limited_teleport_assets(
 			Origin::signed(ALICE),
 			Box::new(RelayLocation::get().into()),

@@ -185,6 +185,7 @@ impl ConvertOrigin<TestOrigin> for TestOriginConverter {
 thread_local! {
 	pub static IS_RESERVE: RefCell<BTreeMap<MultiLocation, Vec<MultiAssetFilter>>> = RefCell::new(BTreeMap::new());
 	pub static IS_TELEPORTER: RefCell<BTreeMap<MultiLocation, Vec<MultiAssetFilter>>> = RefCell::new(BTreeMap::new());
+	pub static UNIVERSAL_ALIASES: RefCell<BTreeSet<(MultiLocation, Junction)>> = RefCell::new(BTreeSet::new());
 }
 pub fn add_reserve(from: MultiLocation, asset: MultiAssetFilter) {
 	IS_RESERVE.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
@@ -192,6 +193,10 @@ pub fn add_reserve(from: MultiLocation, asset: MultiAssetFilter) {
 #[allow(dead_code)]
 pub fn add_teleporter(from: MultiLocation, asset: MultiAssetFilter) {
 	IS_TELEPORTER.with(|r| r.borrow_mut().entry(from).or_default().push(asset));
+}
+#[allow(dead_code)]
+pub fn add_universal_alias(bridge: MultiLocation, consensus: Junction) {
+	UNIVERSAL_ALIASES.with(|r| r.borrow_mut().insert((bridge, consensus)));
 }
 pub struct TestIsReserve;
 impl FilterAssetLocation for TestIsReserve {
@@ -208,7 +213,13 @@ impl FilterAssetLocation for TestIsTeleporter {
 	}
 }
 
-use xcm::latest::Response;
+pub struct TestUniversalAliases;
+impl Contains<(MultiLocation, Junction)> for TestUniversalAliases {
+	fn contains(t: &(MultiLocation, Junction)) -> bool {
+		UNIVERSAL_ALIASES.with(|r| r.borrow().contains(t))
+	}
+}
+
 pub enum ResponseSlot {
 	Expecting(MultiLocation),
 	Received(Response),
@@ -253,7 +264,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 }
 
 parameter_types! {
-	pub TestAncestry: MultiLocation = X1(Parachain(42)).into();
+	pub TestAncestry: InteriorMultiLocation = X1(Parachain(42));
 	pub UnitWeightCost: Weight = 10;
 }
 parameter_types! {
@@ -365,4 +376,5 @@ impl Config for TestConfig {
 	type SubscriptionService = TestSubscriptionService;
 	type PalletInstancesInfo = TestPalletsInfo;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type UniversalAliases = TestUniversalAliases;
 }

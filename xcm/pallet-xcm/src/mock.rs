@@ -80,7 +80,7 @@ pub mod pallet_test_notifier {
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
 			let qid = crate::Pallet::<T>::new_query(
-				Junction::AccountId32 { network: Any, id }.into(),
+				Junction::AccountId32 { network: None, id }.into(),
 				100u32.into(),
 			);
 			Self::deposit_event(Event::<T>::QueryPrepared(qid));
@@ -96,7 +96,7 @@ pub mod pallet_test_notifier {
 			let call =
 				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = crate::Pallet::<T>::new_notify_query(
-				Junction::AccountId32 { network: Any, id }.into(),
+				Junction::AccountId32 { network: None, id }.into(),
 				<T as Config>::Call::from(call),
 				100u32.into(),
 			);
@@ -217,7 +217,7 @@ impl pallet_balances::Config for Test {
 parameter_types! {
 	pub const RelayLocation: MultiLocation = Here.into();
 	pub const AnyNetwork: NetworkId = NetworkId::Any;
-	pub Ancestry: MultiLocation = Here.into();
+	pub Ancestry: InteriorMultiLocation = Here.into();
 	pub UnitWeightCost: Weight = 1_000;
 }
 
@@ -267,6 +267,7 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPallets;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type UniversalAliases = Nothing;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, AnyNetwork>;

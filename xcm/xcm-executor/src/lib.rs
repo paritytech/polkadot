@@ -19,18 +19,13 @@
 use frame_support::{
 	dispatch::{Dispatchable, Weight},
 	ensure,
-	traits::{Get, PalletsInfoAccess},
+	traits::{Get, PalletsInfoAccess, Contains},
 	weights::GetDispatchInfo,
 };
 use parity_scale_codec::Encode;
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
-use xcm::latest::{
-	Error as XcmError, ExecuteXcm,
-	Instruction::{self, *},
-	MaybeErrorCode, MultiAsset, MultiAssets, MultiLocation, Outcome, PalletInfo, QueryResponseInfo,
-	Response, SendXcm, Xcm,
-};
+use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
@@ -520,6 +515,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Self::respond(Response::DispatchResult(self.transact_status.clone()), response_info),
 			ClearTransactStatus => {
 				self.transact_status = Default::default();
+				Ok(())
+			},
+			UniversalOrigin(j) => {
+				let universal_location = Config::LocationInverter::universal_location();
+				ensure!(universal_location.first() != Some(&j), XcmError::InvalidLocation);
+				let origin = self.origin.as_ref().ok_or(XcmError::BadOrigin)?.clone();
+				let new_origin = AncestorThen(universal_location.len() as u8, X1(j.clone())).into();
+				let ok = Config::UniversalAliases::contains(&(origin, j));
+				ensure!(ok, XcmError::InvalidLocation);
+				self.origin = Some(new_origin);
 				Ok(())
 			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),

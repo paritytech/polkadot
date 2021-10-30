@@ -20,6 +20,7 @@ use proc_macro::TokenStream;
 
 mod v0;
 mod v1;
+mod v3;
 
 #[proc_macro]
 pub fn impl_conversion_functions_for_multilocation_v0(input: TokenStream) -> TokenStream {
@@ -31,6 +32,13 @@ pub fn impl_conversion_functions_for_multilocation_v0(input: TokenStream) -> Tok
 #[proc_macro]
 pub fn impl_conversion_functions_for_multilocation_v1(input: TokenStream) -> TokenStream {
 	v1::multilocation::generate_conversion_functions(input)
+		.unwrap_or_else(syn::Error::into_compile_error)
+		.into()
+}
+
+#[proc_macro]
+pub fn impl_conversion_functions_for_multilocation_v3(input: TokenStream) -> TokenStream {
+	v3::multilocation::generate_conversion_functions(input)
 		.unwrap_or_else(syn::Error::into_compile_error)
 		.into()
 }

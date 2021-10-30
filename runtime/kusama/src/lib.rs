@@ -1291,9 +1291,10 @@ parameter_types! {
 	pub const KsmLocation: MultiLocation = Here.into();
 	/// The Kusama network ID. This is named.
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
-	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
-	/// Kusama is a top-level relay-chain, there is no ancestry.
-	pub const Ancestry: MultiLocation = Here.into();
+	/// Our XCM location ancestry - i.e. our location within the Consensus Universe.
+	///
+	/// Since Kusama is a top-level relay-chain with its own consensus, it's just our network ID.
+	pub const Ancestry: InteriorMultiLocation = X1(GlobalConsensus(NetworkId::Kusama));
 	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
@@ -1397,6 +1398,7 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPallets;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type UniversalAliases = Nothing;
 }
 
 parameter_types! {

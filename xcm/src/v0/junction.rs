@@ -16,9 +16,11 @@
 
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
+use core::convert::TryInto;
 use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use crate::v3::NetworkId as NewNetworkId;
 
 /// A global identifier of an account-bearing consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
@@ -31,6 +33,19 @@ pub enum NetworkId {
 	Polkadot,
 	/// Kusama.
 	Kusama,
+}
+
+impl TryInto<NetworkId> for Option<NewNetworkId> {
+	type Error = ();
+	fn try_into(self) -> Result<NetworkId, ()> {
+		use NewNetworkId::*;
+		Ok(match self {
+			None => NetworkId::Any,
+			Some(Named(name)) => NetworkId::Named(name),
+			Some(Polkadot) => NetworkId::Polkadot,
+			Some(Kusama) => NetworkId::Kusama,
+		})
+	}
 }
 
 /// An identifier of a pluralistic body.
