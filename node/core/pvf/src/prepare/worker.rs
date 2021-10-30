@@ -336,15 +336,15 @@ fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
 
 #[must_use]
 pub fn timeit(label: impl Into<String>) -> impl Drop {
-    use std::time::Instant;
+	use std::time::Instant;
 
-    struct Guard {
-        label: String,
-        start: Instant,
-    }
+	struct Guard {
+		label: String,
+		start: Instant,
+	}
 
-    impl Drop for Guard {
-        fn drop(&mut self) {
+	impl Drop for Guard {
+		fn drop(&mut self) {
 			tracing::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
@@ -352,9 +352,8 @@ pub fn timeit(label: impl Into<String>) -> impl Drop {
 				self.label,
 				self.start.elapsed(),
 			);
-        }
-    }
+		}
+	}
 
-    Guard { label: label.into(), start: Instant::now() }
+	Guard { label: label.into(), start: Instant::now() }
 }
-
