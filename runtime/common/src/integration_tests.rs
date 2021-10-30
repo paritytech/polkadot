@@ -289,9 +289,7 @@ fn run_to_block(n: u32) {
 	while System::block_number() < n {
 		let block_number = System::block_number();
 		AllPalletsWithSystem::on_finalize(block_number);
-		System::on_finalize(block_number);
 		System::set_block_number(block_number + 1);
-		System::on_initialize(block_number + 1);
 		maybe_new_session(block_number + 1);
 		AllPalletsWithSystem::on_initialize(block_number + 1);
 	}
