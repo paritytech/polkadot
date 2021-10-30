@@ -103,7 +103,7 @@ struct RunningTask {
 
 	/// Index of validator group to fetch the chunk from.
 	///
-	/// Needef for reporting bad validators.
+	/// Needed for reporting bad validators.
 	group_index: GroupIndex,
 
 	/// Validators to request the chunk from.
