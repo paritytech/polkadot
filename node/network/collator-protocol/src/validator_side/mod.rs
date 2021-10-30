@@ -1379,8 +1379,6 @@ impl CollationFetchResult {
 ///
 /// Ready responses are handled, by logging and by
 /// forwarding proper responses to the requester.
-///
-/// Returns: `true` if `from_collator` future was ready and maybe a reputation change.
 async fn poll_collation_response(
 	metrics: &Metrics,
 	spans: &HashMap<Hash, PerLeafSpan>,
