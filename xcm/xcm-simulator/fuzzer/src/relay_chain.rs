@@ -97,7 +97,7 @@ parameter_types! {
 	pub const KsmLocation: MultiLocation = Here.into();
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
 	pub const AnyNetwork: NetworkId = NetworkId::Any;
-	pub Ancestry: MultiLocation = Here.into();
+	pub Ancestry: InteriorMultiLocation = Here.into();
 	pub UnitWeightCost: Weight = 1_000;
 }
 
@@ -142,6 +142,7 @@ impl Config for XcmConfig {
 	type SubscriptionService = ();
 	type PalletInstancesInfo = ();
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type UniversalAliases = Nothing;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;

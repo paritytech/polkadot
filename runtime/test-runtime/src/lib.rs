@@ -606,7 +606,7 @@ pub mod pallet_test_notifier {
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
 			let qid = pallet_xcm::Pallet::<T>::new_query(
-				Junction::AccountId32 { network: Any, id }.into(),
+				Junction::AccountId32 { network: None, id }.into(),
 				100u32.into(),
 			);
 			Self::deposit_event(Event::<T>::QueryPrepared(qid));
@@ -622,7 +622,7 @@ pub mod pallet_test_notifier {
 			let call =
 				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
-				Junction::AccountId32 { network: Any, id }.into(),
+				Junction::AccountId32 { network: None, id }.into(),
 				<T as Config>::Call::from(call),
 				100u32.into(),
 			);

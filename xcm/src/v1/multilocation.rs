@@ -17,7 +17,8 @@
 //! Cross-Consensus Message format data structures.
 
 use super::Junction;
-use core::{convert::TryFrom, mem, result};
+use crate::v3::MultiLocation as NewMultiLocation;
+use core::{convert::{TryFrom, TryInto}, mem, result};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -379,6 +380,16 @@ impl MultiLocation {
 	}
 }
 
+impl TryFrom<NewMultiLocation> for MultiLocation {
+	type Error = ();
+	fn try_from(x: NewMultiLocation) -> result::Result<Self, ()> {
+		Ok(MultiLocation {
+			parents: x.parents,
+			interior: x.interior.try_into()?,
+		})
+	}
+}
+
 /// A unit struct which can be converted into a `MultiLocation` of `parents` value 1.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct Parent;
@@ -390,7 +401,7 @@ impl From<Parent> for MultiLocation {
 
 /// A tuple struct which can be converted into a `MultiLocation` of `parents` value 1 with the inner interior.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct ParentThen(Junctions);
+pub struct ParentThen(pub Junctions);
 impl From<ParentThen> for MultiLocation {
 	fn from(ParentThen(interior): ParentThen) -> Self {
 		MultiLocation { parents: 1, interior }
@@ -399,7 +410,7 @@ impl From<ParentThen> for MultiLocation {
 
 /// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct Ancestor(u8);
+pub struct Ancestor(pub u8);
 impl From<Ancestor> for MultiLocation {
 	fn from(Ancestor(parents): Ancestor) -> Self {
 		MultiLocation { parents, interior: Junctions::Here }
@@ -408,10 +419,10 @@ impl From<Ancestor> for MultiLocation {
 
 /// A unit struct which can be converted into a `MultiLocation` of the inner `parents` value and the inner interior.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub struct AncestorThen(u8, Junctions);
-impl From<AncestorThen> for MultiLocation {
-	fn from(AncestorThen(parents, interior): AncestorThen) -> Self {
-		MultiLocation { parents, interior }
+pub struct AncestorThen<Interior>(pub u8, pub Interior);
+impl<Interior: Into<Junctions>> From<AncestorThen<Interior>> for MultiLocation {
+	fn from(AncestorThen(parents, interior): AncestorThen<Interior>) -> Self {
+		MultiLocation { parents, interior: interior.into() }
 	}
 }
 

@@ -75,6 +75,9 @@ impl InvertLocation for InvertNothing {
 	fn ancestry() -> MultiLocation {
 		Here.into()
 	}
+	fn universal_location() -> InteriorMultiLocation {
+		Ok(Here.into())
+	}
 }
 
 pub struct XcmConfig;
@@ -95,4 +98,5 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = super::Xcm;
 	type PalletInstancesInfo = ();
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type UniversalAliases = Nothing;
 }

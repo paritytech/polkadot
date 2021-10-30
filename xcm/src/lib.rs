@@ -78,13 +78,15 @@ pub trait IntoVersion: Sized {
 pub enum VersionedMultiLocation {
 	V0(v0::MultiLocation),
 	V1(v1::MultiLocation),
+	V3(v3::MultiLocation)
 }
 
 impl IntoVersion for VersionedMultiLocation {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
 			0 => Self::V0(self.try_into()?),
-			1 | 2 | 3 => Self::V1(self.try_into()?),
+			1 | 2 => Self::V1(self.try_into()?),
+			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
@@ -96,9 +98,15 @@ impl From<v0::MultiLocation> for VersionedMultiLocation {
 	}
 }
 
-impl<T: Into<v1::MultiLocation>> From<T> for VersionedMultiLocation {
+impl From<v1::MultiLocation> for VersionedMultiLocation {
+	fn from(x: v1::MultiLocation) -> Self {
+		VersionedMultiLocation::V1(x)
+	}
+}
+
+impl<T: Into<v3::MultiLocation>> From<T> for VersionedMultiLocation {
 	fn from(x: T) -> Self {
-		VersionedMultiLocation::V1(x.into())
+		VersionedMultiLocation::V3(x.into())
 	}
 }
 
@@ -109,6 +117,7 @@ impl TryFrom<VersionedMultiLocation> for v0::MultiLocation {
 		match x {
 			V0(x) => Ok(x),
 			V1(x) => x.try_into(),
+			V3(x) => V1(x.try_into()?).try_into(),
 		}
 	}
 }
@@ -120,6 +129,19 @@ impl TryFrom<VersionedMultiLocation> for v1::MultiLocation {
 		match x {
 			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
+			V3(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedMultiLocation> for v3::MultiLocation {
+	type Error = ();
+	fn try_from(x: VersionedMultiLocation) -> Result<Self, ()> {
+		use VersionedMultiLocation::*;
+		match x {
+			V0(x) => V1(x.try_into()?).try_into(),
+			V1(x) => x.try_into(),
+			V3(x) => Ok(x),
 		}
 	}
 }
@@ -232,13 +254,15 @@ impl TryFrom<VersionedResponse> for v3::Response {
 pub enum VersionedMultiAsset {
 	V0(v0::MultiAsset),
 	V1(v1::MultiAsset),
+	V3(v3::MultiAsset),
 }
 
 impl IntoVersion for VersionedMultiAsset {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
 			0 => Self::V0(self.try_into()?),
-			1 | 2 | 3 => Self::V1(self.try_into()?),
+			1 | 2  => Self::V1(self.try_into()?),
+			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
@@ -250,9 +274,15 @@ impl From<v0::MultiAsset> for VersionedMultiAsset {
 	}
 }
 
-impl<T: Into<v1::MultiAsset>> From<T> for VersionedMultiAsset {
-	fn from(x: T) -> Self {
-		VersionedMultiAsset::V1(x.into())
+impl From<v1::MultiAsset> for VersionedMultiAsset {
+	fn from(x: v1::MultiAsset) -> Self {
+		VersionedMultiAsset::V1(x)
+	}
+}
+
+impl From<v3::MultiAsset> for VersionedMultiAsset {
+	fn from(x: v3::MultiAsset) -> Self {
+		VersionedMultiAsset::V3(x)
 	}
 }
 
@@ -263,6 +293,7 @@ impl TryFrom<VersionedMultiAsset> for v0::MultiAsset {
 		match x {
 			V0(x) => Ok(x),
 			V1(x) => x.try_into(),
+			V3(x) => V1(x.try_into()?).try_into(),
 		}
 	}
 }
@@ -274,6 +305,19 @@ impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
 		match x {
 			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
+			V3(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedMultiAsset> for v3::MultiAsset {
+	type Error = ();
+	fn try_from(x: VersionedMultiAsset) -> Result<Self, ()> {
+		use VersionedMultiAsset::*;
+		match x {
+			V0(x) => V1(x.try_into()?).try_into(),
+			V1(x) => x.try_into(),
+			V3(x) => Ok(x),
 		}
 	}
 }
@@ -286,13 +330,15 @@ impl TryFrom<VersionedMultiAsset> for v1::MultiAsset {
 pub enum VersionedMultiAssets {
 	V0(Vec<v0::MultiAsset>),
 	V1(v1::MultiAssets),
+	V3(v3::MultiAssets),
 }
 
 impl IntoVersion for VersionedMultiAssets {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
 			0 => Self::V0(self.try_into()?),
-			1 | 2 | 3 => Self::V1(self.try_into()?),
+			1 | 2 => Self::V1(self.try_into()?),
+			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})
 	}
@@ -304,9 +350,15 @@ impl From<Vec<v0::MultiAsset>> for VersionedMultiAssets {
 	}
 }
 
-impl<T: Into<v1::MultiAssets>> From<T> for VersionedMultiAssets {
-	fn from(x: T) -> Self {
-		VersionedMultiAssets::V1(x.into())
+impl From<v1::MultiAssets> for VersionedMultiAssets {
+	fn from(x: v1::MultiAssets) -> Self {
+		VersionedMultiAssets::V1(x)
+	}
+}
+
+impl From<v3::MultiAssets> for VersionedMultiAssets {
+	fn from(x: v3::MultiAssets) -> Self {
+		VersionedMultiAssets::V3(x)
 	}
 }
 
@@ -317,6 +369,7 @@ impl TryFrom<VersionedMultiAssets> for Vec<v0::MultiAsset> {
 		match x {
 			V0(x) => Ok(x),
 			V1(x) => x.try_into(),
+			V3(x) => V1(x.try_into()?).try_into(),
 		}
 	}
 }
@@ -328,6 +381,19 @@ impl TryFrom<VersionedMultiAssets> for v1::MultiAssets {
 		match x {
 			V0(x) => x.try_into(),
 			V1(x) => Ok(x),
+			V3(x) => x.try_into(),
+		}
+	}
+}
+
+impl TryFrom<VersionedMultiAssets> for v3::MultiAssets {
+	type Error = ();
+	fn try_from(x: VersionedMultiAssets) -> Result<Self, ()> {
+		use VersionedMultiAssets::*;
+		match x {
+			V0(x) => V1(x.try_into()?).try_into(),
+			V1(x) => x.try_into(),
+			V3(x) => Ok(x),
 		}
 	}
 }
@@ -524,4 +590,9 @@ pub mod opaque {
 // A simple trait to get the weight of some object.
 pub trait GetWeight<W> {
 	fn weight(&self) -> latest::Weight;
+}
+
+#[test]
+fn test_build() {
+
 }

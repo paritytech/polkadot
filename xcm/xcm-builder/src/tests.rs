@@ -16,7 +16,6 @@
 
 use super::{mock::*, test_utils::*, *};
 use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
-use xcm::latest::{prelude::*, MaybeErrorCode, PalletInfo, QueryResponseInfo};
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
 #[test]
@@ -32,11 +31,11 @@ fn basic_setup_works() {
 	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(1)))), Ok(2001));
 	assert_eq!(to_account(MultiLocation::new(1, X1(Parachain(50)))), Ok(2050));
 	assert_eq!(
-		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 1, network: Any }))),
+		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 1, network: None }))),
 		Ok(1),
 	);
 	assert_eq!(
-		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 42, network: Any }))),
+		to_account(MultiLocation::new(0, X1(AccountIndex64 { index: 42, network: None }))),
 		Ok(42),
 	);
 	assert_eq!(to_account(Here.into()), Ok(3000));
@@ -173,7 +172,7 @@ fn transfer_should_work() {
 		Parachain(1),
 		Xcm(vec![TransferAsset {
 			assets: (Here, 100).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		}]),
 		50,
 	);
@@ -197,7 +196,7 @@ fn basic_asset_trap_should_work() {
 			WithdrawAsset((Here, 100).into()),
 			DepositAsset {
 				assets: Wild(AllCounted(0)), // <<< 0 is an error.
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -214,7 +213,7 @@ fn basic_asset_trap_should_work() {
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(1).into() },
 			DepositAsset {
 				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -232,7 +231,7 @@ fn basic_asset_trap_should_work() {
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
 				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -250,7 +249,7 @@ fn basic_asset_trap_should_work() {
 			ClaimAsset { assets: (Here, 101).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
 				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -266,7 +265,7 @@ fn basic_asset_trap_should_work() {
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
 				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -282,7 +281,7 @@ fn basic_asset_trap_should_work() {
 			ClaimAsset { assets: (Here, 100).into(), ticket: GeneralIndex(0).into() },
 			DepositAsset {
 				assets: Wild(AllCounted(1)),
-				beneficiary: AccountIndex64 { index: 3, network: Any }.into(),
+				beneficiary: AccountIndex64 { index: 3, network: None }.into(),
 			},
 		]),
 		20,
@@ -300,17 +299,17 @@ fn errors_should_return_unused_weight() {
 		// First xfer results in an error on the last message only
 		TransferAsset {
 			assets: (Here, 1).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 		// Second xfer results in error third message and after
 		TransferAsset {
 			assets: (Here, 2).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 		// Third xfer results in error second message and after
 		TransferAsset {
 			assets: (Here, 4).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 	]);
 	// Weight limit of 70 is needed.
@@ -378,7 +377,7 @@ fn code_registers_should_work() {
 		SetErrorHandler(Xcm(vec![
 			TransferAsset {
 				assets: (Here, 2).into(),
-				beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+				beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 			},
 			// It was handled fine.
 			ClearError,
@@ -386,17 +385,17 @@ fn code_registers_should_work() {
 		// Set the appendix - this will always fire.
 		SetAppendix(Xcm(vec![TransferAsset {
 			assets: (Here, 4).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		}])),
 		// First xfer always works ok
 		TransferAsset {
 			assets: (Here, 1).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 		// Second xfer results in error on the second message - our error handler will fire.
 		TransferAsset {
 			assets: (Here, 8).into(),
-			beneficiary: X1(AccountIndex64 { index: 3, network: Any }).into(),
+			beneficiary: X1(AccountIndex64 { index: 3, network: None }).into(),
 		},
 	]);
 	// Weight limit of 70 is needed.
@@ -422,7 +421,7 @@ fn reserve_transfer_should_work() {
 	// Child parachain #1 owns 1000 tokens held by us in reserve.
 	add_asset(1001, (Here, 1000));
 	// The remote account owned by gav.
-	let three: MultiLocation = X1(AccountIndex64 { index: 3, network: Any }).into();
+	let three: MultiLocation = X1(AccountIndex64 { index: 3, network: None }).into();
 
 	// They want to transfer 100 of our native asset from sovereign account of parachain #1 into #2
 	// and let them know to hand it to account #3.
@@ -484,7 +483,7 @@ fn simple_version_subscriptions_should_work() {
 fn version_subscription_instruction_should_work() {
 	let origin = Parachain(1000).into();
 	let message = Xcm::<TestCall>(vec![
-		DescendOrigin(X1(AccountIndex64 { index: 1, network: Any })),
+		DescendOrigin(X1(AccountIndex64 { index: 1, network: None })),
 		SubscribeVersion { query_id: 42, max_response_weight: 5000 },
 	]);
 	let weight_limit = 20;
@@ -540,7 +539,7 @@ fn version_unsubscription_instruction_should_work() {
 
 	// Not allowed to do it when origin has been changed.
 	let message = Xcm::<TestCall>(vec![
-		DescendOrigin(X1(AccountIndex64 { index: 1, network: Any })),
+		DescendOrigin(X1(AccountIndex64 { index: 1, network: None })),
 		UnsubscribeVersion,
 	]);
 	let weight_limit = 20;
@@ -610,7 +609,7 @@ fn transacting_should_refund_weight() {
 
 #[test]
 fn paid_transacting_should_refund_payment_for_unused_weight() {
-	let one: MultiLocation = X1(AccountIndex64 { index: 1, network: Any }).into();
+	let one: MultiLocation = X1(AccountIndex64 { index: 1, network: None }).into();
 	AllowPaidFrom::set(vec![one.clone()]);
 	add_asset(1, (Parent, 100));
 	WeightPrice::set((Parent.into(), 1_000_000_000_000));

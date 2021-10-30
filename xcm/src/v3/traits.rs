@@ -439,4 +439,7 @@ pub trait XcmWeightInfo<Call> {
 	fn clear_transact_status() -> Weight {
 		0
 	}
+	fn universal_origin(_: &Junction) -> Weight {
+		0
+	}
 }

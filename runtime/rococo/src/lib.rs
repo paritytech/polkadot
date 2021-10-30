@@ -637,7 +637,7 @@ impl parachains_paras::Config for Runtime {
 parameter_types! {
 	pub const RocLocation: MultiLocation = Here.into();
 	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
-	pub const Ancestry: MultiLocation = Here.into();
+	pub const Ancestry: InteriorMultiLocation = GeneralKey(b"rococo".into());
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -736,6 +736,7 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type UniversalAliases = Nothing;
 }
 
 parameter_types! {

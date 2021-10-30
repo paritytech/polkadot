@@ -24,7 +24,10 @@
 //!   account.
 
 use super::MultiLocation;
-use crate::v3::{MultiAssetFilter as NewMultiAssetFilter, WildMultiAsset as NewWildMultiAsset};
+use crate::v3::{
+	AssetId as NewAssetId, MultiAsset as NewMultiAsset, MultiAssets as NewMultiAssets,
+	MultiAssetFilter as NewMultiAssetFilter, WildMultiAsset as NewWildMultiAsset
+};
 use alloc::{vec, vec::Vec};
 use core::{
 	cmp::Ordering,
@@ -112,6 +115,17 @@ impl<T: Into<MultiLocation>> From<T> for AssetId {
 impl From<Vec<u8>> for AssetId {
 	fn from(x: Vec<u8>) -> Self {
 		Self::Abstract(x)
+	}
+}
+
+impl TryFrom<NewAssetId> for AssetId {
+	type Error = ();
+	fn try_from(old: NewAssetId) -> Result<Self, ()> {
+		use NewAssetId::*;
+		Ok(match old {
+			Concrete(l) => Self::Concrete(l.try_into()?),
+			Abstract(v) => Self::Abstract(v),
+		})
 	}
 }
 
@@ -287,6 +301,13 @@ impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAsset {
 	}
 }
 
+impl TryFrom<NewMultiAsset> for MultiAsset {
+	type Error = ();
+	fn try_from(new: NewMultiAsset) -> Result<Self, ()> {
+		Ok(Self { id: new.id.try_into()?, fun: new.fun })
+	}
+}
+
 /// A `Vec` of `MultiAsset`s. There may be no duplicate fungible items in here and when decoding, they must be sorted.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo)]
 pub struct MultiAssets(Vec<MultiAsset>);
@@ -307,6 +328,18 @@ impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAssets {
 			.filter_map(|x| x.transpose())
 			.collect::<result::Result<Vec<MultiAsset>, ()>>()?;
 		Ok(v.into())
+	}
+}
+
+impl TryFrom<NewMultiAssets> for MultiAssets {
+	type Error = ();
+	fn try_from(new: NewMultiAssets) -> Result<Self, ()> {
+		let v = new
+			.drain()
+			.into_iter()
+			.map(MultiAsset::try_from)
+			.collect::<Result<Vec<_>, ()>>()?;
+		Ok(MultiAssets(v))
 	}
 }
 
@@ -451,6 +484,7 @@ impl MultiAssets {
 		self.0.get(index)
 	}
 }
+
 /// Classification of whether an asset is fungible or not.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo)]
 pub enum WildFungibility {
@@ -597,22 +631,25 @@ impl TryFrom<Vec<super::super::v0::MultiAsset>> for MultiAssetFilter {
 	}
 }
 
-impl From<NewWildMultiAsset> for WildMultiAsset {
-	fn from(old: NewWildMultiAsset) -> Self {
+impl TryFrom<NewWildMultiAsset> for WildMultiAsset {
+	type Error = ();
+	fn try_from(new: NewWildMultiAsset) -> Result<Self, ()> {
 		use NewWildMultiAsset::*;
-		match old {
-			AllOf { id, fun } | AllOfCounted { id, fun, .. } => Self::AllOf { id, fun },
+		Ok(match new {
+			AllOf { id, fun } | AllOfCounted { id, fun, .. } =>
+				Self::AllOf { id: id.try_into()?, fun },
 			All | AllCounted(_) => Self::All,
-		}
+		})
 	}
 }
 
-impl From<NewMultiAssetFilter> for MultiAssetFilter {
-	fn from(old: NewMultiAssetFilter) -> Self {
+impl TryFrom<NewMultiAssetFilter> for MultiAssetFilter {
+	type Error = ();
+	fn try_from(old: NewMultiAssetFilter) -> Result<Self, ()> {
 		use NewMultiAssetFilter::*;
-		match old {
-			Definite(x) => Self::Definite(x),
-			Wild(x) => Self::Wild(x.into()),
-		}
+		Ok(match old {
+			Definite(x) => Self::Definite(x.try_into()?),
+			Wild(x) => Self::Wild(x.try_into()?),
+		})
 	}
 }
