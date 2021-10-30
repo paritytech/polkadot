@@ -221,8 +221,6 @@ impl WorkerHandle {
 		let mut child = async_process::Command::new(program.as_ref())
 			.args(extra_args)
 			.arg(socket_path.as_ref().as_os_str())
-			.stdout(async_process::Stdio::piped())
-			.stderr(async_process::Stdio::piped())
 			.kill_on_drop(true)
 			.spawn()?;
 
