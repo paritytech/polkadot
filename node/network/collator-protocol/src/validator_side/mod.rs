@@ -96,6 +96,7 @@ const ACTIVITY_POLL: Duration = Duration::from_millis(10);
 
 // How often to poll collation responses.
 // This is a hack that should be removed in a refactoring.
+// See https://github.com/paritytech/polkadot/issues/4182
 const CHECK_COLLATIONS_POLL: Duration = Duration::from_millis(5);
 
 #[derive(Clone, Default)]
@@ -1242,14 +1243,14 @@ async fn poll_requests(
 	let mut reputation_changes = Vec::new();
 	for (pending_collation, per_req) in requested_collations.iter_mut() {
 		// Despite the await, this won't block on the response itself.
-		let (finished, maybe_rep) =
+		let result =
 			poll_collation_response(metrics, span_per_relay_parent, pending_collation, per_req)
 				.await;
 
-		if !finished {
+		if !result.is_ready() {
 			retained_requested.insert(pending_collation.clone());
 		}
-		if let Some(rep) = maybe_rep {
+		if let CollationFetchResult::Error(rep) = result {
 			reputation_changes.push((pending_collation.peer_id.clone(), rep));
 		}
 	}
@@ -1358,6 +1359,22 @@ async fn disconnect_inactive_peers<Context>(
 	}
 }
 
+enum CollationFetchResult {
+	/// The collation is still being fetched.
+	Pending,
+	/// The collation was fetched successfully.
+	Success,
+	/// An error occurred when fetching a collation or it was invalid.
+	/// A reputation change should be applied to the peer.
+	Error(Rep),
+}
+
+impl CollationFetchResult {
+	fn is_ready(&self) -> bool {
+		!matches!(self, Self::Pending)
+	}
+}
+
 /// Poll collation response, return immediately if there is none.
 ///
 /// Ready responses are handled, by logging and by
@@ -1369,13 +1386,13 @@ async fn poll_collation_response(
 	spans: &HashMap<Hash, PerLeafSpan>,
 	pending_collation: &PendingCollation,
 	per_req: &mut PerRequest,
-) -> (bool, Option<Rep>) {
+) -> CollationFetchResult {
 	if never!(per_req.from_collator.is_terminated()) {
 		tracing::error!(
 			target: LOG_TARGET,
 			"We remove pending responses once received, this should not happen."
 		);
-		return (true, None)
+		return CollationFetchResult::Success
 	}
 
 	if let Poll::Ready(response) = futures::poll!(&mut per_req.from_collator) {
@@ -1387,7 +1404,7 @@ async fn poll_collation_response(
 		let mut metrics_result = Err(());
 		let mut success = "false";
 
-		let reputation_change = match response {
+		let result = match response {
 			Err(RequestError::InvalidResponse(err)) => {
 				tracing::warn!(
 					target: LOG_TARGET,
@@ -1397,7 +1414,7 @@ async fn poll_collation_response(
 					err = ?err,
 					"Collator provided response that could not be decoded"
 				);
-				Some(COST_CORRUPTED_MESSAGE)
+				CollationFetchResult::Error(COST_CORRUPTED_MESSAGE)
 			},
 			Err(RequestError::NetworkError(err)) => {
 				tracing::debug!(
@@ -1412,7 +1429,7 @@ async fn poll_collation_response(
 				// sensible. In theory this could be exploited, by DoSing this node,
 				// which would result in reduced reputation for proper nodes, but the
 				// same can happen for penalties on timeouts, which we also have.
-				Some(COST_NETWORK_ERROR)
+				CollationFetchResult::Error(COST_NETWORK_ERROR)
 			},
 			Err(RequestError::Canceled(_)) => {
 				tracing::debug!(
@@ -1426,7 +1443,7 @@ async fn poll_collation_response(
 				// sensible. In theory this could be exploited, by DoSing this node,
 				// which would result in reduced reputation for proper nodes, but the
 				// same can happen for penalties on timeouts, which we also have.
-				Some(COST_REQUEST_TIMED_OUT)
+				CollationFetchResult::Error(COST_REQUEST_TIMED_OUT)
 			},
 			Ok(CollationFetchingResponse::Collation(receipt, _))
 				if receipt.descriptor().para_id != pending_collation.para_id =>
@@ -1439,7 +1456,7 @@ async fn poll_collation_response(
 					"Got wrong para ID for requested collation."
 				);
 
-				Some(COST_WRONG_PARA)
+				CollationFetchResult::Error(COST_WRONG_PARA)
 			}
 			Ok(CollationFetchingResponse::Collation(receipt, pov)) => {
 				tracing::debug!(
@@ -1468,13 +1485,14 @@ async fn poll_collation_response(
 					success = "true";
 				}
 
-				None
+				CollationFetchResult::Success
 			},
 		};
 		metrics.on_request(metrics_result);
 		per_req.span.as_mut().map(|s| s.add_string_tag("success", success));
-		(true, reputation_change)
+
+		result
 	} else {
-		(false, None)
+		CollationFetchResult::Pending
 	}
 }
