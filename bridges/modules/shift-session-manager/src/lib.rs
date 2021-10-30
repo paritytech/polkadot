@@ -19,7 +19,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{decl_module, decl_storage};
+use frame_support::{decl_module, decl_storage, WeakBoundedVec};
 use sp_std::prelude::*;
 
 /// The module configuration trait.
@@ -37,10 +37,14 @@ decl_storage! {
 	}
 }
 
-impl<T: Config> pallet_session::SessionManager<T::ValidatorId> for Pallet<T> {
+impl<T: Config> pallet_session::SessionManager<T::ValidatorId, T::MaxValidatorsCount>
+	for Pallet<T>
+{
 	fn end_session(_: sp_staking::SessionIndex) {}
 	fn start_session(_: sp_staking::SessionIndex) {}
-	fn new_session(session_index: sp_staking::SessionIndex) -> Option<Vec<T::ValidatorId>> {
+	fn new_session(
+		session_index: sp_staking::SessionIndex,
+	) -> Option<WeakBoundedVec<T::ValidatorId, T::MaxValidatorsCount>> {
 		// we don't want to add even more fields to genesis config => just return None
 		if session_index == 0 || session_index == 1 {
 			return None;
@@ -66,7 +70,7 @@ impl<T: Config> Pallet<T> {
 	fn select_validators(
 		session_index: sp_staking::SessionIndex,
 		available_validators: &[T::ValidatorId],
-	) -> Vec<T::ValidatorId> {
+	) -> WeakBoundedVec<T::ValidatorId, T::MaxValidatorsCount> {
 		let available_validators_count = available_validators.len();
 		let count = sp_std::cmp::max(1, 2 * available_validators_count / 3);
 		let offset = session_index as usize % available_validators_count;
@@ -80,7 +84,10 @@ impl<T: Config> Pallet<T> {
 			_ => available_validators[offset..end].to_vec(),
 		};
 
-		session_validators
+		WeakBoundedVec::force_from(
+			session_validators,
+			Some("select_validators: too many validators"),
+		)
 	}
 }
 
@@ -171,17 +178,21 @@ mod tests {
 	impl pallet_session::SessionHandler<AccountId> for TestSessionHandler {
 		const KEY_TYPE_IDS: &'static [sp_runtime::KeyTypeId] = &[UintAuthorityId::ID];
 
-		fn on_genesis_session<Ks: sp_runtime::traits::OpaqueKeys>(_validators: &[(AccountId, Ks)]) {}
+		fn on_genesis_session<Ks: sp_runtime::traits::OpaqueKeys>(_validators: &[(AccountId, Ks)]) {
+		}
 
-		fn on_new_session<Ks: sp_runtime::traits::OpaqueKeys>(_: bool, _: &[(AccountId, Ks)], _: &[(AccountId, Ks)]) {}
+		fn on_new_session<Ks: sp_runtime::traits::OpaqueKeys>(
+			_: bool,
+			_: &[(AccountId, Ks)],
+			_: &[(AccountId, Ks)],
+		) {
+		}
 
 		fn on_disabled(_: u32) {}
 	}
 
 	fn new_test_ext() -> TestExternalities {
-		let mut t = frame_system::GenesisConfig::default()
-			.build_storage::<TestRuntime>()
-			.unwrap();
+		let mut t = frame_system::GenesisConfig::default().build_storage::<TestRuntime>().unwrap();
 
 		let keys = vec![
 			(1, 1, UintAuthorityId(1)),

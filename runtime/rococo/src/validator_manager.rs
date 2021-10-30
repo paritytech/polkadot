@@ -17,7 +17,7 @@
 //! A pallet for managing validators on Rococo.
 
 use frame_support::{
-	decl_error, decl_event, decl_module, decl_storage, traits::EnsureOrigin, BoundedVec,
+	decl_error, decl_event, decl_module, decl_storage, traits::EnsureOrigin, WeakBoundedVec,
 };
 use sp_staking::SessionIndex;
 use sp_std::vec::Vec;
@@ -100,14 +100,14 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId, T::MaxValidatorsC
 {
 	fn new_session(
 		new_index: SessionIndex,
-	) -> Option<BoundedVec<T::ValidatorId, T::MaxValidatorsCount>> {
+	) -> Option<WeakBoundedVec<T::ValidatorId, T::MaxValidatorsCount>> {
 		if new_index <= 1 {
 			return None;
 		}
 
 		let mut validators = Session::<T>::validators();
 
-		// It's crucial to remove validators first and then add for the BoundedVec not to overflow
+		// It's crucial to remove validators first and then add for the WeakBoundedVec not to overflow
 		ValidatorsToRetire::<T>::take().iter().for_each(|v| {
 			if let Some(pos) = validators.iter().position(|r| r == v) {
 				validators.swap_remove(pos);
@@ -139,7 +139,7 @@ impl<T: Config>
 {
 	fn new_session(
 		new_index: SessionIndex,
-	) -> Option<BoundedVec<(T::ValidatorId, ()), T::MaxValidatorsCount>> {
+	) -> Option<WeakBoundedVec<(T::ValidatorId, ()), T::MaxValidatorsCount>> {
 		<Self as pallet_session::SessionManager<_, _>>::new_session(new_index)
 			.map(|r| r.map_collect(|v| (v, Default::default())))
 	}
