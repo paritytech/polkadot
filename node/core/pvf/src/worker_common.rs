@@ -222,6 +222,7 @@ impl WorkerHandle {
 			.args(extra_args)
 			.arg(socket_path.as_ref().as_os_str())
 			.stdout(async_process::Stdio::piped())
+			.stderr(async_process::Stdio::piped())
 			.kill_on_drop(true)
 			.spawn()?;
 
