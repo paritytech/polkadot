@@ -20,7 +20,7 @@ use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
+use sc_executor_wasmtime::{Config, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use sp_wasm_interface::HostFunctions as _;
 use std::any::{Any, TypeId};
