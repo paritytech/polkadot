@@ -232,7 +232,8 @@ impl DisputeSender {
 			let valid_vote = votes.valid.get(0).ok_or(NonFatal::MissingVotesFromCoordinator)?;
 			(valid_vote, our_invalid_vote)
 		} else {
-			return Err(From::from(NonFatal::MissingVotesFromCoordinator))
+			// There is no vote from us yet - nothing to do.
+			return Ok(())
 		};
 		let (kind, valid_index, signature) = valid_vote;
 		let valid_public = info
