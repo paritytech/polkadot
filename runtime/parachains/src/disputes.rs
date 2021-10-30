@@ -1208,8 +1208,8 @@ fn check_signature(
 mod tests {
 	use super::*;
 	use crate::mock::{
-		new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System, Test,
-		PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
+		new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
+		Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, PUNISH_VALIDATORS_INCONCLUSIVE,
 		REWARD_VALIDATORS,
 	};
 	use frame_support::{
