@@ -189,6 +189,7 @@ impl pallet_babe::Config for Runtime {
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxValidatorsCount;
+	type MaxReportersCount = MaxReportersCount;
 }
 
 parameter_types! {
@@ -282,6 +283,8 @@ impl pallet_session::Config for Runtime {
 	type SessionManager = Staking;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
+	type MaxValidatorsCount = MaxValidatorsCount;
+	type MaxKeysEncodingSize = MaxKeysEncodingSize;
 	type WeightInfo = ();
 }
 
@@ -320,11 +323,14 @@ parameter_types! {
 	pub const MaxPriorSlashingSpans: u32 = 1_000;
 	pub const MaxValidatorsCount: u32 = 4_000;
 	pub const MaxUnlockingChunks: u32 = 32;
+	pub const MaxKeysEncodingSize: u32 = 1_000;
 }
 
 impl frame_election_provider_support::onchain::Config for Runtime {
 	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
 	type DataProvider = Staking;
+	type MaxNominations = MaxNominations;
+	type MaxTargets = MaxValidatorsCount;
 }
 
 impl pallet_staking::Config for Runtime {
@@ -382,6 +388,7 @@ impl pallet_grandpa::Config for Runtime {
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxValidatorsCount;
+	type MaxReportersCount = MaxReportersCount;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -432,6 +439,7 @@ impl pallet_offences::Config for Runtime {
 	type Event = Event;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
+	type MaxReportersCount = MaxReportersCount;
 }
 
 impl pallet_authority_discovery::Config for Runtime {
