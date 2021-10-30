@@ -317,13 +317,44 @@ pub fn worker_entrypoint(socket_path: &str) {
 }
 
 fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
-	let blob = match crate::executor_intf::prevalidate(code) {
-		Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
-		Ok(b) => b,
+	let blob = {
+		let _t = timeit("prevalidate");
+		match crate::executor_intf::prevalidate(code) {
+			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
+			Ok(b) => b,
+		}
 	};
 
-	match crate::executor_intf::prepare(blob) {
-		Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
-		Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
+	{
+		let _t = timeit("prepare");
+		match crate::executor_intf::prepare(blob) {
+			Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
+			Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
+		}
 	}
 }
+
+#[must_use]
+pub fn timeit(label: impl Into<String>) -> impl Drop {
+    use std::time::Instant;
+
+    struct Guard {
+        label: String,
+        start: Instant,
+    }
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+			tracing::debug!(
+				target: LOG_TARGET,
+				worker_pid = %std::process::id(),
+				"{}: {:.2?}",
+				self.label,
+				self.start.elapsed(),
+			);
+        }
+    }
+
+    Guard { label: label.into(), start: Instant::now() }
+}
+
