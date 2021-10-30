@@ -24,7 +24,9 @@ command = "polkadot"
   [[relaychain.nodes]]
   name = "david"
   validator = true
-  commandWithArgs = "/usr/local/bin/malus dispute-ancestor --dave -lparachain=debug"
+  command = "/usr/local/bin/malus dispute-ancestor"
+  extra_args = ["--dave", "-lparachain=debug"]
+  #commandWithArgs = "/usr/local/bin/malus dispute-ancestor --dave -lparachain=debug"
   image = "paritypr/malus:3639-7edc6602"
   autoConnectApi = false
 

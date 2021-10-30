@@ -14,7 +14,9 @@ command = "polkadot"
   [[relaychain.nodes]]
   name = "bob"
   validator = true
-  commandWithArgs = "/usr/local/bin/malus back-garbage-candidate --bob -lparachain=debug"
+  command = "/usr/local/bin/malus back-garbage-candidate"
+  extra_args = ["--bob", "-lparachain=debug"]
+  #commandWithArgs = "/usr/local/bin/malus back-garbage-candidate --bob -lparachain=debug"
   image = "paritypr/malus:3639-7edc6602"
   autoConnectApi = false
 
@@ -22,7 +24,9 @@ command = "polkadot"
   [[relaychain.nodes]]
   name = "charlie"
   validator = true
-  commandWithArgs = "/usr/local/bin/malus back-garbage-candidate --charlie -lparachain=debug"
+  command = "/usr/local/bin/malus back-garbage-candidate"
+  extra_args = ["--charlie", "-lparachain=debug"]
+  #commandWithArgs = "/usr/local/bin/malus back-garbage-candidate --charlie -lparachain=debug"
   image = "paritypr/malus:3639-7edc6602"
   autoConnectApi = false
 
@@ -30,14 +34,18 @@ command = "polkadot"
   [[relaychain.nodes]]
   name = "david"
   validator = true
-  commandWithArgs = "/usr/local/bin/malus back-garbage-candidate --dave -lparachain=debug"
+  command = "/usr/local/bin/malus back-garbage-candidate"
+  extra_args = ["--dave", "-lparachain=debug"]
+  #commandWithArgs = "/usr/local/bin/malus back-garbage-candidate --dave -lparachain=debug"
   image = "paritypr/malus:3639-7edc6602"
   autoConnectApi = false
 
   [[relaychain.nodes]]
   name = "eve"
   validator = true
-  commandWithArgs = "/usr/local/bin/malus suggest-garbage-candidate --eve -lparachain=debug"
+  command = "/usr/local/bin/malus suggest-garbage-candidate"
+  extra_args = ["--eve", "-lparachain=debug"]
+  #commandWithArgs = "/usr/local/bin/malus suggest-garbage-candidate --eve -lparachain=debug"
   image = "paritypr/malus:3639-7edc6602"
   autoConnectApi = false
 
