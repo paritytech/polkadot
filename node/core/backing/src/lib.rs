@@ -930,6 +930,13 @@ impl CandidateBackingJob {
 
 				// Sanity check that candidate is from our assignment.
 				if Some(candidate.descriptor().para_id) != self.assignment {
+					tracing::debug!(
+						target: LOG_TARGET,
+						"Subsystem asked to second for para outside of our assignment",
+						our_assignment = ?self.assignment,
+						collation = ?candidate.descriptor().para_id,
+					);
+
 					return Ok(())
 				}
 
