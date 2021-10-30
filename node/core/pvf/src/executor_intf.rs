@@ -63,11 +63,8 @@ const CONFIG: Config = Config {
 		// Since reaching the native stack limit is undesirable, we halven the logical item limit and
 		// also increase the native 256x. This hopefully should preclude wasm code from reaching
 		// the stack limit set by the wasmtime.
-		deterministic_stack_limit: Some(DeterministicStackLimit {
-			logical_max: 65536,
-			native_stack_max: 256 * 1024 * 1024,
-		}),
-		canonicalize_nans: true,
+		deterministic_stack_limit: None,
+		canonicalize_nans: false,
 		parallel_compilation: true,
 	},
 };
