@@ -110,12 +110,8 @@ impl SendTask {
 		request: DisputeRequest,
 		metrics: &Metrics,
 	) -> Result<Self> {
-		let mut send_task = Self {
-			request,
-			deliveries: HashMap::new(),
-			has_failed_sends: false,
-			tx,
-		};
+		let mut send_task =
+			Self { request, deliveries: HashMap::new(), has_failed_sends: false, tx };
 		send_task.refresh_sends(ctx, runtime, active_sessions, metrics).await?;
 		Ok(send_task)
 	}
