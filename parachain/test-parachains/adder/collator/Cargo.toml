@@ -1,6 +1,6 @@
 [package]
 name = "test-parachain-adder-collator"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator for the adder test parachain"
 edition = "2018"
@@ -18,7 +18,7 @@ parity-scale-codec = { version = "2.3.1", default-features = false, features = [
 futures = "0.3.17"
 futures-timer = "3.0.2"
 log = "0.4.13"
-structopt = "0.3.23"
+structopt = "0.3.25"
 
 test-parachain-adder = { path = ".." }
 polkadot-primitives = { path = "../../../../primitives" }
