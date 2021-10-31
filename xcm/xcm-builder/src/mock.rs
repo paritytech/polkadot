@@ -38,7 +38,9 @@ pub use sp_std::{
 pub use xcm::latest::prelude::*;
 use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
-	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset, ExportXcm},
+	traits::{
+		ConvertOrigin, ExportXcm, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset,
+	},
 	Assets, Config,
 };
 
@@ -120,7 +122,12 @@ impl SendXcm for TestMessageSender {
 }
 pub struct TestMessageExporter;
 impl ExportXcm for TestMessageExporter {
-	fn export_xcm(network: NetworkId, channel: u32, dest: impl Into<InteriorMultiLocation>, msg: opaque::Xcm) -> SendResult {
+	fn export_xcm(
+		network: NetworkId,
+		channel: u32,
+		dest: impl Into<InteriorMultiLocation>,
+		msg: opaque::Xcm,
+	) -> SendResult {
 		EXPORTED_XCM.with(|q| q.borrow_mut().push((network, channel, dest.into(), msg)));
 		Ok(())
 	}
