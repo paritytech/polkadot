@@ -1320,13 +1320,13 @@ parameter_types! {
 	/// The location of the KSM token, from the context of this chain. Since this token is native to this
 	/// chain, we make it synonymous with it and thus it is the `Here` location, which means "equivalent to
 	/// the context".
-	pub const KsmLocation: MultiLocation = Here.into();
+	pub const TokenLocation: MultiLocation = Here.into_location();
 	/// The Kusama network ID. This is named.
 	pub const ThisNetwork: NetworkId = Kusama;
 	/// Our XCM location ancestry - i.e. our location within the Consensus Universe.
 	///
 	/// Since Kusama is a top-level relay-chain with its own consensus, it's just our network ID.
-	pub const Ancestry: InteriorMultiLocation = ThisNetwork.into();
+	pub Ancestry: InteriorMultiLocation = ThisNetwork::get().into();
 	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
@@ -1343,12 +1343,12 @@ pub type SovereignAccountOf = (
 /// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
 /// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
 ///
-/// Ours is only aware of the Balances pallet, which is mapped to `KsmLocation`.
+/// Ours is only aware of the Balances pallet, which is mapped to `TokenLocation`.
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency:
 	Balances,
 	// Use this currency when it is a fungible asset matching the given location or name:
-	IsConcrete<KsmLocation>,
+	IsConcrete<TokenLocation>,
 	// We can convert the MultiLocations with our converter above:
 	SovereignAccountOf,
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
@@ -1385,13 +1385,15 @@ pub type XcmRouter = (
 );
 
 parameter_types! {
-	pub const Kusama: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(KsmLocation::get()) });
-	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1000).into());
-	pub const KusamaForEncointer: (MultiAssetFilter, MultiLocation) = (Kusama::get(), Parachain(1001).into());
+	pub const Ksm: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
+	pub const KsmForStatemine: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Parachain(1000).into_location());
+	pub const KsmForEncointer: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Parachain(1001).into_location());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
-pub type TrustedTeleporters =
-	(xcm_builder::Case<KusamaForStatemine>, xcm_builder::Case<KusamaForEncointer>);
+pub type TrustedTeleporters = (
+	xcm_builder::Case<KsmForStatemine>,
+	xcm_builder::Case<KsmForEncointer>,
+);
 
 match_type! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
@@ -1425,7 +1427,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
-	type Trader = UsingComponents<WeightToFee, KsmLocation, AccountId, Balances, ToAuthor<Runtime>>;
+	type Trader = UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;

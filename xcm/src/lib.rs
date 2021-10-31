@@ -356,9 +356,9 @@ impl From<v1::MultiAssets> for VersionedMultiAssets {
 	}
 }
 
-impl From<v3::MultiAssets> for VersionedMultiAssets {
-	fn from(x: v3::MultiAssets) -> Self {
-		VersionedMultiAssets::V3(x)
+impl<T: Into<v3::MultiAssets>> From<T> for VersionedMultiAssets {
+	fn from(x: T) -> Self {
+		VersionedMultiAssets::V3(x.into())
 	}
 }
 
@@ -593,6 +593,7 @@ pub trait GetWeight<W> {
 }
 
 #[test]
-fn test_build() {
-
+fn conversion_works() {
+	use latest::prelude::*;
+	let _: VersionedMultiAssets = (Here, 1).into();
 }

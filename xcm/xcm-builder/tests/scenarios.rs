@@ -47,7 +47,7 @@ fn withdraw_and_deposit_works() {
 		let amount = REGISTER_AMOUNT;
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID).into(),
+			Parachain(PARA_ID),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
@@ -88,7 +88,7 @@ fn report_holding_works() {
 			max_weight: 1_000_000_000,
 		};
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID).into(),
+			Parachain(PARA_ID),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
@@ -114,7 +114,7 @@ fn report_holding_works() {
 
 		// now do a successful transfer
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID).into(),
+			Parachain(PARA_ID),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
@@ -169,14 +169,14 @@ fn teleport_to_statemine_works() {
 			buy_execution(), // unchecked mock value
 			DepositAsset {
 				assets: AllCounted(1).into(),
-				beneficiary: (1, Parachain(PARA_ID)).into(),
+				beneficiary: (Parent, Parachain(PARA_ID)).into(),
 			},
 		];
 		let weight = 3 * BaseXcmWeight::get();
 
 		// teleports are allowed to community chains, even in the absence of trust from their side.
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID).into(),
+			Parachain(PARA_ID),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
@@ -202,7 +202,7 @@ fn teleport_to_statemine_works() {
 
 		// teleports are allowed from statemine to kusama.
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID).into(),
+			Parachain(PARA_ID),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),
@@ -257,12 +257,12 @@ fn reserve_based_transfer_works() {
 			buy_execution(), // unchecked mock value
 			DepositAsset {
 				assets: AllCounted(1).into(),
-				beneficiary: (1, Parachain(PARA_ID)).into(),
+				beneficiary: (Parent, Parachain(PARA_ID)).into(),
 			},
 		];
 		let weight = 3 * BaseXcmWeight::get();
 		let r = XcmExecutor::<XcmConfig>::execute_xcm(
-			Parachain(PARA_ID).into(),
+			Parachain(PARA_ID),
 			Xcm(vec![
 				WithdrawAsset((Here, amount).into()),
 				buy_execution(),

@@ -980,9 +980,9 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const WndLocation: MultiLocation = Here.into();
+	pub const TokenLocation: MultiLocation = Here.into_location();
 	pub const ThisNetwork: NetworkId = Westend;
-	pub const Ancestry: InteriorMultiLocation = ThisNetwork.into();
+	pub Ancestry: InteriorMultiLocation = ThisNetwork::get().into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -993,7 +993,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency:
 	Balances,
 	// Use this currency when it is a fungible asset matching the given location or name:
-	IsConcrete<WndLocation>,
+	IsConcrete<TokenLocation>,
 	// We can convert the MultiLocations with our converter above:
 	LocationConverter,
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
@@ -1017,17 +1017,18 @@ pub type XcmRouter = (
 );
 
 parameter_types! {
-	pub const Westmint: MultiLocation = Parachain(1000).into();
+	pub const Westmint: MultiLocation = Parachain(1000).into_location();
 	pub const Encointer: MultiLocation = Parachain(1001).into();
-	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Westmint::get());
-	pub const WestendForEncointer: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Encointer::get());
+	pub const Wnd: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
+	pub const WndForWestmint: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Westmint::get());
+	pub const WndForEncointer: (MultiAssetFilter, MultiLocation) = (Wnd::get(), Encointer::get());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
-pub type TrustedTeleporters =
-	(xcm_builder::Case<WestendForWestmint>, xcm_builder::Case<WestendForEncointer>);
+pub type TrustedTeleporters = (
+	xcm_builder::Case<WndForWestmint>,
+	xcm_builder::Case<WndForEncointer>,
+);
 
 /// The barriers one of which must be passed for an XCM message to be executed.
 pub type Barrier = (
@@ -1054,7 +1055,7 @@ impl xcm_executor::Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
 	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
-	type Trader = UsingComponents<WeightToFee, WndLocation, AccountId, Balances, ToAuthor<Runtime>>;
+	type Trader = UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
@@ -1677,7 +1678,7 @@ sp_api::impl_runtime_apis! {
 			parameter_types! {
 				pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
 					Westmint::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(WndLocation::get()) },
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
 			}
 
@@ -1689,7 +1690,7 @@ sp_api::impl_runtime_apis! {
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
-						id: Concrete(WndLocation::get()),
+						id: Concrete(TokenLocation::get()),
 						fun: Fungible(1 * UNITS),
 					}
 				}
