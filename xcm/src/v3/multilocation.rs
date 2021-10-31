@@ -246,7 +246,7 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
+	/// # use xcm::v3::{Junctions::*, Junction::*, MultiLocation};
 	/// # fn main() {
 	/// let mut m = MultiLocation::new(1, X2(PalletInstance(3), OnlyChild));
 	/// assert_eq!(
@@ -269,15 +269,39 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
+	/// # use xcm::v3::{Junctions::*, Junction::*, MultiLocation, Parent};
 	/// # fn main() {
-	/// let mut m = MultiLocation::new(1, X1(Parachain(21)));
-	/// assert_eq!(m.append_with(X1(PalletInstance(3))), Ok(()));
+	/// let mut m: MultiLocation = (Parent, Parachain(21), 69u64).into();
+	/// assert_eq!(m.append_with((Parent, PalletInstance(3))), Ok(()));
 	/// assert_eq!(m, MultiLocation::new(1, X2(Parachain(21), PalletInstance(3))));
 	/// # }
 	/// ```
-	pub fn append_with(&mut self, suffix: impl Into<Junctions>) -> Result<(), Junctions> {
-		self.interior.append_with(suffix.into())
+	pub fn append_with(&mut self, suffix: impl Into<Self>) -> Result<(), Self> {
+		let prefix = core::mem::replace(self, suffix.into());
+		match self.prepend_with(prefix) {
+			Ok(()) => Ok(()),
+			Err(prefix) => Err(core::mem::replace(self, prefix)),
+		}
+	}
+
+	/// Consume `self` and return its value suffixed with `suffix`.
+	///
+	/// Returns `Err` with the original value of `self` and `suffix` in case of overflow.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v3::{Junctions::*, Junction::*, MultiLocation, Parent};
+	/// # fn main() {
+	/// let mut m: MultiLocation = (Parent, Parachain(21), 69u64).into();
+	/// let r = m.appended_with((Parent, PalletInstance(3))).unwrap();
+	/// assert_eq!(r, MultiLocation::new(1, X2(Parachain(21), PalletInstance(3))));
+	/// # }
+	/// ```
+	pub fn appended_with(mut self, suffix: impl Into<Self>) -> Result<Self, (Self, Self)> {
+		match self.append_with(suffix) {
+			Ok(()) => Ok(self),
+			Err(suffix) => Err((self, suffix)),
+		}
 	}
 
 	/// Mutate `self` so that it is prefixed with `prefix`.
@@ -286,14 +310,14 @@ impl MultiLocation {
 	///
 	/// # Example
 	/// ```rust
-	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
+	/// # use xcm::v3::{Junctions::*, Junction::*, MultiLocation, Parent};
 	/// # fn main() {
-	/// let mut m = MultiLocation::new(2, X1(PalletInstance(3)));
-	/// assert_eq!(m.prepend_with(MultiLocation::new(1, X2(Parachain(21), OnlyChild))), Ok(()));
+	/// let mut m: MultiLocation = (Parent, Parent, PalletInstance(3)).into();
+	/// assert_eq!(m.prepend_with((Parent, Parachain(21), OnlyChild)), Ok(()));
 	/// assert_eq!(m, MultiLocation::new(1, X1(PalletInstance(3))));
 	/// # }
 	/// ```
-	pub fn prepend_with(&mut self, prefix: impl Into<MultiLocation>) -> Result<(), MultiLocation> {
+	pub fn prepend_with(&mut self, prefix: impl Into<Self>) -> Result<(), Self> {
 		//     prefix     self (suffix)
 		// P .. P I .. I  p .. p i .. i
 		let mut prefix = prefix.into();
@@ -327,6 +351,26 @@ impl MultiLocation {
 				.expect("final_interior no greater than MAX_JUNCTIONS; qed");
 		}
 		Ok(())
+	}
+
+	/// Consume `self` and return its value prefixed with `prefix`.
+	///
+	/// Returns `Err` with the original value of `self` and `prefix` in case of overflow.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v3::{Junctions::*, Junction::*, MultiLocation, Parent};
+	/// # fn main() {
+	/// let m: MultiLocation = (Parent, Parent, PalletInstance(3)).into();
+	/// let r = m.prepended_with((Parent, Parachain(21), OnlyChild)).unwrap();
+	/// assert_eq!(r, MultiLocation::new(1, X1(PalletInstance(3))));
+	/// # }
+	/// ```
+	pub fn prepended_with(mut self, prefix: impl Into<Self>) -> Result<Self, (Self, Self)> {
+		match self.prepend_with(prefix) {
+			Ok(()) => Ok(self),
+			Err(prefix) => Err((self, prefix)),
+		}
 	}
 }
 

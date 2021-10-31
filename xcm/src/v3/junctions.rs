@@ -449,10 +449,10 @@ impl Junctions {
 }
 
 impl TryFrom<MultiLocation> for Junctions {
-	type Error = ();
-	fn try_from(x: MultiLocation) -> result::Result<Self, ()> {
+	type Error = MultiLocation;
+	fn try_from(x: MultiLocation) -> result::Result<Self, MultiLocation> {
 		if x.parents > 0 {
-			Err(())
+			Err(x)
 		} else {
 			Ok(x.interior)
 		}
