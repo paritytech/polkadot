@@ -22,7 +22,7 @@ use frame_support::{
 	traits::{Contains, Get, PalletsInfoAccess},
 	weights::GetDispatchInfo,
 };
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 use sp_io::hashing::blake2_128;
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
@@ -30,8 +30,8 @@ use xcm::latest::prelude::*;
 
 pub mod traits;
 use traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader, ExportXcm,
+	ClaimAssets, ConvertOrigin, DropAssets, ExportXcm, FilterAssetLocation, InvertLocation,
+	OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
