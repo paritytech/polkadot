@@ -934,10 +934,15 @@ impl<Call> TryFrom<NewInstruction<Call>> for Instruction<Call> {
 			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets.try_into()?),
 			QueryResponse { query_id, response, max_weight } =>
 				Self::QueryResponse { query_id, response: response.try_into()?, max_weight },
-			TransferAsset { assets, beneficiary } =>
-				Self::TransferAsset { assets: assets.try_into()?, beneficiary: beneficiary.try_into()? },
-			TransferReserveAsset { assets, dest, xcm } =>
-				Self::TransferReserveAsset { assets: assets.try_into()?, dest: dest.try_into()?, xcm: xcm.try_into()? },
+			TransferAsset { assets, beneficiary } => Self::TransferAsset {
+				assets: assets.try_into()?,
+				beneficiary: beneficiary.try_into()?,
+			},
+			TransferReserveAsset { assets, dest, xcm } => Self::TransferReserveAsset {
+				assets: assets.try_into()?,
+				dest: dest.try_into()?,
+				xcm: xcm.try_into()?,
+			},
 			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
 				Self::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
 			HrmpChannelAccepted { recipient } => Self::HrmpChannelAccepted { recipient },

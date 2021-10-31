@@ -50,8 +50,13 @@ fn report_outcome_notify_works() {
 	};
 	let notify = Call::TestNotifier(call);
 	new_test_ext_with_balances(balances).execute_with(|| {
-		XcmPallet::report_outcome_notify(&mut message, Parachain(PARA_ID).into_location(), notify, 100)
-			.unwrap();
+		XcmPallet::report_outcome_notify(
+			&mut message,
+			Parachain(PARA_ID).into_location(),
+			notify,
+			100,
+		)
+		.unwrap();
 		assert_eq!(
 			message,
 			Xcm(vec![
@@ -152,8 +157,7 @@ fn send_works() {
 	let balances =
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
-		let sender: MultiLocation =
-			AccountId32 { network: None, id: ALICE.into() }.into();
+		let sender: MultiLocation = AccountId32 { network: None, id: ALICE.into() }.into();
 		let message = Xcm(vec![
 			ReserveAssetDeposited((Parent, SEND_AMOUNT).into()),
 			ClearOrigin,
@@ -340,8 +344,7 @@ fn reserve_transfer_assets_works() {
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
-		let dest: MultiLocation =
-			Junction::AccountId32 { network: None, id: ALICE.into() }.into();
+		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			Origin::signed(ALICE),
@@ -386,8 +389,7 @@ fn limited_reserve_transfer_assets_works() {
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
-		let dest: MultiLocation =
-			Junction::AccountId32 { network: None, id: ALICE.into() }.into();
+		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
 			Origin::signed(ALICE),
@@ -433,8 +435,7 @@ fn unlimited_reserve_transfer_assets_works() {
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
-		let dest: MultiLocation =
-			Junction::AccountId32 { network: None, id: ALICE.into() }.into();
+		let dest: MultiLocation = Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
 			Origin::signed(ALICE),
@@ -478,8 +479,7 @@ fn execute_withdraw_to_deposit_works() {
 		vec![(ALICE, INITIAL_BALANCE), (ParaId::from(PARA_ID).into_account(), INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 3 * BaseXcmWeight::get();
-		let dest: MultiLocation =
-			Junction::AccountId32 { network: None, id: BOB.into() }.into();
+		let dest: MultiLocation = Junction::AccountId32 { network: None, id: BOB.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
@@ -505,8 +505,7 @@ fn trapped_assets_can_be_claimed() {
 	let balances = vec![(ALICE, INITIAL_BALANCE), (BOB, INITIAL_BALANCE)];
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 6 * BaseXcmWeight::get();
-		let dest: MultiLocation =
-			Junction::AccountId32 { network: None, id: BOB.into() }.into();
+		let dest: MultiLocation = Junction::AccountId32 { network: None, id: BOB.into() }.into();
 
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),

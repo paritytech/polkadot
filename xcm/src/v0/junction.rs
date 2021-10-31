@@ -16,11 +16,11 @@
 
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
-use core::convert::TryInto;
+use crate::v3::NetworkId as NewNetworkId;
 use alloc::vec::Vec;
+use core::convert::TryInto;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use crate::v3::NetworkId as NewNetworkId;
 
 /// A global identifier of an account-bearing consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]

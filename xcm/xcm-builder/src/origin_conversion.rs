@@ -196,8 +196,7 @@ where
 			(
 				OriginKind::Native,
 				MultiLocation { parents: 0, interior: X1(Junction::AccountId32 { id, network }) },
-			) if matches!(network, None) || network == Network::get() =>
-				Ok(Origin::signed(id.into())),
+			) if matches!(network, None) || network == Network::get() => Ok(Origin::signed(id.into())),
 			(_, origin) => Err(origin),
 		}
 	}
@@ -223,8 +222,7 @@ where
 			(
 				OriginKind::Native,
 				MultiLocation { parents: 0, interior: X1(Junction::AccountKey20 { key, network }) },
-			) if (matches!(network, None) || network == Network::get()) =>
-				Ok(Origin::signed(key.into())),
+			) if (matches!(network, None) || network == Network::get()) => Ok(Origin::signed(key.into())),
 			(_, origin) => Err(origin),
 		}
 	}

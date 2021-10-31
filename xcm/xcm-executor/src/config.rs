@@ -20,10 +20,10 @@ use crate::traits::{
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
-	traits::{Get, PalletsInfoAccess, Contains},
+	traits::{Contains, Get, PalletsInfoAccess},
 	weights::{GetDispatchInfo, PostDispatchInfo},
 };
-use xcm::latest::{MultiLocation, Junction, SendXcm};
+use xcm::latest::{Junction, MultiLocation, SendXcm};
 
 /// The trait to parameterize the `XcmExecutor`.
 pub trait Config {

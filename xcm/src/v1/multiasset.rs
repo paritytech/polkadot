@@ -25,8 +25,8 @@
 
 use super::MultiLocation;
 use crate::v3::{
-	AssetId as NewAssetId, MultiAsset as NewMultiAsset, MultiAssets as NewMultiAssets,
-	MultiAssetFilter as NewMultiAssetFilter, WildMultiAsset as NewWildMultiAsset
+	AssetId as NewAssetId, MultiAsset as NewMultiAsset, MultiAssetFilter as NewMultiAssetFilter,
+	MultiAssets as NewMultiAssets, WildMultiAsset as NewWildMultiAsset,
 };
 use alloc::{vec, vec::Vec};
 use core::{

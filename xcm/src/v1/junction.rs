@@ -17,8 +17,7 @@
 //! Support data structures for `MultiLocation`, primarily the `Junction` datatype.
 
 use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
-use crate::v0::Junction as OldJunction;
-use crate::v3::Junction as NewJunction;
+use crate::{v0::Junction as OldJunction, v3::Junction as NewJunction};
 use alloc::vec::Vec;
 use core::convert::{TryFrom, TryInto};
 use parity_scale_codec::{self, Decode, Encode};
@@ -88,8 +87,7 @@ impl TryFrom<OldJunction> for Junction {
 			Parent => Err(()),
 			Parachain(id) => Ok(Self::Parachain(id)),
 			AccountId32 { network, id } => Ok(Self::AccountId32 { network, id }),
-			AccountIndex64 { network, index } =>
-				Ok(Self::AccountIndex64 { network, index }),
+			AccountIndex64 { network, index } => Ok(Self::AccountIndex64 { network, index }),
 			AccountKey20 { network, key } => Ok(Self::AccountKey20 { network, key }),
 			PalletInstance(index) => Ok(Self::PalletInstance(index)),
 			GeneralIndex(id) => Ok(Self::GeneralIndex(id)),
@@ -107,8 +105,7 @@ impl TryFrom<NewJunction> for Junction {
 		use NewJunction::*;
 		Ok(match value {
 			Parachain(id) => Self::Parachain(id),
-			AccountId32 { network, id } =>
-				Self::AccountId32 { network: network.try_into()?, id },
+			AccountId32 { network, id } => Self::AccountId32 { network: network.try_into()?, id },
 			AccountIndex64 { network, index } =>
 				Self::AccountIndex64 { network: network.try_into()?, index },
 			AccountKey20 { network, key } =>

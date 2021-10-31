@@ -25,8 +25,8 @@
 
 use super::MultiLocation;
 use crate::v2::{
-	AssetId as OldAssetId, MultiAsset as OldMultiAsset, MultiAssets as OldMultiAssets,
-	MultiAssetFilter as OldMultiAssetFilter, WildMultiAsset as OldWildMultiAsset,
+	AssetId as OldAssetId, MultiAsset as OldMultiAsset, MultiAssetFilter as OldMultiAssetFilter,
+	MultiAssets as OldMultiAssets, WildMultiAsset as OldWildMultiAsset,
 };
 use alloc::{vec, vec::Vec};
 use core::{
@@ -503,7 +503,8 @@ impl TryFrom<(OldMultiAssetFilter, u32)> for MultiAssetFilter {
 	fn try_from(old: (OldMultiAssetFilter, u32)) -> Result<MultiAssetFilter, ()> {
 		let count = old.1;
 		Ok(match old.0 {
-			OldMultiAssetFilter::Definite(x) if count >= x.len() as u32 => Self::Definite(x.try_into()?),
+			OldMultiAssetFilter::Definite(x) if count >= x.len() as u32 =>
+				Self::Definite(x.try_into()?),
 			OldMultiAssetFilter::Wild(x) => Self::Wild((x, count).try_into()?),
 			_ => return Err(()),
 		})

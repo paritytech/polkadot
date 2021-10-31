@@ -28,23 +28,23 @@ use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
 use scale_info::TypeInfo;
 
-mod multiasset;
-mod traits;
 mod junction;
 pub(crate) mod junctions;
+mod multiasset;
 mod multilocation;
+mod traits;
 
+pub use junction::{Junction, NetworkId};
+pub use junctions::Junctions;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
 };
-pub use traits::{
-	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
-};
-pub use junction::{Junction, NetworkId};
-pub use junctions::{Junctions};
 pub use multilocation::{
 	Ancestor, AncestorThen, InteriorMultiLocation, MultiLocation, Parent, ParentThen,
+};
+pub use traits::{
+	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{BodyId, BodyPart, OriginKind, WeightLimit};
@@ -131,8 +131,7 @@ pub mod prelude {
 			InteriorMultiLocation,
 			Junction::{self, *},
 			Junctions::{self, *},
-			MaybeErrorCode,
-			MultiAsset,
+			MaybeErrorCode, MultiAsset,
 			MultiAssetFilter::{self, *},
 			MultiAssets, MultiLocation,
 			NetworkId::{self, *},
@@ -895,9 +894,15 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			ReceiveTeleportedAsset(assets) => Self::ReceiveTeleportedAsset(assets.try_into()?),
 			QueryResponse { query_id, response, max_weight } =>
 				Self::QueryResponse { query_id, response: response.try_into()?, max_weight },
-			TransferAsset { assets, beneficiary } => Self::TransferAsset { assets: assets.try_into()?, beneficiary: beneficiary.try_into()? },
-			TransferReserveAsset { assets, dest, xcm } =>
-				Self::TransferReserveAsset { assets: assets.try_into()?, dest: dest.try_into()?, xcm: xcm.try_into()? },
+			TransferAsset { assets, beneficiary } => Self::TransferAsset {
+				assets: assets.try_into()?,
+				beneficiary: beneficiary.try_into()?,
+			},
+			TransferReserveAsset { assets, dest, xcm } => Self::TransferReserveAsset {
+				assets: assets.try_into()?,
+				dest: dest.try_into()?,
+				xcm: xcm.try_into()?,
+			},
 			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
 				Self::HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity },
 			HrmpChannelAccepted { recipient } => Self::HrmpChannelAccepted { recipient },
@@ -916,8 +921,10 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				};
 				Self::ReportError(response_info)
 			},
-			DepositAsset { assets, max_assets, beneficiary } =>
-				Self::DepositAsset { assets: (assets, max_assets).try_into()?, beneficiary: beneficiary.try_into()? },
+			DepositAsset { assets, max_assets, beneficiary } => Self::DepositAsset {
+				assets: (assets, max_assets).try_into()?,
+				beneficiary: beneficiary.try_into()?,
+			},
 			DepositReserveAsset { assets, max_assets, dest, xcm } => {
 				let assets = (assets, max_assets).try_into()?;
 				Self::DepositReserveAsset { assets, dest: dest.try_into()?, xcm: xcm.try_into()? }
@@ -932,8 +939,11 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				reserve: reserve.try_into()?,
 				xcm: xcm.try_into()?,
 			},
-			InitiateTeleport { assets, dest, xcm } =>
-				Self::InitiateTeleport { assets: assets.try_into()?, dest: dest.try_into()?, xcm: xcm.try_into()? },
+			InitiateTeleport { assets, dest, xcm } => Self::InitiateTeleport {
+				assets: assets.try_into()?,
+				dest: dest.try_into()?,
+				xcm: xcm.try_into()?,
+			},
 			QueryHolding { query_id, dest, assets, max_response_weight } => {
 				let response_info = QueryResponseInfo {
 					destination: dest.try_into()?,
@@ -942,9 +952,8 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				};
 				Self::ReportHolding { response_info, assets: assets.try_into()? }
 			},
-			BuyExecution { fees, weight_limit } => {
-				Self::BuyExecution { fees: fees.try_into()?, weight_limit }
-			},
+			BuyExecution { fees, weight_limit } =>
+				Self::BuyExecution { fees: fees.try_into()?, weight_limit },
 			ClearOrigin => Self::ClearOrigin,
 			DescendOrigin(who) => Self::DescendOrigin(who.try_into()?),
 			RefundSurplus => Self::RefundSurplus,
@@ -968,8 +977,8 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 mod tests {
 	use super::{prelude::*, *};
 	use crate::v2::{
-		MultiAssetFilter as OldMultiAssetFilter, WildMultiAsset as OldWildMultiAsset,
-		Junctions::Here as OldHere,
+		Junctions::Here as OldHere, MultiAssetFilter as OldMultiAssetFilter,
+		WildMultiAsset as OldWildMultiAsset,
 	};
 
 	#[test]
@@ -1017,7 +1026,10 @@ mod tests {
 		let old_xcm = OldXcm::<()>(vec![
 			OldInstruction::ReserveAssetDeposited((OldHere, 1).into()),
 			OldInstruction::ClearOrigin,
-			OldInstruction::BuyExecution { fees: (OldHere, 1).into(), weight_limit: Some(1).into() },
+			OldInstruction::BuyExecution {
+				fees: (OldHere, 1).into(),
+				weight_limit: Some(1).into(),
+			},
 			OldInstruction::DepositAsset {
 				assets: crate::v2::MultiAssetFilter::Wild(crate::v2::WildMultiAsset::All),
 				max_assets: 1,

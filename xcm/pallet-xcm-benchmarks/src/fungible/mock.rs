@@ -18,7 +18,10 @@
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
 use frame_benchmarking::BenchmarkError;
-use frame_support::{parameter_types, traits::{Everything, Nothing}};
+use frame_support::{
+	parameter_types,
+	traits::{Everything, Nothing},
+};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
