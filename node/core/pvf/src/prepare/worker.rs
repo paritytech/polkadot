@@ -345,13 +345,7 @@ pub fn timeit(label: impl Into<String>) -> impl Drop {
 
 	impl Drop for Guard {
 		fn drop(&mut self) {
-			tracing::debug!(
-				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
-				"{}: {:.2?}",
-				self.label,
-				self.start.elapsed(),
-			);
+			eprintln!("{}: {:.2?}", self.label, self.start.elapsed());
 		}
 	}
 
