@@ -1883,7 +1883,6 @@ mod test_fees {
 				MaxNominatorRewardedPerValidator::get(),
 			) as f64;
 		let block_weight = BlockWeights::get().max_block as f64;
-
 		println!(
 			"a full payout takes {:.2} of the block weight [{} / {}]",
 			payout_weight / block_weight,
