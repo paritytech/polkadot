@@ -719,7 +719,7 @@ pub enum Instruction<Call> {
 	/// Set the Origin Register to be some child of the Universal Ancestor.
 	///
 	/// Safety: Should only be usable if the Origin is trusted to represent the Universal Ancestor
-	/// child in general. In general, no Origin should be able to represent the Universal Ancester
+	/// child in general. In general, no Origin should be able to represent the Universal Ancestor
 	/// child which is the root of the local consensus system since it would by extension
 	/// allow it to act as any location within the local consensus.
 	///

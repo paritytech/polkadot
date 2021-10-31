@@ -28,11 +28,11 @@ use scale_info::TypeInfo;
 
 /// A global identifier of a data structure existing within consensus.
 ///
-/// Maintenance note: Networks with global consensus and which are practically bridgable within the
+/// Maintenance note: Networks with global consensus and which are practically bridgeable within the
 /// Polkadot ecosystem are given preference over explicit naming in this enumeration.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
 pub enum NetworkId {
-	/// The network identified by a globally recognised URI. Best practice is to use the canonical
+	/// The network identified by a globally recognized URI. Best practice is to use the canonical
 	/// server name of the primary website providing information on the network. E.g.:
 	///
 	/// - `bitcoin.org`
@@ -132,7 +132,7 @@ pub enum Junction {
 	/// Typical to be used to represent a governance origin of a chain, but could in principle be used to represent
 	/// things such as multisigs also.
 	Plurality { id: BodyId, part: BodyPart },
-	/// A global network capable of externalising its own consensus. This is not generally
+	/// A global network capable of externalizing its own consensus. This is not generally
 	/// meaningful outside of the universal level.
 	GlobalConsensus(NetworkId),
 }
