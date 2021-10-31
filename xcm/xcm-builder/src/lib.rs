@@ -66,3 +66,66 @@ pub use matches_fungible::{IsAbstract, IsConcrete};
 
 mod filter_asset_location;
 pub use filter_asset_location::{Case, NativeAsset};
+
+mod universal_exports {
+	use sp_std::{prelude::*, marker::PhantomData, convert::TryInto};
+	use frame_support::traits::Get;
+	use xcm::prelude::*;
+	use xcm_executor::traits::ExportXcm;
+
+	fn ensure_is_remote(
+		ancestry: impl Into<InteriorMultiLocation>,
+		dest: impl Into<MultiLocation>,
+	) -> Result<(NetworkId, InteriorMultiLocation), MultiLocation> {
+		let dest = dest.into();
+		let ancestry = ancestry.into();
+		let local_network = match ancestry.first() {
+			Some(GlobalConsensus(network)) => network.clone(),
+			_ => return Err(dest),
+		};
+		let universal_destination: InteriorMultiLocation = ancestry
+			.into_location()
+			.appended_with(dest.clone())
+			.map_err(|x| x.1)?
+			.try_into()?;
+		let (remote_dest, remote_net) = match universal_destination.split_first() {
+			(d, Some(GlobalConsensus(n))) if n != local_network => (d, n),
+			_ => return Err(dest),
+		};
+		Ok((remote_net, remote_dest))
+	}
+
+	pub struct LocalExporter<Exporter, Ancestry>(PhantomData<(Exporter, Ancestry)>);
+	impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm for LocalExporter<Exporter, Ancestry> {
+		fn send_xcm(dest: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
+			let (network, destination) = match ensure_is_remote(Ancestry::get(), dest) {
+				Ok(x) => x,
+				Err(dest) => return Err(SendError::CannotReachDestination(dest, message)),
+			};
+			Exporter::export_xcm(network, 0, destination, message)
+		}
+	}
+
+	#[test]
+	fn local_exporter_works() {
+		// A Kusama parachain is remote from the Polkadot Relay.
+		let x = ensure_is_remote(Polkadot, (Parent, Kusama, Parachain(1000)));
+		assert_eq!(x, Ok((Kusama, Parachain(1000).into())));
+
+		// Polkadot Relay is remote from a Kusama parachain.
+		let x = ensure_is_remote((Kusama, Parachain(1000)), (Parent, Parent, Polkadot));
+		assert_eq!(x, Ok((Polkadot, ().into())));
+
+		// Our own parachain is local.
+		let x = ensure_is_remote(Polkadot, Parachain(1000));
+		assert_eq!(x, Err(Parachain(1000).into()));
+
+		// Polkadot's parachain is not remote if we are Polkadot.
+		let x = ensure_is_remote(Polkadot, (Parent, Polkadot, Parachain(1000)));
+		assert_eq!(x, Err((Parent, Polkadot, Parachain(1000)).into()));
+
+		// If we don't have a consensus ancestor, then we cannot determine remoteness.
+		let x = ensure_is_remote((), (Parent, Polkadot, Parachain(1000)));
+		assert_eq!(x, Err((Parent, Polkadot, Parachain(1000)).into()));
+	}
+}
