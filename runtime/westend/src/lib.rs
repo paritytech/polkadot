@@ -927,13 +927,13 @@ impl auctions::Config for Runtime {
 
 parameter_types! {
 	pub const WndLocation: MultiLocation = Here.into();
-	pub const Ancestry: InteriorMultiLocation = GeneralKey(b"westend".into());
-	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
+	pub const ThisNetwork: NetworkId = Westend;
+	pub const Ancestry: InteriorMultiLocation = ThisNetwork.into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
 pub type LocationConverter =
-	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<WestendNetwork, AccountId>);
+	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<ThisNetwork, AccountId>);
 
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency:
@@ -951,7 +951,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<LocationConverter, Origin>,
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
-	SignedAccountId32AsNative<WestendNetwork, Origin>,
+	SignedAccountId32AsNative<ThisNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
@@ -1010,7 +1010,7 @@ impl xcm_executor::Config for XcmConfig {
 /// of this chain.
 pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, WestendNetwork>,
+	SignedToAccountId32<Origin, AccountId, ThisNetwork>,
 );
 
 impl pallet_xcm::Config for Runtime {

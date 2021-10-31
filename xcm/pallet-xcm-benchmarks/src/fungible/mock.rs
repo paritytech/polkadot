@@ -151,7 +151,7 @@ impl crate::Config for Test {
 	type AccountIdConverter = AccountIdConverter;
 	fn valid_destination() -> Result<MultiLocation, sp_runtime::DispatchError> {
 		let valid_destination: MultiLocation =
-			X1(AccountId32 { network: NetworkId::Any, id: [0u8; 32] }).into();
+			X1(AccountId32 { network: None, id: [0u8; 32] }).into();
 
 		Ok(valid_destination)
 	}

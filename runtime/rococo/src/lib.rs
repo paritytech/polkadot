@@ -600,13 +600,13 @@ impl parachains_paras::Config for Runtime {
 
 parameter_types! {
 	pub const RocLocation: MultiLocation = Here.into();
-	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
-	pub const Ancestry: InteriorMultiLocation = GeneralKey(b"rococo".into());
+	pub const ThisNetwork: NetworkId = Rococo;
+	pub const Ancestry: InteriorMultiLocation = GlobalConsensus(ThisNetwork);
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
 pub type SovereignAccountOf =
-	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<RococoNetwork, AccountId>);
+	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<ThisNetwork, AccountId>);
 
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency:
@@ -624,7 +624,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 type LocalOriginConverter = (
 	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
-	SignedAccountId32AsNative<RococoNetwork, Origin>,
+	SignedAccountId32AsNative<ThisNetwork, Origin>,
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
@@ -711,7 +711,7 @@ pub type LocalOriginToLocation = (
 	// `Unit` body.
 	BackingToPlurality<Origin, pallet_collective::Origin<Runtime>, CollectiveBodyId>,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, RococoNetwork>,
+	SignedToAccountId32<Origin, AccountId, ThisNetwork>,
 );
 
 impl pallet_xcm::Config for Runtime {

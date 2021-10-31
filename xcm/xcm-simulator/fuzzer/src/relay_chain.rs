@@ -95,7 +95,7 @@ impl configuration::Config for Runtime {
 parameter_types! {
 	pub const KsmLocation: MultiLocation = Here.into();
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
-	pub const AnyNetwork: NetworkId = NetworkId::Any;
+	pub const AnyNetwork: Option<NetworkId> = None;
 	pub Ancestry: InteriorMultiLocation = Here.into();
 	pub UnitWeightCost: Weight = 1_000;
 }
