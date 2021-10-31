@@ -151,6 +151,11 @@ pub mod pallet {
 				},
 			};
 
+			if parent_hash != parent_header.hash() {
+				log::warn!(target: LOG_TARGET, "ParachainsInherentData references a different parent header hash than frame");
+				return None
+			}
+
 			let current_session = <shared::Pallet<T>>::session_index();
 			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 			let validator_public = shared::Pallet::<T>::active_validator_keys();
