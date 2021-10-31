@@ -48,3 +48,22 @@ OnChainVotes: Option<ScrapedOnChainVotes>,
     1. Call `Scheduler::occupied` using the `occupied` core indices of the returned  above, first sorting the list of assigned core indices.
     1. Call the `Ump::process_pending_upward_messages` routine to execute all messages in upward dispatch queues.
     1. If all of the above succeeds, set `Included` to `Some(())`.
+
+
+* `create_inherent`: This entry-point accepts one parameter: `InherentData`.
+  1. Unpack `InherentData` into its parts, `bitfields`, `backed_candidates`, `disputes` and the `parent_header`.
+  1. Hash the `parent_header` and make sure that it corresponds to the block hash of the parent (tracked by the `frame_system` FRAME module),
+  1. Invoke `Disputes::filter_multi_dispute_data` to remove duplicates et al from `disputes`.
+  1. Run the following within a  `with_transaction` closure to avoid side effects:
+    1. Invoke `Disputes::provide_multi_dispute_data`.
+    1. Collect the newly concluded disputes as `current_concluded_invalid_disputes`.
+    1. If there are any concluded disputes from the current session, invoke `Inclusion::collect_disputed` with the newly disputed candidates. Annotate each returned core with `FreedReason::Concluded`, sort them, and invoke `Scheduler::free_cores` with them.
+    1. Collect the concluded invalid disputes in the current session as `conlcuded_invalid_disputes`.
+    1. Return `TransactionOutcome::Rollback(freed_cores, concluded_invalid_disputes)`.
+  1. Call `sanitize_bitfields<false>` and only use the sanitized set of bitfields afterwards.
+  1. Call `sanitize_backed_candidates<false>`.
+  1. Collect entropy based on `CurrentBlockRandomness::random`.
+  1. Call `apply_weight_limit` to utilize the block as well as possible, with a randomized heuristic.
+  1. Re-create a `InherentData` from the sanitized and weight bounded information.
+  1. Call `Self::enter` which now should not error anymore, but we do this call anyways for now.
+  1. Return `Call::enter { .. }`.

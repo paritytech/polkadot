@@ -45,13 +45,38 @@ PendingAvailabilityCommitments: map ParaId => CandidateCommitments;
 All failed checks should lead to an unrecoverable error making the block invalid.
 
 * `process_bitfields(expected_bits, Bitfields, core_lookup: Fn(CoreIndex) -> Option<ParaId>)`:
-  1. check that there is at most 1 bitfield per validator and that the number of bits in each bitfield is equal to `expected_bits`.
-  1. check that there are no duplicates
-  1. check all validator signatures.
+  1. call `sanitize_bitfields<true>` and use the sanitized `signed_bitfields` from now on.
+  1. call `sanitize_backed_candidates<true>` and use the sanitized `backed_candidates` from now on.
   1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `core_lookup`. Disregard bitfields that have a `1` bit for any free cores.
   1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
   1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
   1. Return a list of `(CoreIndex, CandidateHash)` from freed cores consisting of the cores where candidates have become available.
+* `sanitize_bitfields<const EARLY_RETURN>(
+    usab: UncheckedSignedAvailabilityBitfields,
+    db: DisputedBitfield,
+    expected_bits: usize,
+    parent_hash: Hash,
+    session_index: SessionIndex,
+    validators: &[ValidatorId]
+  )`:
+  1. if `EARLY_RETURN` is `true`, return an error when encountering a bitfield that does not pass the checks, if `false`, drop the bitfield from the set that will be returned.
+  1. check that there is at most 1 bitfield per validator and that the number of bits in each bitfield is equal to `expected_bits`.
+  1. check that there are no duplicates
+  1. check that the validator bit index is not out of bounds
+  1. check all validator signatures, iff `EARLY_RETURN=true`, since in the other case, checking is supposed to be done before the call
+  1. check that there are no bits set that reference a disputed candidate
+
+* `sanitize_backed_candidates<const EARLY_RETURN: bool>(
+	relay_parent: Hash,
+	mut backed_candidates: Vec<BackedCandidate>,
+	candidate_has_concluded_invalid_dispute: Fn(CandidateHash) -> bool,
+	scheduled: &[CoreAssignment],
+)`
+  1. if `EARLY_RETURN` is `true`, return an error when encountering a backed candidates that does not pass the checks, if `false`, drop the backed candidates from the set that will be returned.
+  1. check all backed candidates have no concluded invalid dispute by means of the provided closure `candidate_has_concluded_invalid_dispute`
+  1. check all backed candidates have the matchin `relay_parent`
+  1. check all backed candidates paraid was scheduled by means of the provided `scheduled` parameter
+
 * `process_candidates(parent_storage_root, BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
   1. check that each candidate corresponds to a scheduled core and that they are ordered in the same order the cores appear in assignments in `scheduled`.
   1. check that `scheduled` is sorted ascending by `CoreIndex`, without duplicates.
