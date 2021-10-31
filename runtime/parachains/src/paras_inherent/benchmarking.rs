@@ -15,153 +15,51 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{configuration, inclusion, initializer, paras, scheduler, session_info, shared};
+use crate::{
+	configuration, inclusion, initializer, paras, scheduler, session_info, shared, ParaId,
+};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
 use sp_core::H256;
 use sp_std::cmp::min;
-use crate::ParaId;
 
 use crate::builder::BenchBuilder;
 
-const MAX_DISPUTES: u32 = 1_000;
+#[cfg(not(test))]
+const MAX_DISPUTED: u32 = 1_000;
+#[cfg(test)]
+const MAX_DISPUTED: u32 = 8;
+
+#[cfg(not(test))]
 const MAX_BACKED: u32 = 1_000;
+#[cfg(test)]
+const MAX_BACKED: u32 = 8;
+
+#[cfg(not(test))]
+const MAX_VALIDATORS: u32 = 1_000;
+#[cfg(test)]
+const MAX_VALIDATORS: u32 = 16;
 
 // Variant over `d`, the number of cores with a disputed candidate. Remainder of cores are concluding
 // and backed candidates.
 benchmarks! {
-	/*enter_dispute_dominant {
-		let d in 0..BenchBuilder::<T>::cores();
-
-		let backed_and_concluding = BenchBuilder::<T>::cores() - d;
-
-		let config = configuration::Pallet::<T>::config();
-		let scenario = BenchBuilder::<T>::new()
-			.build(backed_and_concluding, d);
-	}: enter(RawOrigin::None, scenario.data.clone())
-	verify {
-		// Assert that the block was not discarded
-		assert!(Included::<T>::get().is_some());
-		// Assert that there are on-chain votes that got scraped
-		let onchain_votes = OnChainVotes::<T>::get();
-		assert!(onchain_votes.is_some());
-		let vote = onchain_votes.unwrap();
-
-		// Ensure that the votes are for the correct session
-		assert_eq!(vote.session, scenario.session);
-
-		// TODO This is not the parent block, why does this work?
-		let header = BenchBuilder::<T>::header(scenario.block_number.clone());
-		// Traverse candidates and assert descriptors are as expected
-		for (para_id, backing_validators) in vote.backing_validators_per_candidate.iter().enumerate() {
-			let descriptor = backing_validators.0.descriptor();
-			assert_eq!(ParaId::from(para_id), descriptor.para_id);
-			assert_eq!(header.hash(), descriptor.relay_parent);
-			assert_eq!(backing_validators.1.len(), 5 /* Backing Group Size */);
-		}
-
-		// exactly the disputed cores are scheduled since they where freed.
-		assert_eq!(
-			scheduler::AvailabilityCores::<T>::get().len(), BenchBuilder::<T>::cores() as usize
-		);
-	}*/
-
-	/*enter_disputes_only {
-		//let d in 0..MAX_DISPUTES;
-		let d = MAX_DISPUTES;
-
-		log::info!(target: LOG_TARGET, "a");
-		let backed_and_concluding = 0;
-
-		let config = configuration::Pallet::<T>::config();
-		let validators = 200;
-		let max_validators_per_core = 5;
-		let scenario = BenchBuilder::<T>::new()
-		.build(validators, max_validators_per_core, backed_and_concluding, d);
-	}: enter(RawOrigin::None, scenario.data.clone())
-	verify {
-		let cores = validators / max_validators_per_core;
-		// Assert that the block was not discarded
-		assert!(Included::<T>::get().is_some());
-		// Assert that there are on-chain votes that got scraped
-		let onchain_votes = OnChainVotes::<T>::get();
-		assert!(onchain_votes.is_some());
-		let vote = onchain_votes.unwrap();
-
-		// Ensure that the votes are for the correct session
-		assert_eq!(vote.session, scenario.session);
-
-		// exactly the disputed cores are scheduled since they where freed.
-		assert_eq!(
-			scheduler::AvailabilityCores::<T>::get().len(), (validators / max_validators_per_core) as usize
-		);
-	}*/
-
-	// Variant of over `b`, the number of cores concluding and immediately receiving a new
-	// backed candidate. Remainder of cores are occupied by disputes.
-	/*enter_backed_dominant {
-		let b in 0..BenchBuilder::<T>::cores();
-
-		let disputed = BenchBuilder::<T>::cores() - b;
-
-		let config = configuration::Pallet::<T>::config();
-		let scenario = BenchBuilder::<T>::new()
-			.build(b, disputed);
-	}: enter(RawOrigin::None, scenario.data.clone())
-	verify {
-		// Assert that the block was not discarded
-		assert!(Included::<T>::get().is_some());
-		// Assert that there are on-chain votes that got scraped
-		let onchain_votes = OnChainVotes::<T>::get();
-		assert!(onchain_votes.is_some());
-		let vote = onchain_votes.unwrap();
-
-		// Ensure that the votes are for the correct session
-		assert_eq!(vote.session, scenario.session);
-
-		// Ensure that there are an expected number of candidates
-		assert_eq!(vote.backing_validators_per_candidate.len(), BenchBuilder::<T>::cores() as usize);
-
-		// TODO This is not the parent block, why does this work?
-		let header = BenchBuilder::<T>::header(scenario.block_number.clone());
-		// Traverse candidates and assert descriptors are as expected
-		for (para_id, backing_validators) in vote.backing_validators_per_candidate.iter().enumerate() {
-			let descriptor = backing_validators.0.descriptor();
-			assert_eq!(ParaId::from(para_id), descriptor.para_id);
-			assert_eq!(header.hash(), descriptor.relay_parent);
-			assert_eq!(backing_validators.1.len(), 5 /* Backing Group Size */);
-		}
-
-		// pending availability data is removed when disputes are collected.
-		assert_eq!(
-			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
-			b as usize
-		);
-		assert_eq!(
-			inclusion::PendingAvailability::<T>::iter().count(),
-			b as usize
-		);
-
-		// exactly the disputed cores are scheduled since they where freed.
-
-		assert_eq!(
-			scheduler::AvailabilityCores::<T>::get().len(), BenchBuilder::<T>::cores() as usize
-		);
-	}*/
-
 	enter_backed_only {
 		let b in 0..MAX_BACKED;
-
-		let disputed = 0;
-		let validators = 200;
-		let max_validators_per_core = 5;
+		let d in 0..MAX_DISPUTED;
+		//let v in 5..MAX_VALIDATORS;
+        let v = 200;
+		let p = 5;
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(validators, max_validators_per_core, b, disputed);
+			.build(v, p, b, d);
 	}: enter(RawOrigin::None, scenario.data.clone())
 	verify {
-		let cores = validators / max_validators_per_core;
+        println!("BACKED {:?}", b);
+        println!("DISPUTES {:?}", d);
+        println!("Validators {:?}", v);
+        println!("Per Core {:?}", p);
+		let cores = v / p;
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
 		// Assert that there are on-chain votes that got scraped
@@ -173,7 +71,7 @@ benchmarks! {
 		assert_eq!(vote.session, scenario.session);
 
 		// Ensure that there are an expected number of candidates
-		assert_eq!(vote.backing_validators_per_candidate.len(), min(b, cores) as usize);
+		assert_eq!(vote.backing_validators_per_candidate.len(), cores as usize);
 
 		// TODO This is not the parent block, why does this work?
 		let header = BenchBuilder::<T>::header(scenario.block_number.clone());
@@ -182,17 +80,17 @@ benchmarks! {
 			let descriptor = backing_validators.0.descriptor();
 			assert_eq!(ParaId::from(para_id), descriptor.para_id);
 			assert_eq!(header.hash(), descriptor.relay_parent);
-			assert_eq!(backing_validators.1.len(), max_validators_per_core as usize /* Backing Group Size */);
+			assert_eq!(backing_validators.1.len(), p as usize /* Backing Group Size */);
 		}
 
 		// pending availability data is removed when disputes are collected.
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
-			b as usize
+			cores as usize,
 		);
 		assert_eq!(
 			inclusion::PendingAvailability::<T>::iter().count(),
-			b as usize
+			cores as usize,
 		);
 
 		// exactly the disputed cores are scheduled since they where freed.

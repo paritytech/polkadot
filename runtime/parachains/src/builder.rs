@@ -1,25 +1,28 @@
-use crate::paras_inherent::{self};
-use crate::{configuration, inclusion, initializer, paras, scheduler, session_info, shared};
+use crate::{
+	configuration, inclusion, initializer, paras,
+	paras_inherent::{self},
+	scheduler, session_info, shared,
+};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite};
+use frame_support::pallet_prelude::*;
 use frame_system::RawOrigin;
 use primitives::v1::{
-	byzantine_threshold, collator_signature_payload, AvailabilityBitfield, CandidateCommitments,
-	CandidateDescriptor, CandidateHash, CollatorId, CommittedCandidateReceipt, CompactStatement,
-	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
-	Id as ParaId, InvalidDisputeStatementKind, PersistedValidationData, SessionIndex,
-	SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
-	ValidityAttestation, ValidationCode, BackedCandidate, InherentData as ParachainsInherentData,
+	byzantine_threshold, collator_signature_payload, AvailabilityBitfield, BackedCandidate,
+	CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId,
+	CommittedCandidateReceipt, CompactStatement, CoreIndex, CoreOccupied, DisputeStatement,
+	DisputeStatementSet, GroupIndex, HeadData, Id as ParaId,
+	InherentData as ParachainsInherentData, InvalidDisputeStatementKind, PersistedValidationData,
+	SessionIndex, SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode,
+	ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use sp_core::H256;
 use sp_runtime::{
 	generic::Digest,
-	traits::{One, Zero},
+	traits::{Header as HeaderT, One, Zero},
 	RuntimeAppPublic,
 };
-use sp_runtime::traits::Header as HeaderT;
 use sp_std::{collections::btree_set::BTreeSet, convert::TryInto};
-use frame_support::pallet_prelude::*;
 
 const LOG_TARGET: &str = "runtime::paras-runtime-test-builder";
 
@@ -87,7 +90,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	fn create_indexes(&self, seed: u32) -> (ParaId, CoreIndex, GroupIndex) {
 		let para_id = ParaId::from(seed);
 		let core_idx = CoreIndex(seed);
-		println!("SEED {:?}", seed);
 		let group_idx =
 			scheduler::Pallet::<T>::group_assigned_to_core(core_idx, self.block_number).unwrap();
 
@@ -312,7 +314,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		for seed in concluding_cores.iter() {
 			// make sure the candidates that are concluding by becoming available are marked as
 			// pending availability.
-			println!("THE SEED IS {:?} of {:?}", seed, concluding_cores);
 			let (para_id, core_idx, group_idx) = self.create_indexes(seed.clone());
 			Self::add_availability(
 				para_id,
@@ -425,18 +426,21 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
-	fn create_disputes_with_some_spam(&self, start: u32, last: u32, cores: u32) -> Vec<DisputeStatementSet> {
+	fn create_disputes_with_some_spam(
+		&self,
+		start: u32,
+		last: u32,
+		cores: u32,
+	) -> Vec<DisputeStatementSet> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 		let config = configuration::Pallet::<T>::config();
 		let num_validators = validators.len();
-		println!("CORES {:?}", cores);
 		let mut spam_count = 0;
 		(0..cores)
 			.map(|seed| {
 				// fill corresponding storage items for inclusion that will be `taken` when `collect_disputed`
 				// is called.
-				println!("IS THIS WHERE WE ARE FAILING {:?}", seed);
 				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
 
@@ -495,7 +499,13 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
-	pub(crate) fn build(self, validators: u32, max_validators_per_core: u32, backed_and_concluding: u32, disputed: u32) -> Bench<T> {
+	pub(crate) fn build(
+		self,
+		validators: u32,
+		max_validators_per_core: u32,
+		backed_and_concluding: u32,
+		disputed: u32,
+	) -> Bench<T> {
 		// make sure relevant storage is cleared. TODO this is just to get the asserts to work when
 		// running tests because it seems the storage is not cleared in between.
 		inclusion::PendingAvailabilityCommitments::<T>::remove_all(None);
@@ -525,20 +535,15 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let backed_candidates = builder.create_backed_candidates(concluding_cores);
 
 		let last_disputed = backed_and_concluding + disputed;
-		let disputes = builder.create_disputes_with_some_spam(backed_and_concluding, last_disputed, cores);
+		let disputes =
+			builder.create_disputes_with_some_spam(backed_and_concluding, last_disputed, cores);
 
 		// spam slots are empty prior.
 		// TODO
 		// assert_eq!(disputes::Pallet::<T>::spam_slots(&builder.current_session), None);
 		//assert!(last_disputed <= cores);
-		assert_eq!(
-			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
-			cores as usize,
-		);
-		assert_eq!(
-			inclusion::PendingAvailability::<T>::iter().count(),
-			cores as usize,
-		);
+		assert_eq!(inclusion::PendingAvailabilityCommitments::<T>::iter().count(), cores as usize,);
+		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), cores as usize,);
 
 		Bench::<T> {
 			data: ParachainsInherentData {
