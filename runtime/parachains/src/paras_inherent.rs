@@ -54,10 +54,57 @@ pub use pallet::*;
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
-const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
+
+/// Weights
+///
+/// TODO replaced this with the true weights
+/// TODO as part of <https://github.com/paritytech/polkadot/pull/4044>
+/// TODO The current ones are _preliminary_ copies of those.
+fn paras_inherent_total_weight<T: Config>(
+	n_backed_candidates: u32,
+	n_bitfields: u32,
+	n_disputes: u32,
+) -> Weight {
+	let weights = T::DbWeight::get();
+	// static
+	(10_901_789_000 as Weight)
+		// backed candidates
+		.saturating_add((424_633_000 as Weight).saturating_mul(n_backed_candidates as Weight))
+		.saturating_add(weights.reads(58 as Weight))
+		.saturating_add(weights.reads((8 as Weight).saturating_mul(n_backed_candidates as Weight)))
+		.saturating_add(weights.writes(212 as Weight))
+		.saturating_add(weights.writes((2 as Weight).saturating_mul(n_backed_candidates as Weight)))
+		// disputes
+		.saturating_add((103_899_000 as Weight).saturating_mul(n_disputes as Weight))
+		.saturating_add(weights.reads(61 as Weight))
+		.saturating_add(weights.reads((1 as Weight).saturating_mul(n_disputes as Weight)))
+		.saturating_add(weights.writes(212 as Weight))
+		.saturating_add(weights.writes((2 as Weight).saturating_mul(n_disputes as Weight)))
+		// bitfields
+		.saturating_add((10_000_000 as Weight).saturating_mul(n_disputes as Weight))
+		.saturating_add(weights.reads(10 as Weight))
+		.saturating_add(weights.reads((20 as Weight).saturating_mul(n_bitfields as Weight)))
+		.saturating_add(weights.writes(10 as Weight))
+		.saturating_add(weights.writes((20 as Weight).saturating_mul(n_bitfields as Weight)))
+}
+
+/// Extract the static weight.
+fn static_weight<T: Config>() -> Weight {
+	paras_inherent_total_weight::<T>(0, 0, 0)
+}
+
+/// Extract the weight that is added _per_ bitfield.
+fn bitfield_weight<T: Config>() -> Weight {
+	paras_inherent_total_weight::<T>(0, 1, 0) - static_weight::<T>()
+}
+
+/// Extract the weight that is adder _per_ backed candidate.
+fn backed_candidate_weight<T: Config>() -> Weight {
+	paras_inherent_total_weight::<T>(1, 0, 0) - static_weight::<T>()
+}
 
 /// A bitfield concerning concluded disputes for candidates
 /// associated to the core index equivalent to the bit position.
@@ -250,9 +297,9 @@ pub mod pallet {
 				entropy
 			};
 
-			// XXX @Lldenaurois
-			// FIXME these weights are garbage
-			let remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+			let remaining_weight = <T as frame_system::Config>::BlockWeights::get()
+				.max_block
+				.saturating_sub(static_weight());
 			let (_backed_candidates_weight, backed_candidates, bitfields) =
 				apply_weight_limit::<T>(backed_candidates, bitfields, entropy, remaining_weight);
 
@@ -301,7 +348,11 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[pallet::weight((
-			MINIMAL_INCLUSION_INHERENT_WEIGHT + data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT,
+			paras_inherent_total_weight(
+				data.backed_candidates.len(),
+				data.bitfields.len(),
+				data.disputes.len(),
+			)
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(
@@ -500,29 +551,6 @@ pub(super) fn create_disputed_bitfield<'a, I: 'a + IntoIterator<Item = &'a CoreI
 	DisputedBitfield::from(bitvec)
 }
 
-/// Calculate the weight of a single backed candidate.
-fn backed_candidate_weight<T: Config>(_backed_candidate: &BackedCandidate<<T>::Hash>) -> Weight {
-	// XXX @Lldenaurois
-	// FIXME these weights are garbage
-	// const CODE_UPGRADE_WEIGHT: Weight = 10_000 as Weight;
-	// const DISPUTE_PER_STATEMENT_WEIGHT: Weight = 1_000 as Weight;
-
-	// backed_candidate.validity_votes.len() as Weight * DISPUTE_PER_STATEMENT_WEIGHT +
-	// 	if backed_candidate.candidate.commitments.new_validation_code.is_some() {
-	// 		CODE_UPGRADE_WEIGHT
-	// 	} else {
-	// 		0 as Weight
-	// 	}
-	BACKED_CANDIDATE_WEIGHT
-}
-
-/// Calculate the weight of a individual bitfield.
-fn bitfield_weight<T: Config>(_bitfield: &UncheckedSignedAvailabilityBitfield) -> Weight {
-	// XXX @Lldenaurois
-	// FIXME these weights are garbage
-	7_000 as Weight
-}
-
 /// Considers an upper threshold that the candidates must not exceed.
 ///
 /// If there is sufficient space, all bitfields and candidates will be included.
@@ -537,13 +565,9 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	entropy: [u8; 32],
 	max_weight: Weight,
 ) -> (Weight, Vec<BackedCandidate<<T>::Hash>>, UncheckedSignedAvailabilityBitfields) {
-	let total_bitfields_weight =
-		bitfields.iter().map(|bitfield| bitfield_weight::<T>(bitfield)).sum::<Weight>();
+	let total_bitfields_weight = bitfields.len().saturating_mul(bitfield_weight::<T>());
 
-	let total_candidates_weight = candidates
-		.iter()
-		.map(|backed_candidate| backed_candidate_weight::<T>(backed_candidate))
-		.sum::<Weight>();
+	let total_candidates_weight = candidates.len().saturating_mul(backed_candidate_weight::<T>());
 
 	let total = total_bitfields_weight + total_candidates_weight;
 
