@@ -79,10 +79,10 @@ pub trait Config {
 	/// and any benchmarks should take that into account.
 	type MaxAssetsIntoHolding: Get<u32>;
 
+	/// The method of exporting a message.
+	type MessageExporter: ExportXcm;
+
 	/// The origin locations and specific universal junctions to which they are allowed to elevate
 	/// themselves.
 	type UniversalAliases: Contains<(MultiLocation, Junction)>;
-
-	/// The method of exporting a message.
-	type MessageExporter: ExportXcm;
 }

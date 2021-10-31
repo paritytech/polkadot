@@ -175,6 +175,7 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPallets;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 }
 
