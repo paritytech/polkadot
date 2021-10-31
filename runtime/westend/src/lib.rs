@@ -1063,6 +1063,7 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 }
 
