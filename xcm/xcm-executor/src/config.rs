@@ -16,7 +16,7 @@
 
 use crate::traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader, ExportXcm,
 };
 use frame_support::{
 	dispatch::{Dispatchable, Parameter},
@@ -82,4 +82,7 @@ pub trait Config {
 	/// The origin locations and specific universal junctions to which they are allowed to elevate
 	/// themselves.
 	type UniversalAliases: Contains<(MultiLocation, Junction)>;
+
+	/// The method of exporting a message.
+	type MessageExporter: ExportXcm;
 }

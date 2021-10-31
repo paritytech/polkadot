@@ -22,7 +22,8 @@ use frame_support::{
 	traits::{Contains, Get, PalletsInfoAccess},
 	weights::GetDispatchInfo,
 };
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Encode, Decode};
+use sp_io::hashing::blake2_128;
 use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::latest::prelude::*;
@@ -30,7 +31,7 @@ use xcm::latest::prelude::*;
 pub mod traits;
 use traits::{
 	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader, ExportXcm,
 };
 
 mod assets;
@@ -525,6 +526,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let ok = Config::UniversalAliases::contains(&(origin, j));
 				ensure!(ok, XcmError::InvalidLocation);
 				self.origin = Some(new_origin);
+				Ok(())
+			},
+			ExportMessage { network, destination, xcm } => {
+				// Hash identifies the lane on the exporter which we use. We use the pairwise
+				// combination of the origin and destination ensure origin/destination pairs will
+				// generally have their own lanes.
+				let hash = (&self.origin, &destination).using_encoded(blake2_128);
+				let channel = u32::decode(&mut hash.as_ref()).unwrap_or(0);
+				Config::MessageExporter::export_xcm(network, channel, destination, xcm)?;
 				Ok(())
 			},
 			ExchangeAsset { .. } => Err(XcmError::Unimplemented),

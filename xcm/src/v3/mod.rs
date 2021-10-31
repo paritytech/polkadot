@@ -727,6 +727,25 @@ pub enum Instruction<Call> {
 	///
 	/// Errors: *Fallible*.
 	UniversalOrigin(Junction),
+
+	/// Send a message onwards beyond the local consensus system.
+	///
+	/// This will tend to utilize some extra-consensus mechanism, the obvious one being a bridge.
+	///
+	/// - `network`: The remote consensus system to which the message should be exported.
+	/// - `destination`: The location relative to the remote consensus system to which the message
+	///   should be sent on arrival.
+	/// - `xcm`: The message to be exported.
+	///
+	/// As an example, to export a message for execution on Statemine (parachain #1000 in the
+	/// Kusama network), you would call with `network: NetworkId::Kusama` and
+	/// `destination: X1(Parachain(1000))`. Alternatively, to export a message for execution on
+	/// Polkadot, you would call with `network: NetworkId:: Polkadot` and `destination: Here`.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors: *Fallible*.
+	ExportMessage { network: NetworkId, destination: InteriorMultiLocation, xcm: Xcm<()> },
 }
 
 impl<Call> Xcm<Call> {
@@ -791,6 +810,8 @@ impl<Call> Instruction<Call> {
 			ReportTransactStatus(repsonse_info) => ReportTransactStatus(repsonse_info),
 			ClearTransactStatus => ClearTransactStatus,
 			UniversalOrigin(j) => UniversalOrigin(j),
+			ExportMessage { network, destination, xcm } =>
+				ExportMessage { network, destination, xcm },
 		}
 	}
 }
@@ -845,6 +866,8 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ReportTransactStatus(response_info) => W::report_transact_status(response_info),
 			ClearTransactStatus => W::clear_transact_status(),
 			UniversalOrigin(j) => W::universal_origin(j),
+			ExportMessage { network, destination, xcm } =>
+				W::export_message(network, destination, xcm),
 		}
 	}
 }

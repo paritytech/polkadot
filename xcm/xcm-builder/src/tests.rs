@@ -183,6 +183,28 @@ fn transfer_should_work() {
 }
 
 #[test]
+fn export_message_should_work() {
+	// Bridge chain (assumed to be Relay) lets Parachain #1 have message execution for free.
+	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into()]);
+	// Local parachain #1 issues a transfer asset on Polkadot Relay-chain, transfering 100 Planck to
+	// Polkadot parachain #2.
+	let message = Xcm(vec![
+		TransferAsset { assets: (Here, 100).into(), beneficiary: Parachain(2).into() },
+	]);
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		Xcm(vec![ExportMessage {
+			network: Polkadot,
+			destination: Here,
+			xcm: message.clone(),
+		}]),
+		50,
+	);
+	assert_eq!(r, Outcome::Complete(10));
+	assert_eq!(exported_xcm(), vec![(Polkadot, 403611790, Here, message)]);
+}
+
+#[test]
 fn basic_asset_trap_should_work() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![X1(Parachain(1)).into(), X1(Parachain(2)).into()]);
