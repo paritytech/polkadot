@@ -108,6 +108,9 @@ pub enum Error {
 	/// The given operation would lead to an overflow of the Holding Register.
 	#[codec(index = 26)]
 	HoldingWouldOverflow,
+	/// The message was unable to be exported.
+	#[codec(index = 27)]
+	ExportError,
 
 	// Errors that happen prior to instructions being executed. These fall outside of the XCM spec.
 	/// XCM version not able to be handled.
@@ -165,6 +168,7 @@ impl From<SendError> for Error {
 			SendError::Transport(s) => Error::Transport(s),
 			SendError::DestinationUnsupported => Error::DestinationUnsupported,
 			SendError::ExceedsMaxMessageSize => Error::ExceedsMaxMessageSize,
+			SendError::CannotReachNetwork(..) => Error::Unroutable,
 		}
 	}
 }
@@ -274,6 +278,11 @@ pub enum SendError {
 	/// Message could not be sent due to its size exceeding the maximum allowed by the transport
 	/// layer.
 	ExceedsMaxMessageSize,
+	/// The network was not recognized as being reachable.
+	///
+	/// This is not considered fatal: if there are alternative transport routes available, then
+	/// they may be attempted. For this reason, the network, destination and message are contained.
+	CannotReachNetwork(NetworkId, InteriorMultiLocation, Xcm<()>),
 }
 
 /// Result value when attempting to send an XCM message.
@@ -440,6 +449,9 @@ pub trait XcmWeightInfo<Call> {
 		0
 	}
 	fn universal_origin(_: &Junction) -> Weight {
+		0
+	}
+	fn export_message(_: &NetworkId, _: &InteriorMultiLocation, _: &Xcm<()>) -> Weight {
 		0
 	}
 }

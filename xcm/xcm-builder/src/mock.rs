@@ -36,8 +36,9 @@ pub use sp_std::{
 	marker::PhantomData,
 };
 pub use xcm::latest::prelude::*;
+use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
-	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset},
+	traits::{ConvertOrigin, FilterAssetLocation, InvertLocation, OnResponse, TransactAsset, ExportXcm},
 	Assets, Config,
 };
 
@@ -102,14 +103,25 @@ impl GetDispatchInfo for TestCall {
 
 thread_local! {
 	pub static SENT_XCM: RefCell<Vec<(MultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
+	pub static EXPORTED_XCM: RefCell<Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm)>> = RefCell::new(Vec::new());
 }
 pub fn sent_xcm() -> Vec<(MultiLocation, opaque::Xcm)> {
 	SENT_XCM.with(|q| (*q.borrow()).clone())
 }
-pub struct TestSendXcm;
-impl SendXcm for TestSendXcm {
+pub fn exported_xcm() -> Vec<(NetworkId, u32, InteriorMultiLocation, opaque::Xcm)> {
+	EXPORTED_XCM.with(|q| (*q.borrow()).clone())
+}
+pub struct TestMessageSender;
+impl SendXcm for TestMessageSender {
 	fn send_xcm(dest: impl Into<MultiLocation>, msg: opaque::Xcm) -> SendResult {
 		SENT_XCM.with(|q| q.borrow_mut().push((dest.into(), msg)));
+		Ok(())
+	}
+}
+pub struct TestMessageExporter;
+impl ExportXcm for TestMessageExporter {
+	fn export_xcm(network: NetworkId, channel: u32, dest: impl Into<InteriorMultiLocation>, msg: opaque::Xcm) -> SendResult {
+		EXPORTED_XCM.with(|q| q.borrow_mut().push((network, channel, dest.into(), msg)));
 		Ok(())
 	}
 }
@@ -286,7 +298,7 @@ pub type TestBarrier = (
 pub struct TestConfig;
 impl Config for TestConfig {
 	type Call = TestCall;
-	type XcmSender = TestSendXcm;
+	type XcmSender = TestMessageSender;
 	type AssetTransactor = TestAssetTransactor;
 	type OriginConverter = TestOriginConverter;
 	type IsReserve = TestIsReserve;
@@ -302,4 +314,5 @@ impl Config for TestConfig {
 	type PalletInstancesInfo = TestPalletsInfo;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 	type UniversalAliases = TestUniversalAliases;
+	type MessageExporter = TestMessageExporter;
 }
