@@ -19,7 +19,7 @@
 use frame_support::{
 	dispatch::{Dispatchable, Weight},
 	ensure,
-	traits::{Get, PalletsInfoAccess, Contains},
+	traits::{Contains, Get, PalletsInfoAccess},
 	weights::GetDispatchInfo,
 };
 use parity_scale_codec::Encode;

@@ -107,10 +107,7 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let id = match location {
-			MultiLocation {
-				parents: 0,
-				interior: X1(AccountId32 { id, network: None }),
-			} => id,
+			MultiLocation { parents: 0, interior: X1(AccountId32 { id, network: None }) } => id,
 			MultiLocation { parents: 0, interior: X1(AccountId32 { id, network }) }
 				if network == Network::get() =>
 				id,
@@ -130,10 +127,7 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 {
 	fn convert(location: MultiLocation) -> Result<AccountId, MultiLocation> {
 		let key = match location {
-			MultiLocation {
-				parents: 0,
-				interior: X1(AccountKey20 { key, network: None }),
-			} => key,
+			MultiLocation { parents: 0, interior: X1(AccountKey20 { key, network: None }) } => key,
 			MultiLocation { parents: 0, interior: X1(AccountKey20 { key, network }) }
 				if network == Network::get() =>
 				key,

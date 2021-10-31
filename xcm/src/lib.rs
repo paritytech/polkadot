@@ -78,7 +78,7 @@ pub trait IntoVersion: Sized {
 pub enum VersionedMultiLocation {
 	V0(v0::MultiLocation),
 	V1(v1::MultiLocation),
-	V3(v3::MultiLocation)
+	V3(v3::MultiLocation),
 }
 
 impl IntoVersion for VersionedMultiLocation {
@@ -261,7 +261,7 @@ impl IntoVersion for VersionedMultiAsset {
 	fn into_version(self, n: Version) -> Result<Self, ()> {
 		Ok(match n {
 			0 => Self::V0(self.try_into()?),
-			1 | 2  => Self::V1(self.try_into()?),
+			1 | 2 => Self::V1(self.try_into()?),
 			3 => Self::V3(self.try_into()?),
 			_ => return Err(()),
 		})

@@ -17,7 +17,10 @@
 //! A mock runtime for XCM benchmarking.
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
-use frame_support::{parameter_types, traits::{Everything, Nothing}};
+use frame_support::{
+	parameter_types,
+	traits::{Everything, Nothing},
+};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,

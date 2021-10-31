@@ -18,7 +18,10 @@
 
 use super::Junction;
 use crate::v3::MultiLocation as NewMultiLocation;
-use core::{convert::{TryFrom, TryInto}, mem, result};
+use core::{
+	convert::{TryFrom, TryInto},
+	mem, result,
+};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
@@ -329,10 +332,7 @@ impl MultiLocation {
 impl TryFrom<NewMultiLocation> for MultiLocation {
 	type Error = ();
 	fn try_from(x: NewMultiLocation) -> result::Result<Self, ()> {
-		Ok(MultiLocation {
-			parents: x.parents,
-			interior: x.interior.try_into()?,
-		})
+		Ok(MultiLocation { parents: x.parents, interior: x.interior.try_into()? })
 	}
 }
 

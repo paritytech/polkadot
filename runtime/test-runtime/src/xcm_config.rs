@@ -14,7 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{parameter_types, traits::{Everything, Nothing}, weights::Weight};
+use frame_support::{
+	parameter_types,
+	traits::{Everything, Nothing},
+	weights::Weight,
+};
 use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
 use xcm_executor::{
