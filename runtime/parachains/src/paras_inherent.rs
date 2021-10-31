@@ -176,7 +176,7 @@ pub mod pallet {
 	}
 
 	#[pallet::inherent]
-	impl<T: Config> ProvideInherent for Pallet<T> {
+	impl<T: Config + crate::configuration::Config> ProvideInherent for Pallet<T> {
 		type Call = Call<T>;
 		type Error = MakeFatalError<()>;
 		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
@@ -302,7 +302,7 @@ pub mod pallet {
 
 			let remaining_weight = <T as frame_system::Config>::BlockWeights::get()
 				.max_block
-				.saturating_sub(static_weight());
+				.saturating_sub(static_weight::<T>());
 			let (_backed_candidates_weight, backed_candidates, bitfields) =
 				apply_weight_limit::<T>(backed_candidates, bitfields, entropy, remaining_weight);
 
@@ -352,11 +352,11 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[pallet::weight((
-			paras_inherent_total_weight(
-				data.backed_candidates.len(),
-				data.bitfields.len(),
-				data.disputes.len(),
-			)
+			paras_inherent_total_weight::<T>(
+				data.backed_candidates.len() as u32,
+				data.bitfields.len() as u32,
+				data.disputes.len() as u32,
+			),
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(
@@ -369,6 +369,8 @@ pub mod pallet {
 				parent_header,
 				disputes,
 			} = data;
+			let disputes_len = disputes.len() as u32;
+			let bitfields_len = signed_bitfields.len() as u32;
 
 			ensure_none(origin)?;
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
@@ -487,7 +489,7 @@ pub mod pallet {
 			});
 
 			let backed_candidates = limit_backed_candidates::<T>(backed_candidates);
-			let backed_candidates_len = backed_candidates.len() as Weight;
+			let backed_candidates_len = backed_candidates.len() as u32;
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
@@ -518,10 +520,11 @@ pub mod pallet {
 			// And track that we've finished processing the inherent for this block.
 			Included::<T>::set(Some(()));
 
-			Ok(Some(
-				MINIMAL_INCLUSION_INHERENT_WEIGHT +
-					(backed_candidates_len * BACKED_CANDIDATE_WEIGHT),
-			)
+			Ok(Some(paras_inherent_total_weight::<T>(
+				backed_candidates_len,
+				bitfields_len,
+				disputes_len,
+			))
 			.into())
 		}
 	}
@@ -569,9 +572,10 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	entropy: [u8; 32],
 	max_weight: Weight,
 ) -> (Weight, Vec<BackedCandidate<<T>::Hash>>, UncheckedSignedAvailabilityBitfields) {
-	let total_bitfields_weight = bitfields.len().saturating_mul(bitfield_weight::<T>());
+	let total_bitfields_weight = (bitfields.len() as Weight).saturating_mul(bitfield_weight::<T>());
 
-	let total_candidates_weight = candidates.len().saturating_mul(backed_candidate_weight::<T>());
+	let total_candidates_weight =
+		(candidates.len() as Weight).saturating_mul(backed_candidate_weight::<T>());
 
 	let total = total_bitfields_weight + total_candidates_weight;
 
@@ -616,7 +620,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		let (acc_candidate_weight, indices) = random_sel::<BackedCandidate<<T>::Hash>, _>(
 			&mut rng,
 			&candidates[..],
-			backed_candidate_weight::<T>,
+			|_| backed_candidate_weight::<T>(),
 			remaining_weight,
 		);
 		let candidates =
@@ -632,7 +636,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let (total, indices) = random_sel::<UncheckedSignedAvailabilityBitfield, _>(
 		&mut rng,
 		&bitfields[..],
-		bitfield_weight::<T>,
+		|_| bitfield_weight::<T>(),
 		max_weight,
 	);
 	let bitfields = indices.into_iter().map(move |idx| bitfields[idx].clone()).collect::<Vec<_>>();
@@ -659,10 +663,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 /// `false` assures that all inputs are filtered, and invalid ones are filtered out.
 /// It also skips signature verification.
 /// `true` returns an `Err(_)` on the first check failing.
-pub(crate) fn sanitize_bitfields<
-	T: configuration::Config + crate::inclusion::Config,
-	const EARLY_RETURN: bool,
->(
+pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EARLY_RETURN: bool>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bitfield: DisputedBitfield,
 	expected_bits: usize,
