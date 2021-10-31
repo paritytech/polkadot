@@ -1,6 +1,6 @@
 {
   "name": "Rococo",
-  "id": "rococo_v1_12",
+  "id": "rococo_v1_13",
   "chainType": "Live",
   "bootNodes": [
     "/ip4/34.90.151.124/tcp/30333/p2p/12D3KooWF7BUbG5ErMZ47ZdarRwtpZamgcZqxwpnFzkhjc1spHnP",
