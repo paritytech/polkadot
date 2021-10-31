@@ -708,7 +708,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// This functions modifies the state when failing. It is expected to be called in inherent,
 	/// and to fail the extrinsic on error. As invalid inherents are not allowed, the dirty state
-	/// is not commited.
+	/// is not committed.
 	pub(crate) fn provide_multi_dispute_data(
 		statement_sets: MultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {

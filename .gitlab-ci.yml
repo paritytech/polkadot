@@ -197,7 +197,7 @@ test-build-linux-stable:
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
-    - time cargo build --release --verbose --bin polkadot
+    - time cargo build --release --verbose --bin polkadot --features "disputes"
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
@@ -269,6 +269,27 @@ build-adder-collator:
     - cp -r scripts/* ./artifacts
 
 #### stage:                        build
+
+.check-dependent-project:          &check-dependent-project
+  stage:                           build
+  <<:                              *docker-env
+  <<:                              *vault-secrets
+  script:
+    - git clone
+        --depth=1
+        "--branch=$PIPELINE_SCRIPTS_TAG"
+        https://github.com/paritytech/pipeline-scripts
+    - ./pipeline-scripts/check_dependent_project.sh
+        paritytech
+        polkadot
+        --polkadot
+        "$DEPENDENT_REPO"
+        "$GITHUB_PR_TOKEN"
+
+check-dependent-cumulus:
+  <<: *check-dependent-project
+  variables:
+    DEPENDENT_REPO: cumulus
 
 check-transaction-versions:
   # image must be ubuntu:20.04 based to match the linkers, this image has npm installed

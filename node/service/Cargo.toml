@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -151,8 +151,6 @@ full-node = [
 	"polkadot-approval-distribution",
 	"kvdb-rocksdb"
 ]
-
-light-node = []
 
 # Configure the native runtimes to use. Polkadot is enabled by default.
 #
