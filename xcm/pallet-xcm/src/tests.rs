@@ -341,7 +341,7 @@ fn reserve_transfer_assets_works() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation =
-			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
+			Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::reserve_transfer_assets(
 			Origin::signed(ALICE),
@@ -387,7 +387,7 @@ fn limited_reserve_transfer_assets_works() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation =
-			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
+			Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
 			Origin::signed(ALICE),
@@ -434,7 +434,7 @@ fn unlimited_reserve_transfer_assets_works() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = BaseXcmWeight::get();
 		let dest: MultiLocation =
-			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
+			Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::limited_reserve_transfer_assets(
 			Origin::signed(ALICE),
@@ -479,7 +479,7 @@ fn execute_withdraw_to_deposit_works() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 3 * BaseXcmWeight::get();
 		let dest: MultiLocation =
-			Junction::AccountId32 { network: NetworkId::Any, id: BOB.into() }.into();
+			Junction::AccountId32 { network: None, id: BOB.into() }.into();
 		assert_eq!(Balances::total_balance(&ALICE), INITIAL_BALANCE);
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
@@ -506,7 +506,7 @@ fn trapped_assets_can_be_claimed() {
 	new_test_ext_with_balances(balances).execute_with(|| {
 		let weight = 6 * BaseXcmWeight::get();
 		let dest: MultiLocation =
-			Junction::AccountId32 { network: NetworkId::Any, id: BOB.into() }.into();
+			Junction::AccountId32 { network: None, id: BOB.into() }.into();
 
 		assert_ok!(XcmPallet::execute(
 			Origin::signed(ALICE),
@@ -523,7 +523,7 @@ fn trapped_assets_can_be_claimed() {
 			weight
 		));
 		let source: MultiLocation =
-			Junction::AccountId32 { network: NetworkId::Any, id: ALICE.into() }.into();
+			Junction::AccountId32 { network: None, id: ALICE.into() }.into();
 		let trapped = AssetTraps::<Test>::iter().collect::<Vec<_>>();
 		let vma = VersionedMultiAssets::from(MultiAssets::from((Here, SEND_AMOUNT)));
 		let hash = BlakeTwo256::hash_of(&(source.clone(), vma.clone()));

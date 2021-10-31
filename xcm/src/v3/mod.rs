@@ -31,6 +31,7 @@ use scale_info::TypeInfo;
 mod multiasset;
 mod traits;
 mod junction;
+pub(crate) mod junctions;
 mod multilocation;
 
 pub use multiasset::{
@@ -41,8 +42,9 @@ pub use traits::{
 	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
 };
 pub use junction::{Junction, NetworkId};
+pub use junctions::{Junctions};
 pub use multilocation::{
-	Ancestor, AncestorThen, InteriorMultiLocation, Junctions, MultiLocation, Parent, ParentThen,
+	Ancestor, AncestorThen, InteriorMultiLocation, MultiLocation, Parent, ParentThen,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{BodyId, BodyPart, OriginKind, WeightLimit};

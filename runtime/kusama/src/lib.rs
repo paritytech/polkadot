@@ -1322,11 +1322,11 @@ parameter_types! {
 	/// the context".
 	pub const KsmLocation: MultiLocation = Here.into();
 	/// The Kusama network ID. This is named.
-	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
+	pub const ThisNetwork: NetworkId = Kusama;
 	/// Our XCM location ancestry - i.e. our location within the Consensus Universe.
 	///
 	/// Since Kusama is a top-level relay-chain with its own consensus, it's just our network ID.
-	pub const Ancestry: InteriorMultiLocation = X1(GlobalConsensus(NetworkId::Kusama));
+	pub const Ancestry: InteriorMultiLocation = ThisNetwork.into();
 	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
@@ -1337,7 +1337,7 @@ pub type SovereignAccountOf = (
 	// We can convert a child parachain using the standard `AccountId` conversion.
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	// We can directly alias an `AccountId32` into a local account.
-	AccountId32Aliases<KusamaNetwork, AccountId>,
+	AccountId32Aliases<ThisNetwork, AccountId>,
 );
 
 /// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
@@ -1364,7 +1364,7 @@ type LocalOriginConverter = (
 	// A child parachain, natively expressed, has the `Parachain` origin.
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
 	// The AccountId32 location type can be expressed natively as a `Signed` origin.
-	SignedAccountId32AsNative<KusamaNetwork, Origin>,
+	SignedAccountId32AsNative<ThisNetwork, Origin>,
 	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
 	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
@@ -1450,7 +1450,7 @@ pub type LocalOriginToLocation = (
 		CouncilBodyId,
 	>,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, KusamaNetwork>,
+	SignedToAccountId32<Origin, AccountId, ThisNetwork>,
 );
 impl pallet_xcm::Config for Runtime {
 	type Event = Event;
