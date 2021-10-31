@@ -48,6 +48,9 @@ const BACKED_CANDIDATE_WEIGHT: Weight = 100_000;
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
+// The upper bound of cores used for calculating the worst case weight of enacting candidates. This
+// value must be updated anytime a production configuration increases the upper bound of cores.
+const MAX_EXPECTED_CORES_FOR_WEIGHT_CALC: Weight = 100;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -163,7 +166,7 @@ pub mod pallet {
 					c.hrmp_max_parathread_inbound_channels,
 				)
 				// NOTE: this will need to updated if the max number of cores changes.
-				* 40u64;
+				* MAX_EXPECTED_CORES_FOR_WEIGHT_CALC;
 
 				MINIMAL_INCLUSION_INHERENT_WEIGHT
 				+ data.backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT
