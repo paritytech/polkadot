@@ -507,3 +507,10 @@ impl TryFrom<(OldMultiAssetFilter, u32)> for MultiAssetFilter {
 		})
 	}
 }
+
+#[test]
+fn conversion_works() {
+	use super::prelude::*;
+
+	let _: MultiAssets = (Here, 1).into();
+}

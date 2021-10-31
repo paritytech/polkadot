@@ -115,7 +115,7 @@ impl configuration::Config for Runtime {
 parameter_types! {
 	pub const KsmLocation: MultiLocation = MultiLocation::here();
 	pub const KusamaNetwork: NetworkId = NetworkId::Kusama;
-	pub Ancestry: InteriorMultiLocation = Here.into();
+	pub Ancestry: InteriorMultiLocation = Here;
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 }
 
@@ -150,8 +150,8 @@ pub type Barrier = (
 );
 
 parameter_types! {
-	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) =
-		(MultiAssetFilter::Wild(WildMultiAsset::AllOf { id: Concrete(MultiLocation::here()), fun: WildFungible }), X1(Parachain(1000)).into());
+	pub KusamaForStatemine: (MultiAssetFilter, MultiLocation) =
+		(Wild(AllOf { id: Concrete(Here.into()), fun: WildFungible }), Parachain(1000).into());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 4;
 }

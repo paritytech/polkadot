@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::{construct_runtime, parameter_types, traits::Everything, weights::Weight};
+use frame_support::{construct_runtime, parameter_types, weights::Weight};
+use frame_support::traits::{Nothing, Everything};
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
@@ -80,7 +81,7 @@ pub mod pallet_test_notifier {
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
 			let qid = crate::Pallet::<T>::new_query(
-				Junction::AccountId32 { network: None, id }.into(),
+				Junction::AccountId32 { network: None, id },
 				100u32.into(),
 			);
 			Self::deposit_event(Event::<T>::QueryPrepared(qid));
@@ -96,7 +97,7 @@ pub mod pallet_test_notifier {
 			let call =
 				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = crate::Pallet::<T>::new_notify_query(
-				Junction::AccountId32 { network: None, id }.into(),
+				Junction::AccountId32 { network: None, id },
 				<T as Config>::Call::from(call),
 				100u32.into(),
 			);
@@ -215,9 +216,9 @@ impl pallet_balances::Config for Test {
 }
 
 parameter_types! {
-	pub const RelayLocation: MultiLocation = Here.into();
+	pub const RelayLocation: MultiLocation = Here.into_location();
 	pub const AnyNetwork: Option<NetworkId> = None;
-	pub Ancestry: InteriorMultiLocation = Here.into();
+	pub Ancestry: InteriorMultiLocation = Here;
 	pub UnitWeightCost: Weight = 1_000;
 }
 
