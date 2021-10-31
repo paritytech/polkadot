@@ -199,7 +199,10 @@ pub mod pallet {
 			};
 
 			if parent_hash != parent_header.hash() {
-				log::warn!(target: LOG_TARGET, "ParachainsInherentData references a different parent header hash than frame");
+				log::warn!(
+					target: LOG_TARGET,
+					"ParachainsInherentData references a different parent header hash than frame"
+				);
 				return None
 			}
 
@@ -310,7 +313,8 @@ pub mod pallet {
 				parent_header,
 			};
 
-			// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
+			// Sanity check: session changes can invalidate an inherent,
+			// and we _really_ don't want that to happen.
 			// See <https://github.com/paritytech/polkadot/issues/1327>
 
 			// Calling `Self::enter` here is a safe-guard, to avoid any discrepancy
