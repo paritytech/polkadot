@@ -1172,22 +1172,6 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn heads_insert(para_id: &ParaId, head_data: HeadData) {
 		Heads::<T>::insert(para_id, head_data)
 	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	pub(crate) fn current_code_hash_insert(
-		para_id: &ParaId,
-		validation_code_hash: ValidationCodeHash,
-	) {
-		CurrentCodeHash::<T>::insert(para_id, validation_code_hash)
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	pub(crate) fn past_code_meta_insert(
-		para_id: &ParaId,
-		past_code_meta: ParaPastCodeMeta<T::BlockNumber>,
-	) {
-		PastCodeMeta::<T>::insert(para_id, past_code_meta)
-	}
 }
 
 #[cfg(test)]

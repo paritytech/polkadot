@@ -4,14 +4,12 @@ use crate::{
 	scheduler, session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::account;
 use frame_support::pallet_prelude::*;
-use frame_system::RawOrigin;
 use primitives::v1::{
-	byzantine_threshold, collator_signature_payload, AvailabilityBitfield, BackedCandidate,
-	CandidateCommitments, CandidateDescriptor, CandidateHash, CollatorId,
-	CommittedCandidateReceipt, CompactStatement, CoreIndex, CoreOccupied, DisputeStatement,
-	DisputeStatementSet, GroupIndex, HeadData, Id as ParaId,
+	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
+	CandidateDescriptor, CandidateHash, CollatorId, CommittedCandidateReceipt, CompactStatement,
+	CoreIndex, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId,
 	InherentData as ParachainsInherentData, InvalidDisputeStatementKind, PersistedValidationData,
 	SessionIndex, SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode,
 	ValidatorId, ValidatorIndex, ValidityAttestation,
@@ -48,15 +46,17 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	validators: Option<Vec<ValidatorId>>,
 	block_number: T::BlockNumber,
 	session: SessionIndex,
+	spam_disputes: u32,
+	non_spam_disputes: u32,
+	target_session: u32,
 	_phantom: sp_std::marker::PhantomData<T>,
 }
 
 /// Paras inherent `enter` benchmark scenario.
 pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) data: ParachainsInherentData<T::Header>,
-	pub(crate) validators: Option<Vec<ValidatorId>>,
+	pub(crate) session: u32,
 	pub(crate) block_number: T::BlockNumber,
-	pub(crate) session: SessionIndex,
 }
 
 impl<T: paras_inherent::Config> BenchBuilder<T> {
@@ -65,6 +65,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			validators: None,
 			block_number: Zero::zero(),
 			session: SessionIndex::from(0u32),
+			spam_disputes: 0u32,
+			non_spam_disputes: 0u32,
+			target_session: 2u32,
 			_phantom: sp_std::marker::PhantomData::<T>,
 		}
 	}
@@ -198,11 +201,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			parent_hash: Self::header(self.block_number.clone()).hash(),
 			session_index: self.session.clone(),
 		}
-	}
-
-	/// Byzantine statement spam threshold.
-	fn statement_spam_thresh(cores: u32) -> u32 {
-		byzantine_threshold(cores as usize) as u32
 	}
 
 	fn validator_availability_votes_yes(validators: usize) -> BitVec<bitvec::order::Lsb0, u8> {
@@ -426,18 +424,25 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
-	fn create_disputes_with_some_spam(
+	fn create_disputes_with_only_spam(
 		&self,
-		start: u32,
-		last: u32,
-		cores: u32,
+		first_core: u32,
+		last_core: u32,
 	) -> Vec<DisputeStatementSet> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 		let config = configuration::Pallet::<T>::config();
-		let num_validators = validators.len();
+
+		let num_validators = validators.len() as u32;
+		let num_cores_touched = last_core - first_core;
+		let num_validator_ranges = num_cores_touched / config.dispute_max_spam_slots;
+		let range_len = num_validators / num_validator_ranges;
+		assert!(range_len < num_validators);
+
+		let mut cur_range = 0;
+
 		let mut spam_count = 0;
-		(0..cores)
+		(first_core..last_core)
 			.map(|seed| {
 				// fill corresponding storage items for inclusion that will be `taken` when `collect_disputed`
 				// is called.
@@ -448,37 +453,88 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					para_id,
 					core_idx,
 					group_idx,
-					Self::validator_availability_votes_yes(num_validators), // TODO
+					Self::validator_availability_votes_yes(num_validators as usize), // TODO
 					candidate_hash,
 				);
 
 				// create the set of statements to dispute the above candidate hash.
-				let statement_range = if spam_count < config.dispute_max_spam_slots {
-					// if we have not hit the spam dispute statement limit, only make up to the byzantine
-					// threshold number of statements.
-
-					// TODO: we could max the amount of spam even more by  taking 3 1/3 chunks of
-					// validator set and having them each attest to different statements. Right now we
-					// just use 1 1/3 chunk.
-					0..Self::statement_spam_thresh(cores)
-				} else {
-					// otherwise, make the maximum number of statements, which is over the byzantine
-					// threshold and thus these statements will not be counted as potential spam.
-					0..num_validators as u32
+				// Note that each validator can have no more than `dispute_max_spam_slots` spam;
+				// so we must ensure that we change range of validators  once we hit the spam_count
+				if spam_count == config.dispute_max_spam_slots {
+					// update the current range,
+					cur_range += 1;
+					// and reset the spam count to zero for this range.
+					spam_count = 0;
 				};
-				log::info!(target: LOG_TARGET, "g");
 
-				let statements = statement_range
+				spam_count += 1;
+				let validator_range = cur_range * range_len..(cur_range + 1) * range_len;
+
+				let statements = validator_range
 					.map(|validator_index| {
 						let validator_public = &validators.get(validator_index as usize).unwrap();
 
-						// we need dispute statements on each side.
-						let dispute_statement = if validator_index % 2 == 0 {
+						// we need dispute statements on each side. We want most of them to be
+						let dispute_statement = if validator_index % 3 == 0 {
 							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
 						} else {
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
-						let data = dispute_statement.payload_data(candidate_hash.clone(), 2);
+
+						// TODO should use some session variable here instead of the hardcoded 2.
+						let data = dispute_statement
+							.payload_data(candidate_hash.clone(), self.target_session);
+						let statement_sig = validator_public.sign(&data).unwrap();
+
+						(dispute_statement, ValidatorIndex(validator_index), statement_sig)
+					})
+					.collect();
+
+				// return dispute statements with metadata.
+				DisputeStatementSet {
+					candidate_hash: candidate_hash.clone(),
+					session: self.target_session,
+					statements,
+				}
+			})
+			.collect()
+	}
+
+	fn create_disputes_with_no_spam(&self, start: u32, last: u32) -> Vec<DisputeStatementSet> {
+		let validators =
+			self.validators.as_ref().expect("must have some validators prior to calling");
+		let config = configuration::Pallet::<T>::config();
+
+		let mut spam_count = 0;
+		(start..last)
+			.map(|seed| {
+				// fill corresponding storage items for inclusion that will be `taken` when `collect_disputed`
+				// is called.
+				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
+				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
+
+				Self::add_availability(
+					para_id,
+					core_idx,
+					group_idx,
+					Self::validator_availability_votes_yes(validators.len()), // TODO
+					candidate_hash,
+				);
+
+				let statements = (0..validators.len() as u32)
+					.map(|validator_index| {
+						let validator_public = &validators.get(validator_index as usize).unwrap();
+
+						// we need dispute statements on each side. We don't want a revert log
+						// so we make sure that we have a super majority with valid statements.
+						let dispute_statement = if validator_index % 4 == 0 {
+							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
+						} else {
+							// TODO, we could use some availability votes as an implicit valid kind.
+							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
+						};
+						let data = dispute_statement
+							.payload_data(candidate_hash.clone(), self.target_session);
 						let statement_sig = validator_public.sign(&data).unwrap();
 
 						(dispute_statement, ValidatorIndex(validator_index), statement_sig)
@@ -488,11 +544,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				if spam_count < config.dispute_max_spam_slots {
 					spam_count += 1;
 				}
-
 				// return dispute statements with metadata.
 				DisputeStatementSet {
 					candidate_hash: candidate_hash.clone(),
-					session: 2,
+					session: self.target_session,
 					statements,
 				}
 			})
@@ -504,7 +559,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		validators: u32,
 		max_validators_per_core: u32,
 		backed_and_concluding: u32,
-		disputed: u32,
+		_disputed: u32,
 	) -> Bench<T> {
 		// make sure relevant storage is cleared. TODO this is just to get the asserts to work when
 		// running tests because it seems the storage is not cleared in between.
@@ -526,7 +581,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let validator_ids = Self::generate_validator_pairs(validators);
 		// Setup for session 1 and 2 along with the proper run_to_block logic
 
-		let target_session = SessionIndex::from(2u32);
+		let target_session = SessionIndex::from(self.target_session);
 		let builder = self.setup_session(target_session, validator_ids, cores);
 
 		let concluding_cores: BTreeSet<_> = (0..cores).into_iter().collect();
@@ -534,17 +589,21 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let bitfields = builder.create_availability_bitfields(concluding_cores.clone(), cores);
 		let backed_candidates = builder.create_backed_candidates(concluding_cores);
 
-		let last_disputed = backed_and_concluding + disputed;
-		let disputes =
-			builder.create_disputes_with_some_spam(backed_and_concluding, last_disputed, cores);
-
+		let disputes = if builder.spam_disputes > 0 {
+			// create disputes with some spam.
+			let last_disputed = backed_and_concluding + builder.spam_disputes;
+			builder.create_disputes_with_only_spam(backed_and_concluding, last_disputed)
+		} else {
+			// create disputes with no spam.
+			let last_disputed = backed_and_concluding + builder.non_spam_disputes;
+			builder.create_disputes_with_no_spam(0, last_disputed)
+		};
 		// spam slots are empty prior.
 		// TODO
 		// assert_eq!(disputes::Pallet::<T>::spam_slots(&builder.current_session), None);
 		//assert!(last_disputed <= cores);
 		assert_eq!(inclusion::PendingAvailabilityCommitments::<T>::iter().count(), cores as usize,);
 		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), cores as usize,);
-
 		Bench::<T> {
 			data: ParachainsInherentData {
 				bitfields,
@@ -552,8 +611,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				disputes, // Vec<DisputeStatementSet>
 				parent_header: Self::header(builder.block_number.clone()),
 			},
-			validators: builder.validators,
-			session: builder.session,
+			session: builder.target_session,
 			block_number: builder.block_number,
 		}
 	}
