@@ -405,58 +405,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Set the minimum upgrade delay.
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_block_number(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_min_upgrade_delay(origin: OriginFor<T>, new: T::BlockNumber) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.min_upgrade_delay, new) != new
-			});
-			Ok(())
-		}
-
-		/// Enable or disable PVF prechecking.
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_block_number(), // TODO: weight for booleans.
-			DispatchClass::Operational,
-		))]
-		pub fn set_pvf_prechecking_bypass(origin: OriginFor<T>, new: bool) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.pvf_prechecking_bypass, new) != new
-			});
-			Ok(())
-		}
-
-		/// Set the minimum delay in blocks for PVF upgrades.
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_block_number(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_pvf_upgrade_delay(origin: OriginFor<T>, new: T::BlockNumber) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.pvf_upgrade_delay, new) != new
-			});
-			Ok(())
-		}
-
-		/// Set the number of session changes a PVF pre-checking voting can observe.
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_pvf_voting_ttl(origin: OriginFor<T>, new: SessionIndex) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.pvf_voting_ttl, new) != new
-			});
-			Ok(())
-		}
-
 		/// Set the acceptance period for an included candidate.
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
@@ -1015,6 +963,58 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.ump_max_individual_weight, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the minimum upgrade delay.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_block_number(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_min_upgrade_delay(origin: OriginFor<T>, new: T::BlockNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.min_upgrade_delay, new) != new
+			});
+			Ok(())
+		}
+
+		/// Enable or disable PVF prechecking.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_block_number(), // TODO: weight for booleans.
+			DispatchClass::Operational,
+		))]
+		pub fn set_pvf_prechecking_bypass(origin: OriginFor<T>, new: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.pvf_prechecking_bypass, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the minimum delay in blocks for PVF upgrades.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_block_number(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_pvf_upgrade_delay(origin: OriginFor<T>, new: T::BlockNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.pvf_upgrade_delay, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of session changes a PVF pre-checking voting can observe.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_u32(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_pvf_voting_ttl(origin: OriginFor<T>, new: SessionIndex) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.pvf_voting_ttl, new) != new
 			});
 			Ok(())
 		}
