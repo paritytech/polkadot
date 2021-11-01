@@ -97,6 +97,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		Self::max_validators() / Self::max_validators_per_core()
 	}
 
+	pub(crate) fn min_validity_votes() -> u32 {
+		(Self::max_validators() / 2) + 1
+	}
+
 	fn create_indexes(&self, seed: u32) -> (ParaId, CoreIndex, GroupIndex) {
 		let para_id = ParaId::from(seed);
 		let core_idx = CoreIndex(seed);
@@ -177,14 +181,15 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		for i in 0..cores {
 			let para_id = ParaId::from(i as u32);
 
-			let _ = paras::Pallet::<T>::schedule_para_initialize(
+			paras::Pallet::<T>::schedule_para_initialize(
 				para_id,
 				paras::ParaGenesisArgs {
 					genesis_head: Default::default(),
 					validation_code: Default::default(),
 					parachain: true,
 				},
-			);
+			)
+			.unwrap();
 		}
 	}
 
@@ -223,26 +228,19 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	) -> Self {
 		let mut block = 1;
 		for session in 0..=target_session {
-			// initialize session 1.
-			if block == 0 {
-				initializer::Pallet::<T>::test_trigger_on_new_session(
-					true, // indicate the validator set has changed because there are no validators in the system yet
-					session, // session index
-					Vec::new().into_iter(), // There are currently no validators
-					Some(validators.iter().map(|(a, v)| (a, v.clone())).collect::<Vec<_>>())
-						.map(|v| v.into_iter()), // validators
-				);
-			} else {
-				// initialize session 2.
-				initializer::Pallet::<T>::test_trigger_on_new_session(
-					false,                                          // indicate the validator set has changed
-					session,                                        // session index
-					validators.iter().map(|(a, v)| (a, v.clone())), // We don't want to change the validator set
-					None, // queued - when this is None validators are considered queued
-				);
-			}
+			initializer::Pallet::<T>::test_trigger_on_new_session(
+				false,                                          // indicate the validator set has changed
+				session,                                        // session index
+				validators.iter().map(|(a, v)| (a, v.clone())), // We don't want to change the validator set
+				None, // queued - when this is None validators are considered queued
+			);
 			block += 1;
 			Self::run_to_block(block);
+			println!(
+				"expected session {}, actual session {}",
+				session,
+				<shared::Pallet<T>>::session_index()
+			);
 		}
 
 		let block_number = <T as frame_system::Config>::BlockNumber::from(block);
@@ -494,7 +492,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
 		let cores = Self::cores();
-		assert!(backed_and_concluding_cores + non_spam_dispute_cores <= cores);
+		let last_used_core = backed_and_concluding_cores.max(non_spam_dispute_cores);
+		assert!(last_used_core <= cores);
 
 		// Setup para_ids traverses each core,
 		// creates a ParaId for that CoreIndex,
@@ -503,7 +502,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		// subsequently inserts the ParaId into the ActionsQueue
 		// Note that there is an n+2 session delay for these actions to take effect
 		// We are currently in Session 0, so these changes will take effect in Session 2
-		Self::setup_para_ids(cores);
+		Self::setup_para_ids(last_used_core);
 
 		// As there are not validator public keys in the system yet, we must generate them here
 		let validator_ids = Self::generate_validator_pairs(Self::max_validators());
@@ -511,18 +510,21 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		let target_session = SessionIndex::from(self.target_session);
 
-		let builder = self.setup_session(target_session, validator_ids, cores);
+		let builder = self.setup_session(target_session, validator_ids, last_used_core);
 
 		let concluding_cores: BTreeSet<_> = (0..backed_and_concluding_cores).into_iter().collect();
 
-		let bitfields = builder.create_availability_bitfields(concluding_cores.clone(), cores);
+		let bitfields =
+			builder.create_availability_bitfields(concluding_cores.clone(), last_used_core);
 		let backed_candidates = builder.create_backed_candidates(concluding_cores);
 
-		let last_used_core = backed_and_concluding_cores + non_spam_dispute_cores;
-		assert!(last_used_core <= Self::cores());
-		let disputes = builder.create_disputes_with_no_spam(backed_and_concluding_cores, last_used_core);
+		let disputes =
+			builder.create_disputes_with_no_spam(0, non_spam_dispute_cores);
 
-		assert_eq!(inclusion::PendingAvailabilityCommitments::<T>::iter().count(), last_used_core as usize,);
+		assert_eq!(
+			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
+			last_used_core as usize,
+		);
 		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), last_used_core as usize,);
 		Bench::<T> {
 			data: ParachainsInherentData {

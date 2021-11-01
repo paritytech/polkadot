@@ -28,19 +28,20 @@ benchmarks! {
 		let v in 10..BenchBuilder::<T>::max_validators();
 
 		let cores_with_disputed = 1;
-		let cores_with_backed = 0;
+		let cores_with_backed = 1;
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_disputed, cores_with_backed);
+			.build(cores_with_backed, cores_with_disputed);
 
 		let mut benchmark = scenario.data.clone();
-		let dispute = benchmark.disputes.pop();
+		println!("count disputes {}", scenario.data.disputes.len());
+		let dispute = benchmark.disputes.pop().unwrap();
 
 		benchmark.bitfields.clear();
 		benchmark.backed_candidates.clear();
 		benchmark.disputes.clear();
 
-		benchmark.disputes.push(dispute.unwrap());
+		benchmark.disputes.push(dispute);
 		benchmark.disputes.get_mut(0).unwrap().statements.drain(v as usize..);
 	}: enter(RawOrigin::None, benchmark)
 	verify {
@@ -63,7 +64,7 @@ benchmarks! {
 		let cores_with_backed = 1;
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_disputed, cores_with_backed);
+			.build(cores_with_backed, cores_with_disputed);
 
 		let mut benchmark = scenario.data.clone();
 		let bitfield = benchmark.bitfields.pop();
@@ -88,13 +89,17 @@ benchmarks! {
 	// Variant over `v`, the amount of validity votes for a backed candidate. This gives the weight
 	// of a single backed candidate.
 	enter_backed_candidates_variable {
-		let v in 10..BenchBuilder::<T>::max_validators();
+		// NOTE: the starting value must be over half of `max_validators`. Ideally we would use
+		// `BenchBuilder::<T>::min_validity_votes()`, but that does not work in the context of this
+		// macro.
+		let v in 101..BenchBuilder::<T>::max_validators();
+		// let v in BenchBuilder::<T>::min_validity_votes()..BenchBuilder::<T>::max_validators();
 
 		let cores_with_disputed = 0;
 		let cores_with_backed = 1;
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_disputed, cores_with_backed);
+			.build(cores_with_backed, cores_with_disputed);
 
 
 		let mut benchmark = scenario.data.clone();
@@ -108,7 +113,6 @@ benchmarks! {
 		benchmark.backed_candidates.get_mut(0).unwrap().validity_votes.drain(v as usize..);
 	}: enter(RawOrigin::None, benchmark)
 	verify {
-		let cores = BenchBuilder::<T>::cores();
 		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
@@ -119,24 +123,24 @@ benchmarks! {
 		// Ensure that the votes are for the correct session
 		assert_eq!(vote.session, scenario.session);
 		// Ensure that there are an expected number of candidates
-		assert_eq!(vote.backing_validators_per_candidate.len(), v as usize);
+		// assert_eq!(vote.backing_validators_per_candidate.len(), v as usize);
 		let header = BenchBuilder::<T>::header(scenario.block_number.clone());
 		// Traverse candidates and assert descriptors are as expected
 		for (para_id, backing_validators) in vote.backing_validators_per_candidate.iter().enumerate() {
 			let descriptor = backing_validators.0.descriptor();
 			assert_eq!(ParaId::from(para_id), descriptor.para_id);
 			assert_eq!(header.hash(), descriptor.relay_parent);
-			assert_eq!(backing_validators.1.len(), max_validators_per_core as usize /* Backing Group Size */);
+			assert_eq!(backing_validators.1.len(), v as usize /* Backing Group Size */);
 		}
 
 		// pending availability data is removed when disputes are collected.
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
-			cores as usize,
+			cores_with_backed as usize,
 		);
 		assert_eq!(
 			inclusion::PendingAvailability::<T>::iter().count(),
-			cores as usize,
+			cores_with_backed as usize,
 		);
 	}
 }

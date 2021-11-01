@@ -568,6 +568,8 @@ impl<T: Config> Pallet<T> {
 								},
 							);
 
+							println!("maybe_amount_validated {}", maybe_amount_validated.unwrap());
+
 							match maybe_amount_validated {
 								Ok(amount_validated) => ensure!(
 									amount_validated * 2 > group_vals.len(),
