@@ -30,8 +30,11 @@ benchmarks! {
 		let max_validators = BenchBuilder::<T>::max_validators();
 		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
 
+		let cores_with_disputed = BenchBuilder::<T>::cores() / 2;
+		let cores_with_backed = BenchBuilder::<T>::cores() / 2;
+
 		let scenario = BenchBuilder::<T>::new()
-			.build(max_validators, max_validators_per_core, max_validators, max_validators);
+			.build(cores_with_disputed, cores_with_backed);
 
 		let mut benchmark = scenario.data.clone();
 		let dispute = benchmark.disputes.pop();
@@ -56,11 +59,11 @@ benchmarks! {
 
 	// The weight of one bitfield.
 	enter_bitfields {
-		let max_validators = BenchBuilder::<T>::max_validators();
-		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
+		let cores_with_disputed = BenchBuilder::<T>::cores() / 2;
+		let cores_with_backed = BenchBuilder::<T>::cores() / 2;
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(max_validators, max_validators_per_core, max_validators, max_validators);
+			.build(cores_with_disputed, cores_with_backed);
 
 		let mut benchmark = scenario.data.clone();
 		let bitfield = benchmark.bitfields.pop();
@@ -87,11 +90,11 @@ benchmarks! {
 	enter_backed_candidates_variable {
 		let v in 10..BenchBuilder::<T>::max_validators();
 
-		let max_validators = BenchBuilder::<T>::max_validators();
-		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
+		let cores_with_disputed = BenchBuilder::<T>::cores() / 2;
+		let cores_with_backed = BenchBuilder::<T>::cores() / 2;
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(max_validators, max_validators_per_core, max_validators, max_validators);
+			.build(cores_with_disputed, cores_with_backed);
 
 
 		let mut benchmark = scenario.data.clone();
@@ -106,6 +109,7 @@ benchmarks! {
 	}: enter(RawOrigin::None, benchmark)
 	verify {
 		let cores = BenchBuilder::<T>::cores();
+		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
 		// Assert that there are on-chain votes that got scraped

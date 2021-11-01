@@ -1168,6 +1168,11 @@ impl<T: Config> Pallet<T> {
 			..Default::default()
 		});
 	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub fn heads_insert(para_id: &ParaId, head_data: HeadData) {
+		Heads::<T>::insert(para_id, head_data);
+	}
 }
 
 #[cfg(test)]
