@@ -20,12 +20,12 @@
 
 use std::sync::Arc;
 
+use jsonrpsee::RpcModule;
 use polkadot_primitives::v0::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
 use sc_client_api::AuxStore;
 use sc_consensus_babe::Epoch;
 use sc_finality_grandpa::FinalityProofProvider;
 pub use sc_rpc::{DenyUnsafe, SubscriptionTaskExecutor};
-use sc_sync_state_rpc::{SyncStateRpcApi, SyncStateRpcHandler};
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
@@ -35,7 +35,7 @@ use sp_keystore::SyncCryptoStorePtr;
 use txpool_api::TransactionPool;
 
 /// A type representing all RPC extensions.
-pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
+pub type RpcExtension = RpcModule<()>;
 
 /// Extra dependencies for BABE.
 pub struct BabeDeps {
@@ -111,13 +111,15 @@ where
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
-	use frame_rpc_system::{FullSystem, SystemApi};
-	use pallet_mmr_rpc::{Mmr, MmrApi};
-	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
-	use sc_consensus_babe_rpc::BabeRpcHandler;
-	use sc_finality_grandpa_rpc::{GrandpaApi, GrandpaRpcHandler};
+	use beefy_gadget_rpc::{BeefyApiServer, BeefyRpcHandler};
+	use frame_rpc_system::{SystemApiServer, SystemRpc, SystemRpcBackendFull};
+	use pallet_mmr_rpc::{MmrApiServer, MmrRpc};
+	use pallet_transaction_payment_rpc::{TransactionPaymentApiServer, TransactionPaymentRpc};
+	use sc_consensus_babe_rpc::{BabeApiServer, BabeRpc};
+	use sc_finality_grandpa_rpc::{GrandpaApiServer, GrandpaRpc};
+	use sc_sync_state_rpc::{SyncStateRpc, SyncStateRpcApiServer};
 
-	let mut io = jsonrpc_core::IoHandler::default();
+	let mut io = RpcModule::new(());
 	let FullDeps { client, pool, select_chain, chain_spec, deny_unsafe, babe, grandpa, beefy } =
 		deps;
 	let BabeDeps { keystore, babe_config, shared_epoch_changes } = babe;
@@ -129,38 +131,45 @@ where
 		finality_provider,
 	} = grandpa;
 
-	io.extend_with(SystemApi::to_delegate(FullSystem::new(client.clone(), pool, deny_unsafe)));
-	io.extend_with(TransactionPaymentApi::to_delegate(TransactionPayment::new(client.clone())));
-	io.extend_with(MmrApi::to_delegate(Mmr::new(client.clone())));
-	io.extend_with(sc_consensus_babe_rpc::BabeApi::to_delegate(BabeRpcHandler::new(
-		client.clone(),
-		shared_epoch_changes.clone(),
-		keystore,
-		babe_config,
-		select_chain,
-		deny_unsafe,
-	)));
-	io.extend_with(GrandpaApi::to_delegate(GrandpaRpcHandler::new(
-		shared_authority_set.clone(),
-		shared_voter_state,
-		justification_stream,
-		subscription_executor,
-		finality_provider,
-	)));
-	io.extend_with(SyncStateRpcApi::to_delegate(SyncStateRpcHandler::new(
-		chain_spec,
-		client,
-		shared_authority_set,
-		shared_epoch_changes,
-		deny_unsafe,
-	)?));
+	let system_backend = SystemRpcBackendFull::new(client.clone(), pool, deny_unsafe);
+	io.merge(SystemRpc::new(Box::new(system_backend)).into_rpc())?;
+	io.merge(TransactionPaymentRpc::new(client.clone()).into_rpc())?;
+	io.merge(MmrRpc::new(client.clone()).into_rpc())?;
+	io.merge(
+		BabeRpc::new(
+			client.clone(),
+			shared_epoch_changes.clone(),
+			keystore,
+			babe_config,
+			select_chain,
+			deny_unsafe,
+		)
+		.into_rpc(),
+	)?;
+	io.merge(
+		GrandpaRpc::new(
+			subscription_executor,
+			shared_authority_set.clone(),
+			shared_voter_state,
+			justification_stream,
+			finality_provider,
+		)
+		.into_rpc(),
+	)?;
+	io.merge(
+		SyncStateRpc::new(
+			chain_spec,
+			client,
+			shared_authority_set,
+			shared_epoch_changes,
+			deny_unsafe,
+		)?
+		.into_rpc(),
+	)?;
 
-	io.extend_with(beefy_gadget_rpc::BeefyApi::to_delegate(
-		beefy_gadget_rpc::BeefyRpcHandler::new(
-			beefy.beefy_commitment_stream,
-			beefy.subscription_executor,
-		),
-	));
+	io.merge(
+		BeefyRpcHandler::new(beefy.beefy_commitment_stream, beefy.subscription_executor).into_rpc(),
+	)?;
 
 	Ok(io)
 }
