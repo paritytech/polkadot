@@ -529,6 +529,9 @@ pub mod pallet {
 	}
 }
 
+/// Assures the `$condition` is `true`, and raises
+/// an error if `$action` is `true`.
+/// If `$action` is `false`, executes `$alt` if present.
 macro_rules! ensure2 {
 	($condition:expr, $err:expr, $action:ident $(, $alt:expr)? $(,)?) => {
 		let condition = $condition;
