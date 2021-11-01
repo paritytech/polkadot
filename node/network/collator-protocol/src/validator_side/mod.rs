@@ -1210,10 +1210,11 @@ where
 			}
 			res = state.collation_fetch_timeouts.select_next_some() => {
 				let (collator_id, relay_parent) = res;
-				tracing::debug!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					?relay_parent,
-					"Fetch for collation took too long, starting parallel download for next collator as well."
+					?collator_id,
+					"Timeout hit - already seconded?"
 				);
 				dequeue_next_collation_and_fetch(&mut ctx, &mut state, relay_parent, collator_id).await;
 			}
@@ -1272,6 +1273,12 @@ async fn dequeue_next_collation_and_fetch(
 		.get_mut(&relay_parent)
 		.and_then(|c| c.get_next_collation_to_fetch(Some(previous_fetch)))
 	{
+		tracing::trace!(
+			target: LOG_TARGET,
+			?relay_parent,
+			?id,
+			"Successfully dequeued next advertisement - fetching ..."
+		);
 		fetch_collation(ctx, state, next, id).await;
 	}
 }
