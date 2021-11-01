@@ -59,24 +59,20 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 pub trait WeightInfo {
-	fn enter_backed_dominant(b: u32) -> Weight;
-	fn enter_dispute_dominant(d: u32) -> Weight;
-	fn enter_disputes_only(d: u32) -> Weight;
-	fn enter_backed_only(b: u32) -> Weight;
+	fn enter_variable_disputes(v: u32) -> Weight;
+	fn enter_bitfields() -> Weight;
+	fn enter_backed_candidates_variable(v: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
-	fn enter_backed_dominant(_b: u32) -> Weight {
+	fn enter_variable_disputes(_v: u32) -> Weight {
 		Weight::MAX
 	}
-	fn enter_dispute_dominant(_d: u32) -> Weight {
+	fn enter_bitfields() -> Weight {
 		Weight::MAX
 	}
-	fn enter_disputes_only(_d: u32) -> Weight {
-		Weight::MAX
-	}
-	fn enter_backed_only(_b: u32) -> Weight {
+	fn enter_backed_candidates_variable(_v: u32) -> Weight {
 		Weight::MAX
 	}
 }
