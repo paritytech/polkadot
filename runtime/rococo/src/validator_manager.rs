@@ -102,7 +102,7 @@ impl<T: Config> pallet_session::SessionManager<T::ValidatorId, T::MaxValidatorsC
 		new_index: SessionIndex,
 	) -> Option<WeakBoundedVec<T::ValidatorId, T::MaxValidatorsCount>> {
 		if new_index <= 1 {
-			return None;
+			return None
 		}
 
 		let mut validators = Session::<T>::validators();
