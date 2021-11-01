@@ -4,7 +4,7 @@ use crate::{
 	scheduler, session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::{account, Vec};
 use frame_support::pallet_prelude::*;
 use frame_system::RawOrigin;
 use primitives::v1::{
