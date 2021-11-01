@@ -213,7 +213,7 @@ pub mod pallet {
 		/// Origin which is allowed to execute overweight messages.
 		type ExecuteOverweightOrigin: EnsureOrigin<Self::Origin>;
 
-		/// Weight information for extrinsics in this pallet
+		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 	}
 
