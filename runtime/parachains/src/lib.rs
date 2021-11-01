@@ -42,7 +42,7 @@ pub mod runtime_api_impl;
 
 mod util;
 
-#[cfg(any(test, feature = "runtime-benchmarks"))]
+#[cfg(feature = "runtime-benchmarks")]
 mod builder;
 #[cfg(test)]
 mod mock;

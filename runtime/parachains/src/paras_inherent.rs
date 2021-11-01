@@ -52,10 +52,7 @@ use sp_std::{
 mod benchmarking;
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
-// In the future, we should benchmark these consts; these are all untested assumptions for now.
-const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
-// we assume that 75% of an paras inherent's weight is used processing backed candidates
-const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
+
 const MAX_ACTIVE_VALIDATORS: u32 = 1_000;
 
 pub trait WeightInfo {
@@ -103,7 +100,7 @@ fn bitfield_weight<T: Config>() -> Weight {
 	<T as Config>::WeightInfo::enter_bitfields()
 }
 
-fn minimal_inherent_weight<T: Config>() -> {
+fn minimal_inherent_weight<T: Config>() -> Weight {
 	// We just take the min of all our options. This can be changed in the future.
 	<T as Config>::WeightInfo::enter_bitfields()
 		.min(<T as Config>::WeightInfo::enter_variable_disputes(1))

@@ -261,7 +261,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		}
 	}
 
-	/// Sign this payload with the given context and pair. Only for runtime benchmark use cases.
+	/// Sign this payload with the given context and pair.
 	#[cfg(feature = "runtime-benchmarks")]
 	pub fn benchmark_sign<H: Encode>(
 		public: &crate::v0::ValidatorId,
@@ -269,15 +269,10 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		context: &SigningContext<H>,
 		validator_index: ValidatorIndex,
 	) -> Self {
-		// use application_crypto::Pair;
 		use application_crypto::RuntimeAppPublic;
 		let data = Self::payload_data(&payload, context);
 
-		// let debug_res = public.sign(&data);
-		// // println!("debug_res benchmark sign {:?}", debug_res);
-		// let signature = debug_res.unwrap();
 		let signature = public.sign(&data).unwrap();
-		// let signature = pair.sign(&data);
 
 		Self { payload, validator_index, signature, real_payload: sp_std::marker::PhantomData }
 	}
