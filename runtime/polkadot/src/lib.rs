@@ -40,8 +40,8 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Contains, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade},
-	weights::{constants::WEIGHT_PER_MILLIS, Weight},
+	traits::{Contains, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade, PrivilegeCmp},
+	weights::Weight,
 	PalletId, RuntimeDebug,
 };
 use frame_system::{EnsureOneOf, EnsureRoot};
@@ -73,7 +73,7 @@ use sp_runtime::{
 	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
 };
 use sp_staking::SessionIndex;
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
@@ -95,6 +95,8 @@ use frame_support::traits::InstanceFilter;
 // Weights used in the runtime.
 mod weights;
 
+mod bag_thresholds;
+
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -105,7 +107,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9120,
+	spec_version: 9130,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -170,7 +172,8 @@ impl Contains<Call> for BaseFilter {
 			Call::Slots(_) |
 			Call::Registrar(_) |
 			Call::Auctions(_) |
-			Call::Crowdloan(_) => true,
+			Call::Crowdloan(_) |
+			Call::BagsList(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
 		}
@@ -226,6 +229,29 @@ type ScheduleOrigin = EnsureOneOf<
 	pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>,
 >;
 
+/// Used the compare the privilege of an origin inside the scheduler.
+pub struct OriginPrivilegeCmp;
+
+impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
+	fn cmp_privilege(left: &OriginCaller, right: &OriginCaller) -> Option<Ordering> {
+		if left == right {
+			return Some(Ordering::Equal)
+		}
+
+		match (left, right) {
+			// Root is greater than anything.
+			(OriginCaller::system(frame_system::RawOrigin::Root), _) => Some(Ordering::Greater),
+			// Check which one has more yes votes.
+			(
+				OriginCaller::Council(pallet_collective::RawOrigin::Members(l_yes_votes, l_count)),
+				OriginCaller::Council(pallet_collective::RawOrigin::Members(r_yes_votes, r_count)),
+			) => Some((l_yes_votes * r_count).cmp(&(r_yes_votes * l_count))),
+			// For every other origin we don't care, as they are not used for `ScheduleOrigin`.
+			_ => None,
+		}
+	}
+}
+
 impl pallet_scheduler::Config for Runtime {
 	type Event = Event;
 	type Origin = Origin;
@@ -235,6 +261,7 @@ impl pallet_scheduler::Config for Runtime {
 	type ScheduleOrigin = ScheduleOrigin;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
+	type OriginPrivilegeCmp = OriginPrivilegeCmp;
 }
 
 parameter_types! {
@@ -442,6 +469,17 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MaxTargets = MaxValidatorsCount;
 }
 
+parameter_types! {
+	pub const BagThresholds: &'static [u64] = &bag_thresholds::THRESHOLDS;
+}
+
+impl pallet_bags_list::Config for Runtime {
+	type Event = Event;
+	type VoteWeightProvider = Staking;
+	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
+	type BagThresholds = BagThresholds;
+}
+
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
 // re-built in case input parameters have changed. The `ideal_stake` should be determined by the
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
@@ -521,9 +559,8 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
-	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
-	// to bags-list is a no-op, but the storage version will be updated.
-	type SortedListProvider = pallet_staking::UseNominatorsMap<Runtime>;
+	// Use the nominators map to iter voters, but also keep bags-list up-to-date.
+	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -1074,7 +1111,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Registrar(paras_registrar::Call::reserve {..}) |
 				Call::Crowdloan(..) |
 				Call::Slots(..) |
-				Call::Auctions(..) // Specifically omitting the entire XCM Pallet
+				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
+				Call::BagsList(..)
 			),
 			ProxyType::Governance => matches!(
 				c,
@@ -1324,6 +1362,9 @@ construct_runtime! {
 		// Election pallet. Only works with staking, but placed here to maintain indices.
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 36,
 
+		// Provides a semi-sorted list of nominators for staking.
+		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 37,
+
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 51,
@@ -1376,108 +1417,27 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	(),
+	StakingBagsListMigrationV8,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
-/// Set the initial host configuration for Polkadot.
-pub struct SetInitialHostConfiguration;
-impl OnRuntimeUpgrade for SetInitialHostConfiguration {
+// Migration to generate pallet staking's `SortedListProvider` from pre-existing nominators.
+pub struct StakingBagsListMigrationV8;
+
+impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use parachains_configuration::HostConfiguration;
-
-		let active_config: HostConfiguration<BlockNumber> = HostConfiguration {
-			max_code_size: 10_485_760,
-			max_head_data_size: 20_480,
-			max_upward_queue_count: 10,
-			max_upward_queue_size: 51_200,
-			max_upward_message_size: 51_200,
-			max_upward_message_num_per_candidate: 10,
-			hrmp_max_message_num_per_candidate: 10,
-			validation_upgrade_frequency: 14_400,
-			validation_upgrade_delay: 600,
-			max_pov_size: 5_242_880,
-			max_downward_message_size: 51_200,
-			ump_service_total_weight: 100_000_000_000,
-			hrmp_max_parachain_outbound_channels: 10,
-			hrmp_max_parathread_outbound_channels: 0,
-			hrmp_sender_deposit: deposit(1004, 100 * 1024),
-			hrmp_recipient_deposit: deposit(1004, 100 * 1024),
-			hrmp_channel_max_capacity: 1_000,
-			hrmp_channel_max_total_size: 102_400,
-			hrmp_max_parachain_inbound_channels: 10,
-			hrmp_max_parathread_inbound_channels: 0,
-			hrmp_channel_max_message_size: 102_400,
-			code_retention_period: EPOCH_DURATION_IN_SLOTS * 6,
-			parathread_cores: 0,
-			parathread_retries: 0,
-			group_rotation_frequency: 10,
-			chain_availability_period: 10,
-			thread_availability_period: 10,
-			scheduling_lookahead: 1,
-			max_validators_per_core: Some(5),
-			max_validators: Some(200),
-			dispute_period: 6,
-			dispute_post_conclusion_acceptance_period: 600,
-			dispute_max_spam_slots: 2,
-			dispute_conclusion_by_time_out_period: 600,
-			no_show_slots: 2,
-			n_delay_tranches: 89,
-			zeroth_delay_tranche_width: 0,
-			needed_approvals: 30,
-			relay_vrf_modulo_samples: 40,
-			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
-		};
-
-		// Only set the config if it's needed to be set explicitly.
-		if Configuration::config() == Default::default() {
-			Configuration::force_set_active_config(active_config);
-		}
-
-		{
-			// At the moment, the `parachains_configuration` crate has already had one runtime
-			// storage migration (performed as part of [#3575]). As the result a call to
-			// `StorageVersion::get::<Configuration>` will return `Some(1)`
-			//
-			// However, Polkadot is just about to have its first version of parachains runtime
-			// pallets and thus there is no existing storage which needs to be migrated. Above
-			// we just have set the active configuration of the actual version, i.e. the same as the
-			// version 1 on Kusama.
-			//
-			// The caveat here is when we deploy a module for the first time, it's runtime version
-			// will be empty and thus it will be considered as version 0. Since we want to avoid
-			// the situation where the same storage structure has version 0 on Polkadot and
-			// version 1 on Kusama we need to set the storage version explicitly.
-			//
-			// [#3575]: https://github.com/paritytech/polkadot/pull/3575
-			use frame_support::traits::StorageVersion;
-			StorageVersion::new(1).put::<Configuration>();
-		}
-
-		RocksDbWeight::get().reads(1) + RocksDbWeight::get().writes(1)
-	}
-}
-
-const TIPS_OLD_PREFIX: &str = "Treasury";
-/// Migrate pallet-tips from `Treasury` to the new pallet prefix `Tips`
-pub struct MigrateTipsPalletPrefix;
-
-impl OnRuntimeUpgrade for MigrateTipsPalletPrefix {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_tips::migrations::v4::migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX)
+		pallet_staking::migrations::v8::migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_tips::migrations::v4::pre_migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX);
-		Ok(())
+		pallet_staking::migrations::v8::pre_migrate::<Runtime>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_tips::migrations::v4::post_migrate::<Runtime, Tips, _>(TIPS_OLD_PREFIX);
-		Ok(())
+		pallet_staking::migrations::v8::post_migrate::<Runtime>()
 	}
 }
 
@@ -1556,6 +1516,16 @@ sp_api::impl_runtime_apis! {
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<Hash, BlockNumber>> {
 			parachains_runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<Hash, BlockNumber>, ValidationCodeHash)> {
+			parachains_runtime_api_impl::assumed_validation_data::<Runtime>(
+				para_id,
+				expected_persisted_validation_data_hash,
+			)
 		}
 
 		fn check_validation_outputs(
@@ -1809,6 +1779,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_parachains::initializer, Initializer);
 			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
 			// Substrate
+			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 			list_benchmark!(list, extra, pallet_balances, Balances);
 			list_benchmark!(list, extra, pallet_bounties, Bounties);
 			list_benchmark!(list, extra, pallet_collective, Council);
@@ -1884,6 +1855,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
 			// Substrate
+			add_benchmark!(params, batches, pallet_bags_list, BagsList);
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
 			add_benchmark!(params, batches, pallet_collective, Council);

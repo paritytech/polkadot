@@ -181,13 +181,8 @@ fn default_parachains_host_configuration(
 		thread_availability_period: 4,
 		max_upward_queue_count: 8,
 		max_upward_queue_size: 1024 * 1024,
-		max_downward_message_size: 1024,
-		// this is approximatelly 4ms.
-		//
-		// Same as `4 * frame_support::weights::WEIGHT_PER_MILLIS`. We don't bother with
-		// an import since that's a made up number and should be replaced with a constant
-		// obtained by benchmarking anyway.
-		ump_service_total_weight: 4 * 1_000_000_000,
+		max_downward_message_size: 1024 * 1024,
+		ump_service_total_weight: 100_000_000_000,
 		max_upward_message_size: 1024 * 1024,
 		max_upward_message_num_per_candidate: 5,
 		hrmp_sender_deposit: 0,
