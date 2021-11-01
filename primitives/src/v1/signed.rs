@@ -271,7 +271,6 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	) -> Self {
 		use application_crypto::RuntimeAppPublic;
 		let data = Self::payload_data(&payload, context);
-
 		let signature = public.sign(&data).unwrap();
 
 		Self { payload, validator_index, signature, real_payload: sp_std::marker::PhantomData }
