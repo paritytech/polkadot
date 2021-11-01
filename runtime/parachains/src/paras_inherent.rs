@@ -83,7 +83,7 @@ fn paras_inherent_total_weight<T: Config>(
 		.saturating_add(weights.writes(212 as Weight))
 		.saturating_add(weights.writes((2 as Weight).saturating_mul(n_disputes as Weight)))
 		// bitfields
-		.saturating_add((10_000_000 as Weight).saturating_mul(n_disputes as Weight))
+		.saturating_add((10_000_000 as Weight).saturating_mul(n_bitfields as Weight))
 		.saturating_add(weights.reads(10 as Weight))
 		.saturating_add(weights.reads((20 as Weight).saturating_mul(n_bitfields as Weight)))
 		.saturating_add(weights.writes(10 as Weight))
@@ -1450,8 +1450,7 @@ mod tests {
 						.collect::<Vec<_>>();
 
 					// the expected weight can always be computed by this formula
-					let expected_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT +
-						(backed_candidates.len() as Weight * BACKED_CANDIDATE_WEIGHT);
+					let expected_weight = paras_inherent_total_weight::<Test>(backed_candidates.len() as u32, 0, 0);
 
 					// we've used half the block weight; there's plenty of margin
 					let max_block_weight =
@@ -1505,7 +1504,7 @@ mod tests {
 				let backed_candidates = vec![BackedCandidate::default(); 10];
 
 				// the expected weight with no blocks is just the minimum weight
-				let expected_weight = MINIMAL_INCLUSION_INHERENT_WEIGHT;
+				let expected_weight = paras_inherent_total_weight::<Test>(0, 0, 0);
 
 				// oops, looks like this mandatory call pushed the block weight over the limit
 				let max_block_weight =
