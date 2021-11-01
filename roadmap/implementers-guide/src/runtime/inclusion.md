@@ -74,7 +74,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
 )`
   1. if `EARLY_RETURN` is `true`, return an error when encountering a backed candidates that does not pass the checks, if `false`, drop the backed candidates from the set that will be returned.
   1. check all backed candidates have no concluded invalid dispute by means of the provided closure `candidate_has_concluded_invalid_dispute`
-  1. check all backed candidates have the matchin `relay_parent`
+  1. check all backed candidates have the matching `relay_parent`
   1. check all backed candidates paraid was scheduled by means of the provided `scheduled` parameter
 
 * `process_candidates(parent_storage_root, BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
