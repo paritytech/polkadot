@@ -177,8 +177,12 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[pallet::weight((
-				<T as Config>::WeightInfo::enter_backed_dominant(data.backed_candidates.len() as u32) +
-				<T as Config>::WeightInfo::enter_dispute_dominant(data.disputes.len() as u32),
+				<T as Config>::WeightInfo::enter_variable_disputes(1_000)
+					* data.disputes.len() as u64
+					+ <T as Config>::WeightInfo::enter_backed_candidates_variable(1_000)
+					* data.backed_candidates.len() as u64
+					+ <T as Config>::WeightInfo::enter_bitfields()
+					* data.bitfields.len() as u64,
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(

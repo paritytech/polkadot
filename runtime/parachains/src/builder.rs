@@ -264,7 +264,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		assert_eq!(scheduler::ValidatorGroups::<T>::get().len(), cores as usize);
 		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
-`
+
 		// get validators from session info. We need to refetch them since they have been shuffled.
 		let validators_shuffled: Vec<_> = session_info::Pallet::<T>::session_info(target_session)
 			.unwrap()
