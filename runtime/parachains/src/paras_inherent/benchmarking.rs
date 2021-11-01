@@ -27,11 +27,8 @@ benchmarks! {
 	enter_variable_disputes {
 		let v in 10..BenchBuilder::<T>::max_validators();
 
-		let max_validators = BenchBuilder::<T>::max_validators();
-		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
-
-		let cores_with_disputed = BenchBuilder::<T>::cores() / 2;
-		let cores_with_backed = BenchBuilder::<T>::cores() / 2;
+		let cores_with_disputed = 1;
+		let cores_with_backed = 0;
 
 		let scenario = BenchBuilder::<T>::new()
 			.build(cores_with_disputed, cores_with_backed);
@@ -59,8 +56,11 @@ benchmarks! {
 
 	// The weight of one bitfield.
 	enter_bitfields {
-		let cores_with_disputed = BenchBuilder::<T>::cores() / 2;
-		let cores_with_backed = BenchBuilder::<T>::cores() / 2;
+		// let cores_with_disputed = BenchBuilder::<T>::cores() / 2;
+		// let cores_with_backed = BenchBuilder::<T>::cores() / 2;
+
+		let cores_with_disputed = 0;
+		let cores_with_backed = 1;
 
 		let scenario = BenchBuilder::<T>::new()
 			.build(cores_with_disputed, cores_with_backed);
@@ -90,8 +90,8 @@ benchmarks! {
 	enter_backed_candidates_variable {
 		let v in 10..BenchBuilder::<T>::max_validators();
 
-		let cores_with_disputed = BenchBuilder::<T>::cores() / 2;
-		let cores_with_backed = BenchBuilder::<T>::cores() / 2;
+		let cores_with_disputed = 0;
+		let cores_with_backed = 1;
 
 		let scenario = BenchBuilder::<T>::new()
 			.build(cores_with_disputed, cores_with_backed);

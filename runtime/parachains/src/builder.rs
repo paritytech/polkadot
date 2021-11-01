@@ -61,8 +61,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			validators: None,
 			block_number: Zero::zero(),
 			session: SessionIndex::from(0u32),
-			spam_disputes: 0u32,
-			non_spam_disputes: 0u32,
 			target_session: 2u32,
 			_phantom: sp_std::marker::PhantomData::<T>,
 		}
@@ -179,15 +177,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		for i in 0..cores {
 			let para_id = ParaId::from(i as u32);
 
-			paras::Pallet::<T>::schedule_para_initialize(
+			let _ = paras::Pallet::<T>::schedule_para_initialize(
 				para_id,
 				paras::ParaGenesisArgs {
 					genesis_head: Default::default(),
 					validation_code: Default::default(),
 					parachain: true,
 				},
-			)
-			.unwrap();
+			);
 		}
 	}
 
@@ -497,7 +494,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
 		let cores = Self::cores();
-		println!("b {}, d {}, c {}", backed_and_concluding_cores, non_spam_dispute_cores, cores);
 		assert!(backed_and_concluding_cores + non_spam_dispute_cores <= cores);
 
 		// Setup para_ids traverses each core,
@@ -523,7 +519,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let backed_candidates = builder.create_backed_candidates(concluding_cores);
 
 		let last_core = backed_and_concluding_cores + non_spam_dispute_cores;
-		assert!(last_core < Self::cores());
+		assert!(last_core <= Self::cores());
 		let disputes = builder.create_disputes_with_no_spam(backed_and_concluding_cores, last_core);
 
 		assert_eq!(inclusion::PendingAvailabilityCommitments::<T>::iter().count(), cores as usize,);
