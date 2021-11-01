@@ -30,11 +30,10 @@ benchmarks! {
 	// Variant over `v`, the number of dispute statements in a dispute statement set. This gives the
 	// weight of a single dispute statement set.
 	enter_variable_disputes {
+		let v in 10..BenchBuilder::<T>::max_validators();
+
 		let max_validators = BenchBuilder::<T>::max_validators();
 		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
-		let cores = BenchBuilder::<T>::max_validators_per_core()
-
-		let v in 10..max_validators;
 
 		let scenario = BenchBuilder::<T>::new()
 			.build(max_validators, max_validators_per_core, max_validators, max_validators);
@@ -61,6 +60,7 @@ benchmarks! {
 	enter_bitfields {
 		let max_validators = BenchBuilder::<T>::max_validators();
 		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
+
 		let scenario = BenchBuilder::<T>::new()
 			.build(max_validators, max_validators_per_core, max_validators, max_validators);
 
@@ -87,12 +87,14 @@ benchmarks! {
 	// Variant over `v`, the amount of validity votes for a backed candidate. This gives the weight
 	// of a single backed candidate.
 	enter_backed_candidates_variable {
+		let v in 10..BenchBuilder::<T>::max_validators();
+
 		let max_validators = BenchBuilder::<T>::max_validators();
 		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
 
-		let v in 10..max_validators;
 		let scenario = BenchBuilder::<T>::new()
 			.build(max_validators, max_validators_per_core, max_validators, max_validators);
+
 
 		let mut benchmark = scenario.data.clone();
 		let backed_candidate = benchmark.backed_candidates.pop();
