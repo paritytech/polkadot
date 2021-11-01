@@ -33,8 +33,8 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	BackedCandidate, InherentData as ParachainsInherentData, ScrapedOnChainVotes,
-	PARACHAINS_INHERENT_IDENTIFIER,
+	BackedCandidate, DisputeStatementSet, InherentData as ParachainsInherentData, ScrapedOnChainVotes,
+	PARACHAINS_INHERENT_IDENTIFIER, UncheckedSignedAvailabilityBitfield,
 };
 use sp_runtime::traits::Header as HeaderT;
 use sp_std::prelude::*;
@@ -50,26 +50,22 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 pub trait WeightInfo {
-	fn enter_backed_dominant(b: u32) -> Weight;
-	fn enter_dispute_dominant(d: u32) -> Weight;
-	fn enter_disputes_only(d: u32) -> Weight;
-	fn enter_backed_only(b: u32) -> Weight;
+    fn enter_variable_disputes(_v: u32) -> Weight;
+    fn enter_bitfields() -> Weight;
+    fn enter_backed_candidates_variable(_v: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
-	fn enter_backed_dominant(_b: u32) -> Weight {
-		Weight::MAX
-	}
-	fn enter_dispute_dominant(_d: u32) -> Weight {
-		Weight::MAX
-	}
-	fn enter_disputes_only(_d: u32) -> Weight {
-		Weight::MAX
-	}
-	fn enter_backed_only(_b: u32) -> Weight {
-		Weight::MAX
-	}
+    fn enter_variable_disputes(_v: u32) -> Weight {
+        Weight::MAX
+    }
+    fn enter_bitfields() -> Weight {
+        Weight::MAX
+    }
+    fn enter_backed_candidates_variable(_v: u32) -> Weight {
+        Weight::MAX
+    }
 }
 
 #[frame_support::pallet]
@@ -181,9 +177,9 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[pallet::weight((
-			// configuration::Pallet::<T>::config().enter_dispute_dominant +
-				<T as Config>::WeightInfo::enter_backed_dominant(data.backed_candidates.len() as u32) +
-				<T as Config>::WeightInfo::enter_dispute_dominant(data.disputes.len() as u32),
+                backed_candidates_weight::<T>(&data.backed_candidates) +
+                signed_bitfields_weight::<T>(&data.bitfields) +
+                dispute_statements_weight::<T>(&data.disputes),
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(
@@ -333,6 +329,20 @@ pub mod pallet {
 			.into())
 		}
 	}
+}
+
+fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Weight {
+    disputes.iter().map(|d| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(d.statements.len() as u32)).sum()
+}
+
+fn signed_bitfields_weight<T: Config>(bitfields: &[UncheckedSignedAvailabilityBitfield]) -> Weight {
+    <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields() * bitfields.len() as Weight
+}
+
+fn backed_candidates_weight<T: frame_system::Config + Config>(
+    candidate: &[BackedCandidate<T::Hash>],
+) -> Weight {
+    candidate.iter().map(|v| <<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(v.validity_votes.len() as u32)).sum()
 }
 
 /// Limit the number of backed candidates processed in order to stay within block weight limits.
