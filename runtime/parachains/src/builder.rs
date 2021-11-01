@@ -492,8 +492,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
 		let cores = Self::cores();
-		let last_used_core = backed_and_concluding_cores.max(non_spam_dispute_cores);
-		assert!(last_used_core <= cores);
+		let used_cores = backed_and_concluding_cores + non_spam_dispute_cores;
+		assert!(used_cores <= cores);
 
 		// Setup para_ids traverses each core,
 		// creates a ParaId for that CoreIndex,
@@ -502,7 +502,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		// subsequently inserts the ParaId into the ActionsQueue
 		// Note that there is an n+2 session delay for these actions to take effect
 		// We are currently in Session 0, so these changes will take effect in Session 2
-		Self::setup_para_ids(last_used_core);
+		Self::setup_para_ids(used_cores);
 
 		// As there are not validator public keys in the system yet, we must generate them here
 		let validator_ids = Self::generate_validator_pairs(Self::max_validators());
@@ -510,27 +510,27 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		let target_session = SessionIndex::from(self.target_session);
 
-		let builder = self.setup_session(target_session, validator_ids, last_used_core);
+		let builder = self.setup_session(target_session, validator_ids, used_cores);
 
 		let concluding_cores: BTreeSet<_> = (0..backed_and_concluding_cores).into_iter().collect();
 
 		let bitfields =
-			builder.create_availability_bitfields(concluding_cores.clone(), last_used_core);
+			builder.create_availability_bitfields(concluding_cores.clone(), used_cores);
 		let backed_candidates = builder.create_backed_candidates(concluding_cores);
 
 		let disputes =
-			builder.create_disputes_with_no_spam(0, non_spam_dispute_cores);
+			builder.create_disputes_with_no_spam(backed_and_concluding_cores, used_cores);
 
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
-			last_used_core as usize,
+			used_cores as usize,
 		);
-		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), last_used_core as usize,);
+		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), used_cores as usize,);
 		Bench::<T> {
 			data: ParachainsInherentData {
 				bitfields,
 				backed_candidates,
-				disputes, // Vec<DisputeStatementSet>
+				disputes,
 				parent_header: Self::header(builder.block_number.clone()),
 			},
 			session: builder.target_session,

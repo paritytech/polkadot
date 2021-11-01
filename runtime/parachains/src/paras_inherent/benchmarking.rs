@@ -34,7 +34,6 @@ benchmarks! {
 			.build(cores_with_backed, cores_with_disputed);
 
 		let mut benchmark = scenario.data.clone();
-		println!("count disputes {}", scenario.data.disputes.len());
 		let dispute = benchmark.disputes.pop().unwrap();
 
 		benchmark.bitfields.clear();
@@ -92,8 +91,8 @@ benchmarks! {
 		// NOTE: the starting value must be over half of `max_validators`. Ideally we would use
 		// `BenchBuilder::<T>::min_validity_votes()`, but that does not work in the context of this
 		// macro.
-		let v in 101..BenchBuilder::<T>::max_validators();
-		// let v in BenchBuilder::<T>::min_validity_votes()..BenchBuilder::<T>::max_validators();
+		// let v in 101..BenchBuilder::<T>::max_validators();
+		let v in (BenchBuilder::<T>::min_validity_votes())..BenchBuilder::<T>::max_validators();
 
 		let cores_with_disputed = 0;
 		let cores_with_backed = 1;
