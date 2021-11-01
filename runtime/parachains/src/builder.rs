@@ -518,12 +518,12 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let bitfields = builder.create_availability_bitfields(concluding_cores.clone(), cores);
 		let backed_candidates = builder.create_backed_candidates(concluding_cores);
 
-		let last_core = backed_and_concluding_cores + non_spam_dispute_cores;
-		assert!(last_core <= Self::cores());
-		let disputes = builder.create_disputes_with_no_spam(backed_and_concluding_cores, last_core);
+		let last_used_core = backed_and_concluding_cores + non_spam_dispute_cores;
+		assert!(last_used_core <= Self::cores());
+		let disputes = builder.create_disputes_with_no_spam(backed_and_concluding_cores, last_used_core);
 
-		assert_eq!(inclusion::PendingAvailabilityCommitments::<T>::iter().count(), cores as usize,);
-		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), cores as usize,);
+		assert_eq!(inclusion::PendingAvailabilityCommitments::<T>::iter().count(), last_used_core as usize,);
+		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), last_used_core as usize,);
 		Bench::<T> {
 			data: ParachainsInherentData {
 				bitfields,
