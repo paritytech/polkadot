@@ -186,7 +186,7 @@ impl RequestFromBackersPhase {
 				self.shuffled_backers.pop().ok_or_else(|| RecoveryError::Unavailable)?;
 
 			// Request data.
-			let (req, res) = OutgoingRequest::new(
+			let (req, response) = OutgoingRequest::new(
 				Recipient::Authority(
 					params.validator_authority_keys[validator_index.0 as usize].clone(),
 				),
@@ -203,7 +203,7 @@ impl RequestFromBackersPhase {
 				)
 				.await;
 
-			match res.await {
+			match response.await {
 				Ok(req_res::v1::AvailableDataFetchingResponse::AvailableData(data)) => {
 					if reconstructed_data_matches_root(
 						params.validators.len(),
@@ -346,6 +346,7 @@ impl RequestChunksPhase {
 			.await;
 	}
 
+	/// Wait for a sufficient amount of chunks to reconstruct according to the provided `params`.
 	async fn wait_for_chunks(&mut self, params: &InteractionParams) {
 		let metrics = &params.metrics;
 
@@ -559,6 +560,9 @@ const fn is_unavailable(
 	received_chunks + requesting_chunks + unrequested_validators < threshold
 }
 
+/// Re-encode the data into erasure chunks in order to verify
+/// the root hash of the provided merkle tree, which is built
+/// on-top of the encoded chunks.
 fn reconstructed_data_matches_root(
 	n_validators: usize,
 	expected_root: &Hash,
