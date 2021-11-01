@@ -44,8 +44,6 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	validators: Option<Vec<ValidatorId>>,
 	block_number: T::BlockNumber,
 	session: SessionIndex,
-	spam_disputes: u32,
-	non_spam_disputes: u32,
 	target_session: u32,
 	_phantom: sp_std::marker::PhantomData<T>,
 }
@@ -499,7 +497,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
 		let cores = Self::cores();
-		assert!(backed_and_concluding_cores + non_spam_dispute_cores < cores);
+		println!("b {}, d {}, c {}", backed_and_concluding_cores, non_spam_dispute_cores, cores);
+		assert!(backed_and_concluding_cores + non_spam_dispute_cores <= cores);
 
 		// Setup para_ids traverses each core,
 		// creates a ParaId for that CoreIndex,
