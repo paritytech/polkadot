@@ -295,6 +295,7 @@ pub trait WeightInfo {
 	fn set_config_with_weight() -> Weight;
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
+	fn set_config_with_bool() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -315,6 +316,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn set_hrmp_open_request_ttl() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_bool() -> Weight {
 		Weight::MAX
 	}
 }
@@ -982,7 +986,7 @@ pub mod pallet {
 
 		/// Enable or disable PVF prechecking.
 		#[pallet::weight((
-			T::WeightInfo::set_config_with_block_number(), // TODO: weight for booleans.
+			T::WeightInfo::set_config_with_bool(),
 			DispatchClass::Operational,
 		))]
 		pub fn set_pvf_prechecking_bypass(origin: OriginFor<T>, new: bool) -> DispatchResult {

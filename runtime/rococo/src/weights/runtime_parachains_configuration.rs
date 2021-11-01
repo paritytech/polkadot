@@ -88,4 +88,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
+	fn set_config_with_bool() -> Weight {
+		todo!()
+	}
 }

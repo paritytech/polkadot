@@ -36,6 +36,8 @@ benchmarks! {
 
 	set_config_with_balance {}: set_hrmp_sender_deposit(RawOrigin::Root, 100_000_000_000)
 
+	set_config_with_bool {}: set_pvf_prechecking_bypass(RawOrigin::Root, true)
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::mock::new_test_ext(Default::default()),
