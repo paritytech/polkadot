@@ -21,17 +21,34 @@ use frame_system::RawOrigin;
 
 use crate::builder::BenchBuilder;
 
-benchmarks! {
-	// Variant over `v`, the number of dispute statements in a dispute statement set. This gives the
-	// weight of a single dispute statement set.
-	enter_variable_disputes {
-		let v in 10..BenchBuilder::<T>::max_validators();
+#[cfg(not(test))]
+const MAX_DISPUTED: u32 = 1_000;
+#[cfg(test)]
+const MAX_DISPUTED: u32 = 8;
 
-		let max_validators = BenchBuilder::<T>::max_validators();
-		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
+#[cfg(not(test))]
+const MAX_BACKED: u32 = 1_000;
+#[cfg(test)]
+const MAX_BACKED: u32 = 8;
+
+#[cfg(not(test))]
+const MAX_VALIDATORS: u32 = 1_000;
+#[cfg(test)]
+const MAX_VALIDATORS: u32 = 200;
+
+#[cfg(not(test))]
+const MAX_VALIDATORS_PER_CORE: u32 = 5;
+#[cfg(test)]
+const MAX_VALIDATORS_PER_CORE: u32 = 5;
+
+// Variant over `d`, the number of cores with a disputed candidate. Remainder of cores are concluding
+// and backed candidates.
+benchmarks! {
+	enter_variable_disputes {
+		let v in 10..MAX_VALIDATORS;
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(max_validators, max_validators_per_core, max_validators, max_validators);
+			.build(MAX_VALIDATORS, MAX_VALIDATORS_PER_CORE, MAX_BACKED, MAX_DISPUTED);
 
 		let mut benchmark = scenario.data.clone();
 		let dispute = benchmark.disputes.pop();
@@ -44,6 +61,7 @@ benchmarks! {
 		benchmark.disputes.get_mut(0).unwrap().statements.drain(v as usize..);
 	}: enter(RawOrigin::None, benchmark)
 	verify {
+		let cores = MAX_VALIDATORS / MAX_VALIDATORS_PER_CORE;
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
 		// Assert that there are on-chain votes that got scraped
@@ -54,13 +72,9 @@ benchmarks! {
 		assert_eq!(vote.session, scenario.session);
 	}
 
-	// The weight of one bitfield.
 	enter_bitfields {
-		let max_validators = BenchBuilder::<T>::max_validators();
-		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
-
 		let scenario = BenchBuilder::<T>::new()
-			.build(max_validators, max_validators_per_core, max_validators, max_validators);
+			.build(MAX_VALIDATORS, MAX_VALIDATORS_PER_CORE, MAX_BACKED, MAX_DISPUTED);
 
 		let mut benchmark = scenario.data.clone();
 		let bitfield = benchmark.bitfields.pop();
@@ -72,6 +86,7 @@ benchmarks! {
 		benchmark.bitfields.push(bitfield.unwrap());
 	}: enter(RawOrigin::None, benchmark)
 	verify {
+		let cores = MAX_VALIDATORS / MAX_VALIDATORS_PER_CORE;
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
 		// Assert that there are on-chain votes that got scraped
@@ -82,30 +97,26 @@ benchmarks! {
 		assert_eq!(vote.session, scenario.session);
 	}
 
-	// Variant over `v`, the amount of validity votes for a backed candidate. This gives the weight
-	// of a single backed candidate.
 	enter_backed_candidates_variable {
-		let v in 10..BenchBuilder::<T>::max_validators();
-
-		let max_validators = BenchBuilder::<T>::max_validators();
-		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
+		let v in 10..MAX_VALIDATORS;
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(max_validators, max_validators_per_core, max_validators, max_validators);
-
+			.build(MAX_VALIDATORS, v, MAX_BACKED, MAX_DISPUTED);
 
 		let mut benchmark = scenario.data.clone();
-		let backed_candidate = benchmark.backed_candidates.pop();
+		let backed_candidate = benchmark.backed_candidates.pop().unwrap();
+		let descriptor = backed_candidate.descriptor();
+		let para_id = descriptor.para_id;
 
 		benchmark.bitfields.clear();
 		benchmark.backed_candidates.clear();
 		benchmark.disputes.clear();
 
-		benchmark.backed_candidates.push(backed_candidate.unwrap());
+		benchmark.backed_candidates.push(backed_candidate);
 		benchmark.backed_candidates.get_mut(0).unwrap().validity_votes.drain(v as usize..);
 	}: enter(RawOrigin::None, benchmark)
 	verify {
-		let cores = BenchBuilder::<T>::cores();
+		let cores = MAX_VALIDATORS / v;
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
 		// Assert that there are on-chain votes that got scraped
@@ -115,25 +126,27 @@ benchmarks! {
 		// Ensure that the votes are for the correct session
 		assert_eq!(vote.session, scenario.session);
 		// Ensure that there are an expected number of candidates
-		assert_eq!(vote.backing_validators_per_candidate.len(), v as usize);
+		assert_eq!(vote.backing_validators_per_candidate.len(), 1usize);
 		let header = BenchBuilder::<T>::header(scenario.block_number.clone());
 		// Traverse candidates and assert descriptors are as expected
 		for (para_id, backing_validators) in vote.backing_validators_per_candidate.iter().enumerate() {
 			let descriptor = backing_validators.0.descriptor();
-			assert_eq!(ParaId::from(para_id), descriptor.para_id);
-			assert_eq!(header.hash(), descriptor.relay_parent);
-			assert_eq!(backing_validators.1.len(), max_validators_per_core as usize /* Backing Group Size */);
+			//assert_eq!(ParaId::from(para_id), descriptor.para_id);
+			//assert_eq!(header.hash(), descriptor.relay_parent);
+			assert_eq!(backing_validators.1.len(), v as usize /* Backing Group Size */);
 		}
 
 		// pending availability data is removed when disputes are collected.
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
-			cores as usize,
+			1usize,
 		);
 		assert_eq!(
 			inclusion::PendingAvailability::<T>::iter().count(),
-			cores as usize,
+			1usize,
 		);
+
+		// exactly the disputed cores are scheduled since they where freed.
 
 		assert_eq!(
 			scheduler::AvailabilityCores::<T>::get().len(), cores as usize
@@ -141,6 +154,8 @@ benchmarks! {
 	}
 }
 
+// - no spam scenario
+// - max backed candidates scenario
 
 impl_benchmark_test_suite!(
 	Pallet,

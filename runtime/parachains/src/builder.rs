@@ -4,7 +4,7 @@ use crate::{
 	scheduler, session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_benchmarking::{account, Vec};
+use frame_benchmarking::account;
 use frame_support::pallet_prelude::*;
 use primitives::v1::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
@@ -90,19 +90,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.expect("self.block_number is u32")
 	}
 
-	pub(crate) fn max_validators() -> u32 {
-		let config_max = configuration::Pallet::<T>::config().max_validators.unwrap_or(200);
-		config_max
-	}
-
-	pub(crate) fn max_validators_per_core() -> u32 {
-		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
-	}
-
-	pub(crate) fn cores() -> u32 {
-		Self::max_validators() / Self::max_validators_per_core()
-	}
-
 	fn create_indexes(&self, seed: u32) -> (ParaId, CoreIndex, GroupIndex) {
 		let para_id = ParaId::from(seed);
 		let core_idx = CoreIndex(seed);
@@ -144,8 +131,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			availability_votes,
 		);
 		// TODO notes: commitments does not include any data that would lead to heavy code
-		// paths in `enact_candidate`. But enact_candidates does return a weight which will get
-		// taken into account.
+		// paths in `enact_candidate`. But enact_candidates does return a weight so maybe
+		// that should be used. (Relevant for when bitfields indicate a candidate is available)
 		let commitments = CandidateCommitments::<u32>::default();
 		inclusion::PendingAvailability::<T>::insert(para_id, candidate_availability);
 		inclusion::PendingAvailabilityCommitments::<T>::insert(&para_id, commitments);
@@ -264,6 +251,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		assert_eq!(scheduler::ValidatorGroups::<T>::get().len(), cores as usize);
 		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
+
+		log::info!(target: LOG_TARGET, "b");
 
 		// get validators from session info. We need to refetch them since they have been shuffled.
 		let validators_shuffled: Vec<_> = session_info::Pallet::<T>::session_info(target_session)
@@ -603,11 +592,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let disputes = if builder.spam_disputes > 0 {
 			// create disputes with some spam.
 			let last_disputed = backed_and_concluding + builder.spam_disputes;
-			builder.create_disputes_with_only_spam(backed_and_concluding, last_disputed)
+			builder.create_disputes_with_only_spam(0, cores)
 		} else {
 			// create disputes with no spam.
 			let last_disputed = backed_and_concluding + builder.non_spam_disputes;
-			builder.create_disputes_with_no_spam(0, last_disputed)
+			builder.create_disputes_with_no_spam(0, cores)
 		};
 		// spam slots are empty prior.
 		// TODO

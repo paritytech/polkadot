@@ -16,7 +16,6 @@
 
 use super::worker::{self, Outcome};
 use crate::{
-	error::PrepareError,
 	metrics::Metrics,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
@@ -79,16 +78,9 @@ pub enum FromPool {
 	/// The given worker was just spawned and is ready to be used.
 	Spawned(Worker),
 
-	/// The given worker either succeeded or failed the given job.
-	Concluded {
-		/// A key for retrieving the worker data from the pool.
-		worker: Worker,
-		/// Indicates whether the worker process was killed.
-		rip: bool,
-		/// [`Ok`] indicates that compiled artifact is successfully stored on disk.
-		/// Otherwise, an [error](PrepareError) is supplied.
-		result: Result<(), PrepareError>,
-	},
+	/// The given worker either succeeded or failed the given job. Under any circumstances the
+	/// artifact file has been written. The `bool` says whether the worker ripped.
+	Concluded(Worker, bool),
 
 	/// The given worker ceased to exist.
 	Rip(Worker),
@@ -303,7 +295,7 @@ fn handle_mux(
 		},
 		PoolEvent::StartWork(worker, outcome) => {
 			match outcome {
-				Outcome::Concluded { worker: idle, result } => {
+				Outcome::Concluded(idle) => {
 					let data = match spawned.get_mut(worker) {
 						None => {
 							// Perhaps the worker was killed meanwhile and the result is no longer
@@ -318,7 +310,7 @@ fn handle_mux(
 					let old = data.idle.replace(idle);
 					assert_matches!(old, None, "attempt to overwrite an idle worker");
 
-					reply(from_pool, FromPool::Concluded { worker, rip: false, result })?;
+					reply(from_pool, FromPool::Concluded(worker, false))?;
 
 					Ok(())
 				},
@@ -329,16 +321,9 @@ fn handle_mux(
 
 					Ok(())
 				},
-				Outcome::DidNotMakeIt => {
+				Outcome::DidntMakeIt => {
 					if attempt_retire(metrics, spawned, worker) {
-						reply(
-							from_pool,
-							FromPool::Concluded {
-								worker,
-								rip: true,
-								result: Err(PrepareError::DidNotMakeIt),
-							},
-						)?;
+						reply(from_pool, FromPool::Concluded(worker, true))?;
 					}
 
 					Ok(())

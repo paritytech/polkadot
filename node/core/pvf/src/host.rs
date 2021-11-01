@@ -344,7 +344,8 @@ async fn run(
 				.await);
 			},
 			from_prepare_queue = from_prepare_queue_rx.next() => {
-				let from_queue = break_if_fatal!(from_prepare_queue.ok_or(Fatal));
+				let prepare::FromQueue::Prepared(artifact_id)
+					= break_if_fatal!(from_prepare_queue.ok_or(Fatal));
 
 				// Note that preparation always succeeds.
 				//
@@ -360,7 +361,7 @@ async fn run(
 					&mut artifacts,
 					&mut to_execute_queue_tx,
 					&mut awaiting_prepare,
-					from_queue,
+					artifact_id,
 				).await);
 			},
 		}
@@ -438,9 +439,6 @@ async fn handle_execute_pvf(
 
 				awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 			},
-			ArtifactState::FailedToProcess(error) => {
-				let _ = result_tx.send(Err(ValidationError::from(error.clone())));
-			},
 		}
 	} else {
 		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
@@ -472,7 +470,6 @@ async fn handle_heads_up(
 					// Already preparing. We don't need to send a priority amend either because
 					// it can't get any lower than the background.
 				},
-				ArtifactState::FailedToProcess(_) => {},
 			}
 		} else {
 			// The artifact is unknown: register it and put a background job into the prepare queue.
@@ -494,10 +491,8 @@ async fn handle_prepare_done(
 	artifacts: &mut Artifacts,
 	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
-	from_queue: prepare::FromQueue,
+	artifact_id: ArtifactId,
 ) -> Result<(), Fatal> {
-	let prepare::FromQueue { artifact_id, result } = from_queue;
-
 	// Make some sanity checks and extract the current state.
 	let state = match artifacts.artifact_state_mut(&artifact_id) {
 		None => {
@@ -518,12 +513,6 @@ async fn handle_prepare_done(
 			never!("the artifact is already prepared: {:?}", artifact_id);
 			return Ok(())
 		},
-		Some(ArtifactState::FailedToProcess(_)) => {
-			// The reasoning is similar to the above, the artifact cannot be
-			// processed at this point.
-			never!("the artifact is already processed unsuccessfully: {:?}", artifact_id);
-			return Ok(())
-		},
 		Some(state @ ArtifactState::Preparing) => state,
 	};
 
@@ -534,12 +523,6 @@ async fn handle_prepare_done(
 		if result_tx.is_canceled() {
 			// Preparation could've taken quite a bit of time and the requester may be not interested
 			// in execution anymore, in which case we just skip the request.
-			continue
-		}
-
-		// Don't send failed artifacts to the execution's queue.
-		if let Err(ref error) = result {
-			let _ = result_tx.send(Err(ValidationError::from(error.clone())));
 			continue
 		}
 
@@ -555,10 +538,8 @@ async fn handle_prepare_done(
 		.await?;
 	}
 
-	*state = match result {
-		Ok(()) => ArtifactState::Prepared { last_time_needed: SystemTime::now() },
-		Err(error) => ArtifactState::FailedToProcess(error.clone()),
-	};
+	// Now consider the artifact prepared.
+	*state = ArtifactState::Prepared { last_time_needed: SystemTime::now() };
 
 	Ok(())
 }
@@ -956,7 +937,7 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue::Prepared(artifact_id(1)))
 			.await
 			.unwrap();
 		let result_tx_pvf_1_1 = assert_matches!(
@@ -969,7 +950,7 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
+			.send(prepare::FromQueue::Prepared(artifact_id(2)))
 			.await
 			.unwrap();
 		let result_tx_pvf_2 = assert_matches!(
@@ -1024,7 +1005,7 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue::Prepared(artifact_id(1)))
 			.await
 			.unwrap();
 

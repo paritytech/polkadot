@@ -50,20 +50,24 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 pub trait WeightInfo {
-	fn enter_variable_disputes(v: u32) -> Weight;
-	fn enter_bitfields() -> Weight;
-	fn enter_backed_candidates_variable(v: u32) -> Weight;
+	fn enter_backed_dominant(b: u32) -> Weight;
+	fn enter_dispute_dominant(d: u32) -> Weight;
+	fn enter_disputes_only(d: u32) -> Weight;
+	fn enter_backed_only(b: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
-	fn enter_variable_disputes(_v: u32) -> Weight {
+	fn enter_backed_dominant(_b: u32) -> Weight {
 		Weight::MAX
 	}
-	fn enter_bitfields() -> Weight {
+	fn enter_dispute_dominant(_d: u32) -> Weight {
 		Weight::MAX
 	}
-	fn enter_backed_candidates_variable(_v: u32) -> Weight {
+	fn enter_disputes_only(_d: u32) -> Weight {
+		Weight::MAX
+	}
+	fn enter_backed_only(_b: u32) -> Weight {
 		Weight::MAX
 	}
 }
@@ -177,12 +181,9 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[pallet::weight((
-				<T as Config>::WeightInfo::enter_variable_disputes(1_000)
-					* data.disputes.len() as u64
-					+ <T as Config>::WeightInfo::enter_backed_candidates_variable(1_000)
-					* data.backed_candidates.len() as u64
-					+ <T as Config>::WeightInfo::enter_bitfields()
-					* data.bitfields.len() as u64,
+			// configuration::Pallet::<T>::config().enter_dispute_dominant +
+				<T as Config>::WeightInfo::enter_backed_dominant(data.backed_candidates.len() as u32) +
+				<T as Config>::WeightInfo::enter_dispute_dominant(data.disputes.len() as u32),
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(

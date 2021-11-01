@@ -126,7 +126,7 @@ construct_runtime!(
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		ParasOrigin: origin::{Pallet, Origin},
-		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config},
+		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin},
 		TestNotifier: pallet_test_notifier::{Pallet, Call, Event<T>},
 	}
 );
@@ -323,12 +323,6 @@ pub(crate) fn new_test_ext_with_balances(
 	pallet_balances::GenesisConfig::<Test> { balances }
 		.assimilate_storage(&mut t)
 		.unwrap();
-
-	<pallet_xcm::GenesisConfig as frame_support::traits::GenesisBuild<Test>>::assimilate_storage(
-		&pallet_xcm::GenesisConfig { safe_xcm_version: Some(2) },
-		&mut t,
-	)
-	.unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));

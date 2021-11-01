@@ -18,7 +18,6 @@ BFT/M
 bitfield/MS
 blake2/MS
 blockchain/MS
-boolean
 borked
 BridgeStorage
 BlockNumber
@@ -31,7 +30,6 @@ ChainTime
 chain_getBlock
 choosen
 config/MS
-cooldown
 crypto/MS
 customizable/B
 Debian/M
