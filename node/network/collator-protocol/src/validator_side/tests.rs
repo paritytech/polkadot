@@ -674,6 +674,46 @@ fn fetch_collations_works() {
 	});
 }
 
+#[test]
+fn dont_fetch_collation_if_assigned_to_next_group() {
+	let test_state = TestState::default();
+
+	test_harness(|test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+
+		overseer_send(
+			&mut virtual_overseer,
+			CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::OurViewChange(
+				our_view![test_state.relay_parent],
+			)),
+		)
+		.await;
+
+		respond_to_core_info_queries(&mut virtual_overseer, &test_state).await;
+
+		let peer_b = PeerId::random();
+
+		connect_and_declare_collator(
+			&mut virtual_overseer,
+			peer_b.clone(),
+			test_state.collators[0].clone(),
+			test_state.chain_ids[1].clone(), // next, not current para_id
+		)
+		.await;
+
+		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
+
+		assert!(
+			overseer_recv_with_timeout(&mut &mut virtual_overseer, Duration::from_millis(30))
+				.await
+				.is_none(),
+			"There should be no PoV fetching request.",
+		);
+
+		virtual_overseer
+	})
+}
+
 // Ensure that we fetch a second collation, after the first checked collation was found to be invalid.
 #[test]
 fn fetch_next_collation_on_invalid_collation() {

@@ -179,7 +179,7 @@ pub mod pallet {
 		/// \[ origin location, id, expected location \]
 		InvalidResponder(MultiLocation, QueryId, Option<MultiLocation>),
 		/// Expected query response has been received but the expected origin location placed in
-		/// storate by this runtime previously cannot be decoded. The query remains registered.
+		/// storage by this runtime previously cannot be decoded. The query remains registered.
 		///
 		/// This is unexpected (since a location placed in storage in a previously executing
 		/// runtime should be readable prior to query timeout) and dangerous since the possibly
@@ -473,7 +473,9 @@ pub mod pallet {
 
 		/// Teleport some assets from the local chain to some destination chain.
 		///
-		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector and
+		/// fee-weight is calculated locally and thus remote weights are assumed to be equal to
+		/// local weights.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -506,49 +508,15 @@ pub mod pallet {
 			assets: Box<VersionedMultiAssets>,
 			fee_asset_item: u32,
 		) -> DispatchResult {
-			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
-			let beneficiary =
-				MultiLocation::try_from(*beneficiary).map_err(|()| Error::<T>::BadVersion)?;
-			let assets = MultiAssets::try_from(*assets).map_err(|()| Error::<T>::BadVersion)?;
-
-			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
-			let value = (origin_location, assets.drain());
-			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
-			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest)
-				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
-			let fees = assets
-				.get(fee_asset_item as usize)
-				.ok_or(Error::<T>::Empty)?
-				.clone()
-				.reanchored(&inv_dest)
-				.map_err(|_| Error::<T>::CannotReanchor)?;
-			let max_assets = assets.len() as u32;
-			let assets = assets.into();
-			let mut message = Xcm(vec![
-				WithdrawAsset(assets),
-				InitiateTeleport {
-					assets: Wild(All),
-					dest,
-					xcm: Xcm(vec![
-						BuyExecution { fees, weight_limit: Unlimited },
-						DepositAsset { assets: Wild(All), max_assets, beneficiary },
-					]),
-				},
-			]);
-			let weight =
-				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
-			let outcome =
-				T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
-			Self::deposit_event(Event::Attempted(outcome));
-			Ok(())
+			Self::do_teleport_assets(origin, dest, beneficiary, assets, fee_asset_item, None)
 		}
 
 		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
 		/// a notification XCM.
 		///
-		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector and
+		/// fee-weight is calculated locally and thus remote weights are assumed to be equal to
+		/// local weights.
 		///
 		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
 		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
@@ -578,39 +546,14 @@ pub mod pallet {
 			assets: Box<VersionedMultiAssets>,
 			fee_asset_item: u32,
 		) -> DispatchResult {
-			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
-			let beneficiary = (*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
-			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
-
-			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
-			let value = (origin_location, assets.drain());
-			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
-			let (origin_location, assets) = value;
-			let inv_dest = T::LocationInverter::invert_location(&dest)
-				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
-			let fees = assets
-				.get(fee_asset_item as usize)
-				.ok_or(Error::<T>::Empty)?
-				.clone()
-				.reanchored(&inv_dest)
-				.map_err(|_| Error::<T>::CannotReanchor)?;
-			let max_assets = assets.len() as u32;
-			let assets = assets.into();
-			let mut message = Xcm(vec![TransferReserveAsset {
-				assets,
+			Self::do_reserve_transfer_assets(
+				origin,
 				dest,
-				xcm: Xcm(vec![
-					BuyExecution { fees, weight_limit: Unlimited },
-					DepositAsset { assets: Wild(All), max_assets, beneficiary },
-				]),
-			}]);
-			let weight =
-				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
-			let outcome =
-				T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
-			Self::deposit_event(Event::Attempted(outcome));
-			Ok(())
+				beneficiary,
+				assets,
+				fee_asset_item,
+				None,
+			)
 		}
 
 		/// Execute an XCM message from a local, signed, origin.
@@ -721,9 +664,218 @@ pub mod pallet {
 				.into()
 			})
 		}
+
+		/// Transfer some assets from the local chain to the sovereign account of a destination chain and forward
+		/// a notification XCM.
+		///
+		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		///
+		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
+		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
+		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
+		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
+		///   an `AccountId32` value.
+		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
+		///   `dest` side.
+		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
+		///   fees.
+		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
+		#[pallet::weight({
+			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
+				(Ok(assets), Ok(dest)) => {
+					use sp_std::vec;
+					let mut message = Xcm(vec![
+						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
+					]);
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+				},
+				_ => Weight::max_value(),
+			}
+		})]
+		pub fn limited_reserve_transfer_assets(
+			origin: OriginFor<T>,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
+			fee_asset_item: u32,
+			weight_limit: WeightLimit,
+		) -> DispatchResult {
+			Self::do_reserve_transfer_assets(
+				origin,
+				dest,
+				beneficiary,
+				assets,
+				fee_asset_item,
+				Some(weight_limit),
+			)
+		}
+
+		/// Teleport some assets from the local chain to some destination chain.
+		///
+		/// Fee payment on the destination side is made from the first asset listed in the `assets` vector.
+		///
+		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
+		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
+		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
+		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
+		///   an `AccountId32` value.
+		/// - `assets`: The assets to be withdrawn. The first item should be the currency used to to pay the fee on the
+		///   `dest` side. May not be empty.
+		/// - `dest_weight`: Equal to the total weight on `dest` of the XCM message
+		///   `Teleport { assets, effects: [ BuyExecution{..}, DepositAsset{..} ] }`.
+		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
+		#[pallet::weight({
+			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			match (maybe_assets, maybe_dest) {
+				(Ok(assets), Ok(dest)) => {
+					use sp_std::vec;
+					let mut message = Xcm(vec![
+						WithdrawAsset(assets),
+						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
+					]);
+					T::Weigher::weight(&mut message).map_or(Weight::max_value(), |w| 100_000_000 + w)
+				},
+				_ => Weight::max_value(),
+			}
+		})]
+		pub fn limited_teleport_assets(
+			origin: OriginFor<T>,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
+			fee_asset_item: u32,
+			weight_limit: WeightLimit,
+		) -> DispatchResult {
+			Self::do_teleport_assets(
+				origin,
+				dest,
+				beneficiary,
+				assets,
+				fee_asset_item,
+				Some(weight_limit),
+			)
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn do_reserve_transfer_assets(
+			origin: OriginFor<T>,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
+			fee_asset_item: u32,
+			maybe_weight_limit: Option<WeightLimit>,
+		) -> DispatchResult {
+			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let beneficiary: MultiLocation =
+				(*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
+
+			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
+			let value = (origin_location, assets.drain());
+			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
+			let (origin_location, assets) = value;
+			let inv_dest = T::LocationInverter::invert_location(&dest)
+				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
+			let fees = assets
+				.get(fee_asset_item as usize)
+				.ok_or(Error::<T>::Empty)?
+				.clone()
+				.reanchored(&inv_dest)
+				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let max_assets = assets.len() as u32;
+			let assets: MultiAssets = assets.into();
+			let weight_limit = match maybe_weight_limit {
+				Some(weight_limit) => weight_limit,
+				None => {
+					let beneficiary = beneficiary.clone();
+					let fees = fees.clone();
+					let mut remote_message = Xcm(vec![
+						ReserveAssetDeposited(assets.clone()),
+						ClearOrigin,
+						BuyExecution { fees, weight_limit: Limited(0) },
+						DepositAsset { assets: Wild(All), max_assets, beneficiary },
+					]);
+					// use local weight for remote message and hope for the best.
+					let remote_weight = T::Weigher::weight(&mut remote_message)
+						.map_err(|()| Error::<T>::UnweighableMessage)?;
+					Limited(remote_weight)
+				},
+			};
+			let xcm = Xcm(vec![
+				BuyExecution { fees, weight_limit },
+				DepositAsset { assets: Wild(All), max_assets, beneficiary },
+			]);
+			let mut message = Xcm(vec![TransferReserveAsset { assets, dest, xcm }]);
+			let weight =
+				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
+			let outcome =
+				T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
+			Self::deposit_event(Event::Attempted(outcome));
+			Ok(())
+		}
+
+		fn do_teleport_assets(
+			origin: OriginFor<T>,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
+			fee_asset_item: u32,
+			maybe_weight_limit: Option<WeightLimit>,
+		) -> DispatchResult {
+			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let beneficiary: MultiLocation =
+				(*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
+
+			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
+			let value = (origin_location, assets.drain());
+			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
+			let (origin_location, assets) = value;
+			let inv_dest = T::LocationInverter::invert_location(&dest)
+				.map_err(|()| Error::<T>::DestinationNotInvertible)?;
+			let fees = assets
+				.get(fee_asset_item as usize)
+				.ok_or(Error::<T>::Empty)?
+				.clone()
+				.reanchored(&inv_dest)
+				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let max_assets = assets.len() as u32;
+			let assets: MultiAssets = assets.into();
+			let weight_limit = match maybe_weight_limit {
+				Some(weight_limit) => weight_limit,
+				None => {
+					let beneficiary = beneficiary.clone();
+					let fees = fees.clone();
+					let mut remote_message = Xcm(vec![
+						ReceiveTeleportedAsset(assets.clone()),
+						ClearOrigin,
+						BuyExecution { fees, weight_limit: Limited(0) },
+						DepositAsset { assets: Wild(All), max_assets, beneficiary },
+					]);
+					// use local weight for remote message and hope for the best.
+					let remote_weight = T::Weigher::weight(&mut remote_message)
+						.map_err(|()| Error::<T>::UnweighableMessage)?;
+					Limited(remote_weight)
+				},
+			};
+			let xcm = Xcm(vec![
+				BuyExecution { fees, weight_limit },
+				DepositAsset { assets: Wild(All), max_assets, beneficiary },
+			]);
+			let mut message =
+				Xcm(vec![WithdrawAsset(assets), InitiateTeleport { assets: Wild(All), dest, xcm }]);
+			let weight =
+				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
+			let outcome =
+				T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
+			Self::deposit_event(Event::Attempted(outcome));
+			Ok(())
+		}
+
 		/// Will always make progress, and will do its best not to use much more than `weight_cutoff`
 		/// in doing so.
 		pub(crate) fn check_xcm_version_change(

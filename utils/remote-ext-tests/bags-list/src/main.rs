@@ -32,6 +32,7 @@ arg_enum! {
 arg_enum! {
 	#[derive(Debug)]
 	enum Runtime {
+		Polkadot,
 		Kusama,
 		Westend,
 	}
@@ -63,6 +64,11 @@ async fn main() {
 
 	use pallet_bags_list_remote_tests::*;
 	match options.runtime {
+		Runtime::Polkadot => sp_core::crypto::set_default_ss58_version(
+			<polkadot_runtime::Runtime as frame_system::Config>::SS58Prefix::get()
+				.try_into()
+				.unwrap(),
+		),
 		Runtime::Kusama => sp_core::crypto::set_default_ss58_version(
 			<kusama_runtime::Runtime as frame_system::Config>::SS58Prefix::get()
 				.try_into()
@@ -104,6 +110,24 @@ async fn main() {
 		},
 		(Runtime::Westend, Command::Snapshot) => {
 			use westend_runtime::{constants::currency::UNITS, Block, Runtime};
+			snapshot::execute::<Runtime, Block>(
+				options.snapshot_limit,
+				UNITS.try_into().unwrap(),
+				options.uri.clone(),
+			)
+			.await;
+		},
+
+		(Runtime::Polkadot, Command::CheckMigration) => {
+			use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
+			migration::execute::<Runtime, Block>(UNITS as u64, "DOT", options.uri.clone()).await;
+		},
+		(Runtime::Polkadot, Command::SanityCheck) => {
+			use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
+			sanity_check::execute::<Runtime, Block>(UNITS as u64, "DOT", options.uri.clone()).await;
+		},
+		(Runtime::Polkadot, Command::Snapshot) => {
+			use polkadot_runtime::{constants::currency::UNITS, Block, Runtime};
 			snapshot::execute::<Runtime, Block>(
 				options.snapshot_limit,
 				UNITS.try_into().unwrap(),
