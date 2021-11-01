@@ -15,14 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{
-	configuration, inclusion, initializer, paras, scheduler, session_info, shared, ParaId,
-};
-use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite};
+use crate::{inclusion, ParaId};
+use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
-use sp_core::H256;
-use sp_std::cmp::min;
 
 use crate::builder::BenchBuilder;
 
@@ -55,6 +50,9 @@ benchmarks! {
 		let onchain_votes = OnChainVotes::<T>::get();
 		assert!(onchain_votes.is_some());
 		let vote = onchain_votes.unwrap();
+		// Ensure that the votes are for the correct session
+		assert_eq!(vote.session, scenario.session);
+	}
 
 	// The weight of one bitfield.
 	enter_bitfields {
@@ -117,9 +115,7 @@ benchmarks! {
 		// Ensure that the votes are for the correct session
 		assert_eq!(vote.session, scenario.session);
 		// Ensure that there are an expected number of candidates
-		assert_eq!(vote.backing_validators_per_candidate.len(), cores as usize);
-
-		// TODO This is not the parent block, why does this work?
+		assert_eq!(vote.backing_validators_per_candidate.len(), v as usize);
 		let header = BenchBuilder::<T>::header(scenario.block_number.clone());
 		// Traverse candidates and assert descriptors are as expected
 		for (para_id, backing_validators) in vote.backing_validators_per_candidate.iter().enumerate() {
@@ -138,11 +134,7 @@ benchmarks! {
 			inclusion::PendingAvailability::<T>::iter().count(),
 			cores as usize,
 		);
-
-	// 	assert_eq!(
-	// 		scheduler::AvailabilityCores::<T>::get().len(), BenchBuilder::<T>::cores() as usize
-	// 	);
-	// }
+	}
 }
 
 impl_benchmark_test_suite!(

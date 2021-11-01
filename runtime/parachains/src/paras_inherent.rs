@@ -24,7 +24,7 @@
 use crate::{
 	disputes::DisputesHandler,
 	inclusion, initializer,
-	scheduler::{self, FreedReason},
+	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump,
 };
 use bitvec::prelude::BitVec;
@@ -35,7 +35,7 @@ use frame_support::{
 	traits::Randomness,
 };
 use frame_system::pallet_prelude::*;
-use pallet_babe::CurrentBlockRandomness;
+use pallet_babe::{self, CurrentBlockRandomness};
 use primitives::v1::{
 	BackedCandidate, CandidateHash, CoreIndex, InherentData as ParachainsInherentData,
 	ScrapedOnChainVotes, SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfield,
@@ -51,13 +51,13 @@ use sp_std::{
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-pub use pallet::*;
-
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
 // In the future, we should benchmark these consts; these are all untested assumptions for now.
 const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
+const MAX_ACTIVE_VALIDATORS: u32 = 1_000;
+
 pub trait WeightInfo {
 	/// Variant over `v`, the count of dispute statements in a dispute statement set. This gives the
 	/// weight of a single dispute statement set.
@@ -92,42 +92,20 @@ fn paras_inherent_total_weight<T: Config>(
 	n_bitfields: u32,
 	n_disputes: u32,
 ) -> Weight {
-	let weights = T::DbWeight::get();
-	// static
-	(10_901_789_000 as Weight)
-		// backed candidates
-		.saturating_add((424_633_000 as Weight).saturating_mul(n_backed_candidates as Weight))
-		.saturating_add(weights.reads(58 as Weight))
-		.saturating_add(weights.reads((8 as Weight).saturating_mul(n_backed_candidates as Weight)))
-		.saturating_add(weights.writes(212 as Weight))
-		.saturating_add(weights.writes((2 as Weight).saturating_mul(n_backed_candidates as Weight)))
-		// disputes
-		.saturating_add((103_899_000 as Weight).saturating_mul(n_disputes as Weight))
-		.saturating_add(weights.reads(61 as Weight))
-		.saturating_add(weights.reads((1 as Weight).saturating_mul(n_disputes as Weight)))
-		.saturating_add(weights.writes(212 as Weight))
-		.saturating_add(weights.writes((2 as Weight).saturating_mul(n_disputes as Weight)))
-		// bitfields
-		.saturating_add((10_000_000 as Weight).saturating_mul(n_bitfields as Weight))
-		.saturating_add(weights.reads(10 as Weight))
-		.saturating_add(weights.reads((20 as Weight).saturating_mul(n_bitfields as Weight)))
-		.saturating_add(weights.writes(10 as Weight))
-		.saturating_add(weights.writes((20 as Weight).saturating_mul(n_bitfields as Weight)))
-}
-
-/// Extract the static weight.
-fn static_weight<T: Config>() -> Weight {
-	paras_inherent_total_weight::<T>(0, 0, 0)
+	<T as Config>::WeightInfo::enter_variable_disputes(MAX_ACTIVE_VALIDATORS) * n_disputes as Weight +
+		<T as Config>::WeightInfo::enter_backed_candidates_variable(MAX_ACTIVE_VALIDATORS) *
+			n_backed_candidates as Weight +
+		<T as Config>::WeightInfo::enter_bitfields() * n_bitfields as Weight
 }
 
 /// Extract the weight that is added _per_ bitfield.
 fn bitfield_weight<T: Config>() -> Weight {
-	paras_inherent_total_weight::<T>(0, 1, 0) - static_weight::<T>()
+	<T as Config>::WeightInfo::enter_bitfields()
 }
 
 /// Extract the weight that is adder _per_ backed candidate.
-fn backed_candidate_weight<T: Config>() -> Weight {
-	paras_inherent_total_weight::<T>(1, 0, 0) - static_weight::<T>()
+fn backed_candidate_weight<T: Config>(validity_votes_len: u32) -> Weight {
+	<T as Config>::WeightInfo::enter_backed_candidates_variable(validity_votes_len as u32)
 }
 
 /// A bitfield concerning concluded disputes for candidates
@@ -149,6 +127,8 @@ impl DisputedBitfield {
 	}
 }
 
+pub use pallet::*;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -159,7 +139,8 @@ pub mod pallet {
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config: inclusion::Config + scheduler::Config + initializer::Config // + disputes::Config
+	pub trait Config:
+		inclusion::Config + scheduler::Config + initializer::Config + pallet_babe::Config
 	{
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -328,9 +309,7 @@ pub mod pallet {
 				entropy
 			};
 
-			let remaining_weight = <T as frame_system::Config>::BlockWeights::get()
-				.max_block
-				.saturating_sub(static_weight::<T>());
+			let remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 			let (_backed_candidates_weight, backed_candidates, bitfields) =
 				apply_weight_limit::<T>(backed_candidates, bitfields, entropy, remaining_weight);
 
@@ -380,12 +359,11 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
 		#[pallet::weight((
-				<T as Config>::WeightInfo::enter_variable_disputes(1_000)
-					* data.disputes.len() as u64
-					+ <T as Config>::WeightInfo::enter_backed_candidates_variable(1_000)
-					* data.backed_candidates.len() as u64
-					+ <T as Config>::WeightInfo::enter_bitfields()
-					* data.bitfields.len() as u64,
+			paras_inherent_total_weight::<T>(
+				data.backed_candidates.len() as u32,
+				data.bitfields.len() as u32,
+				data.disputes.len() as u32,
+			),
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(
@@ -606,8 +584,8 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 ) -> (Weight, Vec<BackedCandidate<<T>::Hash>>, UncheckedSignedAvailabilityBitfields) {
 	let total_bitfields_weight = (bitfields.len() as Weight).saturating_mul(bitfield_weight::<T>());
 
-	let total_candidates_weight =
-		(candidates.len() as Weight).saturating_mul(backed_candidate_weight::<T>());
+	let total_candidates_weight = (candidates.len() as Weight)
+		.saturating_mul(backed_candidate_weight::<T>(MAX_ACTIVE_VALIDATORS));
 
 	let total = total_bitfields_weight + total_candidates_weight;
 
@@ -621,7 +599,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	fn random_sel<X, F: Fn(&X) -> Weight>(
 		rng: &mut rand_chacha::ChaChaRng,
-		selectables: &[X],
+		selectables: Vec<X>,
 		weight_fn: F,
 		weight_limit: Weight,
 	) -> (Weight, Vec<usize>) {
@@ -649,10 +627,12 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
 	if let Some(remaining_weight) = max_weight.checked_sub(total_bitfields_weight) {
-		let (acc_candidate_weight, indices) = random_sel::<BackedCandidate<<T>::Hash>, _>(
+		let c = candidates.iter().map(|c| c.validity_votes.len() as u32).collect::<Vec<u32>>();
+
+		let (acc_candidate_weight, indices) = random_sel::<u32, _>(
 			&mut rng,
-			&candidates[..],
-			|_| backed_candidate_weight::<T>(),
+			c,
+			|v| backed_candidate_weight::<T>(*v),
 			remaining_weight,
 		);
 		let candidates =
@@ -667,7 +647,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// into the block and skip the candidates entirely
 	let (total, indices) = random_sel::<UncheckedSignedAvailabilityBitfield, _>(
 		&mut rng,
-		&bitfields[..],
+		bitfields.clone(),
 		|_| bitfield_weight::<T>(),
 		max_weight,
 	);
@@ -1485,7 +1465,8 @@ mod tests {
 						.collect::<Vec<_>>();
 
 					// the expected weight can always be computed by this formula
-					let expected_weight = paras_inherent_total_weight::<Test>(backed_candidates.len() as u32, 0, 0);
+					let expected_weight =
+						paras_inherent_total_weight::<Test>(backed_candidates.len() as u32, 0, 0);
 
 					// we've used half the block weight; there's plenty of margin
 					let max_block_weight =
