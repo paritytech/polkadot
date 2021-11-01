@@ -21,15 +21,12 @@ Output:
 
 ## Functionality
 
-We hold a state which tracks the current recovery interactions we have live, as well as which request IDs correspond to which interactions. An interaction is a structure encapsulating all interaction with the network necessary to recover the available data.
+We hold a state which tracks the currently ongoing recovery tasks, as well as which request IDs correspond to which taks. An recovery task is a structure encapsulating all interaction with the network necessary to recover the available data in respect to one candidate.
 
 ```rust
 struct State {
-    /// Each interaction is implemented as its own remote async task, and these handles are remote
-    /// for it.
-    interactions: FuturesUnordered<InteractionHandle>,
-    /// A multiplexer over receivers from live interactions.
-    interaction_receivers: FuturesUnordered<ResponseReceiver<Concluded>>,
+    /// Each recovery is implemented as an independent async task, and the handles only supply information about the result.
+    ongoing_recoveries: FuturesUnordered<RecoveryHandle>,
     /// A recent block hash for which state should be available.
     live_block_hash: Hash,
     // An LRU cache of recently recovered data.
@@ -38,7 +35,7 @@ struct State {
 
 /// This is a future, which concludes either when a response is received from the interaction,
 /// or all the `awaiting` channels have closed.
-struct InteractionHandle {
+struct RecoveryHandle {
     candidate_hash: CandidateHash,
     interaction_response: RemoteHandle<Concluded>,
     awaiting: Vec<ResponseChannel<Result<AvailableData, RecoveryError>>>,
@@ -47,7 +44,7 @@ struct InteractionHandle {
 struct Unavailable;
 struct Concluded(CandidateHash, Result<AvailableData, RecoveryError>);
 
-struct InteractionParams {
+struct RecoveryTaskParams {
     validator_authority_keys: Vec<AuthorityId>,
     validators: Vec<ValidatorId>,
     // The number of pieces needed.
@@ -56,7 +53,7 @@ struct InteractionParams {
     erasure_root: Hash,
 }
 
-enum InteractionPhase {
+enum RecoveryTask {
     RequestFromBackers {
         // a random shuffling of the validators from the backing group which indicates the order
         // in which we connect to them and request the chunk.
@@ -71,10 +68,10 @@ enum InteractionPhase {
     }
 }
 
-struct Interaction {
+struct DataRecoveryTask {
     to_subsystems: SubsystemSender,
-    params: InteractionParams,
-    phase: InteractionPhase,
+    params: RecoveryTaskParams,
+    sourcer: Sourcer,
 }
 ```
 
@@ -89,31 +86,24 @@ On `Conclude`, shut down the subsystem.
 #### `AvailabilityRecoveryMessage::RecoverAvailableData(receipt, session, Option<backing_group_index>, response)`
 
 1. Check the `availability_lru` for the candidate and return the data if so.
-1. Check if there is already an interaction handle for the request. If so, add the response handle to it.
-1. Otherwise, load the session info for the given session under the state of `live_block_hash`, and initiate an interaction with *`launch_interaction`*. Add an interaction handle to the state and add the response channel to it.
+1. Check if there is already an recovery handle for the request. If so, add the response handle to it.
+1. Otherwise, load the session info for the given session under the state of `live_block_hash`, and initiate a recovery task with *`launch_recovery_task`*. Add a recovery handle to the state and add the response channel to it.
 1. If the session info is not available, return `RecoveryError::Unavailable` on the response channel.
 
-### From-interaction logic
+### Recovery logic
 
-#### `FromInteraction::Concluded`
-
-1. Load the entry from the `interactions` map. It should always exist, if not for logic errors. Send the result to each member of `awaiting`.
-1. Add the entry to the `availability_lru`.
-
-### Interaction logic
-
-#### `launch_interaction(session_index, session_info, candidate_receipt, candidate_hash, Option<backing_group_index>)`
+#### `launch_recovery_task(session_index, session_info, candidate_receipt, candidate_hash, Option<backing_group_index>)`
 
 1. Compute the threshold from the session info. It should be `f + 1`, where `n = 3f + k`, where `k in {1, 2, 3}`, and `n` is the number of validators.
-1. Set the various fields of `InteractionParams` based on the validator lists in `session_info` and information about the candidate.
+1. Set the various fields of `DataRecoveryParams` based on the validator lists in `session_info` and information about the candidate.
 1. If the `backing_group_index` is `Some`, start in the `RequestFromBackers` phase with a shuffling of the backing group validator indices and a `None` requesting value.
 1. Otherwise, start in the `RequestChunks` phase with `received_chunks`,`requesting_chunks`, and `next_shuffling` all empty.
 1. Set the `to_subsystems` sender to be equal to a clone of the `SubsystemContext`'s sender.
 1. Initialize `received_chunks` to an empty set, as well as `requesting_chunks`.
 
-Launch the interaction as a background task running `interaction_loop(interaction)`.
+Launch the sourcer as a background task running `run(interaction)`.
 
-#### `interaction_loop(interaction) -> Result<AvailableData, RecoeryError>`
+#### `run(interaction) -> Result<AvailableData, RecoeryError>`
 
 ```rust
 // How many parallel requests to have going at once.
@@ -121,7 +111,7 @@ const N_PARALLEL: usize = 50;
 ```
 
 * Request `AvailabilityStoreMessage::QueryAvailableData`. If it exists, return that.
-* If the phase is `InteractionPhase::RequestFromBackers`
+* If the phase is `DataRecoveryTask::RequestFromBackers`
   * Loop:
     * If the `requesting_pov` is `Some`, poll for updates on it. If it concludes, set `requesting_pov` to `None`.
     * If the `requesting_pov` is `None`, take the next backer off the `shuffled_backers`.
@@ -130,9 +120,9 @@ const N_PARALLEL: usize = 50;
         * If it concludes with available data, attempt a re-encoding.
             * If it has the correct erasure-root, break and issue a `Ok(available_data)`.
             * If it has an incorrect erasure-root, return to beginning.
-        * If the backer is `None`, set the phase to `InteractionPhase::RequestChunks` with a random shuffling of validators and empty `next_shuffling`, `received_chunks`, and `requesting_chunks` and break the loop.
+        * If the backer is `None`, set the phase to `DataRecoveryTask::RequestChunks` with a random shuffling of validators and empty `next_shuffling`, `received_chunks`, and `requesting_chunks` and break the loop.
 
-* If the phase is `InteractionPhase::RequestChunks`:
+* If the phase is `DataRecoveryTask::RequestChunks`:
   * Request `AvailabilityStoreMessage::QueryAllChunks`. For each chunk that exists, add it to `received_chunks` and remote the validator from `shuffling`.
   * Loop:
     * If `received_chunks + requesting_chunks + shuffling` lengths are less than the threshold, break and return `Err(Unavailable)`.
