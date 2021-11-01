@@ -59,8 +59,13 @@ const INCLUSION_INHERENT_CLAIMED_WEIGHT: Weight = 1_000_000_000;
 // we assume that 75% of an paras inherent's weight is used processing backed candidates
 const MINIMAL_INCLUSION_INHERENT_WEIGHT: Weight = INCLUSION_INHERENT_CLAIMED_WEIGHT / 4;
 pub trait WeightInfo {
+	/// Variant over `v`, the count of dispute statements in a dispute statement set. This gives the
+	/// weight of a single dispute statement set.
 	fn enter_variable_disputes(v: u32) -> Weight;
+	/// The weight of one bitfield.
 	fn enter_bitfields() -> Weight;
+	/// Variant over `v`, the count of validity votes for a backed candidate. This gives the weight
+	/// of a single backed candidate.
 	fn enter_backed_candidates_variable(v: u32) -> Weight;
 }
 
