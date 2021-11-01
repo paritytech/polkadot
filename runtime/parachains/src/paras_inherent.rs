@@ -22,7 +22,6 @@
 //! this module.
 
 use crate::{
-	configuration,
 	disputes::DisputesHandler,
 	inclusion,
 	scheduler::{self, CoreAssignment, FreedReason},
@@ -176,7 +175,7 @@ pub mod pallet {
 	}
 
 	#[pallet::inherent]
-	impl<T: Config + crate::configuration::Config> ProvideInherent for Pallet<T> {
+	impl<T: Config> ProvideInherent for Pallet<T> {
 		type Call = Call<T>;
 		type Error = MakeFatalError<()>;
 		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
@@ -663,7 +662,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 /// `false` assures that all inputs are filtered, and invalid ones are filtered out.
 /// It also skips signature verification.
 /// `true` returns an `Err(_)` on the first check failing.
-pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EARLY_RETURN: bool>(
+pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN: bool>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bitfield: DisputedBitfield,
 	expected_bits: usize,
@@ -677,7 +676,7 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 
 	ensure2!(
 		disputed_bitfield.0.len() == expected_bits,
-		crate::inclusion::pallet::Error::<T>::WrongBitfieldSize,
+		crate::inclusion::Error::<T>::WrongBitfieldSize,
 		EARLY_RETURN
 	);
 
@@ -686,7 +685,7 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 	for unchecked_bitfield in unchecked_bitfields {
 		ensure2!(
 			unchecked_bitfield.unchecked_payload().0.len() == expected_bits,
-			crate::inclusion::pallet::Error::<T>::WrongBitfieldSize,
+			crate::inclusion::Error::<T>::WrongBitfieldSize,
 			EARLY_RETURN,
 			continue
 		);
@@ -694,21 +693,21 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 		ensure2!(
 			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() ==
 				all_zeros,
-			crate::inclusion::pallet::Error::<T>::BitfieldReferencesFreedCore,
+			crate::inclusion::Error::<T>::BitfieldReferencesFreedCore,
 			EARLY_RETURN,
 			continue
 		);
 
 		ensure2!(
 			last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()),
-			crate::inclusion::pallet::Error::<T>::BitfieldDuplicateOrUnordered,
+			crate::inclusion::Error::<T>::BitfieldDuplicateOrUnordered,
 			EARLY_RETURN,
 			continue
 		);
 
 		ensure2!(
 			(unchecked_bitfield.unchecked_validator_index().0 as usize) < validators.len(),
-			crate::inclusion::pallet::Error::<T>::ValidatorIndexOutOfBounds,
+			crate::inclusion::Error::<T>::ValidatorIndexOutOfBounds,
 			EARLY_RETURN,
 			continue
 		);
@@ -724,7 +723,7 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 			{
 				signed_bitfield
 			} else {
-				fail!(crate::inclusion::pallet::Error::<T>::InvalidBitfieldSignature);
+				fail!(crate::inclusion::Error::<T>::InvalidBitfieldSignature);
 			};
 			bitfields.push(signed_bitfield.into_unchecked());
 		} else {
@@ -746,7 +745,7 @@ pub(crate) fn sanitize_bitfields<T: Config + crate::inclusion::Config, const EAR
 /// `candidate_has_concluded_invalid_dispute` must return `true` if the candidate
 /// is disputed, false otherwise
 fn sanitize_backed_candidates<
-	T: Config + crate::inclusion::Config + crate::paras_inherent::Config,
+	T: crate::inclusion::Config,
 	F: Fn(CandidateHash) -> bool,
 	const EARLY_RETURN: bool,
 >(
