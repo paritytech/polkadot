@@ -305,7 +305,6 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 	polkadot::GenesisConfig {
 		system: polkadot::SystemConfig {
 			code: wasm_binary.to_vec(),
-			changes_trie_config: Default::default(),
 		},
 		balances: polkadot::BalancesConfig {
 			balances: endowed_accounts
@@ -496,7 +495,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 	westend::GenesisConfig {
 		system: westend::SystemConfig {
 			code: wasm_binary.to_vec(),
-			changes_trie_config: Default::default(),
 		},
 		balances: westend::BalancesConfig {
 			balances: endowed_accounts
@@ -687,7 +685,6 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 	kusama::GenesisConfig {
 		system: kusama::SystemConfig {
 			code: wasm_binary.to_vec(),
-			changes_trie_config: Default::default(),
 		},
 		balances: kusama::BalancesConfig {
 			balances: endowed_accounts
@@ -1002,7 +999,6 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 	rococo_runtime::GenesisConfig {
 		system: rococo_runtime::SystemConfig {
 			code: wasm_binary.to_vec(),
-			changes_trie_config: Default::default(),
 		},
 		balances: rococo_runtime::BalancesConfig {
 			balances: endowed_accounts
@@ -1262,7 +1258,6 @@ pub fn polkadot_testnet_genesis(
 	polkadot::GenesisConfig {
 		system: polkadot::SystemConfig {
 			code: wasm_binary.to_vec(),
-			changes_trie_config: Default::default(),
 		},
 		indices: polkadot::IndicesConfig { indices: vec![] },
 		balances: polkadot::BalancesConfig {
@@ -1349,7 +1344,6 @@ pub fn kusama_testnet_genesis(
 	kusama::GenesisConfig {
 		system: kusama::SystemConfig {
 			code: wasm_binary.to_vec(),
-			changes_trie_config: Default::default(),
 		},
 		indices: kusama::IndicesConfig { indices: vec![] },
 		balances: kusama::BalancesConfig {
@@ -1438,7 +1432,6 @@ pub fn westend_testnet_genesis(
 	westend::GenesisConfig {
 		system: westend::SystemConfig {
 			code: wasm_binary.to_vec(),
-			changes_trie_config: Default::default(),
 		},
 		indices: westend::IndicesConfig { indices: vec![] },
 		balances: westend::BalancesConfig {
@@ -1520,7 +1513,6 @@ pub fn rococo_testnet_genesis(
 	rococo_runtime::GenesisConfig {
 		system: rococo_runtime::SystemConfig {
 			code: wasm_binary.to_vec(),
-			changes_trie_config: Default::default(),
 		},
 		beefy: Default::default(),
 		indices: rococo_runtime::IndicesConfig { indices: vec![] },
