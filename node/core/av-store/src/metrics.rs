@@ -58,22 +58,30 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `block_activated` which observes on drop.
-	pub(crate) fn time_block_activated(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	pub(crate) fn time_block_activated(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.block_activated.start_timer())
 	}
 
 	/// Provide a timer for `process_message` which observes on drop.
-	pub(crate) fn time_process_message(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	pub(crate) fn time_process_message(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.process_message.start_timer())
 	}
 
 	/// Provide a timer for `store_available_data` which observes on drop.
-	pub(crate) fn time_store_available_data(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	pub(crate) fn time_store_available_data(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.store_available_data.start_timer())
 	}
 
 	/// Provide a timer for `store_chunk` which observes on drop.
-	pub(crate) fn time_store_chunk(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	pub(crate) fn time_store_chunk(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.store_chunk.start_timer())
 	}
 
