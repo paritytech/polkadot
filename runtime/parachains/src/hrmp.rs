@@ -49,6 +49,31 @@ pub trait WeightInfo {
 	fn hrmp_cancel_open_request(c: u32) -> Weight;
 }
 
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn hrmp_accept_open_channel() -> Weight {
+		1000_000_000
+	}
+	fn force_clean_hrmp(_: u32, _: u32) -> Weight {
+		1000_000_000
+	}
+	fn force_process_hrmp_close(_: u32) -> Weight {
+		1000_000_000
+	}
+	fn force_process_hrmp_open(_: u32) -> Weight {
+		1000_000_000
+	}
+	fn hrmp_cancel_open_request(_: u32) -> Weight {
+		1000_000_000
+	}
+	fn hrmp_close_channel() -> Weight {
+		1000_000_000
+	}
+	fn hrmp_init_open_channel() -> Weight {
+		1000_000_000
+	}
+}
+
 /// A description of a request to open an HRMP channel.
 #[derive(Encode, Decode, TypeInfo)]
 pub struct HrmpOpenChannelRequest {
@@ -408,7 +433,7 @@ pub mod pallet {
 		/// parameters.
 		///
 		/// - `proposed_max_capacity` - specifies how many messages can be in the channel at once.
-		/// - `proposed_max_message_size` - specifies the maximum size of any of the messages.
+		/// - `proposed_max_message_size` - specifies the maximum size of the messages.
 		///
 		/// These numbers are a subject to the relay-chain configuration limits.
 		///
@@ -512,7 +537,7 @@ pub mod pallet {
 		/// This cancels a pending open channel request. It can be canceled by either of the sender
 		/// or the recipient for that request. The origin must be either of those.
 		///
-		/// The cancelling happens immediately. It is not possible to cancel the request if it is
+		/// The cancellation happens immediately. It is not possible to cancel the request if it is
 		/// already accepted.
 		///
 		/// Total number of opening channels must be provided as witness data.

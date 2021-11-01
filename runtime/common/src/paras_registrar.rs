@@ -657,11 +657,11 @@ mod tests {
 	impl paras::Config for Test {
 		type Origin = Origin;
 		type Event = Event;
-		type WeightInfo = paras::weights::WeightInfo<Test>;
+		type WeightInfo = paras::TestWeightInfo;
 	}
 
 	impl configuration::Config for Test {
-		type WeightInfo = configuration::weights::WeightInfo<Test>;
+		type WeightInfo = configuration::TestWeightInfo;
 		type HrmpMaxOutboundChannelsBound = frame_support::traits::ConstU32<128>;
 		type HrmpMaxInboundChannelsBound = frame_support::traits::ConstU32<128>;
 	}
@@ -1050,7 +1050,7 @@ mod benchmarking {
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
 	use sp_runtime::traits::Bounded;
 
-	use frame_benchmarking::{account, benchmarks, impl_benchmark_test_suite, whitelisted_caller};
+	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1087,86 +1087,86 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		where_clause { where ParaOrigin: Into<<T as frame_system::Config>::Origin> }
+			where_clause { where ParaOrigin: Into<<T as frame_system::Config>::Origin> }
 
-		reserve {
-			let caller: T::AccountId = whitelisted_caller();
-			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-		}: _(RawOrigin::Signed(caller.clone()))
-		verify {
-			assert_last_event::<T>(Event::<T>::Reserved(LOWEST_PUBLIC_ID, caller).into());
-			assert!(Paras::<T>::get(LOWEST_PUBLIC_ID).is_some());
-			assert_eq!(paras::Pallet::<T>::lifecycle(LOWEST_PUBLIC_ID), None);
-		}
+			reserve {
+				let caller: T::AccountId = whitelisted_caller();
+				T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+			}: _(RawOrigin::Signed(caller.clone()))
+			verify {
+				assert_last_event::<T>(Event::<T>::Reserved(LOWEST_PUBLIC_ID, caller).into());
+				assert!(Paras::<T>::get(LOWEST_PUBLIC_ID).is_some());
+				assert_eq!(paras::Pallet::<T>::lifecycle(LOWEST_PUBLIC_ID), None);
+			}
 
-		register {
-			let para = LOWEST_PUBLIC_ID;
-			let genesis_head = Registrar::<T>::worst_head_data();
-			let validation_code = Registrar::<T>::worst_validation_code();
-			let caller: T::AccountId = whitelisted_caller();
-			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
-			assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
-		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
-		verify {
-			assert_last_event::<T>(Event::<T>::Registered(para, caller).into());
-			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
-			next_scheduled_session::<T>();
-			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
-		}
+			register {
+				let para = LOWEST_PUBLIC_ID;
+				let genesis_head = Registrar::<T>::worst_head_data();
+				let validation_code = Registrar::<T>::worst_validation_code();
+				let caller: T::AccountId = whitelisted_caller();
+				T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
+				assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
+			}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
+			verify {
+				assert_last_event::<T>(Event::<T>::Registered(para, caller).into());
+				assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
+				next_scheduled_session::<T>();
+				assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
+			}
 
-		force_register {
-			let manager: T::AccountId = account("manager", 0, 0);
-			let deposit = 0u32.into();
-			let para = ParaId::from(69);
-			let genesis_head = Registrar::<T>::worst_head_data();
-			let validation_code = Registrar::<T>::worst_validation_code();
-		}: _(RawOrigin::Root, manager.clone(), deposit, para, genesis_head, validation_code)
-		verify {
-			assert_last_event::<T>(Event::<T>::Registered(para, manager).into());
-			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
-			next_scheduled_session::<T>();
-			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
-		}
+			force_register {
+				let manager: T::AccountId = account("manager", 0, 0);
+				let deposit = 0u32.into();
+				let para = ParaId::from(69);
+				let genesis_head = Registrar::<T>::worst_head_data();
+				let validation_code = Registrar::<T>::worst_validation_code();
+			}: _(RawOrigin::Root, manager.clone(), deposit, para, genesis_head, validation_code)
+			verify {
+				assert_last_event::<T>(Event::<T>::Registered(para, manager).into());
+				assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
+				next_scheduled_session::<T>();
+				assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
+			}
 
-		deregister {
-			let para = register_para::<T>(LOWEST_PUBLIC_ID.into());
-			next_scheduled_session::<T>();
-			let caller: T::AccountId = whitelisted_caller();
-		}: _(RawOrigin::Signed(caller), para)
-		verify {
-			assert_last_event::<T>(Event::<T>::Deregistered(para).into());
-		}
+			deregister {
+				let para = register_para::<T>(LOWEST_PUBLIC_ID.into());
+				next_scheduled_session::<T>();
+				let caller: T::AccountId = whitelisted_caller();
+			}: _(RawOrigin::Signed(caller), para)
+			verify {
+				assert_last_event::<T>(Event::<T>::Deregistered(para).into());
+			}
 
-		swap {
-			let parathread = register_para::<T>(LOWEST_PUBLIC_ID.into());
-			let parachain = register_para::<T>((LOWEST_PUBLIC_ID + 1).into());
+			swap {
+				let parathread = register_para::<T>(LOWEST_PUBLIC_ID.into());
+				let parachain = register_para::<T>((LOWEST_PUBLIC_ID + 1).into());
 
-			let parachain_origin = para_origin(parachain.into());
+				let parachain_origin = para_origin(parachain.into());
 
-			// Actually finish registration process
-			next_scheduled_session::<T>();
+				// Actually finish registration process
+				next_scheduled_session::<T>();
 
-			// Upgrade the parachain
-			Registrar::<T>::make_parachain(parachain)?;
-			next_scheduled_session::<T>();
+				// Upgrade the parachain
+				Registrar::<T>::make_parachain(parachain)?;
+				next_scheduled_session::<T>();
 
-			assert_eq!(paras::Pallet::<T>::lifecycle(parachain), Some(ParaLifecycle::Parachain));
-			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
+				assert_eq!(paras::Pallet::<T>::lifecycle(parachain), Some(ParaLifecycle::Parachain));
+				assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parathread));
 
-			let caller: T::AccountId = whitelisted_caller();
-			Registrar::<T>::swap(parachain_origin.into(), parachain, parathread)?;
-		}: _(RawOrigin::Signed(caller.clone()), parathread, parachain)
-		verify {
-			next_scheduled_session::<T>();
-			// Swapped!
-			assert_eq!(paras::Pallet::<T>::lifecycle(parachain), Some(ParaLifecycle::Parathread));
-			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parachain));
-		}
+				let caller: T::AccountId = whitelisted_caller();
+				Registrar::<T>::swap(parachain_origin.into(), parachain, parathread)?;
+			}: _(RawOrigin::Signed(caller.clone()), parathread, parachain)
+			verify {
+				next_scheduled_session::<T>();
+				// Swapped!
+				assert_eq!(paras::Pallet::<T>::lifecycle(parachain), Some(ParaLifecycle::Parathread));
+				assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parachain));
+			}
+
+		impl_benchmark_test_suite!(
+			Registrar,
+			crate::integration_tests::new_test_ext(),
+			crate::integration_tests::Test,
+		);
 	}
-
-	impl_benchmark_test_suite!(
-		Registrar,
-		crate::integration_tests::new_test_ext(),
-		crate::integration_tests::Test,
-	);
 }

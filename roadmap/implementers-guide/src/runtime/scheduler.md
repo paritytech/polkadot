@@ -82,7 +82,7 @@ digraph {
 
 ## Validator Groups
 
-Validator group assignments do not need to change very quickly. The security benefits of fast rotation are redundant with the challenge mechanism in the [Approval process](../protocol-approval.md). Because of this, we only divide validators into groups at the beginning of the session and do not shuffle membership during the session. However, we do take steps to ensure that no particular validator group has dominance over a single parachain or parathread-multiplexer for an entire session to provide better guarantees of liveness.
+Validator group assignments do not need to change very quickly. The security benefits of fast rotation are redundant with the challenge mechanism in the [Approval process](../protocol-approval.md). Because of this, we only divide validators into groups at the beginning of the session and do not shuffle membership during the session. However, we do take steps to ensure that no particular validator group has dominance over a single parachain or parathread-multiplexer for an entire session to provide better guarantees of live-ness.
 
 Validator groups rotate across availability cores in a round-robin fashion, with rotation occurring at fixed intervals. The i'th group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the number of cores. This makes upcoming rotations within the same session predictable.
 
@@ -185,7 +185,7 @@ Actions:
 1. Resize `AvailabilityCores` to have length `n_cores` with all `None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
    - Note that the total number of validators `V` in AV may not be evenly divided by `n_cores`.
-   - The groups are selected by partitioning AV.  The first V % N groups will have (V / n_cores) + 1 members, while the remaining groups will have (V / N) members each.
+   - The groups are selected by partitioning AV.  The first `V % N` groups will have `(V / n_cores) + 1` members, while the remaining groups will have `(V / N)` members each.
    - Instead of using the indices within AV, which point to the broader set, indices _into_ AV should be used. This implies that groups should have simply ascending validator indices.
 1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`.
    - Also prune all parathread claims corresponding to de-registered parathreads.
@@ -209,11 +209,13 @@ No finalization routine runs for this module.
   - The core used for the parathread claim is the `next_core` field of the `ParathreadQueue` and adding `Paras::parachains().len()` to it.
   - `next_core` is then updated by adding 1 and taking it modulo `config.parathread_cores`.
   - The claim is then added to the claim index.
-- `schedule(Vec<(CoreIndex, FreedReason)>, now: BlockNumber)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned and why they are being returned.
+- `free_cores(Vec<(CoreIndex, FreedReason)>)`: indicate previosuly-occupied cores which are to be considered returned and why they are being returned.
   - All freed parachain cores should be assigned to their respective parachain
   - All freed parathread cores whose reason for freeing was `FreedReason::Concluded` should have the claim removed from the claim index.
   - All freed parathread cores whose reason for freeing was `FreedReason::TimedOut` should have the claim added to the parathread queue again without retries incremented
   - All freed parathread cores should take the next parathread entry from the queue.
+- `schedule(Vec<(CoreIndex, FreedReason)>, now: BlockNumber)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned and why they are being returned.
+  - Invoke `free_cores(freed_cores)`
   - The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable. Rotations are based off of `now`.
 - `scheduled() -> Vec<CoreAssignment>`: Get currently scheduled core assignments.
 - `occupied(Vec<CoreIndex>)`. Note that the given cores have become occupied.

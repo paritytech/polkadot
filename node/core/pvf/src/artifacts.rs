@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::error::PrepareError;
 use always_assert::always;
 use async_std::path::{Path, PathBuf};
 use parity_scale_codec::{Decode, Encode};
@@ -23,30 +24,19 @@ use std::{
 	time::{Duration, SystemTime},
 };
 
-/// A final product of preparation process. Contains either a ready to run compiled artifact or
-/// a description what went wrong.
+/// A wrapper for the compiled PVF code.
 #[derive(Encode, Decode)]
-pub enum Artifact {
-	/// During the prevalidation stage of preparation an issue was found with the PVF.
-	PrevalidationErr(String),
-	/// Compilation failed for the given PVF.
-	PreparationErr(String),
-	/// This state indicates that the process assigned to prepare the artifact wasn't responsible
-	/// or were killed. This state is reported by the validation host (not by the worker).
-	DidntMakeIt,
-	/// The PVF passed all the checks and is ready for execution.
-	Compiled { compiled_artifact: Vec<u8> },
+pub struct CompiledArtifact(Vec<u8>);
+
+impl CompiledArtifact {
+	pub fn new(code: Vec<u8>) -> Self {
+		Self(code)
+	}
 }
 
-impl Artifact {
-	/// Serializes this struct into a byte buffer.
-	pub fn serialize(&self) -> Vec<u8> {
-		self.encode()
-	}
-
-	/// Deserialize the given byte buffer to an artifact.
-	pub fn deserialize(mut bytes: &[u8]) -> Result<Self, String> {
-		Artifact::decode(&mut bytes).map_err(|e| format!("{:?}", e))
+impl AsRef<[u8]> for CompiledArtifact {
+	fn as_ref(&self) -> &[u8] {
+		self.0.as_slice()
 	}
 }
 
@@ -117,6 +107,9 @@ pub enum ArtifactState {
 	},
 	/// A task to prepare this artifact is scheduled.
 	Preparing,
+	/// The code couldn't be compiled due to an error. Such artifacts
+	/// never reach the executor and stay in the host's memory.
+	FailedToProcess(PrepareError),
 }
 
 /// A container of all known artifact ids and their states.
@@ -150,7 +143,7 @@ impl Artifacts {
 
 	/// Inform the table about the artifact with the given ID. The state will be set to "preparing".
 	///
-	/// This function must be used only for brand new artifacts and should never be used for
+	/// This function must be used only for brand-new artifacts and should never be used for
 	/// replacing existing ones.
 	pub fn insert_preparing(&mut self, artifact_id: ArtifactId) {
 		// See the precondition.
@@ -159,7 +152,7 @@ impl Artifacts {
 
 	/// Insert an artifact with the given ID as "prepared".
 	///
-	/// This function must be used only for brand new artifacts and should never be used for
+	/// This function must be used only for brand-new artifacts and should never be used for
 	/// replacing existing ones.
 	#[cfg(test)]
 	pub fn insert_prepared(&mut self, artifact_id: ArtifactId, last_time_needed: SystemTime) {

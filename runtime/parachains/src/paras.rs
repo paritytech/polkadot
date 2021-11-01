@@ -43,7 +43,6 @@ pub use crate::Origin as ParachainOrigin;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-pub mod weights;
 
 pub use pallet::*;
 
@@ -279,6 +278,25 @@ pub trait WeightInfo {
 	fn force_queue_action() -> Weight;
 }
 
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn force_set_current_code(_c: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_set_current_head(_s: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_schedule_code_upgrade(_c: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_note_new_head(_s: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_queue_action() -> Weight {
+		Weight::MAX
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -347,6 +365,7 @@ pub mod pallet {
 	///
 	/// Corresponding code can be retrieved with [`CodeByHash`].
 	#[pallet::storage]
+	#[pallet::getter(fn current_code_hash)]
 	pub(super) type CurrentCodeHash<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ValidationCodeHash>;
 
@@ -605,7 +624,7 @@ impl<T: Config> Pallet<T> {
 
 	/// The validation code of live para.
 	pub(crate) fn current_code(para_id: &ParaId) -> Option<ValidationCode> {
-		CurrentCodeHash::<T>::get(para_id).and_then(|code_hash| {
+		Self::current_code_hash(para_id).and_then(|code_hash| {
 			let code = CodeByHash::<T>::get(&code_hash);
 			if code.is_none() {
 				log::error!(
