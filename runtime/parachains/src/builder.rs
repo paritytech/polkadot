@@ -20,7 +20,7 @@ use sp_runtime::{
 	traits::{Header as HeaderT, One, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_set::BTreeSet, convert::TryInto};
+use sp_std::{collections::btree_set::BTreeSet, convert::TryInto, vec::Vec};
 
 const LOG_TARGET: &str = "runtime::paras-runtime-test-builder";
 
