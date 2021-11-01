@@ -1064,7 +1064,7 @@ mod tests {
 	}
 
 	#[async_std::test]
-	async fn test_prepare_done() {
+	async fn precheck_pvf() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
 
@@ -1082,14 +1082,51 @@ mod tests {
 			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
 			.await
 			.unwrap();
+		// No pending execute requests.
 		test.poll_ensure_to_execute_queue_is_empty().await;
 		// Received the precheck result.
 		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
 
-		// Send another PVF for the execution and request the prechecking for it.
+		// Send multiple requests for the same pvf.
+		let mut precheck_receivers = Vec::new();
+		for _ in 0..3 {
+			let (result_tx, result_rx) = oneshot::channel();
+			host.precheck_pvf(Pvf::from_discriminator(2), result_tx).await.unwrap();
+			precheck_receivers.push(result_rx);
+		}
+		// Received prepare request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(2),
+				result: Err(PrepareError::TimedOut),
+			})
+			.await
+			.unwrap();
+		test.poll_ensure_to_execute_queue_is_empty().await;
+		for result_rx in precheck_receivers {
+			assert_matches!(
+				result_rx.now_or_never().unwrap().unwrap(),
+				Err(PrepareError::TimedOut)
+			);
+		}
+	}
+
+	#[async_std::test]
+	async fn test_prepare_done() {
+		let mut test = Builder::default().build();
+		let mut host = test.host_handle();
+
+		// Test mixed cases of receiving execute and precheck requests
+		// for the same pvf.
+
+		// Send PVF for the execution and request the prechecking for it.
 		let (result_tx, result_rx_execute) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(2),
+			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
 			Priority::Critical,
@@ -1104,13 +1141,13 @@ mod tests {
 		);
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(2), result_tx).await.unwrap();
+		host.precheck_pvf(Pvf::from_discriminator(1), result_tx).await.unwrap();
 
 		// Suppose the preparation failed, the execution queue is empty and both
 		// "clients" receive their results.
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(2),
+				artifact_id: artifact_id(1),
 				result: Err(PrepareError::TimedOut),
 			})
 			.await
@@ -1126,15 +1163,15 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(3), result_tx).await.unwrap();
+			host.precheck_pvf(Pvf::from_discriminator(2), result_tx).await.unwrap();
 			precheck_receivers.push(result_rx);
 		}
 
 		let (result_tx, _result_rx_execute) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(3),
+			Pvf::from_discriminator(2),
 			TEST_EXECUTION_TIMEOUT,
-			b"pvf3".to_vec(),
+			b"pvf2".to_vec(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1146,7 +1183,7 @@ mod tests {
 			prepare::ToQueue::Enqueue { .. }
 		);
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(3), result: Ok(()) })
+			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
 			.await
 			.unwrap();
 		// The execute queue receives new request, preckecking is finished and we can
