@@ -103,6 +103,13 @@ fn bitfield_weight<T: Config>() -> Weight {
 	<T as Config>::WeightInfo::enter_bitfields()
 }
 
+fn minimal_inherent_weight<T: Config>() -> {
+	// We just take the min of all our options. This can be changed in the future.
+	<T as Config>::WeightInfo::enter_bitfields()
+		.min(<T as Config>::WeightInfo::enter_variable_disputes(1))
+		.min(<T as Config>::WeightInfo::enter_backed_candidates_variable(1))
+}
+
 /// Extract the weight that is adder _per_ backed candidate.
 fn backed_candidate_weight<T: Config>(validity_votes_len: u32) -> Weight {
 	<T as Config>::WeightInfo::enter_backed_candidates_variable(validity_votes_len as u32)
@@ -403,7 +410,7 @@ pub mod pallet {
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
-					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
+					return Ok(Some(minimal_inherent_weight::<T>()).into())
 				}
 
 				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {

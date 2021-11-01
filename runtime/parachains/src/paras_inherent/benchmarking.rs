@@ -28,7 +28,7 @@ benchmarks! {
 		let v in 10..BenchBuilder::<T>::max_validators();
 
 		let cores_with_disputed = 1;
-		let cores_with_backed = 1;
+		let cores_with_backed = 0;
 
 		let scenario = BenchBuilder::<T>::new()
 			.build(cores_with_backed, cores_with_disputed);

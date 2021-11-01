@@ -236,11 +236,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			);
 			block += 1;
 			Self::run_to_block(block);
-			println!(
-				"expected session {}, actual session {}",
-				session,
-				<shared::Pallet<T>>::session_index()
-			);
 		}
 
 		let block_number = <T as frame_system::Config>::BlockNumber::from(block);
