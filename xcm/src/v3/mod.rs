@@ -45,6 +45,7 @@ pub use multilocation::{
 };
 pub use traits::{
 	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
+	PreparedMessage,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{BodyId, BodyPart, OriginKind, WeightLimit};
@@ -77,6 +78,24 @@ impl<Call> Xcm<Call> {
 	pub fn len(&self) -> usize {
 		self.0.len()
 	}
+
+	/// Return a reference to the inner value.
+	pub fn inner(&self) -> &Vec<Instruction<Call>> { &self.0 }
+
+	/// Return a mutable reference to the inner value.
+	pub fn inner_mut(&mut self) -> &mut Vec<Instruction<Call>> { &mut self.0 }
+
+	/// Consume and return the inner value.
+	pub fn into_inner(self) -> Vec<Instruction<Call>> { self.0 }
+
+	/// Return an iterator over references to the items.
+	pub fn iter(&self) -> impl Iterator<Item=&Instruction<Call>> { self.0.iter() }
+
+	/// Return an iterator over mutable references to the items.
+	pub fn iter_mut(&mut self) -> impl Iterator<Item=&mut Instruction<Call>> { self.0.iter_mut() }
+
+	/// Consume and return an iterator over the items.
+	pub fn into_iter(self) -> impl Iterator<Item=Instruction<Call>> { self.0.into_iter() }
 
 	/// Consume and either return `self` if it contains some instructions, or if it's empty, then
 	/// instead return the result of `f`.
@@ -118,6 +137,18 @@ impl<Call> Xcm<Call> {
 	}
 }
 
+impl<Call> From<Vec<Instruction<Call>>> for Xcm<Call> {
+	fn from(c: Vec<Instruction<Call>>) -> Self {
+		Self(c)
+	}
+}
+
+impl<Call> From<Xcm<Call>> for Vec<Instruction<Call>> {
+	fn from(c: Xcm<Call>) -> Self {
+		c.0
+	}
+}
+
 /// A prelude for importing all types typically used when interacting with XCM messages.
 pub mod prelude {
 	mod contents {
@@ -135,8 +166,8 @@ pub mod prelude {
 			MultiAssetFilter::{self, *},
 			MultiAssets, MultiLocation,
 			NetworkId::{self, *},
-			OriginKind, Outcome, PalletInfo, Parent, ParentThen, QueryId, QueryResponseInfo,
-			Response, Result as XcmResult, SendError, SendResult, SendXcm,
+			OriginKind, Outcome, PalletInfo, Parent, ParentThen, PreparedMessage, QueryId,
+			QueryResponseInfo, Response, Result as XcmResult, SendError, SendResult, SendXcm,
 			WeightLimit::{self, *},
 			WildFungibility::{self, Fungible as WildFungible, NonFungible as WildNonFungible},
 			WildMultiAsset::{self, *},

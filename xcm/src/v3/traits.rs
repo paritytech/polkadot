@@ -214,8 +214,20 @@ impl Outcome {
 	}
 }
 
+pub trait PreparedMessage {
+	fn weight_of(&self) -> Weight;
+}
+
 /// Type of XCM message executor.
 pub trait ExecuteXcm<Call> {
+	type Prepared: PreparedMessage;
+	fn prepare(message: Xcm<Call>) -> result::Result<Self::Prepared, Xcm<Call>>;
+	fn execute(
+		origin: impl Into<MultiLocation>,
+		pre: Self::Prepared,
+		weight_credit: Weight,
+	) -> Outcome;
+
 	/// Execute some XCM `message` from `origin` using no more than `weight_limit` weight. The weight limit is
 	/// a basic hard-limit and the implementation may place further restrictions or requirements on weight and
 	/// other aspects.
@@ -244,18 +256,32 @@ pub trait ExecuteXcm<Call> {
 		message: Xcm<Call>,
 		weight_limit: Weight,
 		weight_credit: Weight,
-	) -> Outcome;
+	) -> Outcome {
+		let pre = match Self::prepare(message) {
+			Ok(x) => x,
+			Err(_) => return Outcome::Error(Error::WeightNotComputable),
+		};
+		let xcm_weight = pre.weight_of();
+		if xcm_weight > weight_limit {
+			return Outcome::Error(Error::WeightLimitReached(xcm_weight))
+		}
+		Self::execute(origin, pre, weight_credit)
+	}
+}
+
+pub enum Weightless {}
+impl PreparedMessage for Weightless {
+	fn weight_of(&self) -> Weight { unreachable!() }
 }
 
 impl<C> ExecuteXcm<C> for () {
-	fn execute_xcm_in_credit(
-		_origin: impl Into<MultiLocation>,
-		_message: Xcm<C>,
-		_weight_limit: Weight,
-		_weight_credit: Weight,
-	) -> Outcome {
-		Outcome::Error(Error::Unimplemented)
-	}
+	type Prepared = Weightless;
+	fn prepare(message: Xcm<C>) -> result::Result<Self::Prepared, Xcm<C>> { Err(message) }
+	fn execute(
+		_: impl Into<MultiLocation>,
+		_: Self::Prepared,
+		_: Weight,
+	) -> Outcome { unreachable!() }
 }
 
 /// Error result value when attempting to send an XCM message.

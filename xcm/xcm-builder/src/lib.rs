@@ -74,47 +74,36 @@ mod universal_exports {
 	use xcm_executor::traits::ExportXcm;
 
 	fn ensure_is_remote(
-		ancestry: impl Into<InteriorMultiLocation>,
+		universal_local: impl Into<InteriorMultiLocation>,
 		dest: impl Into<MultiLocation>,
-	) -> Result<(NetworkId, InteriorMultiLocation), MultiLocation> {
+	) -> Result<(NetworkId, InteriorMultiLocation, NetworkId, InteriorMultiLocation), MultiLocation> {
 		let dest = dest.into();
-		let ancestry = ancestry.into();
-		let local_network = match ancestry.first() {
-			Some(GlobalConsensus(network)) => network.clone(),
+		let universal_local = universal_local.into();
+		let (local_net, local_loc) = match universal_local.clone().split_first() {
+			(location, Some(GlobalConsensus(network))) => (network, location),
 			_ => return Err(dest),
 		};
-		let universal_destination: InteriorMultiLocation = ancestry
+		let universal_destination: InteriorMultiLocation = universal_local
 			.into_location()
 			.appended_with(dest.clone())
 			.map_err(|x| x.1)?
 			.try_into()?;
 		let (remote_dest, remote_net) = match universal_destination.split_first() {
-			(d, Some(GlobalConsensus(n))) if n != local_network => (d, n),
+			(d, Some(GlobalConsensus(n))) if n != local_net => (d, n),
 			_ => return Err(dest),
 		};
-		Ok((remote_net, remote_dest))
-	}
-
-	pub struct LocalExporter<Exporter, Ancestry>(PhantomData<(Exporter, Ancestry)>);
-	impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm for LocalExporter<Exporter, Ancestry> {
-		fn send_xcm(dest: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
-			let (network, destination) = match ensure_is_remote(Ancestry::get(), dest) {
-				Ok(x) => x,
-				Err(dest) => return Err(SendError::CannotReachDestination(dest, message)),
-			};
-			Exporter::export_xcm(network, 0, destination, message)
-		}
+		Ok((remote_net, remote_dest, local_net, local_loc))
 	}
 
 	#[test]
-	fn local_exporter_works() {
+	fn ensure_is_remote_works() {
 		// A Kusama parachain is remote from the Polkadot Relay.
 		let x = ensure_is_remote(Polkadot, (Parent, Kusama, Parachain(1000)));
-		assert_eq!(x, Ok((Kusama, Parachain(1000).into())));
+		assert_eq!(x, Ok((Kusama, Parachain(1000).into(), Polkadot, Here)));
 
 		// Polkadot Relay is remote from a Kusama parachain.
 		let x = ensure_is_remote((Kusama, Parachain(1000)), (Parent, Parent, Polkadot));
-		assert_eq!(x, Ok((Polkadot, ().into())));
+		assert_eq!(x, Ok((Polkadot, Here, Kusama, Parachain(1000).into())));
 
 		// Our own parachain is local.
 		let x = ensure_is_remote(Polkadot, Parachain(1000));
@@ -128,4 +117,69 @@ mod universal_exports {
 		let x = ensure_is_remote((), (Parent, Polkadot, Parachain(1000)));
 		assert_eq!(x, Err((Parent, Polkadot, Parachain(1000)).into()));
 	}
+
+	pub struct LocalUnpaidExporter<Exporter, Ancestry>(PhantomData<(Exporter, Ancestry)>);
+	impl<Exporter: ExportXcm, Ancestry: Get<InteriorMultiLocation>> SendXcm for LocalUnpaidExporter<Exporter, Ancestry> {
+		fn send_xcm(dest: impl Into<MultiLocation>, message: Xcm<()>) -> SendResult {
+			let (network, destination, _, _) = match ensure_is_remote(Ancestry::get(), dest) {
+				Ok(x) => x,
+				Err(dest) => return Err(SendError::CannotReachDestination(dest, message)),
+			};
+			Exporter::export_xcm(network, 0, destination, message)
+		}
+	}
+
+	pub struct LocalUnpaidExecutingExporter<
+		Executer,
+		Ancestry,
+		WeightLimit,
+		Call,
+	>(PhantomData<(Executer, Ancestry, WeightLimit, Call)>);
+	impl<
+		Executer: ExecuteXcm<Call>,
+		Ancestry: Get<InteriorMultiLocation>,
+		WeightLimit: Get<u64>,
+		Call,
+	> SendXcm for LocalUnpaidExecutingExporter<Executer, Ancestry, WeightLimit, Call> {
+		fn send_xcm(dest: impl Into<MultiLocation>, mut xcm: Xcm<()>) -> SendResult {
+			let dest = dest.into();
+
+			// TODO: proper matching so we can be sure that it's the only viable send_xcm before we
+			// attempt and thus can acceptably consume dest & xcm.
+			let err = Err(SendError::CannotReachDestination(dest.clone(), xcm.clone()));
+
+			let devolved = match ensure_is_remote(Ancestry::get(), dest.clone()) {
+				Ok(x) => x,
+				Err(dest) => return err,
+			};
+			let (remote_network, remote_location, local_network, local_location) = devolved;
+
+			let mut inner_xcm: Xcm<()> = vec![
+				UniversalOrigin(GlobalConsensus(local_network)),
+				DescendOrigin(local_location),
+			].into();
+			inner_xcm.inner_mut().extend(xcm.into_iter());
+
+			let message = Xcm(vec![
+/*				WithdrawAsset((Here, )),
+				BuyExecution { fees: Wild(AllCounted(1)), weight_limit: Unlimited },
+				DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
+*/				ExportMessage { network: remote_network, destination: remote_location, xcm: inner_xcm },
+			]);
+			let dest = dest.into();
+			let pre = match Executer::prepare(message) {
+				Ok(x) => x,
+				Err(_) => return err,
+			};
+			// We just swallow the weight - it should be constant.
+			let weight_credit = pre.weight_of();
+			match Executer::execute(Here, pre, weight_credit) {
+				Outcome::Complete(_) => Ok(()),
+				_ => return err,
+			}
+		}
+	}
+
+	// TODO: LocalPaidExecutingExporter able to accept from non-Here origins.
+	// TODO: RemotePaidExecutingExporter which uses `SendXcm`.
 }
