@@ -36,6 +36,7 @@ where
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
+		log::trace!(target: "xcm::origin_conversion", "SovereignSignedViaLocation origin: {:?}, kind: {:?}", origin, kind);
 		let origin = origin.into();
 		if let OriginKind::SovereignAccount = kind {
 			let location = LocationConverter::convert(origin)?;
@@ -52,6 +53,7 @@ impl<Origin: OriginTrait> ConvertOrigin<Origin> for ParentAsSuperuser<Origin> {
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
+		log::trace!(target: "xcm::origin_conversion", "ParentAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
 		let origin = origin.into();
 		if kind == OriginKind::Superuser && origin.contains_parents_only(1) {
 			Ok(Origin::root())
@@ -69,6 +71,7 @@ impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
+		log::trace!(target: "xcm::origin_conversion", "ChildSystemParachainAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
 		match (kind, origin.into()) {
 			(
 				OriginKind::Superuser,
@@ -87,6 +90,7 @@ impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
+		log::trace!(target: "xcm::origin_conversion", "SiblingSystemParachainAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
 		match (kind, origin.into()) {
 			(
 				OriginKind::Superuser,
@@ -105,6 +109,7 @@ impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Or
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
+		log::trace!(target: "xcm::origin_conversion", "ChildParachainAsNative origin: {:?}, kind: {:?}", origin, kind);
 		match (kind, origin.into()) {
 			(
 				OriginKind::Native,
@@ -125,6 +130,7 @@ impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Or
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
+		log::trace!(target: "xcm::origin_conversion", "SiblingParachainAsNative origin: {:?}, kind: {:?}", origin, kind);
 		match (kind, origin.into()) {
 			(
 				OriginKind::Native,
@@ -144,6 +150,7 @@ impl<RelayOrigin: Get<Origin>, Origin> ConvertOrigin<Origin>
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
+		log::trace!(target: "xcm::origin_conversion", "RelayChainAsNative origin: {:?}, kind: {:?}", origin, kind);
 		let origin = origin.into();
 		if kind == OriginKind::Native && origin.contains_parents_only(1) {
 			Ok(RelayOrigin::get())
@@ -163,6 +170,7 @@ where
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
+		log::trace!(target: "xcm::origin_conversion", "SignedAccountId32AsNative origin: {:?}, kind: {:?}", origin, kind);
 		match (kind, origin.into()) {
 			(
 				OriginKind::Native,
@@ -184,6 +192,7 @@ where
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
+		log::trace!(target: "xcm::origin_conversion", "SignedAccountKey20AsNative origin: {:?}, kind: {:?}", origin, kind);
 		match (kind, origin.into()) {
 			(
 				OriginKind::Native,
@@ -204,6 +213,7 @@ where
 {
 	type Success = MultiLocation;
 	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
+		log::trace!(target: "xcm::origin_conversion", "EnsureXcmOrigin origin: {:?}", o);
 		let o = match Conversion::convert(o) {
 			Ok(location) => return Ok(location),
 			Err(o) => o,
