@@ -271,17 +271,19 @@ pub trait ExecuteXcm<Call> {
 
 pub enum Weightless {}
 impl PreparedMessage for Weightless {
-	fn weight_of(&self) -> Weight { unreachable!() }
+	fn weight_of(&self) -> Weight {
+		unreachable!()
+	}
 }
 
 impl<C> ExecuteXcm<C> for () {
 	type Prepared = Weightless;
-	fn prepare(message: Xcm<C>) -> result::Result<Self::Prepared, Xcm<C>> { Err(message) }
-	fn execute(
-		_: impl Into<MultiLocation>,
-		_: Self::Prepared,
-		_: Weight,
-	) -> Outcome { unreachable!() }
+	fn prepare(message: Xcm<C>) -> result::Result<Self::Prepared, Xcm<C>> {
+		Err(message)
+	}
+	fn execute(_: impl Into<MultiLocation>, _: Self::Prepared, _: Weight) -> Outcome {
+		unreachable!()
+	}
 }
 
 /// Error result value when attempting to send an XCM message.

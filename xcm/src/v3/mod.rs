@@ -18,11 +18,14 @@
 
 use super::v2::{Instruction as OldInstruction, Response as OldResponse, Xcm as OldXcm};
 use crate::{DoubleEncoded, GetWeight};
-use alloc::{vec, vec::Vec};
+use alloc::{
+	vec,
+	vec::{IntoIter, Vec},
+};
 use core::{
 	convert::{TryFrom, TryInto},
 	fmt::Debug,
-	result,
+	result, slice,
 };
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode};
@@ -44,8 +47,8 @@ pub use multilocation::{
 	Ancestor, AncestorThen, InteriorMultiLocation, MultiLocation, Parent, ParentThen,
 };
 pub use traits::{
-	Error, ExecuteXcm, Outcome, Result, SendError, SendResult, SendXcm, Weight, XcmWeightInfo,
-	PreparedMessage,
+	Error, ExecuteXcm, Outcome, PreparedMessage, Result, SendError, SendResult, SendXcm, Weight,
+	XcmWeightInfo,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
 pub use super::v2::{BodyId, BodyPart, OriginKind, WeightLimit};
@@ -80,22 +83,29 @@ impl<Call> Xcm<Call> {
 	}
 
 	/// Return a reference to the inner value.
-	pub fn inner(&self) -> &[Instruction<Call>] { &self.0 }
+	pub fn inner(&self) -> &[Instruction<Call>] {
+		&self.0
+	}
 
 	/// Return a mutable reference to the inner value.
-	pub fn inner_mut(&mut self) -> &mut [Instruction<Call>] { &mut self.0 }
+	pub fn inner_mut(&mut self) -> &mut [Instruction<Call>] {
+		&mut self.0
+	}
 
 	/// Consume and return the inner value.
-	pub fn into_inner(self) -> Vec<Instruction<Call>> { self.0 }
+	pub fn into_inner(self) -> Vec<Instruction<Call>> {
+		self.0
+	}
 
 	/// Return an iterator over references to the items.
-	pub fn iter(&self) -> impl Iterator<Item=&Instruction<Call>> { self.0.iter() }
+	pub fn iter(&self) -> impl Iterator<Item = &Instruction<Call>> {
+		self.0.iter()
+	}
 
 	/// Return an iterator over mutable references to the items.
-	pub fn iter_mut(&mut self) -> impl Iterator<Item=&mut Instruction<Call>> { self.0.iter_mut() }
-
-	/// Consume and return an iterator over the items.
-	pub fn into_iter(self) -> impl Iterator<Item=Instruction<Call>> { self.0.into_iter() }
+	pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Instruction<Call>> {
+		self.0.iter_mut()
+	}
 
 	/// Consume and either return `self` if it contains some instructions, or if it's empty, then
 	/// instead return the result of `f`.
@@ -134,6 +144,30 @@ impl<Call> Xcm<Call> {
 		} else {
 			Err(self)
 		}
+	}
+}
+
+impl<Call> IntoIterator for Xcm<Call> {
+	type Item = Instruction<Call>;
+	type IntoIter = IntoIter<Instruction<Call>>;
+	fn into_iter(self) -> Self::IntoIter {
+		self.0.into_iter()
+	}
+}
+
+impl<'a, Call> IntoIterator for &'a Xcm<Call> {
+	type Item = &'a Instruction<Call>;
+	type IntoIter = slice::Iter<'a, Instruction<Call>>;
+	fn into_iter(self) -> Self::IntoIter {
+		self.0.iter()
+	}
+}
+
+impl<'a, Call> IntoIterator for &'a mut Xcm<Call> {
+	type Item = &'a mut Instruction<Call>;
+	type IntoIter = slice::IterMut<'a, Instruction<Call>>;
+	fn into_iter(self) -> Self::IntoIter {
+		self.0.iter_mut()
 	}
 }
 
