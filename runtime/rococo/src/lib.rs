@@ -1359,7 +1359,7 @@ sp_api::impl_runtime_apis! {
 			}
 		}
 
-		fn slot_duration() -> babe_primitives::SlotDuration {
+		fn slot_duration() -> u64 {
 			Babe::slot_duration()
 		}
 
