@@ -37,7 +37,11 @@ where
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
-		log::trace!(target: "xcm::origin_conversion", "SovereignSignedViaLocation origin: {:?}, kind: {:?}", origin, kind);
+		log::trace!(
+			target: "xcm::origin_conversion",
+			"SovereignSignedViaLocation origin: {:?}, kind: {:?}",
+			origin, kind,
+		);
 		if let OriginKind::SovereignAccount = kind {
 			let location = LocationConverter::convert(origin)?;
 			Ok(Origin::signed(location).into())
@@ -92,7 +96,11 @@ impl<ParaId: IsSystem + From<u32>, Origin: OriginTrait> ConvertOrigin<Origin>
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
-		log::trace!(target: "xcm::origin_conversion", "SiblingSystemParachainAsSuperuser origin: {:?}, kind: {:?}", origin, kind);
+		log::trace!(
+			target: "xcm::origin_conversion",
+			"SiblingSystemParachainAsSuperuser origin: {:?}, kind: {:?}",
+			origin, kind,
+		);
 		match (kind, origin) {
 			(
 				OriginKind::Superuser,
@@ -134,7 +142,11 @@ impl<ParachainOrigin: From<u32>, Origin: From<ParachainOrigin>> ConvertOrigin<Or
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
-		log::trace!(target: "xcm::origin_conversion", "SiblingParachainAsNative origin: {:?}, kind: {:?}", origin, kind);
+		log::trace!(
+			target: "xcm::origin_conversion",
+			"SiblingParachainAsNative origin: {:?}, kind: {:?}",
+			origin, kind,
+		);
 		match (kind, origin) {
 			(
 				OriginKind::Native,
@@ -175,7 +187,11 @@ where
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
-		log::trace!(target: "xcm::origin_conversion", "SignedAccountId32AsNative origin: {:?}, kind: {:?}", origin, kind);
+		log::trace!(
+			target: "xcm::origin_conversion",
+			"SignedAccountId32AsNative origin: {:?}, kind: {:?}",
+			origin, kind,
+		);
 		match (kind, origin) {
 			(
 				OriginKind::Native,
@@ -198,7 +214,11 @@ where
 		kind: OriginKind,
 	) -> Result<Origin, MultiLocation> {
 		let origin = origin.into();
-		log::trace!(target: "xcm::origin_conversion", "SignedAccountKey20AsNative origin: {:?}, kind: {:?}", origin, kind);
+		log::trace!(
+			target: "xcm::origin_conversion",
+			"SignedAccountKey20AsNative origin: {:?}, kind: {:?}",
+			origin, kind,
+		);
 		match (kind, origin) {
 			(
 				OriginKind::Native,

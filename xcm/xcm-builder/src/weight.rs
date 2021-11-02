@@ -146,7 +146,11 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
-		log::trace!(target: "xcm::weight", "FixedRateOfConcreteFungible::buy_weight weight: {:?}, payment: {:?}", weight, payment);
+		log::trace!(
+			target: "xcm::weight",
+			"FixedRateOfConcreteFungible::buy_weight weight: {:?}, payment: {:?}",
+			weight, payment,
+		);
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
 		let unused =
@@ -194,7 +198,11 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
-		log::trace!(target: "xcm::weight", "FixedRateOfFungible::buy_weight weight: {:?}, payment: {:?}", weight, payment);
+		log::trace!(
+			target: "xcm::weight",
+			"FixedRateOfFungible::buy_weight weight: {:?}, payment: {:?}",
+			weight, payment,
+		);
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
 		if amount == 0 {
