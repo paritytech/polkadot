@@ -80,10 +80,10 @@ impl<Call> Xcm<Call> {
 	}
 
 	/// Return a reference to the inner value.
-	pub fn inner(&self) -> &Vec<Instruction<Call>> { &self.0 }
+	pub fn inner(&self) -> &[Instruction<Call>] { &self.0 }
 
 	/// Return a mutable reference to the inner value.
-	pub fn inner_mut(&mut self) -> &mut Vec<Instruction<Call>> { &mut self.0 }
+	pub fn inner_mut(&mut self) -> &mut [Instruction<Call>] { &mut self.0 }
 
 	/// Consume and return the inner value.
 	pub fn into_inner(self) -> Vec<Instruction<Call>> { self.0 }
