@@ -63,51 +63,37 @@ pub struct XcmExecutor<Config: config::Config> {
 	_config: PhantomData<Config>,
 }
 
+pub struct WeighedMessage<Call>(Weight, Xcm<Call>);
+impl<C> PreparedMessage for WeighedMessage<C> {
+	fn weight_of(&self) -> Weight {
+		self.0
+	}
+}
+
 impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
-	fn execute_xcm_in_credit(
-		origin: impl Into<MultiLocation>,
+	type Prepared = WeighedMessage<Config::Call>;
+	fn prepare(
 		mut message: Xcm<Config::Call>,
-		weight_limit: Weight,
+	) -> Result<Self::Prepared, Xcm<Config::Call>> {
+		match Config::Weigher::weight(&mut message) {
+			Ok(weight) => Ok(WeighedMessage(weight, message)),
+			Err(_) => Err(message),
+		}
+	}
+	fn execute(
+		origin: impl Into<MultiLocation>,
+		WeighedMessage(xcm_weight, mut message): WeighedMessage<Config::Call>,
 		mut weight_credit: Weight,
 	) -> Outcome {
 		let origin = origin.into();
 		log::trace!(
 			target: "xcm::execute_xcm_in_credit",
-			"origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?}",
+			"origin: {:?}, message: {:?}, weight_credit: {:?}",
 			origin,
 			message,
-			weight_limit,
 			weight_credit,
 		);
-		let xcm_weight = match Config::Weigher::weight(&mut message) {
-			Ok(x) => x,
-			Err(()) => {
-				log::debug!(
-					target: "xcm::execute_xcm_in_credit",
-					"Weight not computable! (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
-					origin,
-					message,
-					weight_limit,
-					weight_credit,
-				);
-				return Outcome::Error(XcmError::WeightNotComputable)
-			},
-		};
-		if xcm_weight > weight_limit {
-			log::debug!(
-				target: "xcm::execute_xcm_in_credit",
-				"Weight limit reached! weight > weight_limit: {:?} > {:?}. (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
-				xcm_weight,
-				weight_limit,
-				origin,
-				message,
-				weight_limit,
-				weight_credit,
-			);
-			return Outcome::Error(XcmError::WeightLimitReached(xcm_weight))
-		}
-
-		if let Err(e) =
+		if let Err(_) =
 			Config::Barrier::should_execute(&origin, &mut message, xcm_weight, &mut weight_credit)
 		{
 			log::debug!(
