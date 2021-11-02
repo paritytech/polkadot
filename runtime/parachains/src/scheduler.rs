@@ -776,7 +776,7 @@ mod tests {
 			id,
 			ParaGenesisArgs {
 				genesis_head: Vec::new().into(),
-				validation_code: Vec::new().into(),
+				validation_code: vec![1, 2, 3].into(),
 				parachain: is_chain,
 			}
 		));
@@ -842,6 +842,7 @@ mod tests {
 			thread_availability_period: 5,
 			scheduling_lookahead: 2,
 			parathread_retries: 1,
+			pvf_checking_enabled: false,
 			..Default::default()
 		}
 	}

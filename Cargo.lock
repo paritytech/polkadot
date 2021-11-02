@@ -6370,6 +6370,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-pvf-checker"
+version = "0.9.11"
+dependencies = [
+ "futures 0.3.17",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "sp-keystore",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "polkadot-node-core-runtime-api"
 version = "0.9.12"
 dependencies = [

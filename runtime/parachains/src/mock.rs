@@ -30,7 +30,11 @@ use primitives::v1::{
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
-use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
+use sp_runtime::{
+	traits::{BlakeTwo256, IdentityLookup},
+	transaction_validity::TransactionPriority,
+	Permill,
+};
 use std::{cell::RefCell, collections::HashMap};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -58,6 +62,14 @@ frame_support::construct_runtime!(
 		Disputes: disputes::{Pallet, Storage, Event<T>},
 	}
 );
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
+where
+	Call: From<C>,
+{
+	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
+}
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
@@ -121,10 +133,34 @@ impl crate::configuration::Config for Test {
 
 impl crate::shared::Config for Test {}
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
+/// A very dumb implementation of `EstimateNextSessionRotation`. At the moment of writing, this
+/// is more to satisfy type requirements rather than to test anything.
+pub struct TestNextSessionRotation;
+
+impl frame_support::traits::EstimateNextSessionRotation<u32> for TestNextSessionRotation {
+	fn average_session_length() -> u32 {
+		10
+	}
+
+	fn estimate_current_session_progress(_now: u32) -> (Option<Permill>, Weight) {
+		(None, 0)
+	}
+
+	fn estimate_next_session_rotation(_now: u32) -> (Option<u32>, Weight) {
+		(None, 0)
+	}
+}
+
 impl crate::paras::Config for Test {
 	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = crate::paras::TestWeightInfo;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = TestNextSessionRotation;
 }
 
 impl crate::dmp::Config for Test {}

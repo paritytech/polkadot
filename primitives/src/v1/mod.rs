@@ -1044,6 +1044,12 @@ sp_api::decl_runtime_apis! {
 
 		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
+
+		/// TODO:
+		fn submit_pvf_check_statement(stmt: PvfCheckStatement, signature: ValidatorSignature);
+
+		/// TODO:
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash>;
 	}
 }
 
@@ -1363,6 +1369,31 @@ pub struct InherentData<HDR: HeaderT = Header> {
 	pub disputes: MultiDisputeStatementSet,
 	/// The parent block header. Used for checking state proofs.
 	pub parent_header: HDR,
+}
+
+/// A statement from the specified validator whether the given validation code passes PVF
+/// pre-checking or not anchored to the given session index.
+#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+pub struct PvfCheckStatement {
+	/// `true` if the subject passed pre-checking and `false` otherwise.
+	pub accept: bool,
+	/// The validation code hash that was checked.
+	pub subject: ValidationCodeHash,
+	/// The index of a session during which this statement is considered valid.
+	pub session_index: SessionIndex,
+	/// The index of the validator from which this statement originates.
+	pub validator_index: ValidatorIndex,
+}
+
+impl PvfCheckStatement {
+	/// Produce the payload used for signing this type of statement.
+	///
+	/// It is expected that it will be signed by the validator at `validator_index` in the
+	/// `session_index`.
+	pub fn signing_payload(&self) -> Vec<u8> {
+		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
+		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
+	}
 }
 
 /// The maximum number of validators `f` which may safely be faulty.

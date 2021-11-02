@@ -194,6 +194,15 @@ where
 
 					ctx.spawn("validate-from-exhaustive", bg.boxed())?;
 				},
+				CandidateValidationMessage::PreCheck(
+					relay_parent,
+					validation_code_hash,
+					response_sender,
+				) => {
+					let bg = { async move {} };
+
+					ctx.spawn("candidate-validation-pre-check", bg.boxed())?;
+				},
 			},
 		}
 	}

@@ -14,27 +14,85 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The paras pallet is responsible for storing data on parachains and parathreads.
+//! The paras pallet acts as the main registry of paras.
 //!
-//! It tracks which paras are parachains, what their current head data is in
-//! this fork of the relay chain, what their validation code is, and what their past and upcoming
-//! validation code is.
+//! # Tracking State of Paras
 //!
-//! A para is not considered live until it is registered and activated in this pallet. Activation can
-//! only occur at session boundaries.
+//! The most important responsibility of this module is to track which parachains and parathreads
+//! are active and what their current state is. The current state of a para consists of the current
+//! head data and the current validation code (AKA Parachain Validation Function (PVF)).
+//!
+//! A para is not considered live until it is registered and activated in this pallet.
+//!
+//! # Validation Code Upgrades
+//!
+//! When a para signals the validation code upgrade it will be processes by this module. This can
+//! be in turn split into more fine grained items:
+//!
+//! - Part of the acceptance criteria checks if the para can indeed signal an upgrade,
+//!
+//! - When the candidate is enacted, this module schedules code upgrade, storing the prospective
+//!   validation code.
+//!
+//! - Actually assign the prospective validation code to be the current one after all conditions are
+//!   fulfilled.
+//!
+//! The conditions that must be met before the para can use the new validation code are:
+//!
+//! 1. The validation code should've been "soaked" in the storage for a given number of blocks. That
+//!    is, the validation code should've been stored in on-chain storage for some time, so that in
+//!    case of a revert with a non-extreme height difference, that validation code can still be
+//!    found on-chain.
+//!
+//! 2. The validation code was vetted by the validators and declared as non-malicious in a processes
+//!    known as PVF pre-checking.
+//!
+//! # Validation Code Management
+//!
+//! Potentially, one validation code can be used by several different paras. For example, during
+//! initial stages of deployment several paras can use the same "shell" validation code, or
+//! there can be shards of the same para that use the same validation code.
+//!
+//! In case a validation code ceases to have any users it must be pruned from the on-chain storage.
+//!
+//! # Para Lifecycle Management
+//!
+//! A para can be in one of the two stable states: it is either a parachain or a parathread.
+//!
+//! However, in order to get into one of those two states, it must first be onboarded. Onboarding
+//! can be only enacted at session boundaries. Onboarding must take at least one full session.
+//! Moreover, a brand new validation code should go through the PVF pre-checking process.
+//!
+//! Once the para in one of the two stable states, it can switch to the other stable state or to
+//! initiate offboarding process. The result of offboarding is removal of all data related to that
+//! para.
+//!
+//! # PVF Pre-checking
+//!
+//! As was mentioned above, a brand new validation code should go through a process of approval.
+//! As part of this process, validators from the active set will take the validation code and
+//! check if it is malicious. Once they did that and have their judgement, either accept or reject,
+//! they issue a statement in a form of an unsigned extrinsic. This extrinsic is processed by this
+//! pallet. Once supermajority is gained for accept, then the process that initiated the check
+//! is resumed (as mentioned before this can be either upgrading of validation code or onboarding).
+//! If supermajority is gained for reject, then the process is canceled.
 
 use crate::{configuration, initializer::SessionChangeNotification, shared};
-use frame_support::pallet_prelude::*;
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
+use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
-	ConsensusLog, HeadData, Id as ParaId, SessionIndex, UpgradeGoAhead, UpgradeRestriction,
-	ValidationCode, ValidationCodeHash,
+	ConsensusLog, HeadData, Id as ParaId, PvfCheckStatement, SessionIndex, UpgradeGoAhead,
+	UpgradeRestriction, ValidationCode, ValidationCodeHash, ValidatorSignature,
 };
 use scale_info::TypeInfo;
 use sp_core::RuntimeDebug;
-use sp_runtime::{traits::One, DispatchResult, SaturatedConversion};
-use sp_std::{prelude::*, result};
+use sp_runtime::{
+	traits::{AppVerify, One},
+	DispatchResult, SaturatedConversion,
+};
+use sp_std::{cmp, convert::TryInto, mem, prelude::*, result};
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -74,16 +132,6 @@ pub struct ParaPastCodeMeta<N> {
 	/// Tracks the highest pruned code-replacement, if any. This is the `activated_at` value,
 	/// not the `expected_at` value.
 	last_pruned: Option<N>,
-}
-
-#[cfg_attr(test, derive(Debug, PartialEq))]
-enum UseCodeAt<N> {
-	/// Use the current code.
-	Current,
-	/// Use the code that was replaced at the given block number.
-	/// This is an inclusive endpoint - a parablock in the context of a relay-chain block on this fork
-	/// with number N should use the code that is replaced at N.
-	ReplacedAt(N),
 }
 
 /// The possible states of a para, to take into account delayed lifecycle changes.
@@ -164,71 +212,13 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 		self.upgrade_times.push(ReplacementTimes { expected_at, activated_at })
 	}
 
-	// Yields an identifier that should be used for validating a
-	// parablock in the context of a particular relay-chain block number in this chain.
-	//
-	// a return value of `None` means that there is no code we are aware of that
-	// should be used to validate at the given height.
-	fn code_at(&self, para_at: N) -> Option<UseCodeAt<N>> {
-		// Find out
-		// a) if there is a point where code was replaced in the current chain after the context
-		//    we are finding out code for.
-		// b) what the index of that point is.
-		//
-		// The reason we use `activated_at` instead of `expected_at` is that a gap may occur
-		// between expectation and actual activation. Any block executed in a context from
-		// `expected_at..activated_at` is expected to activate the code upgrade and therefore should
-		// use the previous code.
-		//
-		// A block executed in the context of `activated_at` should use the new code.
-		//
-		// Cases where `expected_at` and `activated_at` are the same, that is, zero-delay code upgrades
-		// are also handled by this rule correctly.
-		let replaced_after_pos = self.upgrade_times.iter().position(|t| {
-			// example: code replaced at (5, 5)
-			//
-			// context #4 should use old code
-			// context #5 should use new code
-			//
-			// example: code replaced at (10, 20)
-			// context #9 should use the old code
-			// context #10 should use the old code
-			// context #19 should use the old code
-			// context #20 should use the new code
-			para_at < t.activated_at
-		});
-
-		if let Some(replaced_after_pos) = replaced_after_pos {
-			// The earliest stored code replacement needs to be special-cased, since we need to check
-			// against the pruning state to see if this replacement represents the correct code, or
-			// is simply after a replacement that actually represents the correct code, but has been pruned.
-			let was_pruned =
-				replaced_after_pos == 0 && self.last_pruned.map_or(false, |t| t >= para_at);
-
-			if was_pruned {
-				None
-			} else {
-				Some(UseCodeAt::ReplacedAt(self.upgrade_times[replaced_after_pos].expected_at))
-			}
-		} else {
-			// No code replacements after this context.
-			// This means either that the current code is valid, or `para_at` is so old that
-			// we don't know the code necessary anymore. Compare against `last_pruned` to determine.
-			self.last_pruned.as_ref().map_or(
-				Some(UseCodeAt::Current), // nothing pruned, use current
-				|earliest_activation| {
-					if &para_at < earliest_activation {
-						None
-					} else {
-						Some(UseCodeAt::Current)
-					}
-				},
-			)
-		}
+	fn is_empty(&self) -> bool {
+		self.upgrade_times.is_empty()
 	}
 
 	// The block at which the most recently tracked code change occurred, from the perspective
 	// of the para.
+	#[cfg(test)]
 	fn most_recent_change(&self) -> Option<N> {
 		self.upgrade_times.last().map(|x| x.expected_at.clone())
 	}
@@ -270,6 +260,100 @@ pub struct ParaGenesisArgs {
 	pub parachain: bool,
 }
 
+/// This enum describes a reason why a particular PVF pre-checking voting was initiated. When the
+/// PVF voting in question is concluded, this enum indicates what changes should be performed.
+#[derive(Encode, Decode, TypeInfo)]
+enum PvfCheckCause {
+	/// PVF voting was initiated by the initial onboarding process of the given para.
+	Onboarding(ParaId),
+	/// PVF voting was initated by signalling of an upgrade by the given para.
+	Upgrade(ParaId),
+}
+
+/// Specifies what was the outcome of a PVF pre-checking voting.
+#[derive(Copy, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+enum PvfCheckOutcome {
+	Accepted,
+	Rejected,
+}
+
+/// This struct describes the current state of a PVF pre-checking voting process.
+#[derive(Encode, Decode, TypeInfo)]
+struct PvfCheckVotingState<BlockNumber> {
+	// The two following vectors have their length equal to the number of validators in the active
+	// set. They start with all zeroes. A 1 is set at an index when the validator at the same index
+	// makes a vote. Once a 1 is set for either of the vector, that validator cannot vote anymore.
+	// Since the active validator set changes each session, the bit vectors are reinitialized as
+	// well.
+	votes_accept: BitVec<BitOrderLsb0, u8>,
+	votes_reject: BitVec<BitOrderLsb0, u8>,
+
+	/// The number of session changes this PVF voting has observed. Therefore, this number is
+	/// increased at each session boundary. Starts with 0.
+	age: SessionIndex,
+	/// The block number at which this PVF voting was created.
+	created_at: BlockNumber,
+	/// A list of causes for this PVF pre-checking. Has at least one.
+	causes: Vec<PvfCheckCause>,
+}
+
+impl<BlockNumber> PvfCheckVotingState<BlockNumber> {
+	fn new(now: BlockNumber, n_validators: usize, cause: PvfCheckCause) -> Self {
+		let mut causes = Vec::with_capacity(1);
+		causes.push(cause);
+		Self {
+			created_at: now,
+			votes_accept: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			votes_reject: bitvec::bitvec![BitOrderLsb0, u8; 0; n_validators],
+			age: 0,
+			causes,
+		}
+	}
+
+	/// Resets all votes and resizes the votes vectors.
+	fn reinitialize_ballots(&mut self, n_validators: usize) {
+		let clear_and_resize = |v: &mut BitVec<_, _>| {
+			v.clear();
+			v.resize(n_validators, false);
+		};
+		clear_and_resize(&mut self.votes_accept);
+		clear_and_resize(&mut self.votes_reject);
+	}
+
+	/// Returns true if the validator at the given index has already casted their vote.
+	fn has_vote(&self, validator_index: usize) -> bool {
+		let inner = || -> Result<bool, ()> {
+			let accept_vote = self.votes_accept.get(validator_index).ok_or(())?;
+			let reject_vote = self.votes_reject.get(validator_index).ok_or(())?;
+			Ok(*accept_vote || *reject_vote)
+		};
+
+		inner().unwrap_or_else(|()| {
+			// This should not be reached since the vote vectors have the same length as the active
+			// validator set.
+			log::warn!(
+				target: "runtime::paras",
+				"vote bitfields has bogus length: {}, {}",
+				self.votes_accept.len(),
+				self.votes_reject.len(),
+			);
+			true
+		})
+	}
+
+	/// Returns `None` if the quorum is not reached, or the direction of the decision.
+	fn quorum(&self, n_validators: usize) -> Option<PvfCheckOutcome> {
+		let q_threshold = primitives::v1::supermajority_threshold(n_validators);
+		if self.votes_accept.count_ones() >= q_threshold {
+			Some(PvfCheckOutcome::Accepted)
+		} else if self.votes_reject.count_ones() >= q_threshold {
+			Some(PvfCheckOutcome::Rejected)
+		} else {
+			None
+		}
+	}
+}
+
 pub trait WeightInfo {
 	fn force_set_current_code(c: u32) -> Weight;
 	fn force_set_current_head(s: u32) -> Weight;
@@ -300,19 +384,33 @@ impl WeightInfo for TestWeightInfo {
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use sp_runtime::transaction_validity::{
+		InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
+		ValidTransaction,
+	};
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + configuration::Config + shared::Config {
+	pub trait Config:
+		frame_system::Config
+		+ configuration::Config
+		+ shared::Config
+		+ frame_system::offchain::SendTransactionTypes<Call<Self>>
+	{
 		/// The outer origin type.
 		type Origin: From<Origin>
 			+ From<<Self as frame_system::Config>::Origin>
 			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
 
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+
+		#[pallet::constant]
+		type UnsignedPriority: Get<TransactionPriority>;
+
+		type NextSessionRotation: EstimateNextSessionRotation<Self::BlockNumber>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -345,7 +443,28 @@ pub mod pallet {
 		CannotUpgrade,
 		/// Para cannot be downgraded to a parathread.
 		CannotDowngrade,
+		/// The statement for PVF pre-checking is stale.
+		PvfCheckStatementStale,
+		/// Claimed validator index is out of bounds.
+		PvfCheckValidatorIndexOutOfBounds,
+		/// The signature for the PVF pre-checking is invalid.
+		PvfCheckInvalidSignature,
+		/// The given validator already has casted a vote.
+		PvfCheckDoubleVote,
+		PvfCheckSubjectInvalid,
 	}
+
+	#[pallet::storage]
+	pub(super) type PvfVotingMap<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		ValidationCodeHash,
+		PvfCheckVotingState<T::BlockNumber>,
+		OptionQuery,
+	>;
+
+	#[pallet::storage]
+	pub(super) type PvfVotingList<T: Config> = StorageValue<_, Vec<ValidationCodeHash>, ValueQuery>;
 
 	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
 	#[pallet::storage]
@@ -599,6 +718,151 @@ pub mod pallet {
 			Self::deposit_event(Event::ActionQueued(para, next_session));
 			Ok(())
 		}
+
+		/// Includes a statement for a PVF pre-checking voting. Finalizes the voting and enacts
+		/// the results if that was the last vote before achieving the supermajority.
+		#[pallet::weight(0)]
+		pub fn include_pvf_check_statement(
+			origin: OriginFor<T>,
+			stmt: PvfCheckStatement,
+			signature: ValidatorSignature,
+		) -> DispatchResult {
+			ensure_none(origin)?;
+			let validators = shared::Pallet::<T>::active_validator_keys();
+			let current_session = shared::Pallet::<T>::session_index();
+			ensure!(stmt.session_index == current_session, Error::<T>::PvfCheckStatementStale);
+			let validator_index = stmt.validator_index.0 as usize;
+			let validator_public = validators
+				.get(validator_index)
+				.ok_or(Error::<T>::PvfCheckValidatorIndexOutOfBounds)?;
+
+			let signing_payload = stmt.signing_payload();
+			ensure!(
+				signature.verify(&signing_payload[..], &validator_public),
+				Error::<T>::PvfCheckInvalidSignature,
+			);
+
+			let mut voting =
+				PvfVotingMap::<T>::get(&stmt.subject).ok_or(Error::<T>::PvfCheckSubjectInvalid)?;
+
+			ensure!(!voting.has_vote(validator_index), Error::<T>::PvfCheckDoubleVote);
+
+			// Finally, cast the vote and persist.
+			if stmt.accept {
+				voting.votes_accept.set(validator_index, true);
+			} else {
+				voting.votes_reject.set(validator_index, true);
+			}
+
+			if let Some(outcome) = voting.quorum(validators.len()) {
+				// The supermajority quorum has been achieved.
+				//
+				// Remove the PVF check voting and finalize the PVF checking according to the
+				// outcome.
+				PvfVotingMap::<T>::remove(&stmt.subject);
+				PvfVotingList::<T>::mutate(|l| {
+					if let Ok(i) = l.binary_search(&stmt.subject) {
+						l.remove(i);
+					}
+				});
+				match outcome {
+					PvfCheckOutcome::Accepted => {
+						let cfg = configuration::Pallet::<T>::config();
+						Self::enact_pvf_accepted(
+							<frame_system::Pallet<T>>::block_number(),
+							&stmt.subject,
+							&voting.causes,
+							voting.age,
+							voting.created_at,
+							&cfg,
+						);
+					},
+					PvfCheckOutcome::Rejected => {
+						Self::enact_pvf_rejected(&stmt.subject, voting.causes);
+					},
+				}
+			} else {
+				PvfVotingMap::<T>::insert(&stmt.subject, voting);
+			}
+
+			Ok(())
+		}
+	}
+
+	const INVALID_TX_BAD_VALIDATOR_IDX: u8 = 1;
+	const INVALID_TX_BAD_SUBJECT: u8 = 2;
+
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			let (stmt, signature) = match call {
+				Call::include_pvf_check_statement { stmt, signature } => (stmt, signature),
+				_ => return InvalidTransaction::Call.into(),
+			};
+
+			let current_session = shared::Pallet::<T>::session_index();
+			if stmt.session_index != current_session {
+				return InvalidTransaction::Stale.into()
+			}
+
+			let validator_index = stmt.validator_index.0 as usize;
+			let validators = shared::Pallet::<T>::active_validator_keys();
+			let validator_public = match validators.get(validator_index) {
+				Some(pk) => pk,
+				None => return InvalidTransaction::Custom(INVALID_TX_BAD_VALIDATOR_IDX).into(),
+			};
+
+			let signing_payload = stmt.signing_payload();
+			if !signature.verify(&signing_payload[..], &validator_public) {
+				return InvalidTransaction::BadProof.into()
+			}
+
+			let voting = match PvfVotingMap::<T>::get(&stmt.subject) {
+				Some(v) => v,
+				None => return InvalidTransaction::Custom(INVALID_TX_BAD_SUBJECT).into(),
+			};
+
+			if voting.has_vote(validator_index) {
+				return InvalidTransaction::Stale.into()
+			}
+
+			ValidTransaction::with_tag_prefix("PvfPreCheckingVote")
+				.priority(T::UnsignedPriority::get())
+				.longevity(
+					TryInto::<u64>::try_into(
+						T::NextSessionRotation::average_session_length() / 2u32.into(),
+					)
+					.unwrap_or(64_u64),
+				)
+				.and_provides((stmt.session_index, stmt.validator_index, stmt.subject))
+				.propagate(true)
+				.build()
+		}
+
+		fn pre_dispatch(call: &Self::Call) -> Result<(), TransactionValidityError> {
+			let stmt = match call {
+				Call::include_pvf_check_statement { stmt, .. } => stmt,
+				_ => return Err(InvalidTransaction::Call.into()),
+			};
+
+			let current_session = shared::Pallet::<T>::session_index();
+			if stmt.session_index != current_session {
+				return Err(InvalidTransaction::Stale.into())
+			}
+
+			let voting = match PvfVotingMap::<T>::get(&stmt.subject) {
+				Some(v) => v,
+				None => return Err(InvalidTransaction::Custom(INVALID_TX_BAD_SUBJECT).into()),
+			};
+
+			if voting.has_vote(stmt.validator_index.0 as usize) {
+				return Err(InvalidTransaction::Stale.into())
+			}
+
+			Ok(())
+		}
 	}
 }
 
@@ -619,6 +883,7 @@ impl<T: Config> Pallet<T> {
 		notification: &SessionChangeNotification<T::BlockNumber>,
 	) -> Vec<ParaId> {
 		let outgoing_paras = Self::apply_actions_queue(notification.session_index);
+		Self::groom_ongoing_pvf_voting(notification.validators.len());
 		outgoing_paras
 	}
 
@@ -656,7 +921,6 @@ impl<T: Config> Pallet<T> {
 			match lifecycle {
 				None | Some(ParaLifecycle::Parathread) | Some(ParaLifecycle::Parachain) => { /* Nothing to do... */
 				},
-				// Onboard a new parathread or parachain.
 				Some(ParaLifecycle::Onboarding) => {
 					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
 						if genesis_data.parachain {
@@ -668,10 +932,18 @@ impl<T: Config> Pallet<T> {
 							ParaLifecycles::<T>::insert(&para, ParaLifecycle::Parathread);
 						}
 
-						let code_hash = genesis_data.validation_code.hash();
+						// HACK: see the notice in `schedule_para_initialize`.
+						//
+						// Apparently, this is left over from a prior version of the runtime.
+						// To handle this we just insert the code and link the current code hash
+						// to it.
+						if !genesis_data.validation_code.0.is_empty() {
+							let code_hash = genesis_data.validation_code.hash();
+							Self::increase_code_ref(&code_hash, &genesis_data.validation_code);
+							<Self as Store>::CurrentCodeHash::insert(&para, code_hash);
+						}
+
 						<Self as Store>::Heads::insert(&para, genesis_data.genesis_head);
-						Self::increase_code_ref(&code_hash, &genesis_data.validation_code);
-						<Self as Store>::CurrentCodeHash::insert(&para, code_hash);
 					}
 				},
 				// Upgrade a parathread to a parachain
@@ -723,13 +995,13 @@ impl<T: Config> Pallet<T> {
 			// NOTE both of those iterates over the list and the outgoing. We do not expect either
 			//      of these to be large. Thus should be fine.
 			<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
-				*upcoming_upgrades = sp_std::mem::take(upcoming_upgrades)
+				*upcoming_upgrades = mem::take(upcoming_upgrades)
 					.into_iter()
 					.filter(|&(ref para, _)| !outgoing.contains(para))
 					.collect();
 			});
 			<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
-				*upgrade_cooldowns = sp_std::mem::take(upgrade_cooldowns)
+				*upgrade_cooldowns = mem::take(upgrade_cooldowns)
 					.into_iter()
 					.filter(|&(ref para, _)| !outgoing.contains(para))
 					.collect();
@@ -740,35 +1012,6 @@ impl<T: Config> Pallet<T> {
 		<Self as Store>::Parachains::set(parachains);
 
 		return outgoing
-	}
-
-	// note replacement of the code of para with given `id`, which occured in the
-	// context of the given relay-chain block number. provide the replaced code.
-	//
-	// `at` for para-triggered replacement is the block number of the relay-chain
-	// block in whose context the parablock was executed
-	// (i.e. number of `relay_parent` in the receipt)
-	fn note_past_code(
-		id: ParaId,
-		at: T::BlockNumber,
-		now: T::BlockNumber,
-		old_code_hash: ValidationCodeHash,
-	) -> Weight {
-		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
-			past_meta.note_replacement(at, now);
-		});
-
-		<Self as Store>::PastCodeHash::insert(&(id, at), old_code_hash);
-
-		// Schedule pruning for this past-code to be removed as soon as it
-		// exits the slashing window.
-		<Self as Store>::PastCodePruning::mutate(|pruning| {
-			let insert_idx =
-				pruning.binary_search_by_key(&at, |&(_, b)| b).unwrap_or_else(|idx| idx);
-			pruning.insert(insert_idx, (id, now));
-		});
-
-		T::DbWeight::get().reads_writes(2, 3)
 	}
 
 	// looks at old code metadata, compares them to the current acceptance window, and prunes those
@@ -810,7 +1053,7 @@ impl<T: Config> Pallet<T> {
 							}
 						}
 
-						meta.most_recent_change().is_none() && Self::para_head(&para_id).is_none()
+						meta.is_empty() && Self::para_head(&para_id).is_none()
 					});
 
 					// This parachain has been removed and now the vestigial code
@@ -856,40 +1099,251 @@ impl<T: Config> Pallet<T> {
 		T::DbWeight::get().reads_writes(2, upgrades_signaled as u64 + cooldowns_expired as u64)
 	}
 
-	/// Verify that `schedule_para_initialize` can be called successfully.
-	///
-	/// Returns false if para is already registered in the system.
-	pub fn can_schedule_para_initialize(id: &ParaId, _: &ParaGenesisArgs) -> bool {
-		let lifecycle = ParaLifecycles::<T>::get(id);
-		lifecycle.is_none()
+	/// Goes over all PVF voting in progress, reinitializes ballots, increments ages and prunes the
+	/// votings that reached their time-to-live.
+	fn groom_ongoing_pvf_voting(new_n_validators: usize) -> Weight {
+		// TODO: Move in the config
+		const PVF_CHECK_TTL: SessionIndex = 3;
+
+		let mut weight = T::DbWeight::get().reads(1);
+
+		let all_votings = PvfVotingList::<T>::get();
+		let mut keep = Vec::with_capacity(all_votings.len());
+
+		for pvf_hash in all_votings {
+			let mut voting = match PvfVotingMap::<T>::take(&pvf_hash) {
+				Some(v) => v,
+				None => {
+					// This branch should never be reached. This is due to the fact that the set of
+					// `PvfVotingMap`'s keys is always equal to the set of items found in
+					// `PvfVotingList`.
+					log::warn!(
+						target: "runtime::paras",
+						"The PVF voting map is not synced with the list!",
+					);
+					debug_assert!(false);
+					continue
+				},
+			};
+
+			if voting.age < PVF_CHECK_TTL {
+				weight += T::DbWeight::get().writes(1);
+				voting.age += 1;
+				voting.reinitialize_ballots(new_n_validators);
+				PvfVotingMap::<T>::insert(&pvf_hash, voting);
+				keep.push(pvf_hash);
+			} else {
+				// TTL is reached. Reject.
+				weight += Self::enact_pvf_rejected(&pvf_hash, voting.causes);
+			}
+		}
+
+		PvfVotingList::<T>::put(keep);
+
+		weight
 	}
 
-	/// Schedule a para to be initialized at the start of the next session.
-	///
-	/// Will return error if para is already registered in the system.
-	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> DispatchResult {
-		let scheduled_session = Self::scheduled_session();
+	fn enact_pvf_accepted(
+		now: T::BlockNumber,
+		code_hash: &ValidationCodeHash,
+		causes: &[PvfCheckCause],
+		sessions_observed: SessionIndex,
+		code_inserted_at: T::BlockNumber,
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+	) -> Weight {
+		let mut weight = 0;
+		for cause in causes {
+			match cause {
+				PvfCheckCause::Onboarding(id) => {
+					weight += Self::proceed_with_onboarding(*id, sessions_observed);
+				},
+				PvfCheckCause::Upgrade(id) => {
+					weight +=
+						Self::proceed_with_upgrade(*id, code_hash, now, code_inserted_at, cfg);
+				},
+			}
+		}
+		weight
+	}
 
-		// Make sure parachain isn't already in our system.
-		ensure!(Self::can_schedule_para_initialize(&id, &genesis), Error::<T>::CannotOnboard);
+	fn proceed_with_onboarding(id: ParaId, sessions_observed: SessionIndex) -> Weight {
+		let weight = T::DbWeight::get().reads_writes(2, 1);
 
-		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
-		UpcomingParasGenesis::<T>::insert(&id, genesis);
-		ActionsQueue::<T>::mutate(scheduled_session, |v| {
+		// we should onboard only after `SESSION_DELAY` sessions but we should take
+		// into account the number of sessions the PVF pre-checking occupied.
+		//
+		// we cannot onboard at the current session, so it must be at least one
+		// session ahead.
+		let onboard_at: SessionIndex = shared::Pallet::<T>::session_index() +
+			cmp::max(shared::SESSION_DELAY.saturating_sub(sessions_observed), 1);
+
+		ActionsQueue::<T>::mutate(onboard_at, |v| {
 			if let Err(i) = v.binary_search(&id) {
 				v.insert(i, id);
 			}
 		});
+
+		weight
+	}
+
+	fn proceed_with_upgrade(
+		id: ParaId,
+		code_hash: &ValidationCodeHash,
+		now: T::BlockNumber,
+		code_inserted_at: T::BlockNumber,
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+	) -> Weight {
+		let mut weight = 0;
+
+		// Schedule upgrade to happen after a mandatory PVF code soaking period, but
+		// make sure it is no earlier than the minimum schedule delay.
+		let expected_at = cmp::max(
+			code_inserted_at + cfg.validation_upgrade_delay,
+			now + cfg.minimum_validation_upgrade_delay,
+		);
+
+		weight += T::DbWeight::get().reads_writes(1, 4);
+		FutureCodeUpgrades::<T>::insert(&id, expected_at);
+
+		<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
+			let insert_idx = upcoming_upgrades
+				.binary_search_by_key(&expected_at, |&(_, b)| b)
+				.unwrap_or_else(|idx| idx);
+			upcoming_upgrades.insert(insert_idx, (id, expected_at));
+		});
+
+		let expected_at = expected_at.saturated_into();
+		let log = ConsensusLog::ParaScheduleUpgradeCode(id, *code_hash, expected_at);
+		<frame_system::Pallet<T>>::deposit_log(log.into());
+
+		weight
+	}
+
+	fn enact_pvf_rejected(code_hash: &ValidationCodeHash, causes: Vec<PvfCheckCause>) -> Weight {
+		let mut weight = T::DbWeight::get().writes(1);
+
+		for cause in causes {
+			// Whenever PVF pre-checking is started or a new cause is added to it, the RC is bumped.
+			// Now we need to unbump it.
+			weight += Self::decrease_code_ref(code_hash);
+
+			match cause {
+				PvfCheckCause::Onboarding(para) => {
+					// Here we need to undo everything that was done during `schedule_para_initialize`.
+					// Essentially, the logic is similar to offboarding, with exception that before
+					// actual onboarding the parachain did not have a chance to reach to upgrades.
+					// Therefore we can skip all the upgrade related storage items here.
+					weight += T::DbWeight::get().writes(3);
+					UpcomingParasGenesis::<T>::remove(&para);
+					CurrentCodeHash::<T>::remove(&para);
+					ParaLifecycles::<T>::remove(&para);
+				},
+				PvfCheckCause::Upgrade(para) => {
+					weight += T::DbWeight::get().writes(1);
+					UpgradeGoAheadSignal::<T>::insert(&para, UpgradeGoAhead::Abort);
+				},
+			}
+		}
+
+		weight
+	}
+
+	/// Verify that `schedule_para_initialize` can be called successfully.
+	///
+	/// Returns false if para is already registered in the system.
+	pub fn can_schedule_para_initialize(id: &ParaId) -> bool {
+		ParaLifecycles::<T>::get(id).is_none()
+	}
+
+	/// Schedule a para to be initialized. If the validation code is not already stored in the
+	/// code storage, then a PVF pre-checking process will be initiated.
+	///
+	/// Only after the PVF pre-checking succeeds can the para be onboarded. Note, that calling this
+	/// does not guarantee that the parachain will eventually be onboarded. This can happen in case
+	/// the PVF does not pass PVF pre-checking.
+	///
+	/// The Para ID should be not activated in this module. The validation code supplied in
+	/// `genesis_data` should not be empty. If those conditions are not met, then the para cannot
+	/// be onboarded.
+	pub(crate) fn schedule_para_initialize(
+		id: ParaId,
+		mut genesis_data: ParaGenesisArgs,
+	) -> DispatchResult {
+		// Make sure parachain isn't already in our system and that the onboarding parameters are
+		// valid.
+		ensure!(Self::can_schedule_para_initialize(&id), Error::<T>::CannotOnboard);
+		ensure!(!genesis_data.validation_code.0.is_empty(), Error::<T>::CannotOnboard);
+		ParaLifecycles::<T>::insert(&id, ParaLifecycle::Onboarding);
+
+		// HACK: here we are doing something nasty.
+		//
+		// In order to fix the [soaking issue] we insert the code eagerly here. When the onboarding
+		// is finally enacted, we do not need to insert the code anymore. Therefore, there is no
+		// reason for the validation code to be copied into the `ParaGenesisArgs`. We also do not
+		// want to risk it by copying the validation code needlessly to not risk adding more
+		// memory pressure.
+		//
+		// That said, we also want to preserve `ParaGenesisArgs` as it is, for now. There are two
+		// reasons:
+		//
+		// - Doing it within the context of the PR that introduces this change is undesirable, since
+		//   it is already a big change, and that change would require a migration. Moreover, if we
+		//   run the new version of the runtime, there will be less things to worry about during
+		//   the eventual proper migration.
+		//
+		// - This data type already is used for generating genesis, and changing it will probably
+		//   introduce some unnecessary burden.
+		//
+		// So instead of going through it right now, we will do something sneaky. Specifically:
+		//
+		// - Insert the `CurrentCodeHash` now, instead during the onboarding. That would allow to
+		//   get rid of hashing of the validation code when onboarding.
+		//
+		// - Replace `validation_code` with a sentinel value: an empty vector. This should be fine
+		//   as long we do not allow registering parachains with empty code. At the moment of writing
+		//   this should already be the case.
+		//
+		// - Empty value is treated as the current code is already inserted during the onboarding.
+		//
+		// This is only an intermediate solution and should be fixed in foreseable future.
+		//
+		// [soaking issue]: https://github.com/paritytech/polkadot/issues/3918
+		let validation_code = mem::take(&mut genesis_data.validation_code);
+		UpcomingParasGenesis::<T>::insert(&id, genesis_data);
+		let validation_code_hash = validation_code.hash();
+		<Self as Store>::CurrentCodeHash::insert(&id, validation_code_hash);
+
+		let cfg = configuration::Pallet::<T>::config();
+		Self::kick_off_pvf_check(
+			PvfCheckCause::Onboarding(id),
+			validation_code_hash,
+			validation_code,
+			&cfg,
+		);
 
 		Ok(())
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
 	///
-	/// Will return error if para is not a stable parachain or parathread.
+	/// Will return error if either is true:
+	///
+	/// - para is not a stable parachain or parathread.
+	/// - para has a pending upgrade.
 	///
 	/// No-op if para is not registered at all.
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> DispatchResult {
+		// Disallow offboarding in case there is an upcoming upgrade.
+		//
+		// This is not a fundamential limitation but rather simplification: it allows us to get
+		// away without introducing additional logic for pruning and, more importantly, enacting
+		// ongoing PVF pre-checking votings. It also removes some nasty edge cases.
+		//
+		// This implicitly assumes that the given para exists, i.e. it's lifecycle != None.
+		if FutureCodeHash::<T>::contains_key(&id) {
+			return Err(Error::<T>::CannotOffboard.into())
+		}
+
 		let lifecycle = ParaLifecycles::<T>::get(&id);
 		match lifecycle {
 			// If para is not registered, nothing to do!
@@ -951,10 +1405,20 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
-	/// of a block of the same parachain executed in the context of a relay-chain block
-	/// with number >= `expected_at`
+	/// Schedule a future code upgrade of the given parachain.
 	///
+	/// If the new code is not known, then the PVF pre-checking will be started for that validation
+	/// code. In case the validation code does not pass the PVF pre-checking process, the
+	/// upgrade will be aborted.
+	///
+	/// Only after the code is approved by the process, the upgrade can be scheduled. Specifically,
+	/// the relay-chain block number will be determined at which the upgrade will take place. We
+	/// call that block `expected_at`.
+	///
+	/// Once the candidate with the relay-parent >= `expected_at` is enacted, the new validation code
+	/// will be applied. Therefore, the new code will be used to validate the next candidate.
+	///
+	/// The new code should not be equal to the current one, otherwise the upgrade will be aborted.
 	/// If there is already a scheduled code upgrade for the para, this is a no-op.
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
@@ -962,44 +1426,113 @@ impl<T: Config> Pallet<T> {
 		relay_parent_number: T::BlockNumber,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
-		<Self as Store>::FutureCodeUpgrades::mutate(&id, |up| {
-			if up.is_some() {
-				T::DbWeight::get().reads_writes(1, 0)
-			} else {
-				let expected_at = relay_parent_number + cfg.validation_upgrade_delay;
-				let next_possible_upgrade_at =
-					relay_parent_number + cfg.validation_upgrade_frequency;
+		let mut weight = T::DbWeight::get().reads(1);
 
-				*up = Some(expected_at);
+		// Enacting this should be prevented by the `can_schedule_upgrade`
+		if FutureCodeHash::<T>::contains_key(&id) {
+			// This branch should never be reached. Signalling an upgrade is disallowed for a para
+			// that already has one upgrade scheduled.
+			//
+			// Any candidate that attempts to do that should be rejected by
+			// `can_upgrade_validation_code`.
+			UpgradeGoAheadSignal::<T>::insert(&id, UpgradeGoAhead::Abort);
+			log::warn!(
+				target: "runtime::paras",
+				"ended up scheduling an upgrade while one is pending",
+			);
+			return weight
+		}
 
-				<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
-					let insert_idx = upcoming_upgrades
-						.binary_search_by_key(&expected_at, |&(_, b)| b)
-						.unwrap_or_else(|idx| idx);
-					upcoming_upgrades.insert(insert_idx, (id, expected_at));
-				});
+		let code_hash = new_code.hash();
 
-				// From the moment of signalling of the upgrade until the cooldown expires, the
-				// parachain is disallowed to make further upgrades. Therefore set the upgrade
-				// permission signal to disallowed and activate the cooldown timer.
-				<Self as Store>::UpgradeRestrictionSignal::insert(&id, UpgradeRestriction::Present);
-				<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
-					let insert_idx = upgrade_cooldowns
-						.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
-						.unwrap_or_else(|idx| idx);
-					upgrade_cooldowns.insert(insert_idx, (id, next_possible_upgrade_at));
-				});
+		// para signals an update to the same code? This does not make a lot of sense, so abort the
+		// process right away.
+		weight += T::DbWeight::get().reads(1);
+		if CurrentCodeHash::<T>::get(&id) == Some(code_hash) {
+			UpgradeGoAheadSignal::<T>::insert(&id, UpgradeGoAhead::Abort);
+			return weight
+		}
 
-				let new_code_hash = new_code.hash();
-				let expected_at_u32 = expected_at.saturated_into();
-				let log = ConsensusLog::ParaScheduleUpgradeCode(id, new_code_hash, expected_at_u32);
-				<frame_system::Pallet<T>>::deposit_log(log.into());
+		// This is the start of the upgrade process. Prevent any further attempts at upgrading.
+		weight += T::DbWeight::get().writes(2);
+		FutureCodeHash::<T>::insert(&id, &code_hash);
+		UpgradeRestrictionSignal::<T>::insert(&id, UpgradeRestriction::Present);
 
-				let (reads, writes) = Self::increase_code_ref(&new_code_hash, &new_code);
-				FutureCodeHash::<T>::insert(&id, new_code_hash);
-				T::DbWeight::get().reads_writes(2 + reads, 3 + writes)
-			}
-		})
+		weight += T::DbWeight::get().reads_writes(1, 1);
+		let next_possible_upgrade_at = relay_parent_number + cfg.validation_upgrade_frequency;
+		<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
+			let insert_idx = upgrade_cooldowns
+				.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
+				.unwrap_or_else(|idx| idx);
+			upgrade_cooldowns.insert(insert_idx, (id, next_possible_upgrade_at));
+		});
+
+		weight += Self::kick_off_pvf_check(PvfCheckCause::Upgrade(id), code_hash, new_code, cfg);
+
+		weight
+	}
+
+	fn kick_off_pvf_check(
+		cause: PvfCheckCause,
+		code_hash: ValidationCodeHash,
+		code: ValidationCode,
+		cfg: &configuration::HostConfiguration<T::BlockNumber>,
+	) -> Weight {
+		let mut weight = 0;
+
+		weight += T::DbWeight::get().reads(1);
+		match PvfVotingMap::<T>::get(&code_hash) {
+			None => {
+				let known_code = CodeByHash::<T>::contains_key(&code_hash);
+
+				if !cfg.pvf_checking_enabled || known_code {
+					// Either:
+					// - the code is known and there is no PVF voting for it meaning it is already
+					//   checked, or
+					// - the PVF checking is diabled
+					// In any case: fast track the PVF checking into the accepted state
+					let now = <frame_system::Pallet<T>>::block_number();
+					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, now, cfg);
+				} else {
+					// PVF is not being pre-checked and it is not known. Start a new pre-checking
+					// process.
+					weight += T::DbWeight::get().reads_writes(3, 2);
+					let now = <frame_system::Pallet<T>>::block_number();
+					let n_validators = shared::Pallet::<T>::active_validator_keys().len();
+					PvfVotingMap::<T>::insert(
+						&code_hash,
+						PvfCheckVotingState::new(now, n_validators, cause),
+					);
+					PvfVotingList::<T>::mutate(|l| {
+						if let Err(idx) = l.binary_search(&code_hash) {
+							l.insert(idx, code_hash);
+						}
+					});
+				}
+			},
+			Some(mut voting) => {
+				// Coalescing: the PVF is already being pre-checked so we just need to piggy back
+				// on it.
+				weight += T::DbWeight::get().writes(1);
+				voting.causes.push(cause);
+				PvfVotingMap::<T>::insert(&code_hash, voting);
+			},
+		}
+
+		// We increase the code RC here in any case. Intuitively the parachain that requested this
+		// action is now a user of that PVF.
+		//
+		// If the result of the pre-checking is reject, then we would decrease the RC for each cause,
+		// including the current.
+		//
+		// If the result of the pre-checking is accept, then we do nothing to the RC because the PVF
+		// will continue be used by the same users.
+		//
+		// If the PVF was fast-tracked (i.e. there is already non zero RC) and there is no
+		// pre-checking, we also do not change the RC then.
+		weight += Self::increase_code_ref(&code_hash, &code);
+
+		weight
 	}
 
 	/// Note that a para has progressed to a new head, where the new head was executed in the context
@@ -1012,10 +1545,10 @@ impl<T: Config> Pallet<T> {
 	) -> Weight {
 		Heads::<T>::insert(&id, new_head);
 
-		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
+		if let Some(expected_at) = FutureCodeUpgrades::<T>::get(&id) {
 			if expected_at <= execution_context {
-				<Self as Store>::FutureCodeUpgrades::remove(&id);
-				<Self as Store>::UpgradeGoAheadSignal::remove(&id);
+				FutureCodeUpgrades::<T>::remove(&id);
+				UpgradeGoAheadSignal::<T>::remove(&id);
 
 				// Both should always be `Some` in this case, since a code upgrade is scheduled.
 				let new_code_hash = FutureCodeHash::<T>::take(&id).unwrap_or_default();
@@ -1027,7 +1560,6 @@ impl<T: Config> Pallet<T> {
 
 				// `now` is only used for registering pruning as part of `fn note_past_code`
 				let now = <frame_system::Pallet<T>>::block_number();
-
 				let weight = Self::note_past_code(id, expected_at, now, prior_code_hash);
 
 				// add 1 to writes due to heads update.
@@ -1036,44 +1568,63 @@ impl<T: Config> Pallet<T> {
 				T::DbWeight::get().reads_writes(1, 1 + 0)
 			}
 		} else {
+			// This means there is no upgrade scheduled.
+			//
+			// In case the upgrade was aborted by the relay-chain we should reset
+			// the `Abort` signal.
+			UpgradeGoAheadSignal::<T>::remove(&id);
 			T::DbWeight::get().reads_writes(1, 1)
 		}
 	}
 
-	/// Fetches the validation code hash for the validation code to be used when validating a block
-	/// in the context of the given relay-chain height. A second block number parameter may be used
-	/// to tell the lookup to proceed as if an intermediate parablock has been with the given
-	/// relay-chain height as its context. This may return the hash for the past, current, or
-	/// (with certain choices of `assume_intermediate`) future code.
-	///
-	/// `assume_intermediate`, if provided, must be before `at`. This will return `None` if the validation
-	/// code has been pruned.
-	///
-	/// To get associated code see [`Self::validation_code_at`].
-	pub(crate) fn validation_code_hash_at(
+	// note replacement of the code of para with given `id`, which occured in the
+	// context of the given relay-chain block number. provide the replaced code.
+	//
+	// `at` for para-triggered replacement is the block number of the relay-chain
+	// block in whose context the parablock was executed
+	// (i.e. number of `relay_parent` in the receipt)
+	fn note_past_code(
 		id: ParaId,
 		at: T::BlockNumber,
-		assume_intermediate: Option<T::BlockNumber>,
-	) -> Option<ValidationCodeHash> {
-		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
-			return None
-		}
+		now: T::BlockNumber,
+		old_code_hash: ValidationCodeHash,
+	) -> Weight {
+		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
+			past_meta.note_replacement(at, now);
+		});
 
-		let planned_upgrade = <Self as Store>::FutureCodeUpgrades::get(&id);
-		let upgrade_applied_intermediate = match assume_intermediate {
-			Some(a) => planned_upgrade.as_ref().map_or(false, |u| u <= &a),
-			None => false,
-		};
+		<Self as Store>::PastCodeHash::insert(&(id, at), old_code_hash);
 
-		if upgrade_applied_intermediate {
-			FutureCodeHash::<T>::get(&id)
-		} else {
-			match Self::past_code_meta(&id).code_at(at) {
-				None => None,
-				Some(UseCodeAt::Current) => CurrentCodeHash::<T>::get(&id),
-				Some(UseCodeAt::ReplacedAt(replaced)) =>
-					<Self as Store>::PastCodeHash::get(&(id, replaced)),
-			}
+		// Schedule pruning for this past-code to be removed as soon as it
+		// exits the slashing window.
+		<Self as Store>::PastCodePruning::mutate(|pruning| {
+			let insert_idx =
+				pruning.binary_search_by_key(&now, |&(_, b)| b).unwrap_or_else(|idx| idx);
+			pruning.insert(insert_idx, (id, now));
+		});
+
+		T::DbWeight::get().reads_writes(2, 3)
+	}
+
+	/// Returns the list of PVFs (aka validation code) that require pre-checking votes.
+	pub(crate) fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+		PvfVotingList::<T>::get()
+	}
+
+	pub(crate) fn submit_pvf_check_statement(
+		stmt: PvfCheckStatement,
+		signature: ValidatorSignature,
+	) {
+		use frame_system::offchain::SubmitTransaction;
+
+		if let Err(e) = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(
+			Call::include_pvf_check_statement { stmt, signature }.into(),
+		) {
+			log::error!(
+				target: "runtime::paras",
+				"Error submitting pvf check statement: {:?}",
+				e,
+			);
 		}
 	}
 
@@ -1115,16 +1666,10 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// The block number of the last scheduled upgrade of the requested para. Includes future upgrades
-	/// if the flag is set. This is the `expected_at` number, not the `activated_at` number.
-	pub(crate) fn last_code_upgrade(id: ParaId, include_future: bool) -> Option<T::BlockNumber> {
-		if include_future {
-			if let Some(at) = Self::future_code_upgrade_at(id) {
-				return Some(at)
-			}
-		}
-
-		Self::past_code_meta(&id).most_recent_change()
+	/// If a candidate from the specified parachain were submitted at the current block, this
+	/// function returns if that candidate passes the acceptance criteria.
+	pub(crate) fn can_upgrade_validation_code(id: ParaId) -> bool {
+		FutureCodeHash::<T>::get(&id).is_none() && UpgradeRestrictionSignal::<T>::get(&id).is_none()
 	}
 
 	/// Return the session index that should be used for any future scheduled changes.
@@ -1135,29 +1680,32 @@ impl<T: Config> Pallet<T> {
 	/// Store the validation code if not already stored, and increase the number of reference.
 	///
 	/// Returns the number of storage reads and number of storage writes.
-	fn increase_code_ref(code_hash: &ValidationCodeHash, code: &ValidationCode) -> (u64, u64) {
-		let reads = 1;
-		let mut writes = 1;
+	fn increase_code_ref(code_hash: &ValidationCodeHash, code: &ValidationCode) -> Weight {
+		let mut weight = T::DbWeight::get().reads_writes(1, 1);
 		<Self as Store>::CodeByHashRefs::mutate(code_hash, |refs| {
 			if *refs == 0 {
-				writes += 1;
+				weight += T::DbWeight::get().writes(1);
 				<Self as Store>::CodeByHash::insert(code_hash, code);
 			}
 			*refs += 1;
 		});
-		(reads, writes)
+		weight
 	}
 
 	/// Decrease the number of reference ofthe validation code and remove it from storage if zero
 	/// is reached.
-	fn decrease_code_ref(code_hash: &ValidationCodeHash) {
+	fn decrease_code_ref(code_hash: &ValidationCodeHash) -> Weight {
+		let mut weight = T::DbWeight::get().reads(1);
 		let refs = <Self as Store>::CodeByHashRefs::get(code_hash);
 		if refs <= 1 {
+			weight += T::DbWeight::get().writes(2);
 			<Self as Store>::CodeByHash::remove(code_hash);
 			<Self as Store>::CodeByHashRefs::remove(code_hash);
 		} else {
+			weight += T::DbWeight::get().writes(1);
 			<Self as Store>::CodeByHashRefs::insert(code_hash, refs - 1);
 		}
+		weight
 	}
 
 	/// Test function for triggering a new session in this pallet.
@@ -1173,15 +1721,45 @@ impl<T: Config> Pallet<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::assert_ok;
-	use primitives::v1::BlockNumber;
+	use frame_support::{assert_err, assert_ok};
+	use keyring::Sr25519Keyring;
+	use primitives::{
+		v0::PARACHAIN_KEY_TYPE_ID,
+		v1::{BlockNumber, ValidatorId},
+	};
+	use sc_keystore::LocalKeystore;
+	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+	use std::sync::Arc;
 
 	use crate::{
 		configuration::HostConfiguration,
-		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System},
+		mock::{new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, System, Test},
 	};
 
+	static VALIDATORS: &[Sr25519Keyring] = &[
+		Sr25519Keyring::Alice,
+		Sr25519Keyring::Bob,
+		Sr25519Keyring::Charlie,
+		Sr25519Keyring::Dave,
+		Sr25519Keyring::Ferdie,
+	];
+
+	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+		val_ids.iter().map(|v| v.public().into()).collect()
+	}
+
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		for validator in VALIDATORS.iter() {
+			SyncCryptoStore::sr25519_generate_new(
+				&*keystore,
+				PARACHAIN_KEY_TYPE_ID,
+				Some(&validator.to_seed()),
+			)
+			.unwrap();
+		}
+		let validator_pubkeys = validator_pubkeys(VALIDATORS);
+
 		while System::block_number() < to {
 			let b = System::block_number();
 			Paras::initializer_finalize();
@@ -1189,12 +1767,14 @@ mod tests {
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				let mut session_change_notification = SessionChangeNotification::default();
 				session_change_notification.session_index = ParasShared::session_index() + 1;
+				session_change_notification.validators = validator_pubkeys.clone();
 				ParasShared::initializer_on_new_session(
 					session_change_notification.session_index,
 					session_change_notification.random_seed,
 					&session_change_notification.new_config,
 					session_change_notification.validators.clone(),
 				);
+				ParasShared::set_active_validators_ascending(validator_pubkeys.clone());
 				Paras::initializer_on_new_session(&session_change_notification);
 			}
 			System::on_finalize(b);
@@ -1222,52 +1802,6 @@ mod tests {
 	fn check_code_is_not_stored(validation_code: &ValidationCode) {
 		assert!(!<Paras as Store>::CodeByHashRefs::contains_key(validation_code.hash()));
 		assert!(!<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
-	}
-
-	fn fetch_validation_code_at(
-		para_id: ParaId,
-		at: BlockNumber,
-		assume_intermediate: Option<BlockNumber>,
-	) -> Option<ValidationCode> {
-		Paras::validation_code_hash_at(para_id, at, assume_intermediate)
-			.and_then(Paras::code_by_hash)
-	}
-
-	#[test]
-	fn para_past_code_meta_gives_right_code() {
-		let mut past_code = ParaPastCodeMeta::default();
-		assert_eq!(past_code.code_at(0u32), Some(UseCodeAt::Current));
-
-		past_code.note_replacement(10, 12);
-		assert_eq!(past_code.code_at(0), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(12), Some(UseCodeAt::Current));
-
-		past_code.note_replacement(20, 25);
-		assert_eq!(past_code.code_at(1), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(12), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(24), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(25), Some(UseCodeAt::Current));
-
-		past_code.note_replacement(30, 30);
-		assert_eq!(past_code.code_at(1), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(12), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(24), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(25), Some(UseCodeAt::ReplacedAt(30)));
-		assert_eq!(past_code.code_at(30), Some(UseCodeAt::Current));
-
-		past_code.last_pruned = Some(5);
-		assert_eq!(past_code.code_at(1), None);
-		assert_eq!(past_code.code_at(5), None);
-		assert_eq!(past_code.code_at(6), Some(UseCodeAt::ReplacedAt(10)));
-		assert_eq!(past_code.code_at(24), Some(UseCodeAt::ReplacedAt(20)));
-		assert_eq!(past_code.code_at(25), Some(UseCodeAt::ReplacedAt(30)));
-		assert_eq!(past_code.code_at(30), Some(UseCodeAt::Current));
 	}
 
 	#[test]
@@ -1504,6 +2038,7 @@ mod tests {
 					code_retention_period,
 					validation_upgrade_delay,
 					validation_upgrade_frequency,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -1521,8 +2056,10 @@ mod tests {
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 			let expected_at = {
-				// this parablock is in the context of block 1.
-				let expected_at = 1 + validation_upgrade_delay;
+				// the upgrade is scheduled at block #2 and instantly enacted (because pvf checking
+				// is disabled). At the same time, the upgrade frequency (cooldown) is counted from
+				// the relay-parent which is 1.
+				let expected_at = 2 + validation_upgrade_delay;
 				let next_possible_upgrade_at = 1 + validation_upgrade_frequency;
 				Paras::schedule_code_upgrade(
 					para_id,
@@ -1611,6 +2148,7 @@ mod tests {
 					code_retention_period,
 					validation_upgrade_delay,
 					validation_upgrade_frequency,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -1626,8 +2164,10 @@ mod tests {
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 			let expected_at = {
-				// this parablock is in the context of block 1.
-				let expected_at = 1 + validation_upgrade_delay;
+				// the upgrade is scheduled at block #2 and instantly enacted (because pvf checking
+				// is disabled). At the same time, the upgrade frequency (cooldown) is counted from
+				// the relay-parent which is 1.
+				let expected_at = 2 + validation_upgrade_delay;
 				let next_possible_upgrade_at = 1 + validation_upgrade_frequency;
 				Paras::schedule_code_upgrade(
 					para_id,
@@ -1666,27 +2206,6 @@ mod tests {
 
 				assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(expected_at));
 
-				// Some hypothetical block which would have triggered the code change
-				// should still use the old code.
-				assert_eq!(
-					Paras::past_code_meta(&para_id).code_at(expected_at),
-					Some(UseCodeAt::ReplacedAt(expected_at)),
-				);
-
-				// Some hypothetical block at the context which actually triggered the
-				// code change should still use the old code.
-				assert_eq!(
-					Paras::past_code_meta(&para_id).code_at(expected_at + 4),
-					Some(UseCodeAt::ReplacedAt(expected_at)),
-				);
-
-				// Some hypothetical block at the context after the code was upgraded
-				// should use the new code.
-				assert_eq!(
-					Paras::past_code_meta(&para_id).code_at(expected_at + 4 + 1),
-					Some(UseCodeAt::Current),
-				);
-
 				assert_eq!(
 					<Paras as Store>::PastCodeHash::get(&(para_id, expected_at)),
 					Some(original_code.hash()),
@@ -1703,6 +2222,7 @@ mod tests {
 	fn submit_code_change_when_not_allowed_is_err() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 7;
+		let validation_upgrade_frequency = 100;
 
 		let paras = vec![(
 			0u32.into(),
@@ -1719,6 +2239,8 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					validation_upgrade_frequency,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -1755,7 +2277,7 @@ mod tests {
 
 	#[test]
 	fn full_parachain_cleanup_storage() {
-		let code_retention_period = 10;
+		let code_retention_period = 20;
 		let validation_upgrade_delay = 1 + 5;
 
 		let original_code = ValidationCode(vec![1, 2, 3]);
@@ -1774,6 +2296,8 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					pvf_checking_enabled: false,
+					minimum_validation_upgrade_delay: 0,
 					..Default::default()
 				},
 				..Default::default()
@@ -1792,8 +2316,9 @@ mod tests {
 			check_code_is_stored(&original_code);
 
 			let expected_at = {
-				// this parablock is in the context of block 1.
-				let expected_at = 1 + validation_upgrade_delay;
+				// `schdule_code_upgrade` inserts the code at the relay-block 2 and then it has
+				// to go through the validation upgrade delay (soaking).
+				let expected_at = 2 + validation_upgrade_delay;
 				Paras::schedule_code_upgrade(
 					para_id,
 					new_code.clone(),
@@ -1812,62 +2337,58 @@ mod tests {
 				expected_at
 			};
 
+			// Cannot offboard while an upgrade is pending.
+			assert_err!(Paras::schedule_para_cleanup(para_id), Error::<Test>::CannotOffboard);
+
+			// Enact the upgrade.
+			//
+			// For that run to block #8 and submit a new head.
+			assert_eq!(expected_at, 8);
+			run_to_block(8, None);
+			assert_eq!(<frame_system::Pallet<Test>>::block_number(), 8);
+			Paras::note_new_head(para_id, Default::default(), expected_at);
+
 			assert_ok!(Paras::schedule_para_cleanup(para_id));
 
-			// Just scheduling cleanup shouldn't change anything.
-			{
-				assert_eq!(
-					<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
-					vec![para_id],
-				);
-				assert_eq!(Paras::parachains(), vec![para_id]);
-
-				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
-				assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
-				check_code_is_stored(&original_code);
-				check_code_is_stored(&new_code);
-
-				assert_eq!(<Paras as Store>::Heads::get(&para_id), Some(Default::default()));
-			}
-
-			// run to block #4, with a 2 session changes at the end of the block 2 & 3.
-			run_to_block(4, Some(vec![3, 4]));
+			// run to block #10, with a 2 session changes at the end of the block 8 & 9.
+			run_to_block(10, Some(vec![9, 10]));
 
 			// cleaning up the parachain should place the current parachain code
 			// into the past code buffer & schedule cleanup.
-			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(3));
-			assert_eq!(
-				<Paras as Store>::PastCodeHash::get(&(para_id, 3)),
-				Some(original_code.hash())
-			);
-			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 3)]);
+			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(9));
+			assert_eq!(<Paras as Store>::PastCodeHash::get(&(para_id, 9)), Some(new_code.hash()));
+			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 8), (para_id, 9)]);
 			check_code_is_stored(&original_code);
+			check_code_is_stored(&new_code);
 
 			// any future upgrades haven't been used to validate yet, so those
 			// are cleaned up immediately.
 			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
 			assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
 			assert!(Paras::current_code(&para_id).is_none());
-			check_code_is_not_stored(&new_code);
 
 			// run to do the final cleanup
-			let cleaned_up_at = 3 + code_retention_period + 1;
+			let cleaned_up_at = 9 + code_retention_period + 1;
 			run_to_block(cleaned_up_at, None);
 
 			// now the final cleanup: last past code cleaned up, and this triggers meta cleanup.
 			assert_eq!(Paras::past_code_meta(&para_id), Default::default());
-			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 3)).is_none());
+			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 8)).is_none());
+			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 9)).is_none());
 			assert!(<Paras as Store>::PastCodePruning::get().is_empty());
 			check_code_is_not_stored(&original_code);
+			check_code_is_not_stored(&new_code);
 		});
 	}
 
 	#[test]
 	fn para_incoming_at_session() {
+		let code_a = ValidationCode(vec![2]);
+		let code_b = ValidationCode(vec![1]);
+		let code_c = ValidationCode(vec![3]);
+
 		new_test_ext(Default::default()).execute_with(|| {
-			run_to_block(1, None);
+			run_to_block(1, Some(vec![1]));
 
 			let b = ParaId::from(525);
 			let a = ParaId::from(999);
@@ -1878,7 +2399,7 @@ mod tests {
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![1].into(),
-					validation_code: vec![1].into(),
+					validation_code: code_b.clone(),
 				},
 			));
 
@@ -1887,7 +2408,7 @@ mod tests {
 				ParaGenesisArgs {
 					parachain: false,
 					genesis_head: vec![2].into(),
-					validation_code: vec![2].into(),
+					validation_code: code_a.clone(),
 				},
 			));
 
@@ -1896,9 +2417,49 @@ mod tests {
 				ParaGenesisArgs {
 					parachain: true,
 					genesis_head: vec![3].into(),
-					validation_code: vec![3].into(),
+					validation_code: code_c.clone(),
 				},
 			));
+
+			fn sign_and_include_pvf_check_statement(stmt: PvfCheckStatement) {
+				let validators = &[
+					Sr25519Keyring::Alice,
+					Sr25519Keyring::Bob,
+					Sr25519Keyring::Charlie,
+					Sr25519Keyring::Dave,
+					Sr25519Keyring::Ferdie,
+				];
+				let signature =
+					validators[stmt.validator_index.0 as usize].sign(&stmt.signing_payload());
+				Paras::include_pvf_check_statement(None.into(), stmt, signature.into()).unwrap();
+			}
+
+			IntoIterator::into_iter([0, 1, 2, 3])
+				.map(|i| PvfCheckStatement {
+					accept: true,
+					subject: code_a.hash(),
+					session_index: 1,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
+
+			IntoIterator::into_iter([1, 2, 3, 4])
+				.map(|i| PvfCheckStatement {
+					accept: true,
+					subject: code_b.hash(),
+					session_index: 1,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
+
+			IntoIterator::into_iter([0, 2, 3, 4])
+				.map(|i| PvfCheckStatement {
+					accept: true,
+					subject: code_c.hash(),
+					session_index: 1,
+					validator_index: i.into(),
+				})
+				.for_each(sign_and_include_pvf_check_statement);
 
 			assert_eq!(
 				<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()),
@@ -1942,64 +2503,6 @@ mod tests {
 	}
 
 	#[test]
-	fn code_hash_at_with_intermediate() {
-		let code_retention_period = 10;
-		let validation_upgrade_delay = 10;
-
-		let paras = vec![(
-			0u32.into(),
-			ParaGenesisArgs {
-				parachain: true,
-				genesis_head: Default::default(),
-				validation_code: vec![1, 2, 3].into(),
-			},
-		)];
-
-		let genesis_config = MockGenesisConfig {
-			paras: GenesisConfig { paras, ..Default::default() },
-			configuration: crate::configuration::GenesisConfig {
-				config: HostConfiguration {
-					code_retention_period,
-					validation_upgrade_delay,
-					..Default::default()
-				},
-				..Default::default()
-			},
-			..Default::default()
-		};
-
-		new_test_ext(genesis_config).execute_with(|| {
-			let para_id = ParaId::from(0);
-			let old_code: ValidationCode = vec![1, 2, 3].into();
-			let new_code: ValidationCode = vec![4, 5, 6].into();
-
-			// expected_at = 10 = 0 + validation_upgrade_delay = 0 + 10
-			Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(10));
-
-			// no intermediate, falls back on current/past.
-			assert_eq!(fetch_validation_code_at(para_id, 1, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 100, None), Some(old_code.clone()));
-
-			// intermediate before upgrade meant to be applied, falls back on current.
-			assert_eq!(fetch_validation_code_at(para_id, 9, Some(8)), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 10, Some(9)), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 11, Some(9)), Some(old_code.clone()));
-
-			// intermediate at or after upgrade applied
-			assert_eq!(fetch_validation_code_at(para_id, 11, Some(10)), Some(new_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 100, Some(11)), Some(new_code.clone()));
-
-			run_to_block(code_retention_period + 5, None);
-
-			// at <= intermediate not allowed
-			assert_eq!(fetch_validation_code_at(para_id, 10, Some(10)), None);
-			assert_eq!(fetch_validation_code_at(para_id, 9, Some(10)), None);
-		});
-	}
-
-	#[test]
 	fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 		let code_retention_period = 10;
 		let validation_upgrade_delay = 2;
@@ -2019,6 +2522,7 @@ mod tests {
 				config: HostConfiguration {
 					code_retention_period,
 					validation_upgrade_delay,
+					pvf_checking_enabled: false,
 					..Default::default()
 				},
 				..Default::default()
@@ -2032,22 +2536,21 @@ mod tests {
 			let new_code: ValidationCode = vec![4, 5, 6].into();
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
 
+			// The new validation code can be applied but a new parablock hasn't gotten in yet,
+			// so the old code should still be current.
+			run_to_block(3, None);
+			assert_eq!(Paras::current_code(&para_id), Some(old_code.clone()));
+
 			run_to_block(10, None);
 			Paras::note_new_head(para_id, Default::default(), 7);
 
 			assert_eq!(Paras::past_code_meta(&para_id).upgrade_times, vec![upgrade_at(2, 10)]);
+			assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
 
-			assert_eq!(fetch_validation_code_at(para_id, 2, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 3, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 9, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(new_code.clone()));
-
+			// Make sure that the old code is available **before** the code retion period passes.
 			run_to_block(10 + code_retention_period, None);
-
-			assert_eq!(fetch_validation_code_at(para_id, 2, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 3, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 9, None), Some(old_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(new_code.clone()));
+			assert_eq!(Paras::code_by_hash(&old_code.hash()), Some(old_code.clone()));
+			assert_eq!(Paras::code_by_hash(&new_code.hash()), Some(new_code.clone()));
 
 			run_to_block(10 + code_retention_period + 1, None);
 
@@ -2058,12 +2561,21 @@ mod tests {
 				ParaPastCodeMeta { upgrade_times: Vec::new(), last_pruned: Some(10) },
 			);
 
-			assert_eq!(fetch_validation_code_at(para_id, 2, None), None); // pruned :(
-			assert_eq!(fetch_validation_code_at(para_id, 9, None), None);
-			assert_eq!(fetch_validation_code_at(para_id, 10, None), Some(new_code.clone()));
-			assert_eq!(fetch_validation_code_at(para_id, 11, None), Some(new_code.clone()));
+			assert_eq!(Paras::code_by_hash(&old_code.hash()), None); // pruned :(
+			assert_eq!(Paras::code_by_hash(&new_code.hash()), Some(new_code.clone()));
 		});
 	}
+
+	// TODO: pre-checking verify that we always prune PVF in case of reject
+	// TODO: pre-checking onboarding accept
+	// TODO: pre-checking upgrade accept
+	// TODO: pre-checking onboarding reject
+	// TODO: pre-checking upgrade reject
+	// TODO: pre-checking new session
+	// TODO: pre-checking expiry reject
+
+	// TODO: pre-checking votes accepting.
+	// TODO: unsigned extrinsic checking?
 
 	#[test]
 	fn code_ref_is_cleaned_correctly() {
