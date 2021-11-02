@@ -136,7 +136,7 @@ impl<
 	}
 
 	fn check_out(_dest: &MultiLocation, what: &MultiAsset) {
-		log::trace!(target: "xcm::currency_adapter", "check_out dest: {:?}, what: {:?}", dest, what);
+		log::trace!(target: "xcm::currency_adapter", "check_out dest: {:?}, what: {:?}", _dest, what);
 		if let Some(amount) = Matcher::matches_fungible(what) {
 			if let Some(checked_account) = CheckedAccount::get() {
 				Currency::deposit_creating(&checked_account, amount);
