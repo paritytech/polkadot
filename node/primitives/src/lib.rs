@@ -123,6 +123,7 @@ impl SessionWindowSize {
 	///
 	/// Don't use it. The only reason it is public, is because otherwise the
 	/// `new_session_window_size` macro would not work outside of this module.
+	#[doc(hidden)]
 	pub const fn unchecked_new(size: SessionIndex) -> Self {
 		Self(size)
 	}
