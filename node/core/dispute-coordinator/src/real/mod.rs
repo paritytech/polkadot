@@ -55,6 +55,8 @@ use self::{
 
 mod backend;
 mod db;
+
+/// Common error types for this subsystem.
 mod error;
 
 /// Subsystem after receiving the first active leaf.
