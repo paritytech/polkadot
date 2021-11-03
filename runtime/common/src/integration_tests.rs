@@ -212,6 +212,7 @@ impl slots::Config for Test {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = LeaseOffset;
+	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = crate::slots::TestWeightInfo;
 }
 

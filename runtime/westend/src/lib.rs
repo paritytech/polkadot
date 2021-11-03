@@ -902,6 +902,7 @@ impl slots::Config for Runtime {
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
 	type LeaseOffset = ();
+	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::runtime_common_slots::WeightInfo<Runtime>;
 }
 

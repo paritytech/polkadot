@@ -639,6 +639,7 @@ mod tests {
 		type Registrar = TestRegistrar<Test>;
 		type LeasePeriod = LeasePeriod;
 		type LeaseOffset = LeaseOffset;
+		type ForceOrigin = EnsureRoot<Self::AccountId>;
 		type WeightInfo = crate::slots::TestWeightInfo;
 	}
 
