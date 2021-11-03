@@ -19,19 +19,28 @@ use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 };
 
-use polkadot_node_subsystem::{ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender};
-use polkadot_node_subsystem_util::runtime::get_candidate_events;
-use polkadot_primitives::v1::{BlockNumber, CandidateEvent, CandidateHash, Hash, Id};
+use futures::channel::oneshot;
 
-use super::error::Result;
+use polkadot_node_subsystem::{
+	messages::ChainApiMessage, ActivatedLeaf, ActiveLeavesUpdate, SubsystemSender,
+};
+use polkadot_node_subsystem_util::runtime::get_candidate_events;
+use polkadot_primitives::v1::{
+	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Id,
+};
+
+use super::{
+	error::{Fatal, FatalResult, Result},
+	LOG_TARGET,
+};
 
 /// Provider of `CandidateComparator` for candidates.
 pub struct OrderingProvider {
-	/// Currently cached comparators for candidates.
-	cached_comparators: HashMap<CandidateHash, CandidateComparator>,
+	/// All candidates we have seen included, which not yet have been finalized.
+	included_candidates: HashSet<CandidateHash>,
 	/// including block -> `CandidateHash`
 	///
-	/// We need this to clean up `cached_comparators` on `ActiveLeavesUpdate`.
+	/// We need this to clean up `included_candidates` on `ActiveLeavesUpdate`.
 	candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
 }
 
@@ -53,12 +62,12 @@ pub struct OrderingProvider {
 /// the first place.
 #[derive(Copy, Clone)]
 pub struct CandidateComparator {
-	/// Relay chain block number the candidate got included in.
-	included_block_number: BlockNumber,
-	/// Para id, used for ordering parachains within same relay chain block.
-	para_id: Id,
-	/// The hash of the relay chain block the candidate got included in.
-	included_block_hash: Hash,
+	/// Block number of the relay parent.
+	///
+	/// Important, so we will be participating in oldest disputes first.
+	relay_parent_block_number: BlockNumber,
+	/// By adding the `CandidateHash`, we can guarantee a unique ordering accross candidates.
+	candidate_hash: CandidateHash,
 }
 
 impl PartialEq for CandidateComparator {
@@ -77,15 +86,11 @@ impl PartialOrd for CandidateComparator {
 
 impl Ord for CandidateComparator {
 	fn cmp(&self, other: &Self) -> Ordering {
-		match self.included_block_number.cmp(&other.included_block_number) {
+		match self.relay_parent_block_number.cmp(&other.relay_parent_block_number) {
 			Ordering::Equal => (),
 			o => return o,
 		}
-		match self.para_id.cmp(&other.para_id) {
-			Ordering::Equal => (),
-			o => return o,
-		}
-		self.included_block_hash.cmp(&other.included_block_hash)
+		self.candidate_hash.cmp(&other.candidate_hash)
 	}
 }
 
@@ -96,7 +101,7 @@ impl OrderingProvider {
 		initial_head: ActivatedLeaf,
 	) -> Result<Self> {
 		let mut s = Self {
-			cached_comparators: HashMap::new(),
+			included_candidates: HashSet::new(),
 			candidates_by_block_number: BTreeMap::new(),
 		};
 		let update =
@@ -109,11 +114,28 @@ impl OrderingProvider {
 	///
 	/// If not available, we can treat disputes concerning this candidate with low priority and
 	/// should use spam slots for such disputes.
-	pub fn candidate_comparator<'a>(
-		&'a mut self,
-		candidate: &CandidateHash,
-	) -> Option<&'a CandidateComparator> {
-		self.cached_comparators.get(candidate)
+	pub async fn candidate_comparator<'a>(
+		&mut self,
+		sender: &mut impl SubsystemSender,
+		candidate: &CandidateReceipt,
+	) -> FatalResult<Option<CandidateComparator>> {
+		let candidate_hash = candidate.hash();
+		if !self.included_candidates.contains(&candidate_hash) {
+			return Ok(None)
+		}
+		let n = match get_block_number(sender, candidate.descriptor().relay_parent).await? {
+			None => {
+				tracing::warn!(
+					target: LOG_TARGET,
+					candidate_hash = ?candidate.hash(),
+					"Candidate's relay_parent could not be found via chain API, but we saw candidate included?!"
+				);
+				return Ok(None)
+			},
+			Some(n) => n,
+		};
+
+		Ok(Some(CandidateComparator { relay_parent_block_number: n, candidate_hash }))
 	}
 
 	/// Query active leaves for any candidate `CandidateEvent::CandidateIncluded` events.
@@ -135,12 +157,7 @@ impl OrderingProvider {
 				});
 			for receipt in included {
 				let candidate_hash = receipt.hash();
-				let comparator = CandidateComparator {
-					included_block_number: activated.number,
-					included_block_hash: activated.hash,
-					para_id: receipt.descriptor.para_id,
-				};
-				self.cached_comparators.insert(candidate_hash, comparator);
+				self.included_candidates.insert(candidate_hash);
 				self.candidates_by_block_number
 					.entry(activated.number)
 					.or_default()
@@ -161,7 +178,19 @@ impl OrderingProvider {
 		self.candidates_by_block_number = not_finalized;
 		// Clean up finalized:
 		for finalized_candidate in finalized.into_values().flatten() {
-			self.cached_comparators.remove(&finalized_candidate);
+			self.included_candidates.remove(&finalized_candidate);
 		}
 	}
+}
+
+async fn get_block_number(
+	sender: &mut impl SubsystemSender,
+	relay_parent: Hash,
+) -> FatalResult<Option<BlockNumber>> {
+	let (tx, rx) = oneshot::channel();
+	sender.send_message(ChainApiMessage::BlockNumber(relay_parent, tx).into()).await;
+
+	rx.await
+		.map_err(|_| Fatal::CanceledBlockNumber)?
+		.map_err(Fatal::ChainApiBlockNumber)
 }
