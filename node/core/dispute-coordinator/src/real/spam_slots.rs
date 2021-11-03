@@ -35,7 +35,7 @@ type SpamCount = u32;
 /// disputes _should_ have been seen as included my enough validators. (Otherwise the candidate
 /// would not have been available in the first place and could not have been included.) So this is
 /// really just a fallback mechanism if things go terribly wrong.
-const MAX_SPAM_VOTES: u32 = 50;
+const MAX_SPAM_VOTES: SpamCount = 50;
 
 /// Spam slots for raised disputes concerning unknown candidates.
 pub struct SpamSlots {
