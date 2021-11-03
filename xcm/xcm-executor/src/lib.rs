@@ -84,7 +84,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		let xcm_weight = match Config::Weigher::weight(&mut message) {
 			Ok(x) => x,
 			Err(()) => {
-				log::info!(
+				log::debug!(
 					target: "xcm::execute_xcm_in_credit",
 					"Weight not computable! (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
 					origin,
@@ -96,7 +96,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			},
 		};
 		if xcm_weight > weight_limit {
-			log::info!(
+			log::debug!(
 				target: "xcm::execute_xcm_in_credit",
 				"Weight limit reached! weight > weight_limit: {:?} > {:?}. (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
 				xcm_weight,
@@ -112,7 +112,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		if let Err(e) =
 			Config::Barrier::should_execute(&origin, &mut message, xcm_weight, &mut weight_credit)
 		{
-			log::info!(
+			log::debug!(
 				target: "xcm::execute_xcm_in_credit",
 				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
 				e,
@@ -155,7 +155,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
 			// the error which didn't end up being executed.
 			Some((_i, e)) => {
-				log::info!(target: "xcm::execute_xcm_in_credit", "Execution errored at {:?}: {:?} (original_origin: {:?})", _i, e, vm.original_origin);
+				log::debug!(target: "xcm::execute_xcm_in_credit", "Execution errored at {:?}: {:?} (original_origin: {:?})", _i, e, vm.original_origin);
 				Outcome::Incomplete(weight_used, e)
 			},
 		}
