@@ -15,7 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	artifacts::Artifact,
+	artifacts::CompiledArtifact,
+	error::{PrepareError, PrepareResult},
 	worker_common::{
 		bytes_to_path, framed_recv, framed_send, path_to_bytes, spawn_with_program_path,
 		tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
@@ -27,8 +28,8 @@ use async_std::{
 	os::unix::net::UnixStream,
 	path::{Path, PathBuf},
 };
-use futures::FutureExt as _;
-use futures_timer::Delay;
+use parity_scale_codec::{Decode, Encode};
+use sp_core::hexdisplay::HexDisplay;
 use std::{sync::Arc, time::Duration};
 
 const NICENESS_BACKGROUND: i32 = 10;
@@ -48,18 +49,18 @@ pub async fn spawn(
 
 pub enum Outcome {
 	/// The worker has finished the work assigned to it.
-	Concluded(IdleWorker),
+	Concluded { worker: IdleWorker, result: PrepareResult },
 	/// The host tried to reach the worker but failed. This is most likely because the worked was
 	/// killed by the system.
 	Unreachable,
-	/// The execution was interrupted abruptly and the worker is not available anymore. For example,
-	/// this could've happen because the worker hadn't finished the work until the given deadline.
+	/// The worker failed to finish the job until the given deadline.
 	///
-	/// Note that in this case the artifact file is written (unless there was an error writing the
-	/// the artifact).
+	/// The worker is no longer usable and should be killed.
+	TimedOut,
+	/// The execution was interrupted abruptly and the worker is not available anymore.
 	///
 	/// This doesn't return an idle worker instance, thus this worker is no longer usable.
-	DidntMakeIt,
+	DidNotMakeIt,
 }
 
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
@@ -99,48 +100,50 @@ pub async fn start_work(
 		// Wait for the result from the worker, keeping in mind that there may be a timeout, the
 		// worker may get killed, or something along these lines.
 		//
-		// In that case we should handle these gracefully by writing the artifact file by ourselves.
-		// We may potentially overwrite the artifact in rare cases where the worker didn't make
-		// it to report back the result.
+		// In that case we should propagate the error to the pool.
 
 		#[derive(Debug)]
 		enum Selected {
-			Done,
+			Done(PrepareResult),
 			IoErr,
 			Deadline,
 		}
 
-		let selected = futures::select! {
-			res = framed_recv(&mut stream).fuse() => {
-				match res {
-					Ok(x) if x == &[1u8] => {
-						tracing::debug!(
-							target: LOG_TARGET,
-							worker_pid = %pid,
-							"promoting WIP artifact {} to {}",
-							tmp_file.display(),
-							artifact_path.display(),
-						);
+		let selected =
+			match async_std::future::timeout(COMPILATION_TIMEOUT, framed_recv(&mut stream)).await {
+				Ok(Ok(response_bytes)) => {
+					// Received bytes from worker within the time limit.
+					// By convention we expect encoded `PrepareResult`.
+					if let Ok(result) = PrepareResult::decode(&mut response_bytes.as_slice()) {
+						if result.is_ok() {
+							tracing::debug!(
+								target: LOG_TARGET,
+								worker_pid = %pid,
+								"promoting WIP artifact {} to {}",
+								tmp_file.display(),
+								artifact_path.display(),
+							);
 
-						async_std::fs::rename(&tmp_file, &artifact_path)
-							.await
-							.map(|_| Selected::Done)
-							.unwrap_or_else(|err| {
-								tracing::warn!(
-									target: LOG_TARGET,
-									worker_pid = %pid,
-									"failed to rename the artifact from {} to {}: {:?}",
-									tmp_file.display(),
-									artifact_path.display(),
-									err,
-								);
-								Selected::IoErr
-							})
-					}
-					Ok(response_bytes) => {
-						use sp_core::hexdisplay::HexDisplay;
-						let bound_bytes =
-							&response_bytes[..response_bytes.len().min(4)];
+							async_std::fs::rename(&tmp_file, &artifact_path)
+								.await
+								.map(|_| Selected::Done(result))
+								.unwrap_or_else(|err| {
+									tracing::warn!(
+										target: LOG_TARGET,
+										worker_pid = %pid,
+										"failed to rename the artifact from {} to {}: {:?}",
+										tmp_file.display(),
+										artifact_path.display(),
+										err,
+									);
+									Selected::IoErr
+								})
+						} else {
+							Selected::Done(result)
+						}
+					} else {
+						// We received invalid bytes from the worker.
+						let bound_bytes = &response_bytes[..response_bytes.len().min(4)];
 						tracing::warn!(
 							target: LOG_TARGET,
 							worker_pid = %pid,
@@ -148,40 +151,31 @@ pub async fn start_work(
 							HexDisplay::from(&bound_bytes),
 						);
 						Selected::IoErr
-					},
-					Err(err) => {
-						tracing::warn!(
-							target: LOG_TARGET,
-							worker_pid = %pid,
-							"failed to recv a prepare response: {:?}",
-							err,
-						);
-						Selected::IoErr
 					}
-				}
-			},
-			_ = Delay::new(COMPILATION_TIMEOUT).fuse() => Selected::Deadline,
-		};
-
-		match selected {
-			Selected::Done => {
-				renice(pid, NICENESS_FOREGROUND);
-				Outcome::Concluded(IdleWorker { stream, pid })
-			},
-			Selected::IoErr | Selected::Deadline => {
-				let bytes = Artifact::DidntMakeIt.serialize();
-				// best effort: there is nothing we can do here if the write fails.
-				if let Err(err) = async_std::fs::write(&artifact_path, &bytes).await {
+				},
+				Ok(Err(err)) => {
+					// Communication error within the time limit.
 					tracing::warn!(
 						target: LOG_TARGET,
 						worker_pid = %pid,
-						"preparation didn't make it, because of `{:?}`: {:?}",
-						selected,
+						"failed to recv a prepare response: {:?}",
 						err,
 					);
-				}
-				Outcome::DidntMakeIt
+					Selected::IoErr
+				},
+				Err(_) => {
+					// Timed out.
+					Selected::Deadline
+				},
+			};
+
+		match selected {
+			Selected::Done(result) => {
+				renice(pid, NICENESS_FOREGROUND);
+				Outcome::Concluded { worker: IdleWorker { stream, pid }, result }
 			},
+			Selected::Deadline => Outcome::TimedOut,
+			Selected::IoErr => Outcome::DidNotMakeIt,
 		}
 	})
 	.await
@@ -205,7 +199,7 @@ where
 				"failed to create a temp file for the artifact: {:?}",
 				err,
 			);
-			return Outcome::DidntMakeIt
+			return Outcome::DidNotMakeIt
 		},
 	};
 
@@ -288,31 +282,47 @@ pub fn worker_entrypoint(socket_path: &str) {
 				worker_pid = %std::process::id(),
 				"worker: preparing artifact",
 			);
-			let artifact_bytes = prepare_artifact(&code).serialize();
 
-			// Write the serialized artifact into into a temp file.
-			tracing::debug!(
-				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
-				"worker: writing artifact to {}",
-				dest.display(),
-			);
-			async_std::fs::write(&dest, &artifact_bytes).await?;
+			let result = match prepare_artifact(&code) {
+				Err(err) => {
+					// Serialized error will be written into the socket.
+					Err(err)
+				},
+				Ok(compiled_artifact) => {
+					// Write the serialized artifact into a temp file.
+					// PVF host only keeps artifacts statuses in its memory,
+					// successfully compiled code gets stored on the disk (and
+					// consequently deserialized by execute-workers). The prepare
+					// worker is only required to send an empty `Ok` to the pool
+					// to indicate the success.
 
-			// Return back a byte that signals finishing the work.
-			framed_send(&mut stream, &[1u8]).await?;
+					let artifact_bytes = compiled_artifact.encode();
+
+					tracing::debug!(
+						target: LOG_TARGET,
+						worker_pid = %std::process::id(),
+						"worker: writing artifact to {}",
+						dest.display(),
+					);
+					async_std::fs::write(&dest, &artifact_bytes).await?;
+
+					Ok(())
+				},
+			};
+
+			framed_send(&mut stream, result.encode().as_slice()).await?;
 		}
 	});
 }
 
-fn prepare_artifact(code: &[u8]) -> Artifact {
+fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
 	let blob = match crate::executor_intf::prevalidate(code) {
-		Err(err) => return Artifact::PrevalidationErr(format!("{:?}", err)),
+		Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
 		Ok(b) => b,
 	};
 
 	match crate::executor_intf::prepare(blob) {
-		Ok(compiled_artifact) => Artifact::Compiled { compiled_artifact },
-		Err(err) => Artifact::PreparationErr(format!("{:?}", err)),
+		Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
+		Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
 	}
 }

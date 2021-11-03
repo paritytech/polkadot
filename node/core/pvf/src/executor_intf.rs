@@ -68,7 +68,13 @@ const CONFIG: Config = Config {
 			native_stack_max: 256 * 1024 * 1024,
 		}),
 		canonicalize_nans: true,
-		parallel_compilation: true,
+		// Rationale for turning the multi-threaded compilation off is to make the preparation time
+		// easily reproducible and as deterministic as possible.
+		//
+		// Currently the prepare queue doesn't distinguish between precheck and prepare requests.
+		// On the one hand, it simplifies the code, on the other, however, slows down compile times
+		// for execute requests. This behavior may change in future.
+		parallel_compilation: false,
 	},
 };
 

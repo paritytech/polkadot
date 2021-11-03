@@ -24,7 +24,7 @@ use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
 	execute,
 	metrics::Metrics,
-	prepare, Priority, Pvf, ValidationError, LOG_TARGET,
+	prepare, PrepareResult, Priority, Pvf, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use async_std::path::{Path, PathBuf};
@@ -41,6 +41,9 @@ use std::{
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
 
+/// Transmission end used for sending the PVF preparation result.
+pub(crate) type PrepareResultSender = oneshot::Sender<PrepareResult>;
+
 /// A handle to the async process serving the validation host requests.
 #[derive(Clone)]
 pub struct ValidationHost {
@@ -48,6 +51,24 @@ pub struct ValidationHost {
 }
 
 impl ValidationHost {
+	/// Precheck PVF with the given code, i.e. verify that it compiles within a reasonable time limit.
+	/// The result of execution will be sent to the provided result sender.
+	///
+	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// situations this function should return immediately.
+	///
+	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
+	pub async fn precheck_pvf(
+		&mut self,
+		pvf: Pvf,
+		result_tx: PrepareResultSender,
+	) -> Result<(), String> {
+		self.to_host_tx
+			.send(ToHost::PrecheckPvf { pvf, result_tx })
+			.await
+			.map_err(|_| "the inner loop hung up".to_string())
+	}
+
 	/// Execute PVF with the given code, execution timeout, parameters and priority.
 	/// The result of execution will be sent to the provided result sender.
 	///
@@ -84,6 +105,10 @@ impl ValidationHost {
 }
 
 enum ToHost {
+	PrecheckPvf {
+		pvf: Pvf,
+		result_tx: PrepareResultSender,
+	},
 	ExecutePvf {
 		pvf: Pvf,
 		execution_timeout: Duration,
@@ -344,8 +369,7 @@ async fn run(
 				.await);
 			},
 			from_prepare_queue = from_prepare_queue_rx.next() => {
-				let prepare::FromQueue::Prepared(artifact_id)
-					= break_if_fatal!(from_prepare_queue.ok_or(Fatal));
+				let from_queue = break_if_fatal!(from_prepare_queue.ok_or(Fatal));
 
 				// Note that preparation always succeeds.
 				//
@@ -361,7 +385,7 @@ async fn run(
 					&mut artifacts,
 					&mut to_execute_queue_tx,
 					&mut awaiting_prepare,
-					artifact_id,
+					from_queue,
 				).await);
 			},
 		}
@@ -377,6 +401,9 @@ async fn handle_to_host(
 	to_host: ToHost,
 ) -> Result<(), Fatal> {
 	match to_host {
+		ToHost::PrecheckPvf { pvf, result_tx } => {
+			handle_precheck_pvf(artifacts, prepare_queue, pvf, result_tx).await?;
+		},
 		ToHost::ExecutePvf { pvf, execution_timeout, params, priority, result_tx } => {
 			handle_execute_pvf(
 				cache_path,
@@ -397,6 +424,34 @@ async fn handle_to_host(
 		},
 	}
 
+	Ok(())
+}
+
+async fn handle_precheck_pvf(
+	artifacts: &mut Artifacts,
+	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
+	pvf: Pvf,
+	result_sender: PrepareResultSender,
+) -> Result<(), Fatal> {
+	let artifact_id = pvf.as_artifact_id();
+
+	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
+		match state {
+			ArtifactState::Prepared { last_time_needed } => {
+				*last_time_needed = SystemTime::now();
+				let _ = result_sender.send(Ok(()));
+			},
+			ArtifactState::Preparing { waiting_for_response } =>
+				waiting_for_response.push(result_sender),
+			ArtifactState::FailedToProcess(result) => {
+				let _ = result_sender.send(PrepareResult::Err(result.clone()));
+			},
+		}
+	} else {
+		artifacts.insert_preparing(artifact_id, vec![result_sender]);
+		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf })
+			.await?;
+	}
 	Ok(())
 }
 
@@ -430,7 +485,7 @@ async fn handle_execute_pvf(
 				)
 				.await?;
 			},
-			ArtifactState::Preparing => {
+			ArtifactState::Preparing { waiting_for_response: _ } => {
 				send_prepare(
 					prepare_queue,
 					prepare::ToQueue::Amend { priority, artifact_id: artifact_id.clone() },
@@ -439,11 +494,14 @@ async fn handle_execute_pvf(
 
 				awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 			},
+			ArtifactState::FailedToProcess(error) => {
+				let _ = result_tx.send(Err(ValidationError::from(error.clone())));
+			},
 		}
 	} else {
 		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
 		//
-		artifacts.insert_preparing(artifact_id.clone());
+		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
 		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
 
 		awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
@@ -466,14 +524,15 @@ async fn handle_heads_up(
 				ArtifactState::Prepared { last_time_needed, .. } => {
 					*last_time_needed = now;
 				},
-				ArtifactState::Preparing => {
+				ArtifactState::Preparing { waiting_for_response: _ } => {
 					// Already preparing. We don't need to send a priority amend either because
 					// it can't get any lower than the background.
 				},
+				ArtifactState::FailedToProcess(_) => {},
 			}
 		} else {
 			// The artifact is unknown: register it and put a background job into the prepare queue.
-			artifacts.insert_preparing(artifact_id.clone());
+			artifacts.insert_preparing(artifact_id.clone(), Vec::new());
 
 			send_prepare(
 				prepare_queue,
@@ -491,8 +550,10 @@ async fn handle_prepare_done(
 	artifacts: &mut Artifacts,
 	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
-	artifact_id: ArtifactId,
+	from_queue: prepare::FromQueue,
 ) -> Result<(), Fatal> {
+	let prepare::FromQueue { artifact_id, result } = from_queue;
+
 	// Make some sanity checks and extract the current state.
 	let state = match artifacts.artifact_state_mut(&artifact_id) {
 		None => {
@@ -513,8 +574,20 @@ async fn handle_prepare_done(
 			never!("the artifact is already prepared: {:?}", artifact_id);
 			return Ok(())
 		},
-		Some(state @ ArtifactState::Preparing) => state,
+		Some(ArtifactState::FailedToProcess(_)) => {
+			// The reasoning is similar to the above, the artifact cannot be
+			// processed at this point.
+			never!("the artifact is already processed unsuccessfully: {:?}", artifact_id);
+			return Ok(())
+		},
+		Some(state @ ArtifactState::Preparing { waiting_for_response: _ }) => state,
 	};
+
+	if let ArtifactState::Preparing { waiting_for_response } = state {
+		for result_sender in waiting_for_response.drain(..) {
+			let _ = result_sender.send(result.clone());
+		}
+	}
 
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
@@ -523,6 +596,12 @@ async fn handle_prepare_done(
 		if result_tx.is_canceled() {
 			// Preparation could've taken quite a bit of time and the requester may be not interested
 			// in execution anymore, in which case we just skip the request.
+			continue
+		}
+
+		// Don't send failed artifacts to the execution's queue.
+		if let Err(ref error) = result {
+			let _ = result_tx.send(Err(ValidationError::from(error.clone())));
 			continue
 		}
 
@@ -538,8 +617,10 @@ async fn handle_prepare_done(
 		.await?;
 	}
 
-	// Now consider the artifact prepared.
-	*state = ArtifactState::Prepared { last_time_needed: SystemTime::now() };
+	*state = match result {
+		Ok(()) => ArtifactState::Prepared { last_time_needed: SystemTime::now() },
+		Err(error) => ArtifactState::FailedToProcess(error.clone()),
+	};
 
 	Ok(())
 }
@@ -615,6 +696,7 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::{InvalidCandidate, PrepareError};
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
 
@@ -885,8 +967,6 @@ mod tests {
 
 	#[async_std::test]
 	async fn execute_pvf_requests() {
-		use crate::error::InvalidCandidate;
-
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
 
@@ -937,7 +1017,7 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Prepared(artifact_id(1)))
+			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
 			.await
 			.unwrap();
 		let result_tx_pvf_1_1 = assert_matches!(
@@ -950,7 +1030,7 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Prepared(artifact_id(2)))
+			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
 			.await
 			.unwrap();
 		let result_tx_pvf_2 = assert_matches!(
@@ -984,6 +1064,140 @@ mod tests {
 	}
 
 	#[async_std::test]
+	async fn precheck_pvf() {
+		let mut test = Builder::default().build();
+		let mut host = test.host_handle();
+
+		// First, test a simple precheck request.
+		let (result_tx, result_rx) = oneshot::channel();
+		host.precheck_pvf(Pvf::from_discriminator(1), result_tx).await.unwrap();
+
+		// The queue received the prepare request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+		// Send `Ok` right away and poll the host.
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.await
+			.unwrap();
+		// No pending execute requests.
+		test.poll_ensure_to_execute_queue_is_empty().await;
+		// Received the precheck result.
+		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
+
+		// Send multiple requests for the same pvf.
+		let mut precheck_receivers = Vec::new();
+		for _ in 0..3 {
+			let (result_tx, result_rx) = oneshot::channel();
+			host.precheck_pvf(Pvf::from_discriminator(2), result_tx).await.unwrap();
+			precheck_receivers.push(result_rx);
+		}
+		// Received prepare request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(2),
+				result: Err(PrepareError::TimedOut),
+			})
+			.await
+			.unwrap();
+		test.poll_ensure_to_execute_queue_is_empty().await;
+		for result_rx in precheck_receivers {
+			assert_matches!(
+				result_rx.now_or_never().unwrap().unwrap(),
+				Err(PrepareError::TimedOut)
+			);
+		}
+	}
+
+	#[async_std::test]
+	async fn test_prepare_done() {
+		let mut test = Builder::default().build();
+		let mut host = test.host_handle();
+
+		// Test mixed cases of receiving execute and precheck requests
+		// for the same pvf.
+
+		// Send PVF for the execution and request the prechecking for it.
+		let (result_tx, result_rx_execute) = oneshot::channel();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf2".to_vec(),
+			Priority::Critical,
+			result_tx,
+		)
+		.await
+		.unwrap();
+
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+
+		let (result_tx, result_rx) = oneshot::channel();
+		host.precheck_pvf(Pvf::from_discriminator(1), result_tx).await.unwrap();
+
+		// Suppose the preparation failed, the execution queue is empty and both
+		// "clients" receive their results.
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Err(PrepareError::TimedOut),
+			})
+			.await
+			.unwrap();
+		test.poll_ensure_to_execute_queue_is_empty().await;
+		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Err(PrepareError::TimedOut));
+		assert_matches!(
+			result_rx_execute.now_or_never().unwrap().unwrap(),
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(_)))
+		);
+
+		// Reversed case: first send multiple precheck requests, then ask for an execution.
+		let mut precheck_receivers = Vec::new();
+		for _ in 0..3 {
+			let (result_tx, result_rx) = oneshot::channel();
+			host.precheck_pvf(Pvf::from_discriminator(2), result_tx).await.unwrap();
+			precheck_receivers.push(result_rx);
+		}
+
+		let (result_tx, _result_rx_execute) = oneshot::channel();
+		host.execute_pvf(
+			Pvf::from_discriminator(2),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf2".to_vec(),
+			Priority::Critical,
+			result_tx,
+		)
+		.await
+		.unwrap();
+		// Received prepare request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
+			.await
+			.unwrap();
+		// The execute queue receives new request, preckecking is finished and we can
+		// fetch results.
+		assert_matches!(
+			test.poll_and_recv_to_execute_queue().await,
+			execute::ToQueue::Enqueue { .. }
+		);
+		for result_rx in precheck_receivers {
+			assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
+		}
+	}
+
+	#[async_std::test]
 	async fn cancellation() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1005,7 +1219,7 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Prepared(artifact_id(1)))
+			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
 			.await
 			.unwrap();
 
