@@ -38,6 +38,8 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	block_number: T::BlockNumber,
 	session: SessionIndex,
 	target_session: u32,
+	max_validators_per_core: Option<u32>,
+	max_validators: Option<u32>,
 	_phantom: sp_std::marker::PhantomData<T>,
 }
 
@@ -59,8 +61,12 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			block_number: Zero::zero(),
 			// Starting session; we expect it to get incremented on session setup.
 			session: SessionIndex::from(0u32),
-			// The session we want the scenario to take place in. We roll to to this session.
+			// Session we want the scenario to take place in. We roll to to this session.
 			target_session: 2u32,
+			// Optionally set the max validators per core; otherwise uses the configuration value.
+			max_validators_per_core: None,
+			// Optionally set the max validators; otherwise uses the configuration value.
+			max_validators: None,
 			_phantom: sp_std::marker::PhantomData::<T>,
 		}
 	}
@@ -86,13 +92,24 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Maximum number of validators participating in parachains consensus (a.k.a. active validators).
 	pub(crate) fn max_validators() -> u32 {
-		let config_max = configuration::Pallet::<T>::config().max_validators.unwrap_or(200);
-		config_max
+		self.max_validators.unwrap_or(
+			configuration::Pallet::<T>::config().max_validators.unwrap_or(200)
+		)
+	}
+
+	pub(crate) fn set_max_validators(n: u32) {
+		self.max_validators = Some(n)
 	}
 
 	/// Maximium number of validators that may be part of a validator group.
 	pub(crate) fn max_validators_per_core() -> u32 {
-		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
+		self.max_validators_per_core.unwrap_or(
+			configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
+		 )
+	}
+
+	pub(crate) fn set_max_validators_per_core(n: u32) {
+		self.max_validators_per_core = Some(n)
 	}
 
 	/// Maximum number of cores we expect from this configuration.

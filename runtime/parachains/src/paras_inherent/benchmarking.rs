@@ -56,9 +56,6 @@ benchmarks! {
 
 	// The weight of one bitfield.
 	enter_bitfields {
-		// let cores_with_disputed = BenchBuilder::<T>::cores() / 2;
-		// let cores_with_backed = BenchBuilder::<T>::cores() / 2;
-
 		let cores_with_disputed = 0;
 		let cores_with_backed = 1;
 
@@ -88,10 +85,8 @@ benchmarks! {
 	// Variant over `v`, the amount of validity votes for a backed candidate. This gives the weight
 	// of a single backed candidate.
 	enter_backed_candidates_variable {
-		// NOTE: the starting value must be over half of `max_validators`. Ideally we would use
-		// `BenchBuilder::<T>::min_validity_votes()`, but that does not work in the context of this
-		// macro.
-		// let v in 101..BenchBuilder::<T>::max_validators();
+		// NOTE: the starting value must be over half of `max_validators` so the backed candidate is
+		// not rejected.
 		let v in (BenchBuilder::<T>::min_validity_votes())..BenchBuilder::<T>::max_validators();
 
 		let cores_with_disputed = 0;
@@ -122,17 +117,15 @@ benchmarks! {
 		// Ensure that the votes are for the correct session
 		assert_eq!(vote.session, scenario.session);
 		// Ensure that there are an expected number of candidates
-		// assert_eq!(vote.backing_validators_per_candidate.len(), v as usize);
 		let header = BenchBuilder::<T>::header(scenario.block_number.clone());
 		// Traverse candidates and assert descriptors are as expected
 		for (para_id, backing_validators) in vote.backing_validators_per_candidate.iter().enumerate() {
 			let descriptor = backing_validators.0.descriptor();
 			assert_eq!(ParaId::from(para_id), descriptor.para_id);
 			assert_eq!(header.hash(), descriptor.relay_parent);
-			assert_eq!(backing_validators.1.len(), v as usize /* Backing Group Size */);
+			assert_eq!(backing_validators.1.len(), v as usize);
 		}
 
-		// pending availability data is removed when disputes are collected.
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
 			cores_with_backed as usize,

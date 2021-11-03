@@ -752,7 +752,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 	Ok(bitfields)
 }
 
-/// Filter out any candidates, that have a concluded invalid dispute.
+/// Filter out any candidates that have a concluded invalid dispute.
 ///
 /// `scheduled` follows the same naming scheme as provided in the
 /// guide: Currently `free` but might become `occupied`.
@@ -784,7 +784,7 @@ fn sanitize_backed_candidates<
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
 		desc.relay_parent == relay_parent &&
-			scheduled.iter().any(|core| core.para_id == desc.para_id)
+			scheduled.iter().any(|core| core.para_id == desc.para_id) // TODO should `scheduled` be a set?
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
@@ -825,15 +825,11 @@ fn limit_backed_candidates<T: Config>(
 		});
 	}
 
-	// TODO checking weight at this point seems strange since most of the weight likely revolves around
-	// count of back candidates?
-
 	// the weight of the paras inherent is already included in the current block weight,
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
 
 	let max_block = <T as frame_system::Config>::BlockWeights::get().max_block;
 	if frame_system::Pallet::<T>::block_weight().total() > max_block
-	// shouldn't this check be moved to top of fn?
 	{
 		Vec::new()
 	} else {
@@ -846,6 +842,39 @@ mod tests {
 	use super::*;
 
 	use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
+
+	#[test]
+	fn does_not_exit_early_when_backed_candidates_are_expected_to_be_scheduled() {
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+						// Now seed the scheduled cores such that we know it will not included any cores
+			// overlapping with backed candidates.
+			let mock_freed_at_parent_block = vec![
+				(2, FreedReason::Concluded),
+				(3, FreedReason::Concluded),
+				(4, FreedReason::Concluded),
+			];
+
+			<scheduler::Pallet<T>>::schedule(mock_freed_at_parent_block, <frame_system::Pallet<T>>::block_number());
+
+			let scenario = BenchBuilder::<T>::new()
+				.set_max_validators(5)
+				.set_validators_per_core(1) // 5 validators, 1 validator per core => 5 cores.
+				.build(2, 0); // build backed candidates for cores 0 & 1.
+			let paras_inherent_data =  scenario
+				.data
+				.clone();
+
+			assert_eq!(
+				paras_inherent_data.bitfields.len(), 2
+			);
+			assert_eq!(
+				paras_inherent_data.backed_candidates.len(), 2
+			);
+			assert_eq!(
+				paras_inherent_data.disputes.len(), 0
+			);
+		});
+	}
 
 	mod limit_backed_candidates {
 		use super::*;
