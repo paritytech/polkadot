@@ -30,7 +30,7 @@ use crate::{
 use frame_support::{pallet_prelude::*, traits::Currency};
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v1::Id as ParaId;
 use runtime_parachains::{
 	configuration,
@@ -51,7 +51,7 @@ pub enum SlotLeasePeriodStart {
 }
 
 /// Information about a temporary parachain slot.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug, TypeInfo)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, MaxEncodedLen, RuntimeDebug, TypeInfo)]
 pub struct ParachainTemporarySlot<AccountId, LeasePeriod> {
 	/// Manager account of the para.
 	pub manager: AccountId,
@@ -81,6 +81,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::generate_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
