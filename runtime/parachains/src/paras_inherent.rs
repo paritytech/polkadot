@@ -595,6 +595,9 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		weight_fn: F,
 		weight_limit: Weight,
 	) -> (Weight, Vec<usize>) {
+		if selectables.is_empty() {
+			return (0 as Weight, Vec::new())
+		}
 		let mut indices = (0..selectables.len()).into_iter().collect::<Vec<_>>();
 		let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
 
@@ -767,10 +770,14 @@ fn sanitize_backed_candidates<
 	// Assure the backed candidate's `ParaId`'s core is free.
 	// This holds under the assumption that `Scheduler::schedule` is called _before_.
 	// Also checks the candidate references the correct relay parent.
+
+	let scheduled_paras_set = scheduled
+		.into_iter()
+		.map(|core_assignment| core_assignment.para_id)
+		.collect::<BTreeSet<ParaId>>();
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
-		desc.relay_parent == relay_parent &&
-			scheduled.iter().any(|core| core.para_id == desc.para_id)
+		desc.relay_parent == relay_parent && scheduled_paras_set.contains(&desc.para_id)
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
@@ -1450,7 +1457,8 @@ mod tests {
 						.collect::<Vec<_>>();
 
 					// the expected weight can always be computed by this formula
-					let expected_weight = paras_inherent_total_weight::<Test>(backed_candidates.len() as u32, 0, 0);
+					let expected_weight =
+						paras_inherent_total_weight::<Test>(backed_candidates.len() as u32, 0, 0);
 
 					// we've used half the block weight; there's plenty of margin
 					let max_block_weight =
