@@ -9,9 +9,9 @@ polkadot-runtime = { version = "0.9.8", path = "../../../runtime/polkadot" }
 kusama-runtime = { version = "0.9.8", path = "../../../runtime/kusama" }
 westend-runtime = { version = "0.9.8", path = "../../../runtime/westend" }
 
-pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "kiz-make-things-pub" }
+pallet-bags-list-remote-tests = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "kiz-make-things-pub" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 tokio = { version = "1", features = ["macros"] }
