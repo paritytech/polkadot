@@ -1210,7 +1210,7 @@ where
 			}
 			res = state.collation_fetch_timeouts.select_next_some() => {
 				let (collator_id, relay_parent) = res;
-				tracing::trace!(
+				tracing::debug!(
 					target: LOG_TARGET,
 					?relay_parent,
 					?collator_id,
@@ -1273,7 +1273,7 @@ async fn dequeue_next_collation_and_fetch(
 		.get_mut(&relay_parent)
 		.and_then(|c| c.get_next_collation_to_fetch(Some(previous_fetch)))
 	{
-		tracing::trace!(
+		tracing::debug!(
 			target: LOG_TARGET,
 			?relay_parent,
 			?id,
