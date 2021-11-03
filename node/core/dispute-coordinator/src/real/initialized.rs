@@ -583,7 +583,7 @@ impl Initialized {
 				tracing::warn!(
 					target: LOG_TARGET,
 					session,
-					"Missing info for session which has an active dispute",
+					"Importing statement lacks info for session which has an active dispute",
 				);
 
 				return Ok(ImportStatementsResult::InvalidImport)
@@ -617,7 +617,7 @@ impl Initialized {
 					tracing::warn!(
 						target: LOG_TARGET,
 						session,
-						"Missing info for session which has an active dispute",
+						"Not seen backing vote for candidate which has an active dispute",
 					);
 					return Ok(ImportStatementsResult::InvalidImport)
 				},

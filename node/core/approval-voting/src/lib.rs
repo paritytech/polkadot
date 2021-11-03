@@ -1351,6 +1351,9 @@ async fn handle_approved_ancestor(
 									let next_wakeup =
 										wakeups.wakeup_for(block_hash, candidate_hash);
 
+									let approved =
+										triggered && { a_entry.local_statements().1.is_some() };
+
 									tracing::debug!(
 										target: LOG_TARGET,
 										?candidate_hash,
@@ -1359,6 +1362,7 @@ async fn handle_approved_ancestor(
 										?next_wakeup,
 										status = %status(),
 										triggered,
+										approved,
 										"assigned."
 									);
 								},
