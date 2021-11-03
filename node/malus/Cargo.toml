@@ -10,7 +10,7 @@ path = "src/variant-a.rs"
 name = "polkadot-test-malus"
 description = "Misbehaving nodes for local testnets, system and Simnet tests."
 license = "GPL-3.0-only"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
@@ -25,7 +25,7 @@ polkadot-node-core-pvf = { path = "../core/pvf" }
 parity-util-mem = { version = "0.10.0", default-features = false, features = ["jemalloc-global"] }
 color-eyre = { version = "0.5.11", default-features = false }
 assert_matches = "1.5"
-structopt = "0.3.23"
+structopt = "0.3.25"
 async-trait = "0.1.51"
 
 [dev-dependencies]

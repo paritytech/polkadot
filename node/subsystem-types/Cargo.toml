@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-subsystem-types"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Subsystem traits and message definitions"
@@ -17,4 +17,4 @@ polkadot-overseer-gen = { path = "../overseer/overseer-gen" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 smallvec = "1.6.1"
 substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.26"
+thiserror = "1.0.30"

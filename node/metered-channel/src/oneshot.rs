@@ -95,7 +95,7 @@ pub fn channel<T>(
 #[allow(missing_docs)]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-	#[error("Oneshot was cancelled.")]
+	#[error("Oneshot was canceled.")]
 	Canceled(#[source] Canceled, Measurements),
 	#[error("Oneshot did not receive a response within {}", Duration::as_secs_f64(.0))]
 	HardTimeout(Duration, Measurements),
@@ -124,7 +124,7 @@ impl<T> MeteredSender<T> {
 		inner.send((Instant::now(), t)).map_err(|(_, t)| t)
 	}
 
-	/// Poll if the thing is already cancelled.
+	/// Poll if the thing is already canceled.
 	pub fn poll_canceled(&mut self, ctx: &mut Context<'_>) -> Poll<()> {
 		self.inner.poll_canceled(ctx)
 	}

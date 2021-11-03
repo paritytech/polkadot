@@ -999,6 +999,14 @@ sp_api::decl_runtime_apis! {
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<H, N>>;
 
+		/// Returns the persisted validation data for the given `ParaId` along with the corresponding
+		/// validation code hash. Instead of accepting assumption about the para, matches the validation
+		/// data hash against an expected one and yields `None` if they're not equal.
+		fn assumed_validation_data(
+			para_id: Id,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<H, N>, ValidationCodeHash)>;
+
 		/// Checks if the given validation outputs pass the acceptance criteria.
 		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
 

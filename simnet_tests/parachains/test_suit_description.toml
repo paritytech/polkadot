@@ -1,0 +1,13 @@
+name = "Parachains test"
+description = "Smoke test for parachains, that deploy a simple collator and register parachain"
+required-images = [
+	"SYNTHIMAGE",
+	"COLIMAGE",
+	"SCRIPTSIMAGE",
+	"PARACHAINSIMAGE"
+]
+
+[[test-cases]]
+tags = ["all", "smoketest"]
+chain-config = "configs/simple_rococo_testnet.toml"
+scenarios = ["tests/parachains.feature"]

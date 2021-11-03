@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-dispute-distribution"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -18,7 +18,7 @@ polkadot-node-primitives = { path = "../../primitives" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 lru = "0.7.0"
 
 [dev-dependencies]

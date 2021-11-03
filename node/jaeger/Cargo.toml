@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-jaeger"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Polkadot Jaeger primitives"
@@ -14,6 +14,6 @@ polkadot-primitives = { path = "../../primitives" }
 polkadot-node-primitives = { path = "../primitives" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 log = "0.4.13"
 parity-scale-codec = { version = "2.3.1", default-features = false }
