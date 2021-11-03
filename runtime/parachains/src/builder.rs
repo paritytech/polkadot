@@ -90,36 +90,39 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.expect("self.block_number is u32")
 	}
 
-	/// Maximum number of validators participating in parachains consensus (a.k.a. active validators).
-	pub(crate) fn max_validators() -> u32 {
-		self.max_validators.unwrap_or(
-			configuration::Pallet::<T>::config().max_validators.unwrap_or(200)
-		)
-	}
-
-	pub(crate) fn set_max_validators(n: u32) {
-		self.max_validators = Some(n)
-	}
-
 	/// Maximium number of validators that may be part of a validator group.
-	pub(crate) fn max_validators_per_core() -> u32 {
-		self.max_validators_per_core.unwrap_or(
-			configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
-		 )
+	pub(crate) fn fallback_max_validators() -> u32 {
+		configuration::Pallet::<T>::config().max_validators.unwrap_or(200)
 	}
 
-	pub(crate) fn set_max_validators_per_core(n: u32) {
-		self.max_validators_per_core = Some(n)
+	/// Maximum number of validators participating in parachains consensus (a.k.a. active validators).
+	fn max_validators(&self) -> u32 {
+		self.max_validators.unwrap_or(Self::fallback_max_validators())
+	}
+
+	pub(crate) fn set_max_validators(mut self, n: u32) -> Self {
+		self.max_validators = Some(n);
+		self
+	}
+
+	fn max_validators_per_core(&self) -> u32 {
+		self.max_validators_per_core
+			.unwrap_or(configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5))
+	}
+
+	pub(crate) fn set_max_validators_per_core(mut self, n: u32) -> Self {
+		self.max_validators_per_core = Some(n);
+		self
 	}
 
 	/// Maximum number of cores we expect from this configuration.
-	pub(crate) fn max_cores() -> u32 {
-		Self::max_validators() / Self::max_validators_per_core()
+	pub(crate) fn max_cores(&self) -> u32 {
+		self.max_validators() / self.max_validators_per_core()
 	}
 
 	/// Minimum number of validity votes in order for a backed candidate to be included.
-	pub(crate) fn min_validity_votes() -> u32 {
-		(Self::max_validators() / 2) + 1
+	pub(crate) fn fallback_min_validity_votes() -> u32 {
+		(Self::fallback_max_validators() / 2) + 1
 	}
 
 	fn create_indexes(&self, seed: u32) -> (ParaId, CoreIndex, GroupIndex) {
@@ -489,7 +492,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		inclusion::PendingAvailability::<T>::remove_all(None);
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
-		let cores = Self::max_cores();
+		let cores = self.max_cores();
 		let used_cores = backed_and_concluding_cores + non_spam_dispute_cores;
 		assert!(used_cores <= cores);
 
@@ -497,7 +500,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		// We are currently in Session 0, so these changes will take effect in Session 2
 		Self::setup_para_ids(used_cores);
 
-		let validator_ids = Self::generate_validator_pairs(Self::max_validators());
+		let validator_ids = Self::generate_validator_pairs(self.max_validators());
 		let target_session = SessionIndex::from(self.target_session);
 		let builder = self.setup_session(target_session, validator_ids, used_cores);
 
@@ -513,6 +516,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			used_cores as usize,
 		);
 		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), used_cores as usize,);
+
+		// Mark all the use cores as occupied. We expect that their are `backed_and_concluding_cores`
+		// that are pending availability and that there are `non_spam_dispute_cores` which are about
+		// to be disputed.
+		AvailabilityCores::<Test>::set(vec![Some(CoreOccupied::Parachain); used_cores]);
 
 		Bench::<T> {
 			data: ParachainsInherentData {

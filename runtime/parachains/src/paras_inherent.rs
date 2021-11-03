@@ -829,8 +829,7 @@ fn limit_backed_candidates<T: Config>(
 	// so our operation is simple: if the block is currently overloaded, make this intrinsic smaller
 
 	let max_block = <T as frame_system::Config>::BlockWeights::get().max_block;
-	if frame_system::Pallet::<T>::block_weight().total() > max_block
-	{
+	if frame_system::Pallet::<T>::block_weight().total() > max_block {
 		Vec::new()
 	} else {
 		backed_candidates
@@ -845,34 +844,44 @@ mod tests {
 
 	#[test]
 	fn does_not_exit_early_when_backed_candidates_are_expected_to_be_scheduled() {
+		use crate::{
+			builder::BenchBuilder,
+			scheduler::{AssignmentKind, AvailabilityCores},
+		};
+		use primitives::v1::{CoreOccupied, GroupIndex, Id as ParaId};
+
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-						// Now seed the scheduled cores such that we know it will not included any cores
-			// overlapping with backed candidates.
-			let mock_freed_at_parent_block = vec![
-				(2, FreedReason::Concluded),
-				(3, FreedReason::Concluded),
-				(4, FreedReason::Concluded),
-			];
-
-			<scheduler::Pallet<T>>::schedule(mock_freed_at_parent_block, <frame_system::Pallet<T>>::block_number());
-
-			let scenario = BenchBuilder::<T>::new()
+			let scenario = BenchBuilder::<Test>::new()
 				.set_max_validators(5)
-				.set_validators_per_core(1) // 5 validators, 1 validator per core => 5 cores.
+				.set_max_validators_per_core(1) // 5 validators, 1 validator per core => 5 cores.
 				.build(2, 0); // build backed candidates for cores 0 & 1.
-			let paras_inherent_data =  scenario
-				.data
-				.clone();
+			let paras_inherent_data = scenario.data.clone();
 
-			assert_eq!(
-				paras_inherent_data.bitfields.len(), 2
+			// Now seed the scheduled cores such that only 1 out of two cores we have backed candidates
+			// for is scheduled.
+			// let mock_freed_at_parent_block =
+			// 	vec![(3.into(), FreedReason::Concluded), (4.into(), FreedReason::Concluded)];
+			<scheduler::Pallet<Test>>::clear();
+			<scheduler::Pallet<Test>>::schedule(
+				// mock_freed_at_parent_block,
+				vec![],
+				<frame_system::Pallet<Test>>::block_number(),
 			);
+
+			// .. and assert cores are scheduled as expected.
 			assert_eq!(
-				paras_inherent_data.backed_candidates.len(), 2
+				<scheduler::Pallet<Test>>::scheduled(),
+				vec![CoreAssignment {
+					core: CoreIndex(4),
+					para_id: 4.into(),
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(4)
+				}]
 			);
-			assert_eq!(
-				paras_inherent_data.disputes.len(), 0
-			);
+
+			assert_eq!(paras_inherent_data.bitfields.len(), 5); // 1 bitfield per validator
+			assert_eq!(paras_inherent_data.backed_candidates.len(), 2);
+			assert_eq!(paras_inherent_data.disputes.len(), 0);
 		});
 	}
 

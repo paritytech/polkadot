@@ -25,7 +25,7 @@ benchmarks! {
 	// Variant over `v`, the number of dispute statements in a dispute statement set. This gives the
 	// weight of a single dispute statement set.
 	enter_variable_disputes {
-		let v in 10..BenchBuilder::<T>::max_validators();
+		let v in 10..BenchBuilder::<T>::fallback_max_validators();
 
 		let cores_with_disputed = 1;
 		let cores_with_backed = 0;
@@ -87,7 +87,9 @@ benchmarks! {
 	enter_backed_candidates_variable {
 		// NOTE: the starting value must be over half of `max_validators` so the backed candidate is
 		// not rejected.
-		let v in (BenchBuilder::<T>::min_validity_votes())..BenchBuilder::<T>::max_validators();
+		let v
+			in (BenchBuilder::<T>::fallback_min_validity_votes())
+				..BenchBuilder::<T>::fallback_max_validators();
 
 		let cores_with_disputed = 0;
 		let cores_with_backed = 1;
