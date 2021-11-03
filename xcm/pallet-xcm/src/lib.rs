@@ -1219,7 +1219,7 @@ pub mod pallet {
 					Self::note_unknown_version(dest);
 					SafeXcmVersion::<T>::get()
 				})
-				.ok_or_else(|_| {
+				.ok_or_else(|| {
 					log::trace!(
 						target: "xcm::pallet_xcm::wrap_version",
 						"Could not determine a version to wrap XCM for destination: {:?}",
