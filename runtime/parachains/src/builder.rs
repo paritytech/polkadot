@@ -9,10 +9,10 @@ use frame_support::pallet_prelude::*;
 use primitives::v1::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CollatorId, CommittedCandidateReceipt, CompactStatement,
-	CoreIndex, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData, Id as ParaId,
-	InherentData as ParachainsInherentData, InvalidDisputeStatementKind, PersistedValidationData,
-	SessionIndex, SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode,
-	ValidatorId, ValidatorIndex, ValidityAttestation,
+	CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex, HeadData,
+	Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
+	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
+	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -44,10 +44,18 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 }
 
 /// Paras inherent `enter` benchmark scenario.
+#[cfg(feature = "runtime-benchmarks")]
 pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) data: ParachainsInherentData<T::Header>,
 	pub(crate) session: u32,
 	pub(crate) block_number: T::BlockNumber,
+}
+
+#[cfg(test)]
+pub(crate) struct Bench<T: paras_inherent::Config> {
+	pub(crate) data: ParachainsInherentData<T::Header>,
+	session: u32,
+	block_number: T::BlockNumber,
 }
 
 impl<T: paras_inherent::Config> BenchBuilder<T> {
@@ -121,6 +129,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Minimum number of validity votes in order for a backed candidate to be included.
+	#[cfg(feature = "runtime-benchmarks")]
+
 	pub(crate) fn fallback_min_validity_votes() -> u32 {
 		(Self::fallback_max_validators() / 2) + 1
 	}
@@ -520,7 +530,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		// Mark all the use cores as occupied. We expect that their are `backed_and_concluding_cores`
 		// that are pending availability and that there are `non_spam_dispute_cores` which are about
 		// to be disputed.
-		AvailabilityCores::<Test>::set(vec![Some(CoreOccupied::Parachain); used_cores]);
+		scheduler::AvailabilityCores::<T>::set(vec![
+			Some(CoreOccupied::Parachain);
+			used_cores as usize
+		]);
 
 		Bench::<T> {
 			data: ParachainsInherentData {

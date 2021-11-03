@@ -65,6 +65,7 @@ frame_support::construct_runtime!(
 		Hrmp: hrmp::{Pallet, Call, Storage, Event<T>},
 		SessionInfo: session_info::{Pallet, Storage},
 		Disputes: disputes::{Pallet, Storage, Event<T>},
+		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
 	}
 );
 
@@ -324,7 +325,7 @@ impl UmpSink for TestUmpSink {
 		};
 		if weight > max_weight {
 			let id = sp_io::hashing::blake2_256(actual_msg);
-			return Err((id, weight))
+			return Err((id, weight));
 		}
 		PROCESSED.with(|opt_hook| {
 			opt_hook.borrow_mut().push((actual_origin, actual_msg.to_owned()));

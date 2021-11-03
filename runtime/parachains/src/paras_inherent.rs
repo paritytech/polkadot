@@ -79,20 +79,16 @@ impl WeightInfo for TestWeightInfo {
 	}
 }
 
-/// Weights
-///
-/// TODO replaced this with the true weights
-/// TODO as part of <https://github.com/paritytech/polkadot/pull/4044>
-/// TODO The current ones are _preliminary_ copies of those.
 fn paras_inherent_total_weight<T: Config>(
 	n_backed_candidates: u32,
 	n_bitfields: u32,
 	n_disputes: u32,
 ) -> Weight {
-	<T as Config>::WeightInfo::enter_variable_disputes(MAX_ACTIVE_VALIDATORS) * n_disputes as Weight +
-		<T as Config>::WeightInfo::enter_backed_candidates_variable(MAX_ACTIVE_VALIDATORS) *
-			n_backed_candidates as Weight +
-		<T as Config>::WeightInfo::enter_bitfields() * n_bitfields as Weight
+	<T as Config>::WeightInfo::enter_variable_disputes(MAX_ACTIVE_VALIDATORS)
+		.saturating_mul(n_disputes as Weight)
+		+ <T as Config>::WeightInfo::enter_backed_candidates_variable(MAX_ACTIVE_VALIDATORS)
+			.saturating_mul(n_backed_candidates as Weight)
+		+ <T as Config>::WeightInfo::enter_bitfields().saturating_mul(n_bitfields as Weight)
 }
 
 /// Extract the weight that is added _per_ bitfield.
@@ -103,8 +99,8 @@ fn bitfield_weight<T: Config>() -> Weight {
 fn minimal_inherent_weight<T: Config>() -> Weight {
 	// We just take the min of all our options. This can be changed in the future.
 	<T as Config>::WeightInfo::enter_bitfields()
-		.min(<T as Config>::WeightInfo::enter_variable_disputes(1))
-		.min(<T as Config>::WeightInfo::enter_backed_candidates_variable(1))
+		.min(<T as Config>::WeightInfo::enter_variable_disputes(0))
+		.min(<T as Config>::WeightInfo::enter_backed_candidates_variable(0))
 }
 
 /// Extract the weight that is adder _per_ backed candidate.
@@ -195,135 +191,7 @@ pub mod pallet {
 		const INHERENT_IDENTIFIER: InherentIdentifier = PARACHAINS_INHERENT_IDENTIFIER;
 
 		fn create_inherent(data: &InherentData) -> Option<Self::Call> {
-			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
-
-			let ParachainsInherentData::<T::Header> {
-				bitfields,
-				backed_candidates,
-				mut disputes,
-				parent_header,
-			} = match data.get_data(&Self::INHERENT_IDENTIFIER) {
-				Ok(Some(d)) => d,
-				Ok(None) => return None,
-				Err(_) => {
-					log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
-					return None
-				},
-			};
-
-			if parent_hash != parent_header.hash() {
-				log::warn!(
-					target: LOG_TARGET,
-					"ParachainsInherentData references a different parent header hash than frame"
-				);
-				return None
-			}
-
-			let current_session = <shared::Pallet<T>>::session_index();
-			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
-			let validator_public = shared::Pallet::<T>::active_validator_keys();
-
-			T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
-
-			let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
-
-			let (freed_cores, concluded_invalid_disputes) =
-				frame_support::storage::with_transaction(|| {
-					// we don't care about fresh or not disputes
-					// this writes them to storage, so let's query it via those means
-					// if this fails for whatever reason, that's ok
-					let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())
-						.map_err(|e| {
-							log::warn!(
-								target: LOG_TARGET,
-								"MultiDisputesData failed to update: {:?}",
-								e
-							);
-							e
-						});
-
-					// current concluded invalid disputes, only including the current block's votes
-					let current_concluded_invalid_disputes = disputes
-						.iter()
-						.filter(|dss| dss.session == current_session)
-						.map(|dss| (dss.session, dss.candidate_hash))
-						.filter(|(session, candidate)| {
-							<T>::DisputesHandler::concluded_invalid(*session, *candidate)
-						})
-						.map(|(_session, candidate)| candidate)
-						.collect::<BTreeSet<CandidateHash>>();
-
-					let freed_cores = <inclusion::Pallet<T>>::collect_disputed(
-						&current_concluded_invalid_disputes,
-					);
-
-					// all concluded invalid disputes, that are relevant for the set of candidates
-					// the inherent provided
-					let concluded_invalid_disputes = backed_candidates
-						.iter()
-						.map(|backed_candidate| backed_candidate.hash())
-						.filter(|candidate| {
-							<T>::DisputesHandler::concluded_invalid(current_session, *candidate)
-						})
-						.collect::<BTreeSet<CandidateHash>>();
-
-					frame_support::storage::TransactionOutcome::Rollback((
-						freed_cores,
-						concluded_invalid_disputes,
-					))
-				});
-
-			let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_cores.iter());
-
-			let bitfields = sanitize_bitfields::<T, false>(
-				bitfields,
-				disputed_bitfield,
-				expected_bits,
-				parent_hash,
-				current_session,
-				&validator_public[..],
-			)
-			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
-
-			let backed_candidates = sanitize_backed_candidates::<T, _, false>(
-				parent_hash,
-				backed_candidates,
-				move |candidate_hash: CandidateHash| -> bool {
-					concluded_invalid_disputes.contains(&candidate_hash)
-				},
-				&scheduled[..],
-			)
-			.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
-
-			let entropy = {
-				const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
-				let vrf_random = CurrentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
-				let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
-				if let Some(vrf_random) = vrf_random {
-					entropy.as_mut().copy_from_slice(vrf_random.as_ref());
-				} else {
-					// in case there is no vrf randomness present, we utilize the relay parent
-					// as seed, it's better than a static value.
-					log::warn!(
-						target: LOG_TARGET,
-						"CurrentBlockRandomness did not provide entropy"
-					);
-					entropy.as_mut().copy_from_slice(parent_hash.as_ref());
-				}
-				entropy
-			};
-
-			let remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-			let (_backed_candidates_weight, backed_candidates, bitfields) =
-				apply_weight_limit::<T>(backed_candidates, bitfields, entropy, remaining_weight);
-
-			let inherent_data = ParachainsInherentData::<T::Header> {
-				bitfields,
-				backed_candidates,
-				disputes,
-				parent_header,
-			};
-
+			let inherent_data = Self::create_inherent_inner(data)?;
 			// Sanity check: session changes can invalidate an inherent,
 			// and we _really_ don't want that to happen.
 			// See <https://github.com/paritytech/polkadot/issues/1327>
@@ -348,7 +216,7 @@ pub mod pallet {
 							disputes: Vec::new(),
 							parent_header: inherent_data.parent_header,
 						}
-					},
+					}
 				};
 
 			Some(Call::enter { data: inherent_data })
@@ -407,7 +275,7 @@ pub mod pallet {
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
-					return Ok(Some(minimal_inherent_weight::<T>()).into())
+					return Ok(Some(minimal_inherent_weight::<T>()).into());
 				}
 
 				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
@@ -541,6 +409,137 @@ pub mod pallet {
 	}
 }
 
+impl<T: Config> Pallet<T> {
+	/// Create the `ParachainsInherentData` that gets passed to `[`Self::enter`] in [`Self::create_inherent`].
+	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
+	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<T::Header>> {
+		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+
+		let ParachainsInherentData::<T::Header> {
+			bitfields,
+			backed_candidates,
+			mut disputes,
+			parent_header,
+		} = match data.get_data(&Self::INHERENT_IDENTIFIER) {
+			Ok(Some(d)) => d,
+			Ok(None) => return None,
+			Err(_) => {
+				log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
+				return None;
+			}
+		};
+
+		if parent_hash != parent_header.hash() {
+			log::warn!(
+				target: LOG_TARGET,
+				"ParachainsInherentData references a different parent header hash than frame"
+			);
+			return None;
+		}
+
+		let current_session = <shared::Pallet<T>>::session_index();
+		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
+		let validator_public = shared::Pallet::<T>::active_validator_keys();
+
+		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
+
+		let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
+
+		let (freed_cores, concluded_invalid_disputes) =
+			frame_support::storage::with_transaction(|| {
+				// we don't care about fresh or not disputes
+				// this writes them to storage, so let's query it via those means
+				// if this fails for whatever reason, that's ok
+				let _ =
+					T::DisputesHandler::provide_multi_dispute_data(disputes.clone()).map_err(|e| {
+						log::warn!(
+							target: LOG_TARGET,
+							"MultiDisputesData failed to update: {:?}",
+							e
+						);
+						e
+					});
+
+				// current concluded invalid disputes, only including the current block's votes
+				let current_concluded_invalid_disputes = disputes
+					.iter()
+					.filter(|dss| dss.session == current_session)
+					.map(|dss| (dss.session, dss.candidate_hash))
+					.filter(|(session, candidate)| {
+						<T>::DisputesHandler::concluded_invalid(*session, *candidate)
+					})
+					.map(|(_session, candidate)| candidate)
+					.collect::<BTreeSet<CandidateHash>>();
+
+				let freed_cores =
+					<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes);
+
+				// all concluded invalid disputes, that are relevant for the set of candidates
+				// the inherent provided
+				let concluded_invalid_disputes = backed_candidates
+					.iter()
+					.map(|backed_candidate| backed_candidate.hash())
+					.filter(|candidate| {
+						<T>::DisputesHandler::concluded_invalid(current_session, *candidate)
+					})
+					.collect::<BTreeSet<CandidateHash>>();
+
+				frame_support::storage::TransactionOutcome::Rollback((
+					freed_cores,
+					concluded_invalid_disputes,
+				))
+			});
+
+		let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_cores.iter());
+
+		let bitfields = sanitize_bitfields::<T, false>(
+			bitfields,
+			disputed_bitfield,
+			expected_bits,
+			parent_hash,
+			current_session,
+			&validator_public[..],
+		)
+		.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
+
+		let backed_candidates = sanitize_backed_candidates::<T, _, false>(
+			parent_hash,
+			backed_candidates,
+			move |candidate_hash: CandidateHash| -> bool {
+				concluded_invalid_disputes.contains(&candidate_hash)
+			},
+			&scheduled[..],
+		)
+		.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
+
+		let entropy = {
+			const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
+			let vrf_random = CurrentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
+			let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
+			if let Some(vrf_random) = vrf_random {
+				entropy.as_mut().copy_from_slice(vrf_random.as_ref());
+			} else {
+				// in case there is no vrf randomness present, we utilize the relay parent
+				// as seed, it's better than a static value.
+				log::warn!(target: LOG_TARGET, "CurrentBlockRandomness did not provide entropy");
+				entropy.as_mut().copy_from_slice(parent_hash.as_ref());
+			}
+			entropy
+		};
+
+		let remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+		let (_backed_candidates_weight, backed_candidates, bitfields) =
+			apply_weight_limit::<T>(backed_candidates, bitfields, entropy, remaining_weight);
+
+		Some(ParachainsInherentData::<T::Header> {
+			bitfields,
+			backed_candidates,
+			disputes,
+			parent_header,
+		})
+	}
+}
+
 /// Assures the `$condition` is `true`, and raises
 /// an error if `$action` is `true`.
 /// If `$action` is `false`, executes `$alt` if present.
@@ -595,7 +594,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	// everything fits into the block
 	if max_weight < total {
-		return (total, candidates, bitfields)
+		return (total, candidates, bitfields);
 	}
 
 	use rand_chacha::rand_core::SeedableRng;
@@ -644,7 +643,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		// pick all bitfields, and
 		// fill the remaining space with candidates
 		let total = acc_candidate_weight + total_bitfields_weight;
-		return (total, candidates, bitfields)
+		return (total, candidates, bitfields);
 	}
 
 	// insufficient space for even the bitfields alone, so only try to fit as many of those
@@ -708,8 +707,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 		);
 
 		ensure2!(
-			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() ==
-				all_zeros,
+			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone()
+				== all_zeros,
 			crate::inclusion::Error::<T>::BitfieldReferencesFreedCore,
 			EARLY_RETURN,
 			continue
@@ -783,8 +782,8 @@ fn sanitize_backed_candidates<
 	// Also checks the candidate references the correct relay parent.
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
-		desc.relay_parent == relay_parent &&
-			scheduled.iter().any(|core| core.para_id == desc.para_id) // TODO should `scheduled` be a set?
+		desc.relay_parent == relay_parent
+			&& scheduled.iter().any(|core| core.para_id == desc.para_id)
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
@@ -815,7 +814,7 @@ fn limit_backed_candidates<T: Config>(
 		backed_candidates.retain(|c| {
 			if c.candidate.commitments.new_validation_code.is_some() {
 				if code_upgrades >= MAX_CODE_UPGRADES {
-					return false
+					return false;
 				}
 
 				code_upgrades += 1;
@@ -841,47 +840,69 @@ mod tests {
 	use super::*;
 
 	use crate::mock::{new_test_ext, MockGenesisConfig, System, Test};
+	use frame_support::assert_ok;
 
 	#[test]
-	fn does_not_exit_early_when_backed_candidates_are_expected_to_be_scheduled() {
-		use crate::{
-			builder::BenchBuilder,
-			scheduler::{AssignmentKind, AvailabilityCores},
-		};
-		use primitives::v1::{CoreOccupied, GroupIndex, Id as ParaId};
+	fn backed_candidates_are_correctly_included_when_scheduled_in_the_middle_of_enter() {
+		use crate::builder::BenchBuilder;
 
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			// Scheduling from `enter` in the previous block.
+			<scheduler::Pallet<Test>>::clear();
+			<scheduler::Pallet<Test>>::schedule(
+				vec![], // no newly freed cores
+				<frame_system::Pallet<Test>>::block_number(),
+			);
+
+			// create the inherent data for this block
 			let scenario = BenchBuilder::<Test>::new()
 				.set_max_validators(5)
 				.set_max_validators_per_core(1) // 5 validators, 1 validator per core => 5 cores.
 				.build(2, 0); // build backed candidates for cores 0 & 1.
-			let paras_inherent_data = scenario.data.clone();
 
-			// Now seed the scheduled cores such that only 1 out of two cores we have backed candidates
-			// for is scheduled.
-			// let mock_freed_at_parent_block =
-			// 	vec![(3.into(), FreedReason::Concluded), (4.into(), FreedReason::Concluded)];
-			<scheduler::Pallet<Test>>::clear();
-			<scheduler::Pallet<Test>>::schedule(
-				// mock_freed_at_parent_block,
-				vec![],
-				<frame_system::Pallet<Test>>::block_number(),
-			);
+			// We expect the scenario to have cores 0 & 1 with pending availability. The backed
+			// candidates are also created for cores 0 & 1, so once the pending available
+			// become fully available those cores are marked as free and scheduled for the backed
+			// candidates.
+			let expected_para_inherent_data = scenario.data.clone();
 
-			// .. and assert cores are scheduled as expected.
+			// Check the para inherent data is as expected:
+			// * 1 bitfield per validator
+			assert_eq!(expected_para_inherent_data.bitfields.len(), 5);
+			// * 1 backed candidate per core
+			assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
+			// * 0 disputes.
+			assert_eq!(expected_para_inherent_data.disputes.len(), 0);
+			let mut inherent_data = InherentData::new();
+			inherent_data
+				.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+				.unwrap();
+
+			// The current schedule is empty prior to calling `create_inherent_enter`.
+			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+
+			// Nothing is filtered out (including the backed candidates.)
 			assert_eq!(
-				<scheduler::Pallet<Test>>::scheduled(),
-				vec![CoreAssignment {
-					core: CoreIndex(4),
-					para_id: 4.into(),
-					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(4)
-				}]
+				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap(),
+				expected_para_inherent_data
 			);
 
-			assert_eq!(paras_inherent_data.bitfields.len(), 5); // 1 bitfield per validator
-			assert_eq!(paras_inherent_data.backed_candidates.len(), 2);
-			assert_eq!(paras_inherent_data.disputes.len(), 0);
+			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
+			// alter storage, but just double checking for sanity).
+			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+
+			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
+			// Call enter with our 2 backed candidates
+			assert_ok!(Pallet::<Test>::enter(
+				frame_system::RawOrigin::None.into(),
+				expected_para_inherent_data
+			));
+			assert_eq!(
+				// The length of this vec is equal to the number of candidates, so we know our 2
+				// backed candidates did not get filtered out
+				Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
+				2
+			);
 		});
 	}
 
