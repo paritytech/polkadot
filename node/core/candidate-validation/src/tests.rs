@@ -17,6 +17,7 @@
 use super::*;
 use assert_matches::assert_matches;
 use futures::executor;
+use polkadot_node_core_pvf::PrepareError;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::reexports::SubsystemContext;
@@ -345,6 +346,10 @@ impl ValidationBackend for MockValidatorBackend {
 		_params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		self.result.clone()
+	}
+
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
+		todo!()
 	}
 }
 

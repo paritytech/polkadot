@@ -24,7 +24,7 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, Pvf, ValidationError, ValidationHost,
+	InvalidCandidate as WasmInvalidCandidate, PrepareError, Pvf, ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -199,7 +199,22 @@ where
 					validation_code_hash,
 					response_sender,
 				) => {
-					let bg = { async move {} };
+					let bg = {
+						let mut sender = ctx.sender().clone();
+						let validation_host = validation_host.clone();
+
+						async move {
+							let precheck_result = precheck_pvf(
+								&mut sender,
+								validation_host,
+								relay_parent,
+								validation_code_hash,
+							)
+							.await;
+
+							let _ = response_sender.send(precheck_result);
+						}
+					};
 
 					ctx.spawn("candidate-validation-pre-check", bg.boxed())?;
 				},
@@ -242,6 +257,66 @@ where
 				RuntimeRequestFailed
 			})
 		})
+}
+
+async fn request_validation_code_by_hash<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+	validation_code_hash: ValidationCodeHash,
+) -> Result<Option<ValidationCode>, RuntimeRequestFailed>
+where
+	Sender: SubsystemSender,
+{
+	let (tx, rx) = oneshot::channel();
+	runtime_api_request(
+		sender,
+		relay_parent,
+		RuntimeApiRequest::ValidationCodeByHash(validation_code_hash, tx),
+		rx,
+	)
+	.await
+}
+
+async fn precheck_pvf<Sender>(
+	sender: &mut Sender,
+	mut validation_backend: impl ValidationBackend,
+	relay_parent: Hash,
+	validation_code_hash: ValidationCodeHash,
+) -> bool
+where
+	Sender: SubsystemSender,
+{
+	// TODO: consider sending `Result` via `response_sender` with some kind of
+	// `PrecheckError`: in case of runtime API request failure, is sending
+	// `false` correct? Could skip it in case of `PrepareError::DidNotMakeIt` or `RuntimeRequestFailed`.
+
+	let validation_code =
+		match request_validation_code_by_hash(sender, relay_parent, validation_code_hash).await {
+			Ok(Some(code)) => code,
+			_ => return false,
+		};
+
+	let raw_validation_code = match sp_maybe_compressed_blob::decompress(
+		&validation_code.0,
+		VALIDATION_CODE_BOMB_LIMIT,
+	) {
+		Ok(code) => code,
+		Err(e) => {
+			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+
+			return false
+		},
+	};
+
+	let precheck_result = match validation_backend
+		.precheck_pvf(Pvf::from_code(raw_validation_code.to_vec()))
+		.await
+	{
+		Ok(_) => true,
+		Err(_) => false,
+	};
+
+	precheck_result
 }
 
 #[derive(Debug)]
@@ -494,6 +569,8 @@ trait ValidationBackend {
 		timeout: Duration,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError>;
+
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
 }
 
 #[async_trait]
@@ -526,6 +603,17 @@ impl ValidationBackend for ValidationHost {
 			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?;
 
 		validation_result
+	}
+
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
+		let (tx, rx) = oneshot::channel();
+		if let Err(_) = self.precheck_pvf(pvf, tx).await {
+			return Err(PrepareError::DidNotMakeIt)
+		}
+
+		let precheck_result = rx.await.or(Err(PrepareError::DidNotMakeIt))?;
+
+		precheck_result
 	}
 }
 
