@@ -818,10 +818,16 @@ impl parachains_inclusion::Config for Runtime {
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 }
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = Babe;
 }
 
 parameter_types! {
@@ -1277,6 +1283,17 @@ sp_api::impl_runtime_apis! {
 
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
 			parachains_runtime_api_impl::on_chain_votes::<Runtime>()
+		}
+
+		fn submit_pvf_check_statement(
+			stmt: primitives::v1::PvfCheckStatement,
+			signature: primitives::v1::ValidatorSignature,
+		) {
+			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
+		}
+
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+			parachains_runtime_api_impl::pvfs_require_precheck::<Runtime>()
 		}
 	}
 
