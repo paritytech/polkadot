@@ -774,7 +774,7 @@ fn sanitize_backed_candidates<
 	let scheduled_paras_set = scheduled
 		.into_iter()
 		.map(|core_assignment| core_assignment.para_id)
-		.collect::<BTreeSet<ParaId>>();
+		.collect::<BTreeSet<_>>();
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
 		desc.relay_parent == relay_parent && scheduled_paras_set.contains(&desc.para_id)
