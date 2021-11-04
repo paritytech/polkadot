@@ -16,10 +16,7 @@
 
 //! Dispute coordinator subsystem in initialized state (after first active leaf is received).
 
-use std::{
-	collections::{BTreeMap, HashSet},
-	sync::Arc,
-};
+use std::{collections::HashSet, sync::Arc};
 
 use futures::{
 	channel::{mpsc, oneshot},
@@ -502,11 +499,12 @@ impl Initialized {
 				}
 			},
 			DisputeCoordinatorMessage::RecentDisputes(tx) => {
-				let recent_disputes = self.load_recent_disputes_ordered(overlay_db)?;
-				let _ = tx.send(recent_disputes.map(|(k, _)| k).collect());
+				let recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
+				let _ = tx.send(recent_disputes.keys().cloned().collect());
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
-				let recent_disputes = self.load_recent_disputes_ordered(overlay_db)?;
+				let recent_disputes =
+					overlay_db.load_recent_disputes()?.unwrap_or_default().into_iter();
 				let _ =
 					tx.send(get_active_with_status(recent_disputes, now).map(|(k, _)| k).collect());
 			},
@@ -635,7 +633,10 @@ impl Initialized {
 		let was_confirmed = recent_disputes
 			.get(&(session, candidate_hash))
 			.map_or(false, |s| s.is_confirmed_concluded());
-		let comparator = self.ordering_provider.candidate_comparator(&candidate_hash);
+		let comparator = self
+			.ordering_provider
+			.candidate_comparator(ctx.sender(), &candidate_receipt)
+			.await?;
 		let is_included = comparator.is_some();
 		let is_local = statements
 			.iter()
@@ -720,7 +721,7 @@ impl Initialized {
 			self.participation
 				.queue_participation(
 					ctx,
-					comparator.cloned(),
+					comparator,
 					ParticipationRequest::new(candidate_receipt, session, n_validators),
 				)
 				.await?;
@@ -909,30 +910,6 @@ impl Initialized {
 		}
 
 		Ok(())
-	}
-
-	/// Get an ordered/sorted list of recent disputes.
-	///
-	/// - Priority candidates come first, sorted based on their `CandidateComparator`.
-	/// - All other candidates in order as coming from the database (SessionIndex, CandidateHash).
-	fn load_recent_disputes_ordered(
-		&mut self,
-		overlay_db: &'_ mut OverlayedBackend<impl Backend>,
-	) -> Result<impl Iterator<Item = ((SessionIndex, CandidateHash), DisputeStatus)>> {
-		let recent_in = overlay_db.load_recent_disputes()?.unwrap_or_default();
-		let mut best_effort = Vec::new();
-		let mut priority = BTreeMap::new();
-		for ((session_index, candidate_hash), status) in recent_in {
-			match self.ordering_provider.candidate_comparator(&candidate_hash) {
-				None => {
-					best_effort.push(((session_index, candidate_hash), status));
-				},
-				Some(cmp) => {
-					priority.insert(cmp.clone(), ((session_index, candidate_hash), status));
-				},
-			}
-		}
-		Ok(priority.into_iter().map(|(_, v)| v).chain(best_effort.into_iter()))
 	}
 }
 

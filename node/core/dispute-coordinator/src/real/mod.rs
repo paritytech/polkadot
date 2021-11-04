@@ -65,11 +65,12 @@ use initialized::Initialized;
 
 /// Provider of an ordering for candidates.
 ///
-/// This is based on information we have on candidates we have seen included. Thus a dispute for a
-/// candidate where we can get some ordering is high-priority (we know it is a valid dispute) and
-/// those can be ordered based on relay chain block number and other metrics, so each validator
-/// will participate in disputes in a similar order, which ensures we will be resolving disputes,
-/// even under heavy load.
+/// If we have seen a candidate included somewhere, we should treat it as priority and will be able
+/// to provide an ordering for participation. Thus a dispute for a candidate where we can get some
+/// ordering is high-priority (we know it is a valid dispute) and those can be ordered by
+/// `participation` based on `relay_parent` block number and other metrics, so each validator will
+/// participate in disputes in a similar order, which ensures we will be resolving disputes, even
+/// under heavy load.
 mod ordering;
 use ordering::OrderingProvider;
 
@@ -303,7 +304,9 @@ impl DisputeCoordinatorSubsystem {
 							.map_or(false, |v| v.is_some())
 				});
 
-			let candidate_comparator = ordering_provider.candidate_comparator(&candidate_hash);
+			let candidate_comparator = ordering_provider
+				.candidate_comparator(ctx.sender(), &votes.candidate_receipt)
+				.await?;
 			let is_included = candidate_comparator.is_some();
 
 			if !status.is_confirmed_concluded() && !is_included {
@@ -314,7 +317,7 @@ impl DisputeCoordinatorSubsystem {
 			// recorded local statement.
 			if missing_local_statement {
 				participation_requests.push((
-					candidate_comparator.cloned(),
+					candidate_comparator,
 					ParticipationRequest::new(
 						votes.candidate_receipt.clone(),
 						session,
