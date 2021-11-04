@@ -601,8 +601,6 @@ impl<T: Config> Pallet<T> {
 			entropy
 		};
 
-		println!("ENTROPY {:?}", entropy);
-
 		let remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 		let (_backed_candidates_weight, backed_candidates, bitfields) =
 			apply_weight_limit::<T>(backed_candidates, bitfields, entropy, remaining_weight);
@@ -675,7 +673,6 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	use rand_chacha::rand_core::SeedableRng;
 	let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
-	println!("RNG {:?}", rng);
 
 	fn random_sel<X, F: Fn(&X) -> Weight>(
 		rng: &mut rand_chacha::ChaChaRng,
@@ -687,19 +684,20 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
 
 		let mut weight_acc = 0 as Weight;
-		while weight_acc < weight_limit || !selectables.is_empty() {
-			// randomly pick an index
-			println!("STEP 1");
-			let pick = rng.gen_range(0..indices.len());
-			// remove the index from the available set of indices
-			let idx = indices.swap_remove(pick);
-			println!("STEP 2");
+		if !selectables.is_empty() {
+			while weight_acc < weight_limit && !indices.is_empty() {
+				// randomly pick an index
+				let pick = rng.gen_range(0..indices.len());
+				// remove the index from the available set of indices
+				let idx = indices.swap_remove(pick);
 
-			let item = &selectables[idx];
+				let item = &selectables[idx];
 
-			picked_indices.push(idx);
-			weight_acc = weight_fn(item);
+				picked_indices.push(idx);
+				weight_acc = weight_fn(item);
+			}
 		}
+
 		// sorting indices, so the ordering is retained
 		// unstable sorting is fine, since there are no duplicates
 		picked_indices.sort_unstable();
