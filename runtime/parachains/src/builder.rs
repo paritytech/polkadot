@@ -108,16 +108,21 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self.max_validators.unwrap_or(Self::fallback_max_validators())
 	}
 
+	#[cfg(test)]
 	pub(crate) fn set_max_validators(mut self, n: u32) -> Self {
 		self.max_validators = Some(n);
 		self
 	}
 
-	fn max_validators_per_core(&self) -> u32 {
-		self.max_validators_per_core
-			.unwrap_or(configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5))
+	pub(crate) fn fallback_max_validators_per_core() -> u32 {
+		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
 	}
 
+	fn max_validators_per_core(&self) -> u32 {
+		self.max_validators_per_core.unwrap_or(Self::fallback_max_validators_per_core())
+	}
+
+	#[cfg(test)]
 	pub(crate) fn set_max_validators_per_core(mut self, n: u32) -> Self {
 		self.max_validators_per_core = Some(n);
 		self
@@ -530,7 +535,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		// Mark all the use cores as occupied. We expect that their are `backed_and_concluding_cores`
 		// that are pending availability and that there are `non_spam_dispute_cores` which are about
 		// to be disputed.
-		scheduler::AvailabilityCores::<T>::set(vec![
+		scheduler::AvailabilityCores::<T>::set(frame_benchmarking::vec![
 			Some(CoreOccupied::Parachain);
 			used_cores as usize
 		]);

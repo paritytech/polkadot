@@ -109,7 +109,7 @@ benchmarks! {
 		benchmark.backed_candidates.get_mut(0).unwrap().validity_votes.drain(v as usize..);
 	}: enter(RawOrigin::None, benchmark)
 	verify {
-		let max_validators_per_core = BenchBuilder::<T>::max_validators_per_core();
+		let max_validators_per_core = BenchBuilder::<T>::fallback_max_validators_per_core();
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
 		// Assert that there are on-chain votes that got scraped
