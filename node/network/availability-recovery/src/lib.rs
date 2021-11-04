@@ -393,7 +393,7 @@ impl RequestChunksPhase {
 						metrics.on_chunk_request_invalid();
 						self.error_count += 1;
 
-						tracing::debug!(
+						tracing::warn!(
 							target: LOG_TARGET,
 							candidate_hash = ?params.candidate_hash,
 							?validator_index,
