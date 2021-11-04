@@ -107,4 +107,8 @@ impl crate::hrmp::WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
 	}
+
+	fn clean_open_channel_requests(_: u32) -> Weight {
+		0
+	}
 }

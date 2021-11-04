@@ -44,7 +44,7 @@ use frame_support::{
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
-use frame_system::{EnsureOneOf, EnsureRoot, WeightInfo};
+use frame_system::{EnsureOneOf, EnsureRoot};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_mmr_primitives as mmr;

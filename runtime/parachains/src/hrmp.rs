@@ -47,6 +47,7 @@ pub trait WeightInfo {
 	fn force_process_hrmp_open(c: u32) -> Weight;
 	fn force_process_hrmp_close(c: u32) -> Weight;
 	fn hrmp_cancel_open_request(c: u32) -> Weight;
+	fn clean_open_channel_requests(c: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -70,6 +71,9 @@ impl WeightInfo for TestWeightInfo {
 		1000_000_000
 	}
 	fn hrmp_init_open_channel() -> Weight {
+		1000_000_000
+	}
+	fn clean_open_channel_requests(_: u32) -> Weight {
 		1000_000_000
 	}
 }
@@ -594,10 +598,16 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
 		outgoing_paras: &[ParaId],
-	) {
-		Self::perform_outgoing_para_cleanup(&notification.prev_config, outgoing_paras);
+	) -> Weight {
+		let w1 = Self::perform_outgoing_para_cleanup(&notification.prev_config, outgoing_paras);
 		Self::process_hrmp_open_channel_requests(&notification.prev_config);
 		Self::process_hrmp_close_channel_requests();
+		w1.saturating_add(<T as Config>::WeightInfo::force_process_hrmp_open(
+			outgoing_paras.len() as u32
+		))
+		.saturating_add(<T as Config>::WeightInfo::force_process_hrmp_close(
+			outgoing_paras.len() as u32
+		))
 	}
 
 	/// Iterate over all paras that were noted for offboarding and remove all the data
@@ -605,20 +615,32 @@ impl<T: Config> Pallet<T> {
 	fn perform_outgoing_para_cleanup(
 		config: &HostConfiguration<T::BlockNumber>,
 		outgoing: &[ParaId],
-	) {
-		Self::clean_open_channel_requests(config, outgoing);
+	) -> Weight {
+		let mut w = Self::clean_open_channel_requests(config, outgoing);
 		for outgoing_para in outgoing {
 			Self::clean_hrmp_after_outgoing(outgoing_para);
+
+			// we need a few extra bits of data to weigh this -- all of this is read internally
+			// anyways, so no overhead.
+			let ingress_count =
+				<Self as Store>::HrmpIngressChannelsIndex::get(outgoing_para).len() as u32;
+			let egress_count =
+				<Self as Store>::HrmpEgressChannelsIndex::get(outgoing_para).len() as u32;
+			w = w.saturating_add(<T as Config>::WeightInfo::force_clean_hrmp(
+				ingress_count,
+				egress_count,
+			));
 		}
+		w
 	}
 
 	// Go over the HRMP open channel requests and remove all in which offboarding paras participate.
 	//
 	// This will also perform the refunds for the counterparty if it doesn't offboard.
-	fn clean_open_channel_requests(
+	pub fn clean_open_channel_requests(
 		config: &HostConfiguration<T::BlockNumber>,
 		outgoing: &[ParaId],
-	) {
+	) -> Weight {
 		// First collect all the channel ids of the open requests in which there is at least one
 		// party presents in the outgoing list.
 		//
@@ -664,6 +686,8 @@ impl<T: Config> Pallet<T> {
 				Self::decrease_accepted_channel_request_count(req_id.recipient);
 			}
 		}
+
+		<T as Config>::WeightInfo::clean_open_channel_requests(outgoing.len() as u32)
 	}
 
 	/// Remove all storage entries associated with the given para.

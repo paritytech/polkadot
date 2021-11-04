@@ -260,6 +260,26 @@ frame_benchmarking::benchmarks! {
 	verify {
 		assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c);
 	}
+
+	// worse case will be `n` parachain channel requests, where in all of them either the sender or
+	// the recipient need to be cleaned. This enforces the deposit of at least one to be processed.
+	// No code path for triggering two deposit process exists.
+	clean_open_channel_requests {
+		let c in 0 .. MAX_UNIQUE_CHANNELS;
+
+		assert!(MAX_UNIQUE_CHANNELS < PREFIX_0, "PREFIX_0 must always be more than MAX_UNIQUE_CHANNELS");
+		for id in 0 .. c {
+			let _ = establish_para_connection::<T>(PREFIX_0 + id, PREFIX_1 + id, ParachainSetupStep::Requested);
+		}
+
+		assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c);
+		let outgoing = (0..c).map(|id| (id + PREFIX_1).into()).collect::<Vec<ParaId>>();
+		let config = Configuration::<T>::config();
+	}: {
+		Hrmp::<T>::clean_open_channel_requests(&config, &outgoing);
+	} verify {
+		assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, 0);
+	}
 }
 
 frame_benchmarking::impl_benchmark_test_suite!(
