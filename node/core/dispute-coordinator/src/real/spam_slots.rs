@@ -87,10 +87,14 @@ impl SpamSlots {
 		if *c >= MAX_SPAM_VOTES {
 			return false
 		}
-		*c += 1;
 		let validators = self.unconfirmed.entry((session, candidate)).or_default();
-		validators.insert(validator);
-		true
+
+		if validators.insert(validator) {
+			*c += 1;
+			true
+		} else {
+			false
+		}
 	}
 
 	/// Clear out spam slots for a given candiate in a session.
