@@ -45,6 +45,7 @@ use polkadot_subsystem::{
 };
 
 mod metrics;
+pub use self::metrics::*;
 
 #[cfg(test)]
 mod tests;

@@ -823,7 +823,9 @@ where
 		return Ok(())
 	}
 
-	if let Some(i) = state.ongoing_recoveries.iter_mut().find(|i| i.candidate_hash == candidate_hash) {
+	if let Some(i) =
+		state.ongoing_recoveries.iter_mut().find(|i| i.candidate_hash == candidate_hash)
+	{
 		i.awaiting.push(response_sender);
 		return Ok(())
 	}
