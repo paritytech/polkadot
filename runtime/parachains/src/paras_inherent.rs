@@ -69,13 +69,13 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn enter_variable_disputes(_v: u32) -> Weight {
-		Weight::MAX
+		0
 	}
 	fn enter_bitfields() -> Weight {
-		Weight::MAX
+		0
 	}
 	fn enter_backed_candidates_variable(_v: u32) -> Weight {
-		Weight::MAX
+		0
 	}
 }
 
@@ -86,9 +86,13 @@ fn paras_inherent_total_weight<T: Config>(
 ) -> Weight {
 	<T as Config>::WeightInfo::enter_variable_disputes(MAX_ACTIVE_VALIDATORS)
 		.saturating_mul(n_disputes as Weight)
-		+ <T as Config>::WeightInfo::enter_backed_candidates_variable(MAX_ACTIVE_VALIDATORS)
-			.saturating_mul(n_backed_candidates as Weight)
-		+ <T as Config>::WeightInfo::enter_bitfields().saturating_mul(n_bitfields as Weight)
+		.saturating_add(
+			<T as Config>::WeightInfo::enter_backed_candidates_variable(MAX_ACTIVE_VALIDATORS)
+				.saturating_mul(n_backed_candidates as Weight),
+		)
+		.saturating_add(
+			<T as Config>::WeightInfo::enter_bitfields().saturating_mul(n_bitfields as Weight),
+		)
 }
 
 /// Extract the weight that is added _per_ bitfield.
@@ -322,6 +326,7 @@ pub mod pallet {
 				signed_bitfields,
 				disputed_bitfield,
 				<scheduler::Pallet<T>>::core_para,
+				false,
 			)?;
 
 			// Inform the disputes module of all included candidates.
@@ -346,7 +351,7 @@ pub mod pallet {
 				.collect::<BTreeMap<CoreIndex, FreedReason>>();
 
 			<scheduler::Pallet<T>>::clear();
-			<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
+			<scheduler::Pallet<T>>::schedule(freed, now);
 
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
 			let backed_candidates = sanitize_backed_candidates::<T, _, true>(
@@ -413,8 +418,6 @@ impl<T: Config> Pallet<T> {
 	/// Create the `ParachainsInherentData` that gets passed to `[`Self::enter`] in [`Self::create_inherent`].
 	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
 	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<T::Header>> {
-		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
-
 		let ParachainsInherentData::<T::Header> {
 			bitfields,
 			backed_candidates,
@@ -429,6 +432,7 @@ impl<T: Config> Pallet<T> {
 			}
 		};
 
+		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 		if parent_hash != parent_header.hash() {
 			log::warn!(
 				target: LOG_TARGET,
@@ -443,9 +447,7 @@ impl<T: Config> Pallet<T> {
 
 		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
-		let scheduled: Vec<CoreAssignment> = <scheduler::Pallet<T>>::scheduled();
-
-		let (freed_cores, concluded_invalid_disputes) =
+		let (concluded_invalid_disputes, disputed_bitfield, scheduled) =
 			frame_support::storage::with_transaction(|| {
 				// we don't care about fresh or not disputes
 				// this writes them to storage, so let's query it via those means
@@ -460,7 +462,7 @@ impl<T: Config> Pallet<T> {
 						e
 					});
 
-				// current concluded invalid disputes, only including the current block's votes
+				// concluded invalid disputes, only including the _current block's_ votes
 				let current_concluded_invalid_disputes = disputes
 					.iter()
 					.filter(|dss| dss.session == current_session)
@@ -470,9 +472,6 @@ impl<T: Config> Pallet<T> {
 					})
 					.map(|(_session, candidate)| candidate)
 					.collect::<BTreeSet<CandidateHash>>();
-
-				let freed_cores =
-					<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes);
 
 				// all concluded invalid disputes, that are relevant for the set of candidates
 				// the inherent provided
@@ -484,14 +483,89 @@ impl<T: Config> Pallet<T> {
 					})
 					.collect::<BTreeSet<CandidateHash>>();
 
+				let dispute_freed_cores =
+					<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes);
+				let disputed_bitfield =
+					create_disputed_bitfield(expected_bits, dispute_freed_cores.iter());
+
+				// Below Operations:
+				// * free disputed cores if any exist
+				// * get cores that have become free from processing fully bitfields
+				// * get cores that have become free from timing out
+				// * create  one collection of all the freed cores so we can schedule them
+				// * schedule freed cores based on collection of freed cores
+
+				{
+					let mut freed_disputed: Vec<_> = <inclusion::Pallet<T>>::collect_disputed(
+						&current_concluded_invalid_disputes,
+					)
+					.into_iter()
+					.map(|core| (core, FreedReason::Concluded))
+					.collect();
+
+					if !freed_disputed.is_empty() {
+						// There are freed disputed cores, so sort them and free them against the scheduler.
+
+						// unstable sort is fine, because core indices are unique
+						// i.e. the same candidate can't occupy 2 cores at once.
+						freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+
+						<scheduler::Pallet<T>>::free_cores(freed_disputed);
+					}
+				}
+
+				// Get cores that have become free from processing fully bitfields
+				let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
+					expected_bits,
+					bitfields.clone(),
+					disputed_bitfield.clone(),
+					<scheduler::Pallet<T>>::core_para,
+					true,
+				)
+				.unwrap_or_else(|err| {
+					log::error!(
+						target: LOG_TARGET,
+						"bitfields could not be processed while creating inherent: {:?}",
+						err,
+					);
+					Vec::new()
+				});
+
+				// Get cores that have become free from timing out
+				let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
+				let freed_timeout = if let Some(pred) = availability_pred {
+					<inclusion::Pallet<T>>::collect_pending(pred)
+				} else {
+					Vec::new()
+				};
+
+				// Create one collection of cores freed from timeouts and availability conclusion ..
+				let timeout_and_concluded_freed_cores = freed_concluded
+					.into_iter()
+					.map(|(c, _hash)| (c, FreedReason::Concluded))
+					.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
+					.collect::<BTreeMap<CoreIndex, FreedReason>>();
+
+				<scheduler::Pallet<T>>::clear();
+				// .. so we can schedule them.
+				<scheduler::Pallet<T>>::schedule(
+					timeout_and_concluded_freed_cores,
+					<frame_system::Pallet<T>>::block_number(),
+				);
+
+				// Return
 				frame_support::storage::TransactionOutcome::Rollback((
-					freed_cores,
+					// * concluded disputes for backed candidates in this block,
 					concluded_invalid_disputes,
+					// * bitfield marking disputed cores,
+					disputed_bitfield,
+					// * and the newly created core schedule.
+					<scheduler::Pallet<T>>::scheduled(),
 				))
 			});
 
-		let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_cores.iter());
-
+		// TODO this is wasteful since its also called in `process_bitfield`. We should probably
+		// bubble up the bitfields from `process_bitfields` so this does not need to be called here.
 		let bitfields = sanitize_bitfields::<T, false>(
 			bitfields,
 			disputed_bitfield,
@@ -526,6 +600,8 @@ impl<T: Config> Pallet<T> {
 			}
 			entropy
 		};
+
+		println!("ENTROPY {:?}", entropy);
 
 		let remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 		let (_backed_candidates_weight, backed_candidates, bitfields) =
@@ -590,7 +666,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let total_candidates_weight = (candidates.len() as Weight)
 		.saturating_mul(backed_candidate_weight::<T>(MAX_ACTIVE_VALIDATORS));
 
-	let total = total_bitfields_weight + total_candidates_weight;
+	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
 	// everything fits into the block
 	if max_weight < total {
@@ -599,6 +675,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	use rand_chacha::rand_core::SeedableRng;
 	let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
+	println!("RNG {:?}", rng);
 
 	fn random_sel<X, F: Fn(&X) -> Weight>(
 		rng: &mut rand_chacha::ChaChaRng,
@@ -612,9 +689,11 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		let mut weight_acc = 0 as Weight;
 		while weight_acc < weight_limit || !selectables.is_empty() {
 			// randomly pick an index
+			println!("STEP 1");
 			let pick = rng.gen_range(0..indices.len());
 			// remove the index from the available set of indices
 			let idx = indices.swap_remove(pick);
+			println!("STEP 2");
 
 			let item = &selectables[idx];
 
@@ -642,7 +721,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 			indices.into_iter().map(move |idx| candidates[idx].clone()).collect::<Vec<_>>();
 		// pick all bitfields, and
 		// fill the remaining space with candidates
-		let total = acc_candidate_weight + total_bitfields_weight;
+		let total = acc_candidate_weight.saturating_add(total_bitfields_weight);
 		return (total, candidates, bitfields);
 	}
 
@@ -847,14 +926,7 @@ mod tests {
 		use crate::builder::BenchBuilder;
 
 		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
-			// Scheduling from `enter` in the previous block.
-			<scheduler::Pallet<Test>>::clear();
-			<scheduler::Pallet<Test>>::schedule(
-				vec![], // no newly freed cores
-				<frame_system::Pallet<Test>>::block_number(),
-			);
-
-			// create the inherent data for this block
+			// Create the inherent data for this block
 			let scenario = BenchBuilder::<Test>::new()
 				.set_max_validators(5)
 				.set_max_validators_per_core(1) // 5 validators, 1 validator per core => 5 cores.

@@ -295,19 +295,34 @@ impl<T: Config> Pallet<T> {
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
+		is_create_inherent: bool,
 	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T, true>(
-			signed_bitfields,
-			disputed_bitfield,
-			expected_bits,
-			parent_hash,
-			session_index,
-			&validators[..],
-		)?;
+		let checked_bitfields = if is_create_inherent {
+			sanitize_bitfields::<T, false>(
+				signed_bitfields,
+				disputed_bitfield,
+				expected_bits,
+				parent_hash,
+				session_index,
+				&validators[..],
+			)
+			.expect(
+				"by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`",
+			)
+		} else {
+			sanitize_bitfields::<T, true>(
+				signed_bitfields,
+				disputed_bitfield,
+				expected_bits,
+				parent_hash,
+				session_index,
+				&validators[..],
+			)?
+		};
 
 		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
@@ -334,7 +349,7 @@ impl<T: Config> Pallet<T> {
 					// which in turn happens in case of a disputed candidate.
 					// A malicious one might include arbitrary indices, but they are represented
 					// by `None` values and will be sorted out in the next if case.
-					continue
+					continue;
 				};
 
 				// defensive check - this is constructed by loading the availability bitfield record,
@@ -372,22 +387,24 @@ impl<T: Config> Pallet<T> {
 							"Inclusion::process_bitfields: PendingAvailability and PendingAvailabilityCommitments
 							are out of sync, did someone mess with the storage?",
 						);
-						continue
-					},
+						continue;
+					}
 				};
 
-				let receipt = CommittedCandidateReceipt {
-					descriptor: pending_availability.descriptor,
-					commitments,
-				};
-				let _weight = Self::enact_candidate(
-					pending_availability.relay_parent_number,
-					receipt,
-					pending_availability.backers,
-					pending_availability.availability_votes,
-					pending_availability.core,
-					pending_availability.backing_group,
-				);
+				if !is_create_inherent {
+					let receipt = CommittedCandidateReceipt {
+						descriptor: pending_availability.descriptor,
+						commitments,
+					};
+					let _weight = Self::enact_candidate(
+						pending_availability.relay_parent_number,
+						receipt,
+						pending_availability.backers,
+						pending_availability.availability_votes,
+						pending_availability.core,
+						pending_availability.backing_group,
+					);
+				}
 
 				freed_cores.push((pending_availability.core, pending_availability.hash));
 			} else {
@@ -412,7 +429,7 @@ impl<T: Config> Pallet<T> {
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
-			return Ok(ProcessedCandidates::default())
+			return Ok(ProcessedCandidates::default());
 		}
 
 		let validators = shared::Pallet::<T>::active_validator_keys();
@@ -481,8 +498,8 @@ impl<T: Config> Pallet<T> {
 				);
 
 				ensure!(
-					backed_candidate.descriptor().para_head ==
-						backed_candidate.candidate.commitments.head_data.hash(),
+					backed_candidate.descriptor().para_head
+						== backed_candidate.candidate.commitments.head_data.hash(),
 					Error::<T>::ParaHeadMismatch,
 				);
 
@@ -529,22 +546,22 @@ impl<T: Config> Pallet<T> {
 										// We don't want to error out here because it will
 										// brick the relay-chain. So we return early without
 										// doing anything.
-										return Ok(ProcessedCandidates::default())
-									},
+										return Ok(ProcessedCandidates::default());
+									}
 								};
 
 							let expected = persisted_validation_data.hash();
 
 							ensure!(
-								expected ==
-									backed_candidate.descriptor().persisted_validation_data_hash,
+								expected
+									== backed_candidate.descriptor().persisted_validation_data_hash,
 								Error::<T>::ValidationDataHashMismatch,
 							);
 						}
 
 						ensure!(
-							<PendingAvailability<T>>::get(&para_id).is_none() &&
-								<PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),
+							<PendingAvailability<T>>::get(&para_id).is_none()
+								&& <PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),
 							Error::<T>::CandidateScheduledBeforeParaFree,
 						);
 
@@ -575,7 +592,7 @@ impl<T: Config> Pallet<T> {
 								),
 								Err(()) => {
 									Err(Error::<T>::InvalidBacking)?;
-								},
+								}
 							}
 
 							let mut backer_idx_and_attestation =
@@ -607,7 +624,7 @@ impl<T: Config> Pallet<T> {
 							backers,
 							assignment.group_idx,
 						));
-						continue 'a
+						continue 'a;
 					}
 				}
 
@@ -768,8 +785,8 @@ impl<T: Config> Pallet<T> {
 			backing_group,
 		));
 
-		weight +
-			<paras::Pallet<T>>::note_new_head(
+		weight
+			+ <paras::Pallet<T>>::note_new_head(
 				receipt.descriptor.para_id,
 				commitments.head_data,
 				relay_parent_number,
@@ -950,9 +967,9 @@ impl<T: Config> CandidateCheckContext<T> {
 		if let Some(new_validation_code) = new_validation_code {
 			let valid_upgrade_attempt = <paras::Pallet<T>>::last_code_upgrade(para_id, true)
 				.map_or(true, |last| {
-					last <= self.relay_parent_number &&
-						self.relay_parent_number.saturating_sub(last) >=
-							self.config.validation_upgrade_frequency
+					last <= self.relay_parent_number
+						&& self.relay_parent_number.saturating_sub(last)
+							>= self.config.validation_upgrade_frequency
 				});
 			ensure!(valid_upgrade_attempt, AcceptanceCheckErr::PrematureCodeUpgrade);
 			ensure!(
@@ -1107,8 +1124,8 @@ pub(crate) mod tests {
 				Some(validators[group[i].0 as usize].public().into())
 			})
 			.ok()
-			.unwrap_or(0) * 2 >
-				group.len();
+			.unwrap_or(0) * 2
+				> group.len();
 
 		match kind {
 			BackingKind::Unanimous | BackingKind::Threshold => assert!(successfully_backed),
@@ -1359,6 +1376,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Error::<Test>::WrongBitfieldSize
 				);
@@ -1381,6 +1399,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Error::<Test>::WrongBitfieldSize
 				);
@@ -1404,6 +1423,7 @@ pub(crate) mod tests {
 						vec![signed.clone(), signed],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Error::<Test>::BitfieldDuplicateOrUnordered
 				);
@@ -1436,6 +1456,7 @@ pub(crate) mod tests {
 						vec![signed_1, signed_0],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Error::<Test>::BitfieldDuplicateOrUnordered
 				);
@@ -1459,6 +1480,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Ok(_)
 				);
@@ -1481,6 +1503,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Ok(_)
 				);
@@ -1526,6 +1549,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Ok(_)
 				);
@@ -1571,6 +1595,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Ok(vec![])
 				);
@@ -1693,7 +1718,7 @@ pub(crate) mod tests {
 						a_available.clone()
 					} else {
 						// sign nothing.
-						return None
+						return None;
 					};
 
 					Some(
@@ -1715,6 +1740,7 @@ pub(crate) mod tests {
 					signed_bitfields,
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
+					false
 				),
 				Ok(_)
 			);
