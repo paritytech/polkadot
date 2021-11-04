@@ -139,6 +139,8 @@ impl Queues {
 			if self.best_effort.len() >= BEST_EFFORT_QUEUE_SIZE {
 				return Err(Error::BestEffortFull)
 			}
+			// Note: The request might have been added to priority in a previous call already, we
+			// take care of that case in `dequeue` (more efficient).
 			self.best_effort
 				.entry(req.candidate_hash)
 				.or_insert(BestEffortEntry { req, added_count: 0 })
@@ -152,7 +154,13 @@ impl Queues {
 	/// if any.  Priority queue is always considered first, then the best effort queue based on
 	/// `added_count`.
 	pub fn dequeue(&mut self) -> Option<ParticipationRequest> {
-		self.pop_priority().or_else(|| self.pop_best_effort())
+		if let Some(req) = self.pop_priority() {
+			// In case a candidate became best effort over time, we might have it also queued in
+			// the best effort queue - get rid of any such entry:
+			self.best_effort.remove(req.candidate_hash());
+			return Some(req)
+		}
+		self.pop_best_effort()
 	}
 
 	/// Get the next best from the best effort queue.
