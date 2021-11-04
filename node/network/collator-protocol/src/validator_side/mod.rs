@@ -1455,7 +1455,7 @@ async fn poll_collation_response(
 				);
 
 				CollationFetchResult::Error(COST_WRONG_PARA)
-			},
+			}
 			Ok(CollationFetchingResponse::Collation(receipt, pov)) => {
 				tracing::debug!(
 					target: LOG_TARGET,
