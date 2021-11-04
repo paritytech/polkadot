@@ -37,7 +37,7 @@ sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = 
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "kiz-sanity-check-trait", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -184,6 +184,7 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
+	"pallet-bags-list/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-bounties/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
@@ -213,14 +214,15 @@ runtime-benchmarks = [
 	"hex-literal",
 	"xcm-builder/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
-	"pallet-bags-list/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",
 	"frame-system/try-runtime",
+
 	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",
+	"pallet-bags-list/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-bounties/try-runtime",
 	"pallet-transaction-payment/try-runtime",
@@ -228,6 +230,7 @@ try-runtime = [
 	"pallet-elections-phragmen/try-runtime",
 	"pallet-election-provider-multi-phase/try-runtime",
 	"pallet-democracy/try-runtime",
+	"pallet-gilt/try-runtime",
 	"pallet-grandpa/try-runtime",
 	"pallet-identity/try-runtime",
 	"pallet-im-online/try-runtime",
@@ -248,6 +251,8 @@ try-runtime = [
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
 	"pallet-babe/try-runtime",
+	"pallet-xcm/try-runtime",
+
 	"runtime-common/try-runtime",
 ]
 # When enabled, the runtime API will not be build.

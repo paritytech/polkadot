@@ -59,3 +59,4 @@ runtime-benchmarks = [
 	"bp-test-utils",
 	"frame-benchmarking",
 ]
+try-runtime = ["frame-support/try-runtime"]

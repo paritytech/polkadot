@@ -40,7 +40,7 @@ frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate"
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "kiz-sanity-check-trait", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -119,6 +119,7 @@ std = [
 	"sp-std/std",
 	"sp-io/std",
 	"frame-support/std",
+	"beefy-primitives/std",
 	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
@@ -134,7 +135,6 @@ std = [
 	"pallet-indices/std",
 	"pallet-membership/std",
 	"pallet-mmr-primitives/std",
-	"beefy-primitives/std",
 	"pallet-multisig/std",
 	"pallet-nicks/std",
 	"pallet-offences/std",
@@ -211,8 +211,8 @@ try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-system/try-runtime",
 	"frame-try-runtime",
-	"pallet-authorship/try-runtime",
 	"pallet-authority-discovery/try-runtime",
+	"pallet-authorship/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-collective/try-runtime",
@@ -238,7 +238,9 @@ try-runtime = [
 	"pallet-treasury/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
+	"pallet-xcm/try-runtime",
 	"pallet-babe/try-runtime",
+	"pallet-bags-list/try-runtime",
 	"runtime-common/try-runtime",
 ]
 # When enabled, the runtime API will not be build.
