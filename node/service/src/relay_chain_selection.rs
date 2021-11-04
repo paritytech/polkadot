@@ -53,7 +53,7 @@ use std::sync::Arc;
 /// or disputes.
 ///
 /// This is a safety net that should be removed at some point in the future.
-const MAX_FINALITY_LAG: polkadot_primitives::v1::BlockNumber = 50;
+const MAX_FINALITY_LAG: polkadot_primitives::v1::BlockNumber = 500;
 
 const LOG_TARGET: &str = "parachain::chain-selection";
 

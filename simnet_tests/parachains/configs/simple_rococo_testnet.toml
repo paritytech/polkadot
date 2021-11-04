@@ -2,8 +2,10 @@
 timeout = 300
 
 [settings.defaults]
-command = "/usr/local/bin/polkadot"
+image = "{{get_env(name="SYNTHIMAGE") | safe }}"
+command = "polkadot"
 chain-spec = "rococo-local.json"
+chain-name = "rococo-local"
 timeout = 300
 
 [init_nodes.chainspec]
@@ -23,10 +25,14 @@ timeout = 300
 
 [nodes.alice]
 validator = true
+image = "{{get_env(name="PARACHAINSIMAGE") | safe }}"
+command = "polkadot"
 extra-args = ["--alice"]
 
 [nodes.bob]
 validator = true
+image = "{{get_env(name="PARACHAINSIMAGE") | safe }}"
+command = "polkadot"
 extra-args = ["--bob"]
 
 [nodes.collator01]

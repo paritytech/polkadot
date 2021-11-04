@@ -33,6 +33,7 @@ variables:
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
+  SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v14"
   PIPELINE_SCRIPTS_TAG:            "v0.1"
 
 default:
@@ -201,7 +202,7 @@ test-build-linux-stable:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
     # disputes feature is needed for simnet parachains malus test
-    - time cargo build --release --verbose --bin polkadot --features disputes
+    - time cargo build --release --verbose --bin polkadot --features "disputes"
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
@@ -309,7 +310,6 @@ build-malus:
         --polkadot
         "$DEPENDENT_REPO"
         "$GITHUB_PR_TOKEN"
-    - cd "$DEPENDENT_REPO" && git rev-parse --abbrev-ref HEAD
 
 check-dependent-cumulus:
   <<: *check-dependent-project
