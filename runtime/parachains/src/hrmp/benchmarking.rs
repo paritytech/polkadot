@@ -45,6 +45,7 @@ fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
 	assert_eq!(event, &system_event);
 }
 
+/// Enumerates the phase in the setup process of a channel between two parachains.
 enum ParachainSetupStep {
 	/// A channel open has been requested
 	Requested,
@@ -92,6 +93,7 @@ where
 		capacity,
 		message_size
 	));
+
 	if matches!(until, ParachainSetupStep::Requested) {
 		return output
 	}
@@ -109,7 +111,7 @@ where
 	let channel_id = HrmpChannelId { sender, recipient };
 	assert_ok!(Hrmp::<T>::hrmp_close_channel(sender_origin.clone().into(), channel_id));
 	if matches!(until, ParachainSetupStep::CloseRequested) {
-		// NOTE: this is just for expressiveness, otherwise the if-statement could be omitted.
+		// NOTE: this is just for expressiveness, otherwise the if-statement is 100% useless.
 		return output
 	}
 
@@ -158,14 +160,16 @@ frame_benchmarking::benchmarks! {
 		assert_last_event::<T>(Event::<T>::ChannelClosed(sender, channel_id).into());
 	}
 
+	// NOTE: a single parachain should have the maximum number of allowed ingress and egress
+	// channels.
 	force_clean_hrmp {
 		// ingress channels to a single leaving parachain that need to be closed.
 		let i in 0 .. (<T as configuration::Config>::HrmpMaxInboundChannelsBound::get() - 1);
 		// egress channels to a single leaving parachain that need to be closed.
 		let e in 0 .. (<T as configuration::Config>::HrmpMaxOutboundChannelsBound::get() - 1);
 
-		// we use 10_000 in this benchmark as the prefix of accounts. The components must be
-		// than that to keep accounts sane.
+		// we use 10_000 in this benchmark as the prefix of accounts. The components must be greater
+		// than the configured bounds to keep accounts sane.
 		assert!(<T as configuration::Config>::HrmpMaxInboundChannelsBound::get() < PREFIX_0);
 		assert!(<T as configuration::Config>::HrmpMaxOutboundChannelsBound::get() < PREFIX_0);
 
@@ -201,7 +205,7 @@ frame_benchmarking::benchmarks! {
 		// nothing should be left unprocessed.
 		assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default(), 0);
 
-		// all in all, we have created these many channels
+		// all in all, we have created this many channels.
 		assert_eq!(HrmpChannels::<T>::iter().count() as u32, i + e);
 	}: _(frame_system::Origin::<T>::Root, para, i, e) verify {
 		// all in all, all of them must be gone by now.
@@ -213,6 +217,7 @@ frame_benchmarking::benchmarks! {
 		// sender and recipients for all channels.
 		let c in 0 .. MAX_UNIQUE_CHANNELS;
 
+		assert!(MAX_UNIQUE_CHANNELS < PREFIX_0, "PREFIX_0 must always be more than MAX_UNIQUE_CHANNELS");
 		for id in 0 .. c {
 			let _ = establish_para_connection::<T>(PREFIX_0 + id, PREFIX_1 + id, ParachainSetupStep::Accepted);
 		}
@@ -227,6 +232,7 @@ frame_benchmarking::benchmarks! {
 		// sender and recipients for all channels.
 		let c in 0 .. MAX_UNIQUE_CHANNELS;
 
+		assert!(MAX_UNIQUE_CHANNELS < PREFIX_0, "PREFIX_0 must always be more than MAX_UNIQUE_CHANNELS");
 		for id in 0 .. c {
 			let _ = establish_para_connection::<T>(PREFIX_0 + id, PREFIX_1 + id, ParachainSetupStep::CloseRequested);
 		}
@@ -242,6 +248,7 @@ frame_benchmarking::benchmarks! {
 		// one that we remove.
 		let c in 0 .. MAX_UNIQUE_CHANNELS;
 
+		assert!(MAX_UNIQUE_CHANNELS < PREFIX_0, "PREFIX_0 must always be more than MAX_UNIQUE_CHANNELS");
 		for id in 0 .. c {
 			let _ = establish_para_connection::<T>(PREFIX_0 + id, PREFIX_1 + id, ParachainSetupStep::Requested);
 		}
