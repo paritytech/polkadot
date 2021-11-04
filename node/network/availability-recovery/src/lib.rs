@@ -73,7 +73,7 @@ mod tests;
 
 const LOG_TARGET: &str = "parachain::availability-recovery";
 
-// How many parallel requests interaction should have going at once.
+// How many parallel recovery tasks should be running at once.
 const N_PARALLEL: usize = 50;
 
 // Size of the LRU cache where we keep recovered data.
@@ -161,7 +161,7 @@ struct RecoveryTask<S> {
 	/// The parameters of the recovery process.
 	params: RecoveryParams,
 
-	/// The sourcer to obtain the availbility data.
+	/// The sourcer to obtain the availability data.
 	sourcer: Sourcer,
 }
 
@@ -740,7 +740,7 @@ async fn handle_signal(state: &mut State, signal: OverseerSignal) -> SubsystemRe
 	}
 }
 
-/// Machinery around launching interactions into the background.
+/// Machinery around launching recovery tasks into the background.
 async fn launch_recovery_task<Context>(
 	state: &mut State,
 	ctx: &mut Context,

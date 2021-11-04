@@ -21,7 +21,7 @@ Output:
 
 ## Functionality
 
-We hold a state which tracks the currently ongoing recovery tasks, as well as which request IDs correspond to which taks. A recovery task is a structure encapsulating all interaction with the network necessary to recover the available data in respect to one candidate.
+We hold a state which tracks the currently ongoing recovery tasks, as well as which request IDs correspond to which taks. A recovery task is a structure encapsulating all recovery tasks with the network necessary to recover the available data in respect to one candidate.
 
 ```rust
 struct State {
@@ -33,7 +33,7 @@ struct State {
     availability_lru: LruCache<CandidateHash, Result<AvailableData, RecoveryError>>,
 }
 
-/// This is a future, which concludes either when a response is received from the interaction,
+/// This is a future, which concludes either when a response is received from the recovery tasks,
 /// or all the `awaiting` channels have closed.
 struct RecoveryHandle {
     candidate_hash: CandidateHash,
@@ -101,9 +101,9 @@ On `Conclude`, shut down the subsystem.
 1. Set the `to_subsystems` sender to be equal to a clone of the `SubsystemContext`'s sender.
 1. Initialize `received_chunks` to an empty set, as well as `requesting_chunks`.
 
-Launch the sourcer as a background task running `run(interaction)`.
+Launch the sourcer as a background task running `run(recovery_task)`.
 
-#### `run(interaction) -> Result<AvailableData, RecoeryError>`
+#### `run(recovery_task) -> Result<AvailableData, RecoeryError>`
 
 ```rust
 // How many parallel requests to have going at once.
