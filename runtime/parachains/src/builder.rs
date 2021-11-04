@@ -20,7 +20,7 @@ use sp_runtime::{
 	traits::{Header as HeaderT, One, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_set::BTreeSet, convert::TryInto};
+use sp_std::{collections::btree_map::BTreeMap, convert::TryInto};
 
 fn byte32_slice_from(n: u32) -> [u8; 32] {
 	let mut slice = [0u8; 32];
@@ -40,22 +40,16 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	target_session: u32,
 	max_validators_per_core: Option<u32>,
 	max_validators: Option<u32>,
+	dispute_statements: BTreeMap<u32, u32>,
 	_phantom: sp_std::marker::PhantomData<T>,
 }
 
 /// Paras inherent `enter` benchmark scenario.
-#[cfg(feature = "runtime-benchmarks")]
+#[cfg(any(feature = "runtime-benchmarks", test))]
 pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) data: ParachainsInherentData<T::Header>,
 	pub(crate) session: u32,
 	pub(crate) block_number: T::BlockNumber,
-}
-
-#[cfg(test)]
-pub(crate) struct Bench<T: paras_inherent::Config> {
-	pub(crate) data: ParachainsInherentData<T::Header>,
-	session: u32,
-	block_number: T::BlockNumber,
 }
 
 impl<T: paras_inherent::Config> BenchBuilder<T> {
@@ -75,6 +69,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			max_validators_per_core: None,
 			// Optionally set the max validators; otherwise uses the configuration value.
 			max_validators: None,
+			// Optionally set the number of dispute statements for each candidate,
+			dispute_statements: BTreeMap::new(),
 			_phantom: sp_std::marker::PhantomData::<T>,
 		}
 	}
@@ -116,6 +112,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	pub(crate) fn fallback_max_validators_per_core() -> u32 {
 		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
+	}
+
+	pub(crate) fn set_dispute_statements(mut self, m: BTreeMap<u32, u32>) -> Self {
+		self.dispute_statements = m;
+		self
 	}
 
 	fn max_validators_per_core(&self) -> u32 {
@@ -188,10 +189,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		inclusion::PendingAvailabilityCommitments::<T>::insert(&para_id, commitments);
 	}
 
-	fn availability_bitvec(concluding: &BTreeSet<u32>, cores: u32) -> AvailabilityBitfield {
+	fn availability_bitvec(concluding: &BTreeMap<u32, u32>, cores: u32) -> AvailabilityBitfield {
 		let mut bitfields = bitvec::bitvec![bitvec::order::Lsb0, u8; 0; 0];
 		for i in 0..cores {
-			if concluding.contains(&(i as u32)) {
+			if concluding.get(&(i as u32)).is_some() {
 				bitfields.push(true);
 			} else {
 				bitfields.push(false)
@@ -310,13 +311,13 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	fn create_availability_bitfields(
 		&self,
-		concluding_cores: BTreeSet<u32>,
+		concluding_cores: &BTreeMap<u32, u32>,
 		total_cores: u32,
 	) -> Vec<UncheckedSigned<AvailabilityBitfield>> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 
-		let availability_bitvec = Self::availability_bitvec(&concluding_cores, total_cores);
+		let availability_bitvec = Self::availability_bitvec(concluding_cores, total_cores);
 
 		let bitfields: Vec<UncheckedSigned<AvailabilityBitfield>> = validators
 			.iter()
@@ -333,7 +334,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			})
 			.collect();
 
-		for seed in concluding_cores.iter() {
+		for (seed, _) in concluding_cores.iter() {
+			println!("SEED {:?}", seed);
 			// make sure the candidates that are concluding by becoming available are marked as
 			// pending availability.
 			let (para_id, core_idx, group_idx) = self.create_indexes(seed.clone());
@@ -354,7 +356,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// available.
 	fn create_backed_candidates(
 		&self,
-		cores_with_backed_candidates: BTreeSet<u32>,
+		cores_with_backed_candidates: &BTreeMap<u32, u32>,
 	) -> Vec<BackedCandidate<T::Hash>> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
@@ -362,7 +364,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		cores_with_backed_candidates
 			.iter()
-			.map(|seed| {
+			.map(|(seed, num_votes)| {
+				println!("NUM VOTES {:?}", num_votes);
 				let (para_id, _core_idx, group_idx) = self.create_indexes(seed.clone());
 
 				// This generates a pair and adds it to the keystore, returning just the public.
@@ -424,7 +427,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 				let candidate_hash = candidate.hash();
 
-				let validity_votes: Vec<_> = group_validators
+				let mut validity_votes: Vec<_> = group_validators
 					.iter()
 					.map(|val_idx| {
 						let public = validators.get(val_idx.0 as usize).unwrap();
@@ -440,6 +443,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					})
 					.collect();
 
+				let _ = validity_votes.drain(*num_votes as usize..);
+
 				BackedCandidate::<T::Hash> {
 					candidate,
 					validity_votes,
@@ -449,12 +454,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
-	fn create_disputes_with_no_spam(&self, start: u32, last: u32) -> Vec<DisputeStatementSet> {
+	fn create_disputes_with_no_spam(&self, start: u32, last: u32, dispute_sessions: &[u32]) -> Vec<DisputeStatementSet> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 
 		(start..last)
 			.map(|seed| {
+				let session = dispute_sessions.get(seed as usize).cloned().unwrap_or(self.target_session);
+
 				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
 
@@ -466,7 +473,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					candidate_hash,
 				);
 
-				let statements = (0..validators.len() as u32)
+				let statements_len = self.dispute_statements.get(&seed).cloned().unwrap_or(validators.len() as u32);
+				let statements = (0..statements_len)
 					.map(|validator_index| {
 						let validator_public = &validators.get(validator_index as usize).unwrap();
 
@@ -480,7 +488,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
 						let data = dispute_statement
-							.payload_data(candidate_hash.clone(), self.target_session);
+							.payload_data(candidate_hash.clone(), session);
 						let statement_sig = validator_public.sign(&data).unwrap();
 
 						(dispute_statement, ValidatorIndex(validator_index), statement_sig)
@@ -489,7 +497,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 				DisputeStatementSet {
 					candidate_hash: candidate_hash.clone(),
-					session: self.target_session,
+					session: session,
 					statements,
 				}
 			})
@@ -498,8 +506,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	pub(crate) fn build(
 		self,
-		backed_and_concluding_cores: u32,
-		non_spam_dispute_cores: u32,
+		backed_and_concluding_cores: BTreeMap<u32, u32>,
+		dispute_sessions: &[u32],
 	) -> Bench<T> {
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
 		// running tests because it seems the storage is not cleared in between.
@@ -508,7 +516,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
 		let cores = self.max_cores();
-		let used_cores = backed_and_concluding_cores + non_spam_dispute_cores;
+		let used_cores = dispute_sessions.len() as u32;
 		assert!(used_cores <= cores);
 
 		// NOTE: there is an n+2 session delay for these actions to take effect
@@ -519,12 +527,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let target_session = SessionIndex::from(self.target_session);
 		let builder = self.setup_session(target_session, validator_ids, used_cores);
 
-		let concluding_cores: BTreeSet<_> = (0..backed_and_concluding_cores).into_iter().collect();
-		let bitfields = builder.create_availability_bitfields(concluding_cores.clone(), used_cores);
-		let backed_candidates = builder.create_backed_candidates(concluding_cores);
+		let bitfields = builder.create_availability_bitfields(&backed_and_concluding_cores, used_cores);
+		let backed_candidates = builder.create_backed_candidates(&backed_and_concluding_cores);
 
 		let disputes =
-			builder.create_disputes_with_no_spam(backed_and_concluding_cores, used_cores);
+			builder.create_disputes_with_no_spam(backed_and_concluding_cores.len() as u32, used_cores, dispute_sessions);
 
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
