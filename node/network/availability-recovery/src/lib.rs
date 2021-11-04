@@ -104,13 +104,13 @@ pub struct AvailabilityRecoverySubsystem {
 	metrics: Metrics,
 }
 
-struct RequestFromBackersSourcer {
+struct RequestFromBackers {
 	// a random shuffling of the validators from the backing group which indicates the order
 	// in which we connect to them and request the chunk.
 	shuffled_backers: Vec<ValidatorIndex>,
 }
 
-struct RequestChunksSourcer {
+struct RequestChunksFromValidators {
 	/// How many request have been unsuccessful so far.
 	error_count: usize,
 	/// Total number of responses that have been received.
@@ -148,9 +148,9 @@ struct RecoveryParams {
 /// Source the availability data either by means
 /// of direct request response protocol to
 /// backers (a.k.a. fast-path), or recover from chunks.
-enum Sourcer {
-	RequestFromBackers(RequestFromBackersSourcer),
-	RequestChunks(RequestChunksSourcer),
+enum Source {
+	RequestFromBackers(RequestFromBackers),
+	RequestChunks(RequestChunksFromValidators),
 }
 
 /// A stateful reconstruction of availability data in reference to
@@ -161,15 +161,15 @@ struct RecoveryTask<S> {
 	/// The parameters of the recovery process.
 	params: RecoveryParams,
 
-	/// The sourcer to obtain the availability data.
-	sourcer: Sourcer,
+	/// The source to obtain the availability data from.
+	source: Source,
 }
 
-impl RequestFromBackersSourcer {
+impl RequestFromBackers {
 	fn new(mut backers: Vec<ValidatorIndex>) -> Self {
 		backers.shuffle(&mut rand::thread_rng());
 
-		RequestFromBackersSourcer { shuffled_backers: backers }
+		RequestFromBackers { shuffled_backers: backers }
 	}
 
 	// Run this phase to completion.
@@ -245,12 +245,12 @@ impl RequestFromBackersSourcer {
 	}
 }
 
-impl RequestChunksSourcer {
+impl RequestChunksFromValidators {
 	fn new(n_validators: u32) -> Self {
 		let mut shuffling: Vec<_> = (0..n_validators).map(ValidatorIndex).collect();
 		shuffling.shuffle(&mut rand::thread_rng());
 
-		RequestChunksSourcer {
+		RequestChunksFromValidators {
 			error_count: 0,
 			total_received_responses: 0,
 			shuffling: shuffling.into(),
@@ -617,18 +617,18 @@ impl<S: SubsystemSender> RecoveryTask<S> {
 		loop {
 			// These only fail if we cannot reach the underlying subsystem, which case there is nothing
 			// meaningful we can do.
-			match self.sourcer {
-				Sourcer::RequestFromBackers(ref mut from_backers) => {
+			match self.source {
+				Source::RequestFromBackers(ref mut from_backers) => {
 					match from_backers.run(&self.params, &mut self.sender).await {
 						Ok(data) => break Ok(data),
 						Err(RecoveryError::Invalid) => break Err(RecoveryError::Invalid),
 						Err(RecoveryError::Unavailable) =>
-							self.sourcer = Sourcer::RequestChunks(RequestChunksSourcer::new(
+							self.source = Source::RequestChunks(RequestChunksFromValidators::new(
 								self.params.validators.len() as _,
 							)),
 					}
 				},
-				Sourcer::RequestChunks(ref mut from_all) =>
+				Source::RequestChunks(ref mut from_all) =>
 					break from_all.run(&self.params, &mut self.sender).await,
 			}
 		}
@@ -767,12 +767,12 @@ where
 
 	let phase = backing_group
 		.and_then(|g| session_info.validator_groups.get(g.0 as usize))
-		.map(|group| Sourcer::RequestFromBackers(RequestFromBackersSourcer::new(group.clone())))
+		.map(|group| Source::RequestFromBackers(RequestFromBackers::new(group.clone())))
 		.unwrap_or_else(|| {
-			Sourcer::RequestChunks(RequestChunksSourcer::new(params.validators.len() as _))
+			Source::RequestChunks(RequestChunksFromValidators::new(params.validators.len() as _))
 		});
 
-	let recovery_task = RecoveryTask { sender: ctx.sender().clone(), params, sourcer: phase };
+	let recovery_task = RecoveryTask { sender: ctx.sender().clone(), params, source: phase };
 
 	let (remote, remote_handle) = recovery_task.run().remote_handle();
 

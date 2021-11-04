@@ -59,7 +59,7 @@ enum RecoveryTask {
         // in which we connect to them and request the chunk.
         shuffled_backers: Vec<ValidatorIndex>,
     }
-    RequestChunks {
+    RequestChunksFromValidators {
         // a random shuffling of the validators which indicates the order in which we connect to the validators and
         // request the chunk from them.
         shuffling: Vec<ValidatorIndex>,
@@ -71,7 +71,7 @@ enum RecoveryTask {
 struct RecoveryTask {
     to_subsystems: SubsystemSender,
     params: RecoveryTaskParams,
-    sourcer: Sourcer,
+    source: Source,
 }
 ```
 
@@ -97,11 +97,11 @@ On `Conclude`, shut down the subsystem.
 1. Compute the threshold from the session info. It should be `f + 1`, where `n = 3f + k`, where `k in {1, 2, 3}`, and `n` is the number of validators.
 1. Set the various fields of `RecoveryParams` based on the validator lists in `session_info` and information about the candidate.
 1. If the `backing_group_index` is `Some`, start in the `RequestFromBackers` phase with a shuffling of the backing group validator indices and a `None` requesting value.
-1. Otherwise, start in the `RequestChunks` phase with `received_chunks`,`requesting_chunks`, and `next_shuffling` all empty.
+1. Otherwise, start in the `RequestChunksFromValidators` source with `received_chunks`,`requesting_chunks`, and `next_shuffling` all empty.
 1. Set the `to_subsystems` sender to be equal to a clone of the `SubsystemContext`'s sender.
 1. Initialize `received_chunks` to an empty set, as well as `requesting_chunks`.
 
-Launch the sourcer as a background task running `run(recovery_task)`.
+Launch the source as a background task running `run(recovery_task)`.
 
 #### `run(recovery_task) -> Result<AvailableData, RecoeryError>`
 
@@ -121,9 +121,9 @@ const N_PARALLEL: usize = 50;
             * If it has the correct erasure-root, break and issue a `Ok(available_data)`.
             * If it has an incorrect erasure-root, return to beginning.
         * Send the result to each member of `awaiting`.
-        * If the backer is `None`, set the sourcer to `RecoveryTask::RequestChunks` with a random shuffling of validators and empty `received_chunks`, and `requesting_chunks` and break the loop.
+        * If the backer is `None`, set the source to `RequestChunksFromValidators` with a random shuffling of validators and empty `received_chunks`, and `requesting_chunks` and break the loop.
 
-* If the task contains `RequestChunks`:
+* If the task contains `RequestChunksFromValidators`:
   * Request `AvailabilityStoreMessage::QueryAllChunks`. For each chunk that exists, add it to `received_chunks` and remote the validator from `shuffling`.
   * Loop:
     * If `received_chunks + requesting_chunks + shuffling` lengths are less than the threshold, break and return `Err(Unavailable)`.
