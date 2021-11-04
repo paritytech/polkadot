@@ -63,7 +63,8 @@ mod error;
 mod initialized;
 use initialized::Initialized;
 
-/// Provider of an ordering for candidates.
+/// Provider of an ordering for candidates for dispute participation, see
+/// [`participation`] below.
 ///
 /// If we have seen a candidate included somewhere, we should treat it as priority and will be able
 /// to provide an ordering for participation. Thus a dispute for a candidate where we can get some
@@ -83,14 +84,15 @@ use ordering::OrderingProvider;
 /// can be relatively small, as a drop is not fatal.
 mod spam_slots;
 
-/// Handling of participation requests.
+/// Handling of participation requests via `Participation`.
 ///
-/// `Participation takes care of queuing and dequeuing participation requests, such that most
-/// important/urgent disputes will be resolved first and more importantly it will order requests in
-/// a way so disputes will get resolved, even if there are lots of them.
+/// `Participation` provides an API (`Participation::queue_participation`) for queuing of dispute participations and will process those
+/// participation requests, such that most important/urgent disputes will be resolved and processed
+/// first and more importantly it will order requests in a way so disputes will get resolved, even
+/// if there are lots of them.
 mod participation;
 
-/// Status tracking of disputes.
+/// Status tracking of disputes (`DisputeStatus`).
 mod status;
 use status::Clock;
 

@@ -140,7 +140,7 @@ impl Initialized {
 		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
 		B: Backend,
 	{
-		for (comparator, request) in std::mem::take(participations).into_iter() {
+		for (comparator, request) in participations.drain(..) {
 			self.participation.queue_participation(ctx, comparator, request).await?;
 		}
 
