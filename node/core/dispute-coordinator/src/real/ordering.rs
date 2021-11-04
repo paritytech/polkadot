@@ -63,8 +63,17 @@ pub struct CandidateComparator {
 	/// Block number of the relay parent.
 	///
 	/// Important, so we will be participating in oldest disputes first.
+	///
+	/// Note: In fact it would make a bit more sense to use the `BlockNumber` of the including
+	/// block, as inclusion time is the actual relevant event when it comes to ordering. The
+	/// problem is, that a candidate can get included multiple times on forks, so the `BlockNumber`
+	/// of the including block is not unique. We could however easily work around that problem, by
+	/// just using the lowest `BlockNumber` of all available including blocks.
+	///
+	/// In practice it should not matter much, so in the interest of time I will not change the
+	/// implementation again now, but keep that in mind in case it becomes relevant at some point.
 	relay_parent_block_number: BlockNumber,
-	/// By adding the `CandidateHash`, we can guarantee a unique ordering accross candidates.
+	/// By adding the `CandidateHash`, we can guarantee a unique ordering across candidates.
 	candidate_hash: CandidateHash,
 }
 
