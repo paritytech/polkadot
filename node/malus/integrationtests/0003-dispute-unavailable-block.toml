@@ -50,4 +50,6 @@ id = 100
 
   [parachains.collator]
   name = "collator01"
-  commandWithArgs = "/usr/local/bin/adder-collator -lparachain=debug --chain /cfg/polkadot-local.json --port 30333 --no-mdns --bootnodes /dns/bootnode/tcp/30333/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp"
+  image = "{{COLIMAGE}}"
+  command = "/usr/local/bin/adder-collator"
+  args = ["-lparachain=debug"]
