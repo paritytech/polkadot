@@ -119,11 +119,11 @@ pub mod pallet {
 		type MaxTemporarySlotPerLeasePeriod: Get<u32>;
 	}
 
-	/// Assigned permanent slots, with their start lease period.
+	/// Assigned permanent slots, with their start lease period, and duration.
 	#[pallet::storage]
 	#[pallet::getter(fn permanent_slots)]
 	pub type PermanentSlots<T: Config> =
-		StorageMap<_, Twox64Concat, ParaId, LeasePeriodOf<T>, OptionQuery>;
+		StorageMap<_, Twox64Concat, ParaId, (LeasePeriodOf<T>, LeasePeriodOf<T>), OptionQuery>;
 
 	/// Number of assigned (and active) permanent slots.
 	#[pallet::storage]
@@ -242,7 +242,13 @@ pub mod pallet {
 			)
 			.map_err(|_| Error::<T>::CannotUpgrade)?;
 
-			PermanentSlots::<T>::insert(id, current_lease_period);
+			PermanentSlots::<T>::insert(
+				id,
+				(
+					current_lease_period,
+					LeasePeriodOf::<T>::from(T::PermanentSlotLeasePeriodLength::get()),
+				),
+			);
 			<PermanentSlotCount<T>>::mutate(|count| count.saturating_inc());
 
 			Self::deposit_event(Event::<T>::PermanentSlotAssigned(id));
@@ -850,7 +856,7 @@ mod tests {
 
 				assert_eq!(AssignedSlots::permanent_slot_count(), 1);
 				assert_eq!(AssignedSlots::has_permanent_slot(ParaId::from(1)), true);
-				assert_eq!(AssignedSlots::permanent_slots(ParaId::from(1)), Some(0));
+				assert_eq!(AssignedSlots::permanent_slots(ParaId::from(1)), Some((0, 3)));
 
 				assert_eq!(Slots::already_leased(ParaId::from(1), 0, 2), true);
 
