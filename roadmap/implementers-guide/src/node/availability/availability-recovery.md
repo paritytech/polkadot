@@ -21,7 +21,7 @@ Output:
 
 ## Functionality
 
-We hold a state which tracks the currently ongoing recovery tasks, as well as which request IDs correspond to which taks. A recovery task is a structure encapsulating all recovery tasks with the network necessary to recover the available data in respect to one candidate.
+We hold a state which tracks the currently ongoing recovery tasks, as well as which request IDs correspond to which task. A recovery task is a structure encapsulating all recovery tasks with the network necessary to recover the available data in respect to one candidate.
 
 ```rust
 struct State {
@@ -111,7 +111,7 @@ const N_PARALLEL: usize = 50;
 ```
 
 * Request `AvailabilityStoreMessage::QueryAvailableData`. If it exists, return that.
-* If the phase is `RecoveryTask::RequestFromBackers`
+* If the task contains `RequestFromBackers`
   * Loop:
     * If the `requesting_pov` is `Some`, poll for updates on it. If it concludes, set `requesting_pov` to `None`.
     * If the `requesting_pov` is `None`, take the next backer off the `shuffled_backers`.
@@ -120,14 +120,20 @@ const N_PARALLEL: usize = 50;
         * If it concludes with available data, attempt a re-encoding.
             * If it has the correct erasure-root, break and issue a `Ok(available_data)`.
             * If it has an incorrect erasure-root, return to beginning.
-        * If the backer is `None`, set the phase to `RecoveryTask::RequestChunks` with a random shuffling of validators and empty `next_shuffling`, `received_chunks`, and `requesting_chunks` and break the loop.
+        * Send the result to each member of `awaiting`.
+        * If the backer is `None`, set the sourcer to `RecoveryTask::RequestChunks` with a random shuffling of validators and empty `received_chunks`, and `requesting_chunks` and break the loop.
 
-* If the phase is `RecoveryTask::RequestChunks`:
+* If the task contains `RequestChunks`:
   * Request `AvailabilityStoreMessage::QueryAllChunks`. For each chunk that exists, add it to `received_chunks` and remote the validator from `shuffling`.
   * Loop:
     * If `received_chunks + requesting_chunks + shuffling` lengths are less than the threshold, break and return `Err(Unavailable)`.
     * Poll for new updates from `requesting_chunks`. Check merkle proofs of any received chunks. If the request simply fails due to network issues, insert into the front of `shuffling` to be retried.
-    * If `received_chunks` has more than `threshold` entries, attempt to recover the data. If that fails, or a re-encoding produces an incorrect erasure-root, break and issue a `Err(RecoveryError::Invalid)`. If correct, break and issue `Ok(available_data)`.
+    * If `received_chunks` has more than `threshold` entries, attempt to recover the data.
+      * If that fails, return `Err(RecoveryError::Invalid)`
+      * If correct:
+        * If re-encoding produces an incorrect erasure-root, break and issue a `Err(RecoveryError::Invalid)`.
+        * break and issue `Ok(available_data)`
+    * Send the result to each member of `awaiting`.
     * While there are fewer than `N_PARALLEL` entries in `requesting_chunks`,
       * Pop the next item from `shuffling`. If it's empty and `requesting_chunks` is empty, return `Err(RecoveryError::Unavailable)`.
       * Issue a `NetworkBridgeMessage::Requests` and wait for the response in `requesting_chunks`.
