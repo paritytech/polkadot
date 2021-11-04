@@ -31,6 +31,8 @@ variables:
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
+  SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v14"
+  PIPELINE_SCRIPTS_TAG:            "v0.1"
 
 default:
   cache:                           {}
@@ -566,8 +568,12 @@ deploy-polkasync-kusama:
 
 simnet-tests:
   stage:                           deploy
-  image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
+  image:                           "${SIMNET_IMAGE}"
   <<:                              *kubernetes-env
+  variables:
+    # FIXME: change branch to "master" after merging this PR
+    # GH_DIR:                        "https://github.com/paritytech/polkadot/tree/master/simnet_tests"
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/simnet-v10/simnet_tests"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
@@ -584,17 +590,19 @@ simnet-tests:
 
   # SIMNET_REF is a gitlab variable
   before_script:
-    - echo "Simnet Tests Config
-        ${SIMNET_IMAGE_NAME} ${SIMNET_REF}
-        ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
-        ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+    - echo "Simnet Tests Config"
+    - echo "${SIMNET_IMAGE}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+    - echo "${GH_DIR}"
   script:
-    - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
-        --github-remote-dir="https://github.com/paritytech/polkadot/tree/master/simnet_tests"
-        --config="simnet_tests/configs/simple_rococo_testnet.toml"
-        --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image-simnet="docker.io/paritytech/simnet:${SIMNET_REF}"
+    - /home/nonroot/simnet/scripts/run-test-environment-manager-v2.sh
+        --github-remote-dir="${GH_DIR}"
+        --tag=smoketest
+        --image="PARACHAINSIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        --image="SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        --image="COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
+        --image="SCRIPTSIMAGE=${SIMNET_IMAGE}"
   allow_failure:                   true
   retry: 2
   tags:
