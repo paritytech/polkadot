@@ -21,7 +21,7 @@ Output:
 
 ## Functionality
 
-We hold a state which tracks the currently ongoing recovery tasks, as well as which request IDs correspond to which taks. An recovery task is a structure encapsulating all interaction with the network necessary to recover the available data in respect to one candidate.
+We hold a state which tracks the currently ongoing recovery tasks, as well as which request IDs correspond to which taks. A recovery task is a structure encapsulating all interaction with the network necessary to recover the available data in respect to one candidate.
 
 ```rust
 struct State {
@@ -68,7 +68,7 @@ enum RecoveryTask {
     }
 }
 
-struct DataRecoveryTask {
+struct RecoveryTask {
     to_subsystems: SubsystemSender,
     params: RecoveryTaskParams,
     sourcer: Sourcer,
@@ -95,7 +95,7 @@ On `Conclude`, shut down the subsystem.
 #### `launch_recovery_task(session_index, session_info, candidate_receipt, candidate_hash, Option<backing_group_index>)`
 
 1. Compute the threshold from the session info. It should be `f + 1`, where `n = 3f + k`, where `k in {1, 2, 3}`, and `n` is the number of validators.
-1. Set the various fields of `DataRecoveryParams` based on the validator lists in `session_info` and information about the candidate.
+1. Set the various fields of `RecoveryParams` based on the validator lists in `session_info` and information about the candidate.
 1. If the `backing_group_index` is `Some`, start in the `RequestFromBackers` phase with a shuffling of the backing group validator indices and a `None` requesting value.
 1. Otherwise, start in the `RequestChunks` phase with `received_chunks`,`requesting_chunks`, and `next_shuffling` all empty.
 1. Set the `to_subsystems` sender to be equal to a clone of the `SubsystemContext`'s sender.
@@ -111,7 +111,7 @@ const N_PARALLEL: usize = 50;
 ```
 
 * Request `AvailabilityStoreMessage::QueryAvailableData`. If it exists, return that.
-* If the phase is `DataRecoveryTask::RequestFromBackers`
+* If the phase is `RecoveryTask::RequestFromBackers`
   * Loop:
     * If the `requesting_pov` is `Some`, poll for updates on it. If it concludes, set `requesting_pov` to `None`.
     * If the `requesting_pov` is `None`, take the next backer off the `shuffled_backers`.
@@ -120,9 +120,9 @@ const N_PARALLEL: usize = 50;
         * If it concludes with available data, attempt a re-encoding.
             * If it has the correct erasure-root, break and issue a `Ok(available_data)`.
             * If it has an incorrect erasure-root, return to beginning.
-        * If the backer is `None`, set the phase to `DataRecoveryTask::RequestChunks` with a random shuffling of validators and empty `next_shuffling`, `received_chunks`, and `requesting_chunks` and break the loop.
+        * If the backer is `None`, set the phase to `RecoveryTask::RequestChunks` with a random shuffling of validators and empty `next_shuffling`, `received_chunks`, and `requesting_chunks` and break the loop.
 
-* If the phase is `DataRecoveryTask::RequestChunks`:
+* If the phase is `RecoveryTask::RequestChunks`:
   * Request `AvailabilityStoreMessage::QueryAllChunks`. For each chunk that exists, add it to `received_chunks` and remote the validator from `shuffling`.
   * Loop:
     * If `received_chunks + requesting_chunks + shuffling` lengths are less than the threshold, break and return `Err(Unavailable)`.

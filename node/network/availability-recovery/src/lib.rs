@@ -125,7 +125,7 @@ struct RequestChunksSourcer {
 	requesting_chunks: FuturesUndead<Result<Option<ErasureChunk>, (ValidatorIndex, RequestError)>>,
 }
 
-struct DataRecoveryParams {
+struct RecoveryParams {
 	/// Discovery ids of `validators`.
 	validator_authority_keys: Vec<AuthorityDiscoveryId>,
 
@@ -155,11 +155,11 @@ enum Sourcer {
 
 /// A stateful reconstruction of availability data in reference to
 /// a candidate hash.
-struct DataRecoveryTask<S> {
+struct RecoveryTask<S> {
 	sender: S,
 
 	/// The parameters of the recovery process.
-	params: DataRecoveryParams,
+	params: RecoveryParams,
 
 	/// The sourcer to obtain the availbility data.
 	sourcer: Sourcer,
@@ -175,7 +175,7 @@ impl RequestFromBackersSourcer {
 	// Run this phase to completion.
 	async fn run(
 		&mut self,
-		params: &DataRecoveryParams,
+		params: &RecoveryParams,
 		sender: &mut impl SubsystemSender,
 	) -> Result<AvailableData, RecoveryError> {
 		tracing::trace!(
@@ -259,7 +259,7 @@ impl RequestChunksSourcer {
 		}
 	}
 
-	fn is_unavailable(&self, params: &DataRecoveryParams) -> bool {
+	fn is_unavailable(&self, params: &RecoveryParams) -> bool {
 		is_unavailable(
 			self.received_chunks.len(),
 			self.requesting_chunks.total_len(),
@@ -268,7 +268,7 @@ impl RequestChunksSourcer {
 		)
 	}
 
-	fn can_conclude(&self, params: &DataRecoveryParams) -> bool {
+	fn can_conclude(&self, params: &RecoveryParams) -> bool {
 		self.received_chunks.len() >= params.threshold || self.is_unavailable(params)
 	}
 
@@ -299,7 +299,7 @@ impl RequestChunksSourcer {
 
 	async fn launch_parallel_requests(
 		&mut self,
-		params: &DataRecoveryParams,
+		params: &RecoveryParams,
 		sender: &mut impl SubsystemSender,
 	) {
 		let num_requests = self.get_desired_request_count(params.threshold);
@@ -351,7 +351,7 @@ impl RequestChunksSourcer {
 	}
 
 	/// Wait for a sufficient amount of chunks to reconstruct according to the provided `params`.
-	async fn wait_for_chunks(&mut self, params: &DataRecoveryParams) {
+	async fn wait_for_chunks(&mut self, params: &RecoveryParams) {
 		let metrics = &params.metrics;
 
 		// Wait for all current requests to conclude or time-out, or until we reach enough chunks.
@@ -453,7 +453,7 @@ impl RequestChunksSourcer {
 
 	async fn run(
 		&mut self,
-		params: &DataRecoveryParams,
+		params: &RecoveryParams,
 		sender: &mut impl SubsystemSender,
 	) -> Result<AvailableData, RecoveryError> {
 		// First query the store for any chunks we've got.
@@ -589,7 +589,7 @@ fn reconstructed_data_matches_root(
 	branches.root() == *expected_root
 }
 
-impl<S: SubsystemSender> DataRecoveryTask<S> {
+impl<S: SubsystemSender> RecoveryTask<S> {
 	async fn run(mut self) -> Result<AvailableData, RecoveryError> {
 		// First just see if we have the data available locally.
 		{
@@ -756,7 +756,7 @@ where
 {
 	let candidate_hash = receipt.hash();
 
-	let params = DataRecoveryParams {
+	let params = RecoveryParams {
 		validator_authority_keys: session_info.discovery_keys.clone(),
 		validators: session_info.validators.clone(),
 		threshold: recovery_threshold(session_info.validators.len())?,
@@ -772,7 +772,7 @@ where
 			Sourcer::RequestChunks(RequestChunksSourcer::new(params.validators.len() as _))
 		});
 
-	let recovery_task = DataRecoveryTask { sender: ctx.sender().clone(), params, sourcer: phase };
+	let recovery_task = RecoveryTask { sender: ctx.sender().clone(), params, sourcer: phase };
 
 	let (remote, remote_handle) = recovery_task.run().remote_handle();
 
