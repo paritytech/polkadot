@@ -110,8 +110,9 @@ impl Jaeger {
 		});
 
 		// Spawn a background task that pulls span information and sends them on the network.
-		spawner.spawn(
+		spawner.spawn_with_subsystem(
 			"jaeger-collector",
+			"jaeger",
 			Box::pin(async move {
 				match async_std::net::UdpSocket::bind("0.0.0.0:0").await {
 					Ok(udp_socket) => loop {

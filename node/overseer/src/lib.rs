@@ -562,7 +562,8 @@ where
 
 		futures::future::ready(())
 	});
-	overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
+	overseer.spawner().spawn_with_subsystem("metrics_metronome", "overseer", Box::pin(metronome));
+
 	Ok(())
 }
 
@@ -616,11 +617,11 @@ where
 				},
 				msg = self.to_overseer_rx.select_next_some() => {
 					match msg {
-						ToOverseer::SpawnJob { name, s } => {
-							self.spawn_job(name, s);
+						ToOverseer::SpawnJob { name, subsystem, s } => {
+							self.spawn_job(name, subsystem,s);
 						}
-						ToOverseer::SpawnBlockingJob { name, s } => {
-							self.spawn_blocking_job(name, s);
+						ToOverseer::SpawnBlockingJob { name, subsystem, s } => {
+							self.spawn_blocking_job(name, subsystem, s);
 						}
 					}
 				},
@@ -772,11 +773,11 @@ where
 		}
 	}
 
-	fn spawn_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
-		self.spawner.spawn(name, j);
+	fn spawn_job(&mut self, name: &'static str, subsystem: &'static str,  j: BoxFuture<'static, ()>) {
+		self.spawner.spawn_with_subsystem(name, subsystem, j);
 	}
 
-	fn spawn_blocking_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
-		self.spawner.spawn_blocking(name, j);
+	fn spawn_blocking_job(&mut self, name: &'static str, subsystem: &'static str,j: BoxFuture<'static, ()>) {
+		self.spawner.spawn_blocking_with_subsystem(name, subsystem, j);
 	}
 }
