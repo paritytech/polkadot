@@ -380,7 +380,7 @@ where
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
 		if let Some(worker) = worker {
-			task_manager.spawn_handle().spawn("telemetry", worker.run());
+			task_manager.spawn_handle().spawn_with_subsystem("telemetry", "telemetry", Box::pin(worker.run()));
 		}
 		telemetry
 	});
@@ -904,7 +904,7 @@ where
 			prometheus_registry.clone(),
 		);
 
-		task_manager.spawn_handle().spawn("authority-discovery-worker", worker.run());
+		task_manager.spawn_handle().spawn_with_subsystem("authority-discovery-worker", "authority-discovery", Box::pin(worker.run()));
 		Some(service)
 	} else {
 		None
