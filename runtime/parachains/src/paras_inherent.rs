@@ -602,7 +602,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
 
 		let mut weight_acc = 0 as Weight;
-		while weight_acc < weight_limit || !selectables.is_empty() {
+		while weight_acc < weight_limit && !indices.is_empty() {
 			// randomly pick an index
 			let pick = rng.gen_range(0..indices.len());
 			// remove the index from the available set of indices
