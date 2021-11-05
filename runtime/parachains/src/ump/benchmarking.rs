@@ -18,14 +18,6 @@ use super::{Pallet as Ump, *};
 use frame_system::RawOrigin;
 use xcm::prelude::*;
 
-fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
-	let events = frame_system::Pallet::<T>::events();
-	let system_event: <T as frame_system::Config>::Event = generic_event.into();
-	// compare to the last event record
-	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
-	assert_eq!(event, &system_event);
-}
-
 fn assert_last_event_type<T: Config>(generic_event: <T as Config>::Event) {
 	let events = frame_system::Pallet::<T>::events();
 	let system_event: <T as frame_system::Config>::Event = generic_event.into();
@@ -43,7 +35,7 @@ fn queue_upward_msg<T: Config>(
 	let msgs = vec![msg];
 	Ump::<T>::check_upward_messages(host_conf, para, &msgs).unwrap();
 	let _ = Ump::<T>::receive_upward_messages(para, msgs);
-	assert_last_event::<T>(Event::UpwardMessagesReceived(para, 1, len).into());
+	assert_last_event_type::<T>(Event::UpwardMessagesReceived(para, 1, len).into());
 }
 
 fn create_message<T: Config>(weight: u64, size: u32) -> Vec<u8> {
@@ -69,6 +61,23 @@ frame_benchmarking::benchmarks! {
 		let data = create_message::<T>(weight, s);
 	}: {
 		assert!(T::UmpSink::process_upward_message(para, &data[..], Weight::MAX).is_ok());
+	}
+
+	perform_outgoing_para_cleanup {
+		// max number of queued messages.
+		let count = configuration::ActiveConfig::<T>::get().max_upward_queue_count;
+		let paras: Vec<_> = (0..count).map(ParaId::from).collect();
+		let host_conf = configuration::ActiveConfig::<T>::get();
+		let msg = create_message::<T>(1000, 0);
+		// Start with the block number 1. This is needed because should an event be
+		// emitted during the genesis block they will be implicitly wiped.
+		frame_system::Pallet::<T>::set_block_number(1u32.into());
+		// fill the queue, each message has it's own para-id.
+		(0..count).for_each(|p| {
+			queue_upward_msg::<T>(&host_conf, ParaId::from(p), msg.clone());
+		});
+	}: {
+		Ump::<T>::clean_ump_after_outgoing(&ParaId::from(0));
 	}
 
 	service_overweight {

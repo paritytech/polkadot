@@ -173,6 +173,7 @@ impl fmt::Debug for AcceptanceCheckErr {
 pub trait WeightInfo {
 	fn service_overweight() -> Weight;
 	fn process_upward_message(s: u32) -> Weight;
+	fn perform_outgoing_para_cleanup() -> Weight;
 }
 
 // fallback implementation
@@ -183,6 +184,10 @@ impl WeightInfo for TestWeightInfo {
 	}
 
 	fn process_upward_message(_msg_size: u32) -> Weight {
+		BlockWeights::default().max_block
+	}
+
+	fn perform_outgoing_para_cleanup() -> Weight {
 		BlockWeights::default().max_block
 	}
 }
@@ -360,20 +365,20 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
 		outgoing_paras: &[ParaId],
-	) {
-		Self::perform_outgoing_para_cleanup(outgoing_paras);
+	) -> Weight {
+		Self::perform_outgoing_para_cleanup(outgoing_paras)
 	}
 
 	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
-	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) {
-		for outgoing_para in outgoing {
-			Self::clean_ump_after_outgoing(outgoing_para);
-		}
+	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) -> Weight {
+		outgoing
+			.iter()
+			.fold(0, |w, p| w.saturating_add(Self::clean_ump_after_outgoing(p)))
 	}
 
 	/// Remove all relevant storage items for an outgoing parachain.
-	fn clean_ump_after_outgoing(outgoing_para: &ParaId) {
+	pub(crate) fn clean_ump_after_outgoing(outgoing_para: &ParaId) -> Weight {
 		<Self as Store>::RelayDispatchQueueSize::remove(outgoing_para);
 		<Self as Store>::RelayDispatchQueues::remove(outgoing_para);
 
@@ -390,6 +395,8 @@ impl<T: Config> Pallet<T> {
 		<Self as Store>::NextDispatchRoundStartWith::mutate(|v| {
 			*v = v.filter(|p| p == outgoing_para)
 		});
+
+		<T as Config>::WeightInfo::perform_outgoing_para_cleanup()
 	}
 
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria. Returns
