@@ -911,6 +911,19 @@ fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet) -> Weight 
 			}
 		});
 
+		let idx = disputes
+			.binary_search_by(|probe| {
+				if T::DisputesHandler::included_state(probe.session, probe.candidate_hash).is_some()
+				{
+					Ordering::Greater
+				} else {
+					Ordering::Less
+				}
+			})
+			.unwrap_err();
+
+		let remote_disputes = disputes.split_off(idx);
+
 		disputes.retain(|d| {
 			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
 				d.statements.len() as u32,
@@ -922,6 +935,8 @@ fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet) -> Weight 
 				false
 			}
 		});
+
+		// TODO Randomly select remote disputes
 	}
 
 	remaining_weight
@@ -1564,6 +1579,53 @@ mod tests {
 						.len(),
 					1
 				);
+			});
+		}
+
+		#[test]
+		// Ensure that when a block is overlength due to disputes and bitfields, we abort
+		fn limit_candidates_overlength_failure() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				// Create the inherent data for this block
+				let mut dispute_statements = BTreeMap::new();
+				// Control the number of statements per dispute to ensure we have enough space
+				// in the block for some (but not all) bitfields
+				dispute_statements.insert(2, 17);
+				dispute_statements.insert(3, 17);
+				dispute_statements.insert(4, 17);
+
+				let mut backed_and_concluding = BTreeMap::new();
+				// 2 backed candidates shall be scheduled
+				backed_and_concluding.insert(0, 16);
+				backed_and_concluding.insert(1, 25);
+
+				let scenario = make_inherent_data(TestConfig {
+					dispute_statements,
+					dispute_sessions: vec![0, 0, 2, 2, 1], // 2 backed candidates, 3 disputes at sessions 2, 1 and 1 respectively
+					backed_and_concluding,
+					num_validators_per_core: 5,
+					includes_code_upgrade: false,
+				});
+
+				let expected_para_inherent_data = scenario.data.clone();
+
+				// Check the para inherent data is as expected:
+				// * 1 bitfield per validator (5 validators per core, 2 backed candidates, 3 disputes => 5*5 = 25)
+				assert_eq!(expected_para_inherent_data.bitfields.len(), 25);
+				// * 2 backed candidates
+				assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
+				// * 3 disputes.
+				assert_eq!(expected_para_inherent_data.disputes.len(), 3);
+
+				assert_err!(
+					Pallet::<Test>::enter(
+						frame_system::RawOrigin::None.into(),
+						expected_para_inherent_data,
+					),
+					DispatchError::from(Error::<Test>::TooManyInclusionInherents),
+				);
+
+				assert!(Pallet::<Test>::on_chain_votes().is_none());
 			});
 		}
 	}
