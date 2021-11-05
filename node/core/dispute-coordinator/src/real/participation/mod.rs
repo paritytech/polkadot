@@ -36,6 +36,9 @@ use super::{
 	ordering::CandidateComparator,
 };
 
+#[cfg(test)]
+mod tests;
+
 mod queues;
 use queues::Queues;
 pub use queues::{Error as QueueError, ParticipationRequest};
@@ -84,7 +87,7 @@ pub struct ParticipationStatement {
 }
 
 /// Outcome of the validation process.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum ParticipationOutcome {
 	/// Candidate was found to be valid.
 	Valid,
@@ -153,7 +156,7 @@ impl Participation {
 				return Ok(())
 			}
 		}
-		// Out of capacity - queue:
+		// Out of capacity/no recent block yet - queue:
 		Ok(self.queue.queue(comparator, req).map_err(NonFatal::QueueError)?)
 	}
 
@@ -330,8 +333,6 @@ async fn participate(
 				"`Oneshot` got cancelled when storing available data {:?}",
 				req.candidate_hash(),
 			);
-			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
-			return
 		},
 		Ok(Err(err)) => {
 			tracing::warn!(
@@ -340,8 +341,6 @@ async fn participate(
 				"Failed to store available data for candidate {:?}",
 				req.candidate_hash(),
 			);
-			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
-			return
 		},
 		Ok(Ok(())) => {},
 	}
