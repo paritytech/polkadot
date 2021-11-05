@@ -571,9 +571,7 @@ simnet-tests:
   image:                           "${SIMNET_IMAGE}"
   <<:                              *kubernetes-env
   variables:
-    # FIXME: change branch to "master" after merging this PR
-    # GH_DIR:                        "https://github.com/paritytech/polkadot/tree/master/simnet_tests"
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/simnet-v10/simnet_tests"
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/master/simnet_tests"
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
