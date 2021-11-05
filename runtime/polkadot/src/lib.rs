@@ -1147,7 +1147,7 @@ impl parachains_ump::Config for Runtime {
 	type UmpSink = ();
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = ();
+	type WeightInfo = parachains_ump::TestWeightInfo;
 }
 
 impl parachains_dmp::Config for Runtime {}

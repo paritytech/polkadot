@@ -176,7 +176,8 @@ pub trait WeightInfo {
 }
 
 // fallback implementation
-impl WeightInfo for () {
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
 	fn service_overweight() -> Weight {
 		BlockWeights::default().max_block
 	}
