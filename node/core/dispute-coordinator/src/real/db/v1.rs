@@ -420,7 +420,7 @@ mod tests {
 
 		let prev_earliest_session = 0;
 		let new_earliest_session = 5;
-		let current_session = 5 + DISPUTE_WINDOW;
+		let current_session = 5 + DISPUTE_WINDOW.get();
 
 		let very_old = 3;
 		let slightly_old = 4;
