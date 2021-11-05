@@ -666,8 +666,8 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
 	// everything fits into the block
-	if max_weight > total {
-		return (total, candidates, bitfields);
+	if max_weight >= total {
+		return (total, candidates, bitfields)
 	}
 
 	use rand_chacha::rand_core::SeedableRng;
@@ -679,25 +679,27 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		weight_fn: F,
 		weight_limit: Weight,
 	) -> (Weight, Vec<usize>) {
+		if selectables.is_empty() {
+			return (0 as Weight, Vec::new())
+		}
 		let mut indices = (0..selectables.len()).into_iter().collect::<Vec<_>>();
 		let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
 
 		let mut weight_acc = 0 as Weight;
-		if !selectables.is_empty() {
-			while !indices.is_empty() {
-				// randomly pick an index
-				let pick = rng.gen_range(0..indices.len());
-				// remove the index from the available set of indices
-				let idx = indices.swap_remove(pick);
+		while !indices.is_empty() {
+			// randomly pick an index
+			let pick = rng.gen_range(0..indices.len());
+			// remove the index from the available set of indices
+			let idx = indices.swap_remove(pick);
 
-				let item = &selectables[idx];
-				weight_acc += weight_fn(item);
-				if weight_acc > weight_limit {
-					break;
-				}
+			let item = &selectables[idx];
+			weight_acc += weight_fn(item);
 
-				picked_indices.push(idx);
+			if weight_acc > weight_limit {
+				break
 			}
+
+			picked_indices.push(idx);
 		}
 
 		// sorting indices, so the ordering is retained
@@ -859,6 +861,11 @@ fn sanitize_backed_candidates<
 	// Assure the backed candidate's `ParaId`'s core is free.
 	// This holds under the assumption that `Scheduler::schedule` is called _before_.
 	// Also checks the candidate references the correct relay parent.
+
+	let scheduled_paras_set = scheduled
+		.into_iter()
+		.map(|core_assignment| core_assignment.para_id)
+		.collect::<BTreeSet<_>>();
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
 		desc.relay_parent == relay_parent
