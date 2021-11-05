@@ -582,7 +582,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let total = total_bitfields_weight + total_candidates_weight;
 
 	// everything fits into the block
-	if max_weight < total {
+	if max_weight >= total {
 		return (total, candidates, bitfields)
 	}
 
