@@ -966,6 +966,8 @@ mod tests {
 		}
 
 		#[test]
+		// Validate that if we create 2 candidates and schedule them to 2 cores
+		// we obtain 2 backed candidates for each of the candidates in the inherent data
 		fn include_backed_candidates() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let dispute_statements = BTreeMap::new();
@@ -989,9 +991,9 @@ mod tests {
 				let expected_para_inherent_data = scenario.data.clone();
 
 				// Check the para inherent data is as expected:
-				// * 1 bitfield per validator
+				// * 1 bitfield per validator (2 validators)
 				assert_eq!(expected_para_inherent_data.bitfields.len(), 2);
-				// * 1 backed candidate per core
+				// * 1 backed candidate per core (2 cores)
 				assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
 				// * 0 disputes.
 				assert_eq!(expected_para_inherent_data.disputes.len(), 0);
@@ -1032,6 +1034,7 @@ mod tests {
 		}
 
 		#[test]
+		// Ensure that disputes are filtered out if the session lies outside the accepted range
 		fn filter_multi_dispute_data() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				// Create the inherent data for this block
@@ -1070,13 +1073,14 @@ mod tests {
 				// The current schedule is empty prior to calling `create_inherent_enter`.
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-				// Nothing is filtered out (including the backed candidates.)
 				let multi_dispute_inherent_data =
 					Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+				// Dispute for session that lies too far in the future should be filtered out
 				assert!(multi_dispute_inherent_data != expected_para_inherent_data);
 
 				assert_eq!(multi_dispute_inherent_data.disputes.len(), 2);
 
+				// Assert that the first 2 disputes are included
 				assert_eq!(
 					&multi_dispute_inherent_data.disputes[..2],
 					&expected_para_inherent_data.disputes[..2],
@@ -1087,19 +1091,11 @@ mod tests {
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
 				assert_eq!(Pallet::<Test>::on_chain_votes(), None);
-				// Call enter with our 2 backed candidates
+				// Call enter with our 2 disputes
 				assert_ok!(Pallet::<Test>::enter(
 					frame_system::RawOrigin::None.into(),
 					multi_dispute_inherent_data,
 				));
-
-				assert_err!(
-					Pallet::<Test>::enter(
-						frame_system::RawOrigin::None.into(),
-						expected_para_inherent_data,
-					),
-					DispatchError::from(Error::<Test>::TooManyInclusionInherents),
-				);
 
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know our 2
@@ -1114,29 +1110,27 @@ mod tests {
 		}
 
 		#[test]
+		// Ensure that when dispute data establishes an overlength block that we adequately
+		// filter out disputes according to our prioritization rule
 		fn limit_dispute_data() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				// Create the inherent data for this block
 				let dispute_statements = BTreeMap::new();
-
+				// No backed and concluding cores, so all cores will be fileld with disputesw
 				let backed_and_concluding = BTreeMap::new();
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					dispute_sessions: vec![2, 2, 1],
+					dispute_sessions: vec![2, 2, 1], // 3 cores, all disputes
 					backed_and_concluding,
 					num_validators_per_core: 6,
 					includes_code_upgrade: false,
 				});
 
-				// We expect the scenario to have cores 0 & 1 with pending availability. The backed
-				// candidates are also created for cores 0 & 1, so once the pending available
-				// become fully available those cores are marked as free and scheduled for the backed
-				// candidates.
 				let expected_para_inherent_data = scenario.data.clone();
 
 				// Check the para inherent data is as expected:
-				// * 1 bitfield per validator (5 validators per core, 5 disputes => 5 cores, 25 validators)
+				// * 1 bitfield per validator (6 validators per core, 3 disputes => 18 validators)
 				assert_eq!(expected_para_inherent_data.bitfields.len(), 18);
 				// * 0 backed candidate per core
 				assert_eq!(expected_para_inherent_data.backed_candidates.len(), 0);
@@ -1150,11 +1144,12 @@ mod tests {
 				// The current schedule is empty prior to calling `create_inherent_enter`.
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-				// Nothing is filtered out (including the backed candidates.)
 				let limit_inherent_data =
 					Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+				// Expect that inherent data is filtered to include only 2 disputes
 				assert!(limit_inherent_data != expected_para_inherent_data);
 
+				// Ensure that the included disputes are sorted by session
 				assert_eq!(limit_inherent_data.disputes.len(), 2);
 				assert_eq!(limit_inherent_data.disputes[0].session, 1);
 				assert_eq!(limit_inherent_data.disputes[1].session, 2);
@@ -1164,12 +1159,13 @@ mod tests {
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
 				assert_eq!(Pallet::<Test>::on_chain_votes(), None);
-				// Call enter with our 2 backed candidates
+				// Call enter with our 2 disputes
 				assert_ok!(Pallet::<Test>::enter(
 					frame_system::RawOrigin::None.into(),
 					limit_inherent_data,
 				));
 
+				// Ensure that calling enter with 3 disputes would cause an overlength block
 				assert_err!(
 					Pallet::<Test>::enter(
 						frame_system::RawOrigin::None.into(),
@@ -1179,8 +1175,7 @@ mod tests {
 				);
 
 				assert_eq!(
-					// The length of this vec is equal to the number of candidates, so we know our 2
-					// backed candidates did not get filtered out
+					// Ensure that our inherent data did not included backed candidates as expected
 					Pallet::<Test>::on_chain_votes()
 						.unwrap()
 						.backing_validators_per_candidate
@@ -1191,33 +1186,33 @@ mod tests {
 		}
 
 		#[test]
+		// Ensure that when a block is overlength due to disputes, but there is still sufficient
+		// block weight to include a number of signed bitfields, the inherent data is filtered
+		// as expected
 		fn limit_dispute_data_ignore_backed_candidates() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				// Create the inherent data for this block
 				let dispute_statements = BTreeMap::new();
 
 				let mut backed_and_concluding = BTreeMap::new();
+				// 2 backed candidates shall be scheduled
 				backed_and_concluding.insert(0, 2);
 				backed_and_concluding.insert(1, 2);
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					dispute_sessions: vec![0, 0, 2, 2, 1],
+					dispute_sessions: vec![0, 0, 2, 2, 1], // 2 backed candidates, 3 disputes at sessions 2, 1 and 1 respectively
 					backed_and_concluding,
 					num_validators_per_core: 4,
 					includes_code_upgrade: false,
 				});
 
-				// We expect the scenario to have cores 0 & 1 with pending availability. The backed
-				// candidates are also created for cores 0 & 1, so once the pending available
-				// become fully available those cores are marked as free and scheduled for the backed
-				// candidates.
 				let expected_para_inherent_data = scenario.data.clone();
 
 				// Check the para inherent data is as expected:
-				// * 1 bitfield per validator (5 validators per core, 5 disputes => 5 cores, 25 validators)
+				// * 1 bitfield per validator (4 validators per core, 2 backed candidates, 3 disputes => 4*5 = 20)
 				assert_eq!(expected_para_inherent_data.bitfields.len(), 20);
-				// * 0 backed candidate per core
+				// * 2 backed candidates
 				assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
 				// * 3 disputes.
 				assert_eq!(expected_para_inherent_data.disputes.len(), 3);
@@ -1234,21 +1229,31 @@ mod tests {
 					Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
 				assert!(limit_inherent_data != expected_para_inherent_data);
 
+				// Three disputes is overlength (see previous test), so we expect to only see 2 disputes
 				assert_eq!(limit_inherent_data.disputes.len(), 2);
+				// Ensure disputes are filtered as expected
 				assert_eq!(limit_inherent_data.disputes[0].session, 1);
 				assert_eq!(limit_inherent_data.disputes[1].session, 2);
+				// Ensure all bitfields are included as these are still not overlength
+				assert_eq!(
+					limit_inherent_data.bitfields.len(),
+					expected_para_inherent_data.bitfields.len()
+				);
+				// Ensure that all backed candidates are filtered out as either would make the block overlength
+				assert_eq!(limit_inherent_data.backed_candidates.len(), 0);
 
 				// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
 				// alter storage, but just double checking for sanity).
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
 				assert_eq!(Pallet::<Test>::on_chain_votes(), None);
-				// Call enter with our 2 backed candidates
+				// Call enter with our 2 disputes
 				assert_ok!(Pallet::<Test>::enter(
 					frame_system::RawOrigin::None.into(),
 					limit_inherent_data,
 				));
 
+				// Ensure that calling enter with 3 disputes and 2 candidates is overlength
 				assert_err!(
 					Pallet::<Test>::enter(
 						frame_system::RawOrigin::None.into(),
@@ -1258,8 +1263,8 @@ mod tests {
 				);
 
 				assert_eq!(
-					// The length of this vec is equal to the number of candidates, so we know our 2
-					// backed candidates did not get filtered out
+					// The length of this vec is equal to the number of candidates, so we know
+					// all of our candidates got filtered out
 					Pallet::<Test>::on_chain_votes()
 						.unwrap()
 						.backing_validators_per_candidate
