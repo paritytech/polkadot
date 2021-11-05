@@ -335,7 +335,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect();
 
 		for (seed, _) in concluding_cores.iter() {
-			println!("SEED {:?}", seed);
 			// make sure the candidates that are concluding by becoming available are marked as
 			// pending availability.
 			let (para_id, core_idx, group_idx) = self.create_indexes(seed.clone());
@@ -365,7 +364,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		cores_with_backed_candidates
 			.iter()
 			.map(|(seed, num_votes)| {
-				println!("NUM VOTES {:?}", num_votes);
 				let (para_id, _core_idx, group_idx) = self.create_indexes(seed.clone());
 
 				// This generates a pair and adds it to the keystore, returning just the public.

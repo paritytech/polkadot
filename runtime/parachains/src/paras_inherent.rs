@@ -69,14 +69,17 @@ pub trait WeightInfo {
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
-	fn enter_variable_disputes(_v: u32) -> Weight {
-		0
+	fn enter_variable_disputes(v: u32) -> Weight {
+		// MAX Block Weight should fit 4 disputes
+		80_000 * v as Weight + 80_000
 	}
 	fn enter_bitfields() -> Weight {
-		0
+		// MAX Block Weight should fit 4 backed candidates
+		40_000 as Weight
 	}
-	fn enter_backed_candidates_variable(_v: u32) -> Weight {
-		0
+	fn enter_backed_candidates_variable(v: u32) -> Weight {
+		// MAX Block Weight should fit 4 backed candidates
+		40_000 * v as Weight + 40_000
 	}
 }
 
@@ -257,9 +260,8 @@ pub mod pallet {
 				&disputes,
 			);
 
-			if total_weight > <T as frame_system::Config>::BlockWeights::get().max_block {
-				return Ok(Some(minimal_inherent_weight::<T>()).into());
-			}
+			// Abort if the total weight of the block exceeds the max block weight
+			ensure!(total_weight <= <T as frame_system::Config>::BlockWeights::get().max_block, Error::<T>::TooManyInclusionInherents);
 
 			ensure_none(origin)?;
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
@@ -658,15 +660,13 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	entropy: [u8; 32],
 	max_weight: Weight,
 ) -> (Weight, Vec<BackedCandidate<<T>::Hash>>, UncheckedSignedAvailabilityBitfields) {
-	let total_bitfields_weight = (bitfields.len() as Weight).saturating_mul(signed_bitfields_weight::<T>(bitfields.len()));
-
-	let total_candidates_weight = (candidates.len() as Weight)
-		.saturating_mul(backed_candidates_weight::<T>(candidates.as_slice()));
+	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice());
+	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
 
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
 	// everything fits into the block
-	if max_weight < total {
+	if max_weight > total {
 		return (total, candidates, bitfields);
 	}
 
@@ -684,16 +684,19 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 		let mut weight_acc = 0 as Weight;
 		if !selectables.is_empty() {
-			while weight_acc < weight_limit && !indices.is_empty() {
+			while !indices.is_empty() {
 				// randomly pick an index
 				let pick = rng.gen_range(0..indices.len());
 				// remove the index from the available set of indices
 				let idx = indices.swap_remove(pick);
 
 				let item = &selectables[idx];
+				weight_acc += weight_fn(item);
+				if weight_acc > weight_limit {
+					break;
+				}
 
 				picked_indices.push(idx);
-				weight_acc = weight_fn(item);
 			}
 		}
 
@@ -938,22 +941,11 @@ mod tests {
 				includes_code_upgrade,
 			}: TestConfig,
 		) -> Bench<Test> {
-			let scenario = BenchBuilder::<Test>::new()
+			BenchBuilder::<Test>::new()
 				.set_max_validators((dispute_sessions.len() as u32) * num_validators_per_core)
 				.set_max_validators_per_core(num_validators_per_core) // 5 validators, 1 validator per core => 5 cores.
 				.set_dispute_statements(dispute_statements)
-				.build(backed_and_concluding, dispute_sessions.as_slice()); // build backed candidates for cores 0 & 1.
-
-			for c in scenario.data.backed_candidates.iter() {
-				println!("NUMBER OF VALIDITY VOTES {:?}", c.validity_votes.len());
-			}
-			println!("SCENARIO {:?}", scenario.data.disputes.len());
-			for d in scenario.data.disputes.iter() {
-				println!("Amount of statements: {:?}", d.statements.len());
-				println!("SESSION {:?}", d.session);
-			}
-
-			scenario
+				.build(backed_and_concluding, dispute_sessions.as_slice()) // build backed candidates for cores 0 & 1.
 		}
 
 		#[test]
@@ -1022,7 +1014,7 @@ mod tests {
 		}
 
 		#[test]
-		fn limit_paras_inherent() {
+		fn filter_multi_dispute_data() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				// Create the inherent data for this block
 				let dispute_statements = BTreeMap::new();
@@ -1032,7 +1024,7 @@ mod tests {
 				let scenario = make_inherent_data(
 					TestConfig {
 						dispute_statements,
-						dispute_sessions: vec![3, 2, 1],
+						dispute_sessions: vec![1, 2, 3 /* Session too new, will get filtered out */],
 						backed_and_concluding,
 						num_validators_per_core: 5,
 						includes_code_upgrade: false
@@ -1046,11 +1038,11 @@ mod tests {
 				let expected_para_inherent_data = scenario.data.clone();
 
 				// Check the para inherent data is as expected:
-				// * 1 bitfield per validator
+				// * 1 bitfield per validator (5 validators per core, 3 disputes => 3 cores, 15 validators)
 				assert_eq!(expected_para_inherent_data.bitfields.len(), 15);
-				// * 1 backed candidate per core
+				// * 0 backed candidate per core
 				assert_eq!(expected_para_inherent_data.backed_candidates.len(), 0);
-				// * 0 disputes.
+				// * 3 disputes.
 				assert_eq!(expected_para_inherent_data.disputes.len(), 3);
 				let mut inherent_data = InherentData::new();
 				inherent_data
@@ -1061,22 +1053,14 @@ mod tests {
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
 				// Nothing is filtered out (including the backed candidates.)
-				let limit_para_inherent_data = Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
-				assert!(limit_para_inherent_data != expected_para_inherent_data);
+				let multi_dispute_inherent_data = Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+				assert!(multi_dispute_inherent_data != expected_para_inherent_data);
+
+				assert_eq!(multi_dispute_inherent_data.disputes.len(), 2);
 
 				assert_eq!(
-					limit_para_inherent_data.disputes.len(),
-					2usize,
-				);
-
-				assert_eq!(
-					expected_para_inherent_data.disputes.len(),
-					3usize,
-				);
-
-				assert_eq!(
-					expected_para_inherent_data.disputes[2].session,
-					1,
+					&multi_dispute_inherent_data.disputes[..2],
+					&expected_para_inherent_data.disputes[..2],
 				);
 
 				// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
@@ -1087,7 +1071,7 @@ mod tests {
 				// Call enter with our 2 backed candidates
 				assert_ok!(Pallet::<Test>::enter(
 					frame_system::RawOrigin::None.into(),
-					limit_para_inherent_data
+					multi_dispute_inherent_data,
 				));
 
 				assert_err!(
@@ -1106,7 +1090,160 @@ mod tests {
 				);
 			});
 		}
+
+		#[test]
+		fn limit_dispute_data() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				// Create the inherent data for this block
+				let dispute_statements = BTreeMap::new();
+
+				let backed_and_concluding = BTreeMap::new();
+
+				let scenario = make_inherent_data(
+					TestConfig {
+						dispute_statements,
+						dispute_sessions: vec![2, 2, 1],
+						backed_and_concluding,
+						num_validators_per_core: 6,
+						includes_code_upgrade: false
+					}
+				);
+
+				// We expect the scenario to have cores 0 & 1 with pending availability. The backed
+				// candidates are also created for cores 0 & 1, so once the pending available
+				// become fully available those cores are marked as free and scheduled for the backed
+				// candidates.
+				let expected_para_inherent_data = scenario.data.clone();
+
+				// Check the para inherent data is as expected:
+				// * 1 bitfield per validator (5 validators per core, 5 disputes => 5 cores, 25 validators)
+				assert_eq!(expected_para_inherent_data.bitfields.len(), 18);
+				// * 0 backed candidate per core
+				assert_eq!(expected_para_inherent_data.backed_candidates.len(), 0);
+				// * 3 disputes.
+				assert_eq!(expected_para_inherent_data.disputes.len(), 3);
+				let mut inherent_data = InherentData::new();
+				inherent_data
+					.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+					.unwrap();
+
+				// The current schedule is empty prior to calling `create_inherent_enter`.
+				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+
+				// Nothing is filtered out (including the backed candidates.)
+				let limit_inherent_data = Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+				assert!(limit_inherent_data != expected_para_inherent_data);
+
+				assert_eq!(limit_inherent_data.disputes.len(), 2);
+				assert_eq!(limit_inherent_data.disputes[0].session, 1);
+				assert_eq!(limit_inherent_data.disputes[1].session, 2);
+
+				// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
+				// alter storage, but just double checking for sanity).
+				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+
+				assert_eq!(Pallet::<Test>::on_chain_votes(), None);
+				// Call enter with our 2 backed candidates
+				assert_ok!(Pallet::<Test>::enter(
+					frame_system::RawOrigin::None.into(),
+					limit_inherent_data,
+				));
+
+				assert_err!(
+					Pallet::<Test>::enter(
+						frame_system::RawOrigin::None.into(),
+						expected_para_inherent_data,
+					),
+					DispatchError::from(Error::<Test>::TooManyInclusionInherents),
+				);
+
+				assert_eq!(
+					// The length of this vec is equal to the number of candidates, so we know our 2
+					// backed candidates did not get filtered out
+					Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
+					0
+				);
+			});
+		}
+
+		#[test]
+		fn limit_dispute_data_ignore_backed_candidates() {
+			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+				// Create the inherent data for this block
+				let dispute_statements = BTreeMap::new();
+
+				let mut backed_and_concluding = BTreeMap::new();
+				backed_and_concluding.insert(0, 2);
+				backed_and_concluding.insert(1, 2);
+
+				let scenario = make_inherent_data(
+					TestConfig {
+						dispute_statements,
+						dispute_sessions: vec![0, 0, 2, 2, 1],
+						backed_and_concluding,
+						num_validators_per_core: 4,
+						includes_code_upgrade: false
+					}
+				);
+
+				// We expect the scenario to have cores 0 & 1 with pending availability. The backed
+				// candidates are also created for cores 0 & 1, so once the pending available
+				// become fully available those cores are marked as free and scheduled for the backed
+				// candidates.
+				let expected_para_inherent_data = scenario.data.clone();
+
+				// Check the para inherent data is as expected:
+				// * 1 bitfield per validator (5 validators per core, 5 disputes => 5 cores, 25 validators)
+				assert_eq!(expected_para_inherent_data.bitfields.len(), 20);
+				// * 0 backed candidate per core
+				assert_eq!(expected_para_inherent_data.backed_candidates.len(), 2);
+				// * 3 disputes.
+				assert_eq!(expected_para_inherent_data.disputes.len(), 3);
+				let mut inherent_data = InherentData::new();
+				inherent_data
+					.put_data(PARACHAINS_INHERENT_IDENTIFIER, &expected_para_inherent_data)
+					.unwrap();
+
+				// The current schedule is empty prior to calling `create_inherent_enter`.
+				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+
+				// Nothing is filtered out (including the backed candidates.)
+				let limit_inherent_data = Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+				assert!(limit_inherent_data != expected_para_inherent_data);
+
+				assert_eq!(limit_inherent_data.disputes.len(), 2);
+				assert_eq!(limit_inherent_data.disputes[0].session, 1);
+				assert_eq!(limit_inherent_data.disputes[1].session, 2);
+
+				// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
+				// alter storage, but just double checking for sanity).
+				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+
+				assert_eq!(Pallet::<Test>::on_chain_votes(), None);
+				// Call enter with our 2 backed candidates
+				assert_ok!(Pallet::<Test>::enter(
+					frame_system::RawOrigin::None.into(),
+					limit_inherent_data,
+				));
+
+				assert_err!(
+					Pallet::<Test>::enter(
+						frame_system::RawOrigin::None.into(),
+						expected_para_inherent_data,
+					),
+					DispatchError::from(Error::<Test>::TooManyInclusionInherents),
+				);
+
+				assert_eq!(
+					// The length of this vec is equal to the number of candidates, so we know our 2
+					// backed candidates did not get filtered out
+					Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
+					0,
+				);
+			});
+		}
 	}
+
 
 	fn default_header() -> primitives::v1::Header {
 		primitives::v1::Header {
