@@ -349,7 +349,7 @@ impl<T: Config> Pallet<T> {
 					// which in turn happens in case of a disputed candidate.
 					// A malicious one might include arbitrary indices, but they are represented
 					// by `None` values and will be sorted out in the next if case.
-					continue;
+					continue
 				};
 
 				// defensive check - this is constructed by loading the availability bitfield record,
@@ -387,8 +387,8 @@ impl<T: Config> Pallet<T> {
 							"Inclusion::process_bitfields: PendingAvailability and PendingAvailabilityCommitments
 							are out of sync, did someone mess with the storage?",
 						);
-						continue;
-					}
+						continue
+					},
 				};
 
 				if !is_create_inherent {
@@ -429,7 +429,7 @@ impl<T: Config> Pallet<T> {
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
-			return Ok(ProcessedCandidates::default());
+			return Ok(ProcessedCandidates::default())
 		}
 
 		let validators = shared::Pallet::<T>::active_validator_keys();
@@ -498,8 +498,8 @@ impl<T: Config> Pallet<T> {
 				);
 
 				ensure!(
-					backed_candidate.descriptor().para_head
-						== backed_candidate.candidate.commitments.head_data.hash(),
+					backed_candidate.descriptor().para_head ==
+						backed_candidate.candidate.commitments.head_data.hash(),
 					Error::<T>::ParaHeadMismatch,
 				);
 
@@ -546,22 +546,22 @@ impl<T: Config> Pallet<T> {
 										// We don't want to error out here because it will
 										// brick the relay-chain. So we return early without
 										// doing anything.
-										return Ok(ProcessedCandidates::default());
-									}
+										return Ok(ProcessedCandidates::default())
+									},
 								};
 
 							let expected = persisted_validation_data.hash();
 
 							ensure!(
-								expected
-									== backed_candidate.descriptor().persisted_validation_data_hash,
+								expected ==
+									backed_candidate.descriptor().persisted_validation_data_hash,
 								Error::<T>::ValidationDataHashMismatch,
 							);
 						}
 
 						ensure!(
-							<PendingAvailability<T>>::get(&para_id).is_none()
-								&& <PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),
+							<PendingAvailability<T>>::get(&para_id).is_none() &&
+								<PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),
 							Error::<T>::CandidateScheduledBeforeParaFree,
 						);
 
@@ -592,7 +592,7 @@ impl<T: Config> Pallet<T> {
 								),
 								Err(()) => {
 									Err(Error::<T>::InvalidBacking)?;
-								}
+								},
 							}
 
 							let mut backer_idx_and_attestation =
@@ -624,7 +624,7 @@ impl<T: Config> Pallet<T> {
 							backers,
 							assignment.group_idx,
 						));
-						continue 'a;
+						continue 'a
 					}
 				}
 
@@ -785,8 +785,8 @@ impl<T: Config> Pallet<T> {
 			backing_group,
 		));
 
-		weight
-			+ <paras::Pallet<T>>::note_new_head(
+		weight +
+			<paras::Pallet<T>>::note_new_head(
 				receipt.descriptor.para_id,
 				commitments.head_data,
 				relay_parent_number,
@@ -967,9 +967,9 @@ impl<T: Config> CandidateCheckContext<T> {
 		if let Some(new_validation_code) = new_validation_code {
 			let valid_upgrade_attempt = <paras::Pallet<T>>::last_code_upgrade(para_id, true)
 				.map_or(true, |last| {
-					last <= self.relay_parent_number
-						&& self.relay_parent_number.saturating_sub(last)
-							>= self.config.validation_upgrade_frequency
+					last <= self.relay_parent_number &&
+						self.relay_parent_number.saturating_sub(last) >=
+							self.config.validation_upgrade_frequency
 				});
 			ensure!(valid_upgrade_attempt, AcceptanceCheckErr::PrematureCodeUpgrade);
 			ensure!(
@@ -1124,8 +1124,8 @@ pub(crate) mod tests {
 				Some(validators[group[i].0 as usize].public().into())
 			})
 			.ok()
-			.unwrap_or(0) * 2
-				> group.len();
+			.unwrap_or(0) * 2 >
+				group.len();
 
 		match kind {
 			BackingKind::Unanimous | BackingKind::Threshold => assert!(successfully_backed),
@@ -1718,7 +1718,7 @@ pub(crate) mod tests {
 						a_available.clone()
 					} else {
 						// sign nothing.
-						return None;
+						return None
 					};
 
 					Some(

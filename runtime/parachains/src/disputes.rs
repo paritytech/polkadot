@@ -132,7 +132,6 @@ pub trait DisputesHandler<BlockNumber> {
 	/// Retrieve the included state of a given candidate in a particular session.
 	fn included_state(session: SessionIndex, candidate_hash: CandidateHash) -> Option<BlockNumber>;
 
-
 	/// Whether the given candidate concluded invalid in a dispute with supermajority.
 	fn concluded_invalid(session: SessionIndex, candidate_hash: CandidateHash) -> bool;
 

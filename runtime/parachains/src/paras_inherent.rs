@@ -38,8 +38,8 @@ use frame_system::pallet_prelude::*;
 use pallet_babe::{self, CurrentBlockRandomness};
 use primitives::v1::{
 	BackedCandidate, CandidateHash, CoreIndex, DisputeStatementSet,
-	InherentData as ParachainsInherentData, MultiDisputeStatementSet,
-	ScrapedOnChainVotes, SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfield,
+	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
+	SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfield,
 	UncheckedSignedAvailabilityBitfields, ValidatorId, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use rand::Rng;
@@ -88,9 +88,9 @@ fn paras_inherent_total_weight<T: Config>(
 	bitfields: &[UncheckedSignedAvailabilityBitfield],
 	disputes: &[DisputeStatementSet],
 ) -> Weight {
-	backed_candidates_weight::<T>(backed_candidates) +
-	signed_bitfields_weight::<T>(bitfields.len()) +
-	dispute_statements_weight::<T>(disputes)
+	backed_candidates_weight::<T>(backed_candidates)
+		.saturating_add(signed_bitfields_weight::<T>(bitfields.len()))
+		.saturating_add(dispute_statements_weight::<T>(disputes))
 }
 
 fn minimal_inherent_weight<T: Config>() -> Weight {
@@ -101,17 +101,31 @@ fn minimal_inherent_weight<T: Config>() -> Weight {
 }
 
 fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Weight {
-    disputes.iter().map(|d| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(d.statements.len() as u32)).sum()
+	disputes
+		.iter()
+		.map(|d| {
+			<<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
+				d.statements.len() as u32
+			)
+		})
+		.fold(0, |acc, x| acc.saturating_add(x))
 }
 
 fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
-    <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields() * bitfields_len as Weight
+	<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields() * bitfields_len as Weight
 }
 
 fn backed_candidates_weight<T: frame_system::Config + Config>(
-    candidate: &[BackedCandidate<T::Hash>],
+	candidate: &[BackedCandidate<T::Hash>],
 ) -> Weight {
-    candidate.iter().map(|v| <<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(v.validity_votes.len() as u32)).sum()
+	candidate
+		.iter()
+		.map(|v| {
+			<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
+				v.validity_votes.len() as u32,
+			)
+		})
+		.sum()
 }
 
 /// A bitfield concerning concluded disputes for candidates
@@ -222,7 +236,7 @@ pub mod pallet {
 							disputes: Vec::new(),
 							parent_header: inherent_data.parent_header,
 						}
-					}
+					},
 				};
 
 			Some(Call::enter { data: inherent_data })
@@ -254,14 +268,14 @@ pub mod pallet {
 				parent_header,
 				disputes,
 			} = data;
-			let total_weight = paras_inherent_total_weight::<T>(
-				&backed_candidates,
-				&signed_bitfields,
-				&disputes,
-			);
+			let total_weight =
+				paras_inherent_total_weight::<T>(&backed_candidates, &signed_bitfields, &disputes);
 
 			// Abort if the total weight of the block exceeds the max block weight
-			ensure!(total_weight <= <T as frame_system::Config>::BlockWeights::get().max_block, Error::<T>::TooManyInclusionInherents);
+			ensure!(
+				total_weight <= <T as frame_system::Config>::BlockWeights::get().max_block,
+				Error::<T>::TooManyInclusionInherents
+			);
 
 			ensure_none(origin)?;
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
@@ -287,7 +301,7 @@ pub mod pallet {
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
-					return Ok(Some(minimal_inherent_weight::<T>()).into());
+					return Ok(Some(minimal_inherent_weight::<T>()).into())
 				}
 
 				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
@@ -428,8 +442,8 @@ impl<T: Config> Pallet<T> {
 			Ok(None) => return None,
 			Err(_) => {
 				log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
-				return None;
-			}
+				return None
+			},
 		};
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
@@ -438,7 +452,7 @@ impl<T: Config> Pallet<T> {
 				target: LOG_TARGET,
 				"ParachainsInherentData references a different parent header hash than frame"
 			);
-			return None;
+			return None
 		}
 
 		let current_session = <shared::Pallet<T>>::session_index();
@@ -724,7 +738,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		// pick all bitfields, and
 		// fill the remaining space with candidates
 		let total = acc_candidate_weight.saturating_add(total_bitfields_weight);
-		return (total, candidates, bitfields);
+		return (total, candidates, bitfields)
 	}
 
 	// insufficient space for even the bitfields alone, so only try to fit as many of those
@@ -732,7 +746,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let (total, indices) = random_sel::<UncheckedSignedAvailabilityBitfield, _>(
 		&mut rng,
 		bitfields.clone(),
-    	|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
+		|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
 		max_weight,
 	);
 	let bitfields = indices.into_iter().map(move |idx| bitfields[idx].clone()).collect::<Vec<_>>();
@@ -788,8 +802,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 		);
 
 		ensure2!(
-			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone()
-				== all_zeros,
+			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() ==
+				all_zeros,
 			crate::inclusion::Error::<T>::BitfieldReferencesFreedCore,
 			EARLY_RETURN,
 			continue
@@ -868,8 +882,7 @@ fn sanitize_backed_candidates<
 		.collect::<BTreeSet<_>>();
 	backed_candidates.retain(|backed_candidate| {
 		let desc = backed_candidate.descriptor();
-		desc.relay_parent == relay_parent
-			&& scheduled.iter().any(|core| core.para_id == desc.para_id)
+		desc.relay_parent == relay_parent && scheduled_paras_set.contains(&desc.para_id)
 	});
 	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
@@ -877,9 +890,7 @@ fn sanitize_backed_candidates<
 	Ok(backed_candidates)
 }
 
-fn limit_disputes<T: Config>(
-	disputes: &mut MultiDisputeStatementSet,
-) -> Weight {
+fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet) -> Weight {
 	let mut remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 	let disputes_weight = dispute_statements_weight::<T>(&disputes);
 	if disputes_weight > remaining_weight {
@@ -901,18 +912,15 @@ fn limit_disputes<T: Config>(
 		});
 
 		disputes.retain(|d| {
-			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(d.statements.len() as u32);
-			let inclusion_weight = if remaining_weight > dispute_weight {
-				dispute_weight
-			} else {
-				0 as Weight
-			};
-
-			if inclusion_weight > 0 {
+			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
+				d.statements.len() as u32,
+			);
+			if remaining_weight > dispute_weight {
 				remaining_weight -= dispute_weight;
+				true
+			} else {
+				false
 			}
-
-			inclusion_weight > 0
 		});
 	}
 
@@ -923,10 +931,12 @@ fn limit_disputes<T: Config>(
 mod tests {
 	use super::*;
 
-	use crate::mock::{new_test_ext, MockGenesisConfig, Test};
-	use crate::builder::{Bench, BenchBuilder};
+	use crate::{
+		builder::{Bench, BenchBuilder},
+		mock::{new_test_ext, MockGenesisConfig, Test},
+	};
+	use frame_support::{assert_err, assert_ok};
 	use sp_std::collections::btree_map::BTreeMap;
-	use frame_support::{assert_ok, assert_err};
 
 	mod limit_backed_candidates {
 		use super::*;
@@ -950,9 +960,9 @@ mod tests {
 		) -> Bench<Test> {
 			BenchBuilder::<Test>::new()
 				.set_max_validators((dispute_sessions.len() as u32) * num_validators_per_core)
-				.set_max_validators_per_core(num_validators_per_core) // 5 validators, 1 validator per core => 5 cores.
+				.set_max_validators_per_core(num_validators_per_core)
 				.set_dispute_statements(dispute_statements)
-				.build(backed_and_concluding, dispute_sessions.as_slice()) // build backed candidates for cores 0 & 1.
+				.build(backed_and_concluding, dispute_sessions.as_slice())
 		}
 
 		#[test]
@@ -964,15 +974,13 @@ mod tests {
 				backed_and_concluding.insert(0, 1);
 				backed_and_concluding.insert(1, 1);
 
-				let scenario = make_inherent_data(
-					TestConfig {
-						dispute_statements,
-						dispute_sessions: vec![0, 0,],
-						backed_and_concluding,
-						num_validators_per_core: 1,
-						includes_code_upgrade: false
-					}
-				);
+				let scenario = make_inherent_data(TestConfig {
+					dispute_statements,
+					dispute_sessions: vec![0, 0],
+					backed_and_concluding,
+					num_validators_per_core: 1,
+					includes_code_upgrade: false,
+				});
 
 				// We expect the scenario to have cores 0 & 1 with pending availability. The backed
 				// candidates are also created for cores 0 & 1, so once the pending available
@@ -1014,7 +1022,10 @@ mod tests {
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know our 2
 					// backed candidates did not get filtered out
-					Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
+					Pallet::<Test>::on_chain_votes()
+						.unwrap()
+						.backing_validators_per_candidate
+						.len(),
 					2
 				);
 			});
@@ -1028,15 +1039,15 @@ mod tests {
 
 				let backed_and_concluding = BTreeMap::new();
 
-				let scenario = make_inherent_data(
-					TestConfig {
-						dispute_statements,
-						dispute_sessions: vec![1, 2, 3 /* Session too new, will get filtered out */],
-						backed_and_concluding,
-						num_validators_per_core: 5,
-						includes_code_upgrade: false
-					}
-				);
+				let scenario = make_inherent_data(TestConfig {
+					dispute_statements,
+					dispute_sessions: vec![
+						1, 2, 3, /* Session too new, will get filtered out */
+					],
+					backed_and_concluding,
+					num_validators_per_core: 5,
+					includes_code_upgrade: false,
+				});
 
 				// We expect the scenario to have cores 0 & 1 with pending availability. The backed
 				// candidates are also created for cores 0 & 1, so once the pending available
@@ -1060,7 +1071,8 @@ mod tests {
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
 				// Nothing is filtered out (including the backed candidates.)
-				let multi_dispute_inherent_data = Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+				let multi_dispute_inherent_data =
+					Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
 				assert!(multi_dispute_inherent_data != expected_para_inherent_data);
 
 				assert_eq!(multi_dispute_inherent_data.disputes.len(), 2);
@@ -1092,7 +1104,10 @@ mod tests {
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know our 2
 					// backed candidates did not get filtered out
-					Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
+					Pallet::<Test>::on_chain_votes()
+						.unwrap()
+						.backing_validators_per_candidate
+						.len(),
 					0
 				);
 			});
@@ -1106,15 +1121,13 @@ mod tests {
 
 				let backed_and_concluding = BTreeMap::new();
 
-				let scenario = make_inherent_data(
-					TestConfig {
-						dispute_statements,
-						dispute_sessions: vec![2, 2, 1],
-						backed_and_concluding,
-						num_validators_per_core: 6,
-						includes_code_upgrade: false
-					}
-				);
+				let scenario = make_inherent_data(TestConfig {
+					dispute_statements,
+					dispute_sessions: vec![2, 2, 1],
+					backed_and_concluding,
+					num_validators_per_core: 6,
+					includes_code_upgrade: false,
+				});
 
 				// We expect the scenario to have cores 0 & 1 with pending availability. The backed
 				// candidates are also created for cores 0 & 1, so once the pending available
@@ -1138,7 +1151,8 @@ mod tests {
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
 				// Nothing is filtered out (including the backed candidates.)
-				let limit_inherent_data = Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+				let limit_inherent_data =
+					Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
 				assert!(limit_inherent_data != expected_para_inherent_data);
 
 				assert_eq!(limit_inherent_data.disputes.len(), 2);
@@ -1167,7 +1181,10 @@ mod tests {
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know our 2
 					// backed candidates did not get filtered out
-					Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
+					Pallet::<Test>::on_chain_votes()
+						.unwrap()
+						.backing_validators_per_candidate
+						.len(),
 					0
 				);
 			});
@@ -1183,15 +1200,13 @@ mod tests {
 				backed_and_concluding.insert(0, 2);
 				backed_and_concluding.insert(1, 2);
 
-				let scenario = make_inherent_data(
-					TestConfig {
-						dispute_statements,
-						dispute_sessions: vec![0, 0, 2, 2, 1],
-						backed_and_concluding,
-						num_validators_per_core: 4,
-						includes_code_upgrade: false
-					}
-				);
+				let scenario = make_inherent_data(TestConfig {
+					dispute_statements,
+					dispute_sessions: vec![0, 0, 2, 2, 1],
+					backed_and_concluding,
+					num_validators_per_core: 4,
+					includes_code_upgrade: false,
+				});
 
 				// We expect the scenario to have cores 0 & 1 with pending availability. The backed
 				// candidates are also created for cores 0 & 1, so once the pending available
@@ -1215,7 +1230,8 @@ mod tests {
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
 				// Nothing is filtered out (including the backed candidates.)
-				let limit_inherent_data = Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
+				let limit_inherent_data =
+					Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
 				assert!(limit_inherent_data != expected_para_inherent_data);
 
 				assert_eq!(limit_inherent_data.disputes.len(), 2);
@@ -1244,13 +1260,15 @@ mod tests {
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know our 2
 					// backed candidates did not get filtered out
-					Pallet::<Test>::on_chain_votes().unwrap().backing_validators_per_candidate.len(),
+					Pallet::<Test>::on_chain_votes()
+						.unwrap()
+						.backing_validators_per_candidate
+						.len(),
 					0,
 				);
 			});
 		}
 	}
-
 
 	fn default_header() -> primitives::v1::Header {
 		primitives::v1::Header {

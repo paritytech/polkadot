@@ -425,8 +425,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 				let candidate_hash = candidate.hash();
 
-				let mut validity_votes: Vec<_> = group_validators
+				let validity_votes: Vec<_> = group_validators
 					.iter()
+					.take(*num_votes as usize)
 					.map(|val_idx| {
 						let public = validators.get(val_idx.0 as usize).unwrap();
 						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
@@ -441,8 +442,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					})
 					.collect();
 
-				let _ = validity_votes.drain(*num_votes as usize..);
-
 				BackedCandidate::<T::Hash> {
 					candidate,
 					validity_votes,
@@ -452,13 +451,19 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
-	fn create_disputes_with_no_spam(&self, start: u32, last: u32, dispute_sessions: &[u32]) -> Vec<DisputeStatementSet> {
+	fn create_disputes_with_no_spam(
+		&self,
+		start: u32,
+		last: u32,
+		dispute_sessions: &[u32],
+	) -> Vec<DisputeStatementSet> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
 
 		(start..last)
 			.map(|seed| {
-				let session = dispute_sessions.get(seed as usize).cloned().unwrap_or(self.target_session);
+				let session =
+					dispute_sessions.get(seed as usize).cloned().unwrap_or(self.target_session);
 
 				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
@@ -471,7 +476,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					candidate_hash,
 				);
 
-				let statements_len = self.dispute_statements.get(&seed).cloned().unwrap_or(validators.len() as u32);
+				let statements_len =
+					self.dispute_statements.get(&seed).cloned().unwrap_or(validators.len() as u32);
 				let statements = (0..statements_len)
 					.map(|validator_index| {
 						let validator_public = &validators.get(validator_index as usize).unwrap();
@@ -485,19 +491,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 							// implicit valid kind.
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
-						let data = dispute_statement
-							.payload_data(candidate_hash.clone(), session);
+						let data = dispute_statement.payload_data(candidate_hash.clone(), session);
 						let statement_sig = validator_public.sign(&data).unwrap();
 
 						(dispute_statement, ValidatorIndex(validator_index), statement_sig)
 					})
 					.collect();
 
-				DisputeStatementSet {
-					candidate_hash: candidate_hash.clone(),
-					session: session,
-					statements,
-				}
+				DisputeStatementSet { candidate_hash: candidate_hash.clone(), session, statements }
 			})
 			.collect()
 	}
@@ -525,11 +526,15 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let target_session = SessionIndex::from(self.target_session);
 		let builder = self.setup_session(target_session, validator_ids, used_cores);
 
-		let bitfields = builder.create_availability_bitfields(&backed_and_concluding_cores, used_cores);
+		let bitfields =
+			builder.create_availability_bitfields(&backed_and_concluding_cores, used_cores);
 		let backed_candidates = builder.create_backed_candidates(&backed_and_concluding_cores);
 
-		let disputes =
-			builder.create_disputes_with_no_spam(backed_and_concluding_cores.len() as u32, used_cores, dispute_sessions);
+		let disputes = builder.create_disputes_with_no_spam(
+			backed_and_concluding_cores.len() as u32,
+			used_cores,
+			dispute_sessions,
+		);
 
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
