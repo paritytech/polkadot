@@ -123,6 +123,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self.max_validators_per_core.unwrap_or(Self::fallback_max_validators_per_core())
 	}
 
+	/// Set maximum number of validators per core.
 	#[cfg(test)]
 	pub(crate) fn set_max_validators_per_core(mut self, n: u32) -> Self {
 		self.max_validators_per_core = Some(n);
@@ -136,7 +137,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Minimum number of validity votes in order for a backed candidate to be included.
 	#[cfg(feature = "runtime-benchmarks")]
-
 	pub(crate) fn fallback_min_validity_votes() -> u32 {
 		(Self::fallback_max_validators() / 2) + 1
 	}
@@ -506,10 +506,15 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
-	/// Build a scenario for testing or benchmarks
+	/// Build a scenario for testing or benchmarks.
+	///
 	/// - `backed_and_concluding_cores`: Map from core/para id/group index seed to number of
 	/// validity votes.
 	/// - `dispute_sessions`: Session index of for each dispute. Index of slice corresponds to core.
+	/// The length of this must equal total cores used. Seed index for disputes starts at
+	/// `backed_and_concluding_cores.len()`, so `dispute_sessions` needs to be left padded by
+	/// `backed_and_concluding_cores.len()` values which effectively get ignored.
+	/// TODO we should fix this.
 	pub(crate) fn build(
 		self,
 		backed_and_concluding_cores: BTreeMap<u32, u32>,
@@ -522,7 +527,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
 		let cores = self.max_cores();
-		let used_cores = (dispute_sessions.len()).max(backed_and_concluding_cores.len()) as u32;
+		let used_cores = dispute_sessions.len() as u32;
 		assert!(used_cores <= cores);
 
 		// NOTE: there is an n+2 session delay for these actions to take effect

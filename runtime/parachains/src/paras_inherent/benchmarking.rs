@@ -23,64 +23,64 @@ use sp_std::collections::btree_map::BTreeMap;
 use crate::builder::BenchBuilder;
 
 benchmarks! {
-	// // Variant over `v`, the number of dispute statements in a dispute statement set. This gives the
-	// // weight of a single dispute statement set.
-	// enter_variable_disputes {
-	// 	let v in 10..BenchBuilder::<T>::fallback_max_validators();
+	// Variant over `v`, the number of dispute statements in a dispute statement set. This gives the
+	// weight of a single dispute statement set.
+	enter_variable_disputes {
+		let v in 10..BenchBuilder::<T>::fallback_max_validators();
 
-	// 	let scenario = BenchBuilder::<T>::new()
-	// 		.build(Default::default(), &[1]);
+		let scenario = BenchBuilder::<T>::new()
+			.build(Default::default(), &[1]);
 
-	// 	let mut benchmark = scenario.data.clone();
-	// 	let dispute = benchmark.disputes.pop().unwrap();
+		let mut benchmark = scenario.data.clone();
+		let dispute = benchmark.disputes.pop().unwrap();
 
-	// 	benchmark.bitfields.clear();
-	// 	benchmark.backed_candidates.clear();
-	// 	benchmark.disputes.clear();
+		benchmark.bitfields.clear();
+		benchmark.backed_candidates.clear();
+		benchmark.disputes.clear();
 
-	// 	benchmark.disputes.push(dispute);
-	// 	benchmark.disputes.get_mut(0).unwrap().statements.drain(v as usize..);
-	// }: enter(RawOrigin::None, benchmark)
-	// verify {
-	// 	// Assert that the block was not discarded
-	// 	assert!(Included::<T>::get().is_some());
-	// 	// Assert that there are on-chain votes that got scraped
-	// 	let onchain_votes = OnChainVotes::<T>::get();
-	// 	assert!(onchain_votes.is_some());
-	// 	let vote = onchain_votes.unwrap();
-	// 	// Ensure that the votes are for the correct session
-	// 	assert_eq!(vote.session, scenario.session);
-	// }
+		benchmark.disputes.push(dispute);
+		benchmark.disputes.get_mut(0).unwrap().statements.drain(v as usize..);
+	}: enter(RawOrigin::None, benchmark)
+	verify {
+		// Assert that the block was not discarded
+		assert!(Included::<T>::get().is_some());
+		// Assert that there are on-chain votes that got scraped
+		let onchain_votes = OnChainVotes::<T>::get();
+		assert!(onchain_votes.is_some());
+		let vote = onchain_votes.unwrap();
+		// Ensure that the votes are for the correct session
+		assert_eq!(vote.session, scenario.session);
+	}
 
-	// // The weight of one bitfield.
-	// enter_bitfields {
-	// 	let cores_with_backed: BTreeMap<_, _>
-	// 		= vec![(0, BenchBuilder::<T>::fallback_max_validators())]
-	// 			.into_iter()
-	// 			.collect();
+	// The weight of one bitfield.
+	enter_bitfields {
+		let cores_with_backed: BTreeMap<_, _>
+			= vec![(0, BenchBuilder::<T>::fallback_max_validators())]
+				.into_iter()
+				.collect();
 
-	// 	let scenario = BenchBuilder::<T>::new()
-	// 		.build(cores_with_backed, Default::default());
+		let scenario = BenchBuilder::<T>::new()
+			.build(cores_with_backed, &[1]);
 
-	// 	let mut benchmark = scenario.data.clone();
-	// 	let bitfield = benchmark.bitfields.pop();
+		let mut benchmark = scenario.data.clone();
+		let bitfield = benchmark.bitfields.pop().unwrap();
 
-	// 	benchmark.bitfields.clear();
-	// 	benchmark.backed_candidates.clear();
-	// 	benchmark.disputes.clear();
+		benchmark.bitfields.clear();
+		benchmark.backed_candidates.clear();
+		benchmark.disputes.clear();
 
-	// 	benchmark.bitfields.push(bitfield.unwrap());
-	// }: enter(RawOrigin::None, benchmark)
-	// verify {
-	// 	// Assert that the block was not discarded
-	// 	assert!(Included::<T>::get().is_some());
-	// 	// Assert that there are on-chain votes that got scraped
-	// 	let onchain_votes = OnChainVotes::<T>::get();
-	// 	assert!(onchain_votes.is_some());
-	// 	let vote = onchain_votes.unwrap();
-	// 	// Ensure that the votes are for the correct session
-	// 	assert_eq!(vote.session, scenario.session);
-	// }
+		benchmark.bitfields.push(bitfield);
+	}: enter(RawOrigin::None, benchmark)
+	verify {
+		// Assert that the block was not discarded
+		assert!(Included::<T>::get().is_some());
+		// Assert that there are on-chain votes that got scraped
+		let onchain_votes = OnChainVotes::<T>::get();
+		assert!(onchain_votes.is_some());
+		let vote = onchain_votes.unwrap();
+		// Ensure that the votes are for the correct session
+		assert_eq!(vote.session, scenario.session);
+	}
 
 	// Variant over `v`, the amount of validity votes for a backed candidate. This gives the weight
 	// of a single backed candidate.
@@ -97,8 +97,7 @@ benchmarks! {
 				.collect();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_backed.clone(), Default::default());
-
+			.build(cores_with_backed.clone(), &[1]);
 
 		let mut benchmark = scenario.data.clone();
 
@@ -109,7 +108,6 @@ benchmarks! {
 
 		benchmark.bitfields.clear();
 		benchmark.disputes.clear();
-		Included::<T>::kill();
 	}: enter(RawOrigin::None, benchmark)
 	verify {
 		let max_validators_per_core = BenchBuilder::<T>::fallback_max_validators_per_core();
