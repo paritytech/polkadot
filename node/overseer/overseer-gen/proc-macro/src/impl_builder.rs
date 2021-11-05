@@ -90,7 +90,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let baggage_ty = &info.baggage_types();
 
 	let subsystem_ctx_name = format_ident!("{}SubsystemContext", overseer_name);
-
+		
 	let error_ty = &info.extern_error_ty;
 
 	let support_crate = info.support_crate_name();
@@ -337,7 +337,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					// TODO generate a builder pattern that ensures this
 					// TODO https://github.com/paritytech/polkadot/issues/3427
 					let #subsystem_name = match self. #subsystem_name {
-						 FieldInitMethod::Fn(func) => func(handle.clone())?,
+						FieldInitMethod::Fn(func) => func(handle.clone())?,
 						FieldInitMethod::Value(val) => val,
 						FieldInitMethod::Uninitialized =>
 							panic!("All subsystems must exist with the builder pattern."),
@@ -348,12 +348,15 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					let message_rx: SubsystemIncomingMessages< #consumes > = #support_crate ::select(
 						#channel_name_rx, #channel_name_unbounded_rx
 					);
-					let (signal_tx, signal_rx) = #support_crate ::metered::channel(SIGNAL_CHANNEL_CAPACITY);
+					let (signal_tx, signal_rx) = #support_crate ::metered::channel(SIGNAL_CHANNEL_CAPACITY);					
+					let subsystem_string = stringify!(#subsystem_name);
+					
 					let ctx = #subsyste_ctx_name::< #consumes >::new(
 						signal_rx,
 						message_rx,
 						channels_out.clone(),
 						to_overseer_tx.clone(),
+						subsystem_string
 					);
 
 					let #subsystem_name: OverseenSubsystem< #consumes > =
@@ -364,6 +367,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 							unbounded_meter,
 							ctx,
 							#subsystem_name,
+							subsystem_string,
 							&mut running_subsystems,
 						)?;
 				)*
@@ -489,22 +493,22 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		/// Task kind to launch.
 		pub trait TaskKind {
 			/// Spawn a task, it depends on the implementer if this is blocking or not.
-			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, future: BoxFuture<'static, ()>);
+			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, subsystem: &'static str, future: BoxFuture<'static, ()>);
 		}
 
 		#[allow(missing_docs)]
 		struct Regular;
 		impl TaskKind for Regular {
-			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, future: BoxFuture<'static, ()>) {
-				spawner.spawn(name, future)
+			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, subsystem: &'static str, future: BoxFuture<'static, ()>) {
+				spawner.spawn_with_subsystem(name, subsystem, future)
 			}
 		}
 
 		#[allow(missing_docs)]
 		struct Blocking;
 		impl TaskKind for Blocking {
-			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, future: BoxFuture<'static, ()>) {
-				spawner.spawn_blocking(name, future)
+			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, subsystem: &'static str, future: BoxFuture<'static, ()>) {
+				spawner.spawn_blocking_with_subsystem(name, subsystem, future)
 			}
 		}
 
@@ -517,6 +521,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			unbounded_meter: #support_crate ::metered::Meter,
 			ctx: Ctx,
 			s: SubSys,
+			subsystem_name: &'static str,
 			futures: &mut #support_crate ::FuturesUnordered<BoxFuture<'static, ::std::result::Result<(), #error_ty> >>,
 		) -> ::std::result::Result<OverseenSubsystem<M>, #error_ty >
 		where
@@ -540,7 +545,7 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 				let _ = tx.send(());
 			});
 
-			<TK as TaskKind>::launch_task(spawner, name, fut);
+			<TK as TaskKind>::launch_task(spawner, name, subsystem_name, fut);
 
 			futures.push(Box::pin(
 				rx.map(|e| {
