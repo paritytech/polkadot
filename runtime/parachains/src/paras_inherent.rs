@@ -1253,7 +1253,8 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					dispute_sessions: vec![0, 0, 2, 2, 1], // 2 backed candidates, 3 disputes at sessions 2, 1 and 1 respectively
+					// 2 backed candidates + 3 disputes (at sessions 2, 1 and 1)
+					dispute_sessions: vec![0, 0, 2, 2, 1],
 					backed_and_concluding,
 					num_validators_per_core: 4,
 					includes_code_upgrade: false,
@@ -1318,7 +1319,7 @@ mod tests {
 		}
 
 		#[test]
-		// Ensure that we abort if we encounter an over weight block for disputes, bitfields and candidates
+		// Ensure that we abort if we encounter an over weight block for disputes + bitfields
 		fn limit_dispute_data_ignore_backed_candidates_failure() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				// Create the inherent data for this block
@@ -1331,7 +1332,8 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					dispute_sessions: vec![0, 0, 2, 2, 1], // 2 backed candidates, 3 disputes at sessions 2, 1 and 1 respectively
+					// 2 backed candidates + 3 disputes (at sessions 2, 1 and 1)
+					dispute_sessions: vec![0, 0, 2, 2, 1],
 					backed_and_concluding,
 					num_validators_per_core: 4,
 					includes_code_upgrade: false,
