@@ -33,7 +33,7 @@ use primitives::v1::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
 	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
-	ValidityAttestation,
+	ValidityAttestation, ValidatorId,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -286,43 +286,20 @@ impl<T: Config> Pallet<T> {
 		for _ in <AvailabilityBitfields<T>>::drain() {}
 	}
 
-	/// Process a set of incoming bitfields.
+	/// Extract the freed cores based on cores tht became available.
 	///
-	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
-	/// and cores free.
-	pub(crate) fn process_bitfields(
+	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
+	pub(crate) fn update_pending_availability_and_get_freed_cores<IS_CREATE_INHERENT: bool>(
 		expected_bits: usize,
+		validators: &[ValidatorId],
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-		is_create_inherent: bool,
-	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
+	) -> Vec<(CoreIndex, CandidateHash)> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = if is_create_inherent {
-			sanitize_bitfields::<T, false>(
-				signed_bitfields,
-				disputed_bitfield,
-				expected_bits,
-				parent_hash,
-				session_index,
-				&validators[..],
-			)
-			.expect(
-				"by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`",
-			)
-		} else {
-			sanitize_bitfields::<T, true>(
-				signed_bitfields,
-				disputed_bitfield,
-				expected_bits,
-				parent_hash,
-				session_index,
-				&validators[..],
-			)?
-		};
 
 		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
@@ -333,7 +310,7 @@ impl<T: Config> Pallet<T> {
 
 		let now = <frame_system::Pallet<T>>::block_number();
 		for (checked_bitfield, validator_index) in
-			checked_bitfields.into_iter().map(|signed_bitfield| {
+			signed_bitfields.into_iter().map(|signed_bitfield| {
 				// extracting unchecked data, since it's checked in `fn sanitize_bitfields` already.
 				let validator_idx = signed_bitfield.unchecked_validator_index();
 				let checked_bitfield = signed_bitfield.unchecked_into_payload();
@@ -390,27 +367,60 @@ impl<T: Config> Pallet<T> {
 						continue
 					},
 				};
-
-				if !is_create_inherent {
-					let receipt = CommittedCandidateReceipt {
-						descriptor: pending_availability.descriptor,
-						commitments,
-					};
-					let _weight = Self::enact_candidate(
-						pending_availability.relay_parent_number,
-						receipt,
-						pending_availability.backers,
-						pending_availability.availability_votes,
-						pending_availability.core,
-						pending_availability.backing_group,
-					);
-				}
-
 				freed_cores.push((pending_availability.core, pending_availability.hash));
 			} else {
 				<PendingAvailability<T>>::insert(&para_id, &pending_availability);
 			}
+
+			if !IS_CREATE_INHERENT {
+				let receipt = CommittedCandidateReceipt {
+					descriptor: pending_availability.descriptor,
+					commitments,
+				};
+				let _weight = Self::enact_candidate(
+					pending_availability.relay_parent_number,
+					receipt,
+					pending_availability.backers,
+					pending_availability.availability_votes,
+					pending_availability.core,
+					pending_availability.backing_group,
+				);
+			}
 		}
+
+		freed_cores
+	}
+
+	/// Process a set of incoming bitfields.
+	///
+	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
+	/// and cores free.
+	pub(crate) fn process_bitfields<IS_CREATE_INHERENT: bool>(
+		expected_bits: usize,
+		signed_bitfields: UncheckedSignedAvailabilityBitfields,
+		disputed_bitfield: DisputedBitfield,
+		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
+	) -> Result<Vec<(CoreIndex, ParaId)>, DispatchError> {
+		let validators = shared::Pallet::<T>::active_validator_keys();
+		let session_index = shared::Pallet::<T>::session_index();
+		let parent_hash = frame_system::Pallet::<T>::parent_hash();
+
+		let checked_bitfields = sanitize_bitfields::<T, IS_CREATE_INHERENT>(
+			signed_bitfields,
+			disputed_bitfield,
+			expected_bits,
+			parent_hash,
+			session_index,
+			&validators[..],
+		)?;
+
+		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<false>(
+			expected_bits,
+			&validators[..],
+			disputed_bitfield,
+			core_lookup,
+		);
+
 
 		Ok(freed_cores)
 	}

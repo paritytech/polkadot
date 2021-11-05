@@ -275,6 +275,29 @@ pub mod pallet {
 		}
 	}
 
+	/// Collect all freed cores based on storage data.
+	///
+	/// The paramter `freed_concluded` contains all core indicies that became
+	/// free due to candidate that became available.
+	pub(crate) fn collect_all_freed_cores<T>(freed_concluded: Vec<CoreIndex>) -> BTreeMap<CoreIndex, FreedReason> {
+
+		// Handle timeouts for any availability core work.
+		let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
+		let freed_timeout = if let Some(pred) = availability_pred {
+			<inclusion::Pallet<T>>::collect_pending(pred)
+		} else {
+			Vec::new()
+		};
+
+		// Schedule paras again, given freed cores, and reasons for freeing.
+		let freed = freed_concluded
+			.into_iter()
+			.map(|(c, _hash)| (c, FreedReason::Concluded))
+			.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
+			.collect::<BTreeMap<CoreIndex, FreedReason>>();
+		freed
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
@@ -385,20 +408,7 @@ pub mod pallet {
 				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
 			}
 
-			// Handle timeouts for any availability core work.
-			let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
-			let freed_timeout = if let Some(pred) = availability_pred {
-				<inclusion::Pallet<T>>::collect_pending(pred)
-			} else {
-				Vec::new()
-			};
-
-			// Schedule paras again, given freed cores, and reasons for freeing.
-			let freed = freed_concluded
-				.into_iter()
-				.map(|(c, _hash)| (c, FreedReason::Concluded))
-				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
-				.collect::<BTreeMap<CoreIndex, FreedReason>>();
+			let freed = collect_all_freed_cores::<T>(freed_concluded);
 
 			<scheduler::Pallet<T>>::clear();
 			<scheduler::Pallet<T>>::schedule(freed, now);
