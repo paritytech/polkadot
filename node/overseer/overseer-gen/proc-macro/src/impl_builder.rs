@@ -90,7 +90,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 	let baggage_ty = &info.baggage_types();
 
 	let subsystem_ctx_name = format_ident!("{}SubsystemContext", overseer_name);
-		
+
 	let error_ty = &info.extern_error_ty;
 
 	let support_crate = info.support_crate_name();
@@ -348,9 +348,9 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 					let message_rx: SubsystemIncomingMessages< #consumes > = #support_crate ::select(
 						#channel_name_rx, #channel_name_unbounded_rx
 					);
-					let (signal_tx, signal_rx) = #support_crate ::metered::channel(SIGNAL_CHANNEL_CAPACITY);					
+					let (signal_tx, signal_rx) = #support_crate ::metered::channel(SIGNAL_CHANNEL_CAPACITY);
 					let subsystem_string = stringify!(#subsystem_name);
-					
+
 					let ctx = #subsyste_ctx_name::< #consumes >::new(
 						signal_rx,
 						message_rx,
