@@ -353,6 +353,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create backed candidates for `cores_with_backed_candidates`. You need these cores to be
 	/// scheduled _within_ paras inherent, which requires marking the available bitfields as fully
 	/// available.
+	/// - `cores_with_backed_candidates` Mapping of para_id/core_idx/group_idx seed to number of
+	/// validity votes.
 	fn create_backed_candidates(
 		&self,
 		cores_with_backed_candidates: &BTreeMap<u32, u32>,
@@ -364,6 +366,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		cores_with_backed_candidates
 			.iter()
 			.map(|(seed, num_votes)| {
+				assert!(*num_votes <= validators.len() as u32);
 				let (para_id, _core_idx, group_idx) = self.create_indexes(seed.clone());
 
 				// This generates a pair and adds it to the keystore, returning just the public.
@@ -503,6 +506,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
+	/// Build a scenario for testing or benchmarks
+	/// - `backed_and_concluding_cores`: Map from core/para id/group index seed to number of
+	/// validity votes.
+	/// - `dispute_sessions`: Session index of for each dispute. Index of slice corresponds to core.
 	pub(crate) fn build(
 		self,
 		backed_and_concluding_cores: BTreeMap<u32, u32>,
@@ -515,7 +522,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
 		let cores = self.max_cores();
-		let used_cores = dispute_sessions.len() as u32;
+		let used_cores = (dispute_sessions.len()).max(backed_and_concluding_cores.len()) as u32;
 		assert!(used_cores <= cores);
 
 		// NOTE: there is an n+2 session delay for these actions to take effect

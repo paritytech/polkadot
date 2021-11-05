@@ -18,69 +18,69 @@ use super::*;
 use crate::{inclusion, ParaId};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
+use sp_std::collections::btree_map::BTreeMap;
 
 use crate::builder::BenchBuilder;
 
 benchmarks! {
-	// Variant over `v`, the number of dispute statements in a dispute statement set. This gives the
-	// weight of a single dispute statement set.
-	enter_variable_disputes {
-		let v in 10..BenchBuilder::<T>::fallback_max_validators();
+	// // Variant over `v`, the number of dispute statements in a dispute statement set. This gives the
+	// // weight of a single dispute statement set.
+	// enter_variable_disputes {
+	// 	let v in 10..BenchBuilder::<T>::fallback_max_validators();
 
-		let cores_with_disputed = 1;
-		let cores_with_backed = 0;
+	// 	let scenario = BenchBuilder::<T>::new()
+	// 		.build(Default::default(), &[1]);
 
-		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_backed, cores_with_disputed);
+	// 	let mut benchmark = scenario.data.clone();
+	// 	let dispute = benchmark.disputes.pop().unwrap();
 
-		let mut benchmark = scenario.data.clone();
-		let dispute = benchmark.disputes.pop().unwrap();
+	// 	benchmark.bitfields.clear();
+	// 	benchmark.backed_candidates.clear();
+	// 	benchmark.disputes.clear();
 
-		benchmark.bitfields.clear();
-		benchmark.backed_candidates.clear();
-		benchmark.disputes.clear();
+	// 	benchmark.disputes.push(dispute);
+	// 	benchmark.disputes.get_mut(0).unwrap().statements.drain(v as usize..);
+	// }: enter(RawOrigin::None, benchmark)
+	// verify {
+	// 	// Assert that the block was not discarded
+	// 	assert!(Included::<T>::get().is_some());
+	// 	// Assert that there are on-chain votes that got scraped
+	// 	let onchain_votes = OnChainVotes::<T>::get();
+	// 	assert!(onchain_votes.is_some());
+	// 	let vote = onchain_votes.unwrap();
+	// 	// Ensure that the votes are for the correct session
+	// 	assert_eq!(vote.session, scenario.session);
+	// }
 
-		benchmark.disputes.push(dispute);
-		benchmark.disputes.get_mut(0).unwrap().statements.drain(v as usize..);
-	}: enter(RawOrigin::None, benchmark)
-	verify {
-		// Assert that the block was not discarded
-		assert!(Included::<T>::get().is_some());
-		// Assert that there are on-chain votes that got scraped
-		let onchain_votes = OnChainVotes::<T>::get();
-		assert!(onchain_votes.is_some());
-		let vote = onchain_votes.unwrap();
-		// Ensure that the votes are for the correct session
-		assert_eq!(vote.session, scenario.session);
-	}
+	// // The weight of one bitfield.
+	// enter_bitfields {
+	// 	let cores_with_backed: BTreeMap<_, _>
+	// 		= vec![(0, BenchBuilder::<T>::fallback_max_validators())]
+	// 			.into_iter()
+	// 			.collect();
 
-	// The weight of one bitfield.
-	enter_bitfields {
-		let cores_with_disputed = 0;
-		let cores_with_backed = 1;
+	// 	let scenario = BenchBuilder::<T>::new()
+	// 		.build(cores_with_backed, Default::default());
 
-		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_backed, cores_with_disputed);
+	// 	let mut benchmark = scenario.data.clone();
+	// 	let bitfield = benchmark.bitfields.pop();
 
-		let mut benchmark = scenario.data.clone();
-		let bitfield = benchmark.bitfields.pop();
+	// 	benchmark.bitfields.clear();
+	// 	benchmark.backed_candidates.clear();
+	// 	benchmark.disputes.clear();
 
-		benchmark.bitfields.clear();
-		benchmark.backed_candidates.clear();
-		benchmark.disputes.clear();
-
-		benchmark.bitfields.push(bitfield.unwrap());
-	}: enter(RawOrigin::None, benchmark)
-	verify {
-		// Assert that the block was not discarded
-		assert!(Included::<T>::get().is_some());
-		// Assert that there are on-chain votes that got scraped
-		let onchain_votes = OnChainVotes::<T>::get();
-		assert!(onchain_votes.is_some());
-		let vote = onchain_votes.unwrap();
-		// Ensure that the votes are for the correct session
-		assert_eq!(vote.session, scenario.session);
-	}
+	// 	benchmark.bitfields.push(bitfield.unwrap());
+	// }: enter(RawOrigin::None, benchmark)
+	// verify {
+	// 	// Assert that the block was not discarded
+	// 	assert!(Included::<T>::get().is_some());
+	// 	// Assert that there are on-chain votes that got scraped
+	// 	let onchain_votes = OnChainVotes::<T>::get();
+	// 	assert!(onchain_votes.is_some());
+	// 	let vote = onchain_votes.unwrap();
+	// 	// Ensure that the votes are for the correct session
+	// 	assert_eq!(vote.session, scenario.session);
+	// }
 
 	// Variant over `v`, the amount of validity votes for a backed candidate. This gives the weight
 	// of a single backed candidate.
@@ -91,22 +91,25 @@ benchmarks! {
 			in (BenchBuilder::<T>::fallback_min_validity_votes())
 				..BenchBuilder::<T>::fallback_max_validators();
 
-		let cores_with_disputed = 0;
-		let cores_with_backed = 1;
+		let cores_with_backed: BTreeMap<_, _>
+			= vec![(0, v)] // The backed candidate will have `v` validity votes.
+				.into_iter()
+				.collect();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_backed, cores_with_disputed);
+			.build(cores_with_backed.clone(), Default::default());
 
 
 		let mut benchmark = scenario.data.clone();
-		let backed_candidate = benchmark.backed_candidates.pop();
+
+		// There is 1 backed,
+		assert_eq!(benchmark.backed_candidates.len(), 1);
+		// with `v` validity votes.
+		assert_eq!(benchmark.backed_candidates.get(0).unwrap().validity_votes.len(), v as usize);
 
 		benchmark.bitfields.clear();
-		benchmark.backed_candidates.clear();
 		benchmark.disputes.clear();
-
-		benchmark.backed_candidates.push(backed_candidate.unwrap());
-		benchmark.backed_candidates.get_mut(0).unwrap().validity_votes.drain(v as usize..);
+		Included::<T>::kill();
 	}: enter(RawOrigin::None, benchmark)
 	verify {
 		let max_validators_per_core = BenchBuilder::<T>::fallback_max_validators_per_core();
@@ -130,11 +133,11 @@ benchmarks! {
 
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
-			cores_with_backed as usize,
+			cores_with_backed.len()
 		);
 		assert_eq!(
 			inclusion::PendingAvailability::<T>::iter().count(),
-			cores_with_backed as usize,
+			cores_with_backed.len()
 		);
 	}
 }
