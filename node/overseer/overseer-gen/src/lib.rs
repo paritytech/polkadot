@@ -132,8 +132,12 @@ pub enum ToOverseer {
 impl fmt::Debug for ToOverseer {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::SpawnJob { name, subsystem, .. } => writeln!(f, "SpawnJob{{ {}, {} ..}}", name, subsystem),
-			Self::SpawnBlockingJob { name, subsystem, .. } => writeln!(f, "SpawnBlockingJob{{ {}, {} ..}}", name, subsystem),
+			Self::SpawnJob { name, subsystem, .. } => {
+				writeln!(f, "SpawnJob{{ {}, {} ..}}", name, subsystem)
+			},
+			Self::SpawnBlockingJob { name, subsystem, .. } => {
+				writeln!(f, "SpawnBlockingJob{{ {}, {} ..}}", name, subsystem)
+			},
 		}
 	}
 }
