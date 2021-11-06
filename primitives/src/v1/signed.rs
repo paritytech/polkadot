@@ -260,6 +260,27 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 			Err(())
 		}
 	}
+
+	/// Sign this payload with the given context and pair.
+	#[cfg(any(feature = "runtime-benchmarks", feature = "std"))]
+	pub fn benchmark_sign<H: Encode>(
+		public: &crate::v0::ValidatorId,
+		payload: Payload,
+		context: &SigningContext<H>,
+		validator_index: ValidatorIndex,
+	) -> Self {
+		use application_crypto::RuntimeAppPublic;
+		let data = Self::payload_data(&payload, context);
+		let signature = public.sign(&data).unwrap();
+
+		Self { payload, validator_index, signature, real_payload: sp_std::marker::PhantomData }
+	}
+
+	/// Immutably access the signature.
+	#[cfg(any(feature = "runtime-benchmarks", feature = "std"))]
+	pub fn benchmark_signature(&self) -> ValidatorSignature {
+		self.signature.clone()
+	}
 }
 
 impl<Payload, RealPayload> From<Signed<Payload, RealPayload>>

@@ -58,7 +58,7 @@ pub struct AvailabilityBitfieldRecord<N> {
 
 /// A backed candidate pending availability.
 #[derive(Encode, Decode, PartialEq, TypeInfo)]
-#[cfg_attr(test, derive(Debug))]
+#[cfg_attr(test, derive(Debug, Default))]
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
 	core: CoreIndex,
@@ -102,6 +102,29 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 	/// Get the candidate descriptor.
 	pub(crate) fn candidate_descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.descriptor
+	}
+
+	#[cfg(any(feature = "runtime-benchmarks", feature = "std"))]
+	pub(crate) fn new(
+		core: CoreIndex,
+		hash: CandidateHash,
+		descriptor: CandidateDescriptor<H>,
+		availability_votes: BitVec<BitOrderLsb0, u8>,
+		backers: BitVec<BitOrderLsb0, u8>,
+		relay_parent_number: N,
+		backed_in_number: N,
+		backing_group: GroupIndex,
+	) -> Self {
+		Self {
+			core,
+			hash,
+			descriptor,
+			availability_votes,
+			backers,
+			relay_parent_number,
+			backed_in_number,
+			backing_group,
+		}
 	}
 }
 
@@ -272,19 +295,34 @@ impl<T: Config> Pallet<T> {
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
+		is_create_inherent: bool,
 	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T, true>(
-			signed_bitfields,
-			disputed_bitfield,
-			expected_bits,
-			parent_hash,
-			session_index,
-			&validators[..],
-		)?;
+		let checked_bitfields = if is_create_inherent {
+			sanitize_bitfields::<T, false>(
+				signed_bitfields,
+				disputed_bitfield,
+				expected_bits,
+				parent_hash,
+				session_index,
+				&validators[..],
+			)
+			.expect(
+				"by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`",
+			)
+		} else {
+			sanitize_bitfields::<T, true>(
+				signed_bitfields,
+				disputed_bitfield,
+				expected_bits,
+				parent_hash,
+				session_index,
+				&validators[..],
+			)?
+		};
 
 		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
@@ -353,18 +391,20 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 
-				let receipt = CommittedCandidateReceipt {
-					descriptor: pending_availability.descriptor,
-					commitments,
-				};
-				Self::enact_candidate(
-					pending_availability.relay_parent_number,
-					receipt,
-					pending_availability.backers,
-					pending_availability.availability_votes,
-					pending_availability.core,
-					pending_availability.backing_group,
-				);
+				if !is_create_inherent {
+					let receipt = CommittedCandidateReceipt {
+						descriptor: pending_availability.descriptor,
+						commitments,
+					};
+					let _weight = Self::enact_candidate(
+						pending_availability.relay_parent_number,
+						receipt,
+						pending_availability.backers,
+						pending_availability.availability_votes,
+						pending_availability.core,
+						pending_availability.backing_group,
+					);
+				}
 
 				freed_cores.push((pending_availability.core, pending_availability.hash));
 			} else {
@@ -720,6 +760,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		// enact the messaging facet of the candidate.
+		// TODO check how to account for these
 		weight += <dmp::Pallet<T>>::prune_dmq(
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
@@ -1335,6 +1376,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Error::<Test>::WrongBitfieldSize
 				);
@@ -1357,6 +1399,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Error::<Test>::WrongBitfieldSize
 				);
@@ -1380,6 +1423,7 @@ pub(crate) mod tests {
 						vec![signed.clone(), signed],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Error::<Test>::BitfieldDuplicateOrUnordered
 				);
@@ -1412,6 +1456,7 @@ pub(crate) mod tests {
 						vec![signed_1, signed_0],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Error::<Test>::BitfieldDuplicateOrUnordered
 				);
@@ -1435,6 +1480,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Ok(_)
 				);
@@ -1457,6 +1503,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Ok(_)
 				);
@@ -1502,6 +1549,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Ok(_)
 				);
@@ -1547,6 +1595,7 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
+						false
 					),
 					Ok(vec![])
 				);
@@ -1691,6 +1740,7 @@ pub(crate) mod tests {
 					signed_bitfields,
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
+					false
 				),
 				Ok(_)
 			);

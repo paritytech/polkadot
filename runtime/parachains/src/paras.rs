@@ -160,7 +160,7 @@ impl ParaLifecycle {
 
 impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
-	fn note_replacement(&mut self, expected_at: N, activated_at: N) {
+	pub(crate) fn note_replacement(&mut self, expected_at: N, activated_at: N) {
 		self.upgrade_times.push(ReplacementTimes { expected_at, activated_at })
 	}
 
@@ -1167,6 +1167,11 @@ impl<T: Config> Pallet<T> {
 			session_index: shared::Pallet::<T>::session_index(),
 			..Default::default()
 		});
+	}
+
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	pub fn heads_insert(para_id: &ParaId, head_data: HeadData) {
+		Heads::<T>::insert(para_id, head_data);
 	}
 }
 

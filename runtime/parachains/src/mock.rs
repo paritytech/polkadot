@@ -65,6 +65,7 @@ frame_support::construct_runtime!(
 		Hrmp: hrmp::{Pallet, Call, Storage, Event<T>},
 		SessionInfo: session_info::{Pallet, Storage},
 		Disputes: disputes::{Pallet, Storage, Event<T>},
+		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
 	}
 );
 
@@ -258,7 +259,9 @@ impl crate::inclusion::Config for Test {
 	type RewardValidators = TestRewardValidators;
 }
 
-impl crate::paras_inherent::Config for Test {}
+impl crate::paras_inherent::Config for Test {
+	type WeightInfo = crate::paras_inherent::TestWeightInfo;
+}
 
 impl crate::session_info::Config for Test {}
 
@@ -354,6 +357,8 @@ impl inclusion::RewardValidators for TestRewardValidators {
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
+	use sp_keystore::{testing::KeyStore, KeystoreExt, SyncCryptoStorePtr};
+	use sp_std::sync::Arc;
 	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
 	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
 
@@ -361,7 +366,10 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	state.configuration.assimilate_storage(&mut t).unwrap();
 	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
 
-	t.into()
+	let mut ext: TestExternalities = t.into();
+	ext.register_extension(KeystoreExt(Arc::new(KeyStore::new()) as SyncCryptoStorePtr));
+
+	ext
 }
 
 #[derive(Default)]
