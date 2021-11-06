@@ -139,15 +139,12 @@ benchmarks! {
 		);
 	}
 
-	// Variant over `v`, the amount of validity votes for a backed candidate. This gives the weight
-	// of a single backed candidate.
-	enter_backed_candidates_code_upgrades_variable {
-		// NOTE: the starting value must be over half of `max_validators` so the backed candidate is
-		// not rejected.
-		let v in 0..24;
+	enter_backed_candidate_code_upgrade {
+		// For now we always assume worst case code size. In the future we could vary over this.
+		let v = crate::configuration::Pallet::<T>::config().max_code_size;
 
 		let cores_with_backed: BTreeMap<_, _>
-			= vec![(0, BenchBuilder::<T>::fallback_min_validity_votes())] // The backed candidate will have `v` validity votes.
+			= vec![(0, BenchBuilder::<T>::fallback_min_validity_votes())]
 				.into_iter()
 				.collect();
 
@@ -158,11 +155,14 @@ benchmarks! {
 
 		// There is 1 backed,
 		assert_eq!(benchmark.backed_candidates.len(), 1);
-		// with `v` validity votes.
-		assert_eq!(benchmark.backed_candidates.get(0).unwrap().validity_votes.len(), v as usize);
+		assert_eq!(
+			benchmark.backed_candidates.get(0).unwrap().validity_votes.len() as u32,
+			BenchBuilder::<T>::fallback_min_validity_votes()
+		);
 
 		benchmark.bitfields.clear();
 		benchmark.disputes.clear();
+		crate::paras::benchmarking::generate_disordered_upgrades::<T>();
 	}: enter(RawOrigin::None, benchmark)
 	verify {
 		let max_validators_per_core = BenchBuilder::<T>::fallback_max_validators_per_core();
@@ -177,12 +177,16 @@ benchmarks! {
 		// Ensure that there are an expected number of candidates
 		let header = BenchBuilder::<T>::header(scenario.block_number.clone());
 		// Traverse candidates and assert descriptors are as expected
-		for (para_id, backing_validators) in vote.backing_validators_per_candidate.iter().enumerate() {
-			let descriptor = backing_validators.0.descriptor();
-			assert_eq!(ParaId::from(para_id), descriptor.para_id);
-			assert_eq!(header.hash(), descriptor.relay_parent);
-			assert_eq!(backing_validators.1.len(), v as usize);
-		}
+		for (para_id, backing_validators)
+			in vote.backing_validators_per_candidate.iter().enumerate() {
+				let descriptor = backing_validators.0.descriptor();
+				assert_eq!(ParaId::from(para_id), descriptor.para_id);
+				assert_eq!(header.hash(), descriptor.relay_parent);
+				assert_eq!(
+					backing_validators.1.len() as u32,
+					BenchBuilder::<T>::fallback_min_validity_votes()
+				);
+			}
 
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),

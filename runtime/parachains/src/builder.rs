@@ -20,7 +20,7 @@ use sp_runtime::{
 	traits::{Header as HeaderT, One, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, iter};
+use sp_std::{collections::btree_map::BTreeMap, convert::TryInto};
 
 fn byte32_slice_from(n: u32) -> [u8; 32] {
 	let mut slice = [0u8; 32];
@@ -421,11 +421,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					commitments: CandidateCommitments::<u32> {
 						upward_messages: Vec::new(),
 						horizontal_messages: Vec::new(),
-						new_validation_code: includes_code_upgrade.map(|v| {
-							ValidationCode(
-								iter::repeat(0u8).take(2usize.pow(v)).collect::<Vec<u8>>(),
-							)
-						}),
+						new_validation_code: includes_code_upgrade
+							.map(|v| ValidationCode(vec![0u8; v as usize])),
 						head_data,
 						processed_downward_messages: 0,
 						hrmp_watermark: self.relay_parent_number(),

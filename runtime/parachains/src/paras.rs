@@ -42,7 +42,7 @@ use serde::{Deserialize, Serialize};
 pub use crate::Origin as ParachainOrigin;
 
 #[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+pub(crate) mod benchmarking;
 
 pub use pallet::*;
 

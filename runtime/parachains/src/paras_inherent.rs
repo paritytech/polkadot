@@ -65,9 +65,14 @@ pub trait WeightInfo {
 	/// Variant over `v`, the count of validity votes for a backed candidate. This gives the weight
 	/// of a single backed candidate.
 	fn enter_backed_candidates_variable(v: u32) -> Weight;
+	/// The weight of a single backed candidate with a code upgrade.
+	fn enter_backed_candidate_code_upgrade() -> Weight;
 }
 
 pub struct TestWeightInfo;
+// `WeightInfo` impl for unit and integration tests. Based off of the `max_block` weight for the
+//  mock.
+#[cfg(not(feature = "runtime-benchmarks"))]
 impl WeightInfo for TestWeightInfo {
 	fn enter_variable_disputes(v: u32) -> Weight {
 		// MAX Block Weight should fit 4 disputes
@@ -80,6 +85,27 @@ impl WeightInfo for TestWeightInfo {
 	fn enter_backed_candidates_variable(v: u32) -> Weight {
 		// MAX Block Weight should fit 4 backed candidates
 		40_000 * v as Weight + 40_000
+	}
+	fn enter_backed_candidate_code_upgrade() -> Weight {
+		0
+	}
+}
+// To simplify benchmarks running as tests, we set all the weights to 0. `enter` will exit early
+// when if the data causes it to be over weight, but we don't want that to block a benchmark from
+// running as a test.
+#[cfg(feature = "runtime-benchmarks")]
+impl WeightInfo for TestWeightInfo {
+	fn enter_variable_disputes(_v: u32) -> Weight {
+		0
+	}
+	fn enter_bitfields() -> Weight {
+		0
+	}
+	fn enter_backed_candidates_variable(_v: u32) -> Weight {
+		0
+	}
+	fn enter_backed_candidate_code_upgrade() -> Weight {
+		0
 	}
 }
 
@@ -238,7 +264,7 @@ pub mod pallet {
 							disputes: Vec::new(),
 							parent_header: inherent_data.parent_header,
 						}
-					},
+					}
 				};
 
 			Some(Call::enter { data: inherent_data })
@@ -274,7 +300,6 @@ pub mod pallet {
 				paras_inherent_total_weight::<T>(&backed_candidates, &signed_bitfields, &disputes);
 
 			// Abort if the total weight of the block exceeds the max block weight
-			#[cfg(not(feature = "runtime-benchmarks"))]
 			ensure!(
 				total_weight <= <T as frame_system::Config>::BlockWeights::get().max_block,
 				Error::<T>::InherentOverweight
@@ -304,7 +329,7 @@ pub mod pallet {
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
-					return Ok(Some(minimal_inherent_weight::<T>()).into())
+					return Ok(Some(minimal_inherent_weight::<T>()).into());
 				}
 
 				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
@@ -445,8 +470,8 @@ impl<T: Config> Pallet<T> {
 			Ok(None) => return None,
 			Err(_) => {
 				log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
-				return None
-			},
+				return None;
+			}
 		};
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
@@ -455,7 +480,7 @@ impl<T: Config> Pallet<T> {
 				target: LOG_TARGET,
 				"ParachainsInherentData references a different parent header hash than frame"
 			);
-			return None
+			return None;
 		}
 
 		let current_session = <shared::Pallet<T>>::session_index();
@@ -669,7 +694,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	weight_limit: Weight,
 ) -> (Weight, Vec<usize>) {
 	if selectables.is_empty() {
-		return (0 as Weight, Vec::new())
+		return (0 as Weight, Vec::new());
 	}
 	let mut indices = (0..selectables.len()).into_iter().collect::<Vec<_>>();
 	let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
@@ -685,7 +710,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		weight_acc += weight_fn(item);
 
 		if weight_acc > weight_limit {
-			break
+			break;
 		}
 
 		picked_indices.push(idx);
@@ -718,7 +743,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	// everything fits into the block
 	if max_weight >= total {
-		return (total, candidates, bitfields)
+		return (total, candidates, bitfields);
 	}
 
 	use rand_chacha::rand_core::SeedableRng;
@@ -740,7 +765,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		// pick all bitfields, and
 		// fill the remaining space with candidates
 		let total = acc_candidate_weight.saturating_add(total_bitfields_weight);
-		return (total, candidates, bitfields)
+		return (total, candidates, bitfields);
 	}
 
 	// insufficient space for even the bitfields alone, so only try to fit as many of those
@@ -805,8 +830,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 		);
 
 		ensure2!(
-			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() ==
-				all_zeros,
+			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone()
+				== all_zeros,
 			crate::inclusion::Error::<T>::BitfieldReferencesFreedCore,
 			EARLY_RETURN,
 			continue

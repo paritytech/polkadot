@@ -145,4 +145,8 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 			.saturating_add(T::DbWeight::get().reads(27 as Weight))
 			.saturating_add(T::DbWeight::get().writes(14 as Weight))
 	}
+	fn enter_backed_candidate_code_upgrade() -> Weight {
+		0
+	}
+
 }
