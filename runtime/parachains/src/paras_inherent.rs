@@ -993,7 +993,7 @@ mod tests {
 			dispute_sessions: Vec<u32>,
 			backed_and_concluding: BTreeMap<u32, u32>,
 			num_validators_per_core: u32,
-			includes_code_upgrade: bool,
+			includes_code_upgrade: Option<u32>,
 		}
 
 		fn make_inherent_data(
@@ -1009,13 +1009,13 @@ mod tests {
 				.set_max_validators((dispute_sessions.len() as u32) * num_validators_per_core)
 				.set_max_validators_per_core(num_validators_per_core)
 				.set_dispute_statements(dispute_statements)
-				.build(backed_and_concluding, dispute_sessions.as_slice())
+				.build(backed_and_concluding, dispute_sessions.as_slice(), includes_code_upgrade)
 		}
 
 		#[test]
-        // Validate that if we create 2 backed candidates which are assigned to 2 cores that will be freed via
-        // becoming fully available, the backed candidates will not be filtered out in `create_inherent` and
-        // will not cause `enter` to exit early.
+		// Validate that if we create 2 backed candidates which are assigned to 2 cores that will be freed via
+		// becoming fully available, the backed candidates will not be filtered out in `create_inherent` and
+		// will not cause `enter` to exit early.
 		fn include_backed_candidates() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let dispute_statements = BTreeMap::new();
@@ -1029,7 +1029,7 @@ mod tests {
 					dispute_sessions: vec![0, 0],
 					backed_and_concluding,
 					num_validators_per_core: 1,
-					includes_code_upgrade: false,
+					includes_code_upgrade: None,
 				});
 
 				// We expect the scenario to have cores 0 & 1 with pending availability. The backed
@@ -1097,7 +1097,7 @@ mod tests {
 					],
 					backed_and_concluding,
 					num_validators_per_core: 5,
-					includes_code_upgrade: false,
+					includes_code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1168,7 +1168,7 @@ mod tests {
 					dispute_sessions: vec![2, 2, 1], // 3 cores, all disputes
 					backed_and_concluding,
 					num_validators_per_core: 6,
-					includes_code_upgrade: false,
+					includes_code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1235,7 +1235,7 @@ mod tests {
 					dispute_sessions: vec![2, 2, 1], // 3 cores, all disputes
 					backed_and_concluding,
 					num_validators_per_core: 6,
-					includes_code_upgrade: false,
+					includes_code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1286,7 +1286,7 @@ mod tests {
 					dispute_sessions: vec![0, 0, 2, 2, 1],
 					backed_and_concluding,
 					num_validators_per_core: 4,
-					includes_code_upgrade: false,
+					includes_code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1365,7 +1365,7 @@ mod tests {
 					dispute_sessions: vec![0, 0, 2, 2, 1],
 					backed_and_concluding,
 					num_validators_per_core: 4,
-					includes_code_upgrade: false,
+					includes_code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1395,9 +1395,7 @@ mod tests {
 				);
 
 				// No on chain votes are recorded because we bailed early
-				assert!(
-					Pallet::<Test>::on_chain_votes().is_none()
-				);
+				assert!(Pallet::<Test>::on_chain_votes().is_none());
 			});
 		}
 
@@ -1425,7 +1423,7 @@ mod tests {
 					dispute_sessions: vec![0, 0, 2, 2, 1],
 					backed_and_concluding,
 					num_validators_per_core: 5,
-					includes_code_upgrade: false,
+					includes_code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1506,7 +1504,7 @@ mod tests {
 					dispute_sessions: vec![0, 0, 2, 2, 1],
 					backed_and_concluding,
 					num_validators_per_core: 5,
-					includes_code_upgrade: false,
+					includes_code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1560,7 +1558,7 @@ mod tests {
 					dispute_sessions: vec![0, 0, 2, 2, 1], // 2 backed candidates, 3 disputes at sessions 2, 1 and 1 respectively
 					backed_and_concluding,
 					num_validators_per_core: 5,
-					includes_code_upgrade: false,
+					includes_code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();
@@ -1631,7 +1629,7 @@ mod tests {
 					dispute_sessions: vec![0, 0, 2, 2, 1], // 2 backed candidates, 3 disputes at sessions 2, 1 and 1 respectively
 					backed_and_concluding,
 					num_validators_per_core: 5,
-					includes_code_upgrade: false,
+					includes_code_upgrade: None,
 				});
 
 				let expected_para_inherent_data = scenario.data.clone();

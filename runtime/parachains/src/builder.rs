@@ -20,7 +20,7 @@ use sp_runtime::{
 	traits::{Header as HeaderT, One, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_map::BTreeMap, convert::TryInto};
+use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, iter};
 
 fn byte32_slice_from(n: u32) -> [u8; 32] {
 	let mut slice = [0u8; 32];
@@ -114,6 +114,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
 	}
 
+	#[cfg(test)]
 	pub(crate) fn set_dispute_statements(mut self, m: BTreeMap<u32, u32>) -> Self {
 		self.dispute_statements = m;
 		self
@@ -358,6 +359,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	fn create_backed_candidates(
 		&self,
 		cores_with_backed_candidates: &BTreeMap<u32, u32>,
+		includes_code_upgrade: Option<u32>,
 	) -> Vec<BackedCandidate<T::Hash>> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
@@ -419,7 +421,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					commitments: CandidateCommitments::<u32> {
 						upward_messages: Vec::new(),
 						horizontal_messages: Vec::new(),
-						new_validation_code: None,
+						new_validation_code: includes_code_upgrade.map(|v| {
+							ValidationCode(
+								iter::repeat(0u8).take(2usize.pow(v)).collect::<Vec<u8>>(),
+							)
+						}),
 						head_data,
 						processed_downward_messages: 0,
 						hrmp_watermark: self.relay_parent_number(),
@@ -519,6 +525,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self,
 		backed_and_concluding_cores: BTreeMap<u32, u32>,
 		dispute_sessions: &[u32],
+		includes_code_upgrade: Option<u32>,
 	) -> Bench<T> {
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
 		// running tests because it seems the storage is not cleared in between.
@@ -540,7 +547,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		let bitfields =
 			builder.create_availability_bitfields(&backed_and_concluding_cores, used_cores);
-		let backed_candidates = builder.create_backed_candidates(&backed_and_concluding_cores);
+		let backed_candidates =
+			builder.create_backed_candidates(&backed_and_concluding_cores, includes_code_upgrade);
 
 		let disputes = builder.create_disputes_with_no_spam(
 			backed_and_concluding_cores.len() as u32,
