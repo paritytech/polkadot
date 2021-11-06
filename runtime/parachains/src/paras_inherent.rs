@@ -618,7 +618,7 @@ impl<T: Config> Pallet<T> {
 			entropy
 		};
 
-		let remaining_weight = limit_disputes::<T>(&mut disputes);
+		let remaining_weight = limit_disputes::<T>(&mut disputes, entropy.clone());
 		let (_backed_candidates_weight, backed_candidates, bitfields) =
 			apply_weight_limit::<T>(backed_candidates, bitfields, entropy, remaining_weight);
 
@@ -662,6 +662,41 @@ pub(super) fn create_disputed_bitfield<'a, I: 'a + IntoIterator<Item = &'a CoreI
 	DisputedBitfield::from(bitvec)
 }
 
+fn random_sel<X, F: Fn(&X) -> Weight>(
+	rng: &mut rand_chacha::ChaChaRng,
+	selectables: Vec<X>,
+	weight_fn: F,
+	weight_limit: Weight,
+) -> (Weight, Vec<usize>) {
+	if selectables.is_empty() {
+		return (0 as Weight, Vec::new())
+	}
+	let mut indices = (0..selectables.len()).into_iter().collect::<Vec<_>>();
+	let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
+
+	let mut weight_acc = 0 as Weight;
+	while !indices.is_empty() {
+		// randomly pick an index
+		let pick = rng.gen_range(0..indices.len());
+		// remove the index from the available set of indices
+		let idx = indices.swap_remove(pick);
+
+		let item = &selectables[idx];
+		weight_acc += weight_fn(item);
+
+		if weight_acc > weight_limit {
+			break
+		}
+
+		picked_indices.push(idx);
+	}
+
+	// sorting indices, so the ordering is retained
+	// unstable sorting is fine, since there are no duplicates
+	picked_indices.sort_unstable();
+	(weight_acc, picked_indices)
+}
+
 /// Considers an upper threshold that the candidates must not exceed.
 ///
 /// If there is sufficient space, all bitfields and candidates will be included.
@@ -688,41 +723,6 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	use rand_chacha::rand_core::SeedableRng;
 	let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
-
-	fn random_sel<X, F: Fn(&X) -> Weight>(
-		rng: &mut rand_chacha::ChaChaRng,
-		selectables: Vec<X>,
-		weight_fn: F,
-		weight_limit: Weight,
-	) -> (Weight, Vec<usize>) {
-		if selectables.is_empty() {
-			return (0 as Weight, Vec::new())
-		}
-		let mut indices = (0..selectables.len()).into_iter().collect::<Vec<_>>();
-		let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
-
-		let mut weight_acc = 0 as Weight;
-		while !indices.is_empty() {
-			// randomly pick an index
-			let pick = rng.gen_range(0..indices.len());
-			// remove the index from the available set of indices
-			let idx = indices.swap_remove(pick);
-
-			let item = &selectables[idx];
-			weight_acc += weight_fn(item);
-
-			if weight_acc > weight_limit {
-				break
-			}
-
-			picked_indices.push(idx);
-		}
-
-		// sorting indices, so the ordering is retained
-		// unstable sorting is fine, since there are no duplicates
-		picked_indices.sort_unstable();
-		(weight_acc, picked_indices)
-	}
 
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
@@ -893,7 +893,7 @@ fn sanitize_backed_candidates<
 	Ok(backed_candidates)
 }
 
-fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet) -> Weight {
+fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet, entropy: [u8; 32]) -> Weight {
 	let mut remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 	let disputes_weight = dispute_statements_weight::<T>(&disputes);
 	if disputes_weight > remaining_weight {
@@ -914,6 +914,8 @@ fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet) -> Weight 
 			}
 		});
 
+		// Since the disputes array is sorted, we may use binary search to find the beginning of
+		// remote disputes
 		let idx = disputes
 			.binary_search_by(|probe| {
 				if T::DisputesHandler::included_state(probe.session, probe.candidate_hash).is_some()
@@ -923,10 +925,15 @@ fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet) -> Weight 
 					Ordering::Less
 				}
 			})
+			// The above predicate will never find an item and therefore we are guaranteed to obtain
+			// an error, which we can safely unwrap. QED.
 			.unwrap_err();
 
+		// Due to the binary search predicate above, the index computed will constitute the beginning
+		// of the remote disputes sub-array
 		let remote_disputes = disputes.split_off(idx);
 
+		// Select disputes in-order until the remaining weight is attained
 		disputes.retain(|d| {
 			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
 				d.statements.len() as u32,
@@ -939,7 +946,29 @@ fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet) -> Weight 
 			}
 		});
 
-		// TODO Randomly select remote disputes
+		// Compute the statements length of all remote disputes
+		let d = remote_disputes.iter().map(|d| d.statements.len() as u32).collect::<Vec<u32>>();
+
+		use rand_chacha::rand_core::SeedableRng;
+		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
+
+		// Select remote disputes at random until the block is full
+		let (acc_remote_disputes_weight, indices) = random_sel::<u32, _>(
+			&mut rng,
+			d,
+			|v| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(*v),
+			remaining_weight,
+		);
+
+		// Collect all remote disputes
+		let mut remote_disputes =
+			indices.into_iter().map(|idx| disputes[idx].clone()).collect::<Vec<_>>();
+
+		// Construct the full list of selected disputes
+		disputes.append(&mut remote_disputes);
+
+		// Update the remaining weight
+		remaining_weight = remaining_weight.saturating_sub(acc_remote_disputes_weight);
 	}
 
 	remaining_weight
