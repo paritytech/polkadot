@@ -55,7 +55,7 @@ use crate::{
 };
 use frame_support::{
 	ensure,
-	pallet_prelude::{DispatchResult, Weight},
+	pallet_prelude::{Weight, DispatchResult},
 	storage::{child, ChildTriePrefixIterator},
 	traits::{
 		Currency,
