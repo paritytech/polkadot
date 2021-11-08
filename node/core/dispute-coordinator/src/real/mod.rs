@@ -181,7 +181,12 @@ impl DisputeCoordinatorSubsystem {
 		mut backend: B,
 		clock: &(dyn Clock),
 	) -> FatalResult<
-		Option<(Vec<(Option<CandidateComparator>, ParticipationRequest)>, Hash, Initialized, B)>,
+		Option<(
+			Vec<(Option<CandidateComparator>, ParticipationRequest)>,
+			ActivatedLeaf,
+			Initialized,
+			B,
+		)>,
 	>
 	where
 		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
@@ -227,7 +232,7 @@ impl DisputeCoordinatorSubsystem {
 
 			return Ok(Some((
 				participations,
-				first_leaf.hash,
+				first_leaf,
 				Initialized::new(self, rolling_session_window, spam_slots, ordering_provider),
 				backend,
 			)))

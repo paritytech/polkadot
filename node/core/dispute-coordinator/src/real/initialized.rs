@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 		BlockDescription, DisputeCoordinatorMessage, DisputeDistributionMessage,
 		ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SubsystemContext,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SubsystemContext,
 };
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate,
@@ -105,7 +105,7 @@ impl Initialized {
 		mut ctx: Context,
 		mut backend: B,
 		mut participations: Vec<(Option<CandidateComparator>, ParticipationRequest)>,
-		mut first_leaf: Option<Hash>,
+		mut first_leaf: Option<ActivatedLeaf>,
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
@@ -141,7 +141,7 @@ impl Initialized {
 		ctx: &mut Context,
 		backend: &mut B,
 		participations: &mut Vec<(Option<CandidateComparator>, ParticipationRequest)>,
-		first_leaf: &mut Option<Hash>,
+		first_leaf: &mut Option<ActivatedLeaf>,
 		clock: &dyn Clock,
 	) -> Result<()>
 	where
@@ -154,12 +154,16 @@ impl Initialized {
 		}
 		if let Some(first_leaf) = first_leaf.take() {
 			let mut overlay_db = OverlayedBackend::new(backend);
-			self.scrape_on_chain_votes(ctx, &mut overlay_db, first_leaf, clock.now())
+			self.scrape_on_chain_votes(ctx, &mut overlay_db, first_leaf.hash, clock.now())
 				.await?;
 			if !overlay_db.is_empty() {
 				let ops = overlay_db.into_write_ops();
 				backend.write(ops)?;
 			}
+			// Also provide first leaf to participation for good measure.
+			self.participation
+				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf))
+				.await?;
 		}
 
 		loop {
@@ -756,7 +760,6 @@ impl Initialized {
 				)
 				.await?;
 		}
-
 
 		let prev_status = recent_disputes.get(&(session, candidate_hash)).map(|x| x.clone());
 
