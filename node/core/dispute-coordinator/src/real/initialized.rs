@@ -77,6 +77,7 @@ pub struct Initialized {
 }
 
 impl Initialized {
+	/// Make initialized subsystem, ready to `run`.
 	pub fn new(
 		subsystem: DisputeCoordinatorSubsystem,
 		rolling_session_window: RollingSessionWindow,
@@ -101,6 +102,9 @@ impl Initialized {
 		}
 	}
 
+	/// Run the initialized subsystem.
+	///
+	/// Optionally supply initial participations and a first leaf to process.
 	pub async fn run<B, Context>(
 		mut self,
 		mut ctx: Context,
