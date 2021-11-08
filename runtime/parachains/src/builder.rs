@@ -104,7 +104,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self.max_validators.unwrap_or(Self::fallback_max_validators())
 	}
 
-	#[cfg(test)]
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_max_validators(mut self, n: u32) -> Self {
 		self.max_validators = Some(n);
 		self
@@ -114,7 +114,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
 	}
 
-	#[cfg(test)]
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_dispute_statements(mut self, m: BTreeMap<u32, u32>) -> Self {
 		self.dispute_statements = m;
 		self
@@ -125,7 +125,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Set maximum number of validators per core.
-	#[cfg(test)]
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_max_validators_per_core(mut self, n: u32) -> Self {
 		self.max_validators_per_core = Some(n);
 		self

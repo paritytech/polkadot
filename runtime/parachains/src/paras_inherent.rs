@@ -1003,19 +1003,18 @@ fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet, entropy: [
 mod tests {
 	use super::*;
 
-	use crate::{
-		builder::{Bench, BenchBuilder},
-		mock::{new_test_ext, MockGenesisConfig, Test},
-	};
-	use frame_support::{assert_err, assert_ok};
-	use sp_std::collections::btree_map::BTreeMap;
-
 	// In order to facilitate benchmarks as tests we have a benchmark feature gated `WeightInfo` impl
 	// that uses 0 for all the weights. Because all the weights are 0, the tests that rely on
 	// weights for limiting data will fail, so we don't run them when using the benchmark feature.
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	mod enter {
 		use super::*;
+		use crate::{
+			builder::{Bench, BenchBuilder},
+			mock::{new_test_ext, MockGenesisConfig, Test},
+		};
+		use frame_support::{assert_err, assert_ok};
+		use sp_std::collections::btree_map::BTreeMap;
 
 		struct TestConfig {
 			dispute_statements: BTreeMap<u32, u32>,
