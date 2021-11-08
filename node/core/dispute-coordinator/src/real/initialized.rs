@@ -105,6 +105,7 @@ impl Initialized {
 		mut ctx: Context,
 		mut backend: B,
 		mut participations: Vec<(Option<CandidateComparator>, ParticipationRequest)>,
+		mut first_leaf: Option<Hash>,
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
@@ -113,8 +114,15 @@ impl Initialized {
 		B: Backend,
 	{
 		loop {
-			let res =
-				self.run_until_error(&mut ctx, &mut backend, &mut participations, &*clock).await;
+			let res = self
+				.run_until_error(
+					&mut ctx,
+					&mut backend,
+					&mut participations,
+					&mut first_leaf,
+					&*clock,
+				)
+				.await;
 			if let Ok(()) = res {
 				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				return Ok(())
@@ -133,6 +141,7 @@ impl Initialized {
 		ctx: &mut Context,
 		backend: &mut B,
 		participations: &mut Vec<(Option<CandidateComparator>, ParticipationRequest)>,
+		first_leaf: &mut Option<Hash>,
 		clock: &dyn Clock,
 	) -> Result<()>
 	where
@@ -142,6 +151,15 @@ impl Initialized {
 	{
 		for (comparator, request) in participations.drain(..) {
 			self.participation.queue_participation(ctx, comparator, request).await?;
+		}
+		if let Some(first_leaf) = first_leaf.take() {
+			let mut overlay_db = OverlayedBackend::new(backend);
+			self.scrape_on_chain_votes(ctx, &mut overlay_db, first_leaf, clock.now())
+				.await?;
+			if !overlay_db.is_empty() {
+				let ops = overlay_db.into_write_ops();
+				backend.write(ops)?;
+			}
 		}
 
 		loop {
@@ -250,7 +268,8 @@ impl Initialized {
 		Ok(())
 	}
 
-	/// Scrapes on-chain votes (backing votes and concluded disputes) for a active leaf of the relay chain.
+	/// Scrapes on-chain votes (backing votes and concluded disputes) for a active leaf of the
+	/// relay chain.
 	async fn scrape_on_chain_votes(
 		&mut self,
 		ctx: &mut (impl SubsystemContext<Message = DisputeCoordinatorMessage>

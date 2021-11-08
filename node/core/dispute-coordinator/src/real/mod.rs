@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
-use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
+use polkadot_primitives::v1::{Hash, ValidatorIndex, ValidatorPair};
 
 use crate::metrics::Metrics;
 use backend::{Backend, OverlayedBackend};
@@ -129,22 +129,8 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async {
-			let mut ctx = ctx;
 			let backend = DbBackend::new(self.store.clone(), self.config.column_config());
-
-			let res = self
-				.initialize(&mut ctx, backend, &SystemClock)
-				.await
-				.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))?;
-
-			let (participations, initialized, backend) = match res {
-				// Concluded:
-				None => return Ok(()),
-				Some(r) => r,
-			};
-
-			initialized
-				.run(ctx, backend, participations, Box::new(SystemClock))
+			self.run(ctx, backend, Box::new(SystemClock))
 				.await
 				.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
 		}
@@ -165,6 +151,29 @@ impl DisputeCoordinatorSubsystem {
 		Self { store, config, keystore, metrics }
 	}
 
+	/// Initialize and afterwards run `Initialized::run`.
+	async fn run<B, Context>(
+		self,
+		mut ctx: Context,
+		backend: B,
+		clock: Box<dyn Clock>,
+	) -> FatalResult<()>
+	where
+		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
+		Context: SubsystemContext<Message = DisputeCoordinatorMessage>,
+		B: Backend + 'static,
+	{
+		let res = self.initialize(&mut ctx, backend, &*clock).await?;
+
+		let (participations, first_leaf, initialized, backend) = match res {
+			// Concluded:
+			None => return Ok(()),
+			Some(r) => r,
+		};
+
+		initialized.run(ctx, backend, participations, Some(first_leaf), clock).await
+	}
+
 	/// Make sure to recover participations properly on startup.
 	async fn initialize<B, Context>(
 		self,
@@ -172,7 +181,7 @@ impl DisputeCoordinatorSubsystem {
 		mut backend: B,
 		clock: &(dyn Clock),
 	) -> FatalResult<
-		Option<(Vec<(Option<CandidateComparator>, ParticipationRequest)>, Initialized, B)>,
+		Option<(Vec<(Option<CandidateComparator>, ParticipationRequest)>, Hash, Initialized, B)>,
 	>
 	where
 		Context: overseer::SubsystemContext<Message = DisputeCoordinatorMessage>,
@@ -195,7 +204,13 @@ impl DisputeCoordinatorSubsystem {
 
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
 			let (participations, spam_slots, ordering_provider) = match self
-				.handle_startup(ctx, first_leaf, &rolling_session_window, &mut overlay_db, clock)
+				.handle_startup(
+					ctx,
+					first_leaf.clone(),
+					&rolling_session_window,
+					&mut overlay_db,
+					clock,
+				)
 				.await
 			{
 				Ok(v) => v,
@@ -212,6 +227,7 @@ impl DisputeCoordinatorSubsystem {
 
 			return Ok(Some((
 				participations,
+				first_leaf.hash,
 				Initialized::new(self, rolling_session_window, spam_slots, ordering_provider),
 				backend,
 			)))
