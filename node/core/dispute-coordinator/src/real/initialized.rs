@@ -23,6 +23,9 @@ use futures::{
 	FutureExt, StreamExt,
 };
 
+use sc_keystore::LocalKeystore;
+use sp_keystore::CryptoStore;
+
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
 	DISPUTE_WINDOW,
@@ -42,7 +45,6 @@ use polkadot_primitives::v1::{
 	DisputeStatement, DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
-use sc_keystore::LocalKeystore;
 
 use crate::{metrics::Metrics, DisputeCoordinatorSubsystem};
 
@@ -743,8 +745,9 @@ impl Initialized {
 		let concluded_valid = votes.valid.len() >= supermajority_threshold;
 		let concluded_invalid = votes.invalid.len() >= supermajority_threshold;
 
-		// Participate in dispute if the imported vote was not local & we did not vote before either:
-		if !is_local && !voted_already && is_disputed {
+		// Participate in dispute if the imported vote was not local, we did not vote before either
+		// and we actually have keys to issue a local vote.
+		if !is_local && !voted_already && is_disputed && !controlled_indices.is_empty() {
 			tracing::trace!(
 				target: LOG_TARGET,
 				candidate_hash = ?candidate_receipt.hash(),
