@@ -380,11 +380,9 @@ where
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
 		if let Some(worker) = worker {
-			task_manager.spawn_handle().spawn(
-				"telemetry",
-				"telemetry",
-				Box::pin(worker.run()),
-			);
+			task_manager
+				.spawn_handle()
+				.spawn("telemetry", "telemetry", Box::pin(worker.run()));
 		}
 		telemetry
 	});
@@ -1129,9 +1127,11 @@ where
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		};
 
-		task_manager
-			.spawn_essential_handle()
-			.spawn_blocking("grandpa-voter", "", grandpa::run_grandpa_voter(grandpa_config)?);
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"grandpa-voter",
+			"",
+			grandpa::run_grandpa_voter(grandpa_config)?,
+		);
 	}
 
 	network_starter.start_network();

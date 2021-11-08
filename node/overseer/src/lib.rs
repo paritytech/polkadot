@@ -562,9 +562,7 @@ where
 
 		futures::future::ready(())
 	});
-	overseer
-		.spawner()
-		.spawn("metrics_metronome", "overseer", Box::pin(metronome));
+	overseer.spawner().spawn("metrics_metronome", "overseer", Box::pin(metronome));
 
 	Ok(())
 }

@@ -151,7 +151,6 @@ impl JobTrait for ProvisioningJob {
 	const NAME: &'static str = "ProvisioningJob";
 	const SUBSYSTEM: &'static str = "provisioner";
 
-
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
