@@ -275,6 +275,34 @@ pub mod pallet {
 		}
 	}
 
+	/// Collect all freed cores based on storage data.
+	///
+	/// The paramter `freed_concluded` contains all core indicies that became
+	/// free due to candidate that became available.
+	pub(crate) fn collect_all_freed_cores<T, I>(
+		freed_concluded: I,
+	) -> BTreeMap<CoreIndex, FreedReason>
+	where
+		I: core::iter::IntoIterator<Item = (CoreIndex, CandidateHash)>,
+		T: Config,
+	{
+		// Handle timeouts for any availability core work.
+		let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
+		let freed_timeout = if let Some(pred) = availability_pred {
+			<inclusion::Pallet<T>>::collect_pending(pred)
+		} else {
+			Vec::new()
+		};
+
+		// Schedule paras again, given freed cores, and reasons for freeing.
+		let freed = freed_concluded
+			.into_iter()
+			.map(|(c, _hash)| (c, FreedReason::Concluded))
+			.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
+			.collect::<BTreeMap<CoreIndex, FreedReason>>();
+		freed
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
@@ -376,7 +404,6 @@ pub mod pallet {
 				signed_bitfields,
 				disputed_bitfield,
 				<scheduler::Pallet<T>>::core_para,
-				false,
 			)?;
 
 			// Inform the disputes module of all included candidates.
@@ -385,20 +412,7 @@ pub mod pallet {
 				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
 			}
 
-			// Handle timeouts for any availability core work.
-			let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
-			let freed_timeout = if let Some(pred) = availability_pred {
-				<inclusion::Pallet<T>>::collect_pending(pred)
-			} else {
-				Vec::new()
-			};
-
-			// Schedule paras again, given freed cores, and reasons for freeing.
-			let freed = freed_concluded
-				.into_iter()
-				.map(|(c, _hash)| (c, FreedReason::Concluded))
-				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
-				.collect::<BTreeMap<CoreIndex, FreedReason>>();
+			let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
 			<scheduler::Pallet<T>>::clear();
 			<scheduler::Pallet<T>>::schedule(freed, now);
@@ -475,6 +489,7 @@ impl<T: Config> Pallet<T> {
 		};
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+
 		if parent_hash != parent_header.hash() {
 			log::warn!(
 				target: LOG_TARGET,
@@ -489,7 +504,7 @@ impl<T: Config> Pallet<T> {
 
 		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
-		let (concluded_invalid_disputes, disputed_bitfield, scheduled) =
+		let (concluded_invalid_disputes, bitfields, scheduled) =
 			frame_support::storage::with_transaction(|| {
 				// we don't care about fresh or not disputes
 				// this writes them to storage, so let's query it via those means
@@ -504,7 +519,7 @@ impl<T: Config> Pallet<T> {
 						e
 					});
 
-				// concluded invalid disputes, only including the _current block's_ votes
+				// current concluded invalid disputes, only including the current block's votes
 				let current_concluded_invalid_disputes = disputes
 					.iter()
 					.filter(|dss| dss.session == current_session)
@@ -525,98 +540,71 @@ impl<T: Config> Pallet<T> {
 					})
 					.collect::<BTreeSet<CandidateHash>>();
 
-				let dispute_freed_cores =
-					<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes);
+				let mut freed_disputed: Vec<_> =
+					<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
+						.into_iter()
+						.map(|core| (core, FreedReason::Concluded))
+						.collect();
+
 				let disputed_bitfield =
-					create_disputed_bitfield(expected_bits, dispute_freed_cores.iter());
+					create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x, _)| x));
 
-				// Below Operations:
-				// * free disputed cores if any exist
-				// * get cores that have become free from processing fully bitfields
-				// * get cores that have become free from timing out
-				// * create  one collection of all the freed cores so we can schedule them
-				// * schedule freed cores based on collection of freed cores
-
-				{
-					let mut freed_disputed: Vec<_> = <inclusion::Pallet<T>>::collect_disputed(
-						&current_concluded_invalid_disputes,
-					)
-					.into_iter()
-					.map(|core| (core, FreedReason::Concluded))
-					.collect();
-
-					if !freed_disputed.is_empty() {
-						// There are freed disputed cores, so sort them and free them against the scheduler.
-
-						// unstable sort is fine, because core indices are unique
-						// i.e. the same candidate can't occupy 2 cores at once.
-						freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
-
-						<scheduler::Pallet<T>>::free_cores(freed_disputed);
-					}
+				if !freed_disputed.is_empty() {
+					// unstable sort is fine, because core indices are unique
+					// i.e. the same candidate can't occupy 2 cores at once.
+					freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+					<scheduler::Pallet<T>>::free_cores(freed_disputed.clone());
 				}
 
-				// Get cores that have become free from processing fully bitfields
-				let freed_concluded = <inclusion::Pallet<T>>::process_bitfields(
+				// The following 3 calls are equiv to a call to `process_bitfields`
+				// but we can retain access to `bitfields`.
+				let bitfields = match sanitize_bitfields::<T, false>(
+					bitfields,
+					disputed_bitfield,
 					expected_bits,
-					bitfields.clone(),
-					disputed_bitfield.clone(),
-					<scheduler::Pallet<T>>::core_para,
-					true,
-				)
-				.unwrap_or_else(|err| {
-					log::error!(
-						target: LOG_TARGET,
-						"bitfields could not be processed while creating inherent: {:?}",
-						err,
-					);
-					Vec::new()
-				});
-
-				// Get cores that have become free from timing out
-				let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
-				let freed_timeout = if let Some(pred) = availability_pred {
-					<inclusion::Pallet<T>>::collect_pending(pred)
-				} else {
-					Vec::new()
+					parent_hash,
+					current_session,
+					&validator_public[..],
+				) {
+					Ok(bitfields) => bitfields,
+					Err(err) => {
+						// by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
+						log::error!(
+							target: LOG_TARGET,
+							"BUG: convention violation in create_inherent: {:?}",
+							err
+						);
+						vec![]
+					},
 				};
 
-				// Create one collection of cores freed from timeouts and availability conclusion ..
-				let timeout_and_concluded_freed_cores = freed_concluded
-					.into_iter()
-					.map(|(c, _hash)| (c, FreedReason::Concluded))
-					.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
-					.collect::<BTreeMap<CoreIndex, FreedReason>>();
+				let freed_concluded =
+					<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores::<
+						_,
+						false,
+					>(
+						expected_bits,
+						&validator_public[..],
+						bitfields.clone(),
+						<scheduler::Pallet<T>>::core_para,
+					);
+
+				let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
 				<scheduler::Pallet<T>>::clear();
-				// .. so we can schedule them.
-				<scheduler::Pallet<T>>::schedule(
-					timeout_and_concluded_freed_cores,
-					<frame_system::Pallet<T>>::block_number(),
-				);
+				<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
 
-				// Return
+				let scheduled = <scheduler::Pallet<T>>::scheduled();
+
 				frame_support::storage::TransactionOutcome::Rollback((
-					// * concluded disputes for backed candidates in this block,
+					// concluded disputes for backed candidates in this block
 					concluded_invalid_disputes,
-					// * bitfield marking disputed cores,
-					disputed_bitfield,
-					// * and the newly created core schedule.
-					<scheduler::Pallet<T>>::scheduled(),
+					// filtered bitfields,
+					bitfields,
+					// updated schedule
+					scheduled,
 				))
 			});
-
-		// TODO this is wasteful since its also called in `process_bitfield`. We should probably
-		// bubble up the bitfields from `process_bitfields` so this does not need to be called here.
-		let bitfields = sanitize_bitfields::<T, false>(
-			bitfields,
-			disputed_bitfield,
-			expected_bits,
-			parent_hash,
-			current_session,
-			&validator_public[..],
-		)
-		.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
 
 		let backed_candidates = sanitize_backed_candidates::<T, _, false>(
 			parent_hash,
@@ -626,7 +614,7 @@ impl<T: Config> Pallet<T> {
 			},
 			&scheduled[..],
 		)
-		.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
+		.ok()?; // by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
 
 		let entropy = {
 			const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
@@ -673,10 +661,13 @@ macro_rules! ensure2 {
 }
 
 /// Derive a bitfield from dispute
-pub(super) fn create_disputed_bitfield<'a, I: 'a + IntoIterator<Item = &'a CoreIndex>>(
+pub(super) fn create_disputed_bitfield<'a, I>(
 	expected_bits: usize,
 	freed_cores: I,
-) -> DisputedBitfield {
+) -> DisputedBitfield
+where
+	I: 'a + IntoIterator<Item = &'a CoreIndex>,
+{
 	let mut bitvec = BitVec::repeat(false, expected_bits);
 	for core_idx in freed_cores {
 		let core_idx = core_idx.0 as usize;
