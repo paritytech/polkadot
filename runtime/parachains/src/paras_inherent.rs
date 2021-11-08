@@ -279,9 +279,13 @@ pub mod pallet {
 	///
 	/// The paramter `freed_concluded` contains all core indicies that became
 	/// free due to candidate that became available.
-	pub(crate) fn collect_all_freed_cores<T>(
-		freed_concluded: Vec<CoreIndex>,
-	) -> BTreeMap<CoreIndex, FreedReason> {
+	pub(crate) fn collect_all_freed_cores<T, I>(
+		freed_concluded: I,
+	) -> BTreeMap<CoreIndex, FreedReason>
+	where
+		I: core::iter::IntoIterator<Item=(CoreIndex, CandidateHash)>,
+		T: Config,
+	{
 		// Handle timeouts for any availability core work.
 		let availability_pred = <scheduler::Pallet<T>>::availability_timeout_predicate();
 		let freed_timeout = if let Some(pred) = availability_pred {
@@ -400,7 +404,6 @@ pub mod pallet {
 				signed_bitfields,
 				disputed_bitfield,
 				<scheduler::Pallet<T>>::core_para,
-				false,
 			)?;
 
 			// Inform the disputes module of all included candidates.
@@ -409,7 +412,7 @@ pub mod pallet {
 				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
 			}
 
-			let freed = collect_all_freed_cores::<T>(freed_concluded);
+			let freed = collect_all_freed_cores::<T,_>(freed_concluded.iter().cloned());
 
 			<scheduler::Pallet<T>>::clear();
 			<scheduler::Pallet<T>>::schedule(freed, now);
@@ -481,25 +484,11 @@ impl<T: Config> Pallet<T> {
 			Ok(None) => return None,
 			Err(_) => {
 				log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
-				return None;
-			}
-		};
-
-		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
-
-		let ParachainsInherentData::<T::Header> {
-			bitfields,
-			backed_candidates,
-			mut disputes,
-			parent_header,
-		} = match data.get_data(&Self::INHERENT_IDENTIFIER) {
-			Ok(Some(d)) => d,
-			Ok(None) => return None,
-			Err(_) => {
-				log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
 				return None
 			},
 		};
+
+		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 
 		if parent_hash != parent_header.hash() {
 			log::warn!(
@@ -515,7 +504,7 @@ impl<T: Config> Pallet<T> {
 
 		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
-		let (concluded_invalid_disputes, disputed_bitfield, scheduled) =
+		let (concluded_invalid_disputes, bitfields, scheduled) =
 			frame_support::storage::with_transaction(|| {
 				// we don't care about fresh or not disputes
 				// this writes them to storage, so let's query it via those means
@@ -551,14 +540,14 @@ impl<T: Config> Pallet<T> {
 					})
 					.collect::<BTreeSet<CandidateHash>>();
 
-				let freed_disputed: Vec<_> = <inclusion::Pallet<T>>::collect_disputed(
-						&current_concluded_invalid_disputes
-					)
-					.into_iter()
-					.map(|core| (core, FreedReason::Concluded))
-					.collect();
+				let mut freed_disputed: Vec<_> =
+					<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
+						.into_iter()
+						.map(|core| (core, FreedReason::Concluded))
+						.collect();
 
-				let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_disputed.iter());
+				let disputed_bitfield =
+					create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x,_)| x));
 
 				if !freed_disputed.is_empty() {
 					// unstable sort is fine, because core indices are unique
@@ -580,21 +569,25 @@ impl<T: Config> Pallet<T> {
 					Ok(bitfields) => bitfields,
 					Err(err) => {
 						// by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
-						log::error!(target: LOG_TARGET, "BUG: convention violation in create_inherent: {:?}", err);
+						log::error!(
+							target: LOG_TARGET,
+							"BUG: convention violation in create_inherent: {:?}",
+							err
+						);
 						vec![]
 					},
 				};
 
 				let freed_concluded =
-					<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores(
+					<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores::<_, false>(
 						expected_bits,
 						&validator_public[..],
-						bitfields,
-						disputed_bitfield,
+						bitfields.clone(),
 						<scheduler::Pallet<T>>::core_para,
 					);
-				let freed = <crate::paras_inherent::Pallet<T>>::collect_all_freed_cores::<T>(
-					freed_concluded,
+
+				let freed = collect_all_freed_cores::<T,_>(
+					freed_concluded.iter().cloned(),
 				);
 
 				<scheduler::Pallet<T>>::clear();
@@ -602,12 +595,12 @@ impl<T: Config> Pallet<T> {
 
 				let scheduled = <scheduler::Pallet<T>>::scheduled();
 
-				// Return
 				frame_support::storage::TransactionOutcome::Rollback((
-					// * concluded disputes for backed candidates in this block,
+					// concluded disputes for backed candidates in this block
 					concluded_invalid_disputes,
-					// * bitfield marking disputed cores,
-					disputed_bitfield,
+					// filtered bitfields,
+					bitfields,
+					// updated schedule
 					scheduled,
 				))
 			});
@@ -667,10 +660,13 @@ macro_rules! ensure2 {
 }
 
 /// Derive a bitfield from dispute
-pub(super) fn create_disputed_bitfield<'a, I: 'a + IntoIterator<Item = &'a CoreIndex>>(
+pub(super) fn create_disputed_bitfield<'a, I>(
 	expected_bits: usize,
 	freed_cores: I,
-) -> DisputedBitfield {
+) -> DisputedBitfield
+where
+	I: 'a + IntoIterator<Item = &'a CoreIndex>
+{
 	let mut bitvec = BitVec::repeat(false, expected_bits);
 	for core_idx in freed_cores {
 		let core_idx = core_idx.0 as usize;

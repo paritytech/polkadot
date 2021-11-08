@@ -289,17 +289,15 @@ impl<T: Config> Pallet<T> {
 	/// Extract the freed cores based on cores tht became available.
 	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
-	pub(crate) fn update_pending_availability_and_get_freed_cores<const IS_CREATE_INHERENT: bool>(
+	pub(crate) fn update_pending_availability_and_get_freed_cores<F, const IS_CREATE_INHERENT: bool>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
-		disputed_bitfield: DisputedBitfield,
-		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Vec<(CoreIndex, CandidateHash)> {
-		let validators = shared::Pallet::<T>::active_validator_keys();
-		let session_index = shared::Pallet::<T>::session_index();
-		let parent_hash = frame_system::Pallet::<T>::parent_hash();
-
+		core_lookup: F,
+	) -> Vec<(CoreIndex, CandidateHash)>
+	where
+		F:  Fn(CoreIndex) -> Option<ParaId>,
+	{
 		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
 			.map(|opt_para_id| {
@@ -366,24 +364,25 @@ impl<T: Config> Pallet<T> {
 						continue
 					},
 				};
+
+				if !IS_CREATE_INHERENT {
+					let receipt = CommittedCandidateReceipt {
+						descriptor: pending_availability.descriptor,
+						commitments,
+					};
+					let _weight = Self::enact_candidate(
+						pending_availability.relay_parent_number,
+						receipt,
+						pending_availability.backers,
+						pending_availability.availability_votes,
+						pending_availability.core,
+						pending_availability.backing_group,
+					);
+				}
+
 				freed_cores.push((pending_availability.core, pending_availability.hash));
 			} else {
 				<PendingAvailability<T>>::insert(&para_id, &pending_availability);
-			}
-
-			if !IS_CREATE_INHERENT {
-				let receipt = CommittedCandidateReceipt {
-					descriptor: pending_availability.descriptor,
-					commitments,
-				};
-				let _weight = Self::enact_candidate(
-					pending_availability.relay_parent_number,
-					receipt,
-					pending_availability.backers,
-					pending_availability.availability_votes,
-					pending_availability.core,
-					pending_availability.backing_group,
-				);
 			}
 		}
 
@@ -399,7 +398,7 @@ impl<T: Config> Pallet<T> {
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Result<Vec<(CoreIndex, ParaId)>, DispatchError> {
+	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
@@ -413,10 +412,10 @@ impl<T: Config> Pallet<T> {
 			&validators[..],
 		)?;
 
-		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<false>(
+		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, false>(
 			expected_bits,
 			&validators[..],
-			disputed_bitfield,
+			checked_bitfields,
 			core_lookup,
 		);
 
@@ -1384,7 +1383,6 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
-						false
 					),
 					Error::<Test>::WrongBitfieldSize
 				);
@@ -1407,7 +1405,6 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
-						false
 					),
 					Error::<Test>::WrongBitfieldSize
 				);
@@ -1431,7 +1428,6 @@ pub(crate) mod tests {
 						vec![signed.clone(), signed],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
-						false
 					),
 					Error::<Test>::BitfieldDuplicateOrUnordered
 				);
@@ -1464,7 +1460,6 @@ pub(crate) mod tests {
 						vec![signed_1, signed_0],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
-						false
 					),
 					Error::<Test>::BitfieldDuplicateOrUnordered
 				);
@@ -1488,7 +1483,6 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
-						false
 					),
 					Ok(_)
 				);
@@ -1511,7 +1505,6 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
-						false
 					),
 					Ok(_)
 				);
@@ -1557,7 +1550,6 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
-						false
 					),
 					Ok(_)
 				);
@@ -1603,7 +1595,6 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
-						false
 					),
 					Ok(vec![])
 				);
@@ -1748,7 +1739,6 @@ pub(crate) mod tests {
 					signed_bitfields,
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
-					false
 				),
 				Ok(_)
 			);
