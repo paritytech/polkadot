@@ -291,7 +291,7 @@ impl<T: Config> Pallet<T> {
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
 	pub(crate) fn update_pending_availability_and_get_freed_cores<
 		F,
-		const IS_CREATE_INHERENT: bool,
+		const EARLY_RETURN: bool,
 	>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
@@ -368,7 +368,7 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 
-				if !IS_CREATE_INHERENT {
+				if EARLY_RETURN {
 					let receipt = CommittedCandidateReceipt {
 						descriptor: pending_availability.descriptor,
 						commitments,
@@ -406,7 +406,7 @@ impl<T: Config> Pallet<T> {
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T, false>(
+		let checked_bitfields = sanitize_bitfields::<T, true>(
 			signed_bitfields,
 			disputed_bitfield,
 			expected_bits,
@@ -415,7 +415,7 @@ impl<T: Config> Pallet<T> {
 			&validators[..],
 		)?;
 
-		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, false>(
+		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, true>(
 			expected_bits,
 			&validators[..],
 			checked_bitfields,
