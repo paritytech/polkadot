@@ -24,6 +24,7 @@ sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch 
 sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
@@ -151,8 +152,6 @@ full-node = [
 	"polkadot-approval-distribution",
 	"kvdb-rocksdb"
 ]
-
-light-node = []
 
 # Configure the native runtimes to use. Polkadot is enabled by default.
 #

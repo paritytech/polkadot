@@ -94,7 +94,7 @@ members = [
 	"parachain/test-parachains/adder/collator",
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
-	"utils/voter-bags",
+	"utils/generate-bags",
 ]
 
 # We want to be able to build the bridge relayer without pulling it (and all of its
