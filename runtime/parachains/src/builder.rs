@@ -4,7 +4,7 @@ use crate::{
 	scheduler, session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_benchmarking::{account, vec, Vec};
+use sp_std::{vec, prelude::Vec};
 use frame_support::pallet_prelude::*;
 use primitives::v1::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
@@ -22,6 +22,20 @@ use sp_runtime::{
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto};
 
+/// Grab an account, seeded by a name and index.
+///
+/// This is directly from frame-benchmarking. Copy/Pasted so we can use it when not compiling with
+/// "features = runtime-benchmarks"
+fn account<AccountId: Decode + Default>(
+	name: &'static str,
+	index: u32,
+	seed: u32,
+) -> AccountId {
+	let entropy = (name, index, seed).using_encoded(sp_core::blake2_256);
+	AccountId::decode(&mut &entropy[..]).unwrap_or_default()
+}
+
+/// Create a 32 byte slice based on the given number.
 fn byte32_slice_from(n: u32) -> [u8; 32] {
 	let mut slice = [0u8; 32];
 	slice[31] = (n % (1 << 8)) as u8;
@@ -562,7 +576,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		// Mark all the use cores as occupied. We expect that their are `backed_and_concluding_cores`
 		// that are pending availability and that there are `non_spam_dispute_cores` which are about
 		// to be disputed.
-		scheduler::AvailabilityCores::<T>::set(frame_benchmarking::vec![
+		scheduler::AvailabilityCores::<T>::set(vec![
 			Some(CoreOccupied::Parachain);
 			used_cores as usize
 		]);

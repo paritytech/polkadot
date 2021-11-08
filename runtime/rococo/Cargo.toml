@@ -178,7 +178,7 @@ runtime-benchmarks = [
 	"pallet-multisig/runtime-benchmarks",
 	"frame-benchmarking",
 	"hex-literal",
-	"runtime-parachains/runtime-benchmarks"
+	"runtime-parachains/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
