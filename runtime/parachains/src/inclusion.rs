@@ -289,14 +289,17 @@ impl<T: Config> Pallet<T> {
 	/// Extract the freed cores based on cores tht became available.
 	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
-	pub(crate) fn update_pending_availability_and_get_freed_cores<F, const IS_CREATE_INHERENT: bool>(
+	pub(crate) fn update_pending_availability_and_get_freed_cores<
+		F,
+		const IS_CREATE_INHERENT: bool,
+	>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: F,
 	) -> Vec<(CoreIndex, CandidateHash)>
 	where
-		F:  Fn(CoreIndex) -> Option<ParaId>,
+		F: Fn(CoreIndex) -> Option<ParaId>,
 	{
 		let mut assigned_paras_record = (0..expected_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))

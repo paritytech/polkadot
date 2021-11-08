@@ -283,7 +283,7 @@ pub mod pallet {
 		freed_concluded: I,
 	) -> BTreeMap<CoreIndex, FreedReason>
 	where
-		I: core::iter::IntoIterator<Item=(CoreIndex, CandidateHash)>,
+		I: core::iter::IntoIterator<Item = (CoreIndex, CandidateHash)>,
 		T: Config,
 	{
 		// Handle timeouts for any availability core work.
@@ -412,7 +412,7 @@ pub mod pallet {
 				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
 			}
 
-			let freed = collect_all_freed_cores::<T,_>(freed_concluded.iter().cloned());
+			let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
 			<scheduler::Pallet<T>>::clear();
 			<scheduler::Pallet<T>>::schedule(freed, now);
@@ -547,7 +547,7 @@ impl<T: Config> Pallet<T> {
 						.collect();
 
 				let disputed_bitfield =
-					create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x,_)| x));
+					create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x, _)| x));
 
 				if !freed_disputed.is_empty() {
 					// unstable sort is fine, because core indices are unique
@@ -579,16 +579,17 @@ impl<T: Config> Pallet<T> {
 				};
 
 				let freed_concluded =
-					<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores::<_, false>(
+					<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores::<
+						_,
+						false,
+					>(
 						expected_bits,
 						&validator_public[..],
 						bitfields.clone(),
 						<scheduler::Pallet<T>>::core_para,
 					);
 
-				let freed = collect_all_freed_cores::<T,_>(
-					freed_concluded.iter().cloned(),
-				);
+				let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
 				<scheduler::Pallet<T>>::clear();
 				<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
@@ -665,7 +666,7 @@ pub(super) fn create_disputed_bitfield<'a, I>(
 	freed_cores: I,
 ) -> DisputedBitfield
 where
-	I: 'a + IntoIterator<Item = &'a CoreIndex>
+	I: 'a + IntoIterator<Item = &'a CoreIndex>,
 {
 	let mut bitvec = BitVec::repeat(false, expected_bits);
 	for core_idx in freed_cores {
