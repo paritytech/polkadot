@@ -732,7 +732,7 @@ zombienet-tests-malus-dispute-valid:
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
-    - export DEBUG=zombie*,-zombie::port-forwarder
+    - export DEBUG=zombie,zombie::network-node
     - export SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
     - export MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
     - export COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}

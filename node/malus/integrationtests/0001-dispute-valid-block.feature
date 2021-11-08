@@ -17,8 +17,8 @@ bob: reports peers count is at least 2
 charlie: reports block height is at least 2
 charlie: reports peers count is at least 2
 alice: reports parachain_candidate_disputes_total is at least 1 within 250 seconds
-bob: reports parachain_candidate_disputes_total is at least 1 within 30 seconds
-charlie: reports parachain_candidate_disputes_total is at least 1 within 30 seconds
+bob: reports parachain_candidate_disputes_total is at least 1 within 45 seconds
+charlie: reports parachain_candidate_disputes_total is at least 1 within 45 seconds
 alice: reports parachain_candidate_dispute_votes{validity="valid"} is at least 1 within 30 seconds
 bob: reports parachain_candidate_dispute_votes{validity="valid"} is at least 2 within 30 seconds
 charlie: reports parachain_candidate_dispute_votes{validity="valid"} is at least 2 within 30 seconds
