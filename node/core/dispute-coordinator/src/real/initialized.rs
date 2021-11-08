@@ -733,8 +733,18 @@ impl Initialized {
 			self.spam_slots.clear(&(session, candidate_hash));
 		}
 
-		// Participate if the imported vote was not local & we did not vote before either:
-		if !is_local && !voted_already {
+		// Check if newly disputed.
+		let is_disputed = !votes.valid.is_empty() && !votes.invalid.is_empty();
+		let concluded_valid = votes.valid.len() >= supermajority_threshold;
+		let concluded_invalid = votes.invalid.len() >= supermajority_threshold;
+
+		// Participate in dispute if the imported vote was not local & we did not vote before either:
+		if !is_local && !voted_already && is_disputed {
+			tracing::trace!(
+				target: LOG_TARGET,
+				candidate_hash = ?candidate_receipt.hash(),
+				"Queuing participation for candidate"
+			);
 			// Participate whenever the imported vote was local & we did not had no cast
 			// previously:
 			self.participation
@@ -746,10 +756,6 @@ impl Initialized {
 				.await?;
 		}
 
-		// Check if newly disputed.
-		let is_disputed = !votes.valid.is_empty() && !votes.invalid.is_empty();
-		let concluded_valid = votes.valid.len() >= supermajority_threshold;
-		let concluded_invalid = votes.invalid.len() >= supermajority_threshold;
 
 		let prev_status = recent_disputes.get(&(session, candidate_hash)).map(|x| x.clone());
 
