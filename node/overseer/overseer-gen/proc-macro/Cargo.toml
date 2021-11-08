@@ -23,5 +23,5 @@ assert_matches = "1.5.0"
 [features]
 default = []
 # write the expanded version to a `overlord-expansion.rs`
-# in the `cwd`
+# in the `OUT_DIR` as defined by `cargo`.
 expansion = []

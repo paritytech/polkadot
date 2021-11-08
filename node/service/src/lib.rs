@@ -796,11 +796,21 @@ where
 		})?;
 
 	if config.offchain_worker.enabled {
-		let _ = service::build_offchain_workers(
-			&config,
-			task_manager.spawn_handle(),
+		let offchain_workers = Arc::new(sc_offchain::OffchainWorkers::new_with_options(
 			client.clone(),
-			network.clone(),
+			sc_offchain::OffchainWorkerOptions { enable_http_requests: false },
+		));
+
+		// Start the offchain workers to have
+		task_manager.spawn_handle().spawn(
+			"offchain-notifications",
+			sc_offchain::notification_future(
+				config.role.is_authority(),
+				client.clone(),
+				offchain_workers,
+				task_manager.spawn_handle().clone(),
+				network.clone(),
+			),
 		);
 	}
 
