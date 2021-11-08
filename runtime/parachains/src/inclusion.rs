@@ -289,7 +289,7 @@ impl<T: Config> Pallet<T> {
 	/// Extract the freed cores based on cores tht became available.
 	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
-	pub(crate) fn update_pending_availability_and_get_freed_cores<IS_CREATE_INHERENT: bool>(
+	pub(crate) fn update_pending_availability_and_get_freed_cores<const IS_CREATE_INHERENT: bool>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
@@ -394,7 +394,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
 	/// and cores free.
-	pub(crate) fn process_bitfields<IS_CREATE_INHERENT: bool>(
+	pub(crate) fn process_bitfields(
 		expected_bits: usize,
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
@@ -404,7 +404,7 @@ impl<T: Config> Pallet<T> {
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T, IS_CREATE_INHERENT>(
+		let checked_bitfields = sanitize_bitfields::<T, false>(
 			signed_bitfields,
 			disputed_bitfield,
 			expected_bits,

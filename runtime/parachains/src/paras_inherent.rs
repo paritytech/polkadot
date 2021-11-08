@@ -580,7 +580,7 @@ impl<T: Config> Pallet<T> {
 					Ok(bitfields) => bitfields,
 					Err(err) => {
 						// by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
-						log::error!(target: LOG_TARGET, ?err, "BUG: convention violation in create_inherent");
+						log::error!(target: LOG_TARGET, "BUG: convention violation in create_inherent: {:?}", err);
 						vec![]
 					},
 				};
