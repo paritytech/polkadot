@@ -1169,6 +1169,7 @@ impl util::JobTrait for CandidateBackingJob {
 	type Metrics = Metrics;
 
 	const NAME: &'static str = "CandidateBackingJob";
+	const SUBSYSTEM: &'static str = "candidate_backing";
 
 	fn run<S: SubsystemSender>(
 		parent: Hash,
