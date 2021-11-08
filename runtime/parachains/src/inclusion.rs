@@ -291,7 +291,7 @@ impl<T: Config> Pallet<T> {
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
 	pub(crate) fn update_pending_availability_and_get_freed_cores<
 		F,
-		const EARLY_RETURN: bool,
+		const ON_CHAIN_USE: bool,
 	>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
@@ -368,7 +368,7 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 
-				if EARLY_RETURN {
+				if ON_CHAIN_USE {
 					let receipt = CommittedCandidateReceipt {
 						descriptor: pending_availability.descriptor,
 						commitments,

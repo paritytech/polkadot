@@ -568,7 +568,7 @@ impl<T: Config> Pallet<T> {
 				) {
 					Ok(bitfields) => bitfields,
 					Err(err) => {
-						// by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
+						// by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
 						log::error!(
 							target: LOG_TARGET,
 							"BUG: convention violation in create_inherent: {:?}",
@@ -614,7 +614,7 @@ impl<T: Config> Pallet<T> {
 			},
 			&scheduled[..],
 		)
-		.ok()?; // by convention, when called with `EARLY_RETURN=false`, will always return `Ok()`
+		.ok()?; // by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
 
 		let entropy = {
 			const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
