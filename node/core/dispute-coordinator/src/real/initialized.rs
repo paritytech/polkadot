@@ -712,8 +712,9 @@ impl Initialized {
 		// Potential spam:
 		if !is_confirmed {
 			let mut free_spam_slots = false;
-			for (_, index) in statements.iter() {
-				free_spam_slots |= self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
+			for (statement, index) in statements.iter() {
+				free_spam_slots |= statement.statement().is_backing() ||
+					self.spam_slots.add_unconfirmed(session, candidate_hash, *index);
 			}
 			// No reporting validator had a free spam slot:
 			if !free_spam_slots {
