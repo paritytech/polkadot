@@ -39,7 +39,7 @@ use super::{
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-pub use tests::participation_full_happy_path;
+pub use tests::{participation_full_happy_path, participation_missing_availability};
 
 mod queues;
 use queues::Queues;
@@ -68,6 +68,7 @@ pub struct Participation {
 }
 
 /// Message from worker tasks.
+#[derive(Debug)]
 pub struct WorkerMessage(ParticipationStatement);
 
 /// Sender use by worker tasks.
@@ -77,6 +78,7 @@ pub type WorkerMessageSender = mpsc::Sender<WorkerMessage>;
 pub type WorkerMessageReceiver = mpsc::Receiver<WorkerMessage>;
 
 /// Statement as result of the validation process.
+#[derive(Debug)]
 pub struct ParticipationStatement {
 	/// Relevant session.
 	pub session: SessionIndex,

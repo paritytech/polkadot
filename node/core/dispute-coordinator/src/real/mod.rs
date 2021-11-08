@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 	SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
-use polkadot_primitives::v1::{Hash, ValidatorIndex, ValidatorPair};
+use polkadot_primitives::v1::{ValidatorIndex, ValidatorPair};
 
 use crate::metrics::Metrics;
 use backend::{Backend, OverlayedBackend};

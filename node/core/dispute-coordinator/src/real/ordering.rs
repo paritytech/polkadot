@@ -42,9 +42,9 @@ pub struct OrderingProvider {
 	candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
 }
 
-/// Comparator for ordering of disputes for candidates.
+/// `Comparator` for ordering of disputes for candidates.
 ///
-/// This comparator makes it possible to order disputes based on age and to ensure some fairness
+/// This `comparator` makes it possible to order disputes based on age and to ensure some fairness
 /// between chains in case of equally old disputes.
 ///
 /// Objective ordering between nodes is important in case of lots disputes, so nodes will pull in
@@ -117,7 +117,7 @@ impl OrderingProvider {
 		Ok(s)
 	}
 
-	/// Retrieve a candidate comparator if available.
+	/// Retrieve a candidate `comparator` if available.
 	///
 	/// If not available, we can treat disputes concerning this candidate with low priority and
 	/// should use spam slots for such disputes.

@@ -24,7 +24,6 @@ use futures::{
 };
 
 use sc_keystore::LocalKeystore;
-use sp_keystore::CryptoStore;
 
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,

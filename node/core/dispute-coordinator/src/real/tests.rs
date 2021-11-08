@@ -58,8 +58,9 @@ use polkadot_primitives::v1::{
 use crate::{
 	metrics::Metrics,
 	real::{
-		backend::Backend, participation::participation_full_happy_path,
-		status::ACTIVE_DURATION_SECS, LOG_TARGET,
+		backend::Backend,
+		participation::{participation_full_happy_path, participation_missing_availability},
+		status::ACTIVE_DURATION_SECS,
 	},
 	Config, DisputeCoordinatorSubsystem,
 };
@@ -261,12 +262,7 @@ impl TestState {
 		session: SessionIndex,
 	) {
 		let leaves: Vec<Hash> = self.headers.keys().cloned().collect();
-		tracing::debug!(
-			count = ?leaves.len(),
-			"Iterating leaves now"
-		);
 		for (n, leaf) in leaves.iter().enumerate() {
-			tracing::debug!(?n, ?leaf, "Iteration");
 			virtual_overseer
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate::start_work(ActivatedLeaf {
@@ -342,7 +338,6 @@ fn test_harness<F>(test: F) -> TestState
 where
 	F: FnOnce(TestState, VirtualOverseer) -> BoxFuture<'static, TestState>,
 {
-	sp_tracing::try_init_simple();
 	TestState::default().resume(test)
 }
 
@@ -363,14 +358,14 @@ async fn participation_with_distribution(
 }
 
 fn make_valid_candidate_receipt() -> CandidateReceipt {
-    let mut candidate_receipt = CandidateReceipt::default();
-    candidate_receipt.commitments_hash = CandidateCommitments::default().hash();
-    candidate_receipt
+	let mut candidate_receipt = CandidateReceipt::default();
+	candidate_receipt.commitments_hash = CandidateCommitments::default().hash();
+	candidate_receipt
 }
 
 fn make_invalid_candidate_receipt() -> CandidateReceipt {
-    // Commitments hash will be 0, which is not correct:
-    CandidateReceipt::default()
+	// Commitments hash will be 0, which is not correct:
+	CandidateReceipt::default()
 }
 
 #[test]
@@ -411,8 +406,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash)
-				.await;
+			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -688,8 +682,7 @@ fn finality_votes_ignore_disputed_candidates() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash)
-				.await;
+			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
 
 			{
 				let (tx, rx) = oneshot::channel();
@@ -785,8 +778,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash)
-				.await;
+			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
 
 			let mut statements = Vec::new();
 			for i in (0..supermajority_threshold - 1).map(|i| i + 3) {
@@ -903,8 +895,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash)
-				.await;
+			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
 
 			let mut statements = Vec::new();
 			// -2: 1 for already imported vote and one for local vote (which is valid).
@@ -1002,10 +993,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 				ImportStatementsResult::ValidImport => {}
 			);
 
-			tracing::debug!("After import statements!");
-
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash)
-				.await;
+			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
 
 			let mut statements = Vec::new();
 			// minus 2, because of local vote and one previously imported invalid vote.
@@ -1099,8 +1087,8 @@ fn resume_dispute_without_local_statement() {
 				})
 				.await;
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash)
-				.await;
+			// Missing availability -> No local vote.
+			participation_missing_availability(&mut virtual_overseer).await;
 
 			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
@@ -1131,8 +1119,7 @@ fn resume_dispute_without_local_statement() {
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
 
-			participation_with_distribution(&mut virtual_overseer, &candidate_hash)
-				.await;
+			participation_with_distribution(&mut virtual_overseer, &candidate_hash).await;
 
 			let valid_vote0 =
 				test_state.issue_statement_with_index(0, candidate_hash, session, true).await;
@@ -1314,9 +1301,9 @@ fn resume_dispute_without_local_statement_or_local_key() {
 
 				virtual_overseer.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 				assert_matches!(
-                    virtual_overseer.try_recv().await,
-                    None => {}
-                );
+					virtual_overseer.try_recv().await,
+					None => {}
+				);
 
 				test_state
 			})
