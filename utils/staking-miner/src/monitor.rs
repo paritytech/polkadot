@@ -25,13 +25,14 @@ use jsonrpsee_ws_client::{
 	WsClient,
 };
 use sc_transaction_pool_api::TransactionStatus;
+use sp_core::storage::StorageKey;
 
 /// Ensure that now is the signed phase.
 async fn ensure_signed_phase<T: EPM::Config, B: BlockT>(
 	client: &WsClient,
 	at: B::Hash,
 ) -> Result<(), Error<T>> {
-	let key = sp_core::storage::StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
+	let key = StorageKey(EPM::CurrentPhase::<T>::hashed_key().to_vec());
 	let phase = get_storage::<EPM::Phase<BlockNumber>>(client, params! {key, at})
 		.await
 		.map_err::<Error<T>, _>(Into::into)?
@@ -156,7 +157,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 						TransactionStatus::Ready | TransactionStatus::Broadcast(_) | TransactionStatus::Future => continue,
 						TransactionStatus::InBlock(hash) => {
 							log::info!(target: LOG_TARGET, "included at {:?}", hash);
-							let key = frame_support::storage::storage_prefix(b"System", b"Events");
+							let key = StorageKey(frame_support::storage::storage_prefix(b"System",b"Events").to_vec());
 							let events = get_storage::<Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
 							>(client, params!{ key, hash }).await?.unwrap_or_default();
 							log::info!(target: LOG_TARGET, "events at inclusion {:?}", events);
