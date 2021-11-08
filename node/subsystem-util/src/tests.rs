@@ -63,6 +63,7 @@ impl JobTrait for FakeCollatorProtocolJob {
 	type Metrics = ();
 
 	const NAME: &'static str = "FakeCollatorProtocolJob";
+	const SUBSYSTEM: &'static str = "fake_collator";
 
 	/// Run a job for the parent block indicated
 	//
