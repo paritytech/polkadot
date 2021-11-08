@@ -4,7 +4,6 @@ use crate::{
 	scheduler, session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use sp_std::{vec, prelude::Vec};
 use frame_support::pallet_prelude::*;
 use primitives::v1::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
@@ -20,17 +19,13 @@ use sp_runtime::{
 	traits::{Header as HeaderT, One, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_map::BTreeMap, convert::TryInto};
+use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
 
 /// Grab an account, seeded by a name and index.
 ///
 /// This is directly from frame-benchmarking. Copy/Pasted so we can use it when not compiling with
 /// "features = runtime-benchmarks"
-fn account<AccountId: Decode + Default>(
-	name: &'static str,
-	index: u32,
-	seed: u32,
-) -> AccountId {
+fn account<AccountId: Decode + Default>(name: &'static str, index: u32, seed: u32) -> AccountId {
 	let entropy = (name, index, seed).using_encoded(sp_core::blake2_256);
 	AccountId::decode(&mut &entropy[..]).unwrap_or_default()
 }

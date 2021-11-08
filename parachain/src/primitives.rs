@@ -41,19 +41,10 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(
-	Default,
-	PartialEq,
-	Eq,
-	Clone,
-	PartialOrd,
-	Ord,
-	Encode,
-	Decode,
-	RuntimeDebug,
-	derive_more::From,
-	TypeInfo,
+	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
+#[cfg_attr(any(feature = "std", feature = "runtime-benchmarks"), derive(Default))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl HeadData {
@@ -326,7 +317,7 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 	fn try_from_account(x: &T) -> Option<Self> {
 		x.using_encoded(|d| {
 			if &d[0..4] != b"para" {
-				return None
+				return None;
 			}
 			let mut cursor = &d[4..];
 			let result = Decode::decode(&mut cursor).ok()?;

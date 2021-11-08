@@ -327,8 +327,9 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// A unique descriptor of the candidate receipt.
-#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[cfg_attr(any(feature = "std", feature = "runtime-benchmarks"), derive(Default))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,
@@ -407,8 +408,9 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 }
 
 /// A candidate-receipt with commitments directly included.
-#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[cfg_attr(any(feature = "std", feature = "runtime-benchmarks"), derive(Default))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -509,8 +511,9 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
+#[cfg_attr(any(feature = "std", feature = "runtime-benchmarks"), derive(Default))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
@@ -610,11 +613,11 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 	validator_lookup: impl Fn(usize) -> Option<ValidatorId>,
 ) -> Result<usize, ()> {
 	if backed.validator_indices.len() != group_len {
-		return Err(())
+		return Err(());
 	}
 
 	if backed.validity_votes.len() > group_len {
-		return Err(())
+		return Err(());
 	}
 
 	// this is known, even in runtime, to be blake2-256.
@@ -635,12 +638,12 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 		if sig.verify(&payload[..], &validator_id) {
 			signed += 1;
 		} else {
-			return Err(())
+			return Err(());
 		}
 	}
 
 	if signed != backed.validity_votes.len() {
-		return Err(())
+		return Err(());
 	}
 
 	Ok(signed)
@@ -712,10 +715,10 @@ impl GroupRotationInfo {
 	/// `core_index` should be less than `cores`, which is capped at `u32::max()`.
 	pub fn group_for_core(&self, core_index: CoreIndex, cores: usize) -> GroupIndex {
 		if self.group_rotation_frequency == 0 {
-			return GroupIndex(core_index.0)
+			return GroupIndex(core_index.0);
 		}
 		if cores == 0 {
-			return GroupIndex(0)
+			return GroupIndex(0);
 		}
 
 		let cores = sp_std::cmp::min(cores, u32::MAX as usize);
@@ -734,10 +737,10 @@ impl GroupRotationInfo {
 	/// `core_index` should be less than `cores`, which is capped at `u32::max()`.
 	pub fn core_for_group(&self, group_index: GroupIndex, cores: usize) -> CoreIndex {
 		if self.group_rotation_frequency == 0 {
-			return CoreIndex(group_index.0)
+			return CoreIndex(group_index.0);
 		}
 		if cores == 0 {
-			return CoreIndex(0)
+			return CoreIndex(0);
 		}
 
 		let cores = sp_std::cmp::min(cores, u32::MAX as usize);
@@ -769,15 +772,15 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 	/// is 10 and the rotation frequency is 5, this should return 15.
 	pub fn next_rotation_at(&self) -> N {
 		let cycle_once = self.now + self.group_rotation_frequency;
-		cycle_once -
-			(cycle_once.saturating_sub(self.session_start_block) % self.group_rotation_frequency)
+		cycle_once
+			- (cycle_once.saturating_sub(self.session_start_block) % self.group_rotation_frequency)
 	}
 
 	/// Returns the block number of the last rotation before or including the current block. If the
 	/// current block is 10 and the rotation frequency is 5, this should return 10.
 	pub fn last_rotation_at(&self) -> N {
-		self.now -
-			(self.now.saturating_sub(self.session_start_block) % self.group_rotation_frequency)
+		self.now
+			- (self.now.saturating_sub(self.session_start_block) % self.group_rotation_frequency)
 	}
 }
 
@@ -1194,8 +1197,9 @@ impl ConsensusLog {
 		digest_item: &runtime_primitives::DigestItem<H>,
 	) -> Result<Option<Self>, parity_scale_codec::Error> {
 		match digest_item {
-			runtime_primitives::DigestItem::Consensus(id, encoded) if id == &POLKADOT_ENGINE_ID =>
-				Ok(Some(Self::decode(&mut &encoded[..])?)),
+			runtime_primitives::DigestItem::Consensus(id, encoded) if id == &POLKADOT_ENGINE_ID => {
+				Ok(Some(Self::decode(&mut &encoded[..])?))
+			}
 			_ => Ok(None),
 		}
 	}
@@ -1225,23 +1229,27 @@ impl DisputeStatement {
 	/// Get the payload data for this type of dispute statement.
 	pub fn payload_data(&self, candidate_hash: CandidateHash, session: SessionIndex) -> Vec<u8> {
 		match *self {
-			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) =>
-				ExplicitDisputeStatement { valid: true, candidate_hash, session }.signing_payload(),
+			DisputeStatement::Valid(ValidDisputeStatementKind::Explicit) => {
+				ExplicitDisputeStatement { valid: true, candidate_hash, session }.signing_payload()
+			}
 			DisputeStatement::Valid(ValidDisputeStatementKind::BackingSeconded(
 				inclusion_parent,
 			)) => CompactStatement::Seconded(candidate_hash).signing_payload(&SigningContext {
 				session_index: session,
 				parent_hash: inclusion_parent,
 			}),
-			DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent)) =>
+			DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(inclusion_parent)) => {
 				CompactStatement::Valid(candidate_hash).signing_payload(&SigningContext {
 					session_index: session,
 					parent_hash: inclusion_parent,
-				}),
-			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) =>
-				ApprovalVote(candidate_hash).signing_payload(session),
-			DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit) =>
-				ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
+				})
+			}
+			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) => {
+				ApprovalVote(candidate_hash).signing_payload(session)
+			}
+			DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit) => {
+				ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload()
+			}
 		}
 	}
 
