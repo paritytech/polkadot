@@ -141,14 +141,14 @@ mod universal_exports {
 		WeightLimit: Get<u64>,
 		Call,
 	> SendXcm for LocalUnpaidExecutingExporter<Executer, Ancestry, WeightLimit, Call> {
-		fn send_xcm(dest: impl Into<MultiLocation>, mut xcm: Xcm<()>) -> SendResult {
+		fn send_xcm(dest: impl Into<MultiLocation>, xcm: Xcm<()>) -> SendResult {
 			let dest = dest.into();
 
 			// TODO: proper matching so we can be sure that it's the only viable send_xcm before we
 			// attempt and thus can acceptably consume dest & xcm.
 			let err = Err(SendError::CannotReachDestination(dest.clone(), xcm.clone()));
 
-			let devolved = match ensure_is_remote(Ancestry::get(), dest.clone()) {
+			let devolved = match ensure_is_remote(Ancestry::get(), dest) {
 				Ok(x) => x,
 				Err(dest) => return err,
 			};
@@ -166,7 +166,6 @@ mod universal_exports {
 				DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 */				ExportMessage { network: remote_network, destination: remote_location, xcm: inner_xcm },
 			]);
-			let dest = dest.into();
 			let pre = match Executer::prepare(message) {
 				Ok(x) => x,
 				Err(_) => return err,

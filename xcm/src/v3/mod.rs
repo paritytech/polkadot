@@ -88,7 +88,7 @@ impl<Call> Xcm<Call> {
 	}
 
 	/// Return a mutable reference to the inner value.
-	pub fn inner_mut(&mut self) -> &mut [Instruction<Call>] {
+	pub fn inner_mut(&mut self) -> &mut Vec<Instruction<Call>> {
 		&mut self.0
 	}
 
