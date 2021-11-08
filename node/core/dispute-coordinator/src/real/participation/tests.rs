@@ -109,6 +109,8 @@ pub async fn participation_full_happy_path(ctx_handle: &mut VirtualOverseer) {
 	},
 	"overseer did not receive candidate validation message",
 	);
+}
+
 /// Full participation with failing availability recovery.
 pub async fn participation_missing_availability(ctx_handle: &mut VirtualOverseer) {
 	assert_matches!(
