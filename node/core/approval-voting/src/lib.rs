@@ -584,7 +584,7 @@ impl State {
 		self.session_window.as_ref().and_then(|w| w.session_info(i))
 	}
 
-	/// Bring `session_window` up2date.
+	/// Bring `session_window` up to date.
 	pub async fn cache_session_info_for_head(
 		&mut self,
 		ctx: &mut (impl SubsystemContext + overseer::SubsystemContext),

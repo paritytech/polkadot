@@ -68,7 +68,7 @@ pub enum Fatal {
 	#[error("Error while accessing runtime information {0}")]
 	Runtime(#[from] runtime::Fatal),
 
-	/// We received a legacy SubystemError::Context error which is considered fatal.
+	/// We received a legacy `SubystemError::Context` error which is considered fatal.
 	#[error("SubsystemError::Context error: {0}")]
 	SubsystemContext(String),
 
