@@ -12,7 +12,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.80", features = ["full", "extra-traits"] }
+syn = { version = "1.0.81", features = ["full", "extra-traits"] }
 quote = "1.0.10"
 proc-macro2 = "1.0.30"
 proc-macro-crate = "1.1.0"
@@ -23,5 +23,5 @@ assert_matches = "1.5.0"
 [features]
 default = []
 # write the expanded version to a `overlord-expansion.rs`
-# in the `cwd`
+# in the `OUT_DIR` as defined by `cargo`.
 expansion = []

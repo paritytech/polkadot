@@ -27,7 +27,8 @@ jobs:
       REF_URL: ${{github.event.inputs.reference_url}}
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout sources
+        uses: actions/checkout@v2
 
       - name: Fetch binary
         run: |
