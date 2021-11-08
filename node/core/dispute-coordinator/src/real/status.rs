@@ -25,7 +25,7 @@ use crate::real::LOG_TARGET;
 /// is not worth considering anymore. Changing this value has little to no bearing on consensus,
 /// and really only affects the work that the node might do on startup during periods of many
 /// disputes.
-const ACTIVE_DURATION_SECS: Timestamp = 180;
+pub const ACTIVE_DURATION_SECS: Timestamp = 180;
 
 /// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
 pub type Timestamp = u64;

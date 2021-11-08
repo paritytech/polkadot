@@ -38,6 +38,8 @@ use super::{
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+pub use tests::participation_full_happy_path;
 
 mod queues;
 use queues::Queues;
@@ -182,6 +184,9 @@ impl Participation {
 	}
 
 	/// Process active leaves update.
+	///
+	/// Make sure we to dequeue participations if that became possible and update most recent
+	/// block.
 	pub async fn process_active_leaves_update<Context: SubsystemContext>(
 		&mut self,
 		ctx: &mut Context,

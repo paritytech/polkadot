@@ -15,10 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use assert_matches::assert_matches;
-use futures::{
-	future::{self, BoxFuture},
-	StreamExt,
-};
+use futures::StreamExt;
 use polkadot_node_subsystem_util::TimeoutExt;
 use std::{sync::Arc, time::Duration};
 
@@ -30,10 +27,9 @@ use polkadot_node_primitives::{AvailableData, BlockData, InvalidCandidate, PoV};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
-		AllMessages, DisputeCoordinatorMessage, DisputeDistributionMessage, RuntimeApiMessage,
-		RuntimeApiRequest, ValidationFailed,
+		AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
+		ValidationFailed,
 	},
-	overseer::Subsystem,
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::{
@@ -96,6 +92,23 @@ async fn activate_leaf(
 			}),
 		)
 		.await
+}
+
+/// Full participation happy path as seen via the overseer.
+pub async fn participation_full_happy_path(ctx_handle: &mut VirtualOverseer) {
+	recover_available_data(ctx_handle).await;
+	fetch_validation_code(ctx_handle).await;
+	store_available_data(ctx_handle, true).await;
+
+	assert_matches!(
+	ctx_handle.recv().await,
+	AllMessages::CandidateValidation(
+		CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
+		) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
+		tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default()))).unwrap();
+	},
+	"overseer did not receive candidate validation message",
+	);
 }
 
 async fn recover_available_data(virtual_overseer: &mut VirtualOverseer) {
