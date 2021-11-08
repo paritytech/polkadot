@@ -38,8 +38,8 @@ use super::{
 
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-pub use tests::participation_full_happy_path;
+//#[cfg(test)]
+//pub use tests::participation_full_happy_path;
 
 mod queues;
 use queues::Queues;

@@ -59,7 +59,7 @@ use crate::{
 	metrics::Metrics,
 	real::{
 		backend::Backend, participation::participation_full_happy_path,
-		status::ACTIVE_DURATION_SECS, LOG_TARGET,
+		status::ACTIVE_DURATION_SECS,
 	},
 	Config, DisputeCoordinatorSubsystem,
 };
