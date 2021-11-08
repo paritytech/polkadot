@@ -110,7 +110,7 @@ impl Jaeger {
 		});
 
 		// Spawn a background task that pulls span information and sends them on the network.
-		spawner.spawn_with_subsystem(
+		spawner.spawn(
 			"jaeger-collector",
 			"jaeger",
 			Box::pin(async move {
