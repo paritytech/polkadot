@@ -16,13 +16,14 @@ bob: reports block height is at least 2
 bob: reports peers count is at least 2
 charlie: reports block height is at least 2
 charlie: reports peers count is at least 2
-alice: reports parachain_candidate_disputes_total is at least 1 within 201 seconds
-bob: reports parachain_candidate_disputes_total is at least 1 within 5 seconds
-charlie: reports parachain_candidate_disputes_total is at least 1  within 5 seconds
-alice: reports parachain_candidate_dispute_votes{validity="valid"} is at least 1
-bob: reports parachain_candidate_dispute_votes{validity="valid"} is at least 2
-charlie: reports parachain_candidate_dispute_votes{validity="valid"} is at least 2
-alice: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
-alice: reports parachain_candidate_dispute_concluded{validity="invalid"} is 0
-bob: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
-charlie: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1
+alice: reports parachain_candidate_disputes_total is at least 1 within 250 seconds
+bob: reports parachain_candidate_disputes_total is at least 1 within 30 seconds
+charlie: reports parachain_candidate_disputes_total is at least 1 within 30 seconds
+alice: reports parachain_candidate_dispute_votes{validity="valid"} is at least 1 within 30 seconds
+bob: reports parachain_candidate_dispute_votes{validity="valid"} is at least 2 within 30 seconds
+charlie: reports parachain_candidate_dispute_votes{validity="valid"} is at least 2 within 30 seconds
+alice: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1 within 30 seconds
+alice: reports parachain_candidate_dispute_concluded{validity="invalid"} is 0 within 30 seconds
+bob: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1 within 30 seconds
+charlie: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1 within 30 seconds
+charlie: reports parachain_candidate_dispute_concluded{validity="valid"} is at least 1 within 30 seconds

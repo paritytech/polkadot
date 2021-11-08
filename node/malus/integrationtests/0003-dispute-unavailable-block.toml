@@ -32,18 +32,18 @@ command = "polkadot"
   [[relaychain.nodes]]
   name = "david"
   validator = true
-  command = "/usr/local/bin/malus back-garbage-candidate"
+  command = "/usr/local/bin/malus suggest-garbage-candidate"
   extra_args = ["--dave", "-lparachain=debug"]
   image = "{{MALUSIMAGE}}"
   autoConnectApi = false
 
-  [[relaychain.nodes]]
-  name = "eve"
-  validator = true
-    command = "/usr/local/bin/malus suggest-garbage-candidate"
-  extra_args = ["--eve", "-lparachain=debug"]
-  image = "{{MALUSIMAGE}}"
-  autoConnectApi = false
+#  [[relaychain.nodes]]
+#  name = "eve"
+#  validator = true
+#    command = "/usr/local/bin/malus suggest-garbage-candidate"
+#  extra_args = ["--eve", "-lparachain=debug"]
+#  image = "{{MALUSIMAGE}}"
+#  autoConnectApi = false
 
 [[parachains]]
 id = 100

@@ -3,7 +3,7 @@ timeout = 1000
 
 [relaychain]
 default_image = "{{SYNTHIMAGE}}"
-chain = "polkadot-local"
+chain = "wococo-local"
 command = "polkadot"
 
   [[relaychain.nodes]]
@@ -22,7 +22,7 @@ command = "polkadot"
 
   [[relaychain.nodes]]
   name = "charlie"
-  validator = true
+  validator = false
   command = "/usr/local/bin/malus back-garbage-candidate"
   extra_args = ["--charlie", "-lparachain=debug"]
   image = "{{MALUSIMAGE}}"
@@ -31,19 +31,19 @@ command = "polkadot"
 
   [[relaychain.nodes]]
   name = "david"
-  validator = true
-  command = "/usr/local/bin/malus back-garbage-candidate"
+  validator = false
+  command = "/usr/local/bin/malus suggest-garbage-candidate"
   extra_args = ["--dave", "-lparachain=debug"]
   image = "{{MALUSIMAGE}}"
   autoConnectApi = false
 
-  [[relaychain.nodes]]
-  name = "eve"
-  validator = true
-  command = "/usr/local/bin/malus suggest-garbage-candidate"
-  extra_args = ["--eve", "-lparachain=debug"]
-  image = "{{MALUSIMAGE}}"
-  autoConnectApi = false
+#  [[relaychain.nodes]]
+#  name = "eve"
+#  validator = false
+#  command = "/usr/local/bin/malus suggest-garbage-candidate"
+#  extra_args = ["--eve", "-lparachain=debug"]
+#  image = "{{MALUSIMAGE}}"
+#  autoConnectApi = false
 
 [[parachains]]
 id = 100

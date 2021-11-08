@@ -17,10 +17,10 @@ charlie: is up
 charlie: reports block height is greater than 2
 charlie: reports peers count is at least 2
 david: is up
-eve: is up
-alice: reports polkadot_parachain_candidate_open_disputes is 1
-alice: polkadot_parachain_candidate_dispute_votes is at least 1
-bob: polkadot_parachain_candidate_dispute_votes is is at least 2
-charlie: polkadot_parachain_candidate_dispute_votes is at least 3
-david: polkadot_parachain_candidate_dispute_votes is at least 4
-alice: polkadot_parachain_candidate_dispute_concluded is "invalid"
+#eve: is up
+alice: reports parachain_candidate_disputes_total is at least 1 within 225 seconds
+alice: reports parachain_candidate_dispute_votes is at least 1 within 225 seconds
+bob: reports parachain_candidate_dispute_votes is is at least 2 within 225 seconds
+charlie: reports parachain_candidate_dispute_votes is at least 3 within 225 seconds
+david: reports parachain_candidate_dispute_votes is at least 4 within 225 seconds
+alice: reports parachain_candidate_dispute_concluded is "invalid" within 225 seconds
