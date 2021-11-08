@@ -72,7 +72,7 @@ pub enum Fatal {
 	#[error("SubsystemError::Context error: {0}")]
 	SubsystemContext(String),
 
-	/// ctx.spawn failed with an error.
+	/// `ctx.spawn` failed with an error.
 	#[error("Spawning a task failed: {0}")]
 	SpawnFailed(SubsystemError),
 
@@ -117,7 +117,7 @@ pub enum NonFatal {
 	#[error(transparent)]
 	Codec(#[from] CodecError),
 
-	/// `RollingSessionWindow` was not able to retrieve session infos.
+	/// `RollingSessionWindow` was not able to retrieve `SessionInfo`s.
 	#[error("Sessions unavailable in `RollingSessionWindow`: {0}")]
 	RollingSessionWindow(#[from] SessionsUnavailable),
 
