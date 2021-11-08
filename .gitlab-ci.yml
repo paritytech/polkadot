@@ -15,7 +15,7 @@ stages:
   - publish
   - deploy
 
-image:                             paritytech/ci-linux:staging
+image:                             paritytech/ci-linux:staging 
 
 workflow:
   rules:
