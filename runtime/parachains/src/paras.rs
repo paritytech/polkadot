@@ -979,7 +979,7 @@ impl<T: Config> Pallet<T> {
 
 				// If the expected upgrade block is in the past, we need
 				// to move this up to the current block. Aka when a parachain block
-				// will be enacted that was build on this or any descendent block the
+				// will be enacted that was built on this or any descendent block the
 				// runtime upgrade should be enacted.
 				let expected_at = if expected_at <= now { now } else { expected_at };
 
