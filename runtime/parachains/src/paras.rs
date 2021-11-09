@@ -956,7 +956,9 @@ impl<T: Config> Pallet<T> {
 
 	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
 	/// of a block of the same parachain executed in the context of a relay-chain block
-	/// with number >= `expected_at`
+	/// with `relay_chain_number >= expected_at`. If `expected_at <= current_block_number`, we
+	/// will set the go-ahead signal directly and schedule the parachain runtime upgrade for being
+	/// applied after inclusion of a parachain block that was build on the current block or later.
 	///
 	/// If there is already a scheduled code upgrade for the para, this is a no-op.
 	pub(crate) fn schedule_code_upgrade(
@@ -977,6 +979,9 @@ impl<T: Config> Pallet<T> {
 				// The block number of the current block.
 				let now = frame_system::Pallet::<T>::current_block_number();
 
+				// Number of reads, to be used to calculate the correct weight.
+				let mut reads = 1;
+
 				// If the expected upgrade block is in the past, we need
 				// to move this up to the current block. Aka when a parachain block
 				// will be enacted that was built on this or any descendent block the
@@ -996,6 +1001,8 @@ impl<T: Config> Pallet<T> {
 							.unwrap_or_else(|idx| idx);
 						upcoming_upgrades.insert(insert_idx, (id, expected_at));
 					});
+
+					reads += 1;
 				}
 
 				// From the moment of signalling of the upgrade until the cooldown expires, the
@@ -1008,15 +1015,16 @@ impl<T: Config> Pallet<T> {
 						.unwrap_or_else(|idx| idx);
 					upgrade_cooldowns.insert(insert_idx, (id, next_possible_upgrade_at));
 				});
+				reads += 1;
 
 				let new_code_hash = new_code.hash();
 				let expected_at_u32 = expected_at.saturated_into();
 				let log = ConsensusLog::ParaScheduleUpgradeCode(id, new_code_hash, expected_at_u32);
 				<frame_system::Pallet<T>>::deposit_log(log.into());
 
-				let (reads, writes) = Self::increase_code_ref(&new_code_hash, &new_code);
+				let (reads_code_ref, writes) = Self::increase_code_ref(&new_code_hash, &new_code);
 				FutureCodeHash::<T>::insert(&id, new_code_hash);
-				T::DbWeight::get().reads_writes(2 + reads, 3 + writes)
+				T::DbWeight::get().reads_writes(reads + reads_code_ref, 3 + writes)
 			}
 		})
 	}
