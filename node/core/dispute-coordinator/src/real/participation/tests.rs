@@ -53,9 +53,17 @@ async fn participate(
 	participation: &mut Participation,
 ) -> Result<()> {
 	let commitments = CandidateCommitments::default();
+	participate_with_commitments_hash(ctx, participation, commitments.hash()).await
+}
+
+async fn participate_with_commitments_hash(
+	ctx: &mut impl SubsystemContext,
+	participation: &mut Participation,
+	commitments_hash: Hash,
+) -> Result<()> {
 	let candidate_receipt = {
 		let mut receipt = CandidateReceipt::default();
-		receipt.commitments_hash = commitments.hash();
+		receipt.commitments_hash = commitments_hash;
 		receipt
 	};
 	let session = 1;
@@ -141,22 +149,24 @@ async fn recover_available_data(virtual_overseer: &mut VirtualOverseer) {
 	);
 }
 
-async fn fetch_validation_code(virtual_overseer: &mut VirtualOverseer) {
+/// Handles validation code fetch, returns the received relay parent hash.
+async fn fetch_validation_code(virtual_overseer: &mut VirtualOverseer) -> Hash {
 	let validation_code = ValidationCode(Vec::new());
 
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			_,
+			hash,
 			RuntimeApiRequest::ValidationCodeByHash(
 				_,
 				tx,
 			)
 		)) => {
 			tx.send(Ok(Some(validation_code))).unwrap();
+			hash
 		},
 		"overseer did not receive runtime API request for validation code",
-	);
+	)
 }
 
 async fn store_available_data(virtual_overseer: &mut VirtualOverseer, success: bool) {
@@ -171,6 +181,92 @@ async fn store_available_data(virtual_overseer: &mut VirtualOverseer, success: b
 		},
 		"overseer did not receive store available data request",
 	);
+}
+
+#[test]
+fn same_req_wont_get_queued_if_participation_is_already_running() {
+	futures::executor::block_on(async {
+		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
+
+		let (sender, mut worker_receiver) = mpsc::channel(1);
+		let mut participation = Participation::new(sender);
+		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
+		participate(&mut ctx, &mut participation).await.unwrap();
+		for _ in 0..MAX_PARALLEL_PARTICIPATIONS {
+			participate(&mut ctx, &mut participation).await.unwrap();
+		}
+
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::AvailabilityRecovery(
+				AvailabilityRecoveryMessage::RecoverAvailableData(_, _, _, tx)
+			) => {
+				tx.send(Err(RecoveryError::Unavailable)).unwrap();
+			},
+			"overseer did not receive recover available data message",
+		);
+
+		let result = participation
+			.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
+			.await
+			.unwrap();
+
+		assert_matches!(
+			result.outcome,
+			ParticipationOutcome::Unavailable => {}
+		);
+
+		// we should not have any further results nor recovery requests:
+		assert_matches!(ctx_handle.recv().timeout(Duration::from_millis(10)).await, None);
+		assert_matches!(worker_receiver.next().timeout(Duration::from_millis(10)).await, None);
+	})
+}
+
+#[test]
+fn reqs_get_queued_when_out_of_capacity() {
+	futures::executor::block_on(async {
+		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
+
+		let (sender, mut worker_receiver) = mpsc::channel(1);
+		let mut participation = Participation::new(sender);
+		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
+		participate(&mut ctx, &mut participation).await.unwrap();
+		for i in 0..MAX_PARALLEL_PARTICIPATIONS {
+			participate_with_commitments_hash(
+				&mut ctx,
+				&mut participation,
+				Hash::repeat_byte(i as _),
+			)
+			.await
+			.unwrap();
+		}
+
+		for _ in 0..MAX_PARALLEL_PARTICIPATIONS + 1 {
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::AvailabilityRecovery(
+					AvailabilityRecoveryMessage::RecoverAvailableData(_, _, _, tx)
+				) => {
+					tx.send(Err(RecoveryError::Unavailable)).unwrap();
+				},
+				"overseer did not receive recover available data message",
+			);
+
+			let result = participation
+				.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
+				.await
+				.unwrap();
+
+			assert_matches!(
+				result.outcome,
+				ParticipationOutcome::Unavailable => {}
+			);
+		}
+
+		// we should not have any further results nor recovery requests:
+		assert_matches!(ctx_handle.recv().timeout(Duration::from_millis(10)).await, None);
+		assert_matches!(worker_receiver.next().timeout(Duration::from_millis(10)).await, None);
+	})
 }
 
 #[test]
@@ -307,7 +403,10 @@ fn cast_invalid_vote_if_validation_fails_or_is_invalid() {
 		participate(&mut ctx, &mut participation).await.unwrap();
 
 		recover_available_data(&mut ctx_handle).await;
-		fetch_validation_code(&mut ctx_handle).await;
+		assert_eq!(
+			fetch_validation_code(&mut ctx_handle).await,
+			participation.recent_block.unwrap().1
+		);
 		store_available_data(&mut ctx_handle, true).await;
 
 		assert_matches!(
@@ -342,7 +441,10 @@ fn cast_invalid_vote_if_validation_passes_but_commitments_dont_match() {
 		participate(&mut ctx, &mut participation).await.unwrap();
 
 		recover_available_data(&mut ctx_handle).await;
-		fetch_validation_code(&mut ctx_handle).await;
+		assert_eq!(
+			fetch_validation_code(&mut ctx_handle).await,
+			participation.recent_block.unwrap().1
+		);
 		store_available_data(&mut ctx_handle, true).await;
 
 		assert_matches!(
@@ -381,7 +483,10 @@ fn cast_valid_vote_if_validation_passes() {
 		participate(&mut ctx, &mut participation).await.unwrap();
 
 		recover_available_data(&mut ctx_handle).await;
-		fetch_validation_code(&mut ctx_handle).await;
+		assert_eq!(
+			fetch_validation_code(&mut ctx_handle).await,
+			participation.recent_block.unwrap().1
+		);
 		store_available_data(&mut ctx_handle, true).await;
 
 		assert_matches!(
@@ -416,7 +521,10 @@ fn failure_to_store_available_data_does_not_preclude_participation() {
 		participate(&mut ctx, &mut participation).await.unwrap();
 
 		recover_available_data(&mut ctx_handle).await;
-		fetch_validation_code(&mut ctx_handle).await;
+		assert_eq!(
+			fetch_validation_code(&mut ctx_handle).await,
+			participation.recent_block.unwrap().1
+		);
 		// the store available data request should fail:
 		store_available_data(&mut ctx_handle, false).await;
 

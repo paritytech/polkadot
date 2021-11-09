@@ -106,10 +106,7 @@ impl CandidateComparator {
 	/// Useful for testing.
 	#[cfg(test)]
 	pub fn new_dummy(block_number: BlockNumber, candidate_hash: CandidateHash) -> Self {
-		Self {
-			relay_parent_block_number: block_number,
-			candidate_hash,
-		}
+		Self { relay_parent_block_number: block_number, candidate_hash }
 	}
 	/// Check whether the given candidate hash belongs to this comparator.
 	pub fn matches_candidate(&self, candidate_hash: &CandidateHash) -> bool {
