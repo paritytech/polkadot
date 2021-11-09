@@ -754,17 +754,25 @@ impl Initialized {
 			tracing::trace!(
 				target: LOG_TARGET,
 				candidate_hash = ?candidate_receipt.hash(),
+				priority = ?comparator.is_some(),
 				"Queuing participation for candidate"
 			);
+			if comparator.is_some() {
+				self.metrics.on_queued_priority_participation();
+			} else {
+				self.metrics.on_queued_best_effort_participation();
+			}
 			// Participate whenever the imported vote was local & we did not had no cast
 			// previously:
-			self.participation
+			let r = self
+				.participation
 				.queue_participation(
 					ctx,
 					comparator,
 					ParticipationRequest::new(candidate_receipt, session, n_validators),
 				)
-				.await?;
+				.await;
+			log_error(r)?;
 		}
 
 		let prev_status = recent_disputes.get(&(session, candidate_hash)).map(|x| x.clone());
