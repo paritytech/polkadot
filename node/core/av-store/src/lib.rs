@@ -33,10 +33,7 @@ use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
-use polkadot_node_subsystem_util::{
-	self as util,
-	metrics::{self, prometheus},
-};
+use polkadot_node_subsystem_util as util;
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
 };
@@ -46,6 +43,9 @@ use polkadot_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError,
 };
+
+mod metrics;
+pub use self::metrics::*;
 
 #[cfg(test)]
 mod tests;
@@ -1273,132 +1273,4 @@ fn prune_all(db: &Arc<dyn KeyValueDB>, config: &Config, clock: &dyn Clock) -> Re
 
 	db.write(tx)?;
 	Ok(())
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	received_availability_chunks_total: prometheus::Counter<prometheus::U64>,
-	pruning: prometheus::Histogram,
-	process_block_finalized: prometheus::Histogram,
-	block_activated: prometheus::Histogram,
-	process_message: prometheus::Histogram,
-	store_available_data: prometheus::Histogram,
-	store_chunk: prometheus::Histogram,
-	get_chunk: prometheus::Histogram,
-}
-
-/// Availability metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_chunks_received(&self, count: usize) {
-		if let Some(metrics) = &self.0 {
-			use core::convert::TryFrom as _;
-			// assume usize fits into u64
-			let by = u64::try_from(count).unwrap_or_default();
-			metrics.received_availability_chunks_total.inc_by(by);
-		}
-	}
-
-	/// Provide a timer for `prune_povs` which observes on drop.
-	fn time_pruning(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.pruning.start_timer())
-	}
-
-	/// Provide a timer for `process_block_finalized` which observes on drop.
-	fn time_process_block_finalized(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.process_block_finalized.start_timer())
-	}
-
-	/// Provide a timer for `block_activated` which observes on drop.
-	fn time_block_activated(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.block_activated.start_timer())
-	}
-
-	/// Provide a timer for `process_message` which observes on drop.
-	fn time_process_message(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.process_message.start_timer())
-	}
-
-	/// Provide a timer for `store_available_data` which observes on drop.
-	fn time_store_available_data(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.store_available_data.start_timer())
-	}
-
-	/// Provide a timer for `store_chunk` which observes on drop.
-	fn time_store_chunk(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.store_chunk.start_timer())
-	}
-
-	/// Provide a timer for `get_chunk` which observes on drop.
-	fn time_get_chunk(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.get_chunk.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			received_availability_chunks_total: prometheus::register(
-				prometheus::Counter::new(
-					"parachain_received_availability_chunks_total",
-					"Number of availability chunks received.",
-				)?,
-				registry,
-			)?,
-			pruning: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_av_store_pruning",
-					"Time spent within `av_store::prune_all`",
-				))?,
-				registry,
-			)?,
-			process_block_finalized: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_av_store_process_block_finalized",
-					"Time spent within `av_store::process_block_finalized`",
-				))?,
-				registry,
-			)?,
-			block_activated: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_av_store_block_activated",
-					"Time spent within `av_store::process_block_activated`",
-				))?,
-				registry,
-			)?,
-			process_message: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_av_store_process_message",
-					"Time spent within `av_store::process_message`",
-				))?,
-				registry,
-			)?,
-			store_available_data: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_av_store_store_available_data",
-					"Time spent within `av_store::store_available_data`",
-				))?,
-				registry,
-			)?,
-			store_chunk: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_av_store_store_chunk",
-					"Time spent within `av_store::store_chunk`",
-				))?,
-				registry,
-			)?,
-			get_chunk: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_av_store_get_chunk",
-					"Time spent fetching requested chunks.`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
 }
