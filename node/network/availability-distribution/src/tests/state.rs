@@ -198,6 +198,7 @@ impl TestState {
 		let update_tx = tx.clone();
 		harness.pool.spawn(
 			"Sending active leaves updates",
+			"",
 			async move {
 				for update in updates {
 					overseer_signal(update_tx.clone(), OverseerSignal::ActiveLeaves(update)).await;
@@ -309,6 +310,7 @@ fn to_incoming_req(
 				oneshot::channel();
 			executor.spawn(
 				"Message forwarding",
+				"",
 				async {
 					let response = rx.await;
 					let payload = response.expect("Unexpected canceled request").result;
