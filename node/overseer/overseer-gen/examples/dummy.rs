@@ -104,8 +104,8 @@ struct DummySpawner;
 impl SpawnNamed for DummySpawner {
 	fn spawn_blocking(
 		&self,
-		name: &'static str,
-		_: &'static str,
+		_task_name: &'static str,
+		_subsystem_name: &'static str,
 		_future: futures::future::BoxFuture<'static, ()>,
 	) {
 		unimplemented!("spawn blocking {}", name)
@@ -113,8 +113,8 @@ impl SpawnNamed for DummySpawner {
 
 	fn spawn(
 		&self,
-		name: &'static str,
-		_: &'static str,
+		_task_name: &'static str,
+		_subsystem_name: &'static str,
 		_future: futures::future::BoxFuture<'static, ()>,
 	) {
 		unimplemented!("spawn {}", name)

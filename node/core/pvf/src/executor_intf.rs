@@ -280,8 +280,8 @@ impl TaskExecutor {
 impl sp_core::traits::SpawnNamed for TaskExecutor {
 	fn spawn_blocking(
 		&self,
-		_: &'static str,
-		_: &'static str,
+		_task_name: &'static str,
+		_subsystem_name: &'static str,
 		future: futures::future::BoxFuture<'static, ()>,
 	) {
 		self.0.spawn_ok(future);
@@ -289,8 +289,8 @@ impl sp_core::traits::SpawnNamed for TaskExecutor {
 
 	fn spawn(
 		&self,
-		_: &'static str,
-		_: &'static str,
+		_task_name: &'static str,
+		_subsystem_name: &'static str,
 		future: futures::future::BoxFuture<'static, ()>,
 	) {
 		self.0.spawn_ok(future);

@@ -197,7 +197,7 @@ impl TestState {
 		// lock ;-)
 		let update_tx = tx.clone();
 		harness.pool.spawn(
-			"Sending active leaves updates",
+			"sending-active-leaves-updates",
 			"",
 			async move {
 				for update in updates {
@@ -309,7 +309,7 @@ fn to_incoming_req(
 			let (tx, rx): (oneshot::Sender<netconfig::OutgoingResponse>, oneshot::Receiver<_>) =
 				oneshot::channel();
 			executor.spawn(
-				"Message forwarding",
+				"message-forwarding",
 				"",
 				async {
 					let response = rx.await;

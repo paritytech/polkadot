@@ -349,14 +349,18 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 						#channel_name_rx, #channel_name_unbounded_rx
 					);
 					let (signal_tx, signal_rx) = #support_crate ::metered::channel(SIGNAL_CHANNEL_CAPACITY);
-					let subsystem_string = stringify!(#subsystem_name);
+
+					// Generate subsystem name based on overseer field name.
+					let mut subsystem_string = String::from(stringify!(#subsystem_name));
+					// Convert owned `snake case` string to a `kebab case` static str.
+					let subsystem_static_str = Box::leak(subsystem_string.replace("_", "-").into_boxed_str());
 
 					let ctx = #subsyste_ctx_name::< #consumes >::new(
 						signal_rx,
 						message_rx,
 						channels_out.clone(),
 						to_overseer_tx.clone(),
-						subsystem_string
+						subsystem_static_str
 					);
 
 					let #subsystem_name: OverseenSubsystem< #consumes > =
@@ -367,7 +371,7 @@ pub(crate) fn impl_builder(info: &OverseerInfo) -> proc_macro2::TokenStream {
 							unbounded_meter,
 							ctx,
 							#subsystem_name,
-							subsystem_string,
+							subsystem_static_str,
 							&mut running_subsystems,
 						)?;
 				)*
@@ -493,22 +497,22 @@ pub(crate) fn impl_task_kind(info: &OverseerInfo) -> proc_macro2::TokenStream {
 		/// Task kind to launch.
 		pub trait TaskKind {
 			/// Spawn a task, it depends on the implementer if this is blocking or not.
-			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, subsystem: &'static str, future: BoxFuture<'static, ()>);
+			fn launch_task<S: SpawnNamed>(spawner: &mut S, task_name: &'static str, subsystem_name: &'static str, future: BoxFuture<'static, ()>);
 		}
 
 		#[allow(missing_docs)]
 		struct Regular;
 		impl TaskKind for Regular {
-			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, subsystem: &'static str, future: BoxFuture<'static, ()>) {
-				spawner.spawn(name, subsystem, future)
+			fn launch_task<S: SpawnNamed>(spawner: &mut S, task_name: &'static str, subsystem_name: &'static str, future: BoxFuture<'static, ()>) {
+				spawner.spawn(task_name, subsystem_name, future)
 			}
 		}
 
 		#[allow(missing_docs)]
 		struct Blocking;
 		impl TaskKind for Blocking {
-			fn launch_task<S: SpawnNamed>(spawner: &mut S, name: &'static str, subsystem: &'static str, future: BoxFuture<'static, ()>) {
-				spawner.spawn(name, subsystem, future)
+			fn launch_task<S: SpawnNamed>(spawner: &mut S, task_name: &'static str, subsystem_name: &'static str, future: BoxFuture<'static, ()>) {
+				spawner.spawn(task_name, subsystem_name, future)
 			}
 		}
 

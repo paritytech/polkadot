@@ -562,7 +562,7 @@ where
 
 		futures::future::ready(())
 	});
-	overseer.spawner().spawn("metrics_metronome", "overseer", Box::pin(metronome));
+	overseer.spawner().spawn("metrics-metronome", "overseer", Box::pin(metronome));
 
 	Ok(())
 }
@@ -775,19 +775,19 @@ where
 
 	fn spawn_job(
 		&mut self,
-		name: &'static str,
-		subsystem: &'static str,
+		task_name: &'static str,
+		subsystem_name: &'static str,
 		j: BoxFuture<'static, ()>,
 	) {
-		self.spawner.spawn(name, subsystem, j);
+		self.spawner.spawn(task_name, subsystem_name, j);
 	}
 
 	fn spawn_blocking_job(
 		&mut self,
-		name: &'static str,
-		subsystem: &'static str,
+		task_name: &'static str,
+		subsystem_name: &'static str,
 		j: BoxFuture<'static, ()>,
 	) {
-		self.spawner.spawn_blocking(name, subsystem, j);
+		self.spawner.spawn_blocking(task_name, subsystem_name, j);
 	}
 }
