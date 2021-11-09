@@ -1273,7 +1273,7 @@ fn does_not_query_local_validator() {
 fn parallel_request_calculation_works_as_expected() {
 	let num_validators = 100;
 	let threshold = recovery_threshold(num_validators).unwrap();
-	let mut phase = RequestChunksPhase::new(100);
+	let mut phase = RequestChunksFromValidators::new(100);
 	assert_eq!(phase.get_desired_request_count(threshold), threshold);
 	phase.error_count = 1;
 	phase.total_received_responses = 1;
