@@ -64,14 +64,13 @@ pub struct CandidateComparator {
 	///
 	/// Important, so we will be participating in oldest disputes first.
 	///
-	/// Note: In fact it would make a bit more sense to use the `BlockNumber` of the including
+	/// Note: In theory it would make more sense to use the `BlockNumber` of the including
 	/// block, as inclusion time is the actual relevant event when it comes to ordering. The
 	/// problem is, that a candidate can get included multiple times on forks, so the `BlockNumber`
-	/// of the including block is not unique. We could however easily work around that problem, by
-	/// just using the lowest `BlockNumber` of all available including blocks.
-	///
-	/// In practice it should not matter much, so in the interest of time I will not change the
-	/// implementation again now, but keep that in mind in case it becomes relevant at some point.
+	/// of the including block is not unique. We could theoretically work around that problem, by
+	/// just using the lowest `BlockNumber` of all available including blocks - the problem is,
+	/// that is not stable. If a new fork appears after the fact, we would start ordering the same
+	/// candidate differently, which would result in the same candidate getting queued twice.
 	relay_parent_block_number: BlockNumber,
 	/// By adding the `CandidateHash`, we can guarantee a unique ordering across candidates.
 	candidate_hash: CandidateHash,
@@ -98,6 +97,23 @@ impl Ord for CandidateComparator {
 			o => return o,
 		}
 		self.candidate_hash.cmp(&other.candidate_hash)
+	}
+}
+
+impl CandidateComparator {
+	/// Create a candidate comparator based on given (fake) values.
+	///
+	/// Useful for testing.
+	#[cfg(test)]
+	pub fn new_dummy(block_number: BlockNumber, candidate_hash: CandidateHash) -> Self {
+		Self {
+			relay_parent_block_number: block_number,
+			candidate_hash,
+		}
+	}
+	/// Check whether the given candidate hash belongs to this comparator.
+	pub fn matches_candidate(&self, candidate_hash: &CandidateHash) -> bool {
+		&self.candidate_hash == candidate_hash
 	}
 }
 

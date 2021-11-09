@@ -22,8 +22,14 @@ use polkadot_primitives::v1::{CandidateHash, CandidateReceipt, SessionIndex};
 
 use crate::real::ordering::CandidateComparator;
 
+#[cfg(test)]
+mod tests;
+
 /// How many potential garbage disputes we want to queue, before starting to drop requests.
+#[cfg(not(test))]
 const BEST_EFFORT_QUEUE_SIZE: usize = 100;
+#[cfg(test)]
+const BEST_EFFORT_QUEUE_SIZE: usize = 3;
 
 /// How many priority disputes can be queued.
 ///
@@ -33,7 +39,10 @@ const BEST_EFFORT_QUEUE_SIZE: usize = 100;
 ///
 /// For 100 parachains, this would allow for every single candidate in 100 blocks on
 /// two forks to get disputed, which should be plenty to deal with any realistic attack.
+#[cfg(not(test))]
 const PRIORITY_QUEUE_SIZE: usize = 20_000;
+#[cfg(test)]
+const PRIORITY_QUEUE_SIZE: usize = 2;
 
 /// Type for counting how often a candidate was added to the best effort queue.
 type BestEffortCount = u32;
@@ -58,6 +67,7 @@ pub struct Queues {
 }
 
 /// A dispute participation request that can be queued.
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ParticipationRequest {
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
@@ -128,6 +138,10 @@ impl Queues {
 		comparator: Option<CandidateComparator>,
 		req: ParticipationRequest,
 	) -> Result<(), Error> {
+		debug_assert!(comparator
+			.map(|c| c.matches_candidate(req.candidate_hash()))
+			.unwrap_or(true));
+
 		if let Some(comparator) = comparator {
 			if self.priority.len() >= PRIORITY_QUEUE_SIZE {
 				return Err(Error::PriorityFull)
