@@ -13,4 +13,4 @@ _The content of this directory is meant to be used by Parity's private CI/CD inf
 
 ## Questions / permissions
 
-Ping in element to @javier:matrix.parity.io to ask questions or grant permission to run the test from your local setup.
+Ping in element @javier:matrix.parity.io to ask questions or grant permission to run the test from your local setup.

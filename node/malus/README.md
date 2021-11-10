@@ -11,36 +11,33 @@ The first argument determines the behavior strain. The currently supported are:
 ## Integration test cases
 
 To define integration tests create file
-in the toml format as used with [gurke][gurke]
+in the toml format as used with [zombie-net][zombie-net]
 under `./integrationtests` with either extension
-`.toml` or `.toml.tera` depending on if you use
-tera based templating.
+`.toml` or `.toml.tera`(**NOT available yet**) depending on if you use tera based templating.
 
-> For the time being non-templated variants should be preferred!
 ## Usage
 
-> Assumes you already gained permissiones, followed the [GKE access guide][gke],
-> and you installed [gurke][gurke].
+> Assumes you already gained permissiones, ping in element @javier:matrix.parity.io to get access.
+> and you installed [zombie-net][zombie-net].
 
 To launch a test case in the development cluster use (e.g. for the  ./node/malus/integrationtests/0001-dispute-valid-block.toml):
 
 ```sh
-# declare the containers pulled in by gurke test definitions
-export SYNTHIMAGE=paritypr/synth-wave:3639-0.9.9-7edc6602-ed5fb773
-export COLIMAGE=paritypr/colander:3639-7edc6602
-export MALUSIMAGE=paritypr/malus:3639-7edc6602
-export SCRIPTSIMAGE=paritytech/simnet:v9
+# declare the containers pulled in by zombie-net test definitions
+export MALUSIMAGE=docker.io/paritypr/malus:4131-ccd09bbf
+export SYNTHIMAGE=docker.io/paritypr/synth-wave:4131-0.9.12-ccd09bbf-29a1ac18
+export COLIMAGE=docker.io/paritypr/colander:4131-ccd09bbf
 
 # login chore, once, with the values as provided in the above guide
 gcloud auth login
-gcloud config set project "parity-simnet"
-gcloud container clusters get-credentials "parity-simnet-devtest" --zone "europe-west3-b"
+gcloud config set project "parity-zombiente"
+gcloud container clusters get-credentials "parity-zombienet" --zone "europe-west3-b" --project parity-zombienet
 
 # launching the actual test
 gurke run -c ./node/malus/integrationtests/0001-dispute-valid-block.toml -n parity-simnet-devtest ./node/malus/integrationtests/0001-dispute-valid-block.feature
 
 # Access individual logs
-kubectl -n parity-simnet-devtest logs mal
+kubectl -n zombie-<namespace unique> logs <node>
 ```
 
 This will also teardown the cluster after completion.
@@ -55,5 +52,5 @@ pwd # run this from the current dir
 podman build -t paritypr/malus:v1 -f Containerfile ../../..
 ```
 
-[gurke]: https://github.com/paritytech/gurke
+[zombie-net]: https://github.com/paritytech/zombie-net
 [gke]: (https://github.com/paritytech/gurke/blob/main/docs/How-to-setup-access-to-gke-k8s-cluster.md)
