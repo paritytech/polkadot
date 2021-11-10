@@ -234,7 +234,6 @@ impl JobTrait for BitfieldSigningJob {
 	type Metrics = Metrics;
 
 	const NAME: &'static str = "bitfield-signing-job";
-	const SUBSYSTEM: &'static str = "bitfield-signing";
 
 	/// Run a job for the parent block indicated
 	fn run<S: SubsystemSender>(

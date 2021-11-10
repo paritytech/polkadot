@@ -148,8 +148,7 @@ impl JobTrait for ProvisioningJob {
 	type RunArgs = ();
 	type Metrics = Metrics;
 
-	const NAME: &'static str = "provisioning-job";
-	const SUBSYSTEM: &'static str = "provisioner";
+	const NAME: &'static str = "provisioner-job";
 
 	/// Run a job for the parent block indicated
 	//

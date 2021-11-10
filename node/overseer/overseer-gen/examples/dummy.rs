@@ -104,20 +104,20 @@ struct DummySpawner;
 impl SpawnNamed for DummySpawner {
 	fn spawn_blocking(
 		&self,
-		_task_name: &'static str,
-		_subsystem_name: &'static str,
+		task_name: &'static str,
+		subsystem_name: Option<&'static str>,
 		_future: futures::future::BoxFuture<'static, ()>,
 	) {
-		unimplemented!("spawn blocking {}", name)
+		unimplemented!("spawn blocking {} {}", task_name, subsystem_name.unwrap_or("default"))
 	}
 
 	fn spawn(
 		&self,
-		_task_name: &'static str,
-		_subsystem_name: &'static str,
+		task_name: &'static str,
+		subsystem_name: Option<&'static str>,
 		_future: futures::future::BoxFuture<'static, ()>,
 	) {
-		unimplemented!("spawn {}", name)
+		unimplemented!("spawn {} {}", task_name, subsystem_name.unwrap_or("default"))
 	}
 }
 
