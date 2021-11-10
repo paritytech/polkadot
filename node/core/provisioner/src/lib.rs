@@ -620,4 +620,4 @@ async fn select_disputes(
 
 
 /// The provisioning subsystem.
-pub type ProvisioningSubsystem<Spawner> = JobSubsystem<ProvisioningJob, Spawner>;
+pub type ProvisionerSubsystem<Spawner> = JobSubsystem<ProvisioningJob, Spawner>;
