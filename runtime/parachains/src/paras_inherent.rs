@@ -138,7 +138,7 @@ fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Wei
 }
 
 fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
-	<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields() * bitfields_len as Weight
+	<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields().saturating_mul(bitfields_len as Weight)
 }
 
 fn backed_candidates_weight<T: frame_system::Config + Config>(
