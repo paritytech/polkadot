@@ -122,6 +122,8 @@ const PREFIX_0: u32 = 10_000;
 const PREFIX_1: u32 = PREFIX_0 * 2;
 const MAX_UNIQUE_CHANNELS: u32 = 128;
 
+static_assertions::const_assert!(MAX_UNIQUE_CHANNELS < PREFIX_0);
+
 frame_benchmarking::benchmarks! {
 	where_clause { where <T as frame_system::Config>::Origin: From<crate::Origin> }
 
@@ -217,7 +219,6 @@ frame_benchmarking::benchmarks! {
 		// sender and recipients for all channels.
 		let c in 0 .. MAX_UNIQUE_CHANNELS;
 
-		assert!(MAX_UNIQUE_CHANNELS < PREFIX_0, "PREFIX_0 must always be more than MAX_UNIQUE_CHANNELS");
 		for id in 0 .. c {
 			let _ = establish_para_connection::<T>(PREFIX_0 + id, PREFIX_1 + id, ParachainSetupStep::Accepted);
 		}
@@ -232,7 +233,6 @@ frame_benchmarking::benchmarks! {
 		// sender and recipients for all channels.
 		let c in 0 .. MAX_UNIQUE_CHANNELS;
 
-		assert!(MAX_UNIQUE_CHANNELS < PREFIX_0, "PREFIX_0 must always be more than MAX_UNIQUE_CHANNELS");
 		for id in 0 .. c {
 			let _ = establish_para_connection::<T>(PREFIX_0 + id, PREFIX_1 + id, ParachainSetupStep::CloseRequested);
 		}
@@ -248,7 +248,6 @@ frame_benchmarking::benchmarks! {
 		// one that we remove.
 		let c in 0 .. MAX_UNIQUE_CHANNELS;
 
-		assert!(MAX_UNIQUE_CHANNELS < PREFIX_0, "PREFIX_0 must always be more than MAX_UNIQUE_CHANNELS");
 		for id in 0 .. c {
 			let _ = establish_para_connection::<T>(PREFIX_0 + id, PREFIX_1 + id, ParachainSetupStep::Requested);
 		}
@@ -256,7 +255,7 @@ frame_benchmarking::benchmarks! {
 		let [(sender, sender_origin), (recipient, _)] = establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
 		assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c + 1);
 		let channel_id = HrmpChannelId { sender, recipient };
-	}: _(sender_origin, channel_id, c)
+	}: _(sender_origin, channel_id, c + 1)
 	verify {
 		assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c);
 	}
@@ -267,7 +266,6 @@ frame_benchmarking::benchmarks! {
 	clean_open_channel_requests {
 		let c in 0 .. MAX_UNIQUE_CHANNELS;
 
-		assert!(MAX_UNIQUE_CHANNELS < PREFIX_0, "PREFIX_0 must always be more than MAX_UNIQUE_CHANNELS");
 		for id in 0 .. c {
 			let _ = establish_para_connection::<T>(PREFIX_0 + id, PREFIX_1 + id, ParachainSetupStep::Requested);
 		}

@@ -6903,6 +6903,7 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "sp-tracing",
+ "static_assertions",
  "xcm",
  "xcm-executor",
 ]

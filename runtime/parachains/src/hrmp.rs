@@ -296,6 +296,8 @@ pub mod pallet {
 		OpenHrmpChannelDoesntExist,
 		/// Cannot cancel an HRMP open channel request because it is already confirmed.
 		OpenHrmpChannelAlreadyConfirmed,
+		/// The provided witness data is wrong.
+		WrongWitness,
 	}
 
 	/// The set of pending HRMP open channel requests.
@@ -544,14 +546,20 @@ pub mod pallet {
 		/// The cancellation happens immediately. It is not possible to cancel the request if it is
 		/// already accepted.
 		///
-		/// Total number of opening channels must be provided as witness data.
-		#[pallet::weight(<T as Config>::WeightInfo::hrmp_cancel_open_request(*_channels))]
+		/// Total number of open requests (i.e. `HrmpOpenChannelRequestsList`) must be provided as
+		/// witness data.
+		#[pallet::weight(<T as Config>::WeightInfo::hrmp_cancel_open_request(*open_requests))]
 		pub fn hrmp_cancel_open_request(
 			origin: OriginFor<T>,
 			channel_id: HrmpChannelId,
-			_channels: u32,
+			open_requests: u32,
 		) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			ensure!(
+				<Self as Store>::HrmpOpenChannelRequestsList::decode_len().unwrap_or_default() as u32 ==
+					open_requests,
+				Error::<T>::WrongWitness
+			);
 			Self::cancel_open_request(origin, channel_id.clone())?;
 			Self::deposit_event(Event::OpenChannelCanceled(origin, channel_id));
 			Ok(())
