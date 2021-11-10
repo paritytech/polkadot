@@ -372,7 +372,7 @@ impl<T: Config> Pallet<T> {
 	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
 	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) -> Weight {
-		let mut weight = 0;
+		let mut weight: Weight = 0;
 		for outgoing_para in outgoing {
 			weight = weight.saturating_add(Self::clean_ump_after_outgoing(outgoing_para));
 		}
