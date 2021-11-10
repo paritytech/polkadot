@@ -43,7 +43,7 @@ use frame_support::traits::Get;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
-use sp_runtime::{DeserializeOwned, traits::Block as BlockT};
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use structopt::StructOpt;
 
 pub(crate) enum AnyRuntime {
@@ -493,13 +493,10 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	client: &WsClient,
 ) -> Result<(), Error<T>> {
 	let linked_version = T::Version::get();
-	let on_chain_version = rpc_helpers::rpc::<sp_version::RuntimeVersion>(
-		client,
-		"state_getRuntimeVersion",
-		None,
-	)
-	.await
-	.expect("runtime version RPC should always work; qed");
+	let on_chain_version =
+		rpc_helpers::rpc::<sp_version::RuntimeVersion>(client, "state_getRuntimeVersion", None)
+			.await
+			.expect("runtime version RPC should always work; qed");
 
 	log::debug!(target: LOG_TARGET, "linked version {:?}", linked_version);
 	log::debug!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);

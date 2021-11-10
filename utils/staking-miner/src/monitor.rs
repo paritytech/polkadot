@@ -16,13 +16,13 @@
 
 //! The monitor command.
 
-use crate::{
-	prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig,
-};
+use crate::{prelude::*, rpc_helpers::*, signer::Signer, Error, MonitorConfig, SharedConfig};
 use codec::Encode;
-use jsonrpsee::types::{traits::SubscriptionClient, Subscription};
-use jsonrpsee::ws_client::WsClient;
-use jsonrpsee::rpc_params;
+use jsonrpsee::{
+	rpc_params,
+	types::{traits::SubscriptionClient, Subscription},
+	ws_client::WsClient,
+};
 
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::storage::StorageKey;
