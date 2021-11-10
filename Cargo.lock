@@ -6351,7 +6351,6 @@ dependencies = [
 name = "polkadot-node-core-provisioner"
 version = "0.9.11"
 dependencies = [
- "bitvec 0.20.1",
  "futures 0.3.17",
  "futures-timer 3.0.2",
  "polkadot-node-subsystem",
