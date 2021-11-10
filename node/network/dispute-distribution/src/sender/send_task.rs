@@ -304,10 +304,7 @@ async fn send_requests<Context: SubsystemContext>(
 		statuses.insert(receiver, DeliveryStatus::Pending(remote_handle));
 	}
 
-	let msg = NetworkBridgeMessage::SendRequests(
-		reqs,
-		IfDisconnected::ImmediateError,
-	);
+	let msg = NetworkBridgeMessage::SendRequests(reqs, IfDisconnected::ImmediateError);
 	ctx.send_message(AllMessages::NetworkBridge(msg)).await;
 	Ok(statuses)
 }
