@@ -615,53 +615,9 @@ deploy-polkasync-kusama:
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-simnet-tests-parachains-smoketest:
+zombienet-tests-parachains-smoke-test:
   stage:                           deploy
-  <<:                              *kubernetes-env
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-  needs:
-    - job:                         publish-polkadot-image
-    - job:                         publish-adder-collator-image
-
-  image:                           "${SIMNET_IMAGE}"
-  variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx/simnet_tests'
-    # FIXME: use the master after the merge of the malus pr
-    # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/simnet_tests'
-    NETWORK_CONFIG:                'simnet_tests/configs/simple_rococo_testnet.toml'
-  # `parachains.env` brings here `$PARACHAINS_IMAGE_NAME` and `$PARACHAINS_IMAGE_TAG`
-  # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
-  # `collator.env` brings here `$COLLATOR_IMAGE_NAME` and  `$COLLATOR_IMAGE_TAG`
-  # For local tests with docker `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG`
-  # can be replaced with `master` tag.
-  before_script:
-    - echo "Simnet Tests Config"
-    - echo "${SIMNET_IMAGE_NAME}"
-    - echo "${SIMNET_IMAGE_TAG}"
-    - echo "${PARACHAINS_IMAGE_NAME}"
-    - echo "${PARACHAINS_IMAGE_TAG}"
-    - echo "${GH_DIR}"
-    - echo "${NETWORK_CONFIG}"
-  script:
-    - /home/nonroot/simnet/scripts/run-test-environment-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --config="${NETWORK_CONFIG}"
-        --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        -e "SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        -e "COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        -e "SCRIPTSIMAGE=${SIMNET_IMAGE_NAME}:${SIMNET_IMAGE_TAG}"
-  allow_failure:                   true
-  retry: 2
-  tags:
-    - parity-simnet
-
-simnet-tests-malus-dispute-valid:
-  stage:                           deploy
-  image:                           "${SIMNET_IMAGE}"
+  image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -674,7 +630,7 @@ simnet-tests-malus-dispute-valid:
     - job:                         publish-adder-collator-image
 
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx/simnet_tests'
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx-zombienet/zombienet_tests/parachains'
     # FIXME: use the master after the merge of the malus pr
     # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/simnet_tests'
     # FIXME: copy config of tests in simnet_test and use proper values
@@ -683,25 +639,24 @@ simnet-tests-malus-dispute-valid:
   # For local tests with docker `$MALUS_IMAGE_TAG` can be replaced with `master` tag.
 
   before_script:
-    - echo "Simnet Tests Config"
-    - echo "${SIMNET_IMAGE_NAME}"
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - export SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
+    - export COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
 
   script:
-    - /home/nonroot/simnet/scripts/run-test-environment-manager-v2.sh
+    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --tag=malus
-        --image="PARACHAINSIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --image="SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --image="COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image="SCRIPTSIMAGE=${SIMNET_IMAGE}"
-        --image="MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}"
+        --test="0001-parachains-smoke-test.feature"
   allow_failure:                   true
   retry: 2
   tags:
-    - polkadot-simnet
+    - parity-zombienet
 
 zombienet-tests-malus-dispute-valid:
   stage:                           deploy
