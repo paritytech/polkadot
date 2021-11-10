@@ -48,6 +48,10 @@ use polkadot_primitives::v1::{
 use std::{collections::BTreeMap, pin::Pin, sync::Arc};
 use thiserror::Error;
 
+mod metrics;
+
+pub use self::metrics::*;
+
 #[cfg(test)]
 mod tests;
 
@@ -614,71 +618,6 @@ async fn select_disputes(
 		.collect())
 }
 
-#[derive(Clone)]
-struct MetricsInner {
-	inherent_data_requests: prometheus::CounterVec<prometheus::U64>,
-	request_inherent_data: prometheus::Histogram,
-	provisionable_data: prometheus::Histogram,
-}
-
-/// Provisioner metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_inherent_data_request(&self, response: Result<(), ()>) {
-		if let Some(metrics) = &self.0 {
-			match response {
-				Ok(()) => metrics.inherent_data_requests.with_label_values(&["succeeded"]).inc(),
-				Err(()) => metrics.inherent_data_requests.with_label_values(&["failed"]).inc(),
-			}
-		}
-	}
-
-	/// Provide a timer for `request_inherent_data` which observes on drop.
-	fn time_request_inherent_data(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.request_inherent_data.start_timer())
-	}
-
-	/// Provide a timer for `provisionable_data` which observes on drop.
-	fn time_provisionable_data(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.provisionable_data.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			inherent_data_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"parachain_inherent_data_requests_total",
-						"Number of InherentData requests served by provisioner.",
-					),
-					&["success"],
-				)?,
-				registry,
-			)?,
-			request_inherent_data: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_provisioner_request_inherent_data",
-					"Time spent within `provisioner::request_inherent_data`",
-				))?,
-				registry,
-			)?,
-			provisionable_data: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"parachain_provisioner_provisionable_data",
-					"Time spent within `provisioner::provisionable_data`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
-}
 
 /// The provisioning subsystem.
 pub type ProvisioningSubsystem<Spawner> = JobSubsystem<ProvisioningJob, Spawner>;
