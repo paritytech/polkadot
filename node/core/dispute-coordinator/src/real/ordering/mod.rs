@@ -32,6 +32,9 @@ use super::{
 	LOG_TARGET,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Provider of `CandidateComparator` for candidates.
 pub struct OrderingProvider {
 	/// All candidates we have seen included, which not yet have been finalized.
