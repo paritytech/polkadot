@@ -372,9 +372,11 @@ impl<T: Config> Pallet<T> {
 	/// Iterate over all paras that were noted for offboarding and remove all the data
 	/// associated with them.
 	fn perform_outgoing_para_cleanup(outgoing: &[ParaId]) -> Weight {
-		outgoing
-			.iter()
-			.fold(0, |w, p| w.saturating_add(Self::clean_ump_after_outgoing(p)))
+		let mut weight = 0;
+		for outgoing_para in outgoing {
+			weight = weight.saturating_add(Self::clean_ump_after_outgoing(outgoing_para));
+		}
+		weight
 	}
 
 	/// Remove all relevant storage items for an outgoing parachain.
@@ -797,7 +799,7 @@ pub(crate) mod tests {
 		}
 	}
 
-	pub fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
+	fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
 		let msgs = vec![msg];
 		assert!(Ump::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
 		let _ = Ump::receive_upward_messages(para, msgs);
