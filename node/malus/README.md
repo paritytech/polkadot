@@ -18,7 +18,7 @@ under `./integrationtests` with either extension
 ## Usage
 
 > Assumes you already gained permissiones, ping in element @javier:matrix.parity.io to get access.
-> and you installed [zombie-net][zombie-net].
+> and you have cloned the [zombie-net][zombie-net] repo.
 
 To launch a test case in the development cluster use (e.g. for the  ./node/malus/integrationtests/0001-dispute-valid-block.toml):
 
@@ -34,10 +34,12 @@ gcloud config set project "parity-zombiente"
 gcloud container clusters get-credentials "parity-zombienet" --zone "europe-west3-b" --project parity-zombienet
 
 # launching the actual test
-gurke run -c ./node/malus/integrationtests/0001-dispute-valid-block.toml -n parity-simnet-devtest ./node/malus/integrationtests/0001-dispute-valid-block.feature
+cd zombie-net
+npm run build
+node dist/cli.js test <path to polkadot repo>/node/malus/integrationtests/0001-dispute-valid-block.feature
 
-# Access individual logs
-kubectl -n zombie-<namespace unique> logs <node>
+# Access  logs (in google cloud storage)
+gsutil ls gs://zombienet-logs/zombie-<namespace uniqueId>/logs/
 ```
 
 This will also teardown the cluster after completion.
