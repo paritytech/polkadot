@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-subsystem-util"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Subsystem traits and message definitions"
@@ -12,10 +12,10 @@ itertools = "0.10"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 pin-project = "1.0.8"
 rand = "0.8.3"
-thiserror = "1.0.26"
-tracing = "0.1.28"
+thiserror = "1.0.30"
+tracing = "0.1.29"
 derive_more = "0.99.11"
-lru = "0.6.6"
+lru = "0.7.0"
 
 polkadot-node-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 polkadot-node-jaeger = { path = "../jaeger" }

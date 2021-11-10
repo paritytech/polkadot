@@ -16,7 +16,7 @@
 
 use super::*;
 use crate::{configuration::HostConfiguration, shared};
-use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
+use frame_benchmarking::benchmarks;
 use frame_system::RawOrigin;
 use primitives::v1::{HeadData, Id as ParaId, ValidationCode, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 use sp_runtime::traits::{One, Saturating};
@@ -126,10 +126,10 @@ benchmarks! {
 		let next_session = crate::shared::Pallet::<T>::session_index().saturating_add(One::one());
 		assert_last_event::<T>(Event::ActionQueued(para_id, next_session).into());
 	}
-}
 
-impl_benchmark_test_suite!(
-	Pallet,
-	crate::mock::new_test_ext(Default::default()),
-	crate::mock::Test
-);
+	impl_benchmark_test_suite!(
+		Pallet,
+		crate::mock::new_test_ext(Default::default()),
+		crate::mock::Test
+	);
+}

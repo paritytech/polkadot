@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-av-store"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -8,8 +8,8 @@ edition = "2018"
 futures = "0.3.17"
 futures-timer = "3.0.2"
 kvdb = "0.10.0"
-thiserror = "1.0.26"
-tracing = "0.1.28"
+thiserror = "1.0.30"
+tracing = "0.1.29"
 bitvec = "0.20.1"
 
 parity-scale-codec = { version = "2.3.1", features = ["derive"] }

@@ -22,8 +22,8 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, GroupRotationInfo,
 	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex,
+	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 use sp_core::testing::TaskExecutor;
 use std::{
@@ -49,6 +49,7 @@ struct MockRuntimeApi {
 	dmq_contents: HashMap<ParaId, Vec<InboundDownwardMessage>>,
 	hrmp_channels: HashMap<ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage>>>,
 	babe_epoch: Option<BabeEpoch>,
+	on_chain_votes: Option<ScrapedOnChainVotes>,
 }
 
 impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -87,6 +88,17 @@ sp_api::mock_impl_runtime_apis! {
 			_assumption: OccupiedCoreAssumption,
 		) -> Option<PersistedValidationData> {
 			self.validation_data.get(&para).cloned()
+		}
+
+		fn assumed_validation_data(
+			para_id: ParaId,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData, ValidationCodeHash)> {
+			self.validation_data
+				.get(&para_id)
+				.cloned()
+				.filter(|data| data.hash() == expected_persisted_validation_data_hash)
+				.zip(self.validation_code.get(&para_id).map(|code| code.hash()))
 		}
 
 		fn check_validation_outputs(
@@ -148,6 +160,10 @@ sp_api::mock_impl_runtime_apis! {
 			hash: ValidationCodeHash,
 		) -> Option<ValidationCode> {
 			self.validation_code_by_hash.get(&hash).map(|c| c.clone())
+		}
+
+		fn on_chain_votes(&self) -> Option<ScrapedOnChainVotes> {
+			self.on_chain_votes.clone()
 		}
 	}
 
@@ -328,6 +344,58 @@ fn requests_persisted_validation_data() {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::PersistedValidationData(para_b, OccupiedCoreAssumption::Included, tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), None);
+
+		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+	};
+
+	futures::executor::block_on(future::join(subsystem_task, test_task));
+}
+
+#[test]
+fn requests_assumed_validation_data() {
+	let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+	let relay_parent = [1; 32].into();
+	let para_a = 5.into();
+	let para_b = 6.into();
+	let spawner = sp_core::testing::TaskExecutor::new();
+
+	let validation_code = ValidationCode(vec![1, 2, 3]);
+	let expected_data_hash = <PersistedValidationData as Default>::default().hash();
+	let expected_code_hash = validation_code.hash();
+
+	let mut runtime_api = MockRuntimeApi::default();
+	runtime_api.validation_data.insert(para_a, Default::default());
+	runtime_api.validation_code.insert(para_a, validation_code);
+	runtime_api.validation_data.insert(para_b, Default::default());
+	let runtime_api = Arc::new(runtime_api);
+
+	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+	let test_task = async move {
+		let (tx, rx) = oneshot::channel();
+
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::AssumedValidationData(para_a, expected_data_hash, tx),
+				),
+			})
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), Some((Default::default(), expected_code_hash)));
+
+		let (tx, rx) = oneshot::channel();
+		ctx_handle
+			.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::AssumedValidationData(para_a, Hash::zero(), tx),
 				),
 			})
 			.await;

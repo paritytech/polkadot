@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-statement-distribution"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Statement Distribution Subsystem"
 edition = "2018"
 
 [dependencies]
 futures = "0.3.17"
-tracing = "0.1.28"
+tracing = "0.1.29"
 polkadot-primitives = { path = "../../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -19,7 +19,7 @@ arrayvec = "0.5.2"
 indexmap = "1.7.0"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 derive_more = "0.99.11"
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2018"
@@ -15,8 +15,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 log = "0.4.13"
-thiserror = "1.0.26"
-structopt = { version = "0.3.23", optional = true }
+thiserror = "1.0.30"
+structopt = { version = "0.3.25", optional = true }
 futures = "0.3.17"
 
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }

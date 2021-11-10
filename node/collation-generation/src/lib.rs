@@ -62,7 +62,7 @@ impl CollationGenerationSubsystem {
 	/// Conceptually, this is very simple: it just loops forever.
 	///
 	/// - On incoming overseer messages, it starts or stops jobs as appropriate.
-	/// - On other incoming messages, if they can be converted into Job::ToJob and
+	/// - On other incoming messages, if they can be converted into `Job::ToJob` and
 	///   include a hash, then they're forwarded to the appropriate individual job.
 	/// - On outgoing messages from the jobs, it forwards them to the overseer.
 	///

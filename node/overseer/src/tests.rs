@@ -112,6 +112,7 @@ where
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
 							Default::default(),
 							PoV { block_data: BlockData(Vec::new()) }.into(),
+							Default::default(),
 							tx,
 						))
 						.await;
@@ -574,6 +575,103 @@ fn overseer_finalize_works() {
 	});
 }
 
+// Tests that finalization of an active leaf doesn't remove it from
+// the leaves set.
+#[test]
+fn overseer_finalize_leaf_preserves_it() {
+	let spawner = sp_core::testing::TaskExecutor::new();
+
+	executor::block_on(async move {
+		let first_block_hash = [1; 32].into();
+		let second_block_hash = [2; 32].into();
+
+		let first_block =
+			BlockInfo { hash: first_block_hash, parent_hash: [0; 32].into(), number: 1 };
+		let second_block =
+			BlockInfo { hash: second_block_hash, parent_hash: [42; 32].into(), number: 1 };
+
+		let (tx_5, mut rx_5) = metered::channel(64);
+		let (tx_6, mut rx_6) = metered::channel(64);
+
+		// start with two forks at height 1.
+
+		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
+			.unwrap()
+			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
+			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
+			.leaves(block_info_to_pair(vec![first_block.clone(), second_block]))
+			.build()
+			.unwrap();
+		let mut handle = Handle::new(handle);
+
+		let overseer_fut = overseer.run().fuse();
+		pin_mut!(overseer_fut);
+
+		let mut ss5_results = Vec::new();
+		let mut ss6_results = Vec::new();
+
+		// This should stop work on the second block, but only the
+		// second block.
+		handle.block_finalized(first_block).await;
+
+		let expected_heartbeats = vec![
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: first_block_hash,
+				number: 1,
+				span: Arc::new(jaeger::Span::Disabled),
+				status: LeafStatus::Fresh,
+			})),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: second_block_hash,
+				number: 1,
+				span: Arc::new(jaeger::Span::Disabled),
+				status: LeafStatus::Fresh,
+			})),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				deactivated: [second_block_hash].as_ref().into(),
+				..Default::default()
+			}),
+			OverseerSignal::BlockFinalized(first_block_hash, 1),
+		];
+
+		loop {
+			select! {
+				res = overseer_fut => {
+					assert!(res.is_ok());
+					break;
+				},
+				res = rx_5.next() => {
+					if let Some(res) = res {
+						ss5_results.push(res);
+					}
+				}
+				res = rx_6.next() => {
+					if let Some(res) = res {
+						ss6_results.push(res);
+					}
+				}
+				complete => break,
+			}
+
+			if ss5_results.len() == expected_heartbeats.len() &&
+				ss6_results.len() == expected_heartbeats.len()
+			{
+				handle.stop().await;
+			}
+		}
+
+		assert_eq!(ss5_results.len(), expected_heartbeats.len());
+		assert_eq!(ss6_results.len(), expected_heartbeats.len());
+
+		// Notifications on finality for multiple blocks at once
+		// may be received in different orders.
+		for expected in expected_heartbeats {
+			assert!(ss5_results.contains(&expected));
+			assert!(ss6_results.contains(&expected));
+		}
+	});
+}
+
 #[test]
 fn do_not_send_empty_leaves_update_on_block_finalization() {
 	let spawner = sp_core::testing::TaskExecutor::new();
@@ -694,7 +792,12 @@ where
 fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	let (sender, _) = oneshot::channel();
 	let pov = Arc::new(PoV { block_data: BlockData(Vec::new()) });
-	CandidateValidationMessage::ValidateFromChainState(Default::default(), pov, sender)
+	CandidateValidationMessage::ValidateFromChainState(
+		Default::default(),
+		pov,
+		Default::default(),
+		sender,
+	)
 }
 
 fn test_candidate_backing_msg() -> CandidateBackingMessage {

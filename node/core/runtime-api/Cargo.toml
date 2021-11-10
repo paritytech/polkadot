@@ -1,12 +1,12 @@
 [package]
 name = "polkadot-node-core-runtime-api"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 futures = "0.3.17"
-tracing = "0.1.28"
+tracing = "0.1.29"
 memory-lru = "0.1.0"
 parity-util-mem = { version = "0.10.0", default-features = false }
 

@@ -945,6 +945,22 @@ pub struct SessionInfo {
 	pub needed_approvals: u32,
 }
 
+/// Scraped runtime backing votes and resolved disputes.
+#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, Default, MallocSizeOf))]
+pub struct ScrapedOnChainVotes<H: Encode + Decode = Hash> {
+	/// The session in which the block was included.
+	pub session: SessionIndex,
+	/// Set of backing validators for each candidate, represented by its candidate
+	/// receipt.
+	pub backing_validators_per_candidate:
+		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidityAttestation)>)>,
+	/// On-chain-recorded set of disputes.
+	/// Note that the above `backing_validators` are
+	/// unrelated to the backers of the disputes candidates.
+	pub disputes: MultiDisputeStatementSet,
+}
+
 /// A vote of approval on a candidate.
 #[derive(Clone, RuntimeDebug)]
 pub struct ApprovalVote(pub CandidateHash);
@@ -960,7 +976,7 @@ impl ApprovalVote {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
+	pub trait ParachainHost<H: Encode + Decode = Hash, N: Encode + Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
 
@@ -980,6 +996,14 @@ sp_api::decl_runtime_apis! {
 		/// and the para already occupies a core.
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<H, N>>;
+
+		/// Returns the persisted validation data for the given `ParaId` along with the corresponding
+		/// validation code hash. Instead of accepting assumption about the para, matches the validation
+		/// data hash against an expected one and yields `None` if they're not equal.
+		fn assumed_validation_data(
+			para_id: Id,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<H, N>, ValidationCodeHash)>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
 		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
@@ -1017,6 +1041,9 @@ sp_api::decl_runtime_apis! {
 
 		/// Get the validation code from its hash.
 		fn validation_code_by_hash(hash: ValidationCodeHash) -> Option<ValidationCode>;
+
+		/// Scrape dispute relevant from on-chain, backing votes and resolved disputes.
+		fn on_chain_votes() -> Option<ScrapedOnChainVotes<H>>;
 	}
 }
 
@@ -1182,6 +1209,7 @@ impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
 ///
 /// Statements are either in favor of the candidate's validity or against it.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum DisputeStatement {
 	/// A valid statement, of the given kind.
 	#[codec(index = 0)]
@@ -1251,6 +1279,7 @@ impl DisputeStatement {
 
 /// Different kinds of statements of validity on  a candidate.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum ValidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
 	#[codec(index = 0)]
@@ -1268,6 +1297,7 @@ pub enum ValidDisputeStatementKind {
 
 /// Different kinds of statements of invalidity on a candidate.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum InvalidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
 	#[codec(index = 0)]
@@ -1296,6 +1326,7 @@ impl ExplicitDisputeStatement {
 
 /// A set of statements about a specific candidate.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct DisputeStatementSet {
 	/// The candidate referenced by this set.
 	pub candidate_hash: CandidateHash,

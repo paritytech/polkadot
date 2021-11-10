@@ -16,11 +16,12 @@
 
 use super::*;
 use crate::{account_and_location, new_executor, worst_case_holding, AssetTransactorOf, XcmCallOf};
-use frame_benchmarking::{
-	benchmarks_instance_pallet, impl_benchmark_test_suite, BenchmarkError, BenchmarkResult,
+use frame_benchmarking::{benchmarks_instance_pallet, BenchmarkError, BenchmarkResult};
+use frame_support::{
+	pallet_prelude::Get,
+	traits::fungible::{Inspect, Mutate},
 };
-use frame_support::{pallet_prelude::Get, traits::fungible::Inspect};
-use sp_runtime::traits::Zero;
+use sp_runtime::traits::{Bounded, Zero};
 use sp_std::{convert::TryInto, prelude::*, vec};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, TransactAsset};
@@ -108,11 +109,19 @@ benchmarks_instance_pallet! {
 
 	receive_teleported_asset {
 		// If there is no trusted teleporter, then we skip this benchmark.
-		let (trusted_teleporter, teleportable_asset) = T::TrustedTeleporter::get().ok_or(
-			BenchmarkError::Override(
-				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
-			)
-		)?;
+		let (trusted_teleporter, teleportable_asset) = T::TrustedTeleporter::get()
+			.ok_or(BenchmarkError::Skip)?;
+
+		if let Some(checked_account) = T::CheckedAccount::get() {
+			T::TransactAsset::mint_into(
+				&checked_account,
+				<
+					T::TransactAsset
+					as
+					Inspect<T::AccountId>
+				>::Balance::max_value() / 2u32.into(),
+			)?;
+		}
 
 		let assets: MultiAssets = vec![ teleportable_asset ].into();
 
@@ -210,10 +219,10 @@ benchmarks_instance_pallet! {
 			assert!(!T::TransactAsset::balance(&checked_account).is_zero());
 		}
 	}
-}
 
-impl_benchmark_test_suite!(
-	Pallet,
-	crate::fungible::mock::new_test_ext(),
-	crate::fungible::mock::Test
-);
+	impl_benchmark_test_suite!(
+		Pallet,
+		crate::fungible::mock::new_test_ext(),
+		crate::fungible::mock::Test
+	);
+}

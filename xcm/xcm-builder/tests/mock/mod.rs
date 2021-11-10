@@ -108,7 +108,7 @@ impl pallet_balances::Config for Runtime {
 impl shared::Config for Runtime {}
 
 impl configuration::Config for Runtime {
-	type WeightInfo = configuration::weights::WeightInfo<Runtime>;
+	type WeightInfo = configuration::TestWeightInfo;
 }
 
 // aims to closely emulate the Kusama XcmConfig
@@ -150,11 +150,11 @@ pub type Barrier = (
 );
 
 parameter_types! {
-	pub const KusamaForStatemint: (MultiAssetFilter, MultiLocation) =
+	pub const KusamaForStatemine: (MultiAssetFilter, MultiLocation) =
 		(MultiAssetFilter::Wild(WildMultiAsset::AllOf { id: Concrete(MultiLocation::here()), fun: WildFungible }), X1(Parachain(1000)).into());
 	pub const MaxInstructions: u32 = 100;
 }
-pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemint>,);
+pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemine>,);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {

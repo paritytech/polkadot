@@ -2,8 +2,10 @@
 timeout = 300
 
 [settings.defaults]
-command = "/usr/local/bin/polkadot"
+image = "{{get_env(name="SYNTHIMAGE") | safe }}"
+command = "polkadot"
 chain-spec = "rococo-local.json"
+chain-name = "rococo-local"
 timeout = 300
 
 [init_nodes.chainspec]
@@ -23,10 +25,14 @@ timeout = 300
 
 [nodes.alice]
 validator = true
+image = "{{get_env(name="PARACHAINSIMAGE") | safe }}"
+command = "polkadot"
 extra-args = ["--alice"]
 
 [nodes.bob]
 validator = true
+image = "{{get_env(name="PARACHAINSIMAGE") | safe }}"
+command = "polkadot"
 extra-args = ["--bob"]
 
 [nodes.collator01]
@@ -38,7 +44,7 @@ image = "{{get_env(name="SCRIPTSIMAGE") | safe }}"
 command-with-args = """
 cd simnet_scripts;
 npm run build;
-node /usr/local/bin/simnet_scripts register_parachain /cfg/genesis-wasm /cfg/genesis-state 100 true ws://bootnode:9944;
+node /usr/local/bin/simnet_scripts/dist/index.js register_parachain /cfg/genesis-wasm /cfg/genesis-state 100 true ws://bootnode:9944;
 tail -f /dev/null
 """
 copy-files = [

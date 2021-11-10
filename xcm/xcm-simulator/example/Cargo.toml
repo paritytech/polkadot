@@ -1,6 +1,6 @@
 [package]
 name = "xcm-simulator-example"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Examples of xcm-simulator usage."
 edition = "2018"

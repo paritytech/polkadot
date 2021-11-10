@@ -27,6 +27,7 @@ blockchain/MS
 borked
 broadcast/UDSMG
 BTC/S
+canonicalization
 canonicalize/D
 CentOS
 CLI/MS
@@ -47,6 +48,7 @@ DDoS
 Debian/M
 decodable/MS
 decrement
+decrement
 deduplicated
 deinitializing
 dequeue/SD
@@ -56,6 +58,7 @@ DHT
 disincentivize/D
 dispatchable/SM
 DLEQ
+DM
 DM
 DMP/SM
 DMQ
@@ -68,6 +71,7 @@ encodable
 enqueue/D
 enqueue/DMSG
 entrypoint/MS
+enum
 ERC-20
 ETH/S
 ethereum/MS
@@ -78,6 +82,7 @@ fedora/M
 finalize/B
 FRAME/MS
 FSMs
+functor
 fungibility
 gameable
 getter/MS
@@ -174,6 +179,7 @@ p2p
 parablock/MS
 parachain/MS
 ParaId
+ParaId
 parameterization
 parameterize/D
 parathread/MS
@@ -186,6 +192,7 @@ phragmen
 picosecond/SM
 PoA/MS
 polkadot/MS
+Polkadot/MS
 PoS/MS
 PoV/MS
 PoW/MS
@@ -244,6 +251,7 @@ subsystem/MS
 subsystems'
 supermajority
 SURI
+sybil
 systemwide
 taskmanager/MS
 TCP
@@ -254,7 +262,9 @@ teleporter/SM
 teleporters
 teleports
 testnet/MS
+timeframe
 timestamp/MS
+tradeoff
 transitionary
 trie/MS
 trustless/Y
@@ -264,6 +274,7 @@ typesystem
 ubuntu/M
 UDP
 UI
+unconcluded
 unfinalize/B
 unfinalized
 union/MSG
@@ -293,6 +304,7 @@ VMP/SM
 VPS
 VRF/SM
 w3f/MS
+wakeup
 wakeups
 warming/S
 wasm/M

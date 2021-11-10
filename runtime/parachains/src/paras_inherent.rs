@@ -33,7 +33,8 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use primitives::v1::{
-	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
+	BackedCandidate, InherentData as ParachainsInherentData, ScrapedOnChainVotes,
+	PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_runtime::traits::Header as HeaderT;
 use sp_std::prelude::*;
@@ -78,6 +79,11 @@ pub mod pallet {
 	/// If this is `None` at the end of the block, we panic and render the block invalid.
 	#[pallet::storage]
 	pub(crate) type Included<T> = StorageValue<_, ()>;
+
+	/// Scraped on chain data for extracting resolved disputes as well as backing votes.
+	#[pallet::storage]
+	#[pallet::getter(fn on_chain_votes)]
+	pub(crate) type OnChainVotes<T: Config> = StorageValue<_, ScrapedOnChainVotes<T::Hash>>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -173,21 +179,21 @@ pub mod pallet {
 
 			// Handle disputes logic.
 			let current_session = <shared::Pallet<T>>::session_index();
-			let freed_disputed: Vec<(_, FreedReason)> = {
+			{
 				let new_current_dispute_sets: Vec<_> = disputes
 					.iter()
 					.filter(|s| s.session == current_session)
 					.map(|s| (s.session, s.candidate_hash))
 					.collect();
 
-				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes)?;
+				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
 					Included::<T>::set(Some(()));
 					return Ok(Some(MINIMAL_INCLUSION_INHERENT_WEIGHT).into())
 				}
 
-				if !new_current_dispute_sets.is_empty() {
+				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
 					let concluded_invalid_disputes: Vec<_> = new_current_dispute_sets
 						.iter()
 						.filter(|(s, c)| T::DisputesHandler::concluded_invalid(*s, *c))
@@ -200,6 +206,13 @@ pub mod pallet {
 						.collect()
 				} else {
 					Vec::new()
+				};
+
+				if !freed_disputed.is_empty() {
+					// unstable sort is fine, because core indices are unique
+					// i.e. the same candidate can't occupy 2 cores at once.
+					freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+					<scheduler::Pallet<T>>::free_cores(freed_disputed);
 				}
 			};
 
@@ -227,12 +240,13 @@ pub mod pallet {
 			};
 
 			// Schedule paras again, given freed cores, and reasons for freeing.
-			let mut freed = freed_disputed
+			let mut freed = freed_concluded
 				.into_iter()
-				.chain(freed_concluded.into_iter().map(|(c, _hash)| (c, FreedReason::Concluded)))
+				.map(|(c, _hash)| (c, FreedReason::Concluded))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)))
 				.collect::<Vec<_>>();
 
+			// unstable sort is fine, because core indices are unique.
 			freed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 
 			<scheduler::Pallet<T>>::clear();
@@ -254,12 +268,23 @@ pub mod pallet {
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
-			let occupied = <inclusion::Pallet<T>>::process_candidates(
+			let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
+				core_indices: occupied,
+				candidate_receipt_with_backing_validator_indices,
+			} = <inclusion::Pallet<T>>::process_candidates(
 				parent_storage_root,
 				backed_candidates,
 				<scheduler::Pallet<T>>::scheduled(),
 				<scheduler::Pallet<T>>::group_validators,
 			)?;
+
+			// The number of disputes included in a block is
+			// limited by the weight as well as the number of candidate blocks.
+			OnChainVotes::<T>::put(ScrapedOnChainVotes::<<T::Header as HeaderT>::Hash> {
+				session: current_session,
+				backing_validators_per_candidate: candidate_receipt_with_backing_validator_indices,
+				disputes,
+			});
 
 			// Note which of the scheduled cores were actually occupied by a backed candidate.
 			<scheduler::Pallet<T>>::occupied(&occupied);

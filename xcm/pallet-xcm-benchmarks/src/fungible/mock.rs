@@ -131,7 +131,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetTransactor = AssetTransactor;
 	type OriginConverter = ();
 	type IsReserve = ();
-	type IsTeleporter = ();
+	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
@@ -153,12 +153,17 @@ impl crate::Config for Test {
 	}
 }
 
+pub type TrustedTeleporters = (xcm_builder::Case<TeleConcreteFung>,);
+
 parameter_types! {
 	pub const CheckedAccount: Option<u64> = Some(100);
+	pub const ChildTeleporter: MultiLocation = Parachain(1000).into();
 	pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
-		X1(OnlyChild).into(),
+		ChildTeleporter::get(),
 		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
 	));
+	pub const TeleConcreteFung: (MultiAssetFilter, MultiLocation) =
+		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
 }
 
 impl xcm_balances_benchmark::Config for Test {

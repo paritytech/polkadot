@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-overseer"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -16,8 +16,8 @@ polkadot-node-subsystem-types = { path = "../subsystem-types" }
 polkadot-node-metrics = { path = "../metrics" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-overseer-gen = { path = "./overseer-gen" }
-tracing = "0.1.28"
-lru = "0.6"
+tracing = "0.1.29"
+lru = "0.7"
 parity-util-mem = { version = ">= 0.10.1", default-features = false }
 
 [dev-dependencies]

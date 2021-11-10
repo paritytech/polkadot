@@ -94,10 +94,12 @@ pub enum LeaseError {
 	AlreadyLeased,
 	/// The period to be leased has already ended.
 	AlreadyEnded,
+	/// A lease period has not started yet, due to an offset in the starting block.
+	NoLeasePeriod,
 }
 
 /// Lease manager. Used by the auction module to handle parachain slot leases.
-pub trait Leaser {
+pub trait Leaser<BlockNumber> {
 	/// An account identifier for a leaser.
 	type AccountId;
 
@@ -133,11 +135,16 @@ pub trait Leaser {
 		leaser: &Self::AccountId,
 	) -> <Self::Currency as Currency<Self::AccountId>>::Balance;
 
-	/// The lease period. This is constant, but can't be a `const` due to it being a runtime configurable quantity.
-	fn lease_period() -> Self::LeasePeriod;
+	/// The length of a lease period, and any offset which may be introduced.
+	/// This is only used in benchmarking to automate certain calls.
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn lease_period_length() -> (BlockNumber, BlockNumber);
 
-	/// Returns the current lease period.
-	fn lease_period_index() -> Self::LeasePeriod;
+	/// Returns the lease period at `block`, and if this is the first block of a new lease period.
+	///
+	/// Will return `None` if the first lease period has not started yet, for example when an offset
+	/// is placed.
+	fn lease_period_index(block: BlockNumber) -> Option<(Self::LeasePeriod, bool)>;
 
 	/// Returns true if the parachain already has a lease in any of lease periods in the inclusive
 	/// range `[first_period, last_period]`, intersected with the unbounded range [`current_lease_period`..] .
@@ -189,12 +196,9 @@ impl<BlockNumber> AuctionStatus<BlockNumber> {
 	}
 }
 
-pub trait Auctioneer {
+pub trait Auctioneer<BlockNumber> {
 	/// An account identifier for a leaser.
 	type AccountId;
-
-	/// The measurement type for counting blocks.
-	type BlockNumber;
 
 	/// The measurement type for counting lease periods (generally the same as `BlockNumber`).
 	type LeasePeriod;
@@ -207,13 +211,10 @@ pub trait Auctioneer {
 	/// This can only happen when there isn't already an auction in progress. Accepts the `duration`
 	/// of this auction and the `lease_period_index` of the initial lease period of the four that
 	/// are to be auctioned.
-	fn new_auction(
-		duration: Self::BlockNumber,
-		lease_period_index: Self::LeasePeriod,
-	) -> DispatchResult;
+	fn new_auction(duration: BlockNumber, lease_period_index: Self::LeasePeriod) -> DispatchResult;
 
 	/// Given the current block number, return the current auction status.
-	fn auction_status(now: Self::BlockNumber) -> AuctionStatus<Self::BlockNumber>;
+	fn auction_status(now: BlockNumber) -> AuctionStatus<BlockNumber>;
 
 	/// Place a bid in the current auction.
 	///
@@ -234,11 +235,16 @@ pub trait Auctioneer {
 		amount: <Self::Currency as Currency<Self::AccountId>>::Balance,
 	) -> DispatchResult;
 
-	/// Returns the current lease period.
-	fn lease_period_index() -> Self::LeasePeriod;
+	/// The length of a lease period, and any offset which may be introduced.
+	/// This is only used in benchmarking to automate certain calls.
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	fn lease_period_length() -> (BlockNumber, BlockNumber);
 
-	/// Returns the length of a lease period.
-	fn lease_period() -> Self::LeasePeriod;
+	/// Returns the lease period at `block`, and if this is the first block of a new lease period.
+	///
+	/// Will return `None` if the first lease period has not started yet, for example when an offset
+	/// is placed.
+	fn lease_period_index(block: BlockNumber) -> Option<(Self::LeasePeriod, bool)>;
 
 	/// Check if the para and user combination has won an auction in the past.
 	fn has_won_an_auction(para: ParaId, bidder: &Self::AccountId) -> bool;
