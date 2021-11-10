@@ -236,7 +236,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			{
 				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnJob {
 					name,
-					subsystem: self.name(),
+					subsystem: Some(self.name()),
 					s,
 				}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
 				Ok(())
@@ -247,7 +247,7 @@ pub(crate) fn impl_misc(info: &OverseerInfo) -> proc_macro2::TokenStream {
 			{
 				self.to_overseer.unbounded_send(#support_crate ::ToOverseer::SpawnBlockingJob {
 					name,
-					subsystem: self.name(),
+					subsystem: Some(self.name()),
 					s,
 				}).map_err(|_| #support_crate ::OverseerError::TaskSpawn(name))?;
 				Ok(())

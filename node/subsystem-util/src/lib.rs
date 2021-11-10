@@ -580,7 +580,7 @@ where
 			Ok(())
 		});
 
-		self.spawner.spawn(Job::NAME, Job::SUBSYSTEM, future.map(drop).boxed());
+		self.spawner.spawn(Job::NAME, Some(Job::SUBSYSTEM), future.map(drop).boxed());
 		self.outgoing_msgs.push(from_job_rx);
 
 		let handle = JobHandle { _abort_handle: AbortOnDrop(abort_handle), to_job: to_job_tx };

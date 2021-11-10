@@ -380,9 +380,11 @@ where
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
 		if let Some(worker) = worker {
-			task_manager
-				.spawn_handle()
-				.spawn("telemetry", "telemetry", Box::pin(worker.run()));
+			task_manager.spawn_handle().spawn(
+				"telemetry",
+				Some("telemetry"),
+				Box::pin(worker.run()),
+			);
 		}
 		telemetry
 	});
@@ -807,7 +809,7 @@ where
 		// Start the offchain workers to have
 		task_manager.spawn_handle().spawn(
 			"offchain-notifications",
-			"",
+			None,
 			sc_offchain::notification_future(
 				config.role.is_authority(),
 				client.clone(),
@@ -909,7 +911,7 @@ where
 
 		task_manager.spawn_handle().spawn(
 			"authority-discovery-worker",
-			"authority-discovery",
+			Some("authority-discovery"),
 			Box::pin(worker.run()),
 		);
 		Some(service)
@@ -957,7 +959,7 @@ where
 			let handle = handle.clone();
 			task_manager.spawn_essential_handle().spawn_blocking(
 				"overseer",
-				"",
+				None,
 				Box::pin(async move {
 					use futures::{pin_mut, select, FutureExt};
 
@@ -1046,7 +1048,7 @@ where
 		};
 
 		let babe = babe::start_babe(babe_config)?;
-		task_manager.spawn_essential_handle().spawn_blocking("babe", "", babe);
+		task_manager.spawn_essential_handle().spawn_blocking("babe", None, babe);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
@@ -1071,9 +1073,11 @@ where
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.
 		if chain_spec.is_wococo() {
-			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", "", gadget);
+			task_manager
+				.spawn_essential_handle()
+				.spawn_blocking("beefy-gadget", None, gadget);
 		} else {
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", "", gadget);
+			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
 		}
 	}
 
@@ -1129,7 +1133,7 @@ where
 
 		task_manager.spawn_essential_handle().spawn_blocking(
 			"grandpa-voter",
-			"",
+			None,
 			grandpa::run_grandpa_voter(grandpa_config)?,
 		);
 	}
