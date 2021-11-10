@@ -12,8 +12,9 @@ The first argument determines the behavior strain. The currently supported are:
 
 To define integration tests create file
 in the toml format as used with [zombie-net][zombie-net]
-under `./integrationtests` with either extension
-`.toml` or `.toml.tera`(**NOT available yet**) depending on if you use tera based templating.
+under `./integrationtests` describing the network to spawn and
+also the `feature` file (with `.feature` extension ) using the format
+defined in the [DSL doc](https://github.com/paritytech/zombie-net/blob/main/docs/testing-dsl-definition.md).
 
 ## Usage
 
@@ -42,7 +43,7 @@ node dist/cli.js test <path to polkadot repo>/node/malus/integrationtests/0001-d
 gsutil ls gs://zombienet-logs/zombie-<namespace uniqueId>/logs/
 ```
 
-This will also teardown the cluster after completion.
+This will also teardown the namespace after completion.
 
 ## Container Image Building Note
 
