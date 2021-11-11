@@ -32,6 +32,7 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M: Get<u32>> WeightBounds<C>
 	for FixedWeightBounds<T, C, M>
 {
 	fn weight(message: &mut Xcm<C>) -> Result<Weight, ()> {
+		log::trace!(target: "xcm::weight", "FixedWeightBounds message: {:?}", message);
 		let mut instructions_left = M::get();
 		Self::weight_with_limit(message, &mut instructions_left)
 	}
@@ -73,6 +74,7 @@ where
 	Instruction<C>: xcm::GetWeight<W>,
 {
 	fn weight(message: &mut Xcm<C>) -> Result<Weight, ()> {
+		log::trace!(target: "xcm::weight", "WeightInfoBounds message: {:?}", message);
 		let mut instructions_left = M::get();
 		Self::weight_with_limit(message, &mut instructions_left)
 	}
@@ -144,6 +146,11 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
+		log::trace!(
+			target: "xcm::weight",
+			"FixedRateOfConcreteFungible::buy_weight weight: {:?}, payment: {:?}",
+			weight, payment,
+		);
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
 		let unused =
@@ -154,6 +161,7 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 	}
 
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
+		log::trace!(target: "xcm::weight", "FixedRateOfConcreteFungible::refund_weight weight: {:?}", weight);
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
@@ -190,6 +198,11 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
+		log::trace!(
+			target: "xcm::weight",
+			"FixedRateOfFungible::buy_weight weight: {:?}, payment: {:?}",
+			weight, payment,
+		);
 		let (id, units_per_second) = T::get();
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
 		if amount == 0 {
@@ -203,6 +216,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 	}
 
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
+		log::trace!(target: "xcm::weight", "FixedRateOfFungible::refund_weight weight: {:?}", weight);
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
 		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND as u128);
@@ -250,6 +264,7 @@ impl<
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
+		log::trace!(target: "xcm::weight", "UsingComponents::buy_weight weight: {:?}, payment: {:?}", weight, payment);
 		let amount = WeightToFee::calc(&weight);
 		let u128_amount: u128 = amount.try_into().map_err(|_| XcmError::Overflow)?;
 		let required = (Concrete(AssetId::get()), u128_amount).into();
@@ -260,6 +275,7 @@ impl<
 	}
 
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
+		log::trace!(target: "xcm::weight", "UsingComponents::refund_weight weight: {:?}", weight);
 		let weight = weight.min(self.0);
 		let amount = WeightToFee::calc(&weight);
 		self.0 -= weight;
