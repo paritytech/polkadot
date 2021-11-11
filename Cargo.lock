@@ -574,9 +574,9 @@ dependencies = [
 
 [[package]]
 name = "bitvec"
-version = "0.20.1"
+version = "0.20.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5011ffc90248764d7005b0e10c7294f5aa1bd87d9dd7248f4ad475b347c294d"
+checksum = "7774144344a4faa177370406a7ff5f1da24303817368584c6206c8303eb07848"
 dependencies = [
  "funty",
  "radium 0.6.2",
@@ -736,7 +736,7 @@ dependencies = [
 name = "bp-messages"
 version = "0.1.0"
 dependencies = [
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "bp-runtime",
  "frame-support",
  "frame-system",
@@ -3138,7 +3138,7 @@ name = "kusama-runtime"
 version = "0.9.11"
 dependencies = [
  "beefy-primitives",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -4816,7 +4816,7 @@ dependencies = [
 name = "pallet-bridge-messages"
 version = "0.1.0"
 dependencies = [
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "bp-message-dispatch",
  "bp-messages",
  "bp-rialto",
@@ -5497,7 +5497,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "373b1a4c1338d9cd3d1fa53b3a11bdab5ab6bd80a20f7f7becd76953ae2be909"
 dependencies = [
  "arrayvec 0.7.0",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "byte-slice-cast",
  "impl-trait-for-tuples",
  "parity-scale-codec-derive",
@@ -5859,7 +5859,7 @@ name = "polkadot-availability-bitfield-distribution"
 version = "0.9.11"
 dependencies = [
  "assert_matches",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "env_logger 0.9.0",
  "futures 0.3.17",
  "log",
@@ -6133,7 +6133,7 @@ name = "polkadot-node-core-approval-voting"
 version = "0.9.11"
 dependencies = [
  "assert_matches",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "derive_more",
  "futures 0.3.17",
  "futures-timer 3.0.2",
@@ -6169,7 +6169,7 @@ name = "polkadot-node-core-av-store"
 version = "0.9.11"
 dependencies = [
  "assert_matches",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "env_logger 0.9.0",
  "futures 0.3.17",
  "futures-timer 3.0.2",
@@ -6196,7 +6196,7 @@ name = "polkadot-node-core-backing"
 version = "0.9.11"
 dependencies = [
  "assert_matches",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "futures 0.3.17",
  "polkadot-erasure-coding",
  "polkadot-node-primitives",
@@ -6296,7 +6296,7 @@ name = "polkadot-node-core-dispute-coordinator"
 version = "0.9.11"
 dependencies = [
  "assert_matches",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "derive_more",
  "futures 0.3.17",
  "kvdb",
@@ -6351,14 +6351,13 @@ dependencies = [
 name = "polkadot-node-core-provisioner"
 version = "0.9.11"
 dependencies = [
+ "bitvec 0.20.4",
  "futures 0.3.17",
  "futures-timer 3.0.2",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-application-crypto",
- "sp-keystore",
  "thiserror",
  "tracing",
 ]
@@ -6629,7 +6628,7 @@ dependencies = [
 name = "polkadot-primitives"
 version = "0.9.11"
 dependencies = [
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "frame-system",
  "hex-literal",
  "parity-scale-codec",
@@ -6689,7 +6688,7 @@ name = "polkadot-runtime"
 version = "0.9.11"
 dependencies = [
  "beefy-primitives",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",
@@ -6771,7 +6770,7 @@ name = "polkadot-runtime-common"
 version = "0.9.11"
 dependencies = [
  "beefy-primitives",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-support",
@@ -6821,7 +6820,7 @@ name = "polkadot-runtime-parachains"
 version = "0.9.11"
 dependencies = [
  "bitflags",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "derive_more",
  "frame-benchmarking",
  "frame-support",
@@ -7102,7 +7101,7 @@ name = "polkadot-test-runtime"
 version = "0.9.11"
 dependencies = [
  "beefy-primitives",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "frame-election-provider-support",
  "frame-executive",
  "frame-support",
@@ -9033,7 +9032,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c55b744399c25532d63a0d2789b109df8d46fc93752d46b0782991a931a782f"
 dependencies = [
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "cfg-if 1.0.0",
  "derive_more",
  "parity-scale-codec",
@@ -11639,7 +11638,7 @@ name = "westend-runtime"
 version = "0.9.11"
 dependencies = [
  "beefy-primitives",
- "bitvec 0.20.1",
+ "bitvec 0.20.4",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-executive",

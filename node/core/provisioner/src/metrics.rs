@@ -14,9 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus}};
-
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 #[derive(Clone)]
 struct MetricsInner {
@@ -47,7 +45,9 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `provisionable_data` which observes on drop.
-	pub(crate) fn time_provisionable_data(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	pub(crate) fn time_provisionable_data(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.provisionable_data.start_timer())
 	}
 }

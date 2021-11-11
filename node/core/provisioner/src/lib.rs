@@ -33,15 +33,10 @@ use polkadot_node_subsystem::{
 	},
 	PerLeafSpan, SubsystemSender,
 };
-use polkadot_node_subsystem_util::{
-	self as util,
-	JobSender, JobSubsystem,
-	JobTrait,
-};
+use polkadot_node_subsystem_util::{self as util, JobSender, JobSubsystem, JobTrait};
 use polkadot_primitives::v1::{
-	BackedCandidate, CandidateReceipt, DisputeStatement,
-	DisputeStatementSet, Hash, MultiDisputeStatementSet,
-	SignedAvailabilityBitfield, SignedAvailabilityBitfields,
+	BackedCandidate, CandidateReceipt, DisputeStatement, DisputeStatementSet, Hash,
+	MultiDisputeStatementSet, SignedAvailabilityBitfield, SignedAvailabilityBitfields,
 };
 use std::{pin::Pin, sync::Arc};
 use thiserror::Error;
@@ -261,13 +256,11 @@ async fn send_inherent_data(
 	from_job: &mut impl SubsystemSender,
 ) -> Result<(), Error> {
 	let backed_candidates =
-		collect_backed_candidates(candidate_receipts, relay_parent, from_job)
-			.await?;
+		collect_backed_candidates(candidate_receipts, relay_parent, from_job).await?;
 
 	let disputes = collect_disputes(from_job).await?;
 
-	let inherent_data =
-		ProvisionerInherentData { bitfields, backed_candidates, disputes };
+	let inherent_data = ProvisionerInherentData { bitfields, backed_candidates, disputes };
 
 	for return_sender in return_senders {
 		return_sender
@@ -385,7 +378,6 @@ async fn collect_disputes(
 		})
 		.collect())
 }
-
 
 /// The provisioning subsystem.
 pub type ProvisionerSubsystem<Spawner> = JobSubsystem<ProvisioningJob, Spawner>;
