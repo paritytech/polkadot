@@ -278,11 +278,21 @@ impl TaskExecutor {
 }
 
 impl sp_core::traits::SpawnNamed for TaskExecutor {
-	fn spawn_blocking(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+	fn spawn_blocking(
+		&self,
+		_task_name: &'static str,
+		_subsystem_name: Option<&'static str>,
+		future: futures::future::BoxFuture<'static, ()>,
+	) {
 		self.0.spawn_ok(future);
 	}
 
-	fn spawn(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+	fn spawn(
+		&self,
+		_task_name: &'static str,
+		_subsystem_name: Option<&'static str>,
+		future: futures::future::BoxFuture<'static, ()>,
+	) {
 		self.0.spawn_ok(future);
 	}
 }
