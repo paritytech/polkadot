@@ -83,15 +83,44 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		);
 		let xcm_weight = match Config::Weigher::weight(&mut message) {
 			Ok(x) => x,
-			Err(()) => return Outcome::Error(XcmError::WeightNotComputable),
+			Err(()) => {
+				log::debug!(
+					target: "xcm::execute_xcm_in_credit",
+					"Weight not computable! (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
+					origin,
+					message,
+					weight_limit,
+					weight_credit,
+				);
+				return Outcome::Error(XcmError::WeightNotComputable)
+			},
 		};
 		if xcm_weight > weight_limit {
+			log::debug!(
+				target: "xcm::execute_xcm_in_credit",
+				"Weight limit reached! weight > weight_limit: {:?} > {:?}. (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
+				xcm_weight,
+				weight_limit,
+				origin,
+				message,
+				weight_limit,
+				weight_credit,
+			);
 			return Outcome::Error(XcmError::WeightLimitReached(xcm_weight))
 		}
 
-		if let Err(_) =
+		if let Err(e) =
 			Config::Barrier::should_execute(&origin, &mut message, xcm_weight, &mut weight_credit)
 		{
+			log::debug!(
+				target: "xcm::execute_xcm_in_credit",
+				"Barrier blocked execution! Error: {:?}. (origin: {:?}, message: {:?}, weight_limit: {:?}, weight_credit: {:?})",
+				e,
+				origin,
+				message,
+				weight_limit,
+				weight_credit,
+			);
 			return Outcome::Error(XcmError::Barrier)
 		}
 
@@ -116,6 +145,7 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 		let mut weight_used = xcm_weight.saturating_sub(vm.total_surplus);
 
 		if !vm.holding.is_empty() {
+			log::trace!(target: "xcm::execute_xcm_in_credit", "Trapping assets in holding register: {:?} (original_origin: {:?})", vm.holding, vm.original_origin);
 			let trap_weight = Config::AssetTrap::drop_assets(&vm.original_origin, vm.holding);
 			weight_used.saturating_accrue(trap_weight);
 		};
@@ -124,7 +154,10 @@ impl<Config: config::Config> ExecuteXcm<Config::Call> for XcmExecutor<Config> {
 			None => Outcome::Complete(weight_used),
 			// TODO: #2841 #REALWEIGHT We should deduct the cost of any instructions following
 			// the error which didn't end up being executed.
-			Some((_, e)) => Outcome::Incomplete(weight_used, e),
+			Some((_i, e)) => {
+				log::debug!(target: "xcm::execute_xcm_in_credit", "Execution errored at {:?}: {:?} (original_origin: {:?})", _i, e, vm.original_origin);
+				Outcome::Incomplete(weight_used, e)
+			},
 		}
 	}
 }
