@@ -18,7 +18,6 @@
 
 use super::*;
 use jsonrpsee::types::traits::Client;
-// pub use jsonrpsee::rpc_params; // TODO: needed actually?
 pub(crate) use jsonrpsee::types::v2::ParamsSer;
 
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
