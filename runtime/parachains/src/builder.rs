@@ -57,8 +57,8 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 #[cfg(any(feature = "runtime-benchmarks", test))]
 pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) data: ParachainsInherentData<T::Header>,
-	pub(crate) session: u32,
-	pub(crate) block_number: T::BlockNumber,
+	pub(crate) _session: u32,
+	pub(crate) _block_number: T::BlockNumber,
 }
 
 impl<T: paras_inherent::Config> BenchBuilder<T> {
@@ -583,8 +583,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				disputes,
 				parent_header: Self::header(builder.block_number.clone()),
 			},
-			session: builder.target_session,
-			block_number: builder.block_number,
+			_session: target_session,
+			_block_number: builder.block_number,
 		}
 	}
 }

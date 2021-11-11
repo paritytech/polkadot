@@ -138,7 +138,8 @@ fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Wei
 }
 
 fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
-	<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields().saturating_mul(bitfields_len as Weight)
+	<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields()
+		.saturating_mul(bitfields_len as Weight)
 }
 
 fn backed_candidates_weight<T: frame_system::Config + Config>(
@@ -743,14 +744,21 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
 	if let Some(remaining_weight) = max_weight.checked_sub(total_bitfields_weight) {
-		let c = candidates.iter().map(|c| c.validity_votes.len() as u32).collect::<Vec<u32>>();
-
-		let (acc_candidate_weight, indices) = random_sel::<u32, _>(
-			&mut rng,
-			c,
-			|v| <<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(*v),
-			remaining_weight,
-		);
+		let (acc_candidate_weight, indices) =
+			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
+				&mut rng,
+				candidates.clone(),
+				|c| {
+					<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
+						c.validity_votes.len() as u32,
+					) + if c.candidate.commitments.new_validation_code.is_some() {
+						<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
+					} else {
+						0
+					}
+				},
+				remaining_weight,
+			);
 		let candidates =
 			indices.into_iter().map(move |idx| candidates[idx].clone()).collect::<Vec<_>>();
 		// pick all bitfields, and

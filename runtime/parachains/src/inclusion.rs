@@ -289,10 +289,7 @@ impl<T: Config> Pallet<T> {
 	/// Extract the freed cores based on cores tht became available.
 	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
-	pub(crate) fn update_pending_availability_and_get_freed_cores<
-		F,
-		const ON_CHAIN_USE: bool,
-	>(
+	pub(crate) fn update_pending_availability_and_get_freed_cores<F, const ON_CHAIN_USE: bool>(
 		expected_bits: usize,
 		validators: &[ValidatorId],
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
