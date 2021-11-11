@@ -15,6 +15,6 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 futures-timer = "3.0.2"
 
 [dev-dependencies]
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

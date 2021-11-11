@@ -6,16 +6,16 @@ edition = "2018"
 
 [dependencies]
 # substrate primitives
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
 
 # frame pallets
-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master" }
-balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "master" }
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
 
 # substrate client libs
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
 
 # polkadot deps
 polkadot-simnet = { path = "../common" }

@@ -9,14 +9,14 @@ version = "0.9.12"
 impl-trait-for-tuples = "0.2.0"
 parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
 xcm = { path = "..", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
 log = { version = "0.4.14", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false, optional = true }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "dp-update-jsonrpsee-client" }
 
 [features]
 default = ["std"]

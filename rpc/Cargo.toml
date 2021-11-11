@@ -7,25 +7,25 @@ edition = "2018"
 [dependencies]
 jsonrpc-core = "18.0.0"
 polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+pallet-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
