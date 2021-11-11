@@ -628,6 +628,7 @@ zombienet-tests-parachains-smoke-test:
     - job:                         publish-adder-collator-image
 
   variables:
+<<<<<<< HEAD
     GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx-zombienet/zombienet_tests/parachains'
     # FIXME: use the master after the merge of the malus pr
     # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/zombienet_tests/parachains'
@@ -656,6 +657,9 @@ zombienet-tests-malus-dispute-valid:
   stage:                           deploy
   image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
+=======
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/master/simnet_tests"
+>>>>>>> master
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
