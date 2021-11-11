@@ -104,7 +104,7 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 		&self.descriptor
 	}
 
-	#[cfg(any(feature = "runtime-benchmarks", feature = "std"))]
+	#[cfg(any(feature = "runtime-benchmarks", test))]
 	pub(crate) fn new(
 		core: CoreIndex,
 		hash: CandidateHash,
