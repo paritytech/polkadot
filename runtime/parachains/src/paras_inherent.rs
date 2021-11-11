@@ -277,7 +277,7 @@ pub mod pallet {
 
 	/// Collect all freed cores based on storage data.
 	///
-	/// The paramter `freed_concluded` contains all core indicies that became
+	/// The parameter `freed_concluded` contains all core indicies that became
 	/// free due to candidate that became available.
 	pub(crate) fn collect_all_freed_cores<T, I>(
 		freed_concluded: I,
