@@ -1,17 +1,17 @@
 [package]
 name = "polkadot-node-core-dispute-coordinator"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
 futures = "0.3.17"
-tracing = "0.1.28"
+tracing = "0.1.29"
 parity-scale-codec = "2"
 kvdb = "0.10.0"
 derive_more = "0.99.14"
-thiserror = "1.0.26"
+thiserror = "1.0.30"
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }

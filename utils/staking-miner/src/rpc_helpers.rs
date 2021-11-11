@@ -17,12 +17,12 @@
 //! Helper method for RPC.
 
 use super::*;
-use jsonrpsee_ws_client::types::traits::Client;
-pub(crate) use jsonrpsee_ws_client::types::v2::params::JsonRpcParams;
+use jsonrpsee::types::traits::Client;
+pub(crate) use jsonrpsee::types::v2::ParamsSer;
 
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 pub(crate) enum RpcHelperError {
-	JsonRpsee(#[from] jsonrpsee_ws_client::types::Error),
+	JsonRpsee(#[from] jsonrpsee::types::Error),
 	Codec(#[from] codec::Error),
 }
 
@@ -32,27 +32,11 @@ impl std::fmt::Display for RpcHelperError {
 	}
 }
 
-#[macro_export]
-macro_rules! params {
-	($($param:expr),*) => {
-		{
-			let mut __params = vec![];
-			$(
-				__params.push(serde_json::to_value($param).expect("json serialization infallible; qed."));
-			)*
-			$crate::rpc_helpers::JsonRpcParams::Array(__params)
-		}
-	};
-	() => {
-		$crate::rpc::JsonRpcParams::NoParams,
-	}
-}
-
 /// Make the rpc request, returning `Ret`.
 pub(crate) async fn rpc<'a, Ret: serde::de::DeserializeOwned>(
 	client: &WsClient,
 	method: &'a str,
-	params: JsonRpcParams<'a>,
+	params: Option<ParamsSer<'a>>,
 ) -> Result<Ret, RpcHelperError> {
 	client
 		.request::<Ret>(method, params)
@@ -65,7 +49,7 @@ pub(crate) async fn rpc<'a, Ret: serde::de::DeserializeOwned>(
 pub(crate) async fn rpc_decode<'a, Dec: codec::Decode>(
 	client: &WsClient,
 	method: &'a str,
-	params: JsonRpcParams<'a>,
+	params: Option<ParamsSer<'a>>,
 ) -> Result<Dec, RpcHelperError> {
 	let bytes = rpc::<sp_core::Bytes>(client, method, params)
 		.await
@@ -76,7 +60,7 @@ pub(crate) async fn rpc_decode<'a, Dec: codec::Decode>(
 /// Get the storage item.
 pub(crate) async fn get_storage<'a, T: codec::Decode>(
 	client: &WsClient,
-	params: JsonRpcParams<'a>,
+	params: Option<ParamsSer<'a>>,
 ) -> Result<Option<T>, RpcHelperError> {
 	let maybe_bytes = rpc::<Option<sp_core::Bytes>>(client, "state_getStorage", params)
 		.await

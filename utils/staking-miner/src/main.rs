@@ -40,10 +40,10 @@ pub(crate) use signer::get_account_info;
 
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
-use jsonrpsee_ws_client::{WsClient, WsClientBuilder};
+use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
 use sp_npos_elections::ExtendedBalance;
-use sp_runtime::traits::Block as BlockT;
+use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
 use structopt::StructOpt;
 
 pub(crate) enum AnyRuntime {
@@ -225,7 +225,7 @@ macro_rules! any_runtime_unit {
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 enum Error<T: EPM::Config> {
 	Io(#[from] std::io::Error),
-	JsonRpsee(#[from] jsonrpsee_ws_client::types::Error),
+	JsonRpsee(#[from] jsonrpsee::types::Error),
 	RpcHelperError(#[from] rpc_helpers::RpcHelperError),
 	Codec(#[from] codec::Error),
 	Crypto(sp_core::crypto::SecretStringError),
@@ -276,7 +276,7 @@ enum Command {
 	/// Just compute a solution now, and don't submit it.
 	DryRun(DryRunConfig),
 	/// Provide a solution that can be submitted to the chain as an emergency response.
-	EmergencySolution,
+	EmergencySolution(EmergencySolutionConfig),
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -289,39 +289,6 @@ enum Solvers {
 		#[structopt(long, default_value = "10")]
 		iterations: usize,
 	},
-}
-
-/// Mine a solution with the given `solver`.
-fn mine_with<T>(
-	solver: &Solvers,
-	ext: &mut Ext,
-) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
-where
-	T: EPM::Config,
-	T::Solver: NposSolver<Error = sp_npos_elections::Error>,
-{
-	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
-
-	match solver {
-		Solvers::SeqPhragmen { iterations } => {
-			BalanceIterations::set(*iterations);
-			mine_unchecked::<
-				T,
-				SequentialPhragmen<
-					<T as frame_system::Config>::AccountId,
-					sp_runtime::Perbill,
-					Balancing,
-				>,
-			>(ext, false)
-		},
-		Solvers::PhragMMS { iterations } => {
-			BalanceIterations::set(*iterations);
-			mine_unchecked::<
-				T,
-				PhragMMS<<T as frame_system::Config>::AccountId, sp_runtime::Perbill, Balancing>,
-			>(ext, false)
-		},
-	}
 }
 
 frame_support::parameter_types! {
@@ -341,8 +308,23 @@ struct MonitorConfig {
 	#[structopt(long, default_value = "head", possible_values = &["head", "finalized"])]
 	listen: String,
 
+	/// The solver algorithm to use.
 	#[structopt(subcommand)]
 	solver: Solvers,
+}
+
+#[derive(Debug, Clone, StructOpt)]
+struct EmergencySolutionConfig {
+	/// The block hash at which scraping happens. If none is provided, the latest head is used.
+	#[structopt(long)]
+	at: Option<Hash>,
+
+	/// The solver algorithm to use.
+	#[structopt(subcommand)]
+	solver: Solvers,
+
+	/// The number of top backed winners to take. All are taken, if not provided.
+	take: Option<usize>,
 }
 
 #[derive(Debug, Clone, StructOpt)]
@@ -351,6 +333,7 @@ struct DryRunConfig {
 	#[structopt(long)]
 	at: Option<Hash>,
 
+	/// The solver algorithm to use.
 	#[structopt(subcommand)]
 	solver: Solvers,
 }
@@ -381,7 +364,7 @@ struct Opt {
 
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
-async fn create_election_ext<T: EPM::Config, B: BlockT>(
+async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 	uri: String,
 	at: Option<B::Hash>,
 	additional: Vec<String>,
@@ -407,9 +390,9 @@ async fn create_election_ext<T: EPM::Config, B: BlockT>(
 		.map_err(|why| Error::RemoteExternalities(why))
 }
 
-/// Compute the election at the given block number. It expects to NOT be `Phase::Off`. In other
-/// words, the snapshot must exists on the given externalities.
-fn mine_unchecked<T, S>(
+/// Compute the election. It expects to NOT be `Phase::Off`. In other words, the snapshot must
+/// exists on the given externalities.
+fn mine_solution<T, S>(
 	ext: &mut Ext,
 	do_feasibility: bool,
 ) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
@@ -432,6 +415,40 @@ where
 		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
 		Ok((solution, witness as u32))
 	})
+}
+
+/// Mine a solution with the given `solver`.
+fn mine_with<T>(
+	solver: &Solvers,
+	ext: &mut Ext,
+	do_feasibility: bool,
+) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
+where
+	T: EPM::Config,
+	T::Solver: NposSolver<Error = sp_npos_elections::Error>,
+{
+	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
+
+	match solver {
+		Solvers::SeqPhragmen { iterations } => {
+			BalanceIterations::set(*iterations);
+			mine_solution::<
+				T,
+				SequentialPhragmen<
+					<T as frame_system::Config>::AccountId,
+					sp_runtime::Perbill,
+					Balancing,
+				>,
+			>(ext, do_feasibility)
+		},
+		Solvers::PhragMMS { iterations } => {
+			BalanceIterations::set(*iterations);
+			mine_solution::<
+				T,
+				PhragMMS<<T as frame_system::Config>::AccountId, sp_runtime::Perbill, Balancing>,
+			>(ext, do_feasibility)
+		},
+	}
 }
 
 #[allow(unused)]
@@ -474,21 +491,16 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 
 pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	client: &WsClient,
-	print: bool,
 ) -> Result<(), Error<T>> {
 	let linked_version = T::Version::get();
-	let on_chain_version = rpc_helpers::rpc::<sp_version::RuntimeVersion>(
-		client,
-		"state_getRuntimeVersion",
-		params! {},
-	)
-	.await
-	.expect("runtime version RPC should always work; qed");
+	let on_chain_version =
+		rpc_helpers::rpc::<sp_version::RuntimeVersion>(client, "state_getRuntimeVersion", None)
+			.await
+			.expect("runtime version RPC should always work; qed");
 
-	if print {
-		log::info!(target: LOG_TARGET, "linked version {:?}", linked_version);
-		log::info!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
-	}
+	log::debug!(target: LOG_TARGET, "linked version {:?}", linked_version);
+	log::debug!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
+
 	if linked_version != on_chain_version {
 		log::error!(
 			target: LOG_TARGET,
@@ -528,13 +540,13 @@ async fn main() {
 		}
 	};
 
-	let chain = rpc_helpers::rpc::<String>(&client, "system_chain", params! {})
+	let chain = rpc_helpers::rpc::<String>(&client, "system_chain", None)
 		.await
 		.expect("system_chain infallible; qed.");
 	match chain.to_lowercase().as_str() {
 		"polkadot" | "development" => {
 			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
+				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount.into(),
 			);
 			sub_tokens::dynamic::set_name("DOT");
 			sub_tokens::dynamic::set_decimal_points(10_000_000_000);
@@ -546,7 +558,7 @@ async fn main() {
 		},
 		"kusama" | "kusama-dev" => {
 			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormat::KusamaAccount,
+				sp_core::crypto::Ss58AddressFormatRegistry::KusamaAccount.into(),
 			);
 			sub_tokens::dynamic::set_name("KSM");
 			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
@@ -558,7 +570,7 @@ async fn main() {
 		},
 		"westend" => {
 			sp_core::crypto::set_default_ss58_version(
-				sp_core::crypto::Ss58AddressFormat::PolkadotAccount,
+				sp_core::crypto::Ss58AddressFormatRegistry::PolkadotAccount.into(),
 			);
 			sub_tokens::dynamic::set_name("WND");
 			sub_tokens::dynamic::set_decimal_points(1_000_000_000_000);
@@ -576,7 +588,7 @@ async fn main() {
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
 	any_runtime_unit! {
-		check_versions::<Runtime>(&client, true).await
+		check_versions::<Runtime>(&client).await
 	};
 
 	let signer_account = any_runtime! {
@@ -595,7 +607,7 @@ async fn main() {
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "DryRun error: {:?}", e);
 				}),
-			Command::EmergencySolution => emergency_solution_cmd(shared.clone()).await
+			Command::EmergencySolution(c) => emergency_solution_cmd(shared.clone(), c).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
 				}),

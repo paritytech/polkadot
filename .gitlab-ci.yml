@@ -6,7 +6,7 @@
 # setting DEPLOY_TAG will only deploy the tagged image
 #
 # please do not add new jobs without "rules:" and "*-env". There are &rules-test for everything,
-# &rules-pr-only preset. And "kubernetes-env" with "docker-env" to set a runner
+# &rules-test-and-rococo preset. And "kubernetes-env" with "docker-env" to set a runner
 # which executes the job.
 
 stages:
@@ -14,8 +14,6 @@ stages:
   - build
   - publish
   - deploy
-
-image:                             paritytech/ci-linux:production
 
 workflow:
   rules:
@@ -26,11 +24,14 @@ variables:
   GIT_STRATEGY:                    fetch
   GIT_DEPTH:                       100
   CI_SERVER_NAME:                  "GitLab CI"
+  CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
+  SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v14"
+  PIPELINE_SCRIPTS_TAG:            "v0.1"
 
 default:
   cache:                           {}
@@ -55,6 +56,7 @@ default:
     - kubernetes-parity-build
 
 .docker-env:                       &docker-env
+  image:                           "${CI_IMAGE}"
   retry:
     max: 2
     when:
@@ -76,16 +78,16 @@ default:
   rules:
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
-    - when: always
-
-.pr-only:                          &rules-pr-only
-  # these jobs run only on PRs
-  rules:
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
-      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: never
+    - if: $CI_COMMIT_REF_NAME == "master"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+
+.rules-test-and-rococo:            &rules-test-and-rococo
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
 
 #### Vault secrets
 .vault-secrets:                    &vault-secrets
@@ -142,7 +144,7 @@ check-runtime:
   stage:                           test
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
+  <<:                              *rules-test
   <<:                              *vault-secrets
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
@@ -151,19 +153,10 @@ check-runtime:
     - ./scripts/gitlab/check_runtime.sh
   allow_failure:                   true
 
-check-line-width:
-  stage:                           test
-  image:                           paritytech/tools:latest
-  <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
-  script:
-    - ./scripts/gitlab/check_line_width.sh
-  allow_failure:                   true
-
 cargo-fmt:
   stage:                           test
-  <<:                              *kubernetes-env
-  <<:                              *rules-pr-only
+  <<:                              *docker-env
+  <<:                              *rules-test
   script:
     - cargo +nightly fmt --all -- --check
   allow_failure:                   true
@@ -197,7 +190,7 @@ test-build-linux-stable:
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
-    - time cargo build --release --verbose --bin polkadot
+    - time cargo build --release --verbose --bin polkadot --features "disputes"
     - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
@@ -237,13 +230,15 @@ check-no-default-features:
 spellcheck:
   stage:                           test
   <<:                              *docker-env
-  <<:                              *rules-pr-only
+  <<:                              *rules-test
   script:
     - cargo spellcheck --version
     # compare with the commit parent to the PR, given it's from a default branch
     - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
+    - echo "___Spellcheck is going to check your diff___"
+    - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
     - time cargo spellcheck check -vvv --cfg=scripts/gitlab/spellcheck.toml --checkers hunspell --code 1
-        -r $(git diff --name-only ${CI_COMMIT_SHA} $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH}))
+        $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
   allow_failure:                   true
 
 build-adder-collator:
@@ -251,11 +246,7 @@ build-adder-collator:
   <<:                              *collect-artifacts
   <<:                              *docker-env
   <<:                              *compiler-info
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  <<:                              *rules-test-and-rococo
   script:
     - time cargo build --release --verbose -p test-parachain-adder-collator
     - sccache -s
@@ -269,19 +260,41 @@ build-adder-collator:
 
 #### stage:                        build
 
+.check-dependent-project:          &check-dependent-project
+  stage:                           build
+  <<:                              *docker-env
+  <<:                              *vault-secrets
+  script:
+    - git clone
+        --depth=1
+        "--branch=$PIPELINE_SCRIPTS_TAG"
+        https://github.com/paritytech/pipeline-scripts
+    - ./pipeline-scripts/check_dependent_project.sh
+        paritytech
+        polkadot
+        --polkadot
+        "$DEPENDENT_REPO"
+        "$GITHUB_PR_TOKEN"
+
+check-dependent-cumulus:
+  <<: *check-dependent-project
+  variables:
+    DEPENDENT_REPO: cumulus
+
 check-transaction-versions:
-  # image must be ubuntu:20.04 based to match the linkers, this image has npm installed
-  image:                           paritytech/contracts-ci-linux:production
   stage:                           build
   <<:                              *rules-test
   <<:                              *docker-env
   <<:                              *vault-secrets
+  image:                           node:15
   needs:
     - job:                         test-build-linux-stable
       artifacts:                   true
   before_script:
     - apt-get -y update; apt-get -y install jq lsof
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
+    # Set git config
+    - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
     - git fetch origin release
   script:
     - scripts/gitlab/check_extrinsics_ordering.sh
@@ -310,7 +323,7 @@ build-rustdoc:
     - ./crate-docs/
   script:
     # FIXME: it fails with `RUSTDOCFLAGS="-Dwarnings"` and `--all-features`
-    - time cargo doc --no-deps --workspace --verbose
+    - time cargo doc --workspace --verbose
     - rm -f ./target/doc/.lock
     - mv ./target/doc ./crate-docs
     # FIXME: remove me after CI image gets nonroot
@@ -392,16 +405,12 @@ publish-adder-collator-image:
   # service image for Simnet
   stage:                           build
   <<:                              *build-push-image
+  <<:                              *rules-test-and-rococo
   variables:
     <<:                            *image-variables
     # scripts/dockerfiles/collator_injected.Dockerfile
     DOCKERFILE:                    dockerfiles/collator_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritypr/colander
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         build-adder-collator
       artifacts:                   true
@@ -415,22 +424,20 @@ publish-adder-collator-image:
       # this artifact is used in simnet-tests job
       dotenv: ./artifacts/collator.env
 
-.update_weights:                   &update-weights
+update_polkadot_weights:           &update-weights
   stage:                           build
   when:                            manual
-  tags:
-    - weights
   variables:
     RUNTIME:                       polkadot
   artifacts:
     paths:
       - ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
-  script: |
-    ./scripts/run_benches_for_runtime.sh $RUNTIME
-    git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
-
-update_polkadot_weights:
-  <<:                              *update-weights
+  script:
+    - ./scripts/run_benches_for_runtime.sh $RUNTIME
+    - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
+  # uses the "shell" executors
+  tags:
+    - weights
 
 update_kusama_weights:
   <<:                              *update-weights
@@ -523,6 +530,7 @@ publish-rustdoc:
     - git commit -m "Updated docs for ${CI_COMMIT_REF_NAME}" ||
         echo "___Nothing to commit___"
     - git push origin gh-pages --force
+    - echo "___Rustdoc was successfully published to https://paritytech.github.io/polkadot/___"
   after_script:
     - rm -rf .git/ ./*
 
@@ -531,7 +539,6 @@ publish-rustdoc:
 deploy-polkasync-kusama:
   stage:                           deploy
   rules:
-    # former .rules-build
     - if: $CI_COMMIT_REF_NAME == "rococo-v1"
       when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
@@ -544,13 +551,11 @@ deploy-polkasync-kusama:
 
 simnet-tests:
   stage:                           deploy
-  image:                           "docker.io/paritytech/simnet:${SIMNET_REF}"
+  image:                           "${SIMNET_IMAGE}"
   <<:                              *kubernetes-env
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  <<:                              *rules-test-and-rococo
+  variables:
+    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/master/simnet_tests"
   needs:
     - job:                         publish-polkadot-image
     - job:                         publish-adder-collator-image
@@ -562,17 +567,19 @@ simnet-tests:
 
   # SIMNET_REF is a gitlab variable
   before_script:
-    - echo "Simnet Tests Config
-        ${SIMNET_IMAGE_NAME} ${SIMNET_REF}
-        ${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}
-        ${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+    - echo "Simnet Tests Config"
+    - echo "${SIMNET_IMAGE}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+    - echo "${GH_DIR}"
   script:
-    - /home/nonroot/simnet/gurke/scripts/run-test-environment-manager.sh
-        --github-remote-dir="https://github.com/paritytech/polkadot/tree/master/simnet_tests"
-        --config="simnet_tests/configs/simple_rococo_testnet.toml"
-        --image="${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --image-2="${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image-simnet="docker.io/paritytech/simnet:${SIMNET_REF}"
+    - /home/nonroot/simnet/scripts/run-test-environment-manager-v2.sh
+        --github-remote-dir="${GH_DIR}"
+        --tag=smoketest
+        --image="PARACHAINSIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        --image="SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
+        --image="COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
+        --image="SCRIPTSIMAGE=${SIMNET_IMAGE}"
   allow_failure:                   true
   retry: 2
   tags:

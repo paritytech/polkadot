@@ -41,7 +41,10 @@ const CONFIG: Config = Config {
 	// wasm pages.
 	//
 	// Thus let's assume that 32 pages or 2 MiB are used for these needs.
-	max_memory_pages: Some(2048 + 32),
+	//
+	// Note that the memory limit is specified in bytes, so we multiply this value
+	// by wasm page size -- 64 KiB.
+	max_memory_size: Some((2048 + 32) * 65536),
 	heap_pages: 2048,
 
 	allow_missing_func_imports: true,
@@ -65,6 +68,7 @@ const CONFIG: Config = Config {
 			native_stack_max: 256 * 1024 * 1024,
 		}),
 		canonicalize_nans: true,
+		parallel_compilation: true,
 	},
 };
 
@@ -274,11 +278,21 @@ impl TaskExecutor {
 }
 
 impl sp_core::traits::SpawnNamed for TaskExecutor {
-	fn spawn_blocking(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+	fn spawn_blocking(
+		&self,
+		_task_name: &'static str,
+		_subsystem_name: Option<&'static str>,
+		future: futures::future::BoxFuture<'static, ()>,
+	) {
 		self.0.spawn_ok(future);
 	}
 
-	fn spawn(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+	fn spawn(
+		&self,
+		_task_name: &'static str,
+		_subsystem_name: Option<&'static str>,
+		future: futures::future::BoxFuture<'static, ()>,
+	) {
 		self.0.spawn_ok(future);
 	}
 }

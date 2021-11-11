@@ -1,6 +1,6 @@
 [package]
 name = "metered-channel"
-version = "0.9.11"
+version = "0.9.12"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Channels with attached Meters"
@@ -9,12 +9,12 @@ description = "Channels with attached Meters"
 futures = "0.3.17"
 futures-timer = "3.0.2"
 derive_more = "0.99"
-tracing = "0.1.28"
-thiserror = "1.0.29"
+tracing = "0.1.29"
+thiserror = "1.0.30"
 
 [dev-dependencies]
 futures = { version = "0.3.17", features = ["thread-pool"] }
 assert_matches = "1.5"
 env_logger = "0.9"
 log = "0.4"
-tracing = { version = "0.1.28", features = ["log"] }
+tracing = { version = "0.1.29", features = ["log"] }

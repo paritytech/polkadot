@@ -25,8 +25,9 @@ use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v1::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
-	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, HeadData,
-	Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
+	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
+	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorIndex,
+	ValidityAttestation,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -110,6 +111,24 @@ pub trait RewardValidators {
 	fn reward_bitfields(validators: impl IntoIterator<Item = ValidatorIndex>);
 }
 
+/// Helper return type for `process_candidates`.
+#[derive(Encode, Decode, PartialEq, TypeInfo)]
+#[cfg_attr(test, derive(Debug))]
+pub(crate) struct ProcessedCandidates<H = Hash> {
+	pub(crate) core_indices: Vec<CoreIndex>,
+	pub(crate) candidate_receipt_with_backing_validator_indices:
+		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidityAttestation)>)>,
+}
+
+impl<H> Default for ProcessedCandidates<H> {
+	fn default() -> Self {
+		Self {
+			core_indices: Vec::new(),
+			candidate_receipt_with_backing_validator_indices: Vec::new(),
+		}
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -180,8 +199,6 @@ pub mod pallet {
 		NotCollatorSigned,
 		/// The validation data hash does not match expected.
 		ValidationDataHashMismatch,
-		/// Internal error only returned when compiled with debug assertions.
-		InternalError,
 		/// The downward message queue is not processed correctly.
 		IncorrectDownwardMessageHandling,
 		/// At least one upward message sent does not pass the acceptance criteria.
@@ -328,8 +345,6 @@ impl<T: Config> Pallet<T> {
 						candidate_pending_availability.availability_votes.get_mut(val_idx)
 					}) {
 					*bit = true;
-				} else if cfg!(debug_assertions) {
-					ensure!(false, Error::<T>::InternalError);
 				}
 			}
 
@@ -396,11 +411,11 @@ impl<T: Config> Pallet<T> {
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
-	) -> Result<Vec<CoreIndex>, DispatchError> {
+	) -> Result<ProcessedCandidates<T::Hash>, DispatchError> {
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
-			return Ok(Vec::new())
+			return Ok(ProcessedCandidates::default())
 		}
 
 		let validators = shared::Pallet::<T>::active_validator_keys();
@@ -412,7 +427,11 @@ impl<T: Config> Pallet<T> {
 		let relay_parent_number = now - One::one();
 		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
-		// do all checks before writing storage.
+		// Collect candidate receipts with backers.
+		let mut candidate_receipt_with_backing_validator_indices =
+			Vec::with_capacity(candidates.len());
+
+		// Do all checks before writing storage.
 		let core_indices_and_backers = {
 			let mut skip = 0;
 			let mut core_indices_and_backers = Vec::with_capacity(candidates.len());
@@ -441,17 +460,17 @@ impl<T: Config> Pallet<T> {
 			//
 			// In the meantime, we do certain sanity checks on the candidates and on the scheduled
 			// list.
-			'a: for (candidate_idx, candidate) in candidates.iter().enumerate() {
-				let para_id = candidate.descriptor().para_id;
+			'a: for (candidate_idx, backed_candidate) in candidates.iter().enumerate() {
+				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
 
 				// we require that the candidate is in the context of the parent block.
 				ensure!(
-					candidate.descriptor().relay_parent == parent_hash,
+					backed_candidate.descriptor().relay_parent == parent_hash,
 					Error::<T>::CandidateNotInParentContext,
 				);
 				ensure!(
-					candidate.descriptor().check_collator_signature().is_ok(),
+					backed_candidate.descriptor().check_collator_signature().is_ok(),
 					Error::<T>::NotCollatorSigned,
 				);
 
@@ -460,24 +479,24 @@ impl<T: Config> Pallet<T> {
 						// A candidate for a parachain without current validation code is not scheduled.
 						.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
 				ensure!(
-					candidate.descriptor().validation_code_hash == validation_code_hash,
+					backed_candidate.descriptor().validation_code_hash == validation_code_hash,
 					Error::<T>::InvalidValidationCodeHash,
 				);
 
 				ensure!(
-					candidate.descriptor().para_head ==
-						candidate.candidate.commitments.head_data.hash(),
+					backed_candidate.descriptor().para_head ==
+						backed_candidate.candidate.commitments.head_data.hash(),
 					Error::<T>::ParaHeadMismatch,
 				);
 
 				if let Err(err) = check_cx.check_validation_outputs(
 					para_id,
-					&candidate.candidate.commitments.head_data,
-					&candidate.candidate.commitments.new_validation_code,
-					candidate.candidate.commitments.processed_downward_messages,
-					&candidate.candidate.commitments.upward_messages,
-					T::BlockNumber::from(candidate.candidate.commitments.hrmp_watermark),
-					&candidate.candidate.commitments.horizontal_messages,
+					&backed_candidate.candidate.commitments.head_data,
+					&backed_candidate.candidate.commitments.new_validation_code,
+					backed_candidate.candidate.commitments.processed_downward_messages,
+					&backed_candidate.candidate.commitments.upward_messages,
+					T::BlockNumber::from(backed_candidate.candidate.commitments.hrmp_watermark),
+					&backed_candidate.candidate.commitments.horizontal_messages,
 				) {
 					log::debug!(
 						target: LOG_TARGET,
@@ -495,7 +514,7 @@ impl<T: Config> Pallet<T> {
 					if para_id == assignment.para_id {
 						if let Some(required_collator) = assignment.required_collator() {
 							ensure!(
-								required_collator == &candidate.descriptor().collator,
+								required_collator == &backed_candidate.descriptor().collator,
 								Error::<T>::WrongCollator,
 							);
 						}
@@ -513,14 +532,15 @@ impl<T: Config> Pallet<T> {
 										// We don't want to error out here because it will
 										// brick the relay-chain. So we return early without
 										// doing anything.
-										return Ok(Vec::new())
+										return Ok(ProcessedCandidates::default())
 									},
 								};
 
 							let expected = persisted_validation_data.hash();
 
 							ensure!(
-								expected == candidate.descriptor().persisted_validation_data_hash,
+								expected ==
+									backed_candidate.descriptor().persisted_validation_data_hash,
 								Error::<T>::ValidationDataHashMismatch,
 							);
 						}
@@ -540,7 +560,7 @@ impl<T: Config> Pallet<T> {
 						// check the signatures in the backing and that it is a majority.
 						{
 							let maybe_amount_validated = primitives::v1::check_candidate_backing(
-								&candidate,
+								&backed_candidate,
 								&signing_context,
 								group_vals.len(),
 								|idx| {
@@ -561,17 +581,28 @@ impl<T: Config> Pallet<T> {
 								},
 							}
 
-							for (bit_idx, _) in candidate
+							let mut backer_idx_and_attestation =
+								Vec::<(ValidatorIndex, ValidityAttestation)>::with_capacity(
+									backed_candidate.validator_indices.count_ones(),
+								);
+							let candidate_receipt = backed_candidate.receipt();
+
+							for ((bit_idx, _), attestation) in backed_candidate
 								.validator_indices
 								.iter()
 								.enumerate()
 								.filter(|(_, signed)| **signed)
+								.zip(backed_candidate.validity_votes.iter().cloned())
 							{
-								let val_idx =
-									group_vals.get(bit_idx).expect("this query done above; qed");
+								let val_idx = group_vals
+									.get(bit_idx)
+									.expect("this query succeeded above; qed");
+								backer_idx_and_attestation.push((*val_idx, attestation));
 
 								backers.set(val_idx.0 as _, true);
 							}
+							candidate_receipt_with_backing_validator_indices
+								.push((candidate_receipt, backer_idx_and_attestation));
 						}
 
 						core_indices_and_backers.push((
@@ -629,7 +660,7 @@ impl<T: Config> Pallet<T> {
 					descriptor,
 					availability_votes,
 					relay_parent_number,
-					backers,
+					backers: backers.to_bitvec(),
 					backed_in_number: check_cx.now,
 					backing_group: group,
 				},
@@ -637,7 +668,10 @@ impl<T: Config> Pallet<T> {
 			<PendingAvailabilityCommitments<T>>::insert(&para_id, commitments);
 		}
 
-		Ok(core_indices)
+		Ok(ProcessedCandidates::<T::Hash> {
+			core_indices,
+			candidate_receipt_with_backing_validator_indices,
+		})
 	}
 
 	/// Run the acceptance criteria checks on the given candidate commitments.
@@ -1412,13 +1446,14 @@ mod tests {
 					bare_bitfield,
 					&signing_context,
 				));
-
-				assert!(ParaInclusion::process_bitfields(
-					expected_bits(),
-					vec![signed.into()],
-					&core_lookup,
-				)
-				.is_err());
+				assert_eq!(
+					ParaInclusion::process_bitfields(
+						expected_bits(),
+						vec![signed.into()],
+						&core_lookup,
+					),
+					Ok(vec![])
+				);
 			}
 
 			// empty bitfield signed: always OK, but kind of useless.
@@ -2389,9 +2424,32 @@ mod tests {
 				BackingKind::Threshold,
 			));
 
-			let occupied_cores = ParaInclusion::process_candidates(
+			let backed_candidates = vec![backed_a, backed_b, backed_c];
+			let get_backing_group_idx = {
+				// the order defines the group implicitly for this test case
+				let backed_candidates_with_groups = backed_candidates
+					.iter()
+					.enumerate()
+					.map(|(idx, backed_candidate)| (backed_candidate.hash(), GroupIndex(idx as _)))
+					.collect::<Vec<_>>();
+
+				move |candidate_hash_x: CandidateHash| -> Option<GroupIndex> {
+					backed_candidates_with_groups.iter().find_map(|(candidate_hash, grp)| {
+						if *candidate_hash == candidate_hash_x {
+							Some(*grp)
+						} else {
+							None
+						}
+					})
+				}
+			};
+
+			let ProcessedCandidates {
+				core_indices: occupied_cores,
+				candidate_receipt_with_backing_validator_indices,
+			} = ParaInclusion::process_candidates(
 				Default::default(),
-				vec![backed_a, backed_b, backed_c],
+				backed_candidates.clone(),
 				vec![
 					chain_a_assignment.clone(),
 					chain_b_assignment.clone(),
@@ -2404,6 +2462,55 @@ mod tests {
 			assert_eq!(
 				occupied_cores,
 				vec![CoreIndex::from(0), CoreIndex::from(1), CoreIndex::from(2)]
+			);
+
+			// Transform the votes into the setup we expect
+			let expected = {
+				let mut intermediate = std::collections::HashMap::<
+					CandidateHash,
+					(CandidateReceipt, Vec<(ValidatorIndex, ValidityAttestation)>),
+				>::new();
+				backed_candidates.into_iter().for_each(|backed_candidate| {
+					let candidate_receipt_with_backers = intermediate
+						.entry(backed_candidate.hash())
+						.or_insert_with(|| (backed_candidate.receipt(), Vec::new()));
+
+					assert_eq!(
+						backed_candidate.validity_votes.len(),
+						backed_candidate.validator_indices.count_ones()
+					);
+					candidate_receipt_with_backers.1.extend(
+						backed_candidate
+							.validator_indices
+							.iter()
+							.enumerate()
+							.filter(|(_, signed)| **signed)
+							.zip(backed_candidate.validity_votes.iter().cloned())
+							.filter_map(|((validator_index_within_group, _), attestation)| {
+								let grp_idx =
+									get_backing_group_idx(backed_candidate.hash()).unwrap();
+								group_validators(grp_idx).map(|validator_indices| {
+									(validator_indices[validator_index_within_group], attestation)
+								})
+							}),
+					);
+				});
+				intermediate.into_values().collect::<Vec<_>>()
+			};
+
+			// sort, since we use a hashmap above
+			let assure_candidate_sorting = |mut candidate_receipts_with_backers: Vec<(
+				CandidateReceipt,
+				Vec<(ValidatorIndex, ValidityAttestation)>,
+			)>| {
+				candidate_receipts_with_backers.sort_by(|(cr1, _), (cr2, _)| {
+					cr1.descriptor().para_id.cmp(&cr2.descriptor().para_id)
+				});
+				candidate_receipts_with_backers
+			};
+			assert_eq!(
+				assure_candidate_sorting(expected),
+				assure_candidate_sorting(candidate_receipt_with_backing_validator_indices)
 			);
 
 			assert_eq!(
@@ -2533,13 +2640,14 @@ mod tests {
 				BackingKind::Threshold,
 			));
 
-			let occupied_cores = ParaInclusion::process_candidates(
-				Default::default(),
-				vec![backed_a],
-				vec![chain_a_assignment.clone()],
-				&group_validators,
-			)
-			.expect("candidates scheduled, in order, and backed");
+			let ProcessedCandidates { core_indices: occupied_cores, .. } =
+				ParaInclusion::process_candidates(
+					Default::default(),
+					vec![backed_a],
+					vec![chain_a_assignment.clone()],
+					&group_validators,
+				)
+				.expect("candidates scheduled, in order, and backed");
 
 			assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
 

@@ -27,7 +27,7 @@ use polkadot_node_primitives::{
 	approval::{
 		BlockApprovalMeta, DelayTranche, IndirectAssignmentCert, IndirectSignedApprovalVote,
 	},
-	SignedDisputeStatement, ValidationResult,
+	SignedDisputeStatement, ValidationResult, APPROVAL_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
@@ -1326,6 +1326,9 @@ async fn handle_approved_ancestor(
 									let next_wakeup =
 										wakeups.wakeup_for(block_hash, candidate_hash);
 
+									let approved =
+										triggered && { a_entry.local_statements().1.is_some() };
+
 									tracing::debug!(
 										target: LOG_TARGET,
 										?candidate_hash,
@@ -1334,6 +1337,7 @@ async fn handle_approved_ancestor(
 										?next_wakeup,
 										status = %status(),
 										triggered,
+										approved,
 										"assigned."
 									);
 								},
@@ -2235,6 +2239,7 @@ async fn launch_approval(
 					validation_code,
 					candidate.descriptor.clone(),
 					available_data.pov,
+					APPROVAL_EXECUTION_TIMEOUT,
 					val_tx,
 				)
 				.into(),

@@ -33,7 +33,7 @@ the command-line.
 Currently supports Debian 10 (Buster) and Ubuntu 20.04 (Focal), and
 derivatives. Run the following commands as the `root` user.
 
-```
+```bash
 # Import the security@parity.io GPG key
 gpg --recv-keys --keyserver hkps://keys.mailvelope.com 9D4B2B6EB8F97156D19669A9FF0812D491B96798
 gpg --export 9D4B2B6EB8F97156D19669A9FF0812D491B96798 > /usr/share/keyrings/parity.gpg
@@ -52,7 +52,7 @@ apt install polkadot
 
 Currently supports Fedora 32 and CentOS 8, and derivatives.
 
-```
+```bash
 # Install dnf-plugins-core (This might already be installed)
 dnf install dnf-plugins-core
 # Add the repository and enable it
@@ -67,7 +67,7 @@ dnf install polkadot
 
 ### Install via Cargo
 
-Make sure you have the support software installed from the **Build from Source** section 
+Make sure you have the support software installed from the **Build from Source** section
 below this section.
 
 If you want to install Polkadot in your PATH, you can do so with with:
@@ -244,9 +244,11 @@ polkadot --chain=polkadot-local --bob -d /tmp/bob --port 30334 --bootnodes '/ip4
 Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of the first terminal.
 
 ### Using Docker
+
 [Using Docker](doc/docker.md)
 
 ### Shell Completion
+
 [Shell Completion](doc/shell-completion.md)
 
 ## Contributing
