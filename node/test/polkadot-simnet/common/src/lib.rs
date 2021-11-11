@@ -149,7 +149,7 @@ where
 		events
 			.iter()
 			.filter_map(|event| match event.event {
-				Event::Democracy(democracy::Event::PreimageNoted(ref proposal_hash, _, _)) =>
+				Event::Democracy(democracy::Event::PreimageNoted { ref proposal_hash, .. }) =>
 					Some(proposal_hash.clone()),
 				_ => None,
 			})
@@ -181,8 +181,8 @@ where
 		let (index, hash): (u32, H256) = events
 			.iter()
 			.filter_map(|event| match event.event {
-				Event::Council(CouncilCollectiveEvent::Proposed(_, index, ref hash, _)) =>
-					Some((index, hash.clone())),
+				Event::Council(CouncilCollectiveEvent::Proposed { account: _, proposal_index, ref proposal_hash, threshold: _}) =>
+					Some((proposal_index, proposal_hash.clone())),
 				_ => None,
 			})
 			.next()
@@ -212,11 +212,11 @@ where
 			.events()
 			.into_iter()
 			.filter(|event| match event.event {
-				Event::Council(CouncilCollectiveEvent::Closed(_hash, _, _)) if hash == _hash =>
+				Event::Council(CouncilCollectiveEvent::Closed { proposal_hash, yes: _, no: _ }) if hash == proposal_hash =>
 					true,
-				Event::Council(CouncilCollectiveEvent::Approved(_hash)) if hash == _hash => true,
-				Event::Council(CouncilCollectiveEvent::Executed(_hash, Ok(())))
-					if hash == _hash =>
+				Event::Council(CouncilCollectiveEvent::Approved { proposal_hash }) if hash == proposal_hash => true,
+				Event::Council(CouncilCollectiveEvent::Executed { proposal_hash, result: Ok(()) })
+					if hash == proposal_hash =>
 					true,
 				_ => false,
 			})
@@ -253,12 +253,12 @@ where
 		let (index, hash) = events
 			.iter()
 			.filter_map(|event| match event.event {
-				Event::TechnicalCommittee(TechnicalCollectiveEvent::Proposed(
-					_,
-					index,
-					ref hash,
-					_,
-				)) => Some((index, hash.clone())),
+				Event::TechnicalCommittee(TechnicalCollectiveEvent::Proposed {
+					account: _,
+					proposal_index,
+					ref proposal_hash,
+					threshold: _,
+				}) => Some((proposal_index, proposal_hash.clone())),
 				_ => None,
 			})
 			.next()
@@ -289,13 +289,13 @@ where
 			.events()
 			.into_iter()
 			.filter(|event| match event.event {
-				Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed(_hash, _, _))
+				Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed { proposal_hash, .. })
 					if hash == _hash =>
 					true,
-				Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved(_hash))
+				Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved { proposal_hash })
 					if hash == _hash =>
 					true,
-				Event::TechnicalCommittee(TechnicalCollectiveEvent::Executed(_hash, Ok(())))
+				Event::TechnicalCommittee(TechnicalCollectiveEvent::Executed { proposal_hash, result: Ok(()) })
 					if hash == _hash =>
 					true,
 				_ => false,
@@ -316,7 +316,7 @@ where
 		.events()
 		.into_iter()
 		.filter_map(|event| match event.event {
-			Event::Democracy(democracy::Event::Started(index, _)) => Some(index),
+			Event::Democracy(democracy::Event::Started { ref_index: index, .. }) => Some(index),
 			_ => None,
 		})
 		.next()
@@ -344,11 +344,11 @@ where
 		.events()
 		.into_iter()
 		.filter(|event| match event.event {
-			Event::Democracy(democracy::Event::Passed(_index)) if _index == ref_index => true,
-			Event::Democracy(democracy::Event::PreimageUsed(_hash, _, _))
+			Event::Democracy(democracy::Event::Passed { ref_index: _index }) if _index == ref_index => true,
+			Event::Democracy(democracy::Event::PreimageUsed { proposal_hash: _hash, .. })
 				if _hash == proposal_hash =>
 				true,
-			Event::Democracy(democracy::Event::Executed(_index, Ok(()))) if _index == ref_index =>
+			Event::Democracy(democracy::Event::Executed { ref_index: _index, result: Ok(()) }) if _index == ref_index =>
 				true,
 			_ => false,
 		})
