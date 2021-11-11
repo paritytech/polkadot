@@ -18,6 +18,7 @@
 
 use super::*;
 use jsonrpsee::types::traits::Client;
+// pub use jsonrpsee::rpc_params; // TODO: needed actually?
 pub(crate) use jsonrpsee::types::v2::ParamsSer;
 
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
@@ -31,6 +32,22 @@ impl std::fmt::Display for RpcHelperError {
 		<RpcHelperError as std::fmt::Debug>::fmt(self, f)
 	}
 }
+
+// #[macro_export]
+// macro_rules! params {
+// 	($($param:expr),*) => {
+// 		{
+// 			let mut __params = vec![];
+// 			$(
+// 				__params.push(serde_json::to_value($param).expect("json serialization infallible; qed."));
+// 			)*
+// 			$crate::rpc_helpers::ParamsSer::Array(__params)
+// 		}
+// 	};
+// 	() => {
+// 		$crate::rpc::JsonRpcParams::NoParams,
+// 	}
+// }
 
 /// Make the rpc request, returning `Ret`.
 pub(crate) async fn rpc<'a, Ret: serde::de::DeserializeOwned>(

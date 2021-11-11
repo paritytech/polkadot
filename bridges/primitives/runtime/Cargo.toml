@@ -14,16 +14,16 @@ scale-info = { version = "1.0", default-features = false, features = ["derive"] 
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
-sp-trie = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "dp-update-jsonrpsee-client" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" , default-features = false }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "dp-update-jsonrpsee-client" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 
 [features]
