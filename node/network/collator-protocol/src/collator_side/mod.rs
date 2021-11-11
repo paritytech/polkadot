@@ -408,14 +408,7 @@ where
 		current_validators.validators.iter().map(Clone::clone).collect();
 
 	// Issue a discovery request for the validators of the current group:
-	connect_to_validators(
-		ctx,
-		current_validators
-			.validators
-			.into_iter()
-			.collect(),
-	)
-	.await;
+	connect_to_validators(ctx, current_validators.validators.into_iter().collect()).await;
 
 	state.our_validators_groups.insert(relay_parent, validator_group.into());
 

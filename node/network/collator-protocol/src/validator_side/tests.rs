@@ -701,7 +701,6 @@ fn reject_connection_to_next_group() {
 		)
 		.await;
 
-
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
 			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
