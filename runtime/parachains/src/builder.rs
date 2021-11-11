@@ -63,7 +63,7 @@ pub(crate) struct Bench<T: paras_inherent::Config> {
 
 impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create a new `BenchBuilder` with some opinionated values that should work with the rest
-	/// of the functions in this impl.å
+	/// of the functions in this implementation.
 	pub(crate) fn new() -> Self {
 		BenchBuilder {
 			// Validators should be declared prior to all other setup.
@@ -103,7 +103,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.expect("self.block_number is u32")
 	}
 
-	/// Maximium number of validators that may be part of a validator group.
+	/// Maximum number of validators that may be part of a validator group.
 	pub(crate) fn fallback_max_validators() -> u32 {
 		configuration::Pallet::<T>::config().max_validators.unwrap_or(200)
 	}
@@ -225,11 +225,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Setup para ids.
-	/// * setup para_ids traverses each core,
+	/// * setup `para_ids` traverses each core,
 	/// * creates a ParaId for that CoreIndex,
 	/// * inserts ParaLifeCycle::Onboarding for that ParaId,
 	/// * inserts the upcoming paras genesis,
-	/// * inserts the ParaId into the ActionsQueue
+	/// * inserts the ParaId into the `ActionsQueue`
 	fn setup_para_ids(cores: u32) {
 		// make sure parachains exist prior to session change.
 		for i in 0..cores {
@@ -363,7 +363,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create backed candidates for `cores_with_backed_candidates`. You need these cores to be
 	/// scheduled _within_ paras inherent, which requires marking the available bitfields as fully
 	/// available.
-	/// - `cores_with_backed_candidates` Mapping of para_id/core_idx/group_idx seed to number of
+	/// - `cores_with_backed_candidates` Mapping of `para_id`/`core_idx`/`group_idx` seed to number of
 	/// validity votes.
 	fn create_backed_candidates(
 		&self,
