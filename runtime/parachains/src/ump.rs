@@ -202,20 +202,20 @@ pub mod pallet {
 		/// Upward message executed with the given outcome.
 		/// \[ id, outcome \]
 		ExecutedUpward(MessageId, Outcome),
-		/// The weight limit for handling downward messages was reached.
+		/// The weight limit for handling upward messages was reached.
 		/// \[ id, remaining, required \]
 		WeightExhausted(MessageId, Weight, Weight),
-		/// Some downward messages have been received and will be processed.
+		/// Some upward messages have been received and will be processed.
 		/// \[ para, count, size \]
 		UpwardMessagesReceived(ParaId, u32, u32),
-		/// The weight budget was exceeded for an individual downward message.
+		/// The weight budget was exceeded for an individual upward message.
 		///
 		/// This message can be later dispatched manually using `service_overweight` dispatchable
 		/// using the assigned `overweight_index`.
 		///
 		/// \[ para, id, overweight_index, required \]
 		OverweightEnqueued(ParaId, MessageId, OverweightIndex, Weight),
-		/// Downward message from the overweight queue was executed with the given actual weight
+		/// Upward message from the overweight queue was executed with the given actual weight
 		/// used.
 		///
 		/// \[ overweight_index, used \]

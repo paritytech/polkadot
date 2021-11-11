@@ -15,7 +15,8 @@ jobs:
         - '!NTogofoetwjbTwOoPi:matrix.parity.io' # Internal release-notes channel
     runs-on: ubuntu-latest
     steps:
-      - uses: s3krit/matrix-message-action@v0.0.3
+      - name: Send Matrix message
+        uses: s3krit/matrix-message-action@v0.0.3
         with:
           room_id: ${{ matrix.channel }} # heh
           access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
