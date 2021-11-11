@@ -298,7 +298,6 @@ pub mod pallet {
 	///
 	/// The i'th entry of the vector corresponds to the i'th validator in the session.
 	#[pallet::storage]
-	#[pallet::getter(fn spam_slots)]
 	pub(super) type SpamSlots<T> = StorageMap<_, Twox64Concat, SessionIndex, Vec<u32>>;
 
 	/// Whether the chain is frozen. Starts as `None`. When this is `Some`,
