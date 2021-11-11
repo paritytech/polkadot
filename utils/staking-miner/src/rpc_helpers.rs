@@ -33,22 +33,6 @@ impl std::fmt::Display for RpcHelperError {
 	}
 }
 
-// #[macro_export]
-// macro_rules! params {
-// 	($($param:expr),*) => {
-// 		{
-// 			let mut __params = vec![];
-// 			$(
-// 				__params.push(serde_json::to_value($param).expect("json serialization infallible; qed."));
-// 			)*
-// 			$crate::rpc_helpers::ParamsSer::Array(__params)
-// 		}
-// 	};
-// 	() => {
-// 		$crate::rpc::JsonRpcParams::NoParams,
-// 	}
-// }
-
 /// Make the rpc request, returning `Ret`.
 pub(crate) async fn rpc<'a, Ret: serde::de::DeserializeOwned>(
 	client: &WsClient,
