@@ -152,7 +152,7 @@ fn backed_candidates_weight<T: frame_system::Config + Config>(
 				v.validity_votes.len() as u32,
 			)
 		})
-		.sum()
+		.fold(0, |acc, x| acc.saturating_add(x))
 }
 
 /// A bitfield concerning concluded disputes for candidates
@@ -749,14 +749,19 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
 				&mut rng,
 				candidates.clone(),
-				|c| {
+				|backed_candidate| {
+					let code_weight = backed_candidate
+						.candidate
+						.commitments
+						.new_validation_code
+						.map(|_code| {
+							<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
+						})
+						.unwrap_or(0);
 					<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
-						c.validity_votes.len() as u32,
-					) + if c.candidate.commitments.new_validation_code.is_some() {
-						<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
-					} else {
-						0
-					}
+						backed_candidate.validity_votes.len() as u32,
+					)
+					.saturating_add(code_weight)
 				},
 				remaining_weight,
 			);

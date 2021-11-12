@@ -129,8 +129,8 @@ pub trait DisputesHandler<BlockNumber> {
 		included_in: BlockNumber,
 	);
 
-/// Retrieve the included state of a given candidate in a particular session. If it
-/// returns `Some`, then we have a local dispute for the given `candidate_hash`.
+	/// Retrieve the included state of a given candidate in a particular session. If it
+	/// returns `Some`, then we have a local dispute for the given `candidate_hash`.
 	fn included_state(session: SessionIndex, candidate_hash: CandidateHash) -> Option<BlockNumber>;
 
 	/// Whether the given candidate concluded invalid in a dispute with supermajority.
