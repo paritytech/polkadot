@@ -36,4 +36,3 @@ std = [
 	"polkadot-core-primitives/std",
 	"frame-support/std",
 ]
-runtime-benchmarks = []
