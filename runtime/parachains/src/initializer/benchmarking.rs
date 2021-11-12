@@ -15,10 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use sp_runtime::DigestItem;
 use frame_benchmarking::benchmarks;
 use frame_system::RawOrigin;
 use primitives::v1::ConsensusLog;
+use sp_runtime::DigestItem;
 
 // Random large number for the digest
 const DIGEST_MAX_LEN: u32 = 65536;
