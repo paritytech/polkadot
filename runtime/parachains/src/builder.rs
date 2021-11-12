@@ -23,8 +23,8 @@ use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, v
 
 /// Grab an account, seeded by a name and index.
 ///
-/// This is directly from frame-benchmarking. Copy/Pasted so we can use it when not compiling with
-/// "features = runtime-benchmarks"
+/// This is directly from frame-benchmarking. Copy/pasted so we can use it when not compiling with
+/// "features = runtime-benchmarks".
 fn account<AccountId: Decode + Default>(name: &'static str, index: u32, seed: u32) -> AccountId {
 	let entropy = (name, index, seed).using_encoded(sp_core::blake2_256);
 	AccountId::decode(&mut &entropy[..]).unwrap_or_default()
@@ -123,6 +123,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
 	}
 
+        /// Specify a mapping of core_idx/para_id/group_idx seed to the number of dispute statements for the
+        /// corresponding dispute statement set. Note that if the number of disputes is not specified it fallbacks
+        /// to having a dispute per every validator. Additionally, an entry is not guaranteed to have a dispute - it 
+        /// must line up with the cores marked as disputed as defined in `Self::Build`.
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_dispute_statements(mut self, m: BTreeMap<u32, u32>) -> Self {
 		self.dispute_statements = m;
