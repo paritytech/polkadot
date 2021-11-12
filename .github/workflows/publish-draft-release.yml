@@ -26,7 +26,8 @@ jobs:
       matrix:
         runtime: ["polkadot", "kusama", "westend"]
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout sources
+        uses: actions/checkout@v2
       - name: Cache target dir
         uses: actions/cache@v2
         with:
@@ -64,7 +65,8 @@ jobs:
       release_url: ${{ steps.create-release.outputs.html_url }}
       asset_upload_url: ${{ steps.create-release.outputs.upload_url }}
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout sources
+        uses: actions/checkout@v2
         with:
           fetch-depth: 0
           path: polkadot
@@ -100,8 +102,10 @@ jobs:
       matrix:
         runtime: ["polkadot", "kusama", "westend"]
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/download-artifact@v2
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
       - name: Set up Ruby 2.7
         uses: actions/setup-ruby@v1
         with:
@@ -128,7 +132,7 @@ jobs:
     needs: publish-draft-release
     steps:
       - name: Internal polkadot channel
-        uses: s3krit/matrix-message-action@v0.0.2
+        uses: s3krit/matrix-message-action@v0.0.3
         with:
           room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
           access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
