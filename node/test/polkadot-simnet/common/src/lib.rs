@@ -298,14 +298,14 @@ where
 			.into_iter()
 			.filter(|event| match event.event {
 				Event::TechnicalCommittee(TechnicalCollectiveEvent::Closed {
-					proposal_hash,
+					proposal_hash: _hash,
 					..
 				}) if hash == _hash => true,
-				Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved { proposal_hash })
-					if hash == _hash =>
-					true,
+				Event::TechnicalCommittee(TechnicalCollectiveEvent::Approved {
+					proposal_hash: _hash,
+				}) if hash == _hash => true,
 				Event::TechnicalCommittee(TechnicalCollectiveEvent::Executed {
-					proposal_hash,
+					proposal_hash: _hash,
 					result: Ok(()),
 				}) if hash == _hash => true,
 				_ => false,
