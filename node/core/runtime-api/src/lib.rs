@@ -119,6 +119,15 @@ where
 			PersistedValidationData(relay_parent, para_id, assumption, data) => self
 				.requests_cache
 				.cache_persisted_validation_data((relay_parent, para_id, assumption), data),
+			AssumedValidationData(
+				_relay_parent,
+				para_id,
+				expected_persisted_validation_data_hash,
+				data,
+			) => self.requests_cache.cache_assumed_validation_data(
+				(para_id, expected_persisted_validation_data_hash),
+				data,
+			),
 			CheckValidationOutputs(relay_parent, para_id, commitments, b) => self
 				.requests_cache
 				.cache_check_validation_outputs((relay_parent, para_id, commitments), b),
@@ -186,6 +195,21 @@ where
 			Request::PersistedValidationData(para, assumption, sender) =>
 				query!(persisted_validation_data(para, assumption), sender)
 					.map(|sender| Request::PersistedValidationData(para, assumption, sender)),
+			Request::AssumedValidationData(
+				para,
+				expected_persisted_validation_data_hash,
+				sender,
+			) => query!(
+				assumed_validation_data(para, expected_persisted_validation_data_hash),
+				sender
+			)
+			.map(|sender| {
+				Request::AssumedValidationData(
+					para,
+					expected_persisted_validation_data_hash,
+					sender,
+				)
+			}),
 			Request::CheckValidationOutputs(para, commitments, sender) =>
 				query!(check_validation_outputs(para, commitments), sender)
 					.map(|sender| Request::CheckValidationOutputs(para, commitments, sender)),
@@ -246,7 +270,8 @@ where
 				)
 			}
 		} else {
-			self.spawn_handle.spawn_blocking(API_REQUEST_TASK_NAME, request);
+			self.spawn_handle
+				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), request);
 			self.active_requests.push(receiver);
 		}
 	}
@@ -264,7 +289,8 @@ where
 		}
 
 		if let Some((req, recv)) = self.waiting_requests.pop_front() {
-			self.spawn_handle.spawn_blocking(API_REQUEST_TASK_NAME, req);
+			self.spawn_handle
+				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), req);
 			self.active_requests.push(recv);
 		}
 	}
@@ -330,6 +356,12 @@ where
 			query!(AvailabilityCores, availability_cores(), sender),
 		Request::PersistedValidationData(para, assumption, sender) =>
 			query!(PersistedValidationData, persisted_validation_data(para, assumption), sender),
+		Request::AssumedValidationData(para, expected_persisted_validation_data_hash, sender) =>
+			query!(
+				AssumedValidationData,
+				assumed_validation_data(para, expected_persisted_validation_data_hash),
+				sender
+			),
 		Request::CheckValidationOutputs(para, commitments, sender) =>
 			query!(CheckValidationOutputs, check_validation_outputs(para, commitments), sender),
 		Request::SessionIndexForChild(sender) =>

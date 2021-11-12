@@ -997,6 +997,14 @@ sp_api::decl_runtime_apis! {
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<H, N>>;
 
+		/// Returns the persisted validation data for the given `ParaId` along with the corresponding
+		/// validation code hash. Instead of accepting assumption about the para, matches the validation
+		/// data hash against an expected one and yields `None` if they're not equal.
+		fn assumed_validation_data(
+			para_id: Id,
+			expected_persisted_validation_data_hash: Hash,
+		) -> Option<(PersistedValidationData<H, N>, ValidationCodeHash)>;
+
 		/// Checks if the given validation outputs pass the acceptance criteria.
 		fn check_validation_outputs(para_id: Id, outputs: CandidateCommitments) -> bool;
 
@@ -1180,8 +1188,8 @@ pub enum ConsensusLog {
 
 impl ConsensusLog {
 	/// Attempt to convert a reference to a generic digest item into a consensus log.
-	pub fn from_digest_item<H>(
-		digest_item: &runtime_primitives::DigestItem<H>,
+	pub fn from_digest_item(
+		digest_item: &runtime_primitives::DigestItem,
 	) -> Result<Option<Self>, parity_scale_codec::Error> {
 		match digest_item {
 			runtime_primitives::DigestItem::Consensus(id, encoded) if id == &POLKADOT_ENGINE_ID =>
@@ -1191,8 +1199,8 @@ impl ConsensusLog {
 	}
 }
 
-impl<H> From<ConsensusLog> for runtime_primitives::DigestItem<H> {
-	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem<H> {
+impl From<ConsensusLog> for runtime_primitives::DigestItem {
+	fn from(c: ConsensusLog) -> runtime_primitives::DigestItem {
 		Self::Consensus(POLKADOT_ENGINE_ID, c.encode())
 	}
 }

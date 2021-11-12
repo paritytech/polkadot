@@ -659,7 +659,7 @@ impl CandidateBackingJob {
 				}
 			};
 			sender
-				.send_command(FromJobCommand::Spawn("Backing Validation", bg.boxed()))
+				.send_command(FromJobCommand::Spawn("backing-validation", bg.boxed()))
 				.await?;
 		}
 
@@ -900,11 +900,13 @@ impl CandidateBackingJob {
 				.await;
 
 			match confirmation_rx.await {
-				Err(oneshot::Canceled) =>
-					tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",),
+				Err(oneshot::Canceled) => {
+					tracing::debug!(target: LOG_TARGET, "Dispute coordinator confirmation lost",)
+				},
 				Ok(ImportStatementsResult::ValidImport) => {},
-				Ok(ImportStatementsResult::InvalidImport) =>
-					tracing::warn!(target: LOG_TARGET, "Failed to import statements of validity",),
+				Ok(ImportStatementsResult::InvalidImport) => {
+					tracing::warn!(target: LOG_TARGET, "Failed to import statements of validity",)
+				},
 			}
 		}
 
@@ -1168,7 +1170,7 @@ impl util::JobTrait for CandidateBackingJob {
 	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
 
-	const NAME: &'static str = "CandidateBackingJob";
+	const NAME: &'static str = "candidate-backing-job";
 
 	fn run<S: SubsystemSender>(
 		parent: Hash,

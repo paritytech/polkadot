@@ -78,7 +78,7 @@ pub fn channel<T>(
 	let (tx, rx) = oneshot::channel();
 
 	(
-		MeteredSender { name, inner: tx },
+		MeteredSender { inner: tx },
 		MeteredReceiver {
 			name,
 			inner: rx,
@@ -95,7 +95,7 @@ pub fn channel<T>(
 #[allow(missing_docs)]
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
-	#[error("Oneshot was cancelled.")]
+	#[error("Oneshot was canceled.")]
 	Canceled(#[source] Canceled, Measurements),
 	#[error("Oneshot did not receive a response within {}", Duration::as_secs_f64(.0))]
 	HardTimeout(Duration, Measurements),
@@ -113,18 +113,17 @@ impl Measurable for Error {
 /// Oneshot sender, created by [`channel`].
 #[derive(Debug)]
 pub struct MeteredSender<T> {
-	name: &'static str,
 	inner: oneshot::Sender<(Instant, T)>,
 }
 
 impl<T> MeteredSender<T> {
 	/// Send a value.
 	pub fn send(self, t: T) -> Result<(), T> {
-		let Self { inner, name: _ } = self;
+		let Self { inner } = self;
 		inner.send((Instant::now(), t)).map_err(|(_, t)| t)
 	}
 
-	/// Poll if the thing is already cancelled.
+	/// Poll if the thing is already canceled.
 	pub fn poll_canceled(&mut self, ctx: &mut Context<'_>) -> Poll<()> {
 		self.inner.poll_canceled(ctx)
 	}

@@ -18,7 +18,7 @@
 //! futures will still get polled, but will not count towards length. So length will only count
 //! futures, which are still considered live.
 //!
-//! Usecase: If futures take longer than we would like them too, we may be able to request the data
+//! Use case: If futures take longer than we would like them too, we may be able to request the data
 //! from somewhere else as well. We don't really want to cancel the old future, because maybe it
 //! was almost done, thus we would have wasted time with our impatience. By simply making them
 //! not count towards length, we can make sure to have enough "live" requests ongoing, while at the
