@@ -55,7 +55,3 @@ std = [
 	"bitvec/std",
 	"frame-system/std",
 ]
-runtime-benchmarks = [
-	"polkadot-parachain/runtime-benchmarks",
-	"frame-system/runtime-benchmarks",
-]
