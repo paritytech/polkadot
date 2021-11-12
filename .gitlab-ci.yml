@@ -24,7 +24,7 @@ variables:
   GIT_STRATEGY:                    fetch
   GIT_DEPTH:                       100
   CI_SERVER_NAME:                  "GitLab CI"
-  CI_IMAGE:                        "paritytech/ci-linux:staging"
+  CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
