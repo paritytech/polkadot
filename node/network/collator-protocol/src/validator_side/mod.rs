@@ -1403,7 +1403,7 @@ where
 				);
 
 				modify_reputation(ctx, pending_collation.peer_id.clone(), COST_WRONG_PARA).await;
-			}
+			},
 			Ok(CollationFetchingResponse::Collation(receipt, pov)) => {
 				tracing::debug!(
 					target: LOG_TARGET,
