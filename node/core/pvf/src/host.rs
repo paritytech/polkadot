@@ -128,11 +128,11 @@ impl Config {
 			cache_path,
 			prepare_worker_program_path: program_path.clone(),
 			prepare_worker_spawn_timeout: Duration::from_secs(3),
-			prepare_workers_soft_max_num: 8,
-			prepare_workers_hard_max_num: 5,
+			prepare_workers_soft_max_num: 1,
+			prepare_workers_hard_max_num: 1,
 			execute_worker_program_path: program_path,
 			execute_worker_spawn_timeout: Duration::from_secs(3),
-			execute_workers_max_num: 5,
+			execute_workers_max_num: 2,
 		}
 	}
 }
