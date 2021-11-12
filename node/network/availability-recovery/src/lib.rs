@@ -782,7 +782,7 @@ where
 		awaiting: vec![response_sender],
 	});
 
-	if let Err(e) = ctx.spawn("recovery task", Box::pin(remote)) {
+	if let Err(e) = ctx.spawn("recovery-task", Box::pin(remote)) {
 		tracing::warn!(
 			target: LOG_TARGET,
 			err = ?e,
