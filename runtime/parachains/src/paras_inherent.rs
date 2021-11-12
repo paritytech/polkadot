@@ -245,9 +245,10 @@ pub mod pallet {
 			// and we _really_ don't want that to happen.
 			// See <https://github.com/paritytech/polkadot/issues/1327>
 
-			// Calling `Self::enter` here is a safe-guard, to avoid any discrepancy
-			// between on-chain logic and the logic that is executed
-			// at the block producer off-chain (this code path).
+			// Calling `Self::enter` here is a safe-guard, to avoid any discrepancy between on-chain checks
+			// (`enter`) and the off-chain checks by the block author (this function). Once we are confident
+			// in all the logic in this module this check should be removed to optimize performance.
+
 			let inherent_data =
 				match Self::enter(frame_system::RawOrigin::None.into(), inherent_data.clone()) {
 					Ok(_) => inherent_data,
@@ -962,7 +963,7 @@ fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet, entropy: [
 			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
 				d.statements.len() as u32,
 			);
-			if remaining_weight > dispute_weight {
+			if remaining_weight >= dispute_weight {
 				remaining_weight -= dispute_weight;
 				true
 			} else {

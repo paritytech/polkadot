@@ -286,7 +286,7 @@ impl<T: Config> Pallet<T> {
 		for _ in <AvailabilityBitfields<T>>::drain() {}
 	}
 
-	/// Extract the freed cores based on cores tht became available.
+	/// Extract the freed cores based on cores that became available.
 	///
 	/// Updates storage items `PendingAvailability` and `AvailabilityBitfields`.
 	pub(crate) fn update_pending_availability_and_get_freed_cores<F, const ON_CHAIN_USE: bool>(
@@ -767,7 +767,6 @@ impl<T: Config> Pallet<T> {
 		}
 
 		// enact the messaging facet of the candidate.
-		// TODO check how to account for these
 		weight += <dmp::Pallet<T>>::prune_dmq(
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
