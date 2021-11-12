@@ -67,7 +67,7 @@ impl MallocSizeOf for CollatorId {
 
 /// A Parachain collator keypair.
 // #[cfg(any(feature = "runtime-benchmarks", feature = "std"))]
-pub type CollatorPair = collator_app::Pair;pub type CollatorPair = collator_app::Pair;
+pub type CollatorPair = collator_app::Pair;
 
 /// Signature on candidate's block data by a collator.
 pub type CollatorSignature = collator_app::Signature;
