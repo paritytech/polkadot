@@ -46,6 +46,9 @@ candidate branch or started an additional release candidate branch (rc-2, rc-3, 
     notes](#release-notes)
 - [ ] Check that [build artifacts](#build-artifacts) have been added to the
     draft-release
+- [ ] Once the new release has been published, bump `spec_version` in Polkadot, Westend and Kusama.
+- [ ] Once the new releaes has been published, bump the version string in various `Cargo.toml` files
+    - For example, bumping v0.9.12 to v0.9.13: `grep -rl '^version = "0.9.12"' ./**/Cargo.toml | xargs sed -i 's/^version = "0.9.12"/version = "0.9.13"/g'`
 
 ## Notes
 
