@@ -473,7 +473,7 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Create the `ParachainsInherentData` that gets passed to `[`Self::enter`] in [`Self::create_inherent`].
+	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in [`Self::create_inherent`].
 	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
 	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<T::Header>> {
 		let ParachainsInherentData::<T::Header> {
