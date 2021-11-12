@@ -37,7 +37,7 @@ use std::{sync::Arc, time::Duration};
 const NICENESS_BACKGROUND: i32 = 10;
 const NICENESS_FOREGROUND: i32 = 0;
 
-const COMPILATION_TIMEOUT: Duration = Duration::from_secs(10);
+const COMPILATION_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
