@@ -174,10 +174,6 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("child_storage_root: unsupported feature for parachain validation")
 	}
 
-	fn storage_changes_root(&mut self, _: &[u8]) -> Result<Option<Vec<u8>>, ()> {
-		panic!("storage_changes_root: unsupported feature for parachain validation")
-	}
-
 	fn next_child_storage_key(&self, _: &ChildInfo, _: &[u8]) -> Option<Vec<u8>> {
 		panic!("next_child_storage_key: unsupported feature for parachain validation")
 	}
