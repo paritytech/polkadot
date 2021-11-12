@@ -128,6 +128,10 @@ impl generic::Config for Test {
 		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
 		(0, Response::Assets(assets))
 	}
+
+	fn transact_origin() -> Option<MultiLocation> {
+		Some(Default::default())
+	}
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

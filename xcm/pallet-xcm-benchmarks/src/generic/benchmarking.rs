@@ -84,7 +84,7 @@ benchmarks! {
 		let instruction = Instruction::ReserveAssetDeposited(multiassets.clone());
 		let xcm = Xcm(vec![instruction]);
 	}: {
-		executor.execute(xcm)?;
+		executor.execute(xcm).map_err(|_| BenchmarkError::Skip)?;
 	} verify {
 		assert_eq!(executor.holding, multiassets.into());
 	}
@@ -105,7 +105,8 @@ benchmarks! {
 	// and included in the final weight calculation. So this is just the overhead of submitting
 	// a noop call.
 	transact {
-		let mut executor = new_executor::<T>(Default::default());
+		let origin = T::transact_origin().ok_or(BenchmarkError::Skip)?;
+		let mut executor = new_executor::<T>(origin);
 		let noop_call: <T as Config>::Call = frame_system::Call::remark_with_event {
 			remark: Default::default()
 		}.into();

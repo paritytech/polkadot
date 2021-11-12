@@ -1567,6 +1567,10 @@ sp_api::impl_runtime_apis! {
 				fn worst_case_response() -> (u64, Response) {
 					(0u64, Default::default())
 				}
+
+				fn transact_origin() -> Option<MultiLocation> {
+					Some(Westmint::get())
+				}
 			}
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
