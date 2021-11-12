@@ -317,7 +317,7 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 	fn try_from_account(x: &T) -> Option<Self> {
 		x.using_encoded(|d| {
 			if &d[0..4] != b"para" {
-				return None;
+				return None
 			}
 			let mut cursor = &d[4..];
 			let result = Decode::decode(&mut cursor).ok()?;
