@@ -153,7 +153,7 @@ benchmarks! {
 
 		let mut benchmark = scenario.data.clone();
 
-		// There is 1 backed,
+		// There is 1 backed
 		assert_eq!(benchmark.backed_candidates.len(), 1);
 		assert_eq!(
 			benchmark.backed_candidates.get(0).unwrap().validity_votes.len() as u32,
