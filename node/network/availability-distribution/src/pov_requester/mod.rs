@@ -64,10 +64,7 @@ where
 
 	ctx.send_message(NetworkBridgeMessage::SendRequests(
 		vec![full_req],
-		// We are supposed to be connected to validators of our group via `PeerSet`,
-		// but at session boundaries that is kind of racy, in case a connection takes
-		// longer to get established, so we try to connect in any case.
-		IfDisconnected::TryConnect,
+		IfDisconnected::ImmediateError,
 	))
 	.await;
 
