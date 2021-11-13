@@ -264,7 +264,7 @@ pub mod pallet {
 							disputes: Vec::new(),
 							parent_header: inherent_data.parent_header,
 						}
-					},
+					}
 				};
 
 			Some(Call::enter { data: inherent_data })
@@ -324,17 +324,20 @@ pub mod pallet {
 				parent_header,
 				disputes,
 			} = data;
+			ensure_none(origin)?;
+			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
+			// Once we are sure we can proceed, mark as included
+			Included::<T>::set(Some(()));
+
 			let total_weight =
 				paras_inherent_total_weight::<T>(&backed_candidates, &signed_bitfields, &disputes);
-
 			// Abort if the total weight of the block exceeds the max block weight
+			// TODO this should just limit disputes
 			ensure!(
 				total_weight <= <T as frame_system::Config>::BlockWeights::get().max_block,
 				Error::<T>::InherentOverweight
 			);
 
-			ensure_none(origin)?;
-			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
 			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 			ensure!(
@@ -353,11 +356,12 @@ pub mod pallet {
 					.map(|s| (s.session, s.candidate_hash))
 					.collect();
 
+				// Note that `provide_multi_dispute_data` will iterate, verify, and import each
+				// dispute; so the input here must be reasonably bounded.
 				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
-					Included::<T>::set(Some(()));
-					return Ok(Some(minimal_inherent_weight::<T>()).into())
+					return Ok(Some(dispute_statements_weight::<T>(disputes)).into());
 				}
 
 				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
@@ -379,9 +383,8 @@ pub mod pallet {
 					Vec::new()
 				};
 
-				// create a bit index from the set of core indicies
-				// where each index corresponds to a core index
-				// that was freed due to a dispute
+				// Create a bit index from the set of core indices where each index corresponds to
+				// a core index that was freed due to a dispute.
 				let disputed_bitfield = create_disputed_bitfield(
 					expected_bits,
 					freed_disputed.iter().map(|(core_index, _)| core_index),
@@ -484,8 +487,8 @@ impl<T: Config> Pallet<T> {
 			Ok(None) => return None,
 			Err(_) => {
 				log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
-				return None
-			},
+				return None;
+			}
 		};
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
@@ -495,7 +498,7 @@ impl<T: Config> Pallet<T> {
 				target: LOG_TARGET,
 				"ParachainsInherentData references a different parent header hash than frame"
 			);
-			return None
+			return None;
 		}
 
 		let current_session = <shared::Pallet<T>>::session_index();
@@ -575,7 +578,7 @@ impl<T: Config> Pallet<T> {
 							err
 						);
 						vec![]
-					},
+					}
 				};
 
 				let freed_concluded =
@@ -606,15 +609,25 @@ impl<T: Config> Pallet<T> {
 				))
 			});
 
-		let backed_candidates = sanitize_backed_candidates::<T, _, false>(
+		let backed_candidates = match sanitize_backed_candidates::<T, _, false>(
 			parent_hash,
 			backed_candidates,
 			move |candidate_hash: CandidateHash| -> bool {
 				concluded_invalid_disputes.contains(&candidate_hash)
 			},
 			&scheduled[..],
-		)
-		.ok()?; // by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
+		) {
+			Ok(bitfields) => bitfields,
+			Err(err) => {
+				// by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
+				log::error!(
+					target: LOG_TARGET,
+					"BUG: convention violation in create_inherent: {:?}",
+					err
+				);
+				vec![]
+			}
+		};
 
 		let entropy = {
 			const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
@@ -685,7 +698,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	weight_limit: Weight,
 ) -> (Weight, Vec<usize>) {
 	if selectables.is_empty() {
-		return (0 as Weight, Vec::new())
+		return (0 as Weight, Vec::new());
 	}
 	let mut indices = (0..selectables.len()).into_iter().collect::<Vec<_>>();
 	let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
@@ -701,7 +714,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		weight_acc += weight_fn(item);
 
 		if weight_acc > weight_limit {
-			break
+			break;
 		}
 
 		picked_indices.push(idx);
@@ -734,7 +747,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	// everything fits into the block
 	if max_weight >= total {
-		return (total, candidates, bitfields)
+		return (total, candidates, bitfields);
 	}
 
 	use rand_chacha::rand_core::SeedableRng;
@@ -756,7 +769,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		// pick all bitfields, and
 		// fill the remaining space with candidates
 		let total = acc_candidate_weight.saturating_add(total_bitfields_weight);
-		return (total, candidates, bitfields)
+		return (total, candidates, bitfields);
 	}
 
 	// insufficient space for even the bitfields alone, so only try to fit as many of those
@@ -804,43 +817,36 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 
 	let mut last_index = None;
 
-	ensure2!(
-		disputed_bitfield.0.len() == expected_bits,
-		crate::inclusion::Error::<T>::WrongBitfieldSize,
-		EARLY_RETURN
-	);
+	if disputed_bitfield.0.len() != expected_bits {
+		// This a system logic error that should never occur, but we want to handle it gracefully
+		// so we drop all bitfields
+		log::error!(target: LOG_TARGET, "BUG: disputed_bitfield != expected_bits",);
+		return Ok(vec![]);
+	}
 
 	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
 	let signing_context = SigningContext { parent_hash, session_index };
 	for unchecked_bitfield in unchecked_bitfields {
-		ensure2!(
-			unchecked_bitfield.unchecked_payload().0.len() == expected_bits,
-			crate::inclusion::Error::<T>::WrongBitfieldSize,
-			EARLY_RETURN,
-			continue
-		);
+		// Find and skip and invalid bitfields. We don't error on invalid bitfields because that
+		// exposes a DoS vector where a block author introduces bad bitfields to block processing
+		// of remaining bitfields.
+		if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
+			continue;
+		}
 
-		ensure2!(
-			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() ==
-				all_zeros,
-			crate::inclusion::Error::<T>::BitfieldReferencesFreedCore,
-			EARLY_RETURN,
-			continue
-		);
+		if unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone()
+			!= all_zeros
+		{
+			continue;
+		}
 
-		ensure2!(
-			last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()),
-			crate::inclusion::Error::<T>::BitfieldDuplicateOrUnordered,
-			EARLY_RETURN,
-			continue
-		);
+		if !last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()) {
+			continue;
+		}
 
-		ensure2!(
-			(unchecked_bitfield.unchecked_validator_index().0 as usize) < validators.len(),
-			crate::inclusion::Error::<T>::ValidatorIndexOutOfBounds,
-			EARLY_RETURN,
-			continue
-		);
+		if unchecked_bitfield.unchecked_validator_index().0 as usize >= validators.len() {
+			continue;
+		}
 
 		let validator_index = unchecked_bitfield.unchecked_validator_index();
 
@@ -851,11 +857,10 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 			let signed_bitfield = if let Ok(signed_bitfield) =
 				unchecked_bitfield.try_into_checked(&signing_context, validator_public)
 			{
-				signed_bitfield
+				bitfields.push(signed_bitfield.into_unchecked());
 			} else {
-				fail!(crate::inclusion::Error::<T>::InvalidBitfieldSignature);
+				log::warn!(target: LOG_TARGET, "Invalid bitfield signature");
 			};
-			bitfields.push(signed_bitfield.into_unchecked());
 		} else {
 			bitfields.push(unchecked_bitfield);
 		}
@@ -889,7 +894,10 @@ fn sanitize_backed_candidates<
 	backed_candidates.retain(|backed_candidate| {
 		!candidate_has_concluded_invalid_dispute(backed_candidate.candidate.hash())
 	});
-	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
+
+	// TODO I don't understand why we need this check, shouldn't we simply just proceed with the
+	// filtered values regardless of if we are on chain or not?
+	// ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
 	// Assure the backed candidate's `ParaId`'s core is free.
 	// This holds under the assumption that `Scheduler::schedule` is called _before_.
@@ -903,7 +911,10 @@ fn sanitize_backed_candidates<
 		let desc = backed_candidate.descriptor();
 		desc.relay_parent == relay_parent && scheduled_paras_set.contains(&desc.para_id)
 	});
-	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
+
+	// TODO I don't understand why we need this check, shouldn't we simply just proceed with the
+	// filtered values regardless of if we are on chain or not?
+	// ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
 	// Limit weight, to avoid overweight block.
 	Ok(backed_candidates)
