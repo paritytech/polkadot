@@ -129,7 +129,8 @@ pub trait DisputesHandler<BlockNumber> {
 		included_in: BlockNumber,
 	);
 
-	/// Retrieve the included state of a given candidate in a particular session.
+	/// Retrieve the included state of a given candidate in a particular session. If it
+	/// returns `Some`, then we have a local dispute for the given `candidate_hash`.
 	fn included_state(session: SessionIndex, candidate_hash: CandidateHash) -> Option<BlockNumber>;
 
 	/// Whether the given candidate concluded invalid in a dispute with supermajority.
@@ -298,7 +299,6 @@ pub mod pallet {
 	///
 	/// The i'th entry of the vector corresponds to the i'th validator in the session.
 	#[pallet::storage]
-	#[pallet::getter(fn spam_slots)]
 	pub(super) type SpamSlots<T> = StorageMap<_, Twox64Concat, SessionIndex, Vec<u32>>;
 
 	/// Whether the chain is frozen. Starts as `None`. When this is `Some`,

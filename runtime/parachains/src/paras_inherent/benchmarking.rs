@@ -49,7 +49,7 @@ benchmarks! {
 		assert!(onchain_votes.is_some());
 		let vote = onchain_votes.unwrap();
 		// Ensure that the votes are for the correct session
-		assert_eq!(vote.session, scenario.session);
+		assert_eq!(vote.session, scenario._session);
 	}
 
 	// The weight of one bitfield.
@@ -79,7 +79,7 @@ benchmarks! {
 		assert!(onchain_votes.is_some());
 		let vote = onchain_votes.unwrap();
 		// Ensure that the votes are for the correct session
-		assert_eq!(vote.session, scenario.session);
+		assert_eq!(vote.session, scenario._session);
 	}
 
 	// Variant over `v`, the amount of validity votes for a backed candidate. This gives the weight
@@ -118,9 +118,9 @@ benchmarks! {
 		assert!(onchain_votes.is_some());
 		let vote = onchain_votes.unwrap();
 		// Ensure that the votes are for the correct session
-		assert_eq!(vote.session, scenario.session);
+		assert_eq!(vote.session, scenario._session);
 		// Ensure that there are an expected number of candidates
-		let header = BenchBuilder::<T>::header(scenario.block_number.clone());
+		let header = BenchBuilder::<T>::header(scenario._block_number.clone());
 		// Traverse candidates and assert descriptors are as expected
 		for (para_id, backing_validators) in vote.backing_validators_per_candidate.iter().enumerate() {
 			let descriptor = backing_validators.0.descriptor();
@@ -153,7 +153,7 @@ benchmarks! {
 
 		let mut benchmark = scenario.data.clone();
 
-		// There is 1 backed,
+		// There is 1 backed
 		assert_eq!(benchmark.backed_candidates.len(), 1);
 		assert_eq!(
 			benchmark.backed_candidates.get(0).unwrap().validity_votes.len() as u32,
@@ -173,9 +173,9 @@ benchmarks! {
 		assert!(onchain_votes.is_some());
 		let vote = onchain_votes.unwrap();
 		// Ensure that the votes are for the correct session
-		assert_eq!(vote.session, scenario.session);
+		assert_eq!(vote.session, scenario._session);
 		// Ensure that there are an expected number of candidates
-		let header = BenchBuilder::<T>::header(scenario.block_number.clone());
+		let header = BenchBuilder::<T>::header(scenario._block_number.clone());
 		// Traverse candidates and assert descriptors are as expected
 		for (para_id, backing_validators)
 			in vote.backing_validators_per_candidate.iter().enumerate() {

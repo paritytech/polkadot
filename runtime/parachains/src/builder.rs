@@ -23,8 +23,8 @@ use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, v
 
 /// Grab an account, seeded by a name and index.
 ///
-/// This is directly from frame-benchmarking. Copy/Pasted so we can use it when not compiling with
-/// "features = runtime-benchmarks"
+/// This is directly from frame-benchmarking. Copy/pasted so we can use it when not compiling with
+/// "features = runtime-benchmarks".
 fn account<AccountId: Decode + Default>(name: &'static str, index: u32, seed: u32) -> AccountId {
 	let entropy = (name, index, seed).using_encoded(sp_core::blake2_256);
 	AccountId::decode(&mut &entropy[..]).unwrap_or_default()
@@ -57,13 +57,13 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 #[cfg(any(feature = "runtime-benchmarks", test))]
 pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) data: ParachainsInherentData<T::Header>,
-	pub(crate) session: u32,
-	pub(crate) block_number: T::BlockNumber,
+	pub(crate) _session: u32,
+	pub(crate) _block_number: T::BlockNumber,
 }
 
 impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create a new `BenchBuilder` with some opinionated values that should work with the rest
-	/// of the functions in this impl.å
+	/// of the functions in this implementation.
 	pub(crate) fn new() -> Self {
 		BenchBuilder {
 			// Validators should be declared prior to all other setup.
@@ -103,7 +103,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.expect("self.block_number is u32")
 	}
 
-	/// Maximium number of validators that may be part of a validator group.
+	/// Maximum number of validators that may be part of a validator group.
 	pub(crate) fn fallback_max_validators() -> u32 {
 		configuration::Pallet::<T>::config().max_validators.unwrap_or(200)
 	}
@@ -123,6 +123,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
 	}
 
+	/// Specify a mapping of core_idx/para_id/group_idx seed to the number of dispute statements for the
+	/// corresponding dispute statement set. Note that if the number of disputes is not specified it fallbacks
+	/// to having a dispute per every validator. Additionally, an entry is not guaranteed to have a dispute - it
+	/// must line up with the cores marked as disputed as defined in `Self::Build`.
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	pub(crate) fn set_dispute_statements(mut self, m: BTreeMap<u32, u32>) -> Self {
 		self.dispute_statements = m;
@@ -225,11 +229,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Setup para ids.
-	/// * setup para_ids traverses each core,
+	/// * setup `para_ids` traverses each core,
 	/// * creates a ParaId for that CoreIndex,
 	/// * inserts ParaLifeCycle::Onboarding for that ParaId,
 	/// * inserts the upcoming paras genesis,
-	/// * inserts the ParaId into the ActionsQueue
+	/// * inserts the ParaId into the `ActionsQueue`
 	fn setup_para_ids(cores: u32) {
 		// make sure parachains exist prior to session change.
 		for i in 0..cores {
@@ -363,7 +367,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create backed candidates for `cores_with_backed_candidates`. You need these cores to be
 	/// scheduled _within_ paras inherent, which requires marking the available bitfields as fully
 	/// available.
-	/// - `cores_with_backed_candidates` Mapping of para_id/core_idx/group_idx seed to number of
+	/// - `cores_with_backed_candidates` Mapping of `para_id`/`core_idx`/`group_idx` seed to number of
 	/// validity votes.
 	fn create_backed_candidates(
 		&self,
@@ -583,8 +587,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				disputes,
 				parent_header: Self::header(builder.block_number.clone()),
 			},
-			session: builder.target_session,
-			block_number: builder.block_number,
+			_session: target_session,
+			_block_number: builder.block_number,
 		}
 	}
 }

@@ -138,7 +138,8 @@ fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Wei
 }
 
 fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
-	<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields() * bitfields_len as Weight
+	<<T as Config>::WeightInfo as WeightInfo>::enter_bitfields()
+		.saturating_mul(bitfields_len as Weight)
 }
 
 fn backed_candidates_weight<T: frame_system::Config + Config>(
@@ -151,7 +152,7 @@ fn backed_candidates_weight<T: frame_system::Config + Config>(
 				v.validity_votes.len() as u32,
 			)
 		})
-		.sum()
+		.fold(0, |acc, x| acc.saturating_add(x))
 }
 
 /// A bitfield concerning concluded disputes for candidates
@@ -244,9 +245,10 @@ pub mod pallet {
 			// and we _really_ don't want that to happen.
 			// See <https://github.com/paritytech/polkadot/issues/1327>
 
-			// Calling `Self::enter` here is a safe-guard, to avoid any discrepancy
-			// between on-chain logic and the logic that is executed
-			// at the block producer off-chain (this code path).
+			// Calling `Self::enter` here is a safe-guard, to avoid any discrepancy between on-chain checks
+			// (`enter`) and the off-chain checks by the block author (this function). Once we are confident
+			// in all the logic in this module this check should be removed to optimize performance.
+
 			let inherent_data =
 				match Self::enter(frame_system::RawOrigin::None.into(), inherent_data.clone()) {
 					Ok(_) => inherent_data,
@@ -277,7 +279,7 @@ pub mod pallet {
 
 	/// Collect all freed cores based on storage data.
 	///
-	/// The paramter `freed_concluded` contains all core indicies that became
+	/// The parameter `freed_concluded` contains all core indicies that became
 	/// free due to candidate that became available.
 	pub(crate) fn collect_all_freed_cores<T, I>(
 		freed_concluded: I,
@@ -474,7 +476,7 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Create the `ParachainsInherentData` that gets passed to `[`Self::enter`] in [`Self::create_inherent`].
+	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in [`Self::create_inherent`].
 	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
 	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<T::Header>> {
 		let ParachainsInherentData::<T::Header> {
@@ -756,14 +758,27 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
 	if let Some(remaining_weight) = max_weight.checked_sub(total_bitfields_weight) {
-		let c = candidates.iter().map(|c| c.validity_votes.len() as u32).collect::<Vec<u32>>();
-
-		let (acc_candidate_weight, indices) = random_sel::<u32, _>(
-			&mut rng,
-			c,
-			|v| <<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(*v),
-			remaining_weight,
-		);
+		let (acc_candidate_weight, indices) =
+			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
+				&mut rng,
+				candidates.clone(),
+				|backed_candidate| {
+					let code_weight = backed_candidate
+						.candidate
+						.commitments
+						.new_validation_code
+						.as_ref()
+						.map(|_code| {
+							<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
+						})
+						.unwrap_or(0);
+					<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
+						backed_candidate.validity_votes.len() as u32,
+					)
+					.saturating_add(code_weight)
+				},
+				remaining_weight,
+			);
 		let candidates =
 			indices.into_iter().map(move |idx| candidates[idx].clone()).collect::<Vec<_>>();
 		// pick all bitfields, and
@@ -965,7 +980,7 @@ fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet, entropy: [
 			let dispute_weight = <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(
 				d.statements.len() as u32,
 			);
-			if remaining_weight > dispute_weight {
+			if remaining_weight >= dispute_weight {
 				remaining_weight -= dispute_weight;
 				true
 			} else {
