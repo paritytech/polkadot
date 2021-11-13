@@ -52,7 +52,7 @@ slot-range-helper = { path = "slot_range_helper", default-features = false }
 xcm = { path = "../../xcm", default-features = false }
 
 [dev-dependencies]
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }

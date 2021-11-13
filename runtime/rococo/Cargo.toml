@@ -81,7 +81,7 @@ pallet-bridge-messages = { path = "../../bridges/modules/messages", default-feat
 
 # Benchmarking Dependencies
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-hex-literal = { version = "0.3.3", optional = true }
+hex-literal = { version = "0.3.4", optional = true }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
