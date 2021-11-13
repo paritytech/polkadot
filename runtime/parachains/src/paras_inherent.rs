@@ -754,6 +754,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 						.candidate
 						.commitments
 						.new_validation_code
+						.as_ref()
 						.map(|_code| {
 							<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
 						})
