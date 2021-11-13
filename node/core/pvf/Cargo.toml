@@ -37,5 +37,5 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
 halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 tempfile = "3.2.0"
