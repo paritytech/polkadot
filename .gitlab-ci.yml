@@ -622,9 +622,9 @@ zombienet-tests-parachains-smoke-test:
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
     - export DEBUG=zombie,zombie::network-node
-    - export SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
-    - export MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
-    - export COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
+    - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
 
   script:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
@@ -661,9 +661,9 @@ zombienet-tests-malus-dispute-valid:
     - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
     - export DEBUG=zombie,zombie::network-node
-    - export SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
-    - export MALUSIMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
-    - export COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
+    - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
 
   script:
     - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh

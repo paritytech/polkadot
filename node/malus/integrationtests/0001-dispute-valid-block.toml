@@ -2,7 +2,7 @@
 timeout = 1000
 
 [relaychain]
-default_image = "{{SYNTHIMAGE}}"
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "wococo-local"
 chain_spec_command = "polkadot build-spec --chain wococo-local --disable-default-bootnode --raw > /cfg/wococo-local.json"
 command = "polkadot"
@@ -27,7 +27,7 @@ command = "polkadot"
   validator = true
   command = "/usr/local/bin/malus dispute-ancestor"
   extra_args = ["--dave", "-lparachain=debug"]
-  image = "{{MALUSIMAGE}}"
+  image = "{{MALUS_IMAGE}}"
   autoConnectApi = false
 
 [[parachains]]
@@ -35,6 +35,6 @@ id = 100
 
   [parachains.collator]
   name = "collator01"
-  image = "{{COLIMAGE}}"
+  image = "{{COL_IMAGE}}"
   command = "/usr/local/bin/adder-collator"
   args = ["-lparachain=debug"]

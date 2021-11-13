@@ -2,7 +2,7 @@
 timeout = 1000
 
 [relaychain]
-default_image = "{{SYNTHIMAGE}}"
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "polkadot-local"
 command = "polkadot"
 
@@ -16,7 +16,7 @@ command = "polkadot"
   validator = true
   command = "/usr/local/bin/malus back-garbage-candidate"
   extra_args = ["--bob", "-lparachain=debug"]
-  image = "{{MALUSIMAGE}}"
+  image = "{{MALUS_IMAGE}}"
   autoConnectApi = false
 
 
@@ -25,7 +25,7 @@ command = "polkadot"
   validator = true
   command = "/usr/local/bin/malus back-garbage-candidate"
   extra_args = ["--charlie", "-lparachain=debug"]
-  image = "{{MALUSIMAGE}}"
+  image = "{{MALUS_IMAGE}}"
   autoConnectApi = false
 
 
@@ -34,22 +34,22 @@ command = "polkadot"
   validator = true
   command = "/usr/local/bin/malus suggest-garbage-candidate"
   extra_args = ["--dave", "-lparachain=debug"]
-  image = "{{MALUSIMAGE}}"
+  image = "{{MALUS_IMAGE}}"
   autoConnectApi = false
 
-#  [[relaychain.nodes]]
-#  name = "eve"
-#  validator = true
-#    command = "/usr/local/bin/malus suggest-garbage-candidate"
-#  extra_args = ["--eve", "-lparachain=debug"]
-#  image = "{{MALUSIMAGE}}"
-#  autoConnectApi = false
+ [[relaychain.nodes]]
+ name = "eve"
+ validator = true
+   command = "/usr/local/bin/malus suggest-garbage-candidate"
+ extra_args = ["--eve", "-lparachain=debug"]
+ image = "{{MALUS_IMAGE}}"
+ autoConnectApi = false
 
 [[parachains]]
 id = 100
 
   [parachains.collator]
   name = "collator01"
-  image = "{{COLIMAGE}}"
+  image = "{{COL_IMAGE}}"
   command = "/usr/local/bin/adder-collator"
   args = ["-lparachain=debug"]

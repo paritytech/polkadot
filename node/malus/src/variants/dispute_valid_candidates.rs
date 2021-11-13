@@ -17,7 +17,7 @@
 //! A malicious node that replaces approvals with invalid disputes
 //! against valid candidates.
 //!
-//! Attention: For usage with `simnet`/`gurke` only!
+//! Attention: For usage with `zombienet` only!
 
 #![allow(missing_docs)]
 
