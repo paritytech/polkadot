@@ -216,7 +216,7 @@ impl TestState {
 			match msg {
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
 					reqs,
-					IfDisconnected::TryConnect,
+					IfDisconnected::ImmediateError,
 				)) => {
 					for req in reqs {
 						// Forward requests:

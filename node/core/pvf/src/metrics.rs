@@ -221,7 +221,7 @@ impl<'a> WorkerRelatedMetrics<'a> {
 	/// When the worker was killed or died.
 	pub(crate) fn on_retired(&self) {
 		if let Some(metrics) = &self.metrics.0 {
-			metrics.worker_spawned.with_label_values(&[self.flavor.as_label()]).inc();
+			metrics.worker_retired.with_label_values(&[self.flavor.as_label()]).inc();
 		}
 	}
 }
