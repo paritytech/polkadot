@@ -258,7 +258,7 @@ pub mod pallet {
 							disputes: Vec::new(),
 							parent_header: inherent_data.parent_header,
 						}
-					}
+					},
 				};
 
 			Some(Call::enter { data: inherent_data })
@@ -355,7 +355,7 @@ pub mod pallet {
 				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
-					return Ok(Some(dispute_statements_weight::<T>(&disputes)).into());
+					return Ok(Some(dispute_statements_weight::<T>(&disputes)).into())
 				}
 
 				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
@@ -481,8 +481,8 @@ impl<T: Config> Pallet<T> {
 			Ok(None) => return None,
 			Err(_) => {
 				log::warn!(target: LOG_TARGET, "ParachainsInherentData failed to decode");
-				return None;
-			}
+				return None
+			},
 		};
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
@@ -492,7 +492,7 @@ impl<T: Config> Pallet<T> {
 				target: LOG_TARGET,
 				"ParachainsInherentData references a different parent header hash than frame"
 			);
-			return None;
+			return None
 		}
 
 		let current_session = <shared::Pallet<T>>::session_index();
@@ -609,7 +609,7 @@ impl<T: Config> Pallet<T> {
 					err
 				);
 				vec![]
-			}
+			},
 		};
 
 		let entropy = {
@@ -665,7 +665,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	weight_limit: Weight,
 ) -> (Weight, Vec<usize>) {
 	if selectables.is_empty() {
-		return (0 as Weight, Vec::new());
+		return (0 as Weight, Vec::new())
 	}
 	let mut indices = (0..selectables.len()).into_iter().collect::<Vec<_>>();
 	let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
@@ -681,7 +681,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		weight_acc += weight_fn(item);
 
 		if weight_acc > weight_limit {
-			break;
+			break
 		}
 
 		picked_indices.push(idx);
@@ -714,7 +714,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	// everything fits into the block
 	if max_weight >= total {
-		return (total, candidates, bitfields);
+		return (total, candidates, bitfields)
 	}
 
 	use rand_chacha::rand_core::SeedableRng;
@@ -749,7 +749,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		// pick all bitfields, and
 		// fill the remaining space with candidates
 		let total = acc_candidate_weight.saturating_add(total_bitfields_weight);
-		return (total, candidates, bitfields);
+		return (total, candidates, bitfields)
 	}
 
 	// insufficient space for even the bitfields alone, so only try to fit as many of those
@@ -801,7 +801,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 		// This a system logic error that should never occur, but we want to handle it gracefully
 		// so we drop all bitfields
 		log::error!(target: LOG_TARGET, "BUG: disputed_bitfield != expected_bits",);
-		return vec![];
+		println!("A");
+		return vec![]
 	}
 
 	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
@@ -811,22 +812,25 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 		// exposes a DoS vector where a block author introduces bad bitfields to block processing
 		// of remaining bitfields.
 		if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
-			continue;
+			println!("B");
+			continue
 		}
 
-		if unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone()
-			!= all_zeros
+		if unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() !=
+			all_zeros
 		{
-			continue;
+			println!("C");
+			continue
 		}
 
 		if !last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()) {
-			// TODO Why do we care about bitfields being ordered by validator
-			continue;
+			println!("D");
+			continue
 		}
 
 		if unchecked_bitfield.unchecked_validator_index().0 as usize >= validators.len() {
-			continue;
+			println!("E");
+			continue
 		}
 
 		let validator_index = unchecked_bitfield.unchecked_validator_index();
@@ -840,6 +844,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 			{
 				bitfields.push(signed_bitfield.into_unchecked());
 			} else {
+				println!("F");
 				log::warn!(target: LOG_TARGET, "Invalid bitfield signature");
 			};
 		} else {
@@ -1808,26 +1813,24 @@ mod tests {
 
 			// bitfield size mismatch
 			{
-				assert!(
-					sanitize_bitfields::<Test, true>(
-						unchecked_bitfields.clone(),
-						disputed_bitfield.clone(),
-						expected_bits + 1,
-						parent_hash,
-						session_index,
-						&validator_public[..]
-					).is_empty()
-				);
-				assert!(
-					sanitize_bitfields::<Test, false>(
-						unchecked_bitfields.clone(),
-						disputed_bitfield.clone(),
-						expected_bits + 1,
-						parent_hash,
-						session_index,
-						&validator_public[..]
-					).is_empty()
-				);
+				assert!(sanitize_bitfields::<Test, true>(
+					unchecked_bitfields.clone(),
+					disputed_bitfield.clone(),
+					expected_bits + 1,
+					parent_hash,
+					session_index,
+					&validator_public[..]
+				)
+				.is_empty());
+				assert!(sanitize_bitfields::<Test, false>(
+					unchecked_bitfields.clone(),
+					disputed_bitfield.clone(),
+					expected_bits + 1,
+					parent_hash,
+					session_index,
+					&validator_public[..]
+				)
+				.is_empty());
 			}
 
 			// remove the last validator
