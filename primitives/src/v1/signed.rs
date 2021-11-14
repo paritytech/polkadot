@@ -281,6 +281,12 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	pub fn benchmark_signature(&self) -> ValidatorSignature {
 		self.signature.clone()
 	}
+
+	/// Set the validator index. Only should be used for testing mocks.
+	#[cfg(feature = "std")]
+	pub fn set_signature(&mut self, signature: ValidatorSignature) {
+		self.signature = signature
+	}
 }
 
 impl<Payload, RealPayload> From<Signed<Payload, RealPayload>>

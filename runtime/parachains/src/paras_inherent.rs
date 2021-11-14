@@ -1865,19 +1865,19 @@ mod tests {
 
 			// check the validators signature
 			{
-				let unchecked_bitfields = unchecked_bitfields.clone();
+				use primitives::v1::ValidatorSignature;
+				let mut unchecked_bitfields = unchecked_bitfields.clone();
 
-				// remove the first last validator and replace it with a duplicate of the last
-				// validator. This will cause the signature lining up with the last validator not
-				// to be verified.
-				let validator_public = {
-					let mut val_pub = validator_public.clone();
-					let first_val_clone = val_pub[0].clone();
-					val_pub.pop();
-					val_pub.push(first_val_clone);
-					val_pub
-				};
-
+				// insert a bad signature for the last bitfield
+				let last_bit_idx = unchecked_bitfields.len() - 1;
+				unchecked_bitfields
+					.get_mut(last_bit_idx)
+					.and_then(|u|
+						Some(
+							u.set_signature(ValidatorSignature::default())
+						)
+					)
+					.expect("we are accessing a valid index");
 				assert_eq!(
 					&sanitize_bitfields::<Test, true>(
 						unchecked_bitfields.clone(),
@@ -1887,7 +1887,7 @@ mod tests {
 						session_index,
 						&validator_public[..]
 					)[..],
-					&unchecked_bitfields[..(unchecked_bitfields.len() - 1)]
+					&unchecked_bitfields[..last_bit_idx]
 				);
 				assert_eq!(
 					&sanitize_bitfields::<Test, false>(
@@ -1983,6 +1983,18 @@ mod tests {
 				})
 				.collect::<Vec<_>>();
 
+			// happy path
+			assert_eq!(
+				sanitize_backed_candidates::<Test, _>(
+					relay_parent,
+					backed_candidates.clone(),
+					has_concluded_invalid,
+					scheduled
+				)
+				.len(),
+				2
+			);
+
 			// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
 			{
 				let scheduled = &[][..];
@@ -2000,6 +2012,7 @@ mod tests {
 
 			// relay parent mismatch
 			{
+				let relay_parent = Hash::repeat_byte(0xFA);
 				assert_eq!(
 					sanitize_backed_candidates::<Test, _>(
 						relay_parent,

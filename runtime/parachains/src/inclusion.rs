@@ -1363,7 +1363,7 @@ pub(crate) mod tests {
 				_ => panic!("out of bounds for testing"),
 			};
 
-			// Make all candidates pending availability
+			// mark all candidates as pending availability
 			let set_pending_av = || {
 				for (p_id, _) in paras {
 					PendingAvailability::<Test>::insert(
@@ -1438,7 +1438,6 @@ pub(crate) mod tests {
 				))
 				.into();
 
-				// No availability votes have been accounted for
 				assert_eq!(
 					<PendingAvailability<Test>>::get(chain_a)
 						.unwrap()
@@ -1447,8 +1446,8 @@ pub(crate) mod tests {
 					0
 				);
 
-				// The threshold to free a core is 4 availability votes, but we only expect 1 valid
-				// valid bitfield
+				// the threshold to free a core is 4 availability votes, but we only expect 1 valid
+				// valid bitfield.
 				assert_eq!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
@@ -1498,7 +1497,6 @@ pub(crate) mod tests {
 				))
 				.into();
 
-				// No availability votes have been accounted for
 				assert_eq!(
 					<PendingAvailability<Test>>::get(chain_a)
 						.unwrap()
@@ -1507,7 +1505,7 @@ pub(crate) mod tests {
 					0
 				);
 
-				// The threshold to free a core is 4 availability votes, but we only expect 1 valid
+				// the threshold to free a core is 4 availability votes, but we only expect 1 valid
 				// valid bitfield because `signed_0` will get skipped for being out of order.
 				assert_eq!(
 					ParaInclusion::process_bitfields(
@@ -1528,7 +1526,6 @@ pub(crate) mod tests {
 					1
 				);
 
-				// clean up
 				PendingAvailability::<Test>::remove_all(None);
 			}
 
@@ -1556,7 +1553,7 @@ pub(crate) mod tests {
 				);
 			}
 
-			// empty bitfield signed: always OK, but kind of useless.
+			// empty bitfield signed: always ok, but kind of useless.
 			{
 				let bare_bitfield = default_bitfield();
 				let signed = block_on(sign_bitfield(
