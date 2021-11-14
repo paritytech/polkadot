@@ -2,7 +2,7 @@
 name = "polkadot-simnet"
 version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master" }
