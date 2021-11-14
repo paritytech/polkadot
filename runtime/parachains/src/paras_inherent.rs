@@ -326,7 +326,8 @@ pub mod pallet {
 			let total_weight =
 				paras_inherent_total_weight::<T>(&backed_candidates, &signed_bitfields, &disputes);
 			// Abort if the total weight of the block exceeds the max block weight
-			// TODO this should just limit disputes
+			// TODO if this condition is triggered this should dropped candidate + bitfields
+			// and limit disputes to be underweight
 			ensure!(
 				total_weight <= <T as frame_system::Config>::BlockWeights::get().max_block,
 				Error::<T>::InherentOverweight
@@ -788,9 +789,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
 	let signing_context = SigningContext { parent_hash, session_index };
 	for unchecked_bitfield in unchecked_bitfields {
-		// Find and skip and invalid bitfields. We don't error on invalid bitfields because that
-		// exposes a DoS vector where a block author introduces bad bitfields to block processing
-		// of remaining bitfields.
+		// Find and skip invalid bitfields.
 		if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
 			continue
 		}
