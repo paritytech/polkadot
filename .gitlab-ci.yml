@@ -672,4 +672,4 @@ zombienet-tests-malus-dispute-valid:
   allow_failure:                   true
   retry: 2
   tags:
-    - parity-zombienet
+    - zombienet-polkadot-integration-test

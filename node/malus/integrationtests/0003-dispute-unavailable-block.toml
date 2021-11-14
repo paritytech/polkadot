@@ -17,7 +17,6 @@ command = "polkadot"
   command = "/usr/local/bin/malus back-garbage-candidate"
   extra_args = ["--bob", "-lparachain=debug"]
   image = "{{MALUS_IMAGE}}"
-  autoConnectApi = false
 
 
   [[relaychain.nodes]]
@@ -26,7 +25,6 @@ command = "polkadot"
   command = "/usr/local/bin/malus back-garbage-candidate"
   extra_args = ["--charlie", "-lparachain=debug"]
   image = "{{MALUS_IMAGE}}"
-  autoConnectApi = false
 
 
   [[relaychain.nodes]]
@@ -35,15 +33,14 @@ command = "polkadot"
   command = "/usr/local/bin/malus suggest-garbage-candidate"
   extra_args = ["--dave", "-lparachain=debug"]
   image = "{{MALUS_IMAGE}}"
-  autoConnectApi = false
 
  [[relaychain.nodes]]
  name = "eve"
  validator = true
-   command = "/usr/local/bin/malus suggest-garbage-candidate"
+ command = "/usr/local/bin/malus suggest-garbage-candidate"
  extra_args = ["--eve", "-lparachain=debug"]
  image = "{{MALUS_IMAGE}}"
- autoConnectApi = false
+
 
 [[parachains]]
 id = 100
