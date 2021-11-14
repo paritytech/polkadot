@@ -119,13 +119,6 @@ fn paras_inherent_total_weight<T: Config>(
 		.saturating_add(dispute_statements_weight::<T>(disputes))
 }
 
-fn minimal_inherent_weight<T: Config>() -> Weight {
-	// We just take the min of all our options. This can be changed in the future.
-	<T as Config>::WeightInfo::enter_bitfields()
-		.min(<T as Config>::WeightInfo::enter_variable_disputes(0))
-		.min(<T as Config>::WeightInfo::enter_backed_candidates_variable(0))
-}
-
 fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Weight {
 	disputes
 		.iter()
@@ -328,15 +321,19 @@ pub mod pallet {
 			} = data;
 			let total_weight =
 				paras_inherent_total_weight::<T>(&backed_candidates, &signed_bitfields, &disputes);
+			ensure_none(origin)?;
+			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
+			// Once we are sure we can proceed, mark as included
+			Included::<T>::set(Some(()));
 
 			// Abort if the total weight of the block exceeds the max block weight
+			// TODO if this condition is triggered this should dropped candidate + bitfields
+			// and limit disputes to be underweight
 			ensure!(
 				total_weight <= <T as frame_system::Config>::BlockWeights::get().max_block,
 				Error::<T>::InherentOverweight
 			);
 
-			ensure_none(origin)?;
-			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
 			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 			ensure!(
@@ -355,11 +352,12 @@ pub mod pallet {
 					.map(|s| (s.session, s.candidate_hash))
 					.collect();
 
+				// Note that `provide_multi_dispute_data` will iterate, verify, and import each
+				// dispute; so the input here must be reasonably bounded.
 				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
-					Included::<T>::set(Some(()));
-					return Ok(Some(minimal_inherent_weight::<T>()).into())
+					return Ok(Some(dispute_statements_weight::<T>(&disputes)).into())
 				}
 
 				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
