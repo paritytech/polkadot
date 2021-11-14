@@ -415,22 +415,14 @@ pub mod pallet {
 			<scheduler::Pallet<T>>::schedule(freed, now);
 
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
-			let backed_candidates = sanitize_backed_candidates::<T, _, true>(
+			let backed_candidates = sanitize_backed_candidates::<T, _>(
 				parent_hash,
 				backed_candidates,
 				move |candidate_hash: CandidateHash| -> bool {
 					<T>::DisputesHandler::concluded_invalid(current_session, candidate_hash)
 				},
 				&scheduled[..],
-			)
-			.unwrap_or_else(|err| {
-				log::error!(
-					target: LOG_TARGET,
-					"dropping all backed candidates due to sanitization error: {:?}",
-					err,
-				);
-				Vec::new()
-			});
+			);
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
@@ -592,25 +584,14 @@ impl<T: Config> Pallet<T> {
 				))
 			});
 
-		let backed_candidates = match sanitize_backed_candidates::<T, _, false>(
+		let backed_candidates = sanitize_backed_candidates::<T, _>(
 			parent_hash,
 			backed_candidates,
 			move |candidate_hash: CandidateHash| -> bool {
 				concluded_invalid_disputes.contains(&candidate_hash)
 			},
 			&scheduled[..],
-		) {
-			Ok(bitfields) => bitfields,
-			Err(err) => {
-				// by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
-				log::error!(
-					target: LOG_TARGET,
-					"BUG: convention violation in create_inherent: {:?}",
-					err
-				);
-				vec![]
-			},
-		};
+		);
 
 		let entropy = {
 			const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
@@ -865,16 +846,12 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 ///
 /// `candidate_has_concluded_invalid_dispute` must return `true` if the candidate
 /// is disputed, false otherwise
-fn sanitize_backed_candidates<
-	T: crate::inclusion::Config,
-	F: Fn(CandidateHash) -> bool,
-	const EARLY_RETURN: bool,
->(
+fn sanitize_backed_candidates<T: crate::inclusion::Config, F: Fn(CandidateHash) -> bool>(
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	candidate_has_concluded_invalid_dispute: F,
 	scheduled: &[CoreAssignment],
-) -> Result<Vec<BackedCandidate<T::Hash>>, Error<T>> {
+) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
 	backed_candidates.retain(|backed_candidate| {
 		!candidate_has_concluded_invalid_dispute(backed_candidate.candidate.hash())
@@ -883,7 +860,6 @@ fn sanitize_backed_candidates<
 	// Assure the backed candidate's `ParaId`'s core is free.
 	// This holds under the assumption that `Scheduler::schedule` is called _before_.
 	// Also checks the candidate references the correct relay parent.
-
 	let scheduled_paras_set = scheduled
 		.into_iter()
 		.map(|core_assignment| core_assignment.para_id)
@@ -893,8 +869,7 @@ fn sanitize_backed_candidates<
 		desc.relay_parent == relay_parent && scheduled_paras_set.contains(&desc.para_id)
 	});
 
-	// Limit weight, to avoid overweight block.
-	Ok(backed_candidates)
+	backed_candidates
 }
 
 fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet, entropy: [u8; 32]) -> Weight {
@@ -1674,7 +1649,6 @@ mod tests {
 
 	mod sanitizers {
 		use super::*;
-		use assert_matches::assert_matches;
 
 		use crate::inclusion::tests::{
 			back_candidate, collator_sign_candidate, BackingKind, TestCandidateBuilder,
@@ -1860,37 +1834,73 @@ mod tests {
 				);
 			}
 
-			// // switch ordering of bitfields, bail
-			// {
-			// 	let mut unchecked_bitfields = unchecked_bitfields.clone();
-			// 	let x = unchecked_bitfields.swap_remove(0);
-			// 	unchecked_bitfields.push(x);
-			// 	assert_eq!(
-			// 		&sanitize_bitfields::<Test, true>(
-			// 			unchecked_bitfields.clone(),
-			// 			disputed_bitfield.clone(),
-			// 			expected_bits,
-			// 			parent_hash,
-			// 			session_index,
-			// 			&validator_public[..]
-			// 		)[..],
-			// 		&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
-			// 	);
-			// 	assert_eq!(
-			// 		&sanitize_bitfields::<Test, false>(
-			// 			unchecked_bitfields.clone(),
-			// 			disputed_bitfield.clone(),
-			// 			expected_bits,
-			// 			parent_hash,
-			// 			session_index,
-			// 			&validator_public[..]
-			// 		)[..],
-			// 		&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
-			// 	);
-			// }
+			// switch ordering of bitfields
+			{
+				let mut unchecked_bitfields = unchecked_bitfields.clone();
+				let x = unchecked_bitfields.swap_remove(0);
+				unchecked_bitfields.push(x);
+				assert_eq!(
+					&sanitize_bitfields::<Test, true>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					)[..],
+					&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
+				);
+				assert_eq!(
+					&sanitize_bitfields::<Test, false>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					)[..],
+					&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
+				);
+			}
 
 			// check the validators signature
-			// TODO
+			{
+				let unchecked_bitfields = unchecked_bitfields.clone();
+
+				// remove the first last validator and replace it with a duplicate of the last
+				// validator. This will cause the signature lining up with the last validator not
+				// to be verified.
+				let validator_public = {
+					let mut val_pub = validator_public.clone();
+					let first_val_clone = val_pub[0].clone();
+					val_pub.pop();
+					val_pub.push(first_val_clone);
+					val_pub
+				};
+
+				assert_eq!(
+					&sanitize_bitfields::<Test, true>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					)[..],
+					&unchecked_bitfields[..(unchecked_bitfields.len() - 1)]
+				);
+				assert_eq!(
+					&sanitize_bitfields::<Test, false>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					)[..],
+					&unchecked_bitfields[..]
+				);
+			}
 		}
 
 		#[test]
@@ -1973,87 +1983,36 @@ mod tests {
 				})
 				.collect::<Vec<_>>();
 
-			{
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, true>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(backed_candidates, sanitized_backed_candidates);
-					}
-				);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, false>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(backed_candidates, sanitized_backed_candidates);
-					}
-				);
-			}
-
-			// nothing is scheduled, so no paraids match,
-			// hence no backed candidate makes it through
+			// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
 			{
 				let scheduled = &[][..];
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, true>(
+				assert_eq!(
+					sanitize_backed_candidates::<Test, _>(
 						relay_parent,
 						backed_candidates.clone(),
 						has_concluded_invalid,
 						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(0, sanitized_backed_candidates.len());
-					}
-				);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, false>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(0, sanitized_backed_candidates.len());
-					}
+					)
+					.len(),
+					0
 				);
 			}
 
 			// relay parent mismatch
 			{
-				let relay_parent = Hash::repeat_byte(0xFA);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, true>(
+				assert_eq!(
+					sanitize_backed_candidates::<Test, _>(
 						relay_parent,
 						backed_candidates.clone(),
 						has_concluded_invalid,
 						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(0, sanitized_backed_candidates.len());
-					}
-				);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, false>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(0, sanitized_backed_candidates.len());
-					}
+					)
+					.len(),
+					0
 				);
 			}
 
-			// relay parent mismatch
+			// candidates that have concluded as invalid are filtered out
 			{
 				// mark every second one as concluded invalid
 				let set = {
@@ -2066,27 +2025,15 @@ mod tests {
 					set
 				};
 				let has_concluded_invalid = |candidate: CandidateHash| set.contains(&candidate);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, true>(
+				assert_eq!(
+					sanitize_backed_candidates::<Test, _>(
 						relay_parent,
 						backed_candidates.clone(),
 						has_concluded_invalid,
 						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(0, sanitized_backed_candidates.len() / 2);
-					}
-				);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, false>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(0, sanitized_backed_candidates.len() / 2);
-					}
+					)
+					.len(),
+					backed_candidates.len() / 2
 				);
 			}
 		}

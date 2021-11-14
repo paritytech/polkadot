@@ -1008,7 +1008,6 @@ pub(crate) mod tests {
 		paras_inherent::DisputedBitfield,
 		scheduler::AssignmentKind,
 	};
-	use assert_matches::assert_matches;
 	use frame_support::assert_noop;
 	use futures::executor::block_on;
 	use keyring::Sr25519Keyring;
