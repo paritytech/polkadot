@@ -779,10 +779,9 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 	let mut last_index = None;
 
 	if disputed_bitfield.0.len() != expected_bits {
-		// This a system logic error that should never occur, but we want to handle it gracefully
-		// so we drop all bitfields
+		// This is a system logic error that should never occur, but we want to handle it gracefully
+		// so we just drop all bitfields
 		log::error!(target: LOG_TARGET, "BUG: disputed_bitfield != expected_bits",);
-		println!("A");
 		return vec![]
 	}
 
@@ -793,24 +792,20 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 		// exposes a DoS vector where a block author introduces bad bitfields to block processing
 		// of remaining bitfields.
 		if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
-			println!("B");
 			continue
 		}
 
 		if unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() !=
 			all_zeros
 		{
-			println!("C");
 			continue
 		}
 
 		if !last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()) {
-			println!("D");
 			continue
 		}
 
 		if unchecked_bitfield.unchecked_validator_index().0 as usize >= validators.len() {
-			println!("E");
 			continue
 		}
 
@@ -818,14 +813,13 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 
 		let validator_public = &validators[validator_index.0 as usize];
 
-		// only check the signatures when returning early
+		// Only check the signatures when returning early
 		if EARLY_RETURN {
 			if let Ok(signed_bitfield) =
 				unchecked_bitfield.try_into_checked(&signing_context, validator_public)
 			{
 				bitfields.push(signed_bitfield.into_unchecked());
 			} else {
-				println!("F");
 				log::warn!(target: LOG_TARGET, "Invalid bitfield signature");
 			};
 		} else {

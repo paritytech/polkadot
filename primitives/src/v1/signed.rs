@@ -282,7 +282,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		self.signature.clone()
 	}
 
-	/// Set the validator index. Only should be used for testing mocks.
+	/// Set the signature. Only should be used for creating testing mocks.
 	#[cfg(feature = "std")]
 	pub fn set_signature(&mut self, signature: ValidatorSignature) {
 		self.signature = signature
