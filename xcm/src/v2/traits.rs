@@ -344,7 +344,6 @@ pub trait XcmWeightInfo<Call> {
 	fn clear_origin() -> Weight;
 	fn descend_origin(who: &InteriorMultiLocation) -> Weight;
 	fn report_error(query_id: &QueryId, dest: &MultiLocation, max_response_weight: &u64) -> Weight;
-	fn relayed_from(who: &Junctions, message: &alloc::boxed::Box<Xcm<Call>>) -> Weight;
 	fn deposit_asset(
 		assets: &MultiAssetFilter,
 		max_assets: &u32,

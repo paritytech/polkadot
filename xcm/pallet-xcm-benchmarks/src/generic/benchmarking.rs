@@ -241,6 +241,21 @@ benchmarks! {
 		assert_eq!(executor.origin, None);
 	}
 
+	report_error {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.error = Some((0u32, XcmError::Unimplemented));
+		let query_id = Default::default();
+		let dest = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
+		let max_response_weight = Default::default();
+
+		let instruction = Instruction::ReportError { query_id, dest, max_response_weight };
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.execute(xcm)?;
+	} verify {
+		// the execution succeeding is all we need to verify this xcm was successful
+	}
+
 	claim_asset {
 
 	} : {} verify {}
@@ -263,6 +278,12 @@ benchmarks! {
 	subscribe_version {} : {} verify {}
 
 	unsubscribe_version {} : {} verify {}
+
+	initiate_reserve_withdraw {
+
+	}:{} verify {
+
+	}
 
 	impl_benchmark_test_suite!(
 		Pallet,
