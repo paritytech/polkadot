@@ -633,7 +633,7 @@ zombienet-tests-parachains-smoke-test:
   allow_failure:                   true
   retry: 2
   tags:
-    - parity-zombienet
+    - zombienet-polkadot-integration-test
 
 zombienet-tests-malus-dispute-valid:
   stage:                           deploy
