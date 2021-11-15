@@ -3,6 +3,8 @@ timeout = 1000
 
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+# Since zombienet doesn't have the ability yet to add
+# authorities to the chain spec, so we use the `wococo` spec at the moment.
 chain = "wococo-local"
 command = "polkadot"
 
