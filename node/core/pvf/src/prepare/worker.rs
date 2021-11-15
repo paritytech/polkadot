@@ -35,7 +35,9 @@ use std::{sync::Arc, time::Duration};
 const NICENESS_BACKGROUND: i32 = 10;
 const NICENESS_FOREGROUND: i32 = 0;
 
-const COMPILATION_TIMEOUT: Duration = Duration::from_secs(10);
+/// The time period after which the preparation worker is considered unresponsive and will be killed.
+// NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
+const COMPILATION_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
