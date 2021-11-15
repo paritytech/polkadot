@@ -782,7 +782,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 	if disputed_bitfield.0.len() != expected_bits {
 		// This is a system logic error that should never occur, but we want to handle it gracefully
 		// so we just drop all bitfields
-		log::error!(target: LOG_TARGET, "BUG: disputed_bitfield != expected_bits",);
+		log::error!(target: LOG_TARGET, "BUG: disputed_bitfield != expected_bits");
 		return vec![]
 	}
 
@@ -791,20 +791,43 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 	for unchecked_bitfield in unchecked_bitfields {
 		// Find and skip invalid bitfields.
 		if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
+			log::trace!(
+				target: LOG_TARGET,
+				"bad bitfield length: {} != {:?}",
+				unchecked_bitfield.unchecked_payload().0.len(),
+				expected_bits,
+			);
 			continue
 		}
 
 		if unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() !=
 			all_zeros
 		{
+			log::trace!(
+				target: LOG_TARGET,
+				"bitfield contains disputed cores: {:?}",
+				unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone()
+			);
 			continue
 		}
 
 		if !last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()) {
+			log::trace!(
+				target: LOG_TARGET,
+				"bitfield validator index is not greater than last: !({:?} < {:?})",
+				last_index,
+				unchecked_bitfield.unchecked_validator_index()
+			);
 			continue
 		}
 
 		if unchecked_bitfield.unchecked_validator_index().0 as usize >= validators.len() {
+			log::trace!(
+				target: LOG_TARGET,
+				"bitfield validator index is out of bounds: {:?} >= {:?}",
+				unchecked_bitfield.unchecked_validator_index().0,
+				validators.len(),
+			);
 			continue
 		}
 
@@ -1864,11 +1887,7 @@ mod tests {
 				let last_bit_idx = unchecked_bitfields.len() - 1;
 				unchecked_bitfields
 					.get_mut(last_bit_idx)
-					.and_then(|u|
-						Some(
-							u.set_signature(ValidatorSignature::default())
-						)
-					)
+					.and_then(|u| Some(u.set_signature(ValidatorSignature::default())))
 					.expect("we are accessing a valid index");
 				assert_eq!(
 					&sanitize_bitfields::<Test, VERIFY_SIGS>(
