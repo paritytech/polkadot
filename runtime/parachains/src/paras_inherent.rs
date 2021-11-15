@@ -140,14 +140,13 @@ fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
 fn backed_candidate_weight<T: frame_system::Config + Config>(
 	candidate: &BackedCandidate<T::Hash>,
 ) -> Weight {
-	<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
-		candidate.validity_votes.len() as u32,
-	)
-	.max(if candidate.candidate.commitments.new_validation_code.is_some() {
+	if candidate.candidate.commitments.new_validation_code.is_some() {
 		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
 	} else {
-		0
-	})
+		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
+			candidate.validity_votes.len() as u32,
+		)
+	}
 }
 
 fn backed_candidates_weight<T: frame_system::Config + Config>(
