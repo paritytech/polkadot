@@ -299,9 +299,40 @@ benchmarks! {
 		// Verification is done above.
 	}
 
-	subscribe_version {} : {} verify {}
+	subscribe_version {
+		use xcm_executor::traits::VersionChangeNotifier;
+		let origin = T::transact_origin().ok_or(BenchmarkError::Skip)?;
+		let query_id = Default::default();
+		let max_response_weight = Default::default();
+		let mut executor = new_executor::<T>(origin.clone());
+		let instruction = Instruction::SubscribeVersion { query_id, max_response_weight };
+		let xcm = Xcm(vec![instruction]);
+	} : {
+		executor.execute(xcm)?;
+	} verify {
+		assert!(<T::XcmConfig as xcm_executor::Config>::SubscriptionService::is_subscribed(&origin));
+	}
 
-	unsubscribe_version {} : {} verify {}
+	unsubscribe_version {
+		use xcm_executor::traits::VersionChangeNotifier;
+		// First we need to subscribe to notifications.
+		let origin = T::transact_origin().ok_or(BenchmarkError::Skip)?;
+		let query_id = Default::default();
+		let max_response_weight = Default::default();
+		let mut executor = new_executor::<T>(origin.clone());
+		let instruction = Instruction::SubscribeVersion { query_id, max_response_weight };
+		let xcm = Xcm(vec![instruction]);
+		executor.execute(xcm)?;
+		assert!(<T::XcmConfig as xcm_executor::Config>::SubscriptionService::is_subscribed(&origin));
+
+		let mut executor = new_executor::<T>(origin.clone());
+		let instruction = Instruction::UnsubscribeVersion;
+		let xcm = Xcm(vec![instruction]);
+	} : {
+		executor.execute(xcm)?;
+	} verify {
+		assert!(!<T::XcmConfig as xcm_executor::Config>::SubscriptionService::is_subscribed(&origin));
+	}
 
 	initiate_reserve_withdraw {
 

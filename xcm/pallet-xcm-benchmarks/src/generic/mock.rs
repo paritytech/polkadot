@@ -18,7 +18,6 @@
 
 use crate::{generic, mock::*, *};
 use frame_support::{
-	pallet_prelude::Weight,
 	parameter_types,
 	traits::{Everything, OriginTrait},
 };
@@ -28,8 +27,11 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
-use xcm_builder::AllowUnpaidExecutionFrom;
-use xcm_executor::traits::{ClaimAssets, ConvertOrigin, DropAssets};
+use xcm_builder::{
+	test_utils::{TestAssetTrap, TestSubscriptionService},
+	AllowUnpaidExecutionFrom,
+};
+use xcm_executor::traits::ConvertOrigin;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -93,37 +95,6 @@ parameter_types! {
 	pub const MaxInstructions: u32 = 100;
 }
 
-parameter_types! {
-	pub static TrappedAssets: Vec<(MultiLocation, MultiAssets)> = vec![];
-}
-
-pub struct TestAssetTrap;
-
-impl DropAssets for TestAssetTrap {
-	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
-		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
-		t.push((origin.clone(), assets.into()));
-		TrappedAssets::set(t);
-		5
-	}
-}
-
-impl ClaimAssets for TestAssetTrap {
-	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool {
-		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
-		if let (0, X1(GeneralIndex(i))) = (ticket.parents, &ticket.interior) {
-			if let Some((l, a)) = t.get(*i as usize) {
-				if l == origin && a == what {
-					t.swap_remove(*i as usize);
-					TrappedAssets::set(t);
-					return true
-				}
-			}
-		}
-		false
-	}
-}
-
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -139,7 +110,7 @@ impl xcm_executor::Config for XcmConfig {
 	type ResponseHandler = DevNull;
 	type AssetTrap = TestAssetTrap;
 	type AssetClaims = TestAssetTrap;
-	type SubscriptionService = ();
+	type SubscriptionService = TestSubscriptionService;
 }
 
 impl crate::Config for Test {
