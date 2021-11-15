@@ -763,11 +763,9 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 /// they were actually checked and filtered to allow using it in both
 /// cases, as `filtering` and `checking` stage.
 ///
-/// `EARLY_RETURN` determines the behavior.
-/// `false` assures that all inputs are filtered, and invalid ones are filtered out.
-/// It also skips signature verification.
-/// `true` returns an `Err(_)` on the first check failing.
-pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN: bool>(
+/// `CHECK_SIGS` determines if validator signatures are checked. If true, bitfields that have an
+/// invalid signature will be filtered out.
+pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: bool>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bitfield: DisputedBitfield,
 	expected_bits: usize,
@@ -812,8 +810,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 
 		let validator_public = &validators[validator_index.0 as usize];
 
-		// Only check the signatures when returning early
-		if EARLY_RETURN {
+		if CHECK_SIGS {
 			if let Ok(signed_bitfield) =
 				unchecked_bitfield.try_into_checked(&signing_context, validator_public)
 			{
@@ -990,7 +987,7 @@ mod tests {
 		#[test]
 		// Validate that if we create 2 backed candidates which are assigned to 2 cores that will be freed via
 		// becoming fully available, the backed candidates will not be filtered out in `create_inherent` and
-		// will not cause `enter` to exit early.
+		// will not cause `enter` to early.
 		fn include_backed_candidates() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let dispute_statements = BTreeMap::new();
