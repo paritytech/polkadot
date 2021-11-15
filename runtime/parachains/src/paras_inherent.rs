@@ -326,8 +326,8 @@ pub mod pallet {
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
+
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
-			// Once we are sure we can proceed, mark as included
 			Included::<T>::set(Some(()));
 
 			let ParachainsInherentData {
@@ -357,7 +357,6 @@ pub mod pallet {
 				signed_bitfields.clear();
 				bitfields_weight = 0;
 			}
-
 
 			let total_weight = if disputes_weight > max_block_weight {
 				let entropy = compute_entropy::<T>(parent_hash);
