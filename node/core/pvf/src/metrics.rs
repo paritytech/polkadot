@@ -152,8 +152,21 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"pvf_preparation_time",
-						"Time spent in preparing PVF artifacts",
+						"Time spent in preparing PVF artifacts in seconds",
 					)
+					.buckets(vec![
+						// This is synchronized with COMPILATION_TIMEOUT=60s constant found in
+						// src/prepare/worker.rs
+						0.1,
+						0.5,
+						1.0,
+						10.0,
+						20.0,
+						30.0,
+						40.0,
+						50.0,
+						60.0,
+					]),
 				)?,
 				registry,
 			)?,
