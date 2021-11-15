@@ -57,5 +57,4 @@ std = [
 ]
 runtime-benchmarks = [
 	"polkadot-parachain/runtime-benchmarks",
-	"frame-system/runtime-benchmarks",
 ]
