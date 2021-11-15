@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-parachain"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Types and utilities for creating and working with parachains"
 edition = "2018"
