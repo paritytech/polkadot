@@ -1410,7 +1410,7 @@ mod tests {
 				assert_ok!(Pallet::<Test>::enter(
 					frame_system::RawOrigin::None.into(),
 					expected_para_inherent_data,
-				),);
+				));
 
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know
@@ -1552,7 +1552,7 @@ mod tests {
 				assert_ok!(Pallet::<Test>::enter(
 					frame_system::RawOrigin::None.into(),
 					expected_para_inherent_data,
-				),);
+				));
 
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know
@@ -1623,7 +1623,7 @@ mod tests {
 				assert_ok!(Pallet::<Test>::enter(
 					frame_system::RawOrigin::None.into(),
 					limit_inherent_data,
-				),);
+				));
 
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know our 2
@@ -1675,7 +1675,7 @@ mod tests {
 				assert_ok!(Pallet::<Test>::enter(
 					frame_system::RawOrigin::None.into(),
 					expected_para_inherent_data,
-				),);
+				));
 
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know our 2
