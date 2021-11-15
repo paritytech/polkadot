@@ -52,7 +52,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn query_holding() -> Weight {
-		(628_000_000 as Weight)
+		(648_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
@@ -61,20 +61,20 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	}
 	// Storage: XcmPallet Queries (r:1 w:0)
 	pub(crate) fn query_response() -> Weight {
-		(13_000_000 as Weight)
+		(14_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 	}
 	pub(crate) fn transact() -> Weight {
-		(14_000_000 as Weight)
+		(15_000_000 as Weight)
 	}
 	pub(crate) fn refund_surplus() -> Weight {
-		(3_000_000 as Weight)
-	}
-	pub(crate) fn set_error_handler() -> Weight {
 		(4_000_000 as Weight)
 	}
-	pub(crate) fn set_appendix() -> Weight {
+	pub(crate) fn set_error_handler() -> Weight {
 		(3_000_000 as Weight)
+	}
+	pub(crate) fn set_appendix() -> Weight {
+		(4_000_000 as Weight)
 	}
 	pub(crate) fn clear_error() -> Weight {
 		(3_000_000 as Weight)
@@ -91,7 +91,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn report_error() -> Weight {
-		(21_000_000 as Weight)
+		(20_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
@@ -120,7 +120,14 @@ impl<T: frame_system::Config> WeightInfo<T> {
 		(5_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
+	// Storage: XcmPallet SupportedVersion (r:1 w:0)
+	// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
+	// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
+	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
+	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn initiate_reserve_withdraw() -> Weight {
-		(0 as Weight)
+		(21_000_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(5 as Weight))
+			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 }

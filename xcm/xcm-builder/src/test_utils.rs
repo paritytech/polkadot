@@ -17,7 +17,7 @@
 // Shared test utilities and implementations for the XCM Builder.
 
 use frame_support::dispatch::Weight;
-use sp_std::cell::RefCell;
+use sp_std::{cell::RefCell, vec::Vec};
 pub use xcm::latest::prelude::*;
 use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
