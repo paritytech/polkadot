@@ -246,7 +246,7 @@ impl ProvisioningJob {
 /// yet it lacks sufficient information to do weight limiting.
 /// This does the minimalistic checks and forwards a most likely
 /// too large set of bitfields, candidates, and dispute votes to
-/// the runtime. The `fn create_inherent` in the runtime is resposible
+/// the runtime. The `fn create_inherent` in the runtime is responsible
 /// to use a subset of these.
 async fn send_inherent_data(
 	relay_parent: Hash,
