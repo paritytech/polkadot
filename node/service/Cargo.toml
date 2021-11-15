@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -62,7 +62,7 @@ prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https:
 
 # External Crates
 futures = "0.3.17"
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 tracing = "0.1.29"
 serde = { version = "1.0.130", features = ["derive"] }
 thiserror = "1.0.30"
