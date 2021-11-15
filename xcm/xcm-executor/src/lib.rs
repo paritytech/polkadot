@@ -209,6 +209,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		result
 	}
 
+	/// Execute any final operations after having executed the XCM message.
+	/// This includes refunding surplus weight, trapping extra holding funds, and returning any errors during execution.
 	pub fn post_execute(mut self, xcm_weight: Weight) -> Outcome {
 		self.refund_surplus();
 		drop(self.trader);

@@ -16,8 +16,8 @@
 
 // Shared test utilities and implementations for the XCM Builder.
 
-use frame_support::dispatch::Weight;
-use sp_std::{cell::RefCell, vec::Vec};
+use frame_support::{dispatch::Weight, parameter_types};
+use sp_std::vec::Vec;
 pub use xcm::latest::prelude::*;
 use xcm_executor::traits::{ClaimAssets, DropAssets, VersionChangeNotifier};
 pub use xcm_executor::{
@@ -25,18 +25,8 @@ pub use xcm_executor::{
 	Assets, Config,
 };
 
-thread_local! {
-	pub static SUB_REQUEST: RefCell<Vec<(MultiLocation, Option<(QueryId, u64)>)>> = RefCell::new(Vec::new());
-}
-
-pub struct SubscriptionRequests;
-impl SubscriptionRequests {
-	pub fn get() -> Vec<(MultiLocation, Option<(QueryId, u64)>)> {
-		SUB_REQUEST.with(|q| (*q.borrow()).clone())
-	}
-	pub fn set(r: Vec<(MultiLocation, Option<(QueryId, u64)>)>) {
-		SUB_REQUEST.with(|a| a.replace(r));
-	}
+parameter_types! {
+	pub static SubscriptionRequests: Vec<(MultiLocation, Option<(QueryId, u64)>)> = vec![];
 }
 
 pub struct TestSubscriptionService;
@@ -61,18 +51,8 @@ impl VersionChangeNotifier for TestSubscriptionService {
 	}
 }
 
-thread_local! {
-	pub static TRAPPED_ASSETS: RefCell<Vec<(MultiLocation, MultiAssets)>> = RefCell::new(Vec::new());
-}
-
-pub struct TrappedAssets;
-impl TrappedAssets {
-	pub fn get() -> Vec<(MultiLocation, MultiAssets)> {
-		TRAPPED_ASSETS.with(|q| (*q.borrow()).clone())
-	}
-	pub fn set(r: Vec<(MultiLocation, MultiAssets)>) {
-		TRAPPED_ASSETS.with(|a| a.replace(r));
-	}
+parameter_types! {
+	pub static TrappedAssets: Vec<(MultiLocation, MultiAssets)> = vec![];
 }
 
 pub struct TestAssetTrap;
