@@ -22,7 +22,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, paras,
-	paras_inherent::{sanitize_bitfields, DisputedBitfield},
+	paras_inherent::{sanitize_bitfields, DisputedBitfield, VERIFY_SIGS},
 	scheduler::CoreAssignment,
 	shared, ump,
 };
@@ -403,7 +403,7 @@ impl<T: Config> Pallet<T> {
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T, true>(
+		let checked_bitfields = sanitize_bitfields::<T, VERIFY_SIGS>(
 			signed_bitfields,
 			disputed_bitfield,
 			expected_bits,

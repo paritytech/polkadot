@@ -54,6 +54,8 @@ use sp_std::{
 mod benchmarking;
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
+const SKIP_SIG_VERIFY: bool = false;
+pub(crate) const VERIFY_SIGS: bool = true;
 
 pub trait WeightInfo {
 	/// Variant over `v`, the count of dispute statements in a dispute statement set. This gives the
@@ -548,7 +550,7 @@ impl<T: Config> Pallet<T> {
 
 				// The following 3 calls are equiv to a call to `process_bitfields`
 				// but we can retain access to `bitfields`.
-				let bitfields = sanitize_bitfields::<T, false>(
+				let bitfields = sanitize_bitfields::<T, SKIP_SIG_VERIFY>(
 					bitfields,
 					disputed_bitfield,
 					expected_bits,
@@ -1719,7 +1721,7 @@ mod tests {
 
 			{
 				assert_eq!(
-					sanitize_bitfields::<Test, true>(
+					sanitize_bitfields::<Test, VERIFY_SIGS>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1730,7 +1732,7 @@ mod tests {
 					unchecked_bitfields.clone()
 				);
 				assert_eq!(
-					sanitize_bitfields::<Test, false>(
+					sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1750,7 +1752,7 @@ mod tests {
 				disputed_bitfield.0.set(0, true);
 
 				assert_eq!(
-					sanitize_bitfields::<Test, true>(
+					sanitize_bitfields::<Test, VERIFY_SIGS>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1762,7 +1764,7 @@ mod tests {
 					1
 				);
 				assert_eq!(
-					sanitize_bitfields::<Test, false>(
+					sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1777,7 +1779,7 @@ mod tests {
 
 			// bitfield size mismatch
 			{
-				assert!(sanitize_bitfields::<Test, true>(
+				assert!(sanitize_bitfields::<Test, VERIFY_SIGS>(
 					unchecked_bitfields.clone(),
 					disputed_bitfield.clone(),
 					expected_bits + 1,
@@ -1786,7 +1788,7 @@ mod tests {
 					&validator_public[..]
 				)
 				.is_empty());
-				assert!(sanitize_bitfields::<Test, false>(
+				assert!(sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
 					unchecked_bitfields.clone(),
 					disputed_bitfield.clone(),
 					expected_bits + 1,
@@ -1801,7 +1803,7 @@ mod tests {
 			{
 				let shortened = validator_public.len() - 2;
 				assert_eq!(
-					&sanitize_bitfields::<Test, true>(
+					&sanitize_bitfields::<Test, VERIFY_SIGS>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1812,7 +1814,7 @@ mod tests {
 					&unchecked_bitfields[..shortened]
 				);
 				assert_eq!(
-					&sanitize_bitfields::<Test, false>(
+					&sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1830,7 +1832,7 @@ mod tests {
 				let x = unchecked_bitfields.swap_remove(0);
 				unchecked_bitfields.push(x);
 				assert_eq!(
-					&sanitize_bitfields::<Test, true>(
+					&sanitize_bitfields::<Test, VERIFY_SIGS>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1841,7 +1843,7 @@ mod tests {
 					&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
 				);
 				assert_eq!(
-					&sanitize_bitfields::<Test, false>(
+					&sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1869,7 +1871,7 @@ mod tests {
 					)
 					.expect("we are accessing a valid index");
 				assert_eq!(
-					&sanitize_bitfields::<Test, true>(
+					&sanitize_bitfields::<Test, VERIFY_SIGS>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1880,7 +1882,7 @@ mod tests {
 					&unchecked_bitfields[..last_bit_idx]
 				);
 				assert_eq!(
-					&sanitize_bitfields::<Test, false>(
+					&sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
