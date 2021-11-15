@@ -369,11 +369,8 @@ pub mod pallet {
 					let entropy = compute_entropy::<T>(parent_hash);
 					let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
-					let remaining_weight = limit_disputes::<T, EXCLUDE_REMOTE_DISPUTES>(
-						&mut disputes,
-						max_block_weight,
-						&mut rng,
-					);
+					let remaining_weight =
+						limit_disputes::<T>(&mut disputes, max_block_weight, &mut rng);
 					max_block_weight.saturating_sub(remaining_weight)
 				} else {
 					candidate_weight
@@ -636,11 +633,7 @@ impl<T: Config> Pallet<T> {
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-		let remaining_weight = limit_disputes::<T, INCLUDE_REMOTE_DISPUTES>(
-			&mut disputes,
-			max_block_weight,
-			&mut rng,
-		);
+		let remaining_weight = limit_disputes::<T>(&mut disputes, max_block_weight, &mut rng);
 		let (_backed_candidates_weight, backed_candidates, bitfields) =
 			apply_weight_limit::<T>(backed_candidates, bitfields, remaining_weight, &mut rng);
 
@@ -921,7 +914,7 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 /// Limit disputes in place.
 ///
 /// Returns the unused weight of `remaining_weight`.
-fn limit_disputes<T: Config, const INCLUDE_REMOTE: bool>(
+fn limit_disputes<T: Config>(
 	disputes: &mut MultiDisputeStatementSet,
 	remaining_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
@@ -978,28 +971,26 @@ fn limit_disputes<T: Config, const INCLUDE_REMOTE: bool>(
 			}
 		});
 
-		if INCLUDE_REMOTE && !remaining_weight.is_zero() {
-			// Compute the statements length of all remote disputes
-			let d = remote_disputes.iter().map(|d| d.statements.len() as u32).collect::<Vec<u32>>();
+		// Compute the statements length of all remote disputes
+		let d = remote_disputes.iter().map(|d| d.statements.len() as u32).collect::<Vec<u32>>();
 
-			// Select remote disputes at random until the block is full
-			let (acc_remote_disputes_weight, indices) = random_sel::<u32, _>(
-				rng,
-				d,
-				|v| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(*v),
-				remaining_weight,
-			);
+		// Select remote disputes at random until the block is full
+		let (acc_remote_disputes_weight, indices) = random_sel::<u32, _>(
+			rng,
+			d,
+			|v| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(*v),
+			remaining_weight,
+		);
 
-			// Collect all remote disputes
-			let mut remote_disputes =
-				indices.into_iter().map(|idx| disputes[idx].clone()).collect::<Vec<_>>();
+		// Collect all remote disputes
+		let mut remote_disputes =
+			indices.into_iter().map(|idx| disputes[idx].clone()).collect::<Vec<_>>();
 
-			// Construct the full list of selected disputes
-			disputes.append(&mut remote_disputes);
+		// Construct the full list of selected disputes
+		disputes.append(&mut remote_disputes);
 
-			// Update the remaining weight
-			remaining_weight = remaining_weight.saturating_sub(acc_remote_disputes_weight);
-		}
+		// Update the remaining weight
+		remaining_weight = remaining_weight.saturating_sub(acc_remote_disputes_weight);
 	}
 
 	remaining_weight
@@ -2055,27 +2046,25 @@ mod tests {
 			// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
 			{
 				let scheduled = &[][..];
-				assert!(
-					sanitize_backed_candidates::<Test, _>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					).is_empty()
-				);
+				assert!(sanitize_backed_candidates::<Test, _>(
+					relay_parent,
+					backed_candidates.clone(),
+					has_concluded_invalid,
+					scheduled
+				)
+				.is_empty());
 			}
 
 			// relay parent mismatch
 			{
 				let relay_parent = Hash::repeat_byte(0xFA);
-				assert!(
-					sanitize_backed_candidates::<Test, _>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					).is_empty()
-				);
+				assert!(sanitize_backed_candidates::<Test, _>(
+					relay_parent,
+					backed_candidates.clone(),
+					has_concluded_invalid,
+					scheduled
+				)
+				.is_empty());
 			}
 
 			// candidates that have concluded as invalid are filtered out
