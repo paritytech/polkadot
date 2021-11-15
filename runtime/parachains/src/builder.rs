@@ -569,8 +569,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		assert_eq!(inclusion::PendingAvailability::<T>::iter().count(), used_cores as usize,);
 
 		// Mark all the use cores as occupied. We expect that their are `backed_and_concluding_cores`
-		// that are pending availability and that there are `non_spam_dispute_cores` which are about
-		// to be disputed.
+		// that are pending availability and that there are `used_cores - backed_and_concluding_cores `
+		// which are about to be disputed.
 		scheduler::AvailabilityCores::<T>::set(vec![
 			Some(CoreOccupied::Parachain);
 			used_cores as usize
