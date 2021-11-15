@@ -271,7 +271,7 @@ async fn send_inherent_data(
 	Ok(())
 }
 
-/// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
+/// Collect backed candidates with a matching `relay_parent`.
 async fn collect_backed_candidates(
 	candidate_receipts: Vec<CandidateReceipt>,
 	relay_parent: Hash,
