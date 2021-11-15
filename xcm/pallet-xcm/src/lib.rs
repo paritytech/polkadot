@@ -1261,6 +1261,12 @@ pub mod pallet {
 			VersionNotifyTargets::<T>::remove(XCM_VERSION, LatestVersionedMultiLocation(dest));
 			Ok(())
 		}
+
+		/// Return true if a location is subscribed to XCM version changes.
+		fn is_subscribed(dest: &MultiLocation) -> bool {
+			let versioned_dest = LatestVersionedMultiLocation(dest);
+			VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest)
+		}
 	}
 
 	impl<T: Config> DropAssets for Pallet<T> {
