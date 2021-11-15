@@ -42,9 +42,9 @@ use primitives::v1::{
 	SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfield,
 	UncheckedSignedAvailabilityBitfields, ValidatorId, PARACHAINS_INHERENT_IDENTIFIER,
 };
-use rand::Rng;
+use rand::{Rng, SeedableRng};
 use scale_info::TypeInfo;
-use sp_runtime::traits::Header as HeaderT;
+use sp_runtime::traits::{Header as HeaderT, Zero};
 use sp_std::{
 	cmp::Ordering,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -55,6 +55,8 @@ use sp_std::{
 mod benchmarking;
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
+const INCLUDE_REMOTE_DISPUTES: bool = true;
+const EXCLUDE_REMOTE_DISPUTES: bool = false;
 
 pub trait WeightInfo {
 	/// Variant over `v`, the count of dispute statements in a dispute statement set. This gives the
@@ -141,7 +143,7 @@ fn backed_candidate_weight<T: frame_system::Config + Config>(
 	<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
 		candidate.validity_votes.len() as u32,
 	)
-	.saturating_add(if candidate.candidate.commitments.new_validation_code.is_some() {
+	.max(if candidate.candidate.commitments.new_validation_code.is_some() {
 		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
 	} else {
 		0
@@ -153,9 +155,7 @@ fn backed_candidates_weight<T: frame_system::Config + Config>(
 ) -> Weight {
 	candidates
 		.iter()
-		.map(|c| {
-			backed_candidate_weight::<T>(c)
-		})
+		.map(|c| backed_candidate_weight::<T>(c))
 		.fold(0, |acc, x| acc.saturating_add(x))
 }
 
@@ -349,20 +349,39 @@ pub mod pallet {
 
 			let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
-			// Abort if the total weight of the block exceeds the max block weight
-			if candidate_weight.saturating_add(bitfields_weight).saturating_add(disputes_weight) > max_block_weight {
-				backed_candidates.clear();
-				candidate_weight = 0;
-				signed_bitfields.clear();
-				bitfields_weight = 0;
-			}
+			// Potentially trim inherent data to ensure processing will be within weight limits
+			let total_weight = {
+				if candidate_weight
+					.saturating_add(bitfields_weight)
+					.saturating_add(disputes_weight) >
+					max_block_weight
+				{
+					// if the total weight is over the max block weight, first try clearing backed
+					// candidates and bitfields.
+					backed_candidates.clear();
+					candidate_weight = 0;
+					signed_bitfields.clear();
+					bitfields_weight = 0;
+				}
 
+				if disputes_weight > max_block_weight {
+					// if disputes are overweight, trim the disputes.
+					debug_assert!(candidate_weight == 0 && bitfields_weight == 0);
 
-			let total_weight = if disputes_weight > max_block_weight {
-				let entropy = compute_entropy::<T>(parent_hash);
-				max_block_weight.saturating_sub(limit_disputes::<T>(&mut disputes, entropy))
-			} else {
-				candidate_weight.saturating_add(bitfields_weight).saturating_add(disputes_weight)
+					let entropy = compute_entropy::<T>(parent_hash);
+					let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
+
+					let remaining_weight = limit_disputes::<T, EXCLUDE_REMOTE_DISPUTES>(
+						&mut disputes,
+						max_block_weight,
+						&mut rng,
+					);
+					max_block_weight.saturating_sub(remaining_weight)
+				} else {
+					candidate_weight
+						.saturating_add(bitfields_weight)
+						.saturating_add(disputes_weight)
+				}
 			};
 
 			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
@@ -636,9 +655,15 @@ impl<T: Config> Pallet<T> {
 		.ok()?; // by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
 
 		let entropy = compute_entropy::<T>(parent_hash);
-		let remaining_weight = limit_disputes::<T>(&mut disputes, entropy.clone());
+		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
+		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+		let remaining_weight = limit_disputes::<T, INCLUDE_REMOTE_DISPUTES>(
+			&mut disputes,
+			max_block_weight,
+			&mut rng,
+		);
 		let (_backed_candidates_weight, backed_candidates, bitfields) =
-			apply_weight_limit::<T>(backed_candidates, bitfields, entropy, remaining_weight);
+			apply_weight_limit::<T>(backed_candidates, bitfields, remaining_weight, &mut rng);
 
 		Some(ParachainsInherentData::<T::Header> {
 			bitfields,
@@ -729,8 +754,8 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 fn apply_weight_limit<T: Config + inclusion::Config>(
 	candidates: Vec<BackedCandidate<<T>::Hash>>,
 	bitfields: UncheckedSignedAvailabilityBitfields,
-	entropy: [u8; 32],
 	max_weight: Weight,
+	rng: &mut rand_chacha::ChaChaRng,
 ) -> (Weight, Vec<BackedCandidate<<T>::Hash>>, UncheckedSignedAvailabilityBitfields) {
 	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice());
 	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
@@ -742,15 +767,12 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		return (total, candidates, bitfields)
 	}
 
-	use rand_chacha::rand_core::SeedableRng;
-	let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
-
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
 	if let Some(remaining_weight) = max_weight.checked_sub(total_bitfields_weight) {
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
-				&mut rng,
+				rng,
 				candidates.clone(),
 				|c| backed_candidate_weight::<T>(c),
 				remaining_weight,
@@ -766,7 +788,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// insufficient space for even the bitfields alone, so only try to fit as many of those
 	// into the block and skip the candidates entirely
 	let (total, indices) = random_sel::<UncheckedSignedAvailabilityBitfield, _>(
-		&mut rng,
+		rng,
 		bitfields.clone(),
 		|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
 		max_weight,
@@ -928,8 +950,15 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	entropy
 }
 
-fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet, entropy: [u8; 32]) -> Weight {
-	let mut remaining_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+/// Limit disputes in place.
+///
+/// Returns the unused weight of `remaining_weight`.
+fn limit_disputes<T: Config, const INCLUDE_REMOTE: bool>(
+	disputes: &mut MultiDisputeStatementSet,
+	remaining_weight: Weight,
+	rng: &mut rand_chacha::ChaChaRng,
+) -> Weight {
+	let mut remaining_weight = remaining_weight;
 	let disputes_weight = dispute_statements_weight::<T>(&disputes);
 	if disputes_weight > remaining_weight {
 		// Sort the dispute statements according to the following prioritization:
@@ -981,29 +1010,28 @@ fn limit_disputes<T: Config>(disputes: &mut MultiDisputeStatementSet, entropy: [
 			}
 		});
 
-		// Compute the statements length of all remote disputes
-		let d = remote_disputes.iter().map(|d| d.statements.len() as u32).collect::<Vec<u32>>();
+		if INCLUDE_REMOTE && !remaining_weight.is_zero() {
+			// Compute the statements length of all remote disputes
+			let d = remote_disputes.iter().map(|d| d.statements.len() as u32).collect::<Vec<u32>>();
 
-		use rand_chacha::rand_core::SeedableRng;
-		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
+			// Select remote disputes at random until the block is full
+			let (acc_remote_disputes_weight, indices) = random_sel::<u32, _>(
+				rng,
+				d,
+				|v| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(*v),
+				remaining_weight,
+			);
 
-		// Select remote disputes at random until the block is full
-		let (acc_remote_disputes_weight, indices) = random_sel::<u32, _>(
-			&mut rng,
-			d,
-			|v| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(*v),
-			remaining_weight,
-		);
+			// Collect all remote disputes
+			let mut remote_disputes =
+				indices.into_iter().map(|idx| disputes[idx].clone()).collect::<Vec<_>>();
 
-		// Collect all remote disputes
-		let mut remote_disputes =
-			indices.into_iter().map(|idx| disputes[idx].clone()).collect::<Vec<_>>();
+			// Construct the full list of selected disputes
+			disputes.append(&mut remote_disputes);
 
-		// Construct the full list of selected disputes
-		disputes.append(&mut remote_disputes);
-
-		// Update the remaining weight
-		remaining_weight = remaining_weight.saturating_sub(acc_remote_disputes_weight);
+			// Update the remaining weight
+			remaining_weight = remaining_weight.saturating_sub(acc_remote_disputes_weight);
+		}
 	}
 
 	remaining_weight
@@ -1293,12 +1321,10 @@ mod tests {
 				// The current schedule is empty prior to calling `create_inherent_enter`.
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-				assert_ok!(
-					Pallet::<Test>::enter(
-						frame_system::RawOrigin::None.into(),
-						expected_para_inherent_data,
-					),
-				);
+				assert_ok!(Pallet::<Test>::enter(
+					frame_system::RawOrigin::None.into(),
+					expected_para_inherent_data,
+				));
 			});
 		}
 
@@ -1422,12 +1448,10 @@ mod tests {
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
 				// Ensure that calling enter with 3 disputes and 2 candidates is over weight
-				assert_ok!(
-					Pallet::<Test>::enter(
-						frame_system::RawOrigin::None.into(),
-						expected_para_inherent_data,
-					),
-				);
+				assert_ok!(Pallet::<Test>::enter(
+					frame_system::RawOrigin::None.into(),
+					expected_para_inherent_data,
+				),);
 
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know
@@ -1566,12 +1590,10 @@ mod tests {
 				// The current schedule is empty prior to calling `create_inherent_enter`.
 				assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
 
-				assert_ok!(
-					Pallet::<Test>::enter(
-						frame_system::RawOrigin::None.into(),
-						expected_para_inherent_data,
-					),
-				);
+				assert_ok!(Pallet::<Test>::enter(
+					frame_system::RawOrigin::None.into(),
+					expected_para_inherent_data,
+				),);
 
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know
@@ -1691,12 +1713,10 @@ mod tests {
 				// * 3 disputes.
 				assert_eq!(expected_para_inherent_data.disputes.len(), 3);
 
-				assert_ok!(
-					Pallet::<Test>::enter(
-						frame_system::RawOrigin::None.into(),
-						expected_para_inherent_data,
-					),
-				);
+				assert_ok!(Pallet::<Test>::enter(
+					frame_system::RawOrigin::None.into(),
+					expected_para_inherent_data,
+				),);
 
 				assert_eq!(
 					// The length of this vec is equal to the number of candidates, so we know our 2
