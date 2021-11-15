@@ -230,12 +230,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		}
 	}
 
-	/// Setup para ids.
-	/// * setup `para_ids` traverses each core,
-	/// * creates a ParaId for that CoreIndex,
-	/// * inserts ParaLifeCycle::Onboarding for that ParaId,
-	/// * inserts the upcoming paras genesis,
-	/// * inserts the ParaId into the `ActionsQueue`
 	fn setup_para_ids(cores: u32) {
 		// make sure parachains exist prior to session change.
 		for i in 0..cores {
