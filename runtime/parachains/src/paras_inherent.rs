@@ -119,13 +119,6 @@ fn paras_inherent_total_weight<T: Config>(
 		.saturating_add(dispute_statements_weight::<T>(disputes))
 }
 
-fn minimal_inherent_weight<T: Config>() -> Weight {
-	// We just take the min of all our options. This can be changed in the future.
-	<T as Config>::WeightInfo::enter_bitfields()
-		.min(<T as Config>::WeightInfo::enter_variable_disputes(0))
-		.min(<T as Config>::WeightInfo::enter_backed_candidates_variable(0))
-}
-
 fn dispute_statements_weight<T: Config>(disputes: &[DisputeStatementSet]) -> Weight {
 	disputes
 		.iter()
@@ -331,12 +324,24 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
+			ensure_none(origin)?;
+			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
+			// Once we are sure we can proceed, mark as included
+			Included::<T>::set(Some(()));
+
 			let ParachainsInherentData {
 				bitfields: mut signed_bitfields,
 				mut backed_candidates,
 				parent_header,
 				mut disputes,
 			} = data;
+
+			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+			// Check that the submitted parent header indeed corresponds to the previous block hash.
+			ensure!(
+				parent_header.hash().as_ref() == parent_hash.as_ref(),
+				Error::<T>::InvalidParentHeader,
+			);
 
 			let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates);
 			let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
@@ -352,22 +357,13 @@ pub mod pallet {
 				bitfields_weight = 0;
 			}
 
+
 			let total_weight = if disputes_weight > max_block_weight {
-				let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 				let entropy = compute_entropy::<T>(parent_hash);
 				max_block_weight.saturating_sub(limit_disputes::<T>(&mut disputes, entropy))
 			} else {
 				candidate_weight.saturating_add(bitfields_weight).saturating_add(disputes_weight)
 			};
-
-			ensure_none(origin)?;
-			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
-			// Check that the submitted parent header indeed corresponds to the previous block hash.
-			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
-			ensure!(
-				parent_header.hash().as_ref() == parent_hash.as_ref(),
-				Error::<T>::InvalidParentHeader,
-			);
 
 			let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 
@@ -383,8 +379,7 @@ pub mod pallet {
 				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
-					Included::<T>::set(Some(()));
-					return Ok(Some(minimal_inherent_weight::<T>()).into())
+					return Ok(Some(dispute_statements_weight::<T>(&disputes)).into())
 				}
 
 				let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
@@ -488,9 +483,6 @@ pub mod pallet {
 			// Give some time slice to dispatch pending upward messages.
 			// this is max config.ump_service_total_weight
 			let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
-
-			// And track that we've finished processing the inherent for this block.
-			Included::<T>::set(Some(()));
 
 			Ok(Some(total_weight).into())
 		}
@@ -644,7 +636,6 @@ impl<T: Config> Pallet<T> {
 		.ok()?; // by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
 
 		let entropy = compute_entropy::<T>(parent_hash);
-
 		let remaining_weight = limit_disputes::<T>(&mut disputes, entropy.clone());
 		let (_backed_candidates_weight, backed_candidates, bitfields) =
 			apply_weight_limit::<T>(backed_candidates, bitfields, entropy, remaining_weight);
