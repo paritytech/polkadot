@@ -1982,9 +1982,8 @@ mod tests {
 					backed_candidates.clone(),
 					has_concluded_invalid,
 					scheduled
-				)
-				.len(),
-				2
+				),
+				backed_candidates
 			);
 
 			// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
