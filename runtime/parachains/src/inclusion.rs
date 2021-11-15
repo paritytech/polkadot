@@ -22,7 +22,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, paras,
-	paras_inherent::{sanitize_bitfields, DisputedBitfield},
+	paras_inherent::{sanitize_bitfields, DisputedBitfield, VERIFY_SIGS},
 	scheduler::CoreAssignment,
 	shared, ump,
 };
@@ -398,19 +398,19 @@ impl<T: Config> Pallet<T> {
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Result<Vec<(CoreIndex, CandidateHash)>, DispatchError> {
+	) -> Vec<(CoreIndex, CandidateHash)> {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T, true>(
+		let checked_bitfields = sanitize_bitfields::<T, VERIFY_SIGS>(
 			signed_bitfields,
 			disputed_bitfield,
 			expected_bits,
 			parent_hash,
 			session_index,
 			&validators[..],
-		)?;
+		);
 
 		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, true>(
 			expected_bits,
@@ -419,7 +419,7 @@ impl<T: Config> Pallet<T> {
 			core_lookup,
 		);
 
-		Ok(freed_cores)
+		freed_cores
 	}
 
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
@@ -1008,7 +1008,6 @@ pub(crate) mod tests {
 		paras_inherent::DisputedBitfield,
 		scheduler::AssignmentKind,
 	};
-	use assert_matches::assert_matches;
 	use frame_support::assert_noop;
 	use futures::executor::block_on;
 	use keyring::Sr25519Keyring;
@@ -1349,7 +1348,7 @@ pub(crate) mod tests {
 		}
 		let validator_public = validator_pubkeys(&validators);
 
-		new_test_ext(genesis_config(paras)).execute_with(|| {
+		new_test_ext(genesis_config(paras.clone())).execute_with(|| {
 			shared::Pallet::<Test>::set_active_validators_ascending(validator_public.clone());
 			shared::Pallet::<Test>::set_session_index(5);
 
@@ -1364,6 +1363,19 @@ pub(crate) mod tests {
 				_ => panic!("out of bounds for testing"),
 			};
 
+			// mark all candidates as pending availability
+			let set_pending_av = || {
+				for (p_id, _) in paras {
+					PendingAvailability::<Test>::insert(
+						p_id,
+						CandidatePendingAvailability {
+							availability_votes: default_availability_votes(),
+							..Default::default()
+						},
+					)
+				}
+			};
+
 			// too many bits in bitfield
 			{
 				let mut bare_bitfield = default_bitfield();
@@ -1376,14 +1388,14 @@ pub(crate) mod tests {
 					&signing_context,
 				));
 
-				assert_noop!(
+				assert_eq!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Error::<Test>::WrongBitfieldSize
+					vec![]
 				);
 			}
 
@@ -1398,48 +1410,77 @@ pub(crate) mod tests {
 					&signing_context,
 				));
 
-				assert_noop!(
+				assert_eq!(
 					ParaInclusion::process_bitfields(
 						expected_bits() + 1,
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					),
-					Error::<Test>::WrongBitfieldSize
+					vec![]
 				);
 			}
 
 			// duplicate.
 			{
-				let bare_bitfield = default_bitfield();
+				set_pending_av.clone()();
+				let back_core_0_bitfield = {
+					let mut b = default_bitfield();
+					b.0.set(0, true);
+					b
+				};
 				let signed: UncheckedSignedAvailabilityBitfield = block_on(sign_bitfield(
 					&keystore,
 					&validators[0],
 					ValidatorIndex(0),
-					bare_bitfield,
+					back_core_0_bitfield,
 					&signing_context,
 				))
 				.into();
 
-				assert_noop!(
-					ParaInclusion::process_bitfields(
-						expected_bits(),
-						vec![signed.clone(), signed],
-						DisputedBitfield::zeros(expected_bits()),
-						&core_lookup,
-					),
-					Error::<Test>::BitfieldDuplicateOrUnordered
+				assert_eq!(
+					<PendingAvailability<Test>>::get(chain_a)
+						.unwrap()
+						.availability_votes
+						.count_ones(),
+					0
 				);
+
+				// the threshold to free a core is 4 availability votes, but we only expect 1 valid
+				// valid bitfield.
+				assert!(ParaInclusion::process_bitfields(
+					expected_bits(),
+					vec![signed.clone(), signed],
+					DisputedBitfield::zeros(expected_bits()),
+					&core_lookup,
+				)
+				.is_empty());
+
+				assert_eq!(
+					<PendingAvailability<Test>>::get(chain_a)
+						.unwrap()
+						.availability_votes
+						.count_ones(),
+					1
+				);
+
+				// clean up
+				PendingAvailability::<Test>::remove_all(None);
 			}
 
 			// out of order.
 			{
-				let bare_bitfield = default_bitfield();
+				set_pending_av.clone()();
+				let back_core_0_bitfield = {
+					let mut b = default_bitfield();
+					b.0.set(0, true);
+					b
+				};
 				let signed_0 = block_on(sign_bitfield(
 					&keystore,
 					&validators[0],
 					ValidatorIndex(0),
-					bare_bitfield.clone(),
+					back_core_0_bitfield.clone(),
 					&signing_context,
 				))
 				.into();
@@ -1448,20 +1489,38 @@ pub(crate) mod tests {
 					&keystore,
 					&validators[1],
 					ValidatorIndex(1),
-					bare_bitfield,
+					back_core_0_bitfield,
 					&signing_context,
 				))
 				.into();
 
-				assert_noop!(
-					ParaInclusion::process_bitfields(
-						expected_bits(),
-						vec![signed_1, signed_0],
-						DisputedBitfield::zeros(expected_bits()),
-						&core_lookup,
-					),
-					Error::<Test>::BitfieldDuplicateOrUnordered
+				assert_eq!(
+					<PendingAvailability<Test>>::get(chain_a)
+						.unwrap()
+						.availability_votes
+						.count_ones(),
+					0
 				);
+
+				// the threshold to free a core is 4 availability votes, but we only expect 1 valid
+				// valid bitfield because `signed_0` will get skipped for being out of order.
+				assert!(ParaInclusion::process_bitfields(
+					expected_bits(),
+					vec![signed_1, signed_0],
+					DisputedBitfield::zeros(expected_bits()),
+					&core_lookup,
+				)
+				.is_empty());
+
+				assert_eq!(
+					<PendingAvailability<Test>>::get(chain_a)
+						.unwrap()
+						.availability_votes
+						.count_ones(),
+					1
+				);
+
+				PendingAvailability::<Test>::remove_all(None);
 			}
 
 			// non-pending bit set.
@@ -1476,18 +1535,16 @@ pub(crate) mod tests {
 					&signing_context,
 				));
 
-				assert_matches!(
-					ParaInclusion::process_bitfields(
-						expected_bits(),
-						vec![signed.into()],
-						DisputedBitfield::zeros(expected_bits()),
-						&core_lookup,
-					),
-					Ok(_)
-				);
+				assert!(ParaInclusion::process_bitfields(
+					expected_bits(),
+					vec![signed.into()],
+					DisputedBitfield::zeros(expected_bits()),
+					&core_lookup,
+				)
+				.is_empty());
 			}
 
-			// empty bitfield signed: always OK, but kind of useless.
+			// empty bitfield signed: always ok, but kind of useless.
 			{
 				let bare_bitfield = default_bitfield();
 				let signed = block_on(sign_bitfield(
@@ -1498,15 +1555,13 @@ pub(crate) mod tests {
 					&signing_context,
 				));
 
-				assert_matches!(
-					ParaInclusion::process_bitfields(
-						expected_bits(),
-						vec![signed.into()],
-						DisputedBitfield::zeros(expected_bits()),
-						&core_lookup,
-					),
-					Ok(_)
-				);
+				assert!(ParaInclusion::process_bitfields(
+					expected_bits(),
+					vec![signed.into()],
+					DisputedBitfield::zeros(expected_bits()),
+					&core_lookup,
+				)
+				.is_empty());
 			}
 
 			// bitfield signed with pending bit signed.
@@ -1543,15 +1598,13 @@ pub(crate) mod tests {
 					&signing_context,
 				));
 
-				assert_matches!(
-					ParaInclusion::process_bitfields(
-						expected_bits(),
-						vec![signed.into()],
-						DisputedBitfield::zeros(expected_bits()),
-						&core_lookup,
-					),
-					Ok(_)
-				);
+				assert!(ParaInclusion::process_bitfields(
+					expected_bits(),
+					vec![signed.into()],
+					DisputedBitfield::zeros(expected_bits()),
+					&core_lookup,
+				)
+				.is_empty());
 
 				<PendingAvailability<Test>>::remove(chain_a);
 				PendingAvailabilityCommitments::<Test>::remove(chain_a);
@@ -1588,15 +1641,13 @@ pub(crate) mod tests {
 				));
 
 				// no core is freed
-				assert_eq!(
-					ParaInclusion::process_bitfields(
-						expected_bits(),
-						vec![signed.into()],
-						DisputedBitfield::zeros(expected_bits()),
-						&core_lookup,
-					),
-					Ok(vec![])
-				);
+				assert!(ParaInclusion::process_bitfields(
+					expected_bits(),
+					vec![signed.into()],
+					DisputedBitfield::zeros(expected_bits()),
+					&core_lookup,
+				)
+				.is_empty());
 			}
 		});
 	}
@@ -1652,7 +1703,7 @@ pub(crate) mod tests {
 				CandidatePendingAvailability {
 					core: CoreIndex::from(0),
 					hash: candidate_a.hash(),
-					descriptor: candidate_a.descriptor,
+					descriptor: candidate_a.clone().descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
 					backed_in_number: 0,
@@ -1660,7 +1711,10 @@ pub(crate) mod tests {
 					backing_group: GroupIndex::from(0),
 				},
 			);
-			PendingAvailabilityCommitments::<Test>::insert(chain_a, candidate_a.commitments);
+			PendingAvailabilityCommitments::<Test>::insert(
+				chain_a,
+				candidate_a.clone().commitments,
+			);
 
 			let candidate_b = TestCandidateBuilder {
 				para_id: chain_b,
@@ -1732,14 +1786,15 @@ pub(crate) mod tests {
 				})
 				.collect();
 
-			assert_matches!(
+			// only chain A's core is freed.
+			assert_eq!(
 				ParaInclusion::process_bitfields(
 					expected_bits(),
 					signed_bitfields,
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
 				),
-				Ok(_)
+				vec![(CoreIndex(0), candidate_a.hash())]
 			);
 
 			// chain A had 4 signing off, which is >= threshold.
