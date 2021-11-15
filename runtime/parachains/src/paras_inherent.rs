@@ -793,7 +793,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 		if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
 			log::trace!(
 				target: LOG_TARGET,
-				"bad bitfield length: {} != {:?}",
+				"[CHECK_SIGS: {}] bad bitfield length: {} != {:?}",
+				CHECK_SIGS,
 				unchecked_bitfield.unchecked_payload().0.len(),
 				expected_bits,
 			);
@@ -805,7 +806,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 		{
 			log::trace!(
 				target: LOG_TARGET,
-				"bitfield contains disputed cores: {:?}",
+				"[CHECK_SIGS: {}] bitfield contains disputed cores: {:?}",
+				CHECK_SIGS,
 				unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone()
 			);
 			continue
@@ -814,7 +816,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 		if !last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()) {
 			log::trace!(
 				target: LOG_TARGET,
-				"bitfield validator index is not greater than last: !({:?} < {:?})",
+				"[CHECK_SIGS: {}] bitfield validator index is not greater than last: !({:?} < {:?})",
+				CHECK_SIGS,
 				last_index,
 				unchecked_bitfield.unchecked_validator_index()
 			);
@@ -824,7 +827,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 		if unchecked_bitfield.unchecked_validator_index().0 as usize >= validators.len() {
 			log::trace!(
 				target: LOG_TARGET,
-				"bitfield validator index is out of bounds: {:?} >= {:?}",
+				"[CHECK_SIGS: {}] bitfield validator index is out of bounds: {:?} >= {:?}",
+				CHECK_SIGS,
 				unchecked_bitfield.unchecked_validator_index().0,
 				validators.len(),
 			);
