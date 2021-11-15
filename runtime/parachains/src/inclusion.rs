@@ -1448,15 +1448,14 @@ pub(crate) mod tests {
 
 				// the threshold to free a core is 4 availability votes, but we only expect 1 valid
 				// valid bitfield.
-				assert_eq!(
+				assert!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.clone(), signed],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					)
-					.len(),
-					0
+					.is_empty()
 				);
 
 				assert_eq!(
@@ -1507,15 +1506,14 @@ pub(crate) mod tests {
 
 				// the threshold to free a core is 4 availability votes, but we only expect 1 valid
 				// valid bitfield because `signed_0` will get skipped for being out of order.
-				assert_eq!(
+				assert!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed_1, signed_0],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					)
-					.len(),
-					0
+					.is_empty()
 				);
 
 				assert_eq!(
@@ -1541,15 +1539,14 @@ pub(crate) mod tests {
 					&signing_context,
 				));
 
-				assert_eq!(
+				assert!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					)
-					.len(),
-					0
+					.is_empty()
 				);
 			}
 
@@ -1564,15 +1561,14 @@ pub(crate) mod tests {
 					&signing_context,
 				));
 
-				assert_eq!(
+				assert!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					)
-					.len(),
-					0
+					.is_empty()
 				);
 			}
 
@@ -1610,15 +1606,14 @@ pub(crate) mod tests {
 					&signing_context,
 				));
 
-				assert_eq!(
+				assert!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					)
-					.len(),
-					0
+					.is_empty()
 				);
 
 				<PendingAvailability<Test>>::remove(chain_a);
@@ -1656,15 +1651,14 @@ pub(crate) mod tests {
 				));
 
 				// no core is freed
-				assert_eq!(
+				assert!(
 					ParaInclusion::process_bitfields(
 						expected_bits(),
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
 					)
-					.len(),
-					0
+					.is_empty()
 				);
 			}
 		});
