@@ -1571,6 +1571,13 @@ sp_api::impl_runtime_apis! {
 				fn transact_origin() -> Option<MultiLocation> {
 					Some(Westmint::get())
 				}
+
+				fn claimable_asset() -> Option<(MultiLocation, MultiLocation, MultiAssets)> {
+					let origin = Westmint::get();
+					let assets: MultiAssets = (Concrete(WndLocation::get()), 1_000 * UNITS).into();
+					let ticket = MultiLocation { parents: 0, interior: Here };
+					Some((origin, ticket, assets))
+				}
 			}
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;

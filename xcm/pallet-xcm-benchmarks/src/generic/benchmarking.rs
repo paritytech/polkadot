@@ -20,7 +20,10 @@ use codec::Encode;
 use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
-use xcm::{latest::prelude::*, DoubleEncoded};
+use xcm::{
+	latest::{prelude::*, MultiAssets},
+	DoubleEncoded,
+};
 
 const MAX_ASSETS: u32 = 100;
 
@@ -198,10 +201,15 @@ benchmarks! {
 	}
 
 	set_appendix {
-
+		let mut executor = new_executor::<T>(Default::default());
+		let appendix = Xcm(vec![]);
+		let instruction = Instruction::<XcmCallOf<T>>::SetAppendix(appendix);
+		let xcm = Xcm(vec![instruction]);
 	} : {
-
-	} verify {}
+		executor.execute(xcm)?;
+	} verify {
+		assert_eq!(executor.appendix, Xcm(vec![]));
+	}
 
 	clear_error {
 		let mut executor = new_executor::<T>(Default::default());
@@ -257,8 +265,24 @@ benchmarks! {
 	}
 
 	claim_asset {
+		let (origin, ticket, assets) = T::claimable_asset()
+			.ok_or(BenchmarkError::Skip)?;
 
-	} : {} verify {}
+		// We place some items into the asset trap to claim.
+		let mut executor = new_executor::<T>(origin.clone());
+		executor.holding = assets.clone().into();
+		executor.execute(Xcm(vec![]))?;
+		executor.post_execute(0);
+		// Assets should be in the trap now.
+
+		let mut executor = new_executor::<T>(origin);
+		let instruction = Instruction::ClaimAsset { assets: assets.clone(), ticket };
+		let xcm = Xcm(vec![instruction]);
+	} :{
+		executor.execute(xcm)?;
+	} verify {
+		assert!(executor.holding.ensure_contains(&assets).is_ok());
+	}
 
 	trap {
 		let mut executor = new_executor::<T>(Default::default());

@@ -18,6 +18,7 @@
 
 use crate::{generic, mock::*, *};
 use frame_support::{
+	pallet_prelude::Weight,
 	parameter_types,
 	traits::{Everything, OriginTrait},
 };
@@ -28,7 +29,7 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm_builder::AllowUnpaidExecutionFrom;
-use xcm_executor::traits::ConvertOrigin;
+use xcm_executor::traits::{ClaimAssets, ConvertOrigin, DropAssets};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -92,6 +93,37 @@ parameter_types! {
 	pub const MaxInstructions: u32 = 100;
 }
 
+parameter_types! {
+	pub static TrappedAssets: Vec<(MultiLocation, MultiAssets)> = vec![];
+}
+
+pub struct TestAssetTrap;
+
+impl DropAssets for TestAssetTrap {
+	fn drop_assets(origin: &MultiLocation, assets: Assets) -> Weight {
+		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
+		t.push((origin.clone(), assets.into()));
+		TrappedAssets::set(t);
+		5
+	}
+}
+
+impl ClaimAssets for TestAssetTrap {
+	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool {
+		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
+		if let (0, X1(GeneralIndex(i))) = (ticket.parents, &ticket.interior) {
+			if let Some((l, a)) = t.get(*i as usize) {
+				if l == origin && a == what {
+					t.swap_remove(*i as usize);
+					TrappedAssets::set(t);
+					return true
+				}
+			}
+		}
+		false
+	}
+}
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type Call = Call;
@@ -105,8 +137,8 @@ impl xcm_executor::Config for XcmConfig {
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
-	type AssetTrap = ();
-	type AssetClaims = ();
+	type AssetTrap = TestAssetTrap;
+	type AssetClaims = TestAssetTrap;
 	type SubscriptionService = ();
 }
 
@@ -131,6 +163,12 @@ impl generic::Config for Test {
 
 	fn transact_origin() -> Option<MultiLocation> {
 		Some(Default::default())
+	}
+
+	fn claimable_asset() -> Option<(MultiLocation, MultiLocation, MultiAssets)> {
+		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
+		let ticket = MultiLocation { parents: 0, interior: X1(GeneralIndex(0)) };
+		Some((Default::default(), ticket, assets))
 	}
 }
 
