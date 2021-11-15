@@ -2037,30 +2037,26 @@ mod tests {
 			// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
 			{
 				let scheduled = &[][..];
-				assert_eq!(
+				assert!(
 					sanitize_backed_candidates::<Test, _>(
 						relay_parent,
 						backed_candidates.clone(),
 						has_concluded_invalid,
 						scheduled
-					)
-					.len(),
-					0
+					).is_empty()
 				);
 			}
 
 			// relay parent mismatch
 			{
 				let relay_parent = Hash::repeat_byte(0xFA);
-				assert_eq!(
+				assert!(
 					sanitize_backed_candidates::<Test, _>(
 						relay_parent,
 						backed_candidates.clone(),
 						has_concluded_invalid,
 						scheduled
-					)
-					.len(),
-					0
+					).is_empty()
 				);
 			}
 
