@@ -29,7 +29,6 @@ use crate::{
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
-	fail,
 	inherent::{InherentData, InherentIdentifier, MakeFatalError, ProvideInherent},
 	pallet_prelude::*,
 	traits::Randomness,
@@ -55,6 +54,8 @@ use sp_std::{
 mod benchmarking;
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
+const SKIP_SIG_VERIFY: bool = false;
+pub(crate) const VERIFY_SIGS: bool = true;
 
 pub trait WeightInfo {
 	/// Variant over `v`, the count of dispute statements in a dispute statement set. This gives the
@@ -325,8 +326,8 @@ pub mod pallet {
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
 			ensure_none(origin)?;
+
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
-			// Once we are sure we can proceed, mark as included
 			Included::<T>::set(Some(()));
 
 			let ParachainsInherentData {
@@ -357,7 +358,6 @@ pub mod pallet {
 				bitfields_weight = 0;
 			}
 
-
 			let total_weight = if disputes_weight > max_block_weight {
 				let entropy = compute_entropy::<T>(parent_hash);
 				max_block_weight.saturating_sub(limit_disputes::<T>(&mut disputes, entropy))
@@ -376,6 +376,8 @@ pub mod pallet {
 					.map(|s| (s.session, s.candidate_hash))
 					.collect();
 
+				// Note that `provide_multi_dispute_data` will iterate, verify, and import each
+				// dispute; so the input here must be reasonably bounded.
 				let _ = T::DisputesHandler::provide_multi_dispute_data(disputes.clone())?;
 				if T::DisputesHandler::is_frozen() {
 					// The relay chain we are currently on is invalid. Proceed no further on parachains.
@@ -401,9 +403,8 @@ pub mod pallet {
 					Vec::new()
 				};
 
-				// create a bit index from the set of core indicies
-				// where each index corresponds to a core index
-				// that was freed due to a dispute
+				// Create a bit index from the set of core indices where each index corresponds to
+				// a core index that was freed due to a dispute.
 				let disputed_bitfield = create_disputed_bitfield(
 					expected_bits,
 					freed_disputed.iter().map(|(core_index, _)| core_index),
@@ -426,7 +427,7 @@ pub mod pallet {
 				signed_bitfields,
 				disputed_bitfield,
 				<scheduler::Pallet<T>>::core_para,
-			)?;
+			);
 
 			// Inform the disputes module of all included candidates.
 			let now = <frame_system::Pallet<T>>::block_number();
@@ -440,22 +441,14 @@ pub mod pallet {
 			<scheduler::Pallet<T>>::schedule(freed, now);
 
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
-			let backed_candidates = sanitize_backed_candidates::<T, _, true>(
+			let backed_candidates = sanitize_backed_candidates::<T, _>(
 				parent_hash,
 				backed_candidates,
 				move |candidate_hash: CandidateHash| -> bool {
 					<T>::DisputesHandler::concluded_invalid(current_session, candidate_hash)
 				},
 				&scheduled[..],
-			)
-			.unwrap_or_else(|err| {
-				log::error!(
-					target: LOG_TARGET,
-					"dropping all backed candidates due to sanitization error: {:?}",
-					err,
-				);
-				Vec::new()
-			});
+			);
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
@@ -577,25 +570,14 @@ impl<T: Config> Pallet<T> {
 
 				// The following 3 calls are equiv to a call to `process_bitfields`
 				// but we can retain access to `bitfields`.
-				let bitfields = match sanitize_bitfields::<T, false>(
+				let bitfields = sanitize_bitfields::<T, SKIP_SIG_VERIFY>(
 					bitfields,
 					disputed_bitfield,
 					expected_bits,
 					parent_hash,
 					current_session,
 					&validator_public[..],
-				) {
-					Ok(bitfields) => bitfields,
-					Err(err) => {
-						// by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
-						log::error!(
-							target: LOG_TARGET,
-							"BUG: convention violation in create_inherent: {:?}",
-							err
-						);
-						vec![]
-					},
-				};
+				);
 
 				let freed_concluded =
 					<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores::<
@@ -625,15 +607,14 @@ impl<T: Config> Pallet<T> {
 				))
 			});
 
-		let backed_candidates = sanitize_backed_candidates::<T, _, false>(
+		let backed_candidates = sanitize_backed_candidates::<T, _>(
 			parent_hash,
 			backed_candidates,
 			move |candidate_hash: CandidateHash| -> bool {
 				concluded_invalid_disputes.contains(&candidate_hash)
 			},
 			&scheduled[..],
-		)
-		.ok()?; // by convention, when called with `ON_CHAIN_USE=false`, will always return `Ok()`
+		);
 
 		let entropy = compute_entropy::<T>(parent_hash);
 		let remaining_weight = limit_disputes::<T>(&mut disputes, entropy.clone());
@@ -647,22 +628,6 @@ impl<T: Config> Pallet<T> {
 			parent_header,
 		})
 	}
-}
-
-/// Assures the `$condition` is `true`, and raises
-/// an error if `$action` is `true`.
-/// If `$action` is `false`, executes `$alt` if present.
-macro_rules! ensure2 {
-	($condition:expr, $err:expr, $action:ident $(, $alt:expr)? $(,)?) => {
-		let condition = $condition;
-		if !condition {
-			if $action {
-				ensure!(condition, $err);
-			} else {
-				$($alt)?
-			}
-		}
-	};
 }
 
 /// Derive a bitfield from dispute
@@ -792,81 +757,95 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 /// they were actually checked and filtered to allow using it in both
 /// cases, as `filtering` and `checking` stage.
 ///
-/// `EARLY_RETURN` determines the behavior.
-/// `false` assures that all inputs are filtered, and invalid ones are filtered out.
-/// It also skips signature verification.
-/// `true` returns an `Err(_)` on the first check failing.
-pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN: bool>(
+/// `CHECK_SIGS` determines if validator signatures are checked. If true, bitfields that have an
+/// invalid signature will be filtered out.
+pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: bool>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bitfield: DisputedBitfield,
 	expected_bits: usize,
 	parent_hash: T::Hash,
 	session_index: SessionIndex,
 	validators: &[ValidatorId],
-) -> Result<UncheckedSignedAvailabilityBitfields, DispatchError> {
+) -> UncheckedSignedAvailabilityBitfields {
 	let mut bitfields = Vec::with_capacity(unchecked_bitfields.len());
 
 	let mut last_index = None;
 
-	ensure2!(
-		disputed_bitfield.0.len() == expected_bits,
-		crate::inclusion::Error::<T>::WrongBitfieldSize,
-		EARLY_RETURN
-	);
+	if disputed_bitfield.0.len() != expected_bits {
+		// This is a system logic error that should never occur, but we want to handle it gracefully
+		// so we just drop all bitfields
+		log::error!(target: LOG_TARGET, "BUG: disputed_bitfield != expected_bits");
+		return vec![]
+	}
 
 	let all_zeros = BitVec::<bitvec::order::Lsb0, u8>::repeat(false, expected_bits);
 	let signing_context = SigningContext { parent_hash, session_index };
 	for unchecked_bitfield in unchecked_bitfields {
-		ensure2!(
-			unchecked_bitfield.unchecked_payload().0.len() == expected_bits,
-			crate::inclusion::Error::<T>::WrongBitfieldSize,
-			EARLY_RETURN,
+		// Find and skip invalid bitfields.
+		if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
+			log::trace!(
+				target: LOG_TARGET,
+				"[CHECK_SIGS: {}] bad bitfield length: {} != {:?}",
+				CHECK_SIGS,
+				unchecked_bitfield.unchecked_payload().0.len(),
+				expected_bits,
+			);
 			continue
-		);
+		}
 
-		ensure2!(
-			unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() ==
-				all_zeros,
-			crate::inclusion::Error::<T>::BitfieldReferencesFreedCore,
-			EARLY_RETURN,
+		if unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone() !=
+			all_zeros
+		{
+			log::trace!(
+				target: LOG_TARGET,
+				"[CHECK_SIGS: {}] bitfield contains disputed cores: {:?}",
+				CHECK_SIGS,
+				unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone()
+			);
 			continue
-		);
+		}
 
-		ensure2!(
-			last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()),
-			crate::inclusion::Error::<T>::BitfieldDuplicateOrUnordered,
-			EARLY_RETURN,
+		if !last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()) {
+			log::trace!(
+				target: LOG_TARGET,
+				"[CHECK_SIGS: {}] bitfield validator index is not greater than last: !({:?} < {:?})",
+				CHECK_SIGS,
+				last_index,
+				unchecked_bitfield.unchecked_validator_index()
+			);
 			continue
-		);
+		}
 
-		ensure2!(
-			(unchecked_bitfield.unchecked_validator_index().0 as usize) < validators.len(),
-			crate::inclusion::Error::<T>::ValidatorIndexOutOfBounds,
-			EARLY_RETURN,
+		if unchecked_bitfield.unchecked_validator_index().0 as usize >= validators.len() {
+			log::trace!(
+				target: LOG_TARGET,
+				"[CHECK_SIGS: {}] bitfield validator index is out of bounds: {:?} >= {:?}",
+				CHECK_SIGS,
+				unchecked_bitfield.unchecked_validator_index().0,
+				validators.len(),
+			);
 			continue
-		);
+		}
 
 		let validator_index = unchecked_bitfield.unchecked_validator_index();
 
 		let validator_public = &validators[validator_index.0 as usize];
 
-		// only check the signatures when returning early
-		if EARLY_RETURN {
-			let signed_bitfield = if let Ok(signed_bitfield) =
+		if CHECK_SIGS {
+			if let Ok(signed_bitfield) =
 				unchecked_bitfield.try_into_checked(&signing_context, validator_public)
 			{
-				signed_bitfield
+				bitfields.push(signed_bitfield.into_unchecked());
 			} else {
-				fail!(crate::inclusion::Error::<T>::InvalidBitfieldSignature);
+				log::warn!(target: LOG_TARGET, "Invalid bitfield signature");
 			};
-			bitfields.push(signed_bitfield.into_unchecked());
 		} else {
 			bitfields.push(unchecked_bitfield);
 		}
 
 		last_index = Some(validator_index);
 	}
-	Ok(bitfields)
+	bitfields
 }
 
 /// Filter out any candidates that have a concluded invalid dispute.
@@ -878,27 +857,20 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const EARLY_RETURN
 ///
 /// `candidate_has_concluded_invalid_dispute` must return `true` if the candidate
 /// is disputed, false otherwise
-fn sanitize_backed_candidates<
-	T: crate::inclusion::Config,
-	F: Fn(CandidateHash) -> bool,
-	const EARLY_RETURN: bool,
->(
+fn sanitize_backed_candidates<T: crate::inclusion::Config, F: Fn(CandidateHash) -> bool>(
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	candidate_has_concluded_invalid_dispute: F,
 	scheduled: &[CoreAssignment],
-) -> Result<Vec<BackedCandidate<T::Hash>>, Error<T>> {
-	let n = backed_candidates.len();
+) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
 	backed_candidates.retain(|backed_candidate| {
 		!candidate_has_concluded_invalid_dispute(backed_candidate.candidate.hash())
 	});
-	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
 	// Assure the backed candidate's `ParaId`'s core is free.
 	// This holds under the assumption that `Scheduler::schedule` is called _before_.
 	// Also checks the candidate references the correct relay parent.
-
 	let scheduled_paras_set = scheduled
 		.into_iter()
 		.map(|core_assignment| core_assignment.para_id)
@@ -907,10 +879,8 @@ fn sanitize_backed_candidates<
 		let desc = backed_candidate.descriptor();
 		desc.relay_parent == relay_parent && scheduled_paras_set.contains(&desc.para_id)
 	});
-	ensure2!(backed_candidates.len() == n, Error::<T>::CandidateConcludedInvalid, EARLY_RETURN);
 
-	// Limit weight, to avoid overweight block.
-	Ok(backed_candidates)
+	backed_candidates
 }
 
 fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
@@ -1053,7 +1023,7 @@ mod tests {
 		#[test]
 		// Validate that if we create 2 backed candidates which are assigned to 2 cores that will be freed via
 		// becoming fully available, the backed candidates will not be filtered out in `create_inherent` and
-		// will not cause `enter` to exit early.
+		// will not cause `enter` to early.
 		fn include_backed_candidates() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				let dispute_statements = BTreeMap::new();
@@ -1723,7 +1693,6 @@ mod tests {
 
 	mod sanitizers {
 		use super::*;
-		use assert_matches::assert_matches;
 
 		use crate::inclusion::tests::{
 			back_candidate, collator_sign_candidate, BackingKind, TestCandidateBuilder,
@@ -1803,8 +1772,8 @@ mod tests {
 			let disputed_bitfield = DisputedBitfield::zeros(expected_bits);
 
 			{
-				assert_matches!(
-					sanitize_bitfields::<Test, true>(
+				assert_eq!(
+					sanitize_bitfields::<Test, VERIFY_SIGS>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1812,10 +1781,10 @@ mod tests {
 						session_index,
 						&validator_public[..]
 					),
-					Ok(_)
+					unchecked_bitfields.clone()
 				);
 				assert_eq!(
-					sanitize_bitfields::<Test, false>(
+					sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
@@ -1823,7 +1792,7 @@ mod tests {
 						session_index,
 						&validator_public[..]
 					),
-					Ok(unchecked_bitfields.clone())
+					unchecked_bitfields.clone()
 				);
 			}
 
@@ -1835,125 +1804,141 @@ mod tests {
 				disputed_bitfield.0.set(0, true);
 
 				assert_eq!(
-					sanitize_bitfields::<Test, true>(
+					sanitize_bitfields::<Test, VERIFY_SIGS>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
 						&validator_public[..]
-					),
-					Err(inclusion::Error::<Test>::BitfieldReferencesFreedCore.into())
+					)
+					.len(),
+					1
 				);
-				assert_matches!(
-					sanitize_bitfields::<Test, false>(
+				assert_eq!(
+					sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
 						&validator_public[..]
-					),
-					Ok(unchecked_bitfields) => {
-						assert_eq!(unchecked_bitfields.len(), 1);
-					}
+					)
+					.len(),
+					1
 				);
 			}
 
 			// bitfield size mismatch
 			{
-				assert_eq!(
-					sanitize_bitfields::<Test, true>(
-						unchecked_bitfields.clone(),
-						disputed_bitfield.clone(),
-						expected_bits + 1,
-						parent_hash,
-						session_index,
-						&validator_public[..]
-					),
-					Err(inclusion::Error::<Test>::WrongBitfieldSize.into())
-				);
-				assert_matches!(
-					sanitize_bitfields::<Test, false>(
-						unchecked_bitfields.clone(),
-						disputed_bitfield.clone(),
-						expected_bits + 1,
-						parent_hash,
-						session_index,
-						&validator_public[..]
-					),
-					Ok(unchecked_bitfields) => {
-						assert!(unchecked_bitfields.is_empty());
-					}
-				);
+				assert!(sanitize_bitfields::<Test, VERIFY_SIGS>(
+					unchecked_bitfields.clone(),
+					disputed_bitfield.clone(),
+					expected_bits + 1,
+					parent_hash,
+					session_index,
+					&validator_public[..]
+				)
+				.is_empty());
+				assert!(sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
+					unchecked_bitfields.clone(),
+					disputed_bitfield.clone(),
+					expected_bits + 1,
+					parent_hash,
+					session_index,
+					&validator_public[..]
+				)
+				.is_empty());
 			}
 
 			// remove the last validator
 			{
 				let shortened = validator_public.len() - 2;
 				assert_eq!(
-					sanitize_bitfields::<Test, true>(
+					&sanitize_bitfields::<Test, VERIFY_SIGS>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
 						&validator_public[..shortened]
-					),
-					Err(inclusion::Error::<Test>::ValidatorIndexOutOfBounds.into())
+					)[..],
+					&unchecked_bitfields[..shortened]
 				);
-				assert_matches!(
-					sanitize_bitfields::<Test, false>(
+				assert_eq!(
+					&sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
 						&validator_public[..shortened]
-					),
-					Ok(unchecked_bitfields_filtered) => {
-						assert_eq!(
-							&unchecked_bitfields_filtered[..],
-							&unchecked_bitfields[..shortened]
-						);
-					}
+					)[..],
+					&unchecked_bitfields[..shortened]
 				);
 			}
 
-			// switch ordering of bitfields, bail
+			// switch ordering of bitfields
 			{
 				let mut unchecked_bitfields = unchecked_bitfields.clone();
 				let x = unchecked_bitfields.swap_remove(0);
 				unchecked_bitfields.push(x);
 				assert_eq!(
-					sanitize_bitfields::<Test, true>(
+					&sanitize_bitfields::<Test, VERIFY_SIGS>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
 						&validator_public[..]
-					),
-					Err(inclusion::Error::<Test>::BitfieldDuplicateOrUnordered.into())
+					)[..],
+					&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
 				);
-				assert_matches!(
-					sanitize_bitfields::<Test, false>(
+				assert_eq!(
+					&sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
 						&validator_public[..]
-					),
-					Ok(unchecked_bitfields_filtered) => {
-						// the last element is out of order
-						// hence sanitization will have removed only that
-						// one
-						assert_eq!(
-							&unchecked_bitfields[..(unchecked_bitfields.len()-2)],
-							&unchecked_bitfields_filtered[..]
-							);
-					}
+					)[..],
+					&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
+				);
+			}
+
+			// check the validators signature
+			{
+				use primitives::v1::ValidatorSignature;
+				let mut unchecked_bitfields = unchecked_bitfields.clone();
+
+				// insert a bad signature for the last bitfield
+				let last_bit_idx = unchecked_bitfields.len() - 1;
+				unchecked_bitfields
+					.get_mut(last_bit_idx)
+					.and_then(|u| Some(u.set_signature(ValidatorSignature::default())))
+					.expect("we are accessing a valid index");
+				assert_eq!(
+					&sanitize_bitfields::<Test, VERIFY_SIGS>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					)[..],
+					&unchecked_bitfields[..last_bit_idx]
+				);
+				assert_eq!(
+					&sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
+						unchecked_bitfields.clone(),
+						disputed_bitfield.clone(),
+						expected_bits,
+						parent_hash,
+						session_index,
+						&validator_public[..]
+					)[..],
+					&unchecked_bitfields[..]
 				);
 			}
 		}
@@ -2038,83 +2023,44 @@ mod tests {
 				})
 				.collect::<Vec<_>>();
 
-			{
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, true>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(backed_candidates, sanitized_backed_candidates);
-					}
-				);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, false>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(backed_candidates, sanitized_backed_candidates);
-					}
-				);
-			}
+			// happy path
+			assert_eq!(
+				sanitize_backed_candidates::<Test, _>(
+					relay_parent,
+					backed_candidates.clone(),
+					has_concluded_invalid,
+					scheduled
+				),
+				backed_candidates
+			);
 
-			// nothing is scheduled, so no paraids match,
-			// hence no backed candidate makes it through
+			// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
 			{
 				let scheduled = &[][..];
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, true>(
+				assert!(
+					sanitize_backed_candidates::<Test, _>(
 						relay_parent,
 						backed_candidates.clone(),
 						has_concluded_invalid,
 						scheduled
-					),
-					Err(Error::<Test>::CandidateConcludedInvalid)
-				);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, false>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(0, sanitized_backed_candidates.len());
-					}
+					).is_empty()
 				);
 			}
 
 			// relay parent mismatch
 			{
 				let relay_parent = Hash::repeat_byte(0xFA);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, true>(
+				assert!(
+					sanitize_backed_candidates::<Test, _>(
 						relay_parent,
 						backed_candidates.clone(),
 						has_concluded_invalid,
 						scheduled
-					),
-					Err(Error::<Test>::CandidateConcludedInvalid)
-				);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, false>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(0, sanitized_backed_candidates.len());
-					}
+					).is_empty()
 				);
 			}
 
-			// relay parent mismatch
+			// candidates that have concluded as invalid are filtered out
 			{
 				// mark every second one as concluded invalid
 				let set = {
@@ -2127,25 +2073,15 @@ mod tests {
 					set
 				};
 				let has_concluded_invalid = |candidate: CandidateHash| set.contains(&candidate);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, true>(
+				assert_eq!(
+					sanitize_backed_candidates::<Test, _>(
 						relay_parent,
 						backed_candidates.clone(),
 						has_concluded_invalid,
 						scheduled
-					),
-					Err(Error::<Test>::CandidateConcludedInvalid)
-				);
-				assert_matches!(
-					sanitize_backed_candidates::<Test, _, false>(
-						relay_parent,
-						backed_candidates.clone(),
-						has_concluded_invalid,
-						scheduled
-					),
-					Ok(sanitized_backed_candidates) => {
-						assert_eq!(0, sanitized_backed_candidates.len() / 2);
-					}
+					)
+					.len(),
+					backed_candidates.len() / 2
 				);
 			}
 		}
