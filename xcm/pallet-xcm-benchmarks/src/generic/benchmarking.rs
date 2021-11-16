@@ -293,10 +293,13 @@ benchmarks! {
 	}
 
 	initiate_reserve_withdraw {
-		let assets = MultiAssetFilter::Wild(All);
+		let holding = worst_case_holding();
+		let assets: MultiAssets = holding.clone().into();
+		let assets_filter = MultiAssetFilter::Definite(assets);
 		let reserve = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
 		let mut executor = new_executor::<T>(Default::default());
-		let instruction = Instruction::InitiateReserveWithdraw { assets, reserve, xcm: Xcm(vec![]) };
+		executor.holding = holding;
+		let instruction = Instruction::InitiateReserveWithdraw { assets: assets_filter, reserve, xcm: Xcm(vec![]) };
 		let xcm = Xcm(vec![instruction]);
 	}:{
 		executor.execute(xcm)?;
