@@ -29,10 +29,19 @@ OnChainVotes: Option<ScrapedOnChainVotes>,
 
 ## Entry Points
 
-* `enter`: This entry-point accepts three parameters: The relay-chain parent block header, [`Bitfields`](../types/availability.md#signed-availability-bitfield) and [`BackedCandidates`](../types/backing.md#backed-candidate).
+* `enter`: This entry-point accepts one parameter: [`ParaInherentData`](../types/runtime.md#ParaInherentData).
+    1. Ensure the origin is none.
+    1. Ensure `Included` is set as `None`.
+    1. Set `Included` as `Some`.
+    1. Unpack `ParachainsInherentData` into `signed_bitfields`, `backed_candidates`, `parent_header`, and `disputes`.
     1. Hash the parent header and make sure that it corresponds to the block hash of the parent (tracked by the `frame_system` FRAME module),
+    1. Calculate the `candidate_weight`, `bitfields_weight`, and `disputes_weight`.
+    1. If the sum of `candidate_weight`, `bitfields_weight`, and `disputes_weight` is greater than the max block weight we do the following with the goal of prioritizing the inclusion of disputes without making it game-able by block authors:
+      1. clear `bitfields` and set `bitfields_weight` equal to 0.
+      1. clear `backed_candidates` and set `candidate_weight` equal to 0.
+      1. invoke `limit_disputes` on the `disputes` with the max block weight iff the disputes weight is greater than the max block weight.
     1. Invoke `Disputes::provide_multi_dispute_data`.
-    1. If `Disputes::is_frozen`, return and set `Included` to `Some(())`.
+    1. If `Disputes::is_frozen`, return.
     1. If there are any concluded disputes from the current session, invoke `Inclusion::collect_disputed` with the disputed candidates. Annotate each returned core with `FreedReason::Concluded`, sort them, and invoke `Scheduler::free_cores` with them.
     1. The `Bitfields` are first forwarded to the `Inclusion::process_bitfields` routine, returning a set included candidates and the respective freed cores. Provide the number of availability cores (`Scheduler::availability_cores().len()`) as the expected number of bits and a `Scheduler::core_para` as a core-lookup to the `process_bitfields` routine. Annotate each of these freed cores with `FreedReason::Concluded`.
     1. For each freed candidate from the `Inclusion::process_bitfields` call, invoke `Disputes::note_included(current_session, candidate)`.
