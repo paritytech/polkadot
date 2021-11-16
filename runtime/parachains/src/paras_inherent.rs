@@ -334,8 +334,8 @@ pub mod pallet {
 				mut disputes,
 			} = data;
 
-			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
+			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 			ensure!(
 				parent_header.hash().as_ref() == parent_hash.as_ref(),
 				Error::<T>::InvalidParentHeader,
