@@ -6887,6 +6887,7 @@ dependencies = [
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
+ "pallet-babe",
  "pallet-balances",
  "pallet-session",
  "pallet-staking",
