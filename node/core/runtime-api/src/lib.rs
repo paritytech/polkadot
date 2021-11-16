@@ -156,6 +156,7 @@ where
 				self.requests_cache.cache_on_chain_votes(relay_parent, scraped),
 			PvfsRequirePrecheck(relay_parent, pvfs) =>
 				self.requests_cache.cache_pvfs_require_precheck(relay_parent, pvfs),
+			SubmitPvfCheckStatement(_, _, _, _) => {},
 		}
 	}
 
@@ -239,12 +240,12 @@ where
 				query!(current_babe_epoch(), sender).map(|sender| Request::CurrentBabeEpoch(sender)),
 			Request::FetchOnChainVotes(sender) =>
 				query!(on_chain_votes(), sender).map(|sender| Request::FetchOnChainVotes(sender)),
-			Request::SubmitPvfCheckStatement(_, _, _) => {
-				// This request is side-effecting and thus cannot be cached.
-				None
-			},
 			Request::PvfsRequirePrecheck(sender) => query!(pvfs_require_precheck(), sender)
 				.map(|sender| Request::PvfsRequirePrecheck(sender)),
+			request @ Request::SubmitPvfCheckStatement(_, _, _) => {
+				// This request is side-effecting and thus cannot be cached.
+				Some(request)
+			},
 		}
 	}
 
@@ -342,17 +343,6 @@ where
 	let _timer = metrics.time_make_runtime_api_request();
 
 	macro_rules! query {
-		(@NoCache, $api_name:ident ($($param:expr),*), $sender:expr) => {{
-			let sender = $sender;
-			let api = client.runtime_api();
-			let res = api.$api_name(&BlockId::Hash(relay_parent) $(, $param.clone() )*)
-				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
-			metrics.on_request(res.is_ok());
-			let _ = sender.send(res.clone());
-
-			// Returning None from this function means there is nothing to cache.
-			None
-		}};
 		($req_variant:ident, $api_name:ident ($($param:expr),*), $sender:expr) => {{
 			let sender = $sender;
 			let api = client.runtime_api();
@@ -396,10 +386,12 @@ where
 			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), sender),
 		Request::CurrentBabeEpoch(sender) => query!(CurrentBabeEpoch, current_epoch(), sender),
 		Request::FetchOnChainVotes(sender) => query!(FetchOnChainVotes, on_chain_votes(), sender),
-		Request::SubmitPvfCheckStatement(stmt, signature, sender) =>
-			query!(@NoCache, submit_pvf_check_statement(stmt, signature), sender),
-		Request::PvfsRequirePrecheck(sender) =>
-			query!(PvfsRequirePrecheck, pvfs_require_precheck(), sender),
+		Request::SubmitPvfCheckStatement(stmt, signature, sender) => {
+			query!(SubmitPvfCheckStatement, submit_pvf_check_statement(stmt, signature), sender)
+		},
+		Request::PvfsRequirePrecheck(sender) => {
+			query!(PvfsRequirePrecheck, pvfs_require_precheck(), sender)
+		},
 	}
 }
 

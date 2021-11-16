@@ -24,8 +24,8 @@ use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
 	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Hash, Id as ParaId,
 	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
-	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex,
+	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 const AUTHORITIES_CACHE_SIZE: usize = 128 * 1024;
@@ -408,4 +408,5 @@ pub(crate) enum RequestResult {
 	CurrentBabeEpoch(Hash, Epoch),
 	FetchOnChainVotes(Hash, Option<ScrapedOnChainVotes>),
 	PvfsRequirePrecheck(Hash, Vec<ValidationCodeHash>),
+	SubmitPvfCheckStatement(Hash, PvfCheckStatement, ValidatorSignature, ()),
 }

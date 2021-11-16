@@ -90,6 +90,7 @@ pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
+		DummySubsystem,
 	>,
 	SubsystemError,
 >
@@ -110,6 +111,7 @@ pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
 	OverseerBuilder<
 		Spawner,
 		SupportsParachains,
+		Sub,
 		Sub,
 		Sub,
 		Sub,
@@ -158,7 +160,8 @@ where
 		+ Subsystem<OverseerSubsystemContext<DisputeCoordinatorMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<DisputeParticipationMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>,
+		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>
+		+ Subsystem<OverseerSubsystemContext<PvfCheckerMessage>, SubsystemError>,
 {
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
 
@@ -170,6 +173,7 @@ where
 		.bitfield_signing(subsystem.clone())
 		.candidate_backing(subsystem.clone())
 		.candidate_validation(subsystem.clone())
+		.pvf_checker(subsystem.clone())
 		.chain_api(subsystem.clone())
 		.collation_generation(subsystem.clone())
 		.collator_protocol(subsystem.clone())
