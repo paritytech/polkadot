@@ -244,15 +244,17 @@ benchmarks! {
 		let mut executor = new_executor::<T>(Default::default());
 		let instruction = Instruction::Trap(10);
 		let xcm = Xcm(vec![instruction]);
+		// In order to access result in the verification below, it needs to be defined here.
+		let mut _result = Ok(());
 	} : {
-		match executor.execute(xcm) {
+		_result = executor.execute(xcm);
+	} verify {
+		match _result {
 			Err(error) if error.xcm_error == XcmError::Trap(10) => {
 				// This is the success condition
 			},
-			_ => return Err(BenchmarkError::Stop("xcm trap did not return the expected error"))
+			_ => panic!("xcm trap did not return the expected error")
 		};
-	} verify {
-		// Verification is done above.
 	}
 
 	subscribe_version {
