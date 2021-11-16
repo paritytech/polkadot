@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-parachains"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -32,6 +32,7 @@ pallet-session = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
@@ -42,15 +43,13 @@ primitives = { package = "polkadot-primitives", path = "../../primitives", defau
 rand = { version = "0.8.3", default-features = false }
 rand_chacha = { version = "0.3.1", default-features = false }
 
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-
 [dev-dependencies]
 futures = "0.3.17"
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 
 [features]
 default = ["std"]
@@ -87,8 +86,6 @@ runtime-benchmarks = [
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
 	"frame-system/runtime-benchmarks",
-	"primitives/runtime-benchmarks",
-	"application-crypto/full_crypto",
 ]
 try-runtime = [
 	"frame-support/try-runtime",

@@ -327,9 +327,8 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 }
 
 /// A unique descriptor of the candidate receipt.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
-#[cfg_attr(any(feature = "std", feature = "runtime-benchmarks"), derive(Default))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,
@@ -408,9 +407,8 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 }
 
 /// A candidate-receipt with commitments directly included.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
-#[cfg_attr(any(feature = "std", feature = "runtime-benchmarks"), derive(Default))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -511,9 +509,8 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(Debug, Hash, MallocSizeOf))]
-#[cfg_attr(any(feature = "std", feature = "runtime-benchmarks"), derive(Default))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
