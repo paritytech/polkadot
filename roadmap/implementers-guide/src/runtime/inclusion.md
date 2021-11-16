@@ -65,7 +65,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. check that the number of bits is equal to `expected_bits`.
   1. check that the validator index is strictly increasing (and thus also unique)
   1. check that the validator bit index is not out of bounds
-  1. check all validator signatures, iff `CHECK_SIGS=true`.
+  1. check the validators signature, iff `CHECK_SIGS=true`.
 
 * `sanitize_backed_candidates<T: crate::inclusion::Config, F: Fn(CandidateHash) -> bool>(
     relay_parent: T::Hash,
@@ -103,8 +103,6 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. call `Hrmp::prune_hrmp` with the para id of the candiate and the candidate's `hrmp_watermark`.
   1. call `Hrmp::queue_outbound_hrmp` with the para id of the candidate and the list of horizontal messages taken from the commitment,
   1. Call `Paras::note_new_head` using the `HeadData` from the receipt and `relay_parent_number`.
-
-* `fn sanitize_bitfields`
 
 * `collect_pending`:
 

@@ -279,7 +279,8 @@ pub mod pallet {
 		}
 	}
 
-	/// Collect all freed cores based on storage data.
+	/// Collect all freed cores based on storage data. (i.e. append cores freed from timeouts to
+	/// the given `freed_concluded`).
 	///
 	/// The parameter `freed_concluded` contains all core indicies that became
 	/// free due to candidate that became available.
@@ -546,6 +547,8 @@ impl<T: Config> Pallet<T> {
 					});
 
 				// current concluded invalid disputes, only including the current block's votes
+				// TODO why does this say "only including the current block's votes"? This can include
+				// remote disputes, right?
 				let current_concluded_invalid_disputes = disputes
 					.iter()
 					.filter(|dss| dss.session == current_session)
