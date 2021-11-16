@@ -158,6 +158,7 @@ cargo-fmt:
   <<:                              *docker-env
   <<:                              *rules-test
   script:
+    - cargo +nightly --version
     - cargo +nightly fmt --all -- --check
   allow_failure:                   true
 
