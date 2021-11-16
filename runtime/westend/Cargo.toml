@@ -206,6 +206,7 @@ runtime-benchmarks = [
 	"pallet-xcm-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
+	"runtime-parachains/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",

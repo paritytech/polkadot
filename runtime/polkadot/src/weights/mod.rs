@@ -46,3 +46,4 @@ pub mod runtime_common_slots;
 pub mod runtime_parachains_configuration;
 pub mod runtime_parachains_initializer;
 pub mod runtime_parachains_paras;
+pub mod runtime_parachains_paras_inherent;
