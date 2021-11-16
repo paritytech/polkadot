@@ -43,7 +43,7 @@ use primitives::v1::{
 };
 use rand::{Rng, SeedableRng};
 use scale_info::TypeInfo;
-use sp_runtime::traits::{Header as HeaderT, Zero};
+use sp_runtime::traits::Header as HeaderT;
 use sp_std::{
 	cmp::Ordering,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
