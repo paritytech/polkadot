@@ -125,7 +125,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
 	}
 
-	/// Specify a mapping of core_idx/para_id/group_idx seed to the number of dispute statements for the
+	/// Specify a mapping of core index, para id, group index seed to the number of dispute statements for the
 	/// corresponding dispute statement set. Note that if the number of disputes is not specified it fallbacks
 	/// to having a dispute per every validator. Additionally, an entry is not guaranteed to have a dispute - it
 	/// must line up with the cores marked as disputed as defined in `Self::Build`.
