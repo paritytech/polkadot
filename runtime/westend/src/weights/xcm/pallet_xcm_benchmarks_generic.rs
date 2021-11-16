@@ -52,38 +52,38 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn query_holding() -> Weight {
-		(1_411_285_000 as Weight)
+		(1_429_190_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	pub(crate) fn buy_execution() -> Weight {
-		(9_786_000 as Weight)
+		(9_866_000 as Weight)
 	}
 	// Storage: XcmPallet Queries (r:1 w:0)
 	pub(crate) fn query_response() -> Weight {
-		(20_264_000 as Weight)
+		(20_840_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 	}
 	pub(crate) fn transact() -> Weight {
-		(22_427_000 as Weight)
+		(22_698_000 as Weight)
 	}
 	pub(crate) fn refund_surplus() -> Weight {
-		(5_836_000 as Weight)
+		(5_981_000 as Weight)
 	}
 	pub(crate) fn set_error_handler() -> Weight {
-		(5_759_000 as Weight)
+		(5_752_000 as Weight)
 	}
 	pub(crate) fn set_appendix() -> Weight {
-		(5_679_000 as Weight)
+		(5_783_000 as Weight)
 	}
 	pub(crate) fn clear_error() -> Weight {
-		(5_578_000 as Weight)
+		(5_768_000 as Weight)
 	}
 	pub(crate) fn descend_origin() -> Weight {
-		(7_294_000 as Weight)
+		(7_344_000 as Weight)
 	}
 	pub(crate) fn clear_origin() -> Weight {
-		(5_702_000 as Weight)
+		(5_752_000 as Weight)
 	}
 	// Storage: XcmPallet SupportedVersion (r:1 w:0)
 	// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
@@ -91,18 +91,18 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn report_error() -> Weight {
-		(31_566_000 as Weight)
+		(32_401_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	// Storage: XcmPallet AssetTraps (r:1 w:1)
 	pub(crate) fn claim_asset() -> Weight {
-		(13_839_000 as Weight)
+		(13_904_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	pub(crate) fn trap() -> Weight {
-		(5_613_000 as Weight)
+		(5_775_000 as Weight)
 	}
 	// Storage: XcmPallet VersionNotifyTargets (r:1 w:1)
 	// Storage: XcmPallet SupportedVersion (r:1 w:0)
@@ -111,13 +111,13 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn subscribe_version() -> Weight {
-		(37_641_000 as Weight)
+		(38_781_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(6 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	// Storage: XcmPallet VersionNotifyTargets (r:0 w:1)
 	pub(crate) fn unsubscribe_version() -> Weight {
-		(8_975_000 as Weight)
+		(8_931_000 as Weight)
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	// Storage: XcmPallet SupportedVersion (r:1 w:0)
@@ -126,7 +126,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn initiate_reserve_withdraw() -> Weight {
-		(32_899_000 as Weight)
+		(1_948_419_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(5 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
