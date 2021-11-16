@@ -30,6 +30,7 @@ const MAX_ASSETS: u32 = 100;
 benchmarks! {
 	query_holding {
 		let holding = worst_case_holding();
+		let assets: MultiAssets = holding.clone().into();
 
 		let mut executor = new_executor::<T>(Default::default());
 		executor.holding = holding;
@@ -37,7 +38,8 @@ benchmarks! {
 		let instruction = Instruction::<XcmCallOf<T>>::QueryHolding {
 			query_id: Default::default(),
 			dest: T::valid_destination()?,
-			assets: Wild(WildMultiAsset::All), // TODO is worst case filter?
+			// Worst case is looking through all holdings for every asset explicitly.
+			assets: Definite(assets),
 			max_response_weight: u64::MAX,
 		};
 
@@ -47,7 +49,6 @@ benchmarks! {
 		executor.execute(xcm)?;
 	} verify {
 		// The assert above is enough to validate this is completed.
-		// todo maybe XCM sender peek
 	}
 
 	// This benchmark does not use any additional orders or instructions. This should be managed
@@ -130,51 +131,6 @@ benchmarks! {
 		let num_events2 = frame_system::Pallet::<T>::events().len();
 		assert_eq!(num_events + 1, num_events2);
 	}
-
-	// hrmp_new_channel_open_request {
-	// 	let mut executor = new_executor::<T>(Default::default());
-	// 	let instruction = Instruction::HrmpNewChannelOpenRequest {
-	// 		sender: 1,
-	// 		max_message_size: 100,
-	// 		max_capacity: 100
-	// 	};
-
-	// 	let xcm = Xcm(vec![instruction]);
-	// }: {
-	// 	executor.execute(xcm)?;
-	// } verify {
-	// 	// TODO: query pallet
-	// }
-
-	// hrmp_channel_accepted {
-	// 	let mut executor = new_executor::<T>(Default::default());
-	// 	// TODO open channel request first.
-
-	// 	let instruction = Instruction::HrmpChannelAccepted {
-	// 		recipient: 1,
-	// 	};
-	// 	let xcm = Xcm(vec![instruction]);
-	// }: {
-	// 	executor.execute(xcm)?;
-	// } verify {
-	// 	// TODO: query pallet
-	// }
-
-	// hrmp_channel_closing {
-	// 	let (sender_account, sender_location) = account_and_location::<T>(1);
-	// 	// TODO open channel first.
-
-	// 	let instruction = Instruction::HrmpChannelClosing {
-	// 		initiator: 1,
-	// 		sender: 1,
-	// 		recipient: 2,
-	// 	};
-	// 	let xcm = Xcm(vec![instruction]);
-	// }: {
-	// 	execute_xcm_override_error::<T>(sender_location, Default::default(), xcm)?;
-	// } verify {
-	// 	// TODO: query pallet
-	// }
 
 	refund_surplus {
 		let mut executor = new_executor::<T>(Default::default());
