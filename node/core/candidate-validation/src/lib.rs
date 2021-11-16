@@ -302,7 +302,7 @@ where
 	) {
 		Ok(code) => code,
 		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+			tracing::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 
 			return false
 		},
