@@ -119,8 +119,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self
 	}
 
-        /// Maximum number of validators per core (a.k.a. max validators per group). This value is used if none is
-        /// explicitly set on the builder.
+	/// Maximum number of validators per core (a.k.a. max validators per group). This value is used if none is
+	/// explicitly set on the builder.
 	pub(crate) fn fallback_max_validators_per_core() -> u32 {
 		configuration::Pallet::<T>::config().max_validators_per_core.unwrap_or(5)
 	}

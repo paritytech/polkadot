@@ -39,11 +39,12 @@ use primitives::v1::{
 	BackedCandidate, CandidateHash, CoreIndex, DisputeStatementSet,
 	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
 	SessionIndex, SigningContext, UncheckedSignedAvailabilityBitfield,
-	UncheckedSignedAvailabilityBitfields, ValidatorId, PARACHAINS_INHERENT_IDENTIFIER,
+	UncheckedSignedAvailabilityBitfields, ValidatorId, ValidatorIndex,
+	PARACHAINS_INHERENT_IDENTIFIER,
 };
 use rand::{Rng, SeedableRng};
 use scale_info::TypeInfo;
-use sp_runtime::traits::{Header as HeaderT, Zero};
+use sp_runtime::traits::Header as HeaderT;
 use sp_std::{
 	cmp::Ordering,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -363,7 +364,7 @@ pub mod pallet {
 				}
 
 				if disputes_weight > max_block_weight {
-					// if disputes are overweight, trim the disputes.
+					// if disputes are by themselves overweight already, trim the disputes.
 					debug_assert!(candidate_weight == 0 && bitfields_weight == 0);
 
 					let entropy = compute_entropy::<T>(parent_hash);
@@ -530,7 +531,7 @@ impl<T: Config> Pallet<T> {
 
 		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
-		let (concluded_invalid_disputes, bitfields, scheduled) =
+		let (concluded_invalid_disputes, mut bitfields, scheduled) =
 			frame_support::storage::with_transaction(|| {
 				// we don't care about fresh or not disputes
 				// this writes them to storage, so let's query it via those means
@@ -621,7 +622,7 @@ impl<T: Config> Pallet<T> {
 				))
 			});
 
-		let backed_candidates = sanitize_backed_candidates::<T, _>(
+		let mut backed_candidates = sanitize_backed_candidates::<T, _>(
 			parent_hash,
 			backed_candidates,
 			move |candidate_hash: CandidateHash| -> bool {
@@ -633,9 +634,13 @@ impl<T: Config> Pallet<T> {
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
-		let remaining_weight = limit_disputes::<T>(&mut disputes, max_block_weight, &mut rng);
-		let (_backed_candidates_weight, backed_candidates, bitfields) =
-			apply_weight_limit::<T>(backed_candidates, bitfields, remaining_weight, &mut rng);
+		let _consumed_weight = apply_weight_limit::<T>(
+			&mut backed_candidates,
+			&mut bitfields,
+			&mut disputes,
+			max_block_weight,
+			&mut rng,
+		);
 
 		Some(ParachainsInherentData::<T::Header> {
 			bitfields,
@@ -664,6 +669,13 @@ where
 	DisputedBitfield::from(bitvec)
 }
 
+/// Select a random subset
+///
+/// Adds random items to the set until all candidates
+/// are tried or the remaining weight is depleted.
+///
+/// Returns the weight of all selected items from `selectables`
+/// as well as their indices in ascending order.
 fn random_sel<X, F: Fn(&X) -> Weight>(
 	rng: &mut rand_chacha::ChaChaRng,
 	selectables: Vec<X>,
@@ -708,24 +720,29 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 /// If even the bitfields are too large to fit into the `max_weight` limit, bitfields are randomly
 /// picked and _no_ candidates will be included.
 fn apply_weight_limit<T: Config + inclusion::Config>(
-	candidates: Vec<BackedCandidate<<T>::Hash>>,
-	bitfields: UncheckedSignedAvailabilityBitfields,
-	max_weight: Weight,
+	candidates: &mut Vec<BackedCandidate<<T>::Hash>>,
+	bitfields: &mut UncheckedSignedAvailabilityBitfields,
+	disputes: &mut MultiDisputeStatementSet,
+	max_block_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
-) -> (Weight, Vec<BackedCandidate<<T>::Hash>>, UncheckedSignedAvailabilityBitfields) {
+) -> Weight {
+	// include as many disputes as possible, always
+	let remaining_weight = limit_disputes::<T>(disputes, max_block_weight, rng);
+
 	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice());
+
 	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
 
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
-	// everything fits into the block
-	if max_weight >= total {
-		return (total, candidates, bitfields)
+	// candidates + bitfields fit into the block
+	if remaining_weight >= total {
+		return total
 	}
 
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
-	if let Some(remaining_weight) = max_weight.checked_sub(total_bitfields_weight) {
+	if let Some(remaining_weight) = remaining_weight.checked_sub(total_bitfields_weight) {
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
 				rng,
@@ -733,13 +750,19 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 				|c| backed_candidate_weight::<T>(c),
 				remaining_weight,
 			);
-		let candidates =
-			indices.into_iter().map(move |idx| candidates[idx].clone()).collect::<Vec<_>>();
+		let mut idx = 0_usize;
+		candidates.retain(|_backed_candidate| {
+			let exists = indices.binary_search(&idx).is_ok();
+			idx += 1;
+			exists
+		});
 		// pick all bitfields, and
 		// fill the remaining space with candidates
 		let total = acc_candidate_weight.saturating_add(total_bitfields_weight);
-		return (total, candidates, bitfields)
+		return total
 	}
+
+	candidates.clear();
 
 	// insufficient space for even the bitfields alone, so only try to fit as many of those
 	// into the block and skip the candidates entirely
@@ -747,11 +770,17 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		rng,
 		bitfields.clone(),
 		|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
-		max_weight,
+		remaining_weight,
 	);
 
-	let bitfields = indices.into_iter().map(move |idx| bitfields[idx].clone()).collect::<Vec<_>>();
-	(total, vec![], bitfields)
+	let mut idx = 0_usize;
+	bitfields.retain(|_bitfield| {
+		let exists = indices.binary_search(&idx).is_ok();
+		idx += 1;
+		exists
+	});
+
+	total
 }
 
 /// Filter bitfields based on freed core indices, validity, and other sanity checks.
@@ -782,7 +811,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 ) -> UncheckedSignedAvailabilityBitfields {
 	let mut bitfields = Vec::with_capacity(unchecked_bitfields.len());
 
-	let mut last_index = None;
+	let mut last_index: Option<ValidatorIndex> = None;
 
 	if disputed_bitfield.0.len() != expected_bits {
 		// This is a system logic error that should never occur, but we want to handle it gracefully
@@ -818,13 +847,15 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 			continue
 		}
 
-		if !last_index.map_or(true, |last| last < unchecked_bitfield.unchecked_validator_index()) {
+		let validator_index = unchecked_bitfield.unchecked_validator_index();
+
+		if !last_index.map_or(true, |last_index: ValidatorIndex| last_index < validator_index) {
 			log::trace!(
 				target: LOG_TARGET,
-				"[CHECK_SIGS: {}] bitfield validator index is not greater than last: !({:?} < {:?})",
+				"[CHECK_SIGS: {}] bitfield validator index is not greater than last: !({:?} < {})",
 				CHECK_SIGS,
-				last_index,
-				unchecked_bitfield.unchecked_validator_index()
+				last_index.as_ref().map(|x| x.0),
+				validator_index.0
 			);
 			continue
 		}
@@ -832,15 +863,13 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 		if unchecked_bitfield.unchecked_validator_index().0 as usize >= validators.len() {
 			log::trace!(
 				target: LOG_TARGET,
-				"[CHECK_SIGS: {}] bitfield validator index is out of bounds: {:?} >= {:?}",
+				"[CHECK_SIGS: {}] bitfield validator index is out of bounds: {} >= {}",
 				CHECK_SIGS,
-				unchecked_bitfield.unchecked_validator_index().0,
+				validator_index.0,
 				validators.len(),
 			);
 			continue
 		}
-
-		let validator_index = unchecked_bitfield.unchecked_validator_index();
 
 		let validator_public = &validators[validator_index.0 as usize];
 
@@ -925,7 +954,7 @@ fn limit_disputes<T: Config>(
 		// Sort the dispute statements according to the following prioritization:
 		//  1. Prioritize local disputes over remote disputes.
 		//  2. Prioritize older disputes over newer disputes.
-		disputes.sort_by(|a, b| {
+		disputes.sort_unstable_by(|a, b| {
 			let a_local_block = T::DisputesHandler::included_state(a.session, a.candidate_hash);
 			let b_local_block = T::DisputesHandler::included_state(b.session, b.candidate_hash);
 			match (a_local_block, b_local_block) {
