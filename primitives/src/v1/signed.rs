@@ -262,7 +262,9 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	}
 
 	/// Sign this payload with the given context and pair.
-	// #[cfg(any(feature = "runtime-benchmarks", feature = "std"))]
+	///
+	/// # WARNING
+	/// Only meant for usage in tests and and benchmarks.
 	pub fn benchmark_sign<H: Encode>(
 		public: &crate::v0::ValidatorId,
 		payload: Payload,
@@ -277,7 +279,9 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	}
 
 	/// Immutably access the signature.
-	// #[cfg(any(feature = "runtime-benchmarks", feature = "std"))]
+	///
+	/// # WARNING
+	/// Only meant for usage in tests and and benchmarks.
 	pub fn benchmark_signature(&self) -> ValidatorSignature {
 		self.signature.clone()
 	}
