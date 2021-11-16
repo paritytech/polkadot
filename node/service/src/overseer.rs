@@ -170,10 +170,16 @@ where
 	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
-	use polkadot_node_subsystem_util::metrics::Metrics;
+	use polkadot_node_subsystem_util::{
+		metrics::Metrics, memvisor::MemVisor, memvisor::MemVisorMetrics
+	};
 	use std::iter::FromIterator;
 
 	let metrics = <OverseerMetrics as MetricsTrait>::register(registry)?;
+
+	// Initialize MemVisor metrics
+	let memvisor_metrics = <MemVisorMetrics as MetricsTrait>::register(registry)?;
+	let mem_visor = MemVisor::new(memvisor_metrics);
 
 	let builder = Overseer::builder()
 		.availability_distribution(AvailabilityDistributionSubsystem::new(
@@ -195,11 +201,13 @@ where
 			spawner.clone(),
 			keystore.clone(),
 			Metrics::register(registry)?,
+			mem_visor.span("bitfield-signing")
 		))
 		.candidate_backing(CandidateBackingSubsystem::new(
 			spawner.clone(),
 			keystore.clone(),
 			Metrics::register(registry)?,
+			mem_visor.span("candidate-backing"),
 		))
 		.candidate_validation(CandidateValidationSubsystem::with_config(
 			candidate_validation_config,
@@ -230,7 +238,7 @@ where
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		))
-		.provisioner(ProvisionerSubsystem::new(spawner.clone(), (), Metrics::register(registry)?))
+		.provisioner(ProvisionerSubsystem::new(spawner.clone(), (), Metrics::register(registry)?, mem_visor.span("provisioning")))
 		.runtime_api(RuntimeApiSubsystem::new(
 			runtime_client.clone(),
 			Metrics::register(registry)?,
@@ -252,6 +260,7 @@ where
 		.gossip_support(GossipSupportSubsystem::new(
 			keystore.clone(),
 			authority_discovery_service.clone(),
+			mem_visor.span("gossip-support"),
 		))
 		.dispute_coordinator(DisputeCoordinatorSubsystem::new(
 			parachains_db.clone(),
@@ -266,7 +275,7 @@ where
 			authority_discovery_service.clone(),
 			Metrics::register(registry)?,
 		))
-		.chain_selection(ChainSelectionSubsystem::new(chain_selection_config, parachains_db))
+		.chain_selection(ChainSelectionSubsystem::new(chain_selection_config, parachains_db, mem_visor.span("chain-selection")))
 		.leaves(Vec::from_iter(
 			leaves
 				.into_iter()

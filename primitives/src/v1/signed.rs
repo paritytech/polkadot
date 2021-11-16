@@ -27,6 +27,8 @@ use sp_std::prelude::Vec;
 
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
+#[cfg(feature = "std")]
+use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
 
 use crate::v0::{SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature};
 
@@ -39,10 +41,12 @@ use crate::v0::{SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature}
 /// `Signed` can easily be converted into `UncheckedSigned` and conversion back via `into_signed`
 /// enforces a valid signature again.
 #[derive(Clone, PartialEq, Eq, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct Signed<Payload, RealPayload = Payload>(UncheckedSigned<Payload, RealPayload>);
 
 /// Unchecked signed data, can be converted to `Signed` by checking the signature.
 #[derive(Clone, PartialEq, Eq, RuntimeDebug, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct UncheckedSigned<Payload, RealPayload = Payload> {
 	/// The payload is part of the signed data. The rest is the signing context,
 	/// which is known both at signing and at validation.

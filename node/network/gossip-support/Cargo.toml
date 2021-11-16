@@ -14,7 +14,7 @@ polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
-
+parity-util-mem = { version = ">= 0.10.1", default-features = false }
 futures = "0.3.17"
 futures-timer = "3.0.2"
 rand = { version = "0.8.3", default-features = false }

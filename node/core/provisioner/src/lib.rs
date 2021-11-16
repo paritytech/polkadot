@@ -38,7 +38,7 @@ use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},
 	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,
-	JobTrait,
+	JobTrait, MemSpan
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, DisputeStatement,
@@ -47,6 +47,8 @@ use polkadot_primitives::v1::{
 };
 use std::{collections::BTreeMap, pin::Pin, sync::Arc};
 use thiserror::Error;
+use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
+use std::convert::TryInto;
 
 #[cfg(test)]
 mod tests;
@@ -89,13 +91,19 @@ impl InherentAfter {
 }
 
 /// A per-relay-parent job for the provisioning subsystem.
+#[derive(MallocSizeOf)]
 pub struct ProvisioningJob {
 	relay_parent: Hash,
+	#[ignore_malloc_size_of = "nope"]
 	receiver: mpsc::Receiver<ProvisionerMessage>,
 	backed_candidates: Vec<CandidateReceipt>,
+	#[ignore_malloc_size_of = "nope"]
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
+	#[ignore_malloc_size_of = "nope"]
 	metrics: Metrics,
+	#[ignore_malloc_size_of = "nope"]
 	inherent_after: InherentAfter,
+	#[ignore_malloc_size_of = "nope"]
 	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>,
 }
 
@@ -156,6 +164,7 @@ impl JobTrait for ProvisioningJob {
 	fn run<S: SubsystemSender>(
 		relay_parent: Hash,
 		span: Arc<jaeger::Span>,
+		mem_span: MemSpan,
 		_run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ProvisionerMessage>,
@@ -164,7 +173,7 @@ impl JobTrait for ProvisioningJob {
 		async move {
 			let job = ProvisioningJob::new(relay_parent, metrics, receiver);
 
-			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"))
+			job.run_loop(sender.subsystem_sender(), PerLeafSpan::new(span, "provisioner"), mem_span)
 				.await
 		}
 		.boxed()
@@ -192,9 +201,11 @@ impl ProvisioningJob {
 		mut self,
 		sender: &mut impl SubsystemSender,
 		span: PerLeafSpan,
+		mut mem_span: MemSpan,
 	) -> Result<(), Error> {
 		use ProvisionerMessage::{ProvisionableData, RequestInherentData};
 		loop {
+			mem_span.start(self.malloc_size_of().try_into().unwrap_or(0));
 			futures::select! {
 				msg = self.receiver.next() => match msg {
 					Some(RequestInherentData(_, return_sender)) => {
@@ -223,6 +234,7 @@ impl ProvisioningJob {
 					}
 				}
 			}
+			mem_span.end(self.malloc_size_of().try_into().unwrap_or(0));
 		}
 
 		Ok(())

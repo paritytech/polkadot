@@ -34,12 +34,12 @@ use polkadot_node_subsystem::{
 		AvailabilityStoreMessage, BitfieldDistributionMessage, BitfieldSigningMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	PerLeafSpan, SubsystemSender,
+	PerLeafSpan, SubsystemSender
 };
 use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},
-	JobSender, JobSubsystem, JobTrait, Validator,
+	JobSender, JobSubsystem, JobTrait, Validator, MemSpan
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
@@ -239,6 +239,7 @@ impl JobTrait for BitfieldSigningJob {
 	fn run<S: SubsystemSender>(
 		relay_parent: Hash,
 		span: Arc<jaeger::Span>,
+		mem_span: MemSpan,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<BitfieldSigningMessage>,

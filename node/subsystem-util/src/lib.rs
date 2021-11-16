@@ -32,6 +32,8 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemSender,
 };
+pub mod memvisor;
+pub use memvisor::{MemSpan};
 
 pub use overseer::{
 	gen::{OverseerError, Timeout},
@@ -494,6 +496,7 @@ pub trait JobTrait: Unpin + Sized {
 	fn run<S: SubsystemSender>(
 		parent: Hash,
 		span: Arc<jaeger::Span>,
+		mem_span: MemSpan,
 		run_args: Self::RunArgs,
 		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
@@ -543,6 +546,7 @@ where
 		&mut self,
 		parent_hash: Hash,
 		span: Arc<jaeger::Span>,
+		mem_span: MemSpan,
 		run_args: Job::RunArgs,
 		metrics: Job::Metrics,
 		sender: Sender,
@@ -557,6 +561,7 @@ where
 			if let Err(e) = Job::run(
 				parent_hash,
 				span,
+				mem_span,
 				run_args,
 				metrics,
 				to_job_rx,
@@ -636,6 +641,8 @@ struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
 	run_args: RunArgs,
 	/// Metrics for the subsystem.
 	metrics: Metrics,
+	/// Mem span.
+	mem_span: MemSpan,
 }
 
 /// A subsystem which wraps jobs.
@@ -653,9 +660,9 @@ pub struct JobSubsystem<Job: JobTrait, Spawner> {
 
 impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	/// Create a new `JobSubsystem`.
-	pub fn new(spawner: Spawner, run_args: Job::RunArgs, metrics: Job::Metrics) -> Self {
+	pub fn new(spawner: Spawner, run_args: Job::RunArgs, metrics: Job::Metrics, mem_span: MemSpan) -> Self {
 		JobSubsystem {
-			params: JobSubsystemParams { spawner, run_args, metrics },
+			params: JobSubsystemParams { spawner, run_args, metrics, mem_span},
 			_marker: std::marker::PhantomData,
 		}
 	}
@@ -672,7 +679,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 			Sync + From<<Context as polkadot_overseer::SubsystemContext>::Message>,
 		<Job as JobTrait>::Metrics: Sync,
 	{
-		let JobSubsystem { params: JobSubsystemParams { spawner, run_args, metrics }, .. } = self;
+		let JobSubsystem { params: JobSubsystemParams { spawner, run_args, metrics, mem_span }, .. } = self;
 
 		let mut jobs = Jobs::<Spawner, Job::ToJob>::new(spawner);
 
@@ -689,6 +696,7 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 								jobs.spawn_job::<Job, _>(
 									activated.hash,
 									activated.span,
+									mem_span.clone(),
 									run_args.clone(),
 									metrics.clone(),
 									sender,

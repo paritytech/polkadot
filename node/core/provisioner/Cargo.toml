@@ -13,6 +13,7 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 futures-timer = "3.0.2"
+parity-util-mem = { version = "0.10.0", default-features = false, features = ["primitive-types"] }
 
 [dev-dependencies]
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }

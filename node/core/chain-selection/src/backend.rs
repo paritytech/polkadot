@@ -26,6 +26,7 @@ use polkadot_primitives::v1::{BlockNumber, Hash};
 use std::collections::HashMap;
 
 use crate::{BlockEntry, Error, LeafEntrySet, Timestamp};
+use parity_util_mem::{MallocSizeOf};
 
 pub(super) enum BackendWriteOp {
 	WriteBlockEntry(BlockEntry),
@@ -67,7 +68,9 @@ pub(super) trait Backend {
 /// This maintains read-only access to the underlying backend, but can be
 /// converted into a set of write operations which will, when written to
 /// the underlying backend, give the same view as the state of the overlay.
+#[derive(MallocSizeOf)]
 pub(super) struct OverlayedBackend<'a, B: 'a> {
+	#[ignore_malloc_size_of = "not interesting (atm)"]
 	inner: &'a B,
 
 	// `None` means 'deleted', missing means query inner.
@@ -77,6 +80,7 @@ pub(super) struct OverlayedBackend<'a, B: 'a> {
 	// 'None' means 'deleted', missing means query inner.
 	stagnant_at: HashMap<Timestamp, Option<Vec<Hash>>>,
 	// 'None' means query inner.
+	#[ignore_malloc_size_of = "not interesting (atm)"]
 	leaves: Option<LeafEntrySet>,
 }
 

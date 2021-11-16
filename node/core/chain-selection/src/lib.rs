@@ -34,6 +34,9 @@ use std::{
 };
 
 use crate::backend::{Backend, BackendWriteOp, OverlayedBackend};
+use polkadot_node_subsystem_util::memvisor::{MemSpan};
+use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
+use std::convert::TryInto;
 
 mod backend;
 mod db_backend;
@@ -50,7 +53,7 @@ type Timestamp = u64;
 // and begin building on another chain.
 const STAGNANT_TIMEOUT: Timestamp = 120;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, MallocSizeOf)]
 enum Approval {
 	// Approved
 	Approved,
@@ -66,7 +69,7 @@ impl Approval {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, MallocSizeOf)]
 struct ViabilityCriteria {
 	// Whether this block has been explicitly reverted by one of its descendants.
 	explicitly_reverted: bool,
@@ -156,7 +159,7 @@ impl LeafEntrySet {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, MallocSizeOf)]
 struct BlockEntry {
 	block_hash: Hash,
 	block_number: BlockNumber,
@@ -307,13 +310,14 @@ pub struct Config {
 pub struct ChainSelectionSubsystem {
 	config: Config,
 	db: Arc<dyn KeyValueDB>,
+	span: MemSpan
 }
 
 impl ChainSelectionSubsystem {
 	/// Create a new instance of the subsystem with the given config
 	/// and key-value store.
-	pub fn new(config: Config, db: Arc<dyn KeyValueDB>) -> Self {
-		ChainSelectionSubsystem { config, db }
+	pub fn new(config: Config, db: Arc<dyn KeyValueDB>, span: MemSpan) -> Self {
+		ChainSelectionSubsystem { config, db, span }
 	}
 }
 
@@ -329,7 +333,7 @@ where
 		);
 
 		SpawnedSubsystem {
-			future: run(ctx, backend, self.config.stagnant_check_interval, Box::new(SystemClock))
+			future: run(ctx, backend, self.config.stagnant_check_interval, Box::new(SystemClock), self.span.clone())
 				.map(Ok)
 				.boxed(),
 			name: "chain-selection-subsystem",
@@ -342,13 +346,15 @@ async fn run<Context, B>(
 	mut backend: B,
 	stagnant_check_interval: StagnantCheckInterval,
 	clock: Box<dyn Clock + Send + Sync>,
+	span: MemSpan
 ) where
 	Context: SubsystemContext<Message = ChainSelectionMessage>,
 	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
-	B: Backend,
+	B: Backend + MallocSizeOf,
 {
 	loop {
-		let res = run_until_error(&mut ctx, &mut backend, &stagnant_check_interval, &*clock).await;
+		let res = run_until_error(&mut ctx, &mut backend, &stagnant_check_interval, &*clock, span).await;
+
 		match res {
 			Err(e) => {
 				e.trace();
@@ -372,14 +378,20 @@ async fn run_until_error<Context, B>(
 	backend: &mut B,
 	stagnant_check_interval: &StagnantCheckInterval,
 	clock: &(dyn Clock + Sync),
+	mut span: MemSpan
 ) -> Result<(), Error>
 where
 	Context: SubsystemContext<Message = ChainSelectionMessage>,
 	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
-	B: Backend,
+	B: Backend + MallocSizeOf,
 {
 	let mut stagnant_check_stream = stagnant_check_interval.timeout_stream();
+	// TODO: Macro to measure memory/send metris/log on each loop.
+	// Params: an array of objects that we want to collect mem usage info about inside span.
 	loop {
+		span.start(backend.malloc_size_of().try_into().unwrap_or(0));
+		tracing::error!(target: LOG_TARGET, "Start size: {}", backend.malloc_size_of());
+		
 		futures::select! {
 			msg = ctx.recv().fuse() => {
 				let msg = msg?;
@@ -430,6 +442,9 @@ where
 				detect_stagnant(backend, clock.timestamp_now())?;
 			}
 		}
+		span.end(backend.malloc_size_of().try_into().unwrap_or(0));
+		tracing::error!(target: LOG_TARGET, "End size: {}", backend.malloc_size_of());
+
 	}
 }
 

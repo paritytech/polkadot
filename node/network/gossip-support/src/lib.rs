@@ -30,6 +30,8 @@ use std::{
 	time::{Duration, Instant},
 };
 
+use std::sync::Arc;
+
 use futures::{channel::oneshot, select, FutureExt as _};
 use futures_timer::Delay;
 use rand::{seq::SliceRandom as _, SeedableRng};
@@ -103,7 +105,11 @@ pub struct GossipSupport<AD> {
 	/// Needed for efficient handling of disconnect events.
 	connected_authorities_by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
 	/// Authority discovery service.
+	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
 	authority_discovery: AD,
+
+	/// Subsystem root span for tracking mem.
+	mem_span: Arc<util::MemSpan>,
 }
 
 impl<AD> GossipSupport<AD>
@@ -111,7 +117,7 @@ where
 	AD: AuthorityDiscovery,
 {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD, mem_span: util::MemSpan) -> Self {
 		Self {
 			keystore,
 			last_session_index: None,
@@ -121,10 +127,11 @@ where
 			connected_authorities: HashMap::new(),
 			connected_authorities_by_peer_id: HashMap::new(),
 			authority_discovery,
+			mem_span: Arc::new(mem_span)
 		}
 	}
 
-	async fn run<Context>(mut self, mut ctx: Context) -> Self
+	async fn run<Context>(mut self, mut ctx: Context) -> GossipSupport<AD>
 	where
 		Context: SubsystemContext<Message = GossipSupportMessage>,
 		Context: overseer::SubsystemContext<Message = GossipSupportMessage>,
@@ -132,6 +139,7 @@ where
 		fn get_connectivity_check_delay() -> Delay {
 			Delay::new(LOW_CONNECTIVITY_WARN_DELAY)
 		}
+
 		let mut next_connectivity_check = get_connectivity_check_delay().fuse();
 		loop {
 			let message = select!(

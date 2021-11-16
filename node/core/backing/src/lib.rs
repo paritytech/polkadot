@@ -30,11 +30,14 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 
+use parity_util_mem::{MallocSizeOfExt};
+
 use polkadot_node_primitives::{
 	AvailableData, PoV, SignedDisputeStatement, SignedFullStatement, Statement, ValidationResult,
 	BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem_util::{
+	MemSpan,
 	self as util,
 	metrics::{self, prometheus},
 	request_from_runtime, request_session_index_for_child, request_validator_groups,
@@ -524,16 +527,24 @@ impl CandidateBackingJob {
 		mut sender: JobSender<impl SubsystemSender>,
 		mut rx_to: mpsc::Receiver<CandidateBackingMessage>,
 		span: PerLeafSpan,
+		mem_span: MemSpan,
 	) -> Result<(), Error> {
+
 		loop {
 			futures::select! {
 				validated_command = self.background_validation.next() => {
+					let mut span1 = mem_span.child("process-validation-result");
+					
+					span1.start(self.mem_usage());
+
 					let _span = span.child("process-validation-result");
 					if let Some(c) = validated_command {
 						self.handle_validated_candidate_command(&span, &mut sender, c).await?;
 					} else {
 						panic!("`self` hasn't dropped and `self` holds a reference to this sender; qed");
 					}
+					
+					span1.end(self.mem_usage());
 				}
 				to_job = rx_to.next() => match to_job {
 					None => break,
@@ -541,13 +552,22 @@ impl CandidateBackingJob {
 						// we intentionally want spans created in `process_msg` to descend from the
 						// `span ` which is longer-lived than this ephemeral timing span.
 						let _timing_span = span.child("process-message");
-						self.process_msg(&span, &mut sender, msg).await?;
+						let mut span2 = mem_span.child("process-message");
+						span2.start(self.mem_usage());
+
+						let res = self.process_msg(&span, &mut sender, msg).await;
+						span2.end(self.mem_usage());
+						res?;
 					}
 				}
 			}
 		}
 
 		Ok(())
+	}
+
+	fn mem_usage(&self) -> u64 {
+		(self.issued_statements.malloc_size_of() + self.awaiting_validation.malloc_size_of()) as u64
 	}
 
 	async fn handle_validated_candidate_command(
@@ -1175,6 +1195,7 @@ impl util::JobTrait for CandidateBackingJob {
 	fn run<S: SubsystemSender>(
 		parent: Hash,
 		span: Arc<jaeger::Span>,
+		mem_span: MemSpan,
 		keystore: SyncCryptoStorePtr,
 		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
@@ -1287,8 +1308,8 @@ impl util::JobTrait for CandidateBackingJob {
 				session_index,
 				assignment,
 				required_collator,
-				issued_statements: HashSet::new(),
 				awaiting_validation: HashSet::new(),
+				issued_statements: HashSet::new(),
 				fallbacks: HashMap::new(),
 				seconded: None,
 				unbacked_candidates: HashMap::new(),
@@ -1302,7 +1323,7 @@ impl util::JobTrait for CandidateBackingJob {
 			};
 			drop(_span);
 
-			job.run_loop(sender, rx_to, span).await
+			job.run_loop(sender, rx_to, span, mem_span).await
 		}
 		.boxed()
 	}

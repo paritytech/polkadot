@@ -42,7 +42,7 @@ use polkadot_primitives::v1::{BlockNumber, Hash};
 
 use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
-
+use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
 use std::sync::Arc;
 
 const BLOCK_ENTRY_PREFIX: &[u8; 14] = b"CS_block_entry";
@@ -203,6 +203,15 @@ impl DbBackend {
 	/// config.
 	pub fn new(db: Arc<dyn KeyValueDB>, config: Config) -> Self {
 		DbBackend { inner: db, config }
+	}
+}
+
+impl MallocSizeOf for DbBackend {
+	fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
+		self.inner.size_of(ops)
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
 	}
 }
 

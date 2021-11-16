@@ -70,6 +70,7 @@ impl JobTrait for FakeCollatorProtocolJob {
 	fn run<S: SubsystemSender>(
 		_: Hash,
 		_: Arc<jaeger::Span>,
+		_: MemSpan,
 		run_args: Self::RunArgs,
 		_metrics: Self::Metrics,
 		receiver: mpsc::Receiver<CollatorProtocolMessage>,
@@ -124,8 +125,8 @@ fn test_harness<T: Future<Output = ()>>(run_args: bool, test: impl FnOnce(Overse
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, overseer_handle) = make_subsystem_context(pool.clone());
-
-	let subsystem = FakeCollatorProtocolSubsystem::new(pool, run_args, ()).run(context);
+	let memvisor = memvisor::MemVisor::new_dummy();
+	let subsystem = FakeCollatorProtocolSubsystem::new(pool, run_args, (), memvisor.span("test")).run(context);
 	let test_future = test(overseer_handle);
 
 	futures::pin_mut!(subsystem, test_future);
@@ -196,9 +197,10 @@ fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 fn test_subsystem_impl_and_name_derivation() {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, _) = make_subsystem_context::<CollatorProtocolMessage, _>(pool.clone());
+	let memvisor = memvisor::MemVisor::new_dummy();
 
 	let SpawnedSubsystem { name, .. } =
-		FakeCollatorProtocolSubsystem::new(pool, false, ()).start(context);
+		FakeCollatorProtocolSubsystem::new(pool, false, (), memvisor.span("test")).start(context);
 	assert_eq!(name, "fake-collator-protocol");
 }
 

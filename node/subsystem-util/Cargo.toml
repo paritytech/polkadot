@@ -28,6 +28,7 @@ metered-channel = { path = "../metered-channel" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+parity-util-mem = { version = "0.10.0", default-features = false, features = ["primitive-types"] }
 
 [dev-dependencies]
 assert_matches = "1.4.0"
