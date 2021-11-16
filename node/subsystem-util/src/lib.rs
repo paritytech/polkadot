@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 	SubsystemSender,
 };
 pub mod memvisor;
-pub use memvisor::{MemSpan};
+pub use memvisor::MemSpan;
 
 pub use overseer::{
 	gen::{OverseerError, Timeout},
@@ -660,9 +660,14 @@ pub struct JobSubsystem<Job: JobTrait, Spawner> {
 
 impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 	/// Create a new `JobSubsystem`.
-	pub fn new(spawner: Spawner, run_args: Job::RunArgs, metrics: Job::Metrics, mem_span: MemSpan) -> Self {
+	pub fn new(
+		spawner: Spawner,
+		run_args: Job::RunArgs,
+		metrics: Job::Metrics,
+		mem_span: MemSpan,
+	) -> Self {
 		JobSubsystem {
-			params: JobSubsystemParams { spawner, run_args, metrics, mem_span},
+			params: JobSubsystemParams { spawner, run_args, metrics, mem_span },
 			_marker: std::marker::PhantomData,
 		}
 	}
@@ -679,7 +684,10 @@ impl<Job: JobTrait, Spawner> JobSubsystem<Job, Spawner> {
 			Sync + From<<Context as polkadot_overseer::SubsystemContext>::Message>,
 		<Job as JobTrait>::Metrics: Sync,
 	{
-		let JobSubsystem { params: JobSubsystemParams { spawner, run_args, metrics, mem_span }, .. } = self;
+		let JobSubsystem {
+			params: JobSubsystemParams { spawner, run_args, metrics, mem_span },
+			..
+		} = self;
 
 		let mut jobs = Jobs::<Spawner, Job::ToJob>::new(spawner);
 

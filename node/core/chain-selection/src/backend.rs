@@ -26,7 +26,7 @@ use polkadot_primitives::v1::{BlockNumber, Hash};
 use std::collections::HashMap;
 
 use crate::{BlockEntry, Error, LeafEntrySet, Timestamp};
-use parity_util_mem::{MallocSizeOf};
+use parity_util_mem::MallocSizeOf;
 
 pub(super) enum BackendWriteOp {
 	WriteBlockEntry(BlockEntry),

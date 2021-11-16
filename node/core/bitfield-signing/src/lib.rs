@@ -34,12 +34,12 @@ use polkadot_node_subsystem::{
 		AvailabilityStoreMessage, BitfieldDistributionMessage, BitfieldSigningMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	PerLeafSpan, SubsystemSender
+	PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},
-	JobSender, JobSubsystem, JobTrait, Validator, MemSpan
+	JobSender, JobSubsystem, JobTrait, MemSpan, Validator,
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};

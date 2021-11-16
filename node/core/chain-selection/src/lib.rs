@@ -34,8 +34,8 @@ use std::{
 };
 
 use crate::backend::{Backend, BackendWriteOp, OverlayedBackend};
-use polkadot_node_subsystem_util::memvisor::{MemSpan};
 use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
+use polkadot_node_subsystem_util::memvisor::MemSpan;
 use std::convert::TryInto;
 
 mod backend;
@@ -310,7 +310,7 @@ pub struct Config {
 pub struct ChainSelectionSubsystem {
 	config: Config,
 	db: Arc<dyn KeyValueDB>,
-	span: MemSpan
+	span: MemSpan,
 }
 
 impl ChainSelectionSubsystem {
@@ -333,9 +333,15 @@ where
 		);
 
 		SpawnedSubsystem {
-			future: run(ctx, backend, self.config.stagnant_check_interval, Box::new(SystemClock), self.span.clone())
-				.map(Ok)
-				.boxed(),
+			future: run(
+				ctx,
+				backend,
+				self.config.stagnant_check_interval,
+				Box::new(SystemClock),
+				self.span.clone(),
+			)
+			.map(Ok)
+			.boxed(),
 			name: "chain-selection-subsystem",
 		}
 	}
@@ -346,14 +352,15 @@ async fn run<Context, B>(
 	mut backend: B,
 	stagnant_check_interval: StagnantCheckInterval,
 	clock: Box<dyn Clock + Send + Sync>,
-	span: MemSpan
+	span: MemSpan,
 ) where
 	Context: SubsystemContext<Message = ChainSelectionMessage>,
 	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
 	B: Backend + MallocSizeOf,
 {
 	loop {
-		let res = run_until_error(&mut ctx, &mut backend, &stagnant_check_interval, &*clock, span).await;
+		let res =
+			run_until_error(&mut ctx, &mut backend, &stagnant_check_interval, &*clock, span).await;
 
 		match res {
 			Err(e) => {
@@ -378,7 +385,7 @@ async fn run_until_error<Context, B>(
 	backend: &mut B,
 	stagnant_check_interval: &StagnantCheckInterval,
 	clock: &(dyn Clock + Sync),
-	mut span: MemSpan
+	mut span: MemSpan,
 ) -> Result<(), Error>
 where
 	Context: SubsystemContext<Message = ChainSelectionMessage>,
@@ -391,7 +398,7 @@ where
 	loop {
 		span.start(backend.malloc_size_of().try_into().unwrap_or(0));
 		tracing::error!(target: LOG_TARGET, "Start size: {}", backend.malloc_size_of());
-		
+
 		futures::select! {
 			msg = ctx.recv().fuse() => {
 				let msg = msg?;
@@ -444,7 +451,6 @@ where
 		}
 		span.end(backend.malloc_size_of().try_into().unwrap_or(0));
 		tracing::error!(target: LOG_TARGET, "End size: {}", backend.malloc_size_of());
-
 	}
 }
 

@@ -117,7 +117,11 @@ where
 	AD: AuthorityDiscovery,
 {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD, mem_span: util::MemSpan) -> Self {
+	pub fn new(
+		keystore: SyncCryptoStorePtr,
+		authority_discovery: AD,
+		mem_span: util::MemSpan,
+	) -> Self {
 		Self {
 			keystore,
 			last_session_index: None,
@@ -127,7 +131,7 @@ where
 			connected_authorities: HashMap::new(),
 			connected_authorities_by_peer_id: HashMap::new(),
 			authority_discovery,
-			mem_span: Arc::new(mem_span)
+			mem_span: Arc::new(mem_span),
 		}
 	}
 

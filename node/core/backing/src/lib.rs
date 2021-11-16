@@ -30,18 +30,17 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 
-use parity_util_mem::{MallocSizeOfExt};
+use parity_util_mem::MallocSizeOfExt;
 
 use polkadot_node_primitives::{
 	AvailableData, PoV, SignedDisputeStatement, SignedFullStatement, Statement, ValidationResult,
 	BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem_util::{
-	MemSpan,
 	self as util,
 	metrics::{self, prometheus},
 	request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, FromJobCommand, JobSender, Validator,
+	request_validators, FromJobCommand, JobSender, MemSpan, Validator,
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
@@ -529,12 +528,11 @@ impl CandidateBackingJob {
 		span: PerLeafSpan,
 		mem_span: MemSpan,
 	) -> Result<(), Error> {
-
 		loop {
 			futures::select! {
 				validated_command = self.background_validation.next() => {
 					let mut span1 = mem_span.child("process-validation-result");
-					
+
 					span1.start(self.mem_usage());
 
 					let _span = span.child("process-validation-result");
@@ -543,7 +541,7 @@ impl CandidateBackingJob {
 					} else {
 						panic!("`self` hasn't dropped and `self` holds a reference to this sender; qed");
 					}
-					
+
 					span1.end(self.mem_usage());
 				}
 				to_job = rx_to.next() => match to_job {

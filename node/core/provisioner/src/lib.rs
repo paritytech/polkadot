@@ -25,6 +25,7 @@ use futures::{
 	prelude::*,
 };
 use futures_timer::Delay;
+use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	jaeger,
@@ -38,17 +39,15 @@ use polkadot_node_subsystem_util::{
 	self as util,
 	metrics::{self, prometheus},
 	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,
-	JobTrait, MemSpan
+	JobTrait, MemSpan,
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, DisputeStatement,
 	DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{collections::BTreeMap, pin::Pin, sync::Arc};
+use std::{collections::BTreeMap, convert::TryInto, pin::Pin, sync::Arc};
 use thiserror::Error;
-use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
-use std::convert::TryInto;
 
 #[cfg(test)]
 mod tests;

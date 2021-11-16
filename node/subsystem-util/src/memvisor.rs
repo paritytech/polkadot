@@ -19,8 +19,7 @@
 #![forbid(unused_imports)]
 
 use metrics::Metrics;
-use std::{sync::Arc};
-use std::default::Default;
+use std::{default::Default, sync::Arc};
 
 use crate::{
 	metrics,
@@ -29,7 +28,6 @@ use crate::{
 		prometheus::{CounterVec, Opts, PrometheusError, Registry, U64},
 	},
 };
-
 
 #[derive(Default, Clone)]
 #[cfg_attr(test, derive(Debug))]
@@ -50,20 +48,15 @@ impl Metrics for MemVisorMetrics {
 	fn try_register(registry: &Registry) -> Result<Self, PrometheusError> {
 		let metrics = MemVisorMetricsInner {
 			mem_alloc: prometheus::register(
-				CounterVec::new(Opts::new(
-						"memvisor_alloc",
-						"Memory footprint increase for a span.",
-					),
+				CounterVec::new(
+					Opts::new("memvisor_alloc", "Memory footprint increase for a span."),
 					&["span_name", "object"],
 				)?,
 				registry,
 			)?,
 			mem_free: prometheus::register(
 				CounterVec::new(
-					Opts::new(
-						"memvisor_free",
-						"Memory footprint decrease for a span.",
-					),
+					Opts::new("memvisor_free", "Memory footprint decrease for a span."),
 					&["span_name", "object"],
 				)?,
 				registry,
@@ -75,7 +68,7 @@ impl Metrics for MemVisorMetrics {
 
 #[derive(Clone)]
 #[cfg_attr(test, derive(Debug))]
-pub struct MemSpan{
+pub struct MemSpan {
 	/// The name of the span.
 	name: &'static str,
 	/// The metric value we are tracking.
@@ -94,23 +87,13 @@ enum MemSpanEvent {
 }
 
 impl MemSpan {
-	pub fn new(
-        name: &'static str,
-        visor_metrics: Arc<MemVisorMetrics>) -> Self {
-		MemSpan {
-			name,
-			value: 0,
-			visor_metrics,
-		}
+	pub fn new(name: &'static str, visor_metrics: Arc<MemVisorMetrics>) -> Self {
+		MemSpan { name, value: 0, visor_metrics }
 	}
 
-    pub fn child(&self, name: &'static str) -> MemSpan {
-        MemSpan {
-			name,
-			value: 0,
-			visor_metrics: self.visor_metrics.clone()
-		}
-    }
+	pub fn child(&self, name: &'static str) -> MemSpan {
+		MemSpan { name, value: 0, visor_metrics: self.visor_metrics.clone() }
+	}
 
 	/// Enable monitoring for a discrete list of suspect data structures.
 	/// The total usage should be recorded with this call
@@ -124,9 +107,11 @@ impl MemSpan {
 	pub fn end(&mut self, stop_value: u64) {
 		if let Some(metrics) = &self.visor_metrics.0 {
 			match Self::event(self.value, stop_value) {
-				MemSpanEvent::Alloc(size) => metrics.mem_alloc.with_label_values(&[self.name, "dummy"]).inc_by(size),
-				MemSpanEvent::Free(size) => metrics.mem_free.with_label_values(&[self.name, "dummy"]).inc_by(size),
-				MemSpanEvent::None => { }
+				MemSpanEvent::Alloc(size) =>
+					metrics.mem_alloc.with_label_values(&[self.name, "dummy"]).inc_by(size),
+				MemSpanEvent::Free(size) =>
+					metrics.mem_free.with_label_values(&[self.name, "dummy"]).inc_by(size),
+				MemSpanEvent::None => {},
 			}
 		}
 	}
@@ -137,7 +122,7 @@ impl MemSpan {
 		} else if stop < start {
 			return MemSpanEvent::Free(start - stop)
 		}
-	
+
 		MemSpanEvent::None
 	}
 }
@@ -146,17 +131,14 @@ pub struct MemVisor {
 	/// Root span.
 	span: Arc<MemSpan>,
 	/// Metrics for memory usage across all spans.
-	metrics: Arc<MemVisorMetrics>
+	metrics: Arc<MemVisorMetrics>,
 }
 
 impl MemVisor {
 	// Constructor
 	pub fn new(metrics: MemVisorMetrics) -> Self {
 		let metrics = Arc::new(metrics);
-		MemVisor {
-			span: Arc::new(MemSpan::new("root", metrics.clone())),
-			metrics
-		}
+		MemVisor { span: Arc::new(MemSpan::new("root", metrics.clone())), metrics }
 	}
 
 	pub fn span(&self, name: &'static str) -> MemSpan {
@@ -164,21 +146,16 @@ impl MemVisor {
 	}
 
 	#[cfg(test)]
-	pub fn new_dummy() -> MemVisor{
+	pub fn new_dummy() -> MemVisor {
 		let metrics = Arc::new(MemVisorMetrics(None));
-		MemVisor {
-			span: Arc::new(MemSpan::new("root", metrics.clone())),
-			metrics,
-		}
+		MemVisor { span: Arc::new(MemSpan::new("root", metrics.clone())), metrics }
 	}
 }
-
-
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	
+
 	#[test]
 	fn test_mem_span_event() {
 		assert_eq!(MemSpan::event(0, 0), MemSpanEvent::None);

@@ -25,10 +25,10 @@ use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
 use sp_std::convert::TryInto;
 use sp_std::prelude::Vec;
 
-use primitives::RuntimeDebug;
-use runtime_primitives::traits::AppVerify;
 #[cfg(feature = "std")]
 use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
+use primitives::RuntimeDebug;
+use runtime_primitives::traits::AppVerify;
 
 use crate::v0::{SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature};
 

@@ -171,7 +171,8 @@ where
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	use polkadot_node_subsystem_util::{
-		metrics::Metrics, memvisor::MemVisor, memvisor::MemVisorMetrics
+		memvisor::{MemVisor, MemVisorMetrics},
+		metrics::Metrics,
 	};
 	use std::iter::FromIterator;
 
@@ -201,7 +202,7 @@ where
 			spawner.clone(),
 			keystore.clone(),
 			Metrics::register(registry)?,
-			mem_visor.span("bitfield-signing")
+			mem_visor.span("bitfield-signing"),
 		))
 		.candidate_backing(CandidateBackingSubsystem::new(
 			spawner.clone(),
@@ -238,7 +239,12 @@ where
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		))
-		.provisioner(ProvisionerSubsystem::new(spawner.clone(), (), Metrics::register(registry)?, mem_visor.span("provisioning")))
+		.provisioner(ProvisionerSubsystem::new(
+			spawner.clone(),
+			(),
+			Metrics::register(registry)?,
+			mem_visor.span("provisioning"),
+		))
 		.runtime_api(RuntimeApiSubsystem::new(
 			runtime_client.clone(),
 			Metrics::register(registry)?,
@@ -275,7 +281,11 @@ where
 			authority_discovery_service.clone(),
 			Metrics::register(registry)?,
 		))
-		.chain_selection(ChainSelectionSubsystem::new(chain_selection_config, parachains_db, mem_visor.span("chain-selection")))
+		.chain_selection(ChainSelectionSubsystem::new(
+			chain_selection_config,
+			parachains_db,
+			mem_visor.span("chain-selection"),
+		))
 		.leaves(Vec::from_iter(
 			leaves
 				.into_iter()
