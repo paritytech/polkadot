@@ -298,7 +298,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		frame_system::Pallet::<T>::initialize(
 			&header.number(),
 			&header.hash(),
-			&Digest::<T::Hash> { logs: Vec::new() },
+			&Digest { logs: Vec::new() },
 			Default::default(),
 		);
 
