@@ -554,7 +554,7 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	// Use the nominators map to iter voters, but also keep bags-list up-to-date.
-	type SortedListProvider = runtime_common::elections::UseNominatorsAndUpdateBagsList<Runtime>;
+	type SortedListProvider = BagsList;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
