@@ -1133,6 +1133,7 @@ fn context_holds_onto_message_until_enough_signals_received() {
 		stream::select(bounded_rx, unbounded_rx),
 		channels_out,
 		to_overseer_tx,
+		"test",
 	);
 
 	assert_eq!(ctx.signals_received.load(), 0);

@@ -107,8 +107,7 @@ pub use sp_api::{ApiRef, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi
 pub use sp_runtime::{
 	generic,
 	traits::{
-		self as runtime_traits, BlakeTwo256, Block as BlockT, DigestFor, HashFor,
-		Header as HeaderT, NumberFor,
+		self as runtime_traits, BlakeTwo256, Block as BlockT, HashFor, Header as HeaderT, NumberFor,
 	},
 };
 
@@ -380,7 +379,11 @@ where
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
 		if let Some(worker) = worker {
-			task_manager.spawn_handle().spawn("telemetry", worker.run());
+			task_manager.spawn_handle().spawn(
+				"telemetry",
+				Some("telemetry"),
+				Box::pin(worker.run()),
+			);
 		}
 		telemetry
 	});
@@ -791,7 +794,6 @@ where
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
-			on_demand: None,
 			block_announce_validator_builder: None,
 			warp_sync: Some(warp_sync),
 		})?;
@@ -805,6 +807,7 @@ where
 		// Start the offchain workers to have
 		task_manager.spawn_handle().spawn(
 			"offchain-notifications",
+			None,
 			sc_offchain::notification_future(
 				config.role.is_authority(),
 				client.clone(),
@@ -860,8 +863,6 @@ where
 		rpc_extensions_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
-		on_demand: None,
-		remote_blockchain: None,
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
@@ -904,7 +905,11 @@ where
 			prometheus_registry.clone(),
 		);
 
-		task_manager.spawn_handle().spawn("authority-discovery-worker", worker.run());
+		task_manager.spawn_handle().spawn(
+			"authority-discovery-worker",
+			Some("authority-discovery"),
+			Box::pin(worker.run()),
+		);
 		Some(service)
 	} else {
 		None
@@ -950,6 +955,7 @@ where
 			let handle = handle.clone();
 			task_manager.spawn_essential_handle().spawn_blocking(
 				"overseer",
+				None,
 				Box::pin(async move {
 					use futures::{pin_mut, select, FutureExt};
 
@@ -1038,7 +1044,7 @@ where
 		};
 
 		let babe = babe::start_babe(babe_config)?;
-		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
+		task_manager.spawn_essential_handle().spawn_blocking("babe", None, babe);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
@@ -1063,9 +1069,11 @@ where
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.
 		if chain_spec.is_wococo() {
-			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
+			task_manager
+				.spawn_essential_handle()
+				.spawn_blocking("beefy-gadget", None, gadget);
 		} else {
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
+			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
 		}
 	}
 
@@ -1119,9 +1127,11 @@ where
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		};
 
-		task_manager
-			.spawn_essential_handle()
-			.spawn_blocking("grandpa-voter", grandpa::run_grandpa_voter(grandpa_config)?);
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"grandpa-voter",
+			None,
+			grandpa::run_grandpa_voter(grandpa_config)?,
+		);
 	}
 
 	network_starter.start_network();

@@ -486,7 +486,7 @@ pub trait JobTrait: Unpin + Sized {
 	/// The `delegate_subsystem!` macro should take care of this.
 	type Metrics: 'static + metrics::Metrics + Send;
 
-	/// Name of the job, i.e. `CandidateBackingJob`
+	/// Name of the job, i.e. `candidate-backing-job`
 	const NAME: &'static str;
 
 	/// Run a job for the given relay `parent`.
@@ -578,7 +578,11 @@ where
 			Ok(())
 		});
 
-		self.spawner.spawn(Job::NAME, future.map(drop).boxed());
+		self.spawner.spawn(
+			Job::NAME,
+			Some(Job::NAME.strip_suffix("-job").unwrap_or(Job::NAME)),
+			future.map(drop).boxed(),
+		);
 		self.outgoing_msgs.push(from_job_rx);
 
 		let handle = JobHandle { _abort_handle: AbortOnDrop(abort_handle), to_job: to_job_tx };
@@ -751,6 +755,6 @@ where
 			Ok(())
 		});
 
-		SpawnedSubsystem { name: Job::NAME.strip_suffix("Job").unwrap_or(Job::NAME), future }
+		SpawnedSubsystem { name: Job::NAME.strip_suffix("-job").unwrap_or(Job::NAME), future }
 	}
 }

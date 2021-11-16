@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-core-pvf"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -15,7 +15,7 @@ async-process = "1.1.0"
 assert_matches = "1.4.0"
 futures = "0.3.17"
 futures-timer = "3.0.2"
-libc = "0.2.106"
+libc = "0.2.107"
 slotmap = "1.0"
 tracing = "0.1.29"
 pin-project = "1.0.8"
@@ -37,5 +37,5 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
 halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 tempfile = "3.2.0"
