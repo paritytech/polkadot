@@ -34,7 +34,7 @@ OnChainVotes: Option<ScrapedOnChainVotes>,
     1. Ensure `Included` is set as `None`.
     1. Set `Included` as `Some`.
     1. Unpack `ParachainsInherentData` into `signed_bitfields`, `backed_candidates`, `parent_header`, and `disputes`.
-    1. Hash the parent header and make sure that it corresponds to the block hash of the parent (tracked by the `frame_system` FRAME module),
+    1. Hash the parent header and make sure that it corresponds to the block hash of the parent (tracked by the `frame_system` FRAME module).
     1. Calculate the `candidate_weight`, `bitfields_weight`, and `disputes_weight`.
     1. If the sum of `candidate_weight`, `bitfields_weight`, and `disputes_weight` is greater than the max block weight we do the following with the goal of prioritizing the inclusion of disputes without making it game-able by block authors:
       1. clear `bitfields` and set `bitfields_weight` equal to 0.
@@ -74,14 +74,14 @@ OnChainVotes: Option<ScrapedOnChainVotes>,
     1. Collect `current_concluded_invalid_disputes`, the disputed candidate hashes from the current session that have concluded invalid.
     1. Collect `concluded_invalid_disputes`, the disputed candidate hashes from the given `backed_candidates`.
     1. Invoke `Inclusion::collect_disputed` with the newly disputed candidates. Annotate each returned core with `FreedReason::Concluded`, sort them, and invoke `Scheduler::free_cores` with them.
-    1. Collect filtered `bitfields` by invoking [`sanitize_bitfields<false>`](inclusion.md#Routines)
+    1. Collect filtered `bitfields` by invoking [`sanitize_bitfields<false>`](inclusion.md#Routines).
     1. Collect `freed_concluded` by invoking `update_pending_availability_and_get_freed_cores` on the filtered bitfields.
     1. Collect all `freed` cores by invoking `collect_all_freed_cores` on `freed_concluding`.
-    1. Invoke `scheduler::Pallet<T>>::clear()`
+    1. Invoke `scheduler::Pallet<T>>::clear()`.
     1. Invoke `scheduler::Pallet<T>>::schedule` with `freed` and the current block number to create the same schedule of the cores that `enter` will create.
     1. Read the new `<scheduler::Pallet<T>>::scheduled()` into `schedule`.
     1. From the `with_transaction` closure return `concluded_invalid_disputes`, `bitfields`, and `scheduled`.
-  1. Invoke `sanitize_backed_candidates` using the `scheduled` return from the `with_transaction` and pass the closure `|candidate_hash: CandidateHash| -> bool { DisputesHandler::concluded_invalid(current_session, candidate_hash) }` for the param `candidate_has_concluded_invalid_dispute`
+  1. Invoke `sanitize_backed_candidates` using the `scheduled` return from the `with_transaction` and pass the closure `|candidate_hash: CandidateHash| -> bool { DisputesHandler::concluded_invalid(current_session, candidate_hash) }` for the param `candidate_has_concluded_invalid_dispute`.
   1. create a `rng` from `rand_chacha::ChaChaRng::from_seed(compute_entropy::<T>(parent_hash))`.
   1. Invoke `limit_disputes` with the max block weight and `rng`, storing the returned weigh in `remaining_weight`.
   1. Fill up the remaining of the block weight with backed candidates and bitfields by invoking `apply_weight_limit` with `remaining_weigh` and `rng`.
