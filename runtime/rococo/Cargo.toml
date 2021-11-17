@@ -1,6 +1,6 @@
 [package]
 name = "rococo-runtime"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -177,7 +177,8 @@ runtime-benchmarks = [
 	"xcm-builder/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
 	"frame-benchmarking",
-	"hex-literal"
+	"hex-literal",
+	"runtime-parachains/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
