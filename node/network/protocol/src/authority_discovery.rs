@@ -36,7 +36,7 @@ pub trait AuthorityDiscovery: Send + Debug + 'static {
 		authority: AuthorityDiscoveryId,
 	) -> Option<HashSet<Multiaddr>>;
 	/// Get the [`AuthorityId`] for the given [`PeerId`] from the local address cache.
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: PeerId,
 	) -> Option<HashSet<AuthorityDiscoveryId>>;
@@ -51,10 +51,10 @@ impl AuthorityDiscovery for AuthorityDiscoveryService {
 		AuthorityDiscoveryService::get_addresses_by_authority_id(self, authority).await
 	}
 
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: PeerId,
 	) -> Option<HashSet<AuthorityDiscoveryId>> {
-		AuthorityDiscoveryService::get_authority_id_by_peer_id(self, peer_id).await
+		AuthorityDiscoveryService::get_authority_ids_by_peer_id(self, peer_id).await
 	}
 }

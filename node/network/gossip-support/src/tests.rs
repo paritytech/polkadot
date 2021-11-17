@@ -95,7 +95,7 @@ impl AuthorityDiscovery for MockAuthorityDiscovery {
 	) -> Option<HashSet<sc_network::Multiaddr>> {
 		self.addrs.get(&authority).cloned()
 	}
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: polkadot_node_network_protocol::PeerId,
 	) -> Option<HashSet<polkadot_primitives::v1::AuthorityDiscoveryId>> {

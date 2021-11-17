@@ -147,7 +147,7 @@ impl validator_discovery::AuthorityDiscovery for TestAuthorityDiscovery {
 		None
 	}
 
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		_peer_id: PeerId,
 	) -> Option<HashSet<AuthorityDiscoveryId>> {

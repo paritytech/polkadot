@@ -256,7 +256,7 @@ mod tests {
 			self.by_authority_id.get(&authority).cloned()
 		}
 
-		async fn get_authority_id_by_peer_id(
+		async fn get_authority_ids_by_peer_id(
 			&mut self,
 			peer_id: PeerId,
 		) -> Option<HashSet<AuthorityDiscoveryId>> {
