@@ -302,7 +302,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			Default::default(),
 		);
 
-		assert_eq!(scheduler::ValidatorGroups::<T>::get().len(), total_cores as usize);
 		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
 
 		// We need to refetch validators since they have been shuffled.
