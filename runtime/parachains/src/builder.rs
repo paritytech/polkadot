@@ -439,7 +439,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 				let candidate_hash = candidate.hash();
 
-				let validity_votes: Vec<_> = group_validators
+				let mut validity_votes: Vec<_> = group_validators
 					.iter()
 					.take(*num_votes as usize)
 					.map(|val_idx| {
@@ -456,12 +456,13 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					})
 					.collect();
 
-				if validity_votes.len() < num_votes {
-					// the configuration demands more validity votes than validators in the group,
-					// so we add more votes.
-					let mut val_idx = 0;
-					while (validity_votes.len() < num_votes) {
-						if group_validators.contains(val_idx) {
+				if validity_votes.len() < *num_votes as usize {
+					// The configuration demands more validity votes than validators in the group,
+					// so we add more votes
+
+					let mut val_idx = ValidatorIndex(0);
+					while validity_votes.len() < *num_votes as usize {
+						if group_validators.contains(&val_idx) {
 							// don't make a second sig for validators who have already signed.
 							continue
 						}
@@ -471,11 +472,13 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 							public,
 							CompactStatement::Valid(candidate_hash.clone()),
 							&self.signing_context(),
-							*val_idx,
+							val_idx,
 						)
 						.benchmark_signature();
 
 						validity_votes.push(ValidityAttestation::Explicit(sig.clone()));
+
+						val_idx.0 += 1;
 					}
 				}
 
