@@ -22,9 +22,9 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
-	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, BlockHashCount,
-	BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
-	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, xcm_sender
+	auctions, claims, crowdloan, impls::DealWithFees, paras_registrar, slots, xcm_sender,
+	BlockHashCount, BlockLength, BlockWeights, CurrencyToVote, OffchainSolutionLengthLimit,
+	OffchainSolutionWeightLimit, RocksDbWeight, SlowAdjustingFeeUpdate, ToAuthor,
 };
 
 use runtime_parachains::{
@@ -39,8 +39,11 @@ use runtime_parachains::{
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
 use frame_support::{
-	construct_runtime, parameter_types,
-	traits::{Contains, KeyOwnerProofSystem, LockIdentifier, OnRuntimeUpgrade, PrivilegeCmp},
+	construct_runtime, match_type, parameter_types,
+	traits::{
+		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, Nothing,
+		OnRuntimeUpgrade, PrivilegeCmp,
+	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
 };
@@ -100,7 +103,6 @@ pub use sp_runtime::BuildStorage;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{currency::*, fee::*, time::*};
-use frame_support::traits::InstanceFilter;
 
 // Weights used in the runtime.
 mod weights;
@@ -183,7 +185,8 @@ impl Contains<Call> for BaseFilter {
 			Call::Registrar(_) |
 			Call::Auctions(_) |
 			Call::Crowdloan(_) |
-			Call::BagsList(_) => true,
+			Call::BagsList(_) |
+			Call::XcmPallet(_) => true,
 			// All pallets are allowed, but exhaustive match is defensive
 			// in the case of adding new pallets.
 		}
@@ -1359,7 +1362,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Polkadot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(DotLocation::get()) });
-	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polakdot::get(), Parachain(1000).into());
+	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1000).into());
 }
 pub type TrustedTeleporters = (xcm_builder::Case<PolkadotForStatemint>,);
 
