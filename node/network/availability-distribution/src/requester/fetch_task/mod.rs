@@ -103,7 +103,7 @@ struct RunningTask {
 
 	/// Index of validator group to fetch the chunk from.
 	///
-	/// Needef for reporting bad validators.
+	/// Needed for reporting bad validators.
 	group_index: GroupIndex,
 
 	/// Validators to request the chunk from.
@@ -327,7 +327,7 @@ impl RunningTask {
 
 		self.sender
 			.send(FromFetchTask::Message(AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::TryConnect),
+				NetworkBridgeMessage::SendRequests(vec![requests], IfDisconnected::ImmediateError),
 			)))
 			.await
 			.map_err(|_| TaskError::ShuttingDown)?;

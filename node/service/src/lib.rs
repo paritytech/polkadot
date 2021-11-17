@@ -101,15 +101,13 @@ pub use sc_executor::NativeExecutionDispatch;
 pub use service::{
 	config::{DatabaseSource, PrometheusConfig},
 	ChainSpec, Configuration, Error as SubstrateServiceError, PruningMode, Role, RuntimeGenesis,
-	TFullBackend, TFullCallExecutor, TFullClient, TLightBackend, TLightCallExecutor, TLightClient,
-	TaskManager, TransactionPoolOptions,
+	TFullBackend, TFullCallExecutor, TFullClient, TaskManager, TransactionPoolOptions,
 };
 pub use sp_api::{ApiRef, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::{
 	generic,
 	traits::{
-		self as runtime_traits, BlakeTwo256, Block as BlockT, DigestFor, HashFor,
-		Header as HeaderT, NumberFor,
+		self as runtime_traits, BlakeTwo256, Block as BlockT, HashFor, Header as HeaderT, NumberFor,
 	},
 };
 
@@ -313,13 +311,6 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
 		ChainSelection,
 	>;
 
-#[cfg(feature = "light-node")]
-type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::BlakeTwo256>;
-
-#[cfg(feature = "light-node")]
-type LightClient<RuntimeApi, ExecutorDispatch> =
-	service::TLightClientWithBackend<Block, RuntimeApi, ExecutorDispatch, LightBackend>;
-
 #[cfg(feature = "full-node")]
 struct Basics<RuntimeApi, ExecutorDispatch>
 where
@@ -388,7 +379,11 @@ where
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
 		if let Some(worker) = worker {
-			task_manager.spawn_handle().spawn("telemetry", worker.run());
+			task_manager.spawn_handle().spawn(
+				"telemetry",
+				Some("telemetry"),
+				Box::pin(worker.run()),
+			);
 		}
 		telemetry
 	});
@@ -799,17 +794,27 @@ where
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
-			on_demand: None,
 			block_announce_validator_builder: None,
 			warp_sync: Some(warp_sync),
 		})?;
 
 	if config.offchain_worker.enabled {
-		let _ = service::build_offchain_workers(
-			&config,
-			task_manager.spawn_handle(),
+		let offchain_workers = Arc::new(sc_offchain::OffchainWorkers::new_with_options(
 			client.clone(),
-			network.clone(),
+			sc_offchain::OffchainWorkerOptions { enable_http_requests: false },
+		));
+
+		// Start the offchain workers to have
+		task_manager.spawn_handle().spawn(
+			"offchain-notifications",
+			None,
+			sc_offchain::notification_future(
+				config.role.is_authority(),
+				client.clone(),
+				offchain_workers,
+				task_manager.spawn_handle().clone(),
+				network.clone(),
+			),
 		);
 	}
 
@@ -858,8 +863,6 @@ where
 		rpc_extensions_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
-		on_demand: None,
-		remote_blockchain: None,
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
@@ -902,7 +905,11 @@ where
 			prometheus_registry.clone(),
 		);
 
-		task_manager.spawn_handle().spawn("authority-discovery-worker", worker.run());
+		task_manager.spawn_handle().spawn(
+			"authority-discovery-worker",
+			Some("authority-discovery"),
+			Box::pin(worker.run()),
+		);
 		Some(service)
 	} else {
 		None
@@ -948,6 +955,7 @@ where
 			let handle = handle.clone();
 			task_manager.spawn_essential_handle().spawn_blocking(
 				"overseer",
+				None,
 				Box::pin(async move {
 					use futures::{pin_mut, select, FutureExt};
 
@@ -1036,7 +1044,7 @@ where
 		};
 
 		let babe = babe::start_babe(babe_config)?;
-		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
+		task_manager.spawn_essential_handle().spawn_blocking("babe", None, babe);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
@@ -1061,9 +1069,11 @@ where
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.
 		if chain_spec.is_wococo() {
-			task_manager.spawn_essential_handle().spawn_blocking("beefy-gadget", gadget);
+			task_manager
+				.spawn_essential_handle()
+				.spawn_blocking("beefy-gadget", None, gadget);
 		} else {
-			task_manager.spawn_handle().spawn_blocking("beefy-gadget", gadget);
+			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
 		}
 	}
 
@@ -1117,176 +1127,16 @@ where
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		};
 
-		task_manager
-			.spawn_essential_handle()
-			.spawn_blocking("grandpa-voter", grandpa::run_grandpa_voter(grandpa_config)?);
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"grandpa-voter",
+			None,
+			grandpa::run_grandpa_voter(grandpa_config)?,
+		);
 	}
 
 	network_starter.start_network();
 
 	Ok(NewFull { task_manager, client, overseer_handle, network, rpc_handlers, backend })
-}
-
-/// Builds a new service for a light client.
-#[cfg(feature = "light-node")]
-fn new_light<Runtime, Dispatch>(
-	mut config: Configuration,
-) -> Result<(TaskManager, RpcHandlers), Error>
-where
-	Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
-	<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
-		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
-	Dispatch: NativeExecutionDispatch + 'static,
-{
-	set_prometheus_registry(&mut config)?;
-	use sc_client_api::backend::RemoteBackend;
-
-	let telemetry = config
-		.telemetry_endpoints
-		.clone()
-		.filter(|x| !x.is_empty())
-		.map(|endpoints| -> Result<_, telemetry::Error> {
-			let worker = TelemetryWorker::new(16)?;
-			let telemetry = worker.handle().new_telemetry(endpoints);
-			Ok((worker, telemetry))
-		})
-		.transpose()?;
-
-	let (client, backend, keystore_container, mut task_manager, on_demand) =
-		service::new_light_parts::<Block, Runtime, Dispatch>(
-			&config,
-			telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
-		)?;
-
-	let mut telemetry = telemetry.map(|(worker, telemetry)| {
-		task_manager.spawn_handle().spawn("telemetry", worker.run());
-		telemetry
-	});
-
-	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
-
-	let select_chain = sc_consensus::LongestChain::new(backend.clone());
-
-	let transaction_pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
-		config.transaction_pool.clone(),
-		config.prometheus_registry(),
-		task_manager.spawn_essential_handle(),
-		client.clone(),
-		on_demand.clone(),
-	));
-
-	let (grandpa_block_import, grandpa_link) = grandpa::block_import(
-		client.clone(),
-		&(client.clone() as Arc<_>),
-		select_chain.clone(),
-		telemetry.as_ref().map(|x| x.handle()),
-	)?;
-	let justification_import = grandpa_block_import.clone();
-
-	let (babe_block_import, babe_link) = babe::block_import(
-		babe::Config::get_or_compute(&*client)?,
-		grandpa_block_import,
-		client.clone(),
-	)?;
-
-	// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
-	let slot_duration = babe_link.config().slot_duration();
-	let import_queue = babe::import_queue(
-		babe_link,
-		babe_block_import,
-		Some(Box::new(justification_import)),
-		client.clone(),
-		select_chain.clone(),
-		move |_, ()| async move {
-			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-			let slot =
-				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
-					*timestamp,
-					slot_duration,
-				);
-
-			Ok((timestamp, slot))
-		},
-		&task_manager.spawn_essential_handle(),
-		config.prometheus_registry(),
-		consensus_common::NeverCanAuthor,
-		telemetry.as_ref().map(|x| x.handle()),
-	)?;
-
-	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
-		backend.clone(),
-		grandpa_link.shared_authority_set().clone(),
-	));
-
-	let (network, system_rpc_tx, network_starter) =
-		service::build_network(service::BuildNetworkParams {
-			config: &config,
-			client: client.clone(),
-			transaction_pool: transaction_pool.clone(),
-			spawn_handle: task_manager.spawn_handle(),
-			import_queue,
-			on_demand: Some(on_demand.clone()),
-			block_announce_validator_builder: None,
-			warp_sync: Some(warp_sync),
-		})?;
-
-	let enable_grandpa = !config.disable_grandpa;
-	if enable_grandpa {
-		let name = config.network.node_name.clone();
-
-		let config = grandpa::Config {
-			gossip_duration: Duration::from_millis(1000),
-			justification_period: 512,
-			name: Some(name),
-			observer_enabled: false,
-			keystore: None,
-			local_role: config.role.clone(),
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-		};
-
-		task_manager.spawn_handle().spawn_blocking(
-			"grandpa-observer",
-			grandpa::run_grandpa_observer(config, grandpa_link, network.clone())?,
-		);
-	}
-
-	if config.offchain_worker.enabled {
-		let _ = service::build_offchain_workers(
-			&config,
-			task_manager.spawn_handle(),
-			client.clone(),
-			network.clone(),
-		);
-	}
-
-	let light_deps = polkadot_rpc::LightDeps {
-		remote_blockchain: backend.remote_blockchain(),
-		fetcher: on_demand.clone(),
-		client: client.clone(),
-		pool: transaction_pool.clone(),
-	};
-
-	let rpc_extensions = polkadot_rpc::create_light(light_deps);
-
-	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
-		on_demand: Some(on_demand),
-		remote_blockchain: Some(backend.remote_blockchain()),
-		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
-		task_manager: &mut task_manager,
-		config,
-		keystore: keystore_container.sync_keystore(),
-		backend,
-		transaction_pool,
-		client,
-		network,
-		system_rpc_tx,
-		telemetry: telemetry.as_mut(),
-	})?;
-
-	network_starter.start_network();
-
-	Ok((task_manager, rpc_handlers))
 }
 
 #[cfg(feature = "full-node")]
@@ -1352,33 +1202,6 @@ pub fn new_chain_ops(
 	{
 		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
 	}
-	#[cfg(not(feature = "polkadot-native"))]
-	Err(Error::NoRuntime)
-}
-
-/// Build a new light node.
-#[cfg(feature = "light-node")]
-pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), Error> {
-	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo() || config.chain_spec.is_wococo() {
-		return new_light::<rococo_runtime::RuntimeApi, RococoExecutorDispatch>(config)
-	}
-
-	#[cfg(feature = "kusama-native")]
-	if config.chain_spec.is_kusama() {
-		return new_light::<kusama_runtime::RuntimeApi, KusamaExecutorDispatch>(config)
-	}
-
-	#[cfg(feature = "westend-native")]
-	if config.chain_spec.is_westend() {
-		return new_light::<westend_runtime::RuntimeApi, WestendExecutorDispatch>(config)
-	}
-
-	#[cfg(feature = "polkadot-native")]
-	{
-		return new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutorDispatch>(config)
-	}
-
 	#[cfg(not(feature = "polkadot-native"))]
 	Err(Error::NoRuntime)
 }

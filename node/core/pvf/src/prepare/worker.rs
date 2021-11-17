@@ -16,7 +16,7 @@
 
 use crate::{
 	artifacts::CompiledArtifact,
-	error::PrepareError,
+	error::{PrepareError, PrepareResult},
 	worker_common::{
 		bytes_to_path, framed_recv, framed_send, path_to_bytes, spawn_with_program_path,
 		tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
@@ -28,8 +28,6 @@ use async_std::{
 	os::unix::net::UnixStream,
 	path::{Path, PathBuf},
 };
-use futures::FutureExt as _;
-use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
 use std::{sync::Arc, time::Duration};
@@ -37,7 +35,9 @@ use std::{sync::Arc, time::Duration};
 const NICENESS_BACKGROUND: i32 = 10;
 const NICENESS_FOREGROUND: i32 = 0;
 
-const COMPILATION_TIMEOUT: Duration = Duration::from_secs(10);
+/// The time period after which the preparation worker is considered unresponsive and will be killed.
+// NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
+const COMPILATION_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -51,15 +51,15 @@ pub async fn spawn(
 
 pub enum Outcome {
 	/// The worker has finished the work assigned to it.
-	Concluded { worker: IdleWorker, result: Result<(), PrepareError> },
+	Concluded { worker: IdleWorker, result: PrepareResult },
 	/// The host tried to reach the worker but failed. This is most likely because the worked was
 	/// killed by the system.
 	Unreachable,
-	/// The execution was interrupted abruptly and the worker is not available anymore. For example,
-	/// this could've happen because the worker hadn't finished the work until the given deadline.
+	/// The worker failed to finish the job until the given deadline.
 	///
-	/// Note that in this case the artifact file is written (unless there was an error writing the
-	/// the artifact).
+	/// The worker is no longer usable and should be killed.
+	TimedOut,
+	/// The execution was interrupted abruptly and the worker is not available anymore.
 	///
 	/// This doesn't return an idle worker instance, thus this worker is no longer usable.
 	DidNotMakeIt,
@@ -106,77 +106,78 @@ pub async fn start_work(
 
 		#[derive(Debug)]
 		enum Selected {
-			Done(Result<(), PrepareError>),
+			Done(PrepareResult),
 			IoErr,
 			Deadline,
 		}
 
-		let selected = futures::select! {
-			res = framed_recv(&mut stream).fuse() => {
-				match res {
-					Ok(response_bytes) => {
-						// By convention we expect encoded `Result<(), PrepareError>`.
-						if let Ok(result) =
-							<Result<(), PrepareError>>::decode(&mut response_bytes.clone().as_slice())
-						{
-							if result.is_ok() {
-								tracing::debug!(
-									target: LOG_TARGET,
-									worker_pid = %pid,
-									"promoting WIP artifact {} to {}",
-									tmp_file.display(),
-									artifact_path.display(),
-								);
-
-								async_std::fs::rename(&tmp_file, &artifact_path)
-									.await
-									.map(|_| Selected::Done(result))
-									.unwrap_or_else(|err| {
-										tracing::warn!(
-											target: LOG_TARGET,
-											worker_pid = %pid,
-											"failed to rename the artifact from {} to {}: {:?}",
-											tmp_file.display(),
-											artifact_path.display(),
-											err,
-										);
-										Selected::IoErr
-									})
-							} else {
-								Selected::Done(result)
-							}
-						} else {
-							// We received invalid bytes from the worker.
-							let bound_bytes = &response_bytes[..response_bytes.len().min(4)];
-							tracing::warn!(
+		let selected =
+			match async_std::future::timeout(COMPILATION_TIMEOUT, framed_recv(&mut stream)).await {
+				Ok(Ok(response_bytes)) => {
+					// Received bytes from worker within the time limit.
+					// By convention we expect encoded `PrepareResult`.
+					if let Ok(result) = PrepareResult::decode(&mut response_bytes.as_slice()) {
+						if result.is_ok() {
+							tracing::debug!(
 								target: LOG_TARGET,
 								worker_pid = %pid,
-								"received unexpected response from the prepare worker: {}",
-								HexDisplay::from(&bound_bytes),
+								"promoting WIP artifact {} to {}",
+								tmp_file.display(),
+								artifact_path.display(),
 							);
-							Selected::IoErr
+
+							async_std::fs::rename(&tmp_file, &artifact_path)
+								.await
+								.map(|_| Selected::Done(result))
+								.unwrap_or_else(|err| {
+									tracing::warn!(
+										target: LOG_TARGET,
+										worker_pid = %pid,
+										"failed to rename the artifact from {} to {}: {:?}",
+										tmp_file.display(),
+										artifact_path.display(),
+										err,
+									);
+									Selected::IoErr
+								})
+						} else {
+							Selected::Done(result)
 						}
-					},
-					Err(err) => {
+					} else {
+						// We received invalid bytes from the worker.
+						let bound_bytes = &response_bytes[..response_bytes.len().min(4)];
 						tracing::warn!(
 							target: LOG_TARGET,
 							worker_pid = %pid,
-							"failed to recv a prepare response: {:?}",
-							err,
+							"received unexpected response from the prepare worker: {}",
+							HexDisplay::from(&bound_bytes),
 						);
 						Selected::IoErr
 					}
-				}
-			},
-			_ = Delay::new(COMPILATION_TIMEOUT).fuse() => Selected::Deadline,
-		};
+				},
+				Ok(Err(err)) => {
+					// Communication error within the time limit.
+					tracing::warn!(
+						target: LOG_TARGET,
+						worker_pid = %pid,
+						"failed to recv a prepare response: {:?}",
+						err,
+					);
+					Selected::IoErr
+				},
+				Err(_) => {
+					// Timed out.
+					Selected::Deadline
+				},
+			};
 
 		match selected {
 			Selected::Done(result) => {
 				renice(pid, NICENESS_FOREGROUND);
 				Outcome::Concluded { worker: IdleWorker { stream, pid }, result }
 			},
-			Selected::IoErr | Selected::Deadline => Outcome::DidNotMakeIt,
+			Selected::Deadline => Outcome::TimedOut,
+			Selected::IoErr => Outcome::DidNotMakeIt,
 		}
 	})
 	.await
