@@ -17,7 +17,10 @@
 
 //! Mock data and utility functions for unit tests in this subsystem.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+	collections::{HashMap, HashSet},
+	sync::Arc,
+};
 
 use async_trait::async_trait;
 use lazy_static::lazy_static;
@@ -171,19 +174,23 @@ impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		_authority: polkadot_primitives::v1::AuthorityDiscoveryId,
-	) -> Option<Vec<sc_network::Multiaddr>> {
+	) -> Option<HashSet<sc_network::Multiaddr>> {
 		panic!("Not implemented");
 	}
 
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: polkadot_node_network_protocol::PeerId,
-	) -> Option<polkadot_primitives::v1::AuthorityDiscoveryId> {
+	) -> Option<HashSet<polkadot_primitives::v1::AuthorityDiscoveryId>> {
 		for (a, p) in self.peer_ids.iter() {
 			if p == &peer_id {
-				return Some(MOCK_VALIDATORS_DISCOVERY_KEYS.get(&a).unwrap().clone())
+				return Some(HashSet::from([MOCK_VALIDATORS_DISCOVERY_KEYS
+					.get(&a)
+					.unwrap()
+					.clone()]))
 			}
 		}
+
 		None
 	}
 }

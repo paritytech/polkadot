@@ -944,7 +944,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Alice.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
 			})
@@ -956,7 +956,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Bob.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
 					),
 				),
 			})
@@ -967,7 +967,7 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Charlie.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
 					),
 				),
 			})
@@ -1444,7 +1444,7 @@ fn share_prioritizes_backing_group() {
 						NetworkBridgeEvent::PeerConnected(
 							peer,
 							ObservedRole::Full,
-							Some(pair.public().into()),
+							Some(HashSet::from([pair.public().into()])),
 						),
 					),
 				})
@@ -1466,7 +1466,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Alice.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
 			})
@@ -1477,7 +1477,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_b.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Bob.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Bob.public().into()])),
 					),
 				),
 			})
@@ -1488,7 +1488,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_c.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Charlie.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Charlie.public().into()])),
 					),
 				),
 			})
@@ -1506,7 +1506,7 @@ fn share_prioritizes_backing_group() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_other_group.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Dave.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Dave.public().into()])),
 					),
 				),
 			})
@@ -1728,7 +1728,7 @@ fn peer_cant_flood_with_large_statements() {
 					NetworkBridgeEvent::PeerConnected(
 						peer_a.clone(),
 						ObservedRole::Full,
-						Some(Sr25519Keyring::Alice.public().into()),
+						Some(HashSet::from([Sr25519Keyring::Alice.public().into()])),
 					),
 				),
 			})
