@@ -23,11 +23,11 @@
 
 use crate::{
 	configuration,
+	configuration::HostConfiguration,
 	disputes::DisputesHandler,
 	inclusion, initializer,
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump,
-	configuration::HostConfiguration
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
@@ -382,7 +382,8 @@ pub mod pallet {
 			);
 
 			let config = <configuration::Pallet<T>>::config();
-			let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates, config.clone());
+			let mut candidate_weight =
+				backed_candidates_weight::<T>(&backed_candidates, config.clone());
 			let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 			let disputes_weight = dispute_statements_weight::<T>(&disputes);
 
@@ -780,12 +781,13 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	disputes: &mut MultiDisputeStatementSet,
 	max_block_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
-	config: HostConfiguration<T::BlockNumber>
+	config: HostConfiguration<T::BlockNumber>,
 ) -> Weight {
 	// include as many disputes as possible, always
 	let remaining_weight = limit_disputes::<T>(disputes, max_block_weight, rng);
 
-	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice(), config.clone());
+	let total_candidates_weight =
+		backed_candidates_weight::<T>(candidates.as_slice(), config.clone());
 
 	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
 
