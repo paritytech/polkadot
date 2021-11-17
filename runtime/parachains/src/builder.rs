@@ -456,6 +456,29 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					})
 					.collect();
 
+				if validity_votes.len() < num_votes {
+					// the configuration demands more validity votes than validators in the group,
+					// so we add more votes.
+					let mut val_idx = 0;
+					while (validity_votes.len() < num_votes) {
+						if group_validators.contains(val_idx) {
+							// don't make a second sig for validators who have already signed.
+							continue
+						}
+
+						let public = validators.get(val_idx.0 as usize).unwrap();
+						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
+							public,
+							CompactStatement::Valid(candidate_hash.clone()),
+							&self.signing_context(),
+							*val_idx,
+						)
+						.benchmark_signature();
+
+						validity_votes.push(ValidityAttestation::Explicit(sig.clone()));
+					}
+				}
+
 				BackedCandidate::<T::Hash> {
 					candidate,
 					validity_votes,
