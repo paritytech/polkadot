@@ -1,13 +1,13 @@
 [package]
 name = "polkadot-node-jaeger"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 description = "Polkadot Jaeger primitives"
 
 [dependencies]
 async-std = "1.8.0"
-mick-jaeger = "0.1.4"
+mick-jaeger = "0.1.6"
 lazy_static = "1.4"
 parking_lot = "0.11.1"
 polkadot-primitives = { path = "../../primitives" }

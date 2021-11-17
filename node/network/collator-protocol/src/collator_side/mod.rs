@@ -379,11 +379,11 @@ where
 		},
 	};
 
-	// Determine the group on that core and the next group on that core.
-	let (current_validators, next_validators) =
+	// Determine the group on that core.
+	let current_validators =
 		determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
 
-	if current_validators.validators.is_empty() && next_validators.validators.is_empty() {
+	if current_validators.validators.is_empty() {
 		tracing::warn!(
 			target: LOG_TARGET,
 			core = ?our_core,
@@ -401,23 +401,14 @@ where
 		pov_hash = ?pov.hash(),
 		core = ?our_core,
 		?current_validators,
-		?next_validators,
 		"Accepted collation, connecting to validators."
 	);
 
 	let validator_group: HashSet<_> =
 		current_validators.validators.iter().map(Clone::clone).collect();
 
-	// Issue a discovery request for the validators of the current group and the next group:
-	connect_to_validators(
-		ctx,
-		current_validators
-			.validators
-			.into_iter()
-			.chain(next_validators.validators.into_iter())
-			.collect(),
-	)
-	.await;
+	// Issue a discovery request for the validators of the current group:
+	connect_to_validators(ctx, current_validators.validators.into_iter().collect()).await;
 
 	state.our_validators_groups.insert(relay_parent, validator_group.into());
 
@@ -471,16 +462,16 @@ struct GroupValidators {
 	validators: Vec<AuthorityDiscoveryId>,
 }
 
-/// Figure out current and next group of validators assigned to the para being collated on.
+/// Figure out current group of validators assigned to the para being collated on.
 ///
-/// Returns [`ValidatorId`]'s of current and next group as determined based on the `relay_parent`.
+/// Returns [`ValidatorId`]'s of current group as determined based on the `relay_parent`.
 async fn determine_our_validators<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	core_index: CoreIndex,
 	cores: usize,
 	relay_parent: Hash,
-) -> Result<(GroupValidators, GroupValidators)>
+) -> Result<GroupValidators>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
@@ -500,22 +491,15 @@ where
 		.map(|v| v.as_slice())
 		.unwrap_or_default();
 
-	let next_group_idx = (current_group_index.0 as usize + 1) % groups.len();
-	let next_validators = groups.get(next_group_idx).map(|v| v.as_slice()).unwrap_or_default();
-
 	let validators = &info.discovery_keys;
 
 	let current_validators =
 		current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
-	let next_validators =
-		next_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 
 	let current_validators =
 		GroupValidators { group: current_group_index, validators: current_validators };
-	let next_validators =
-		GroupValidators { group: GroupIndex(next_group_idx as u32), validators: next_validators };
 
-	Ok((current_validators, next_validators))
+	Ok(current_validators)
 }
 
 /// Issue a `Declare` collation message to the given `peer`.

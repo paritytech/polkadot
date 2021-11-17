@@ -6,7 +6,7 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.12"
+version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
@@ -94,7 +94,7 @@ members = [
 	"parachain/test-parachains/adder/collator",
 	"utils/staking-miner",
 	"utils/remote-ext-tests/bags-list",
-	"utils/voter-bags",
+	"utils/generate-bags",
 ]
 
 # We want to be able to build the bridge relayer without pulling it (and all of its

@@ -116,15 +116,17 @@ struct HostConfiguration {
 
 Inherent data passed to a runtime entry-point for the advancement of parachain consensus.
 
-This contains 3 pieces of data:
+This contains 4 pieces of data:
 1. [`Bitfields`](availability.md#signed-availability-bitfield)
 2. [`BackedCandidates`](backing.md#backed-candidate)
 3. [`MultiDisputeStatementSet`](disputes.md#multidisputestatementset)
+4. `Header`
 
 ```rust
 struct ParaInherentData {
 	bitfields: Bitfields,
 	backed_candidates: BackedCandidates,
 	dispute_statements: MultiDisputeStatementSet,
+  parent_header: Header
 }
 ```

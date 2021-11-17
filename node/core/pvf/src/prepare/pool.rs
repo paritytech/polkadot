@@ -16,7 +16,7 @@
 
 use super::worker::{self, Outcome};
 use crate::{
-	error::PrepareError,
+	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
@@ -87,7 +87,7 @@ pub enum FromPool {
 		rip: bool,
 		/// [`Ok`] indicates that compiled artifact is successfully stored on disk.
 		/// Otherwise, an [error](PrepareError) is supplied.
-		result: Result<(), PrepareError>,
+		result: PrepareResult,
 	},
 
 	/// The given worker ceased to exist.
@@ -337,6 +337,20 @@ fn handle_mux(
 								worker,
 								rip: true,
 								result: Err(PrepareError::DidNotMakeIt),
+							},
+						)?;
+					}
+
+					Ok(())
+				},
+				Outcome::TimedOut => {
+					if attempt_retire(metrics, spawned, worker) {
+						reply(
+							from_pool,
+							FromPool::Concluded {
+								worker,
+								rip: true,
+								result: Err(PrepareError::TimedOut),
 							},
 						)?;
 					}

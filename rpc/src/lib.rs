@@ -21,10 +21,7 @@
 use std::sync::Arc;
 
 use polkadot_primitives::v0::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
-use sc_client_api::{
-	light::{Fetcher, RemoteBlockchain},
-	AuxStore,
-};
+use sc_client_api::AuxStore;
 use sc_consensus_babe::Epoch;
 use sc_finality_grandpa::FinalityProofProvider;
 pub use sc_rpc::{DenyUnsafe, SubscriptionTaskExecutor};
@@ -39,18 +36,6 @@ use txpool_api::TransactionPool;
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
-
-/// Light client extra dependencies.
-pub struct LightDeps<C, F, P> {
-	/// The client instance to use.
-	pub client: Arc<C>,
-	/// Transaction pool instance.
-	pub pool: Arc<P>,
-	/// Remote access to the blockchain (async).
-	pub remote_blockchain: Arc<dyn RemoteBlockchain<Block>>,
-	/// Fetcher instance.
-	pub fetcher: Arc<F>,
-}
 
 /// Extra dependencies for BABE.
 pub struct BabeDeps {
@@ -178,28 +163,4 @@ where
 	));
 
 	Ok(io)
-}
-
-/// Instantiate all RPC extensions for light node.
-pub fn create_light<C, P, F>(deps: LightDeps<C, F, P>) -> RpcExtension
-where
-	C: ProvideRuntimeApi<Block>,
-	C: HeaderBackend<Block>,
-	C: Send + Sync + 'static,
-	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
-	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
-	P: TransactionPool + Sync + Send + 'static,
-	F: Fetcher<Block> + 'static,
-{
-	use frame_rpc_system::{LightSystem, SystemApi};
-
-	let LightDeps { client, pool, remote_blockchain, fetcher } = deps;
-	let mut io = jsonrpc_core::IoHandler::default();
-	io.extend_with(SystemApi::<Hash, AccountId, Nonce>::to_delegate(LightSystem::new(
-		client,
-		remote_blockchain,
-		fetcher,
-		pool,
-	)));
-	io
 }
