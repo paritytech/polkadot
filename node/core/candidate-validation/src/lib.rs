@@ -32,7 +32,8 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{
-		CandidateValidationMessage, RuntimeApiMessage, RuntimeApiRequest, ValidationFailed,
+		CandidateValidationMessage, PreCheckOutcome, RuntimeApiMessage, RuntimeApiRequest,
+		ValidationFailed,
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 	SubsystemResult, SubsystemSender,
@@ -282,18 +283,14 @@ async fn precheck_pvf<Sender>(
 	mut validation_backend: impl ValidationBackend,
 	relay_parent: Hash,
 	validation_code_hash: ValidationCodeHash,
-) -> bool
+) -> PreCheckOutcome
 where
 	Sender: SubsystemSender,
 {
-	// TODO: consider sending `Result` via `response_sender` with some kind of
-	// `PrecheckError`: in case of runtime API request failure, is sending
-	// `false` correct? Could skip it in case of `PrepareError::DidNotMakeIt` or `RuntimeRequestFailed`.
-
 	let validation_code =
 		match request_validation_code_by_hash(sender, relay_parent, validation_code_hash).await {
 			Ok(Some(code)) => code,
-			_ => return false,
+			_ => return PreCheckOutcome::Failed,
 		};
 
 	let raw_validation_code = match sp_maybe_compressed_blob::decompress(
@@ -303,20 +300,21 @@ where
 		Ok(code) => code,
 		Err(e) => {
 			tracing::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
-
-			return false
+			return PreCheckOutcome::Invalid
 		},
 	};
 
-	let precheck_result = match validation_backend
+	match validation_backend
 		.precheck_pvf(Pvf::from_code(raw_validation_code.to_vec()))
 		.await
 	{
-		Ok(_) => true,
-		Err(_) => false,
-	};
-
-	precheck_result
+		Ok(_) => PreCheckOutcome::Valid,
+		Err(prepare_err) => match prepare_err {
+			PrepareError::Prevalidation(_) | PrepareError::Preparation(_) =>
+				PreCheckOutcome::Invalid,
+			PrepareError::TimedOut | PrepareError::DidNotMakeIt => PreCheckOutcome::Failed,
+		},
+	}
 }
 
 #[derive(Debug)]

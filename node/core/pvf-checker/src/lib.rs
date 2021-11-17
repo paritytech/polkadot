@@ -22,7 +22,7 @@
 use futures::{channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered};
 
 use polkadot_node_subsystem::{
-	messages::{CandidateValidationMessage, PvfCheckerMessage},
+	messages::{CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage},
 	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
 	SubsystemError, SubsystemResult, SubsystemSender,
 };
@@ -75,7 +75,8 @@ struct State {
 	latest_session: Option<SessionIndex>,
 	voted: HashSet<ValidationCodeHash>,
 	view: InterestView,
-	currently_checking: FuturesUnordered<BoxFuture<'static, Option<(bool, ValidationCodeHash)>>>,
+	currently_checking:
+		FuturesUnordered<BoxFuture<'static, Option<(PreCheckOutcome, ValidationCodeHash)>>>,
 }
 
 async fn run<Context>(mut ctx: Context, keystore: SyncCryptoStorePtr) -> SubsystemResult<()>
@@ -96,12 +97,12 @@ where
 		let mut sender = ctx.sender().clone();
 		futures::select! {
 			precheck_response = state.currently_checking.select_next_some() => {
-				if let Some((accept, validation_code_hash)) = precheck_response {
+				if let Some((outcome, validation_code_hash)) = precheck_response {
 					handle_pvf_check(
 						&mut state,
 						&mut sender,
 						&keystore,
-						accept,
+						outcome,
 						validation_code_hash,
 					).await;
 				}
@@ -122,9 +123,18 @@ async fn handle_pvf_check(
 	state: &mut State,
 	sender: &mut impl SubsystemSender,
 	keystore: &SyncCryptoStorePtr,
-	accept: bool,
+	outcome: PreCheckOutcome,
 	validation_code_hash: ValidationCodeHash,
 ) {
+	let accept = match outcome {
+		PreCheckOutcome::Valid => true,
+		PreCheckOutcome::Invalid => false,
+		PreCheckOutcome::Failed => {
+			// abstain
+			return
+		},
+	};
+
 	match state.view.on_judgement(validation_code_hash, accept) {
 		Ok(()) => (),
 		Err(()) => {
@@ -320,6 +330,7 @@ async fn cast_vote(
 	{
 		Ok(Some(signature)) => {
 			runtime_api::submit_pvf_check_statement(sender, relay_parent, stmt, signature).await;
+			// TODO: result
 		},
 		Ok(None) => {
 			// TODO: signing key is not found?
