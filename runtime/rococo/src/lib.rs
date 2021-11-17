@@ -183,7 +183,7 @@ construct_runtime! {
 	{
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>},
 
-		// Must be before session.
+		// Babe must be before session.
 		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
 
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
@@ -192,6 +192,8 @@ construct_runtime! {
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
 
 		// Consensus support.
+		// Authorship must be before session in order to note author in the correct session for
+		// im-online.
 		Authorship: pallet_authorship::{Pallet, Call, Storage},
 		Offences: pallet_offences::{Pallet, Storage, Event},
 		Historical: session_historical::{Pallet},
