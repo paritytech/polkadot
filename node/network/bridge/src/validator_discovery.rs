@@ -159,7 +159,10 @@ mod tests {
 	use polkadot_node_network_protocol::{request_response::outgoing::Requests, PeerId};
 	use sc_network::{Event as NetworkEvent, IfDisconnected};
 	use sp_keyring::Sr25519Keyring;
-	use std::{borrow::Cow, collections::HashMap};
+	use std::{
+		borrow::Cow,
+		collections::{HashMap, HashSet},
+	};
 
 	fn new_service() -> Service<TestNetwork, TestAuthorityDiscovery> {
 		Service::new()
@@ -176,8 +179,8 @@ mod tests {
 
 	#[derive(Default, Clone, Debug)]
 	struct TestAuthorityDiscovery {
-		by_authority_id: HashMap<AuthorityDiscoveryId, Multiaddr>,
-		by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
+		by_authority_id: HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>>,
+		by_peer_id: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 	}
 
 	impl TestAuthorityDiscovery {
@@ -187,12 +190,15 @@ mod tests {
 			let multiaddr = known_multiaddr().into_iter().zip(peer_ids.iter().cloned()).map(
 				|(mut addr, peer_id)| {
 					addr.push(multiaddr::Protocol::P2p(peer_id.into()));
-					addr
+					HashSet::from([addr])
 				},
 			);
 			Self {
 				by_authority_id: authorities.iter().cloned().zip(multiaddr).collect(),
-				by_peer_id: peer_ids.into_iter().zip(authorities.into_iter()).collect(),
+				by_peer_id: peer_ids
+					.into_iter()
+					.zip(authorities.into_iter().map(|a| HashSet::from([a])))
+					.collect(),
 			}
 		}
 	}
@@ -246,14 +252,14 @@ mod tests {
 		async fn get_addresses_by_authority_id(
 			&mut self,
 			authority: AuthorityDiscoveryId,
-		) -> Option<Vec<Multiaddr>> {
-			self.by_authority_id.get(&authority).cloned().map(|addr| vec![addr])
+		) -> Option<HashSet<Multiaddr>> {
+			self.by_authority_id.get(&authority).cloned()
 		}
 
-		async fn get_authority_id_by_peer_id(
+		async fn get_authority_ids_by_peer_id(
 			&mut self,
 			peer_id: PeerId,
-		) -> Option<AuthorityDiscoveryId> {
+		) -> Option<HashSet<AuthorityDiscoveryId>> {
 			self.by_peer_id.get(&peer_id).cloned()
 		}
 	}
@@ -283,7 +289,8 @@ mod tests {
 
 		let (ns, ads) = new_network();
 
-		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
+		let authority_ids: Vec<_> =
+			ads.by_peer_id.values().map(|v| v.iter()).flatten().cloned().collect();
 
 		futures::executor::block_on(async move {
 			let (failed, _) = oneshot::channel();
@@ -299,7 +306,7 @@ mod tests {
 			let state = &service.state[PeerSet::Validation];
 			assert_eq!(state.previously_requested.len(), 1);
 			let peer_1 = extract_peer_ids(
-				vec![ads.by_authority_id.get(&authority_ids[1]).unwrap().clone()].into_iter(),
+				ads.by_authority_id.get(&authority_ids[1]).unwrap().clone().into_iter(),
 			)
 			.iter()
 			.cloned()
@@ -315,7 +322,8 @@ mod tests {
 
 		let (ns, ads) = new_network();
 
-		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
+		let authority_ids: Vec<_> =
+			ads.by_peer_id.values().map(|v| v.iter()).flatten().cloned().collect();
 
 		futures::executor::block_on(async move {
 			let (failed, failed_rx) = oneshot::channel();
@@ -333,7 +341,7 @@ mod tests {
 			let state = &service.state[PeerSet::Validation];
 			assert_eq!(state.previously_requested.len(), 1);
 			let peer_0 = extract_peer_ids(
-				vec![ads.by_authority_id.get(&authority_ids[0]).unwrap().clone()].into_iter(),
+				ads.by_authority_id.get(&authority_ids[0]).unwrap().clone().into_iter(),
 			)
 			.iter()
 			.cloned()
