@@ -69,6 +69,7 @@ pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -80,6 +81,10 @@ hex-literal = { version = "0.3.4", optional = true }
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+
+xcm = { package = "xcm", path = "../../xcm", default-features = false }
+xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
+xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.4"
@@ -158,6 +163,10 @@ std = [
 	"beefy-primitives/std",
 	"pallet-mmr-primitives/std",
 	"frame-election-provider-support/std",
+  "pallet-xcm/std",
+  "xcm/std",
+	"xcm-executor/std",
+	"xcm-builder/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
@@ -187,10 +196,12 @@ runtime-benchmarks = [
 	"pallet-tips/runtime-benchmarks",
 	"pallet-utility/runtime-benchmarks",
 	"pallet-vesting/runtime-benchmarks",
+  "pallet-xcm/runtime-benchmarks",
 	"pallet-offences-benchmarking",
 	"pallet-session-benchmarking",
 	"frame-system-benchmarking",
 	"hex-literal",
+  "xcm-builder/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
 ]
