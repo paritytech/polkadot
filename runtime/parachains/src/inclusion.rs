@@ -294,7 +294,7 @@ impl<T: Config> Pallet<T> {
 		validators: &[ValidatorId],
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		core_lookup: F,
-	) -> Vec<(CoreIndex, CandidateHash)>
+	) -> (Vec<(CoreIndex, CandidateHash)>, Weight)
 	where
 		F: Fn(CoreIndex) -> Option<ParaId>,
 	{
@@ -343,6 +343,7 @@ impl<T: Config> Pallet<T> {
 			<AvailabilityBitfields<T>>::insert(&validator_index, record);
 		}
 
+		let mut enacted_candidate_weight = 0;
 		let threshold = availability_threshold(validators.len());
 
 		let mut freed_cores = Vec::with_capacity(expected_bits);
@@ -370,7 +371,8 @@ impl<T: Config> Pallet<T> {
 						descriptor: pending_availability.descriptor,
 						commitments,
 					};
-					let _weight = Self::enact_candidate(
+
+					let weight = Self::enact_candidate(
 						pending_availability.relay_parent_number,
 						receipt,
 						pending_availability.backers,
@@ -378,6 +380,8 @@ impl<T: Config> Pallet<T> {
 						pending_availability.core,
 						pending_availability.backing_group,
 					);
+
+					enacted_candidate_weight = enacted_candidate_weight.saturating_add(weight);
 				}
 
 				freed_cores.push((pending_availability.core, pending_availability.hash));
@@ -386,19 +390,19 @@ impl<T: Config> Pallet<T> {
 			}
 		}
 
-		Ok((freed_cores, enacted_candidate_weight))
+		(freed_cores, enacted_candidate_weight)
 	}
 
 	/// Process a set of incoming bitfields.
 	///
 	/// Returns a `Vec` of `CandidateHash`es and their respective `AvailabilityCore`s that became available,
-	/// and cores free.
+	/// and cores free. Additionally returns the weight consumed by enacted candidates.
 	pub(crate) fn process_bitfields(
 		expected_bits: usize,
 		signed_bitfields: UncheckedSignedAvailabilityBitfields,
 		disputed_bitfield: DisputedBitfield,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> Vec<(CoreIndex, CandidateHash)> {
+	) -> (Vec<(CoreIndex, CandidateHash)>, Weight) {
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
@@ -412,14 +416,15 @@ impl<T: Config> Pallet<T> {
 			&validators[..],
 		);
 
-		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, true>(
-			expected_bits,
-			&validators[..],
-			checked_bitfields,
-			core_lookup,
-		);
+		let (freed_cores, enacted_candidate_weight) =
+			Self::update_pending_availability_and_get_freed_cores::<_, true>(
+				expected_bits,
+				&validators[..],
+				checked_bitfields,
+				core_lookup,
+			);
 
-		freed_cores
+		(freed_cores, enacted_candidate_weight)
 	}
 
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
@@ -1412,7 +1417,8 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
-					),
+					)
+					.0,
 					vec![]
 				);
 			}
@@ -1434,7 +1440,8 @@ pub(crate) mod tests {
 						vec![signed.into()],
 						DisputedBitfield::zeros(expected_bits()),
 						&core_lookup,
-					),
+					)
+					.0,
 					vec![]
 				);
 			}
@@ -1472,6 +1479,7 @@ pub(crate) mod tests {
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
 				)
+				.0
 				.is_empty());
 
 				assert_eq!(
@@ -1528,6 +1536,7 @@ pub(crate) mod tests {
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
 				)
+				.0
 				.is_empty());
 
 				assert_eq!(
@@ -1559,6 +1568,7 @@ pub(crate) mod tests {
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
 				)
+				.0
 				.is_empty());
 			}
 
@@ -1579,6 +1589,7 @@ pub(crate) mod tests {
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
 				)
+				.0
 				.is_empty());
 			}
 
@@ -1622,6 +1633,7 @@ pub(crate) mod tests {
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
 				)
+				.0
 				.is_empty());
 
 				<PendingAvailability<Test>>::remove(chain_a);
@@ -1665,6 +1677,7 @@ pub(crate) mod tests {
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
 				)
+				.0
 				.is_empty());
 			}
 		});
@@ -1811,7 +1824,8 @@ pub(crate) mod tests {
 					signed_bitfields,
 					DisputedBitfield::zeros(expected_bits()),
 					&core_lookup,
-				),
+				)
+				.0,
 				vec![(CoreIndex(0), candidate_a.hash())]
 			);
 

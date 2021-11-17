@@ -27,6 +27,7 @@ use crate::{
 	inclusion, initializer,
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump,
+	configuration::HostConfiguration
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
@@ -112,12 +113,14 @@ impl WeightInfo for TestWeightInfo {
 	}
 }
 
+// Note that this does a storage read.
 fn paras_inherent_total_weight<T: Config>(
 	backed_candidates: &[BackedCandidate<<T as frame_system::Config>::Hash>],
 	bitfields: &[UncheckedSignedAvailabilityBitfield],
 	disputes: &[DisputeStatementSet],
+	config: HostConfiguration<T::BlockNumber>,
 ) -> Weight {
-	backed_candidates_weight::<T>(backed_candidates)
+	backed_candidates_weight::<T>(backed_candidates, config)
 		.saturating_add(signed_bitfields_weight::<T>(bitfields.len()))
 		.saturating_add(dispute_statements_weight::<T>(disputes))
 }
@@ -138,7 +141,8 @@ fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
 		.saturating_mul(bitfields_len as Weight)
 }
 
-fn backed_candidate_weight<T: frame_system::Config + Config>(
+// Inner function of `backed_candidate_weight_fn`.
+fn backed_candidate_weight_inner<T: frame_system::Config + Config>(
 	candidate: &BackedCandidate<T::Hash>,
 ) -> Weight {
 	if candidate.candidate.commitments.new_validation_code.is_some() {
@@ -150,12 +154,44 @@ fn backed_candidate_weight<T: frame_system::Config + Config>(
 	}
 }
 
+fn enact_candidates_weight<T: frame_system::Config + Config>(
+	candidate_count: usize,
+	config: &HostConfiguration<T::BlockNumber>,
+) -> Weight {
+	<inclusion::Pallet<T>>::enact_candidate_weight(
+		config.hrmp_max_parathread_inbound_channels,
+		config.hrmp_max_parachain_inbound_channels,
+		config.max_upward_message_num_per_candidate,
+		config.hrmp_max_message_num_per_candidate,
+	)
+	.saturating_mul(candidate_count as Weight)
+}
+
+// Returns a function that calculates the max weight of a candidate.
+fn backed_candidate_weight_fn<T: frame_system::Config + Config>(
+	config: HostConfiguration<T::BlockNumber>,
+) -> impl Fn(&BackedCandidate<T::Hash>) -> Weight {
+	move |candidate: &BackedCandidate<T::Hash>| -> Weight {
+		backed_candidate_weight_inner::<T>(candidate).saturating_add(
+			<inclusion::Pallet<T>>::enact_candidate_weight(
+				config.hrmp_max_parathread_inbound_channels,
+				config.hrmp_max_parachain_inbound_channels,
+				config.max_upward_message_num_per_candidate,
+				config.hrmp_max_message_num_per_candidate,
+			),
+		)
+	}
+}
+
+// Calculate the max weight of the given candidates.
 fn backed_candidates_weight<T: frame_system::Config + Config>(
 	candidates: &[BackedCandidate<T::Hash>],
+	config: HostConfiguration<T::BlockNumber>,
 ) -> Weight {
+	let backed_candidate_weight = backed_candidate_weight_fn::<T>(config);
 	candidates
 		.iter()
-		.map(|c| backed_candidate_weight::<T>(c))
+		.map(|c| backed_candidate_weight(c))
 		.fold(0, |acc, x| acc.saturating_add(x))
 }
 
@@ -313,22 +349,13 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
-		#[pallet::weight(({
-				let enact_candidate_weight = <inclusion::Pallet<T>>::enact_candidate_weight(
-					c.hrmp_max_parathread_inbound_channels,
-					c.hrmp_max_parachain_inbound_channels,
-					c.max_upward_message_num_per_candidate,
-					c.hrmp_max_message_num_per_candidate,
-				)
-				// NOTE: this will need to updated if the max number of cores changes.
-				* MAX_EXPECTED_CORES_FOR_WEIGHT_CALC;
-
-				enact_candidate_weight + paras_inherent_total_weight::<T>(
-					data.backed_candidates.as_slice(),
-					data.bitfields.as_slice(),
-					data.disputes.as_slice(),
-				)
-			},
+		#[pallet::weight((
+			paras_inherent_total_weight::<T>(
+				data.backed_candidates.as_slice(),
+				data.bitfields.as_slice(),
+				data.disputes.as_slice(),
+				<configuration::Pallet<T>>::config(),
+			),
 			DispatchClass::Mandatory,
 		))]
 		pub fn enter(
@@ -354,7 +381,8 @@ pub mod pallet {
 				Error::<T>::InvalidParentHeader,
 			);
 
-			let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates);
+			let config = <configuration::Pallet<T>>::config();
+			let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates, config.clone());
 			let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 			let disputes_weight = dispute_statements_weight::<T>(&disputes);
 
@@ -449,12 +477,13 @@ pub mod pallet {
 
 			// Process new availability bitfields, yielding any availability cores whose
 			// work has now concluded.
-			let (freed_concluded, enacted_weight) = <inclusion::Pallet<T>>::process_bitfields(
-				expected_bits,
-				signed_bitfields,
-				disputed_bitfield,
-				<scheduler::Pallet<T>>::core_para,
-			);
+			let (freed_concluded, actual_enact_candidates_weight) =
+				<inclusion::Pallet<T>>::process_bitfields(
+					expected_bits,
+					signed_bitfields,
+					disputed_bitfield,
+					<scheduler::Pallet<T>>::core_para,
+				);
 
 			// Inform the disputes module of all included candidates.
 			let now = <frame_system::Pallet<T>>::block_number();
@@ -479,6 +508,7 @@ pub mod pallet {
 
 			// Process backed candidates according to scheduled cores.
 			let parent_storage_root = parent_header.state_root().clone();
+			let backed_candidates_count = backed_candidates.len();
 			let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
 				core_indices: occupied,
 				candidate_receipt_with_backing_validator_indices,
@@ -504,7 +534,17 @@ pub mod pallet {
 			// this is max config.ump_service_total_weight
 			let _ump_weight = <ump::Pallet<T>>::process_pending_upward_messages();
 
-			Ok(Some(total_weight).into())
+			let actual_total_weight = {
+				let max_enact_candidates_weight =
+					enact_candidates_weight::<T>(backed_candidates_count, &config);
+				total_weight
+					// subtract the max enact candidate weight,
+					.saturating_sub(max_enact_candidates_weight)
+					// and add back the actual enact candidate weight
+					.saturating_add(actual_enact_candidates_weight)
+			};
+
+			Ok(Some(actual_total_weight).into())
 		}
 	}
 }
@@ -608,7 +648,7 @@ impl<T: Config> Pallet<T> {
 					&validator_public[..],
 				);
 
-				let freed_concluded =
+				let (freed_concluded, _enact_candidate_weight) =
 					<inclusion::Pallet<T>>::update_pending_availability_and_get_freed_cores::<
 						_,
 						false,
@@ -654,6 +694,7 @@ impl<T: Config> Pallet<T> {
 			&mut disputes,
 			max_block_weight,
 			&mut rng,
+			<configuration::Pallet<T>>::config(),
 		);
 
 		Some(ParachainsInherentData::<T::Header> {
@@ -739,11 +780,12 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	disputes: &mut MultiDisputeStatementSet,
 	max_block_weight: Weight,
 	rng: &mut rand_chacha::ChaChaRng,
+	config: HostConfiguration<T::BlockNumber>
 ) -> Weight {
 	// include as many disputes as possible, always
 	let remaining_weight = limit_disputes::<T>(disputes, max_block_weight, rng);
 
-	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice());
+	let total_candidates_weight = backed_candidates_weight::<T>(candidates.as_slice(), config.clone());
 
 	let total_bitfields_weight = signed_bitfields_weight::<T>(bitfields.len());
 
@@ -757,11 +799,12 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
 	if let Some(remaining_weight) = remaining_weight.checked_sub(total_bitfields_weight) {
+		let backed_candidate_weight = backed_candidate_weight_fn::<T>(config);
 		let (acc_candidate_weight, indices) =
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
 				rng,
 				candidates.clone(),
-				|c| backed_candidate_weight::<T>(c),
+				|c| backed_candidate_weight(c),
 				remaining_weight,
 			);
 		let mut idx = 0_usize;
