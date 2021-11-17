@@ -16,7 +16,7 @@
 
 use super::*;
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use assert_matches::assert_matches;
 use futures::{executor, future, Future, SinkExt};
@@ -405,7 +405,7 @@ async fn connect_peer(
 		CollatorProtocolMessage::NetworkBridgeUpdateV1(NetworkBridgeEvent::PeerConnected(
 			peer.clone(),
 			polkadot_node_network_protocol::ObservedRole::Authority,
-			authority_id,
+			authority_id.map(|v| HashSet::from([v])),
 		)),
 	)
 	.await;

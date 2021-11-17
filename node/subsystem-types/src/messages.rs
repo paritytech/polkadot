@@ -377,7 +377,7 @@ pub enum NetworkBridgeMessage {
 	/// connected to.
 	ConnectToResolvedValidators {
 		/// Each entry corresponds to the addresses of an already resolved validator.
-		validator_addrs: Vec<Vec<Multiaddr>>,
+		validator_addrs: Vec<HashSet<Multiaddr>>,
 		/// The peer set we want the connection on.
 		peer_set: PeerSet,
 	},

@@ -63,7 +63,7 @@ use sp_runtime::{
 		BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT, OpaqueKeys,
 		SaturatedConversion, StaticLookup, Verify,
 	},
-	transaction_validity::{TransactionSource, TransactionValidity},
+	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, KeyTypeId, Perbill,
 };
 use sp_staking::SessionIndex;
@@ -476,7 +476,9 @@ impl parachains_disputes::Config for Runtime {
 	type WeightInfo = parachains_disputes::TestWeightInfo;
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type WeightInfo = parachains_paras_inherent::TestWeightInfo;
+}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -486,10 +488,16 @@ impl parachains_initializer::Config for Runtime {
 
 impl parachains_session_info::Config for Runtime {}
 
+parameter_types! {
+	pub const ParasUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+}
+
 impl parachains_paras::Config for Runtime {
 	type Origin = Origin;
 	type Event = Event;
 	type WeightInfo = parachains_paras::TestWeightInfo;
+	type UnsignedPriority = ParasUnsignedPriority;
+	type NextSessionRotation = Babe;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -859,6 +867,17 @@ sp_api::impl_runtime_apis! {
 
 		fn on_chain_votes() -> Option<ScrapedOnChainVotes<Hash>> {
 			runtime_impl::on_chain_votes::<Runtime>()
+		}
+
+		fn submit_pvf_check_statement(
+			stmt: primitives::v1::PvfCheckStatement,
+			signature: primitives::v1::ValidatorSignature,
+		) {
+			runtime_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
+		}
+
+		fn pvfs_require_precheck() -> Vec<ValidationCodeHash> {
+			runtime_impl::pvfs_require_precheck::<Runtime>()
 		}
 	}
 

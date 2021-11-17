@@ -25,7 +25,7 @@
 //! the `NetworkBridgeMessage::NewGossipTopology` message.
 
 use std::{
-	collections::HashMap,
+	collections::{HashMap, HashSet},
 	fmt,
 	time::{Duration, Instant},
 };
@@ -94,14 +94,14 @@ pub struct GossipSupport<AD> {
 	/// Successfully resolved connections
 	///
 	/// waiting for actual connection.
-	resolved_authorities: HashMap<AuthorityDiscoveryId, Vec<Multiaddr>>,
+	resolved_authorities: HashMap<AuthorityDiscoveryId, HashSet<Multiaddr>>,
 
 	/// Actually connected authorities.
 	connected_authorities: HashMap<AuthorityDiscoveryId, PeerId>,
 	/// By `PeerId`.
 	///
 	/// Needed for efficient handling of disconnect events.
-	connected_authorities_by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
+	connected_authorities_by_peer_id: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 	/// Authority discovery service.
 	authority_discovery: AD,
 }
@@ -299,14 +299,19 @@ where
 	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSuppportNetworkMessage>) {
 		match ev {
 			NetworkBridgeEvent::PeerConnected(peer_id, _, o_authority) => {
-				if let Some(authority) = o_authority {
-					self.connected_authorities.insert(authority.clone(), peer_id);
-					self.connected_authorities_by_peer_id.insert(peer_id, authority);
+				if let Some(authority_ids) = o_authority {
+					authority_ids.iter().for_each(|a| {
+						self.connected_authorities.insert(a.clone(), peer_id);
+					});
+					self.connected_authorities_by_peer_id.insert(peer_id, authority_ids);
 				}
 			},
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
-				if let Some(authority) = self.connected_authorities_by_peer_id.remove(&peer_id) {
-					self.connected_authorities.remove(&authority);
+				if let Some(authority_ids) = self.connected_authorities_by_peer_id.remove(&peer_id)
+				{
+					authority_ids.into_iter().for_each(|a| {
+						self.connected_authorities.remove(&a);
+					});
 				}
 			},
 			NetworkBridgeEvent::OurViewChange(_) => {},
@@ -474,7 +479,7 @@ struct PrettyAuthorities<I>(I);
 
 impl<'a, I> fmt::Display for PrettyAuthorities<I>
 where
-	I: Iterator<Item = (&'a AuthorityDiscoveryId, &'a Vec<Multiaddr>)> + Clone,
+	I: Iterator<Item = (&'a AuthorityDiscoveryId, &'a HashSet<Multiaddr>)> + Clone,
 {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		let mut authorities = self.0.clone().peekable();

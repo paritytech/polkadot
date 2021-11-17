@@ -97,6 +97,7 @@ impl<
 	for CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId, CheckedAccount>
 {
 	fn can_check_in(_origin: &MultiLocation, what: &MultiAsset) -> Result {
+		log::trace!(target: "xcm::currency_adapter", "can_check_in origin: {:?}, what: {:?}", _origin, what);
 		// Check we handle this asset.
 		let amount: Currency::Balance =
 			Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?;
@@ -116,6 +117,7 @@ impl<
 	}
 
 	fn check_in(_origin: &MultiLocation, what: &MultiAsset) {
+		log::trace!(target: "xcm::currency_adapter", "check_in origin: {:?}, what: {:?}", _origin, what);
 		if let Some(amount) = Matcher::matches_fungible(what) {
 			if let Some(checked_account) = CheckedAccount::get() {
 				let ok = Currency::withdraw(
@@ -134,6 +136,7 @@ impl<
 	}
 
 	fn check_out(_dest: &MultiLocation, what: &MultiAsset) {
+		log::trace!(target: "xcm::currency_adapter", "check_out dest: {:?}, what: {:?}", _dest, what);
 		if let Some(amount) = Matcher::matches_fungible(what) {
 			if let Some(checked_account) = CheckedAccount::get() {
 				Currency::deposit_creating(&checked_account, amount);
@@ -142,7 +145,7 @@ impl<
 	}
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
-		log::trace!("xcm::currency_adapter deposit_asset {:?} {:?}", what, who);
+		log::trace!(target: "xcm::currency_adapter", "deposit_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.
 		let amount: u128 =
 			Matcher::matches_fungible(&what).ok_or(Error::AssetNotFound)?.saturated_into();
@@ -155,6 +158,7 @@ impl<
 	}
 
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> result::Result<Assets, XcmError> {
+		log::trace!(target: "xcm::currency_adapter", "withdraw_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.
 		let amount: u128 =
 			Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?.saturated_into();

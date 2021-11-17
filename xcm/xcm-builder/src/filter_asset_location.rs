@@ -25,6 +25,7 @@ use xcm_executor::traits::FilterAssetLocation;
 pub struct NativeAsset;
 impl FilterAssetLocation for NativeAsset {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+		log::trace!(target: "xcm::filter_asset_location", "NativeAsset asset: {:?}, origin: {:?}", asset, origin);
 		matches!(asset.id, Concrete(ref id) if id == origin)
 	}
 }
@@ -33,6 +34,7 @@ impl FilterAssetLocation for NativeAsset {
 pub struct Case<T>(PhantomData<T>);
 impl<T: Get<(MultiAssetFilter, MultiLocation)>> FilterAssetLocation for Case<T> {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+		log::trace!(target: "xcm::filter_asset_location", "Case asset: {:?}, origin: {:?}", asset, origin);
 		let (a, o) = T::get();
 		a.contains(asset) && &o == origin
 	}

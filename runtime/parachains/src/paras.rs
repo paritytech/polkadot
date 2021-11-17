@@ -100,7 +100,7 @@ use serde::{Deserialize, Serialize};
 pub use crate::Origin as ParachainOrigin;
 
 #[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+pub(crate) mod benchmarking;
 
 pub use pallet::*;
 
@@ -208,7 +208,7 @@ impl ParaLifecycle {
 
 impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
-	fn note_replacement(&mut self, expected_at: N, activated_at: N) {
+	pub(crate) fn note_replacement(&mut self, expected_at: N, activated_at: N) {
 		self.upgrade_times.push(ReplacementTimes { expected_at, activated_at })
 	}
 
@@ -469,7 +469,7 @@ pub mod pallet {
 	/// All parachains. Ordered ascending by `ParaId`. Parathreads are not included.
 	#[pallet::storage]
 	#[pallet::getter(fn parachains)]
-	pub(super) type Parachains<T: Config> = StorageValue<_, Vec<ParaId>, ValueQuery>;
+	pub(crate) type Parachains<T: Config> = StorageValue<_, Vec<ParaId>, ValueQuery>;
 
 	/// The current lifecycle of a all known Para IDs.
 	#[pallet::storage]
@@ -1715,6 +1715,11 @@ impl<T: Config> Pallet<T> {
 			session_index: shared::Pallet::<T>::session_index(),
 			..Default::default()
 		});
+	}
+
+	#[cfg(any(feature = "runtime-benchmarks", test))]
+	pub fn heads_insert(para_id: &ParaId, head_data: HeadData) {
+		Heads::<T>::insert(para_id, head_data);
 	}
 }
 

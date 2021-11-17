@@ -279,7 +279,8 @@ where
 				)
 			}
 		} else {
-			self.spawn_handle.spawn_blocking(API_REQUEST_TASK_NAME, request);
+			self.spawn_handle
+				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), request);
 			self.active_requests.push(receiver);
 		}
 	}
@@ -297,7 +298,8 @@ where
 		}
 
 		if let Some((req, recv)) = self.waiting_requests.pop_front() {
-			self.spawn_handle.spawn_blocking(API_REQUEST_TASK_NAME, req);
+			self.spawn_handle
+				.spawn_blocking(API_REQUEST_TASK_NAME, Some("runtime-api"), req);
 			self.active_requests.push(recv);
 		}
 	}

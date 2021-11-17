@@ -1192,6 +1192,11 @@ pub mod pallet {
 		/// Note that a particular destination to whom we would like to send a message is unknown
 		/// and queue it for version discovery.
 		fn note_unknown_version(dest: &MultiLocation) {
+			log::trace!(
+				target: "xcm::pallet_xcm::note_unknown_version",
+				"XCM version is unknown for destination: {:?}",
+				dest,
+			);
 			let versioned_dest = VersionedMultiLocation::from(dest.clone());
 			VersionDiscoveryQueue::<T>::mutate(|q| {
 				if let Some(index) = q.iter().position(|i| &i.0 == &versioned_dest) {
@@ -1214,7 +1219,14 @@ pub mod pallet {
 					Self::note_unknown_version(dest);
 					SafeXcmVersion::<T>::get()
 				})
-				.ok_or(())
+				.ok_or_else(|| {
+					log::trace!(
+						target: "xcm::pallet_xcm::wrap_version",
+						"Could not determine a version to wrap XCM for destination: {:?}",
+						dest,
+					);
+					()
+				})
 				.and_then(|v| xcm.into().into_version(v.min(XCM_VERSION)))
 		}
 	}
@@ -1248,6 +1260,12 @@ pub mod pallet {
 		fn stop(dest: &MultiLocation) -> XcmResult {
 			VersionNotifyTargets::<T>::remove(XCM_VERSION, LatestVersionedMultiLocation(dest));
 			Ok(())
+		}
+
+		/// Return true if a location is subscribed to XCM version changes.
+		fn is_subscribed(dest: &MultiLocation) -> bool {
+			let versioned_dest = LatestVersionedMultiLocation(dest);
+			VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest)
 		}
 	}
 

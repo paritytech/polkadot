@@ -22,18 +22,24 @@ use crate::{
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
-use frame_support::{parameter_types, traits::GenesisBuild, weights::Weight};
+
+use frame_support::{
+	parameter_types,
+	traits::{GenesisBuild, KeyOwnerProofSystem},
+	weights::Weight,
+};
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
 use primitives::v1::{
-	AuthorityDiscoveryId, Balance, BlockNumber, Header, SessionIndex, UpwardMessage, ValidatorIndex,
+	AuthorityDiscoveryId, Balance, BlockNumber, Header, Moment, SessionIndex, UpwardMessage,
+	ValidatorIndex,
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	Permill,
+	KeyTypeId, Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -60,6 +66,7 @@ frame_support::construct_runtime!(
 		Hrmp: hrmp::{Pallet, Call, Storage, Event<T>},
 		SessionInfo: session_info::{Pallet, Storage},
 		Disputes: disputes::{Pallet, Storage, Event<T>},
+		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
 	}
 );
 
@@ -118,6 +125,52 @@ impl pallet_balances::Config for Test {
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub const EpochDuration: u64 = 10;
+	pub const ExpectedBlockTime: Moment = 6_000;
+	pub const ReportLongevity: u64 = 10;
+	pub const MaxAuthorities: u32 = 100_000;
+}
+
+impl pallet_babe::Config for Test {
+	type EpochDuration = EpochDuration;
+	type ExpectedBlockTime = ExpectedBlockTime;
+
+	// session module is the trigger
+	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
+
+	type DisabledValidators = ();
+
+	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		pallet_babe::AuthorityId,
+	)>>::Proof;
+
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		pallet_babe::AuthorityId,
+	)>>::IdentificationTuple;
+
+	type KeyOwnerProofSystem = ();
+
+	type HandleEquivocation = ();
+
+	type WeightInfo = ();
+
+	type MaxAuthorities = MaxAuthorities;
+}
+
+parameter_types! {
+	pub const MinimumPeriod: Moment = 6_000 / 2;
+}
+
+impl pallet_timestamp::Config for Test {
+	type Moment = Moment;
+	type OnTimestampSet = ();
+	type MinimumPeriod = MinimumPeriod;
 	type WeightInfo = ();
 }
 
@@ -239,7 +292,9 @@ impl crate::inclusion::Config for Test {
 	type RewardValidators = TestRewardValidators;
 }
 
-impl crate::paras_inherent::Config for Test {}
+impl crate::paras_inherent::Config for Test {
+	type WeightInfo = crate::paras_inherent::TestWeightInfo;
+}
 
 impl crate::session_info::Config for Test {}
 
@@ -335,6 +390,8 @@ impl inclusion::RewardValidators for TestRewardValidators {
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
+	use sp_keystore::{testing::KeyStore, KeystoreExt, SyncCryptoStorePtr};
+	use sp_std::sync::Arc;
 	BACKING_REWARDS.with(|r| r.borrow_mut().clear());
 	AVAILABILITY_REWARDS.with(|r| r.borrow_mut().clear());
 
@@ -342,7 +399,10 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	state.configuration.assimilate_storage(&mut t).unwrap();
 	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
 
-	t.into()
+	let mut ext: TestExternalities = t.into();
+	ext.register_extension(KeystoreExt(Arc::new(KeyStore::new()) as SyncCryptoStorePtr));
+
+	ext
 }
 
 #[derive(Default)]
