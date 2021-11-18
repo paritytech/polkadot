@@ -477,8 +477,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		(start..last)
 			.map(|seed| {
-				let session =
-					dispute_sessions.get(seed as usize).cloned().unwrap_or(self.target_session);
+				let dispute_session_idx = (seed - start) as usize;
+				let session = dispute_sessions
+					.get(dispute_session_idx)
+					.cloned()
+					.unwrap_or(self.target_session);
 
 				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
@@ -520,13 +523,18 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Build a scenario for testing or benchmarks.
 	///
+	/// Note that this only allows  cores with backed candidates / becoming available to be
+	/// mutually exclusive of cores of with disputes.
+	///
 	/// - `backed_and_concluding_cores`: Map from core/para id/group index seed to number of
 	/// validity votes.
-	/// - `dispute_sessions`: Session index of for each dispute. Index of slice corresponds to core.
-	/// The length of this must equal total cores used. Seed index for disputes starts at
-	/// `backed_and_concluding_cores.len()`, so `dispute_sessions` needs to be left padded by
-	/// `backed_and_concluding_cores.len()` values which effectively get ignored.
-	/// TODO we should fix this.
+	/// - `dispute_sessions`: Session index of for each dispute. Index of slice corresponds to a core,
+	/// which is offset by the number of entries for `backed_and_concluding_cores`. I.E. if
+	/// `backed_and_concluding_cores` cores has 3 entries, the first index of `dispute_sessions`
+	/// will correspond to core index 3. There must be one entry for each core with a dispute
+	/// statement set.
+	/// - `includes_code_upgrade`: Set to `Some` to include a code upgrade for all backed candidates.
+	/// The value within `Some` will be the byte length of the code.
 	pub(crate) fn build(
 		self,
 		backed_and_concluding_cores: BTreeMap<u32, u32>,
@@ -540,7 +548,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
 		let cores = self.max_cores();
-		let used_cores = dispute_sessions.len() as u32;
+		let used_cores = (dispute_sessions.len() + backed_and_concluding_cores.len()) as u32;
 		assert!(used_cores <= cores);
 
 		// NOTE: there is an n+2 session delay for these actions to take effect

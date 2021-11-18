@@ -29,7 +29,7 @@ benchmarks! {
 		let v in 10..BenchBuilder::<T>::fallback_max_validators();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(Default::default(), &[2], None);
+			.build(Default::default(), &[], None);
 
 		let mut benchmark = scenario.data.clone();
 		let dispute = benchmark.disputes.pop().unwrap();
@@ -60,7 +60,7 @@ benchmarks! {
 				.collect();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_backed, &[1], None);
+			.build(cores_with_backed, &[], None);
 
 		let mut benchmark = scenario.data.clone();
 		let bitfield = benchmark.bitfields.pop().unwrap();
@@ -97,7 +97,7 @@ benchmarks! {
 				.collect();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_backed.clone(), &[1], None);
+			.build(cores_with_backed.clone(), &[], None);
 
 		let mut benchmark = scenario.data.clone();
 
@@ -149,7 +149,7 @@ benchmarks! {
 				.collect();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(cores_with_backed.clone(), &[1], Some(v));
+			.build(cores_with_backed.clone(), &[], Some(v));
 
 		let mut benchmark = scenario.data.clone();
 

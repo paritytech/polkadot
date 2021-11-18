@@ -1063,7 +1063,10 @@ mod tests {
 			}: TestConfig,
 		) -> Bench<Test> {
 			BenchBuilder::<Test>::new()
-				.set_max_validators((dispute_sessions.len() as u32) * num_validators_per_core)
+				.set_max_validators(
+					(dispute_sessions.len() + backed_and_concluding.len()) as u32 *
+						num_validators_per_core,
+				)
 				.set_max_validators_per_core(num_validators_per_core)
 				.set_dispute_statements(dispute_statements)
 				.build(backed_and_concluding, dispute_sessions.as_slice(), includes_code_upgrade)
@@ -1083,7 +1086,7 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					dispute_sessions: vec![0, 0],
+					dispute_sessions: vec![], // No disputes
 					backed_and_concluding,
 					num_validators_per_core: 1,
 					includes_code_upgrade: None,
@@ -1217,12 +1220,12 @@ mod tests {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				// Create the inherent data for this block
 				let dispute_statements = BTreeMap::new();
-				// No backed and concluding cores, so all cores will be fileld with disputesw
+				// No backed and concluding cores, so all cores will be filld with disputes.
 				let backed_and_concluding = BTreeMap::new();
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					dispute_sessions: vec![2, 2, 1], // 3 cores, all disputes
+					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 6,
 					includes_code_upgrade: None,
@@ -1284,7 +1287,7 @@ mod tests {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				// Create the inherent data for this block
 				let dispute_statements = BTreeMap::new();
-				// No backed and concluding cores, so all cores will be fileld with disputesw
+				// No backed and concluding cores, so all cores will be filled with disputes.
 				let backed_and_concluding = BTreeMap::new();
 
 				let scenario = make_inherent_data(TestConfig {
@@ -1335,8 +1338,7 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					// 2 backed candidates + 3 disputes (at sessions 2, 1 and 1)
-					dispute_sessions: vec![0, 0, 2, 2, 1],
+					dispute_sessions: vec![2, 2, 1], // 3 cores, all disputes
 					backed_and_concluding,
 					num_validators_per_core: 4,
 					includes_code_upgrade: None,
@@ -1414,8 +1416,7 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					// 2 backed candidates + 3 disputes (at sessions 2, 1 and 1)
-					dispute_sessions: vec![0, 0, 2, 2, 1],
+					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 4,
 					includes_code_upgrade: None,
@@ -1476,8 +1477,7 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					// 2 backed candidates + 3 disputes (at sessions 2, 1 and 1)
-					dispute_sessions: vec![0, 0, 2, 2, 1],
+					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 5,
 					includes_code_upgrade: None,
@@ -1557,8 +1557,7 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					// 2 backed candidates + 3 disputes (at sessions 2, 1 and 1)
-					dispute_sessions: vec![0, 0, 2, 2, 1],
+					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 5,
 					includes_code_upgrade: None,
@@ -1617,7 +1616,7 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					dispute_sessions: vec![0, 0, 2, 2, 1], // 2 backed candidates, 3 disputes at sessions 2, 1 and 1 respectively
+					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 5,
 					includes_code_upgrade: None,
@@ -1688,7 +1687,7 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					dispute_sessions: vec![0, 0, 2, 2, 1], // 2 backed candidates, 3 disputes at sessions 2, 1 and 1 respectively
+					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 5,
 					includes_code_upgrade: None,
