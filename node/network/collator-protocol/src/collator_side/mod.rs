@@ -165,11 +165,11 @@ impl ValidatorGroup {
 	/// Returns `true` if we should advertise our collation to the given peer.
 	fn should_advertise_to(
 		&self,
-		peer_ids: &HashMap<PeerId, AuthorityDiscoveryId>,
+		peer_ids: &HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 		peer: &PeerId,
 	) -> bool {
 		match peer_ids.get(peer) {
-			Some(discovery_id) => !self.advertised_to.contains(discovery_id),
+			Some(discovery_ids) => !discovery_ids.iter().any(|d| self.advertised_to.contains(d)),
 			None => false,
 		}
 	}
@@ -177,11 +177,13 @@ impl ValidatorGroup {
 	/// Should be called after we advertised our collation to the given `peer` to keep track of it.
 	fn advertised_to_peer(
 		&mut self,
-		peer_ids: &HashMap<PeerId, AuthorityDiscoveryId>,
+		peer_ids: &HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 		peer: &PeerId,
 	) {
-		if let Some(validator_id) = peer_ids.get(peer) {
-			self.advertised_to.insert(validator_id.clone());
+		if let Some(authority_ids) = peer_ids.get(peer) {
+			authority_ids.iter().for_each(|a| {
+				self.advertised_to.insert(a.clone());
+			});
 		}
 	}
 }
@@ -274,9 +276,9 @@ struct State {
 	/// Our validator groups per active leaf.
 	our_validators_groups: HashMap<Hash, ValidatorGroup>,
 
-	/// The mapping from [`PeerId`] to [`ValidatorId`]. This is filled over time as we learn the [`PeerId`]'s
+	/// The mapping from [`PeerId`] to [`HashSet<AuthorityDiscoveryId>`]. This is filled over time as we learn the [`PeerId`]'s
 	/// by `PeerConnected` events.
-	peer_ids: HashMap<PeerId, AuthorityDiscoveryId>,
+	peer_ids: HashMap<PeerId, HashSet<AuthorityDiscoveryId>>,
 
 	/// Metrics.
 	metrics: Metrics,
@@ -379,11 +381,11 @@ where
 		},
 	};
 
-	// Determine the group on that core and the next group on that core.
-	let (current_validators, next_validators) =
+	// Determine the group on that core.
+	let current_validators =
 		determine_our_validators(ctx, runtime, our_core, num_cores, relay_parent).await?;
 
-	if current_validators.validators.is_empty() && next_validators.validators.is_empty() {
+	if current_validators.validators.is_empty() {
 		tracing::warn!(
 			target: LOG_TARGET,
 			core = ?our_core,
@@ -401,23 +403,14 @@ where
 		pov_hash = ?pov.hash(),
 		core = ?our_core,
 		?current_validators,
-		?next_validators,
 		"Accepted collation, connecting to validators."
 	);
 
 	let validator_group: HashSet<_> =
 		current_validators.validators.iter().map(Clone::clone).collect();
 
-	// Issue a discovery request for the validators of the current group and the next group:
-	connect_to_validators(
-		ctx,
-		current_validators
-			.validators
-			.into_iter()
-			.chain(next_validators.validators.into_iter())
-			.collect(),
-	)
-	.await;
+	// Issue a discovery request for the validators of the current group:
+	connect_to_validators(ctx, current_validators.validators.into_iter().collect()).await;
 
 	state.our_validators_groups.insert(relay_parent, validator_group.into());
 
@@ -471,16 +464,16 @@ struct GroupValidators {
 	validators: Vec<AuthorityDiscoveryId>,
 }
 
-/// Figure out current and next group of validators assigned to the para being collated on.
+/// Figure out current group of validators assigned to the para being collated on.
 ///
-/// Returns [`ValidatorId`]'s of current and next group as determined based on the `relay_parent`.
+/// Returns [`ValidatorId`]'s of current group as determined based on the `relay_parent`.
 async fn determine_our_validators<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	core_index: CoreIndex,
 	cores: usize,
 	relay_parent: Hash,
-) -> Result<(GroupValidators, GroupValidators)>
+) -> Result<GroupValidators>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	Context: overseer::SubsystemContext<Message = CollatorProtocolMessage>,
@@ -500,22 +493,15 @@ where
 		.map(|v| v.as_slice())
 		.unwrap_or_default();
 
-	let next_group_idx = (current_group_index.0 as usize + 1) % groups.len();
-	let next_validators = groups.get(next_group_idx).map(|v| v.as_slice()).unwrap_or_default();
-
 	let validators = &info.discovery_keys;
 
 	let current_validators =
 		current_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
-	let next_validators =
-		next_validators.iter().map(|i| validators[i.0 as usize].clone()).collect();
 
 	let current_validators =
 		GroupValidators { group: current_group_index, validators: current_validators };
-	let next_validators =
-		GroupValidators { group: GroupIndex(next_group_idx as u32), validators: next_validators };
 
-	Ok((current_validators, next_validators))
+	Ok(current_validators)
 }
 
 /// Issue a `Declare` collation message to the given `peer`.
@@ -923,14 +909,14 @@ where
 			// If it is possible that a disconnected validator would attempt a reconnect
 			// it should be handled here.
 			tracing::trace!(target: LOG_TARGET, ?peer_id, ?observed_role, "Peer connected");
-			if let Some(authority) = maybe_authority {
+			if let Some(authority_ids) = maybe_authority {
 				tracing::trace!(
 					target: LOG_TARGET,
-					?authority,
+					?authority_ids,
 					?peer_id,
 					"Connected to requested validator"
 				);
-				state.peer_ids.insert(peer_id, authority);
+				state.peer_ids.insert(peer_id, authority_ids);
 
 				declare(ctx, state, peer_id).await;
 			}

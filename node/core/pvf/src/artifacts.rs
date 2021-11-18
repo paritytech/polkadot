@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::error::PrepareError;
+use crate::{error::PrepareError, host::PrepareResultSender};
 use always_assert::always;
 use async_std::path::{Path, PathBuf};
 use parity_scale_codec::{Decode, Encode};
@@ -106,7 +106,7 @@ pub enum ArtifactState {
 		last_time_needed: SystemTime,
 	},
 	/// A task to prepare this artifact is scheduled.
-	Preparing,
+	Preparing { waiting_for_response: Vec<PrepareResultSender> },
 	/// The code couldn't be compiled due to an error. Such artifacts
 	/// never reach the executor and stay in the host's memory.
 	FailedToProcess(PrepareError),
@@ -145,9 +145,16 @@ impl Artifacts {
 	///
 	/// This function must be used only for brand-new artifacts and should never be used for
 	/// replacing existing ones.
-	pub fn insert_preparing(&mut self, artifact_id: ArtifactId) {
+	pub fn insert_preparing(
+		&mut self,
+		artifact_id: ArtifactId,
+		waiting_for_response: Vec<PrepareResultSender>,
+	) {
 		// See the precondition.
-		always!(self.artifacts.insert(artifact_id, ArtifactState::Preparing).is_none());
+		always!(self
+			.artifacts
+			.insert(artifact_id, ArtifactState::Preparing { waiting_for_response })
+			.is_none());
 	}
 
 	/// Insert an artifact with the given ID as "prepared".

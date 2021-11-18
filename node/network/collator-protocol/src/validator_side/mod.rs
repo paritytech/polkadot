@@ -332,14 +332,12 @@ impl Default for PeerData {
 
 struct GroupAssignments {
 	current: Option<ParaId>,
-	next: Option<ParaId>,
 }
 
 #[derive(Default)]
 struct ActiveParas {
 	relay_parent_assignments: HashMap<Hash, GroupAssignments>,
 	current_assignments: HashMap<ParaId, usize>,
-	next_assignments: HashMap<ParaId, usize>,
 }
 
 impl ActiveParas {
@@ -384,22 +382,16 @@ impl ActiveParas {
 				},
 			};
 
-			let (para_now, para_next) =
+			let para_now =
 				match polkadot_node_subsystem_util::signing_key_and_index(&validators, keystore)
 					.await
 					.and_then(|(_, index)| {
 						polkadot_node_subsystem_util::find_validator_group(&groups, index)
 					}) {
 					Some(group) => {
-						let next_rotation_info = rotation_info.bump_rotation();
-
 						let core_now = rotation_info.core_for_group(group, cores.len());
-						let core_next = next_rotation_info.core_for_group(group, cores.len());
 
-						(
-							cores.get(core_now.0 as usize).and_then(|c| c.para_id()),
-							cores.get(core_next.0 as usize).and_then(|c| c.para_id()),
-						)
+						cores.get(core_now.0 as usize).and_then(|c| c.para_id())
 					},
 					None => {
 						tracing::trace!(target: LOG_TARGET, ?relay_parent, "Not a validator");
@@ -429,19 +421,15 @@ impl ActiveParas {
 				}
 			}
 
-			if let Some(para_next) = para_next {
-				*self.next_assignments.entry(para_next).or_default() += 1;
-			}
-
 			self.relay_parent_assignments
-				.insert(relay_parent, GroupAssignments { current: para_now, next: para_next });
+				.insert(relay_parent, GroupAssignments { current: para_now });
 		}
 	}
 
 	fn remove_outgoing(&mut self, old_relay_parents: impl IntoIterator<Item = Hash>) {
 		for old_relay_parent in old_relay_parents {
 			if let Some(assignments) = self.relay_parent_assignments.remove(&old_relay_parent) {
-				let GroupAssignments { current, next } = assignments;
+				let GroupAssignments { current } = assignments;
 
 				if let Some(cur) = current {
 					if let Entry::Occupied(mut occupied) = self.current_assignments.entry(cur) {
@@ -456,21 +444,8 @@ impl ActiveParas {
 						}
 					}
 				}
-
-				if let Some(next) = next {
-					if let Entry::Occupied(mut occupied) = self.next_assignments.entry(next) {
-						*occupied.get_mut() -= 1;
-						if *occupied.get() == 0 {
-							occupied.remove_entry();
-						}
-					}
-				}
 			}
 		}
-	}
-
-	fn is_current_or_next(&self, id: ParaId) -> bool {
-		self.current_assignments.contains_key(&id) || self.next_assignments.contains_key(&id)
 	}
 
 	fn is_current(&self, id: &ParaId) -> bool {
@@ -846,13 +821,13 @@ async fn process_incoming_peer_message<Context>(
 				return
 			}
 
-			if state.active_paras.is_current_or_next(para_id) {
+			if state.active_paras.is_current(&para_id) {
 				tracing::debug!(
 					target: LOG_TARGET,
 					peer_id = ?origin,
 					?collator_id,
 					?para_id,
-					"Declared as collator for current or next para",
+					"Declared as collator for current para",
 				);
 
 				peer_data.set_collating(collator_id, para_id);
@@ -894,20 +869,6 @@ async fn process_incoming_peer_message<Context>(
 				},
 				Some(p) => p,
 			};
-
-			if let PeerState::Collating(ref collating_state) = peer_data.state {
-				let para_id = collating_state.para_id;
-				if !state.active_paras.is_current(&para_id) {
-					tracing::debug!(
-						target: LOG_TARGET,
-						peer_id = ?origin,
-						%para_id,
-						?relay_parent,
-						"Received advertise collation, but we are assigned to the next group",
-					);
-					return
-				}
-			}
 
 			match peer_data.insert_advertisement(relay_parent, &state.view) {
 				Ok((id, para_id)) => {
@@ -1015,7 +976,7 @@ where
 		// If the peer hasn't declared yet, they will be disconnected if they do not
 		// declare.
 		if let Some(para_id) = peer_data.collating_para() {
-			if !state.active_paras.is_current_or_next(para_id) {
+			if !state.active_paras.is_current(&para_id) {
 				tracing::trace!(target: LOG_TARGET, "Disconnecting peer on view change");
 				disconnect_peer(ctx, peer_id.clone()).await;
 			}
@@ -1462,7 +1423,7 @@ async fn poll_collation_response(
 				);
 
 				CollationFetchResult::Error(COST_WRONG_PARA)
-			}
+			},
 			Ok(CollationFetchingResponse::Collation(receipt, pov)) => {
 				tracing::debug!(
 					target: LOG_TARGET,
