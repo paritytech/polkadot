@@ -958,7 +958,7 @@ fn limit_disputes<T: Config>(
 		// Sort the dispute statements according to the following prioritization:
 		//  1. Prioritize local disputes over remote disputes.
 		//  2. Prioritize older disputes over newer disputes.
-		disputes.sort_unstable_by(|a, b| {
+		disputes.sort_by(|a, b| {
 			let a_local_block = T::DisputesHandler::included_state(a.session, a.candidate_hash);
 			let b_local_block = T::DisputesHandler::included_state(b.session, b.candidate_hash);
 			match (a_local_block, b_local_block) {
