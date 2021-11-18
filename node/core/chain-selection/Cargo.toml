@@ -16,7 +16,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 kvdb = "0.10.0"
 thiserror = "1.0.30"
 parity-scale-codec = "2"
-parity-util-mem = { version = ">= 0.10.1", default-features = false }
+parity-util-mem = { version = "0.10.1", default-features = false }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
