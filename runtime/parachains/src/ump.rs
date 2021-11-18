@@ -170,6 +170,7 @@ impl fmt::Debug for AcceptanceCheckErr {
 	}
 }
 
+/// Weight information of this pallet. 
 pub trait WeightInfo {
 	fn service_overweight() -> Weight;
 	fn process_upward_message(s: u32) -> Weight;
