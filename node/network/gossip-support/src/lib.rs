@@ -30,8 +30,6 @@ use std::{
 	time::{Duration, Instant},
 };
 
-use std::sync::Arc;
-
 use futures::{channel::oneshot, select, FutureExt as _};
 use futures_timer::Delay;
 use rand::{seq::SliceRandom as _, SeedableRng};
@@ -107,9 +105,6 @@ pub struct GossipSupport<AD> {
 	/// Authority discovery service.
 	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
 	authority_discovery: AD,
-
-	/// Subsystem root span for tracking mem.
-	mem_span: Arc<util::MemSpan>,
 }
 
 impl<AD> GossipSupport<AD>
@@ -117,11 +112,7 @@ where
 	AD: AuthorityDiscovery,
 {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new(
-		keystore: SyncCryptoStorePtr,
-		authority_discovery: AD,
-		mem_span: util::MemSpan,
-	) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD) -> Self {
 		Self {
 			keystore,
 			last_session_index: None,
@@ -131,7 +122,6 @@ where
 			connected_authorities: HashMap::new(),
 			connected_authorities_by_peer_id: HashMap::new(),
 			authority_discovery,
-			mem_span: Arc::new(mem_span),
 		}
 	}
 

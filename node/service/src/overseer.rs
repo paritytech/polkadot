@@ -266,7 +266,6 @@ where
 		.gossip_support(GossipSupportSubsystem::new(
 			keystore.clone(),
 			authority_discovery_service.clone(),
-			mem_visor.span("gossip-support"),
 		))
 		.dispute_coordinator(DisputeCoordinatorSubsystem::new(
 			parachains_db.clone(),
