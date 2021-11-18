@@ -263,11 +263,17 @@ pub struct ParaGenesisArgs {
 /// This enum describes a reason why a particular PVF pre-checking voting was initiated. When the
 /// PVF voting in question is concluded, this enum indicates what changes should be performed.
 #[derive(Encode, Decode, TypeInfo)]
-enum PvfCheckCause {
+enum PvfCheckCause<BlockNumber> {
 	/// PVF voting was initiated by the initial onboarding process of the given para.
 	Onboarding(ParaId),
 	/// PVF voting was initated by signalling of an upgrade by the given para.
-	Upgrade(ParaId),
+	Upgrade {
+		/// The ID of the parachain that initiated or is waiting for the conclusion of pre-checking.
+		id: ParaId,
+		/// The relay-chain block number that was used as the relay-parent for the parablock that
+		/// initiated the upgrade.
+		relay_parent_number: BlockNumber,
+	},
 }
 
 /// Specifies what was the outcome of a PVF pre-checking voting.
@@ -294,11 +300,11 @@ struct PvfCheckVotingState<BlockNumber> {
 	/// The block number at which this PVF voting was created.
 	created_at: BlockNumber,
 	/// A list of causes for this PVF pre-checking. Has at least one.
-	causes: Vec<PvfCheckCause>,
+	causes: Vec<PvfCheckCause<BlockNumber>>,
 }
 
 impl<BlockNumber> PvfCheckVotingState<BlockNumber> {
-	fn new(now: BlockNumber, n_validators: usize, cause: PvfCheckCause) -> Self {
+	fn new(now: BlockNumber, n_validators: usize, cause: PvfCheckCause<BlockNumber>) -> Self {
 		let mut causes = Vec::with_capacity(1);
 		causes.push(cause);
 		Self {
@@ -773,7 +779,6 @@ pub mod pallet {
 							&stmt.subject,
 							&voting.causes,
 							voting.age,
-							voting.created_at,
 							&cfg,
 						);
 					},
@@ -1146,9 +1151,8 @@ impl<T: Config> Pallet<T> {
 	fn enact_pvf_accepted(
 		now: T::BlockNumber,
 		code_hash: &ValidationCodeHash,
-		causes: &[PvfCheckCause],
+		causes: &[PvfCheckCause<T::BlockNumber>],
 		sessions_observed: SessionIndex,
-		code_inserted_at: T::BlockNumber,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
 		let mut weight = 0;
@@ -1157,9 +1161,9 @@ impl<T: Config> Pallet<T> {
 				PvfCheckCause::Onboarding(id) => {
 					weight += Self::proceed_with_onboarding(*id, sessions_observed);
 				},
-				PvfCheckCause::Upgrade(id) => {
+				PvfCheckCause::Upgrade { id, relay_parent_number } => {
 					weight +=
-						Self::proceed_with_upgrade(*id, code_hash, now, code_inserted_at, cfg);
+						Self::proceed_with_upgrade(*id, code_hash, now, *relay_parent_number, cfg);
 				},
 			}
 		}
@@ -1190,15 +1194,25 @@ impl<T: Config> Pallet<T> {
 		id: ParaId,
 		code_hash: &ValidationCodeHash,
 		now: T::BlockNumber,
-		code_inserted_at: T::BlockNumber,
+		relay_parent_number: T::BlockNumber,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
 	) -> Weight {
 		let mut weight = 0;
 
-		// Schedule upgrade to happen after a mandatory PVF code soaking period, but
-		// make sure it is no earlier than the minimum schedule delay.
+		// Compute the relay-chain block number starting at which the code upgrade is ready to be
+		// applied.
+		//
+		// The first parablock that has a relay-parent higher or at the same height of `expected_at`
+		// will trigger the code upgrade. The parablock that comes after that will be validated
+		// against the new validation code.
+		//
+		// Here we are trying to choose the block number that will have `validation_upgrade_delay`
+		// blocks from the relay-parent of the block that schedule code upgrade but no less than
+		// `minimum_validation_upgrade_delay`. We want this delay out of caution so that when
+		// the last vote for pre-checking comes the parachain will have some time until the upgrade
+		// finally takes place.
 		let expected_at = cmp::max(
-			code_inserted_at + cfg.validation_upgrade_delay,
+			relay_parent_number + cfg.validation_upgrade_delay,
 			now + cfg.minimum_validation_upgrade_delay,
 		);
 
@@ -1219,7 +1233,10 @@ impl<T: Config> Pallet<T> {
 		weight
 	}
 
-	fn enact_pvf_rejected(code_hash: &ValidationCodeHash, causes: Vec<PvfCheckCause>) -> Weight {
+	fn enact_pvf_rejected(
+		code_hash: &ValidationCodeHash,
+		causes: Vec<PvfCheckCause<T::BlockNumber>>,
+	) -> Weight {
 		let mut weight = T::DbWeight::get().writes(1);
 
 		for cause in causes {
@@ -1228,19 +1245,19 @@ impl<T: Config> Pallet<T> {
 			weight += Self::decrease_code_ref(code_hash);
 
 			match cause {
-				PvfCheckCause::Onboarding(para) => {
+				PvfCheckCause::Onboarding(id) => {
 					// Here we need to undo everything that was done during `schedule_para_initialize`.
 					// Essentially, the logic is similar to offboarding, with exception that before
 					// actual onboarding the parachain did not have a chance to reach to upgrades.
 					// Therefore we can skip all the upgrade related storage items here.
 					weight += T::DbWeight::get().writes(3);
-					UpcomingParasGenesis::<T>::remove(&para);
-					CurrentCodeHash::<T>::remove(&para);
-					ParaLifecycles::<T>::remove(&para);
+					UpcomingParasGenesis::<T>::remove(&id);
+					CurrentCodeHash::<T>::remove(&id);
+					ParaLifecycles::<T>::remove(&id);
 				},
-				PvfCheckCause::Upgrade(para) => {
+				PvfCheckCause::Upgrade { id, .. } => {
 					weight += T::DbWeight::get().writes(1);
-					UpgradeGoAheadSignal::<T>::insert(&para, UpgradeGoAhead::Abort);
+					UpgradeGoAheadSignal::<T>::insert(&id, UpgradeGoAhead::Abort);
 				},
 			}
 		}
@@ -1467,13 +1484,18 @@ impl<T: Config> Pallet<T> {
 			upgrade_cooldowns.insert(insert_idx, (id, next_possible_upgrade_at));
 		});
 
-		weight += Self::kick_off_pvf_check(PvfCheckCause::Upgrade(id), code_hash, new_code, cfg);
+		weight += Self::kick_off_pvf_check(
+			PvfCheckCause::Upgrade { id, relay_parent_number },
+			code_hash,
+			new_code,
+			cfg,
+		);
 
 		weight
 	}
 
 	fn kick_off_pvf_check(
-		cause: PvfCheckCause,
+		cause: PvfCheckCause<T::BlockNumber>,
 		code_hash: ValidationCodeHash,
 		code: ValidationCode,
 		cfg: &configuration::HostConfiguration<T::BlockNumber>,
@@ -1492,7 +1514,7 @@ impl<T: Config> Pallet<T> {
 					// - the PVF checking is diabled
 					// In any case: fast track the PVF checking into the accepted state
 					let now = <frame_system::Pallet<T>>::block_number();
-					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, now, cfg);
+					weight += Self::enact_pvf_accepted(now, &code_hash, &[cause], 0, cfg);
 				} else {
 					// PVF is not being pre-checked and it is not known. Start a new pre-checking
 					// process.
