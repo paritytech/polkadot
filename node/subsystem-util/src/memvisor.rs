@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot Memvisor helper for tracing memory usage across subsystems.
+//! Helpers for tracing memory usage across subsystems.
 
 #![forbid(unused_imports)]
 
@@ -32,7 +32,7 @@ use crate::{
 const DEFAULT_SUBSYSTEM_NAME: &'static str = "default";
 const DEFAULT_SPAN_NAME: &'static str = DEFAULT_SUBSYSTEM_NAME;
 
-/// Mem visor metrics wrapper.
+/// Metrics wrapper.
 #[derive(Default, Clone)]
 #[cfg_attr(test, derive(Debug))]
 pub struct MemVisorMetrics(Option<MemVisorMetricsInner>);
@@ -41,7 +41,7 @@ pub struct MemVisorMetrics(Option<MemVisorMetricsInner>);
 #[derive(Clone)]
 #[cfg_attr(test, derive(Debug))]
 pub struct MemVisorMetricsInner {
-	/// Counters for memory (de)allocation.
+	/// Counters for memory cumulative allocation/free.
 	/// Labels:
 	/// - `span_name`
 	/// - `subsystem_name`

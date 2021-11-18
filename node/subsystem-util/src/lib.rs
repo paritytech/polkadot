@@ -641,7 +641,7 @@ struct JobSubsystemParams<Spawner, RunArgs, Metrics> {
 	run_args: RunArgs,
 	/// Metrics for the subsystem.
 	metrics: Metrics,
-	/// Mem span.
+	/// Root memory span.
 	mem_span: MemSpan,
 }
 
