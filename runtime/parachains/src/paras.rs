@@ -2083,10 +2083,8 @@ mod tests {
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 			let expected_at = {
-				// the upgrade is scheduled at block #2 and instantly enacted (because pvf checking
-				// is disabled). At the same time, the upgrade frequency (cooldown) is counted from
-				// the relay-parent which is 1.
-				let expected_at = 2 + validation_upgrade_delay;
+				// this parablock is in the context of block 1.
+				let expected_at = 1 + validation_upgrade_delay;
 				let next_possible_upgrade_at = 1 + validation_upgrade_frequency;
 				Paras::schedule_code_upgrade(
 					para_id,
@@ -2191,10 +2189,8 @@ mod tests {
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 			let expected_at = {
-				// the upgrade is scheduled at block #2 and instantly enacted (because pvf checking
-				// is disabled). At the same time, the upgrade frequency (cooldown) is counted from
-				// the relay-parent which is 1.
-				let expected_at = 2 + validation_upgrade_delay;
+				// this parablock is in the context of block 1.
+				let expected_at = 1 + validation_upgrade_delay;
 				let next_possible_upgrade_at = 1 + validation_upgrade_frequency;
 				Paras::schedule_code_upgrade(
 					para_id,
@@ -2343,9 +2339,8 @@ mod tests {
 			check_code_is_stored(&original_code);
 
 			let expected_at = {
-				// `schdule_code_upgrade` inserts the code at the relay-block 2 and then it has
-				// to go through the validation upgrade delay (soaking).
-				let expected_at = 2 + validation_upgrade_delay;
+				// this parablock is in the context of block 1.
+				let expected_at = 1 + validation_upgrade_delay;
 				Paras::schedule_code_upgrade(
 					para_id,
 					new_code.clone(),
@@ -2369,22 +2364,26 @@ mod tests {
 
 			// Enact the upgrade.
 			//
-			// For that run to block #8 and submit a new head.
-			assert_eq!(expected_at, 8);
-			run_to_block(8, None);
-			assert_eq!(<frame_system::Pallet<Test>>::block_number(), 8);
+			// For that run to block #7 and submit a new head.
+			assert_eq!(expected_at, 7);
+			run_to_block(7, None);
+			assert_eq!(<frame_system::Pallet<Test>>::block_number(), 7);
 			Paras::note_new_head(para_id, Default::default(), expected_at);
 
 			assert_ok!(Paras::schedule_para_cleanup(para_id));
 
-			// run to block #10, with a 2 session changes at the end of the block 8 & 9.
-			run_to_block(10, Some(vec![9, 10]));
+			// run to block #10, with a 2 session changes at the end of the block 7 & 8 (so 8 and 9
+			// observe the new sessions).
+			run_to_block(10, Some(vec![8, 9]));
 
 			// cleaning up the parachain should place the current parachain code
 			// into the past code buffer & schedule cleanup.
-			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(9));
-			assert_eq!(<Paras as Store>::PastCodeHash::get(&(para_id, 9)), Some(new_code.hash()));
-			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 8), (para_id, 9)]);
+			//
+			// Why 7 and 8? See above, the clean up scheduled above was processed at the block 8.
+			// The initial upgrade was enacted at the block 7.
+			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(8));
+			assert_eq!(<Paras as Store>::PastCodeHash::get(&(para_id, 8)), Some(new_code.hash()));
+			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 7), (para_id, 8)]);
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
 
@@ -2395,13 +2394,13 @@ mod tests {
 			assert!(Paras::current_code(&para_id).is_none());
 
 			// run to do the final cleanup
-			let cleaned_up_at = 9 + code_retention_period + 1;
+			let cleaned_up_at = 8 + code_retention_period + 1;
 			run_to_block(cleaned_up_at, None);
 
 			// now the final cleanup: last past code cleaned up, and this triggers meta cleanup.
 			assert_eq!(Paras::past_code_meta(&para_id), Default::default());
+			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 7)).is_none());
 			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 8)).is_none());
-			assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 9)).is_none());
 			assert!(<Paras as Store>::PastCodePruning::get().is_empty());
 			check_code_is_not_stored(&original_code);
 			check_code_is_not_stored(&new_code);
@@ -2413,8 +2412,19 @@ mod tests {
 		let code_a = ValidationCode(vec![2]);
 		let code_b = ValidationCode(vec![1]);
 		let code_c = ValidationCode(vec![3]);
+		
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					pvf_checking_enabled: true,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
 
-		new_test_ext(Default::default()).execute_with(|| {
+		new_test_ext(genesis_config).execute_with(|| {
 			run_to_block(1, Some(vec![1]));
 
 			let b = ParaId::from(525);

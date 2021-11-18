@@ -233,7 +233,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
 			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
-			pvf_checking_enabled: true,
+			pvf_checking_enabled: false,
 			minimum_validation_upgrade_delay: Default::default(),
 		}
 	}
@@ -1099,7 +1099,7 @@ mod tests {
 				hrmp_max_parathread_outbound_channels: 200,
 				hrmp_max_message_num_per_candidate: 20,
 				ump_max_individual_weight: 909,
-				pvf_checking_enabled: true,          // TODO: not correct
+				pvf_checking_enabled: false,          // TODO: not correct
 				minimum_validation_upgrade_delay: 0, // TODO: not correct
 			};
 
