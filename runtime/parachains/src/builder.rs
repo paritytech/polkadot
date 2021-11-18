@@ -523,8 +523,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Build a scenario for testing or benchmarks.
 	///
-	/// Note that this only allows api only allow building scenarios where the
-	/// `backed_and_concluding_cores` are mutually exclusive with the cores for disputes. So
+	/// Note that this api only allows building scenarios where the `backed_and_concluding_cores`
+	/// are mutually exclusive with the cores for disputes. So
 	/// `backed_and_concluding_cores.len() + dispute_sessions.len()` must be less than the max
 	/// number of cores.
 	///

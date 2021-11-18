@@ -1292,7 +1292,7 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					dispute_sessions: vec![2, 2, 1], // 3 cores, all disputes
+					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 6,
 					includes_code_upgrade: None,
@@ -1338,7 +1338,7 @@ mod tests {
 
 				let scenario = make_inherent_data(TestConfig {
 					dispute_statements,
-					dispute_sessions: vec![2, 2, 1], // 3 cores, all disputes
+					dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 					backed_and_concluding,
 					num_validators_per_core: 4,
 					includes_code_upgrade: None,
