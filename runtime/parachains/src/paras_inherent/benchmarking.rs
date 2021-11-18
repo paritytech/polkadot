@@ -29,7 +29,7 @@ benchmarks! {
 		let v in 10..BenchBuilder::<T>::fallback_max_validators();
 
 		let scenario = BenchBuilder::<T>::new()
-			.build(Default::default(), &[], None);
+			.build(Default::default(), &[2], None);
 
 		let mut benchmark = scenario.data.clone();
 		let dispute = benchmark.disputes.pop().unwrap();
