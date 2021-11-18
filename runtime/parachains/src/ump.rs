@@ -177,7 +177,7 @@ pub trait WeightInfo {
 	fn perform_outgoing_para_cleanup() -> Weight;
 }
 
-// fallback implementation
+/// fallback implementation
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn service_overweight() -> Weight {
