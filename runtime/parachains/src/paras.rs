@@ -287,15 +287,15 @@ enum PvfCheckOutcome {
 #[derive(Encode, Decode, TypeInfo)]
 struct PvfCheckVotingState<BlockNumber> {
 	// The two following vectors have their length equal to the number of validators in the active
-	// set. They start with all zeroes. A 1 is set at an index when the validator at the same index
-	// makes a vote. Once a 1 is set for either of the vector, that validator cannot vote anymore.
+	// set. They start with all zeroes. A 1 is set at an index when the validator at the that index
+	// makes a vote. Once a 1 is set for either of the vectors, that validator cannot vote anymore.
 	// Since the active validator set changes each session, the bit vectors are reinitialized as
-	// well.
+	// well: zeroed and resized so that each validator gets its own bit.
 	votes_accept: BitVec<BitOrderLsb0, u8>,
 	votes_reject: BitVec<BitOrderLsb0, u8>,
 
 	/// The number of session changes this PVF voting has observed. Therefore, this number is
-	/// increased at each session boundary. Starts with 0.
+	/// increased at each session boundary. When created, it is initialized with 0.
 	age: SessionIndex,
 	/// The block number at which this PVF voting was created.
 	created_at: BlockNumber,
@@ -304,6 +304,8 @@ struct PvfCheckVotingState<BlockNumber> {
 }
 
 impl<BlockNumber> PvfCheckVotingState<BlockNumber> {
+	/// Returns a new instance of voting state, started at the specified block `now`, with the
+	/// number of validators in the current session `n_validators` and the originating `cause`.
 	fn new(now: BlockNumber, n_validators: usize, cause: PvfCheckCause<BlockNumber>) -> Self {
 		let mut causes = Vec::with_capacity(1);
 		causes.push(cause);
@@ -316,7 +318,8 @@ impl<BlockNumber> PvfCheckVotingState<BlockNumber> {
 		}
 	}
 
-	/// Resets all votes and resizes the votes vectors.
+	/// Resets all votes and resizes the votes vectors corresponding to the number of validators
+	/// in the new session.
 	fn reinitialize_ballots(&mut self, n_validators: usize) {
 		let clear_and_resize = |v: &mut BitVec<_, _>| {
 			v.clear();
@@ -326,7 +329,8 @@ impl<BlockNumber> PvfCheckVotingState<BlockNumber> {
 		clear_and_resize(&mut self.votes_reject);
 	}
 
-	/// Returns true if the validator at the given index has already casted their vote.
+	/// Returns true if the validator at the given index has already casted their vote within 
+	/// the ongoing session.
 	fn has_vote(&self, validator_index: usize) -> bool {
 		let inner = || -> Result<bool, ()> {
 			let accept_vote = self.votes_accept.get(validator_index).ok_or(())?;
@@ -336,10 +340,10 @@ impl<BlockNumber> PvfCheckVotingState<BlockNumber> {
 
 		inner().unwrap_or_else(|()| {
 			// This should not be reached since the vote vectors have the same length as the active
-			// validator set.
+			// validator set, and the validator index should be within the validator set length.
 			log::warn!(
 				target: "runtime::paras",
-				"vote bitfields has bogus length: {}, {}",
+				"vote bitfields has unexpected length: {}, {}",
 				self.votes_accept.len(),
 				self.votes_reject.len(),
 			);
