@@ -2412,13 +2412,10 @@ mod tests {
 		let code_a = ValidationCode(vec![2]);
 		let code_b = ValidationCode(vec![1]);
 		let code_c = ValidationCode(vec![3]);
-		
+
 		let genesis_config = MockGenesisConfig {
 			configuration: crate::configuration::GenesisConfig {
-				config: HostConfiguration {
-					pvf_checking_enabled: true,
-					..Default::default()
-				},
+				config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
 				..Default::default()
 			},
 			..Default::default()

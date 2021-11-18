@@ -1099,7 +1099,7 @@ mod tests {
 				hrmp_max_parathread_outbound_channels: 200,
 				hrmp_max_message_num_per_candidate: 20,
 				ump_max_individual_weight: 909,
-				pvf_checking_enabled: false,          // TODO: not correct
+				pvf_checking_enabled: false,         // TODO: not correct
 				minimum_validation_upgrade_delay: 0, // TODO: not correct
 			};
 
