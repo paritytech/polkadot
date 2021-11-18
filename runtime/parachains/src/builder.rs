@@ -21,6 +21,10 @@ use sp_runtime::{
 };
 use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
 
+fn dummy_validation_code() -> ValidationCode {
+	ValidationCode(vec![1, 2, 3])
+}
+
 /// Grab an account, seeded by a name and index.
 ///
 /// This is directly from frame-benchmarking. Copy/pasted so we can use it when not compiling with
@@ -239,7 +243,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				para_id,
 				paras::ParaGenesisArgs {
 					genesis_head: Default::default(),
-					validation_code: Default::default(),
+					validation_code: dummy_validation_code(),
 					parachain: true,
 				},
 			)
@@ -394,9 +398,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				.hash();
 
 				let pov_hash = Default::default();
-				// NOTE: we use the default `ValidationCode` when setting it in `setup_para_ids`,
-				// so using the default again here makes sure things line up.
-				let validation_code_hash = ValidationCode::default().hash();
+				let validation_code_hash = dummy_validation_code().hash();
 				let payload = collator_signature_payload(
 					&relay_parent,
 					&para_id,
