@@ -645,7 +645,7 @@ impl<T: Config> Pallet<T> {
 	// Go over the HRMP open channel requests and remove all in which offboarding paras participate.
 	//
 	// This will also perform the refunds for the counterparty if it doesn't offboard.
-	pub fn clean_open_channel_requests(
+	pub(crate) fn clean_open_channel_requests(
 		config: &HostConfiguration<T::BlockNumber>,
 		outgoing: &[ParaId],
 	) -> Weight {
@@ -1160,7 +1160,10 @@ impl<T: Config> Pallet<T> {
 		{
 			// this should never happen unless the max downward message size is configured to an
 			// jokingly small number.
-			log::error!(target: "runtime::hrmp", "sending 'init_open_channel::notification_bytes' failed.");
+			log::error!(
+				target: "runtime::hrmp",
+				"sending 'init_open_channel::notification_bytes' failed."
+			);
 			debug_assert!(false);
 		}
 
@@ -1215,7 +1218,10 @@ impl<T: Config> Pallet<T> {
 		{
 			// this should never happen unless the max downward message size is configured to an
 			// jokingly small number.
-			log::error!(target: "runtime::hrmp", "sending 'accept_open_channel::notification_bytes' failed.");
+			log::error!(
+				target: "runtime::hrmp",
+				"sending 'accept_open_channel::notification_bytes' failed."
+			);
 			debug_assert!(false);
 		}
 
@@ -1290,7 +1296,10 @@ impl<T: Config> Pallet<T> {
 		{
 			// this should never happen unless the max downward message size is configured to an
 			// jokingly small number.
-			log::error!(target: "runtime::hrmp", "sending 'close_channel::notification_bytes' failed.");
+			log::error!(
+				target: "runtime::hrmp",
+				"sending 'close_channel::notification_bytes' failed."
+			);
 			debug_assert!(false);
 		}
 

@@ -152,8 +152,21 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"pvf_preparation_time",
-						"Time spent in preparing PVF artifacts",
+						"Time spent in preparing PVF artifacts in seconds",
 					)
+					.buckets(vec![
+						// This is synchronized with COMPILATION_TIMEOUT=60s constant found in
+						// src/prepare/worker.rs
+						0.1,
+						0.5,
+						1.0,
+						10.0,
+						20.0,
+						30.0,
+						40.0,
+						50.0,
+						60.0,
+					]),
 				)?,
 				registry,
 			)?,
@@ -208,7 +221,7 @@ impl<'a> WorkerRelatedMetrics<'a> {
 	/// When the worker was killed or died.
 	pub(crate) fn on_retired(&self) {
 		if let Some(metrics) = &self.metrics.0 {
-			metrics.worker_spawned.with_label_values(&[self.flavor.as_label()]).inc();
+			metrics.worker_retired.with_label_values(&[self.flavor.as_label()]).inc();
 		}
 	}
 }

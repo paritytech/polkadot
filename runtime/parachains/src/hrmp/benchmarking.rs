@@ -148,14 +148,16 @@ frame_benchmarking::benchmarks! {
 	}
 
 	hrmp_accept_open_channel {
-		let [(sender, _), (recipient, recipient_origin)] = establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
+		let [(sender, _), (recipient, recipient_origin)] =
+			establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
 	}: _(recipient_origin, sender)
 	verify {
 		assert_last_event::<T>(Event::<T>::OpenChannelAccepted(sender, recipient).into());
 	}
 
 	hrmp_close_channel {
-		let [(sender, sender_origin), (recipient, _)] = establish_para_connection::<T>(1, 2, ParachainSetupStep::Established);
+		let [(sender, sender_origin), (recipient, _)] =
+			establish_para_connection::<T>(1, 2, ParachainSetupStep::Established);
 		let channel_id = HrmpChannelId { sender, recipient };
 	}: _(sender_origin, channel_id.clone())
 	verify {
@@ -176,8 +178,12 @@ frame_benchmarking::benchmarks! {
 		assert!(<T as configuration::Config>::HrmpMaxOutboundChannelsBound::get() < PREFIX_0);
 
 		// first, update the configs to support this many open channels...
-		assert_ok!(Configuration::<T>::set_hrmp_max_parachain_outbound_channels(frame_system::RawOrigin::Root.into(), e + 1));
-		assert_ok!(Configuration::<T>::set_hrmp_max_parachain_inbound_channels(frame_system::RawOrigin::Root.into(), i + 1));
+		assert_ok!(
+			Configuration::<T>::set_hrmp_max_parachain_outbound_channels(frame_system::RawOrigin::Root.into(), e + 1)
+		);
+		assert_ok!(
+			Configuration::<T>::set_hrmp_max_parachain_inbound_channels(frame_system::RawOrigin::Root.into(), i + 1)
+		);
 		// .. and enact it.
 		Configuration::<T>::initializer_on_new_session(&Shared::<T>::scheduled_session());
 
@@ -252,7 +258,8 @@ frame_benchmarking::benchmarks! {
 			let _ = establish_para_connection::<T>(PREFIX_0 + id, PREFIX_1 + id, ParachainSetupStep::Requested);
 		}
 
-		let [(sender, sender_origin), (recipient, _)] = establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
+		let [(sender, sender_origin), (recipient, _)] =
+			establish_para_connection::<T>(1, 2, ParachainSetupStep::Requested);
 		assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, c + 1);
 		let channel_id = HrmpChannelId { sender, recipient };
 	}: _(sender_origin, channel_id, c + 1)

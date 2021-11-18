@@ -197,7 +197,8 @@ impl TestState {
 		// lock ;-)
 		let update_tx = tx.clone();
 		harness.pool.spawn(
-			"Sending active leaves updates",
+			"sending-active-leaves-updates",
+			None,
 			async move {
 				for update in updates {
 					overseer_signal(update_tx.clone(), OverseerSignal::ActiveLeaves(update)).await;
@@ -215,7 +216,7 @@ impl TestState {
 			match msg {
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendRequests(
 					reqs,
-					IfDisconnected::TryConnect,
+					IfDisconnected::ImmediateError,
 				)) => {
 					for req in reqs {
 						// Forward requests:
@@ -308,7 +309,8 @@ fn to_incoming_req(
 			let (tx, rx): (oneshot::Sender<netconfig::OutgoingResponse>, oneshot::Receiver<_>) =
 				oneshot::channel();
 			executor.spawn(
-				"Message forwarding",
+				"message-forwarding",
+				None,
 				async {
 					let response = rx.await;
 					let payload = response.expect("Unexpected canceled request").result;
