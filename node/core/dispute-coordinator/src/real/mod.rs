@@ -877,7 +877,7 @@ async fn handle_import_statements(
 	// In case we are not provided with a candidate receipt
 	// we operate under the assumption, that a previous vote
 	// which included a `CandidateReceipt` was seen.
-	// This holds since every block is preceeded by the `Backing`-phase.
+	// This holds since every block is preceded by the `Backing`-phase.
 	//
 	// There is one exception: A sufficiently sophisticated attacker could prevent
 	// us from seeing the backing votes by witholding arbitrary blocks, and hence we do
