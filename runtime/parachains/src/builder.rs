@@ -154,7 +154,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Minimum number of validity votes in order for a backed candidate to be included.
 	#[cfg(feature = "runtime-benchmarks")]
 	pub(crate) fn fallback_min_validity_votes() -> u32 {
-		(Self::fallback_max_validators() / 2) + 1
+		(Self::fallback_max_validators_per_core() / 2) + 1
 	}
 
 	fn create_indexes(&self, seed: u32) -> (ParaId, CoreIndex, GroupIndex) {
@@ -439,7 +439,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 				let candidate_hash = candidate.hash();
 
-				let mut validity_votes: Vec<_> = group_validators
+				let validity_votes: Vec<_> = group_validators
 					.iter()
 					.take(*num_votes as usize)
 					.map(|val_idx| {
@@ -455,33 +455,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						ValidityAttestation::Explicit(sig.clone())
 					})
 					.collect();
-
-				if validity_votes.len() < *num_votes as usize {
-					// The configuration demands more validity votes than validators in the group,
-					// so we add more votes
-
-					let mut val_idx = ValidatorIndex(0);
-					while validity_votes.len() < *num_votes as usize {
-						val_idx.0 += 1;
-						log::info!("VAL IDX A {:?}", val_idx);
-						assert!((val_idx.0 as usize) < validators.len());
-						if group_validators.contains(&val_idx) {
-							// don't make a second sig for validators who have already signed.
-							continue
-						}
-
-						let public = validators.get(val_idx.0 as usize).unwrap();
-						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
-							public,
-							CompactStatement::Valid(candidate_hash.clone()),
-							&self.signing_context(),
-							val_idx,
-						)
-						.benchmark_signature();
-
-						validity_votes.push(ValidityAttestation::Explicit(sig.clone()));
-					}
-				}
 
 				BackedCandidate::<T::Hash> {
 					candidate,

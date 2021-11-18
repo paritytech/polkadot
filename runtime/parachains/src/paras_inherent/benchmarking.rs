@@ -85,13 +85,12 @@ benchmarks! {
 	// Variant over `v`, the amount of validity votes for a backed candidate. This gives the weight
 	// of a single backed candidate.
 	enter_backed_candidates_variable {
-		// NOTE: the starting value must be over half of `max_validators` so the backed candidate is
-		// not rejected.
+		// NOTE: the starting value must be over half of the max validators per group so the backed
+		// candidate is not rejected. Also, we cannot have backing more than validators in
+		// the group.
 		let v
 			in (BenchBuilder::<T>::fallback_min_validity_votes())
-				..BenchBuilder::<T>::fallback_max_validators();
-
-		Included::<T>::take(); // TODO figure out why this is needed
+				..BenchBuilder::<T>::fallback_max_validators_per_core();
 
 		let cores_with_backed: BTreeMap<_, _>
 			= vec![(0, v)] // The backed candidate will have `v` validity votes.
