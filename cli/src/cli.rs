@@ -103,7 +103,7 @@ pub struct RunCmd {
 
 	/// Disable BEEFY gadget.
 	#[structopt(long)]
-	pub no_beefy: bool,
+	pub beefy: bool,
 
 	/// Add the destination address to the jaeger agent.
 	///
