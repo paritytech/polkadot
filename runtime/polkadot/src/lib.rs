@@ -566,13 +566,35 @@ impl pallet_identity::Config for Runtime {
 	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
 }
 
+#[cfg(feature = "fast-runtime")]
+pub const LAUNCH_PERIOD: BlockNumber = 1 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const VOTING_PERIOD: BlockNumber =  1 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 1 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const ENACTMENT_PERIOD: BlockNumber = 1 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const COOLOFF_PERIOD: BlockNumber = 1 * MINUTES;
+
+#[cfg(not(feature = "fast-runtime"))]
+pub const LAUNCH_PERIOD: BlockNumber = 28 * DAYS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const VOTING_PERIOD: BlockNumber = 28 * DAYS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 3 * HOURS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const ENACTMENT_PERIOD: BlockNumber = 28 * DAYS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const COOLOFF_PERIOD: BlockNumber = 7 * DAYS;
+
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = 28 * DAYS;
-	pub const VotingPeriod: BlockNumber = 28 * DAYS;
-	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
+	pub const LaunchPeriod: BlockNumber = LAUNCH_PERIOD;
+	pub const VotingPeriod: BlockNumber = VOTING_PERIOD;
+	pub const FastTrackVotingPeriod: BlockNumber = FAST_TRACK_VOTING_PERIOD;
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
-	pub const EnactmentPeriod: BlockNumber = 28 * DAYS;
-	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
+	pub const EnactmentPeriod: BlockNumber = ENACTMENT_PERIOD;
+	pub const CooloffPeriod: BlockNumber = COOLOFF_PERIOD;
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 	pub const InstantAllowed: bool = true;
