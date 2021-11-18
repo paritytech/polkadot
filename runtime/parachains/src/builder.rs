@@ -523,8 +523,10 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Build a scenario for testing or benchmarks.
 	///
-	/// Note that this only allows  cores with backed candidates / becoming available to be
-	/// mutually exclusive of cores of with disputes.
+	/// Note that this only allows api only allow building scenarios where the
+	/// `backed_and_concluding_cores` are mutually exclusive with the cores for disputes. So
+	/// `backed_and_concluding_cores.len() + dispute_sessions.len()` must be less than the max
+	/// number of cores.
 	///
 	/// - `backed_and_concluding_cores`: Map from core/para id/group index seed to number of
 	/// validity votes.
