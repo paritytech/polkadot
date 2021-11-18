@@ -324,6 +324,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			data: ParachainsInherentData<T::Header>,
 		) -> DispatchResultWithPostInfo {
+			log::info!("ENTER");
 			ensure_none(origin)?;
 
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);

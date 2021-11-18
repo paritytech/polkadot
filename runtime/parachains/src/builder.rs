@@ -462,6 +462,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 					let mut val_idx = ValidatorIndex(0);
 					while validity_votes.len() < *num_votes as usize {
+						val_idx.0 += 1;
+						log::info!("VAL IDX A {:?}", val_idx);
+						assert!((val_idx.0 as usize) < validators.len());
 						if group_validators.contains(&val_idx) {
 							// don't make a second sig for validators who have already signed.
 							continue
@@ -477,8 +480,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						.benchmark_signature();
 
 						validity_votes.push(ValidityAttestation::Explicit(sig.clone()));
-
-						val_idx.0 += 1;
 					}
 				}
 

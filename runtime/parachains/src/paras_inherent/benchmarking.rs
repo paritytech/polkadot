@@ -91,6 +91,8 @@ benchmarks! {
 			in (BenchBuilder::<T>::fallback_min_validity_votes())
 				..BenchBuilder::<T>::fallback_max_validators();
 
+		Included::<T>::take(); // TODO figure out why this is needed
+
 		let cores_with_backed: BTreeMap<_, _>
 			= vec![(0, v)] // The backed candidate will have `v` validity votes.
 				.into_iter()
