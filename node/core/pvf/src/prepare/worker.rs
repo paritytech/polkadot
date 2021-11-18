@@ -342,7 +342,7 @@ fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String {
 		Err(payload) => match payload.downcast::<String>() {
 			Ok(msg) => *msg,
 			// At least we tried...
-			Err(_) => "Box<Any>".to_string(),
+			Err(_) => "unkown panic payload".to_string(),
 		},
 	}
 }
