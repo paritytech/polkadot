@@ -106,6 +106,10 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::Call>, C: Config> UmpSink for XcmSi
 		.map(|xcm| {
 			(
 				Xcm::<C::Call>::try_from(xcm),
+				// NOTE: We are overestimating slightly here.
+				// The benchmark is timing this whole function with different message sizes and a NOOP extrinsic to
+				// measure the size-dependent weight. But as we use the weight funtion **in** the benchmarked funtion we
+				// are taking call and control-flow overhead into account twice.
 				<C as Config>::WeightInfo::process_upward_message(data.len() as u32),
 			)
 		});
