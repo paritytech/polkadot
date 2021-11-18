@@ -26,6 +26,8 @@ pub enum PrepareError {
 	Prevalidation(String),
 	/// Compilation failed for the given PVF.
 	Preparation(String),
+	/// An unexpected panic has occured in the preparation worker.
+	Panic(String),
 	/// Failed to prepare the PVF due to the time limit.
 	TimedOut,
 	/// This state indicates that the process assigned to prepare the artifact wasn't responsible
@@ -77,8 +79,9 @@ pub enum InvalidCandidate {
 impl From<PrepareError> for ValidationError {
 	fn from(error: PrepareError) -> Self {
 		let error_str = match error {
-			PrepareError::Prevalidation(err) => err,
-			PrepareError::Preparation(err) => err,
+			PrepareError::Prevalidation(err) => format!("prevalidation: {}", err),
+			PrepareError::Preparation(err) => format!("preparation: {}", err),
+			PrepareError::Panic(err) => format!("panic: {}", err),
 			PrepareError::TimedOut => "preparation timeout".to_owned(),
 			PrepareError::DidNotMakeIt => "communication error".to_owned(),
 		};
