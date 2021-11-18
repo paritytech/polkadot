@@ -35,7 +35,7 @@ use std::{
 
 use crate::backend::{Backend, BackendWriteOp, OverlayedBackend};
 use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
-use polkadot_node_subsystem_util::memvisor::MemSpan;
+use polkadot_node_subsystem_util::{mem_span, memvisor::MemSpan};
 use std::convert::TryInto;
 
 mod backend;
@@ -385,7 +385,7 @@ async fn run_until_error<Context, B>(
 	backend: &mut B,
 	stagnant_check_interval: &StagnantCheckInterval,
 	clock: &(dyn Clock + Sync),
-	mut span: MemSpan,
+	root_span: MemSpan,
 ) -> Result<(), Error>
 where
 	Context: SubsystemContext<Message = ChainSelectionMessage>,
@@ -396,61 +396,63 @@ where
 	// TODO: Macro to measure memory/send metris/log on each loop.
 	// Params: an array of objects that we want to collect mem usage info about inside span.
 	loop {
-		span.start(backend.malloc_size_of().try_into().unwrap_or(0));
-		tracing::error!(target: LOG_TARGET, "Start size: {}", backend.malloc_size_of());
+		// span.start(backend.malloc_size_of().try_into().unwrap_or(0));
+		mem_span! {
+			root_span,
+			"key-value-db",
+			backend,
 
-		futures::select! {
-			msg = ctx.recv().fuse() => {
-				let msg = msg?;
-				match msg {
-					FromOverseer::Signal(OverseerSignal::Conclude) => {
-						return Ok(())
-					}
-					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-						for leaf in update.activated {
-							let write_ops = handle_active_leaf(
-								ctx,
-								&*backend,
-								clock.timestamp_now() + STAGNANT_TIMEOUT,
-								leaf.hash,
-							).await?;
-
-							backend.write(write_ops)?;
+			futures::select! {
+				msg = ctx.recv().fuse() => {
+					let msg = msg?;
+					match msg {
+						FromOverseer::Signal(OverseerSignal::Conclude) => {
+							return Ok(())
 						}
-					}
-					FromOverseer::Signal(OverseerSignal::BlockFinalized(h, n)) => {
-						handle_finalized_block(backend, h, n)?
-					}
-					FromOverseer::Communication { msg } => match msg {
-						ChainSelectionMessage::Approved(hash) => {
-							handle_approved_block(backend, hash)?
-						}
-						ChainSelectionMessage::Leaves(tx) => {
-							let leaves = load_leaves(ctx, &*backend).await?;
-							let _ = tx.send(leaves);
-						}
-						ChainSelectionMessage::BestLeafContaining(required, tx) => {
-							let best_containing = crate::backend::find_best_leaf_containing(
-								&*backend,
-								required,
-							)?;
+						FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
+							for leaf in update.activated {
+								let write_ops = handle_active_leaf(
+									ctx,
+									&*backend,
+									clock.timestamp_now() + STAGNANT_TIMEOUT,
+									leaf.hash,
+								).await?;
 
-							// note - this may be none if the finalized block is
-							// a leaf. this is fine according to the expected usage of the
-							// function. `None` responses should just `unwrap_or(required)`,
-							// so if the required block is the finalized block, then voilá.
+								backend.write(write_ops)?;
+							}
+						}
+						FromOverseer::Signal(OverseerSignal::BlockFinalized(h, n)) => {
+							handle_finalized_block(backend, h, n)?
+						}
+						FromOverseer::Communication { msg } => match msg {
+							ChainSelectionMessage::Approved(hash) => {
+								handle_approved_block(backend, hash)?
+							}
+							ChainSelectionMessage::Leaves(tx) => {
+								let leaves = load_leaves(ctx, &*backend).await?;
+								let _ = tx.send(leaves);
+							}
+							ChainSelectionMessage::BestLeafContaining(required, tx) => {
+								let best_containing = crate::backend::find_best_leaf_containing(
+									&*backend,
+									required,
+								)?;
 
-							let _ = tx.send(best_containing);
+								// note - this may be none if the finalized block is
+								// a leaf. this is fine according to the expected usage of the
+								// function. `None` responses should just `unwrap_or(required)`,
+								// so if the required block is the finalized block, then voilá.
+
+								let _ = tx.send(best_containing);
+							}
 						}
 					}
 				}
-			}
-			_ = stagnant_check_stream.next().fuse() => {
-				detect_stagnant(backend, clock.timestamp_now())?;
+				_ = stagnant_check_stream.next().fuse() => {
+					detect_stagnant(backend, clock.timestamp_now())?;
+				}
 			}
 		}
-		span.end(backend.malloc_size_of().try_into().unwrap_or(0));
-		tracing::error!(target: LOG_TARGET, "End size: {}", backend.malloc_size_of());
 	}
 }
 

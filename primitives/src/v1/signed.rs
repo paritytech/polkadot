@@ -26,7 +26,7 @@ use sp_std::convert::TryInto;
 use sp_std::prelude::Vec;
 
 #[cfg(feature = "std")]
-use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
+use parity_util_mem::MallocSizeOf;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 

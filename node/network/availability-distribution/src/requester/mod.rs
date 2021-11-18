@@ -159,7 +159,7 @@ impl Requester {
 				// Just book keeping - we are already requesting that chunk:
 				{
 					e.get_mut().add_leaf(leaf);
-				}
+				},
 				Entry::Vacant(e) => {
 					let tx = self.tx.clone();
 					let metrics = self.metrics.clone();

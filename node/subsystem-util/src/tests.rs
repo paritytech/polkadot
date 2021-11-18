@@ -126,8 +126,13 @@ fn test_harness<T: Future<Output = ()>>(run_args: bool, test: impl FnOnce(Overse
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, overseer_handle) = make_subsystem_context(pool.clone());
 	let memvisor = memvisor::MemVisor::new_dummy();
-	let subsystem =
-		FakeCollatorProtocolSubsystem::new(pool, run_args, (), memvisor.span("test")).run(context);
+	let subsystem = FakeCollatorProtocolSubsystem::new(
+		pool,
+		run_args,
+		(),
+		memvisor.span("fake-collator"),
+	)
+	.run(context);
 	let test_future = test(overseer_handle);
 
 	futures::pin_mut!(subsystem, test_future);
@@ -201,7 +206,8 @@ fn test_subsystem_impl_and_name_derivation() {
 	let memvisor = memvisor::MemVisor::new_dummy();
 
 	let SpawnedSubsystem { name, .. } =
-		FakeCollatorProtocolSubsystem::new(pool, false, (), memvisor.span("test")).start(context);
+		FakeCollatorProtocolSubsystem::new(pool, false, (), memvisor.span("test"))
+			.start(context);
 	assert_eq!(name, "fake-collator-protocol");
 }
 

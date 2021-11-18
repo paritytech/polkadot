@@ -239,7 +239,7 @@ impl JobTrait for BitfieldSigningJob {
 	fn run<S: SubsystemSender>(
 		relay_parent: Hash,
 		span: Arc<jaeger::Span>,
-		mem_span: MemSpan,
+		_mem_span: MemSpan,
 		keystore: Self::RunArgs,
 		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<BitfieldSigningMessage>,
