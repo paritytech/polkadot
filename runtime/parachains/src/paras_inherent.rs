@@ -252,6 +252,8 @@ pub mod pallet {
 			// (`enter`) and the off-chain checks by the block author (this function). Once we are confident
 			// in all the logic in this module this check should be removed to optimize performance.
 
+			log::info!(target: LOG_TARGET, "CREATE F");
+
 			let inherent_data =
 				match Self::enter(frame_system::RawOrigin::None.into(), inherent_data.clone()) {
 					Ok(_) => inherent_data,
@@ -516,8 +518,17 @@ impl<T: Config> Pallet<T> {
 			},
 		};
 
+		log::info!(
+			target: LOG_TARGET,
+			"COUNTS: bitfields: {}. backed_candidates: {}. disputes: {}",
+			bitfields.len(),
+			backed_candidates.len(),
+			disputes.len()
+		);
+
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 
+		log::info!(target: LOG_TARGET, "CREATE A");
 		if parent_hash != parent_header.hash() {
 			log::warn!(
 				target: LOG_TARGET,
@@ -530,6 +541,7 @@ impl<T: Config> Pallet<T> {
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 		let validator_public = shared::Pallet::<T>::active_validator_keys();
 
+		log::info!(target: LOG_TARGET, "CREATE B");
 		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
 		let (concluded_invalid_disputes, mut bitfields, scheduled) =
@@ -624,6 +636,8 @@ impl<T: Config> Pallet<T> {
 					scheduled,
 				))
 			});
+
+		log::info!(target: LOG_TARGET, "CREATE C");
 
 		let mut backed_candidates = sanitize_backed_candidates::<T, _>(
 			parent_hash,

@@ -542,6 +542,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let used_cores = dispute_sessions.len() as u32;
 		assert!(used_cores <= cores);
 
+		log::info!(target: LOG_TARGET, "used_cores {}", used_cores);
+
 		// NOTE: there is an n+2 session delay for these actions to take effect
 		// We are currently in Session 0, so these changes will take effect in Session 2
 		Self::setup_para_ids(used_cores);
