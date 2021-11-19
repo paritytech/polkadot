@@ -969,6 +969,10 @@ fn sanitize_backed_candidates<T: crate::inclusion::Config, F: Fn(CandidateHash) 
 	backed_candidates
 }
 
+/// Derive entropy from babe provided per block randomness.
+///
+/// In the odd case none is available, uses the `parent_hash` and
+/// a const value, while emitting a warning.
 fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
 	let vrf_random = CurrentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
