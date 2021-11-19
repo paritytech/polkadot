@@ -35,10 +35,11 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{self as util, JobSender, JobSubsystem, JobTrait};
 use polkadot_primitives::v1::{
-	BackedCandidate, CandidateReceipt, DisputeStatement, DisputeStatementSet, Hash,
-	MultiDisputeStatementSet, SignedAvailabilityBitfield, SignedAvailabilityBitfields,
+	BackedCandidate, CandidateHash, CandidateReceipt, DisputeStatement, DisputeStatementSet, Hash,
+	Id as ParaId, MultiDisputeStatementSet, SignedAvailabilityBitfield,
+	SignedAvailabilityBitfields,
 };
-use std::{pin::Pin, sync::Arc};
+use std::{collections::HashSet, pin::Pin, sync::Arc};
 use thiserror::Error;
 
 mod metrics;
@@ -276,14 +277,27 @@ async fn collect_backed_candidates(
 	relay_parent: Hash,
 	sender: &mut impl SubsystemSender,
 ) -> Result<Vec<BackedCandidate>, Error> {
+	let max_one_candidate_per_para = HashSet::<ParaId>::with_capacity(candidate_receipts.len());
 	let selected_candidates = candidate_receipts
 		.into_iter()
 		.filter(|candidate_receipt| {
 			// assure the follow up query `GetBackedCandidate` succeeds
 			candidate_receipt.descriptor().relay_parent == relay_parent
 		})
-		.map(|candidate_receipt| candidate_receipt.hash())
-		.collect::<Vec<_>>();
+		.scan(max_one_candidate_per_para, |unique, candidate_receipt| {
+			let para_id = candidate_receipt.descriptor().para_id;
+			if unique.insert(para_id) {
+				Some(candidate_receipt.hash())
+			} else {
+				tracing::debug!(
+					target: LOG_TARGET,
+					?para_id,
+					"Duplicate candidate detected for para, only submitting one",
+				);
+				None
+			}
+		})
+		.collect::<Vec<CandidateHash>>();
 
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();

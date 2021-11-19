@@ -47,7 +47,7 @@ Collects all provided bitfields and forwards them to the runtimes `fn create_inh
 ### Backed Candidate Collection
 
 Selects all referenced candidates the correspond to the
-correct relay chain parent block.
+correct relay chain parent block and assures only one candidate per block is submitted.
 
 The full backed candidate are obtained by issuing a `CandidateBackingMessage::GetBackedCandidates` which yields a `Vec<BackedCandidate>` in response.
 
