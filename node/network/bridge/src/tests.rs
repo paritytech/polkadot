@@ -143,14 +143,14 @@ impl validator_discovery::AuthorityDiscovery for TestAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
 		_authority: AuthorityDiscoveryId,
-	) -> Option<Vec<Multiaddr>> {
+	) -> Option<HashSet<Multiaddr>> {
 		None
 	}
 
-	async fn get_authority_id_by_peer_id(
+	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		_peer_id: PeerId,
-	) -> Option<AuthorityDiscoveryId> {
+	) -> Option<HashSet<AuthorityDiscoveryId>> {
 		None
 	}
 }
@@ -1225,8 +1225,6 @@ fn spread_event_to_subsystems_is_up_to_date() {
 				cnt += 1;
 			},
 			AllMessages::DisputeCoordinator(_) => unreachable!("Not interested in network events"),
-			AllMessages::DisputeParticipation(_) =>
-				unreachable!("Not interested in network events"),
 			AllMessages::DisputeDistribution(_) => unreachable!("Not interested in network events"),
 			AllMessages::ChainSelection(_) => unreachable!("Not interested in network events"),
 			// Add variants here as needed, `{ cnt += 1; }` for those that need to be

@@ -675,7 +675,7 @@ fn fetch_collations_works() {
 }
 
 #[test]
-fn dont_fetch_collation_if_assigned_to_next_group() {
+fn reject_connection_to_next_group() {
 	let test_state = TestState::default();
 
 	test_harness(|test_harness| async move {
@@ -701,14 +701,18 @@ fn dont_fetch_collation_if_assigned_to_next_group() {
 		)
 		.await;
 
-		advertise_collation(&mut virtual_overseer, peer_b.clone(), test_state.relay_parent).await;
-
-		assert!(
-			overseer_recv_with_timeout(&mut &mut virtual_overseer, Duration::from_millis(30))
-				.await
-				.is_none(),
-			"There should be no PoV fetching request.",
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(
+				peer,
+				rep,
+			)) => {
+				assert_eq!(peer, peer_b);
+				assert_eq!(rep, COST_UNNEEDED_COLLATOR);
+			}
 		);
+
+		assert_collator_disconnect(&mut virtual_overseer, peer_b).await;
 
 		virtual_overseer
 	})

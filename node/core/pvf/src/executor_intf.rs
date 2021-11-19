@@ -68,7 +68,13 @@ const CONFIG: Config = Config {
 			native_stack_max: 256 * 1024 * 1024,
 		}),
 		canonicalize_nans: true,
-		parallel_compilation: true,
+		// Rationale for turning the multi-threaded compilation off is to make the preparation time
+		// easily reproducible and as deterministic as possible.
+		//
+		// Currently the prepare queue doesn't distinguish between precheck and prepare requests.
+		// On the one hand, it simplifies the code, on the other, however, slows down compile times
+		// for execute requests. This behavior may change in future.
+		parallel_compilation: false,
 	},
 };
 
@@ -174,10 +180,6 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("child_storage_root: unsupported feature for parachain validation")
 	}
 
-	fn storage_changes_root(&mut self, _: &[u8]) -> Result<Option<Vec<u8>>, ()> {
-		panic!("storage_changes_root: unsupported feature for parachain validation")
-	}
-
 	fn next_child_storage_key(&self, _: &ChildInfo, _: &[u8]) -> Option<Vec<u8>> {
 		panic!("next_child_storage_key: unsupported feature for parachain validation")
 	}
@@ -278,11 +280,21 @@ impl TaskExecutor {
 }
 
 impl sp_core::traits::SpawnNamed for TaskExecutor {
-	fn spawn_blocking(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+	fn spawn_blocking(
+		&self,
+		_task_name: &'static str,
+		_subsystem_name: Option<&'static str>,
+		future: futures::future::BoxFuture<'static, ()>,
+	) {
 		self.0.spawn_ok(future);
 	}
 
-	fn spawn(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+	fn spawn(
+		&self,
+		_task_name: &'static str,
+		_subsystem_name: Option<&'static str>,
+		future: futures::future::BoxFuture<'static, ()>,
+	) {
 		self.0.spawn_ok(future);
 	}
 }

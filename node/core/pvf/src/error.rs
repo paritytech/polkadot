@@ -16,6 +16,9 @@
 
 use parity_scale_codec::{Decode, Encode};
 
+/// Result of PVF preparation performed by the validation host.
+pub type PrepareResult = Result<(), PrepareError>;
+
 /// An error that occurred during the prepare part of the PVF pipeline.
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum PrepareError {
@@ -23,6 +26,10 @@ pub enum PrepareError {
 	Prevalidation(String),
 	/// Compilation failed for the given PVF.
 	Preparation(String),
+	/// An unexpected panic has occured in the preparation worker.
+	Panic(String),
+	/// Failed to prepare the PVF due to the time limit.
+	TimedOut,
 	/// This state indicates that the process assigned to prepare the artifact wasn't responsible
 	/// or were killed. This state is reported by the validation host (not by the worker).
 	DidNotMakeIt,
@@ -72,9 +79,11 @@ pub enum InvalidCandidate {
 impl From<PrepareError> for ValidationError {
 	fn from(error: PrepareError) -> Self {
 		let error_str = match error {
-			PrepareError::Prevalidation(err) => err,
-			PrepareError::Preparation(err) => err,
-			PrepareError::DidNotMakeIt => "preparation timeout".to_owned(),
+			PrepareError::Prevalidation(err) => format!("prevalidation: {}", err),
+			PrepareError::Preparation(err) => format!("preparation: {}", err),
+			PrepareError::Panic(err) => format!("panic: {}", err),
+			PrepareError::TimedOut => "preparation timeout".to_owned(),
+			PrepareError::DidNotMakeIt => "communication error".to_owned(),
 		};
 		ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(error_str))
 	}

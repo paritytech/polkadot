@@ -80,9 +80,9 @@ use polkadot_node_subsystem_types::messages::{
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
-	DisputeCoordinatorMessage, DisputeDistributionMessage, DisputeParticipationMessage,
-	GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage,
-	RuntimeApiMessage, StatementDistributionMessage,
+	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
+	NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage, RuntimeApiMessage,
+	StatementDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
@@ -462,9 +462,6 @@ pub struct Overseer<SupportsParachains> {
 	#[subsystem(no_dispatch, DisputeCoordinatorMessage)]
 	dispute_coordinator: DisputeCoordinator,
 
-	#[subsystem(no_dispatch, DisputeParticipationMessage)]
-	dispute_participation: DisputeParticipation,
-
 	#[subsystem(no_dispatch, DisputeDistributionMessage)]
 	dispute_distribution: DisputeDistribution,
 
@@ -562,7 +559,10 @@ where
 
 		futures::future::ready(())
 	});
-	overseer.spawner().spawn("metrics_metronome", Box::pin(metronome));
+	overseer
+		.spawner()
+		.spawn("metrics-metronome", Some("overseer"), Box::pin(metronome));
+
 	Ok(())
 }
 
@@ -616,11 +616,11 @@ where
 				},
 				msg = self.to_overseer_rx.select_next_some() => {
 					match msg {
-						ToOverseer::SpawnJob { name, s } => {
-							self.spawn_job(name, s);
+						ToOverseer::SpawnJob { name, subsystem, s } => {
+							self.spawn_job(name, subsystem, s);
 						}
-						ToOverseer::SpawnBlockingJob { name, s } => {
-							self.spawn_blocking_job(name, s);
+						ToOverseer::SpawnBlockingJob { name, subsystem, s } => {
+							self.spawn_blocking_job(name, subsystem, s);
 						}
 					}
 				},
@@ -772,11 +772,21 @@ where
 		}
 	}
 
-	fn spawn_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
-		self.spawner.spawn(name, j);
+	fn spawn_job(
+		&mut self,
+		task_name: &'static str,
+		subsystem_name: Option<&'static str>,
+		j: BoxFuture<'static, ()>,
+	) {
+		self.spawner.spawn(task_name, subsystem_name, j);
 	}
 
-	fn spawn_blocking_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
-		self.spawner.spawn_blocking(name, j);
+	fn spawn_blocking_job(
+		&mut self,
+		task_name: &'static str,
+		subsystem_name: Option<&'static str>,
+		j: BoxFuture<'static, ()>,
+	) {
+		self.spawner.spawn_blocking(task_name, subsystem_name, j);
 	}
 }

@@ -383,8 +383,9 @@ impl Error {
 	fn trace(&self) {
 		match self {
 			// don't spam the log with spurious errors
-			Self::RuntimeApi(_) | Self::Oneshot(_) =>
-				tracing::debug!(target: LOG_TARGET, err = ?self),
+			Self::RuntimeApi(_) | Self::Oneshot(_) => {
+				tracing::debug!(target: LOG_TARGET, err = ?self)
+			},
 			// it's worth reporting otherwise
 			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
 		}
