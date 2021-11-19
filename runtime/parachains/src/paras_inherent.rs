@@ -688,7 +688,7 @@ where
 	DisputedBitfield::from(bitvec)
 }
 
-/// Select a random subset
+/// Select a random subset, with preference for certain indices.
 ///
 /// Adds random items to the set until all candidates
 /// are tried or the remaining weight is depleted.
@@ -698,16 +698,39 @@ where
 fn random_sel<X, F: Fn(&X) -> Weight>(
 	rng: &mut rand_chacha::ChaChaRng,
 	selectables: Vec<X>,
+	mut preferred_indices: Vec<usize>,
 	weight_fn: F,
 	weight_limit: Weight,
 ) -> (Weight, Vec<usize>) {
 	if selectables.is_empty() {
 		return (0 as Weight, Vec::new())
 	}
-	let mut indices = (0..selectables.len()).into_iter().collect::<Vec<_>>();
+	// all indices that are not part of the preferred set
+	let mut indices = (0..selectables.len())
+		.into_iter()
+		.filter(|idx| !preferred_indices.contains(idx))
+		.collect::<Vec<_>>();
 	let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
 
 	let mut weight_acc = 0 as Weight;
+
+	while !preferred_indices.is_empty() {
+		// randomly pick an index from the preferred set
+		let pick = rng.gen_range(0..preferred_indices.len());
+		// remove the index from the available set of preferred indices
+		let preferred_idx = preferred_indices.swap_remove(pick);
+
+		// preferred indices originate from outside
+		if let Some(item) = selectables.get(preferred_idx) {
+			let updated = weight_acc + weight_fn(item);
+			if updated > weight_limit {
+				continue
+			}
+			weight_acc = updated;
+			picked_indices.push(preferred_idx);
+		}
+	}
+
 	while !indices.is_empty() {
 		// randomly pick an index
 		let pick = rng.gen_range(0..indices.len());
@@ -715,11 +738,12 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		let idx = indices.swap_remove(pick);
 
 		let item = &selectables[idx];
-		weight_acc += weight_fn(item);
+		let updated = weight_acc + weight_fn(item);
 
-		if weight_acc > weight_limit {
-			break
+		if updated > weight_limit {
+			continue
 		}
+		weight_acc = updated;
 
 		picked_indices.push(idx);
 	}
@@ -759,6 +783,16 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		return total
 	}
 
+	// Prefer code upgrades, they tend to be large and hence stand no chance to be picked
+	// late while maintaining the weight bounds
+	let preferred_indices = candidates
+		.iter()
+		.enumerate()
+		.filter_map(|(idx, candidate)| {
+			candidate.candidate.commitments.new_validation_code.as_ref().map(|_code| idx)
+		})
+		.collect::<Vec<usize>>();
+
 	// There is weight remaining to be consumed by a subset of candidates
 	// which are going to be picked now.
 	if let Some(remaining_weight) = remaining_weight.checked_sub(total_bitfields_weight) {
@@ -766,6 +800,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
 				rng,
 				candidates.clone(),
+				preferred_indices,
 				|c| backed_candidate_weight::<T>(c),
 				remaining_weight,
 			);
@@ -788,6 +823,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let (total, indices) = random_sel::<UncheckedSignedAvailabilityBitfield, _>(
 		rng,
 		bitfields.clone(),
+		vec![],
 		|_| <<T as Config>::WeightInfo as WeightInfo>::enter_bitfields(),
 		remaining_weight,
 	);
@@ -944,6 +980,10 @@ fn sanitize_backed_candidates<T: crate::inclusion::Config, F: Fn(CandidateHash) 
 	backed_candidates
 }
 
+/// Derive entropy from babe provided per block randomness.
+///
+/// In the odd case none is available, uses the `parent_hash` and
+/// a const value, while emitting a warning.
 fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	const CANDIDATE_SEED_SUBJECT: [u8; 32] = *b"candidate-seed-selection-subject";
 	let vrf_random = CurrentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
@@ -1026,6 +1066,7 @@ fn limit_disputes<T: Config>(
 		let (acc_remote_disputes_weight, indices) = random_sel::<u32, _>(
 			rng,
 			d,
+			vec![],
 			|v| <<T as Config>::WeightInfo as WeightInfo>::enter_variable_disputes(*v),
 			remaining_weight,
 		);
