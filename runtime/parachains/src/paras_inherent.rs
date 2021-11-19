@@ -698,9 +698,11 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 
 	let mut weight_acc = 0 as Weight;
 
-	// also shuffle the preferred ones
-	rng.shuffle(&mut preferred_indices);
-	for preferred_idx in preferred_indices {
+	while !preferred_indices.is_empty() {
+		// randomly pick an index from the preferred set
+		let pick = rng.gen_range(0..preferred_indices.len());
+		// remove the index from the available set of preferred indices
+		let preferred_idx = preferred_indices.swap_remove(pick);
 
 		// preferred indices originate from outside
 		if let Some(item) = selectables.get(preferred_idx) {
