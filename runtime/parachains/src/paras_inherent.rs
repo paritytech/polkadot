@@ -682,28 +682,28 @@ where
 fn random_sel<X, F: Fn(&X) -> Weight>(
 	rng: &mut rand_chacha::ChaChaRng,
 	selectables: Vec<X>,
-	mut prefered_indices: Vec<usize>,
+	mut preferred_indices: Vec<usize>,
 	weight_fn: F,
 	weight_limit: Weight,
 ) -> (Weight, Vec<usize>) {
 	if selectables.is_empty() {
 		return (0 as Weight, Vec::new())
 	}
-	// all indices that are not part of the prefered set
+	// all indices that are not part of the preferred set
 	let mut indices = (0..selectables.len())
 		.into_iter()
-		.filter(|idx| !prefered_indices.contains(idx))
+		.filter(|idx| !preferred_indices.contains(idx))
 		.collect::<Vec<_>>();
 	let mut picked_indices = Vec::with_capacity(selectables.len().saturating_sub(1));
 
 	let mut weight_acc = 0 as Weight;
 
-	// also shuffle the prefered ones
-	rng.shuffle(&mut prefered_indices);
-	for prefered_idx in prefered_indices {
+	// also shuffle the preferred ones
+	rng.shuffle(&mut preferred_indices);
+	for preferred_idx in preferred_indices {
 
-		// prefered indices originate from outside
-		if let Some(item) = selectables.get(prefered_idx) {
+		// preferred indices originate from outside
+		if let Some(item) = selectables.get(preferred_idx) {
 			weight_acc += weight_fn(item);
 
 			let updated = weight_acc + weight_fn(item);
@@ -711,7 +711,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 				continue
 			}
 			weight_acc = updated;
-			picked_indices.push(prefered_idx);
+			picked_indices.push(preferred_idx);
 		}
 	}
 
