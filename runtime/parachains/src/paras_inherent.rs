@@ -336,6 +336,14 @@ pub mod pallet {
 				mut disputes,
 			} = data;
 
+			log::debug!(
+				target: LOG_TARGET,
+				"[enter] bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+				signed_bitfields.len(),
+				backed_candidates.len(),
+				disputes.len()
+			);
+
 			// Check that the submitted parent header indeed corresponds to the previous block hash.
 			let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 			ensure!(
@@ -515,6 +523,14 @@ impl<T: Config> Pallet<T> {
 				return None
 			},
 		};
+
+		log::debug!(
+			target: LOG_TARGET,
+			"[create_inherent_inner] bitfields.len(): {}, backed_candidates.len(): {}, disputes.len() {}",
+			bitfields.len(),
+			backed_candidates.len(),
+			disputes.len()
+		);
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 
