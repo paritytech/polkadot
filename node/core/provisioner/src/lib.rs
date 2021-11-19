@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The provisioner is responsible for assembling a set of items, from which
-//! the runtime will pick a subset and create a relay chain block.
+//! The provisioner is responsible for assembling a set of items, from which the
+//! runtime will pick a subset and create a relay chain block.
 
 #![deny(missing_docs, unused_crate_dependencies)]
 
@@ -243,7 +243,7 @@ impl ProvisioningJob {
 }
 
 /// The provisioner is the subsystem best suited on the node side,
-/// yet it lacks sufficient information to do weight limiting.
+/// yet it lacks sufficient information to do weight based inherents limiting.
 /// This does the minimalistic checks and forwards a most likely
 /// too large set of bitfields, candidates, and dispute votes to
 /// the runtime. The `fn create_inherent` in the runtime is responsible
@@ -325,6 +325,8 @@ async fn collect_disputes(
 	// 2. Disputes are expected to be rare because they come with heavy slashing.
 	sender.send_message(DisputeCoordinatorMessage::RecentDisputes(tx).into()).await;
 
+	// TODO: scrape concluded disputes from on-chain to limit the number of disputes
+	// TODO: <https://github.com/paritytech/polkadot/issues/4329>
 	let recent_disputes = match rx.await {
 		Ok(r) => r,
 		Err(oneshot::Canceled) => {
