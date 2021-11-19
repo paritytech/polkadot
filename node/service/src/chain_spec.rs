@@ -1546,7 +1546,6 @@ pub fn rococo_testnet_genesis(
 				..default_parachains_host_configuration()
 			},
 		},
-		hrmp: Default::default(),
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
 		registrar: rococo_runtime::RegistrarConfig {
 			next_free_para_id: polkadot_primitives::v1::LOWEST_PUBLIC_ID,
