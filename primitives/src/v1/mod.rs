@@ -1277,6 +1277,17 @@ impl DisputeStatement {
 			DisputeStatement::Invalid(_) => true,
 		}
 	}
+
+	/// Statement is backing statement.
+	pub fn is_backing(&self) -> bool {
+		match *self {
+			Self::Valid(ValidDisputeStatementKind::BackingSeconded(_)) |
+			Self::Valid(ValidDisputeStatementKind::BackingValid(_)) => true,
+			Self::Valid(ValidDisputeStatementKind::Explicit) |
+			Self::Valid(ValidDisputeStatementKind::ApprovalChecking) |
+			Self::Invalid(_) => false,
+		}
+	}
 }
 
 /// Different kinds of statements of validity on  a candidate.
