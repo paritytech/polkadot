@@ -772,13 +772,8 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let preferred_indices = candidates
 		.iter()
 		.enumerate()
-		.filter_map(|(idx, &candidate)| {
-			candidate
-				.candidate
-				.commitments
-				.new_validation_code
-				.as_ref()
-				.map(move |_code| idx)
+		.filter_map(|(idx, candidate)| {
+			candidate.candidate.commitments.new_validation_code.as_ref().map(|_code| idx)
 		})
 		.collect::<Vec<usize>>();
 
