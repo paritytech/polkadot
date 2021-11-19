@@ -42,7 +42,7 @@ When a validator is selected by BABE to author a block, it becomes a block produ
 
 ### Bitfield Collection
 
-Collects all provided bitfields and forwards them to the runtimes `fn create_inherent` which does both sanitity (one bitfield per validator) as well as weight limiting logic.
+Collects all provided bitfields and forwards them to the runtimes `fn create_inherent` which does both sanity (one bitfield per validator) as well as weight limiting logic.
 
 ### Backed Candidate Collection
 
