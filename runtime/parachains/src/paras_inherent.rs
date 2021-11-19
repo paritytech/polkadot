@@ -672,7 +672,7 @@ where
 	DisputedBitfield::from(bitvec)
 }
 
-/// Select a random subset
+/// Select a random subset, with preference for certain indices.
 ///
 /// Adds random items to the set until all candidates
 /// are tried or the remaining weight is depleted.
@@ -789,7 +789,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 			random_sel::<BackedCandidate<<T as frame_system::Config>::Hash>, _>(
 				rng,
 				candidates.clone(),
-				vec![],
+				preferred_indices,
 				|c| backed_candidate_weight::<T>(c),
 				remaining_weight,
 			);
