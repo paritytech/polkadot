@@ -23,12 +23,12 @@ bp-test-utils = { path = "../../primitives/test-utils" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }

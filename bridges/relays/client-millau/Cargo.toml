@@ -17,9 +17,9 @@ millau-runtime = { path = "../../bin/millau/runtime" }
 
 # Substrate Dependencies
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }

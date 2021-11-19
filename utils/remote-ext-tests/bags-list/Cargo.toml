@@ -8,17 +8,17 @@ edition = "2018"
 polkadot-runtime = { version = "0.9.8", path = "../../../runtime/polkadot" }
 kusama-runtime = { version = "0.9.8", path = "../../../runtime/kusama" }
 
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.12-without-cache" }
 tokio = { version = "1", features = ["macros"] }
 log = { version = "0.4.14" }
 structopt = {version = "0.3.23" }
