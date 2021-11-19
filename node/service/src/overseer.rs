@@ -59,7 +59,7 @@ pub use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 pub use polkadot_node_core_chain_api::ChainApiSubsystem;
 pub use polkadot_node_core_chain_selection::ChainSelectionSubsystem;
 pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
-pub use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
+pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
 pub use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 
