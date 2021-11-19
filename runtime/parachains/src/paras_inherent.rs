@@ -722,11 +722,12 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		let idx = indices.swap_remove(pick);
 
 		let item = &selectables[idx];
-		weight_acc += weight_fn(item);
+		let updated = weight_acc + weight_fn(item);
 
-		if weight_acc > weight_limit {
-			break
+		if updated > weight_limit {
+			continue
 		}
+		weight_acc = updated;
 
 		picked_indices.push(idx);
 	}
