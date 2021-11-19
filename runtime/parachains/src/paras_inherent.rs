@@ -769,7 +769,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 
 	// Prefer code upgrades, they tend to be large and hence stand no chance to be picked
 	// late while maintaining the weight bounds
-	let preferd_indices = candidates
+	let preferred_indices = candidates
 		.iter()
 		.enumerate()
 		.filter_map(|(idx, &candidate)| {
