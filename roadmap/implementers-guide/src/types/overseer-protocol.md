@@ -69,7 +69,6 @@ enum AllMessages {
     ApprovalDistribution(ApprovalDistributionMessage),
     GossipSupport(GossipSupportMessage),
     DisputeCoordinator(DisputeCoordinatorMessage),
-    DisputeParticipation(DisputeParticipationMessage),
     ChainSelection(ChainSelectionMessage),
 }
 ```
@@ -473,30 +472,6 @@ pub enum ImportStatementsResult {
 }
 ```
 
-## Dispute Participation Message
-
-Messages received by the [Dispute Participation subsystem](../node/disputes/dispute-participation.md)
-
-This subsystem simply executes requests to evaluate a candidate.
-
-```rust
-enum DisputeParticipationMessage {
-    /// Validate a candidate for the purposes of participating in a dispute.
-    Participate {
-        /// The hash of the candidate
-        candidate_hash: CandidateHash,
-        /// The candidate receipt itself.
-        candidate_receipt: CandidateReceipt,
-        /// The session the candidate appears in.
-        session: SessionIndex,
-        /// The number of validators in the session.
-        n_validators: u32,
-        /// Give immediate feedback on whether the candidate was available or
-        /// not.
-        report_availability: oneshot::Sender<bool>,
-    }
-}
-```
 
 ## Dispute Distribution Message
 

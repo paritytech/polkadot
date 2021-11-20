@@ -254,7 +254,7 @@ fn run_node_inner(cli: Cli, overseer_gen: impl service::OverseerGen) -> Result<(
 				config,
 				service::IsCollator::No,
 				grandpa_pause,
-				cli.run.no_beefy,
+				cli.run.beefy,
 				jaeger_agent,
 				None,
 				overseer_gen,
