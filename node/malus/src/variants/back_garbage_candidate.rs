@@ -138,6 +138,7 @@ where
 					let spawner = self.inner.lock().unwrap().spawner.clone();
 					spawner.spawn(
 						"malus-back-garbage-adhoc",
+                        "malus",
 						Box::pin(async move {
 							let relay_parent = candidate_descriptor.relay_parent;
 							let session_index = util::request_session_index_for_child(
