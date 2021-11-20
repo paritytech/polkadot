@@ -2,7 +2,7 @@
 
 This is the central subsystem of the node-side components which participate in disputes. This subsystem wraps a database which tracks all statements observed by all validators over some window of sessions. Votes older than this session window are pruned.
 
-This subsystem will be the point which produce dispute votes, either positive or negative, based on locally-observed validation results as well as a sink for votes received by other subsystems. When importing a dispute vote from another node, this will trigger the [dispute participation](dispute-participation.md) subsystem to recover and validate the block and call back to this subsystem.
+This subsystem will be the point which produce dispute votes, either positive or negative, based on locally-observed validation results as well as a sink for votes received by other subsystems. When importing a dispute vote from another node, this will trigger participation in the dispute.
 
 ## Database Schema
 
@@ -56,11 +56,10 @@ Input: [`DisputeCoordinatorMessage`][DisputeCoordinatorMessage]
 
 Output:
   - [`RuntimeApiMessage`][RuntimeApiMessage]
-  - [`DisputeParticipationMessage`][DisputeParticipationMessage]
 
 ## Functionality
 
-This assumes a constant `DISPUTE_WINDOW: SessionIndex`. This should correspond to at least 1 day.
+This assumes a constant `DISPUTE_WINDOW: SessionWindowSize`. This should correspond to at least 1 day.
 
 Ephemeral in-memory state:
 
@@ -75,8 +74,7 @@ struct State {
 
 Check DB for recorded votes for non concluded disputes we have not yet
 recorded a local statement for.
-For all of those send `DisputeParticipationMessage::Participate` message to
-dispute participation subsystem.
+For all of those initiate dispute participation.
 
 ### On `OverseerSignal::ActiveLeavesUpdate`
 
@@ -171,4 +169,3 @@ Do nothing.
 [DisputeStatement]: ../../types/disputes.md#disputestatement
 [DisputeCoordinatorMessage]: ../../types/overseer-protocol.md#dispute-coordinator-message
 [RuntimeApiMessage]: ../../types/overseer-protocol.md#runtime-api-message
-[DisputeParticipationMessage]: ../../types/overseer-protocol.md#dispute-participation-message

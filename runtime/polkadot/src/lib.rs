@@ -1182,7 +1182,9 @@ impl parachains_hrmp::Config for Runtime {
 	type Currency = Balances;
 }
 
-impl parachains_paras_inherent::Config for Runtime {}
+impl parachains_paras_inherent::Config for Runtime {
+	type WeightInfo = weights::runtime_parachains_paras_inherent::WeightInfo<Runtime>;
+}
 
 impl parachains_scheduler::Config for Runtime {}
 
@@ -1353,7 +1355,7 @@ construct_runtime! {
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 58,
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>} = 60,
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
@@ -1394,7 +1396,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPallets,
-	StakingBagsListMigrationV8,
+	(StakingBagsListMigrationV8, SessionHistoricalPalletPrefixMigration),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
@@ -1415,6 +1417,27 @@ impl OnRuntimeUpgrade for StakingBagsListMigrationV8 {
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade() -> Result<(), &'static str> {
 		pallet_staking::migrations::v8::post_migrate::<Runtime>()
+	}
+}
+
+/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
+pub struct SessionHistoricalPalletPrefixMigration;
+
+impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
+		Ok(())
 	}
 }
 
@@ -1755,6 +1778,7 @@ sp_api::impl_runtime_apis! {
 			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
 			list_benchmark!(list, extra, runtime_parachains::initializer, Initializer);
 			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
+			list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParaInherent);
 			// Substrate
 			list_benchmark!(list, extra, pallet_bags_list, BagsList);
 			list_benchmark!(list, extra, pallet_balances, Balances);
@@ -1831,6 +1855,7 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
 			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
 			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
+			add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
 			// Substrate
 			add_benchmark!(params, batches, pallet_bags_list, BagsList);
 			add_benchmark!(params, batches, pallet_balances, Balances);
@@ -1880,7 +1905,6 @@ mod test_fees {
 				MaxNominatorRewardedPerValidator::get(),
 			) as f64;
 		let block_weight = BlockWeights::get().max_block as f64;
-
 		println!(
 			"a full payout takes {:.2} of the block weight [{} / {}]",
 			payout_weight / block_weight,

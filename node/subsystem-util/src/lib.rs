@@ -209,6 +209,7 @@ specialize_requests! {
 	fn request_assumed_validation_data(para_id: ParaId, expected_persisted_validation_data_hash: Hash) -> Option<(PersistedValidationData, ValidationCodeHash)>; AssumedValidationData;
 	fn request_session_index_for_child() -> SessionIndex; SessionIndexForChild;
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
+	fn request_validation_code_by_hash(validation_code_hash: ValidationCodeHash) -> Option<ValidationCode>; ValidationCodeByHash;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
 	fn request_session_info(index: SessionIndex) -> Option<SessionInfo>; SessionInfo;
@@ -485,7 +486,7 @@ pub trait JobTrait: Unpin + Sized {
 	/// The `delegate_subsystem!` macro should take care of this.
 	type Metrics: 'static + metrics::Metrics + Send;
 
-	/// Name of the job, i.e. `CandidateBackingJob`
+	/// Name of the job, i.e. `candidate-backing-job`
 	const NAME: &'static str;
 
 	/// Run a job for the given relay `parent`.
@@ -577,7 +578,11 @@ where
 			Ok(())
 		});
 
-		self.spawner.spawn(Job::NAME, future.map(drop).boxed());
+		self.spawner.spawn(
+			Job::NAME,
+			Some(Job::NAME.strip_suffix("-job").unwrap_or(Job::NAME)),
+			future.map(drop).boxed(),
+		);
 		self.outgoing_msgs.push(from_job_rx);
 
 		let handle = JobHandle { _abort_handle: AbortOnDrop(abort_handle), to_job: to_job_tx };
@@ -751,6 +756,6 @@ where
 			Ok(())
 		});
 
-		SpawnedSubsystem { name: Job::NAME.strip_suffix("Job").unwrap_or(Job::NAME), future }
+		SpawnedSubsystem { name: Job::NAME.strip_suffix("-job").unwrap_or(Job::NAME), future }
 	}
 }

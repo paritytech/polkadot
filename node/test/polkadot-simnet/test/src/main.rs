@@ -85,7 +85,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 			.events()
 			.into_iter()
 			.filter(|event| match event.event {
-				Event::Balances(balances::Event::Transfer(_, _, _)) => true,
+				Event::Balances(balances::Event::Transfer { .. }) => true,
 				_ => false,
 			})
 			.collect::<Vec<_>>();
