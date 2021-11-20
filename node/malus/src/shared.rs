@@ -35,7 +35,7 @@ where
 	let spawner2: S = spawner.clone();
 	spawner.spawn(
 		"nemesis-queue-processor",
-        "malus",
+		"malus",
 		Box::pin(async move {
 			let spawner3 = spawner2.clone();
 			queue
