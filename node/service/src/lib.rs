@@ -948,7 +948,11 @@ where
 					chain_selection_config,
 					dispute_coordinator_config,
 				},
-			)?;
+			)
+			.map_err(|e| {
+				tracing::error!("Failed to init overseer: {}", e);
+				e
+			})?;
 		let handle = Handle::new(overseer_handle.clone());
 
 		{
