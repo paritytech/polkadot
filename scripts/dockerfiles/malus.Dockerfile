@@ -8,8 +8,8 @@ ARG IMAGE_NAME
 LABEL io.parity.image.authors="devops-team@parity.io" \
 	io.parity.image.vendor="Parity Technologies" \
 	io.parity.image.title="${IMAGE_NAME}" \
-	io.parity.image.description="polkadot: a platform for web3" \
-	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/docker/malus.Dockerfile" \
+	io.parity.image.description="Malus - the nemesis of polkadot" \
+	io.parity.image.source="https://github.com/paritytech/polkadot/blob/${VCS_REF}/scripts/dockerfiles/malus.Dockerfile" \
 	io.parity.image.revision="${VCS_REF}" \
 	io.parity.image.created="${BUILD_DATE}" \
 	io.parity.image.documentation="https://github.com/paritytech/polkadot/"
@@ -28,7 +28,7 @@ RUN apt-get update && \
 	apt-get autoremove -y && \
 	apt-get clean && \
 	find /var/lib/apt/lists/ -type f -not -name lock -delete; \
-# add user  
+# add user
   groupadd --gid 10000 nonroot && \
   useradd  --home-dir /home/nonroot \
            --create-home \
