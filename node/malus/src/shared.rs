@@ -35,12 +35,12 @@ where
 	let spawner2: S = spawner.clone();
 	spawner.spawn(
 		"nemesis-queue-processor",
-		"malus",
+		Some("malus"),
 		Box::pin(async move {
 			let spawner3 = spawner2.clone();
 			queue
 				.for_each(move |input| {
-					spawner3.spawn("nemesis-task", "malus", Box::pin(action(input)));
+					spawner3.spawn("nemesis-task", Some("malus"), Box::pin(action(input)));
 					async move { () }
 				})
 				.await;
