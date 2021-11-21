@@ -54,6 +54,11 @@ pub enum Subcommand {
 	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
+	/// Compiles a sample wasm code in order to measure the machine capabilities
+	/// of running PVF host.
+	#[cfg(not(debug_assertions))]
+	HostPerfCheck,
+
 	/// Try some command against runtime state.
 	#[cfg(feature = "try-runtime")]
 	TryRuntime(try_runtime_cli::TryRuntimeCmd),

@@ -215,6 +215,68 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 	}
 }
 
+/// Runs a performance check via compiling sample wasm code with a timeout.
+/// Only available in release build since the check would take too much time otherwise.
+/// Returns `Ok` if the check has been passed previously.
+#[cfg(not(debug_assertions))]
+fn host_perf_check() -> Result<()> {
+	use polkadot_node_core_pvf::sp_maybe_compressed_blob;
+	use std::{fs::OpenOptions, path::Path, time::Duration};
+
+	const PERF_CHECK_TIME_LIMIT: Duration = Duration::from_secs(20);
+	const CODE_SIZE_LIMIT: usize = 1024usize.pow(3);
+	const WASM_CODE: &[u8] = include_bytes!(
+		"../../target/release/wbuild/kusama-runtime/kusama_runtime.compact.compressed.wasm"
+	);
+	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
+
+	// We will try to save a dummy file to the same path as the polkadot binary
+	// to make it independent from the current directory.
+	let check_passed_path = std::env::current_exe()
+		.map(|mut path| {
+			path.pop();
+			path
+		})
+		.unwrap_or_default()
+		.join(CHECK_PASSED_FILE_NAME);
+
+	// To avoid running the check on every launch we create a dummy dot-file on success.
+	if Path::new(&check_passed_path).exists() {
+		info!("Performance check skipped: already passed");
+		return Ok(())
+	}
+
+	info!("Running the performance check...");
+	let start = std::time::Instant::now();
+
+	// Recreate the pipeline from the pvf prepare worker.
+	let code = sp_maybe_compressed_blob::decompress(WASM_CODE, CODE_SIZE_LIMIT).map_err(|err| {
+		Error::Other(format!("Failed to decompress test wasm code: {}", err.to_string()))
+	})?;
+	let blob = polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(|err| {
+		Error::Other(format!(
+			"Failed to create runtime blob from the decompressed code: {}",
+			err.to_string()
+		))
+	})?;
+	let _ = polkadot_node_core_pvf::prepare(blob).map_err(|err| {
+		Error::Other(format!("Failed to precompile test wasm code: {}", err.to_string()))
+	})?;
+
+	let elapsed = start.elapsed();
+	if elapsed <= PERF_CHECK_TIME_LIMIT {
+		info!("Performance check passed, elapsed: {:?}", start.elapsed());
+		// `touch` a dummy file.
+		let _ = OpenOptions::new().create(true).write(true).open(Path::new(&check_passed_path));
+		Ok(())
+	} else {
+		Err(Error::Other(format!(
+			"Performance check not passed: exceeded the {:?} time limit, elapsed: {:?}",
+			PERF_CHECK_TIME_LIMIT, elapsed
+		)))
+	}
+}
+
 /// Launch a node, accepting arguments just like a regular node,
 /// accepts an alternative overseer generator, to adjust behavior
 /// for integration tests as needed.
@@ -414,6 +476,13 @@ pub fn run() -> Result<()> {
 			}
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
+		},
+		#[cfg(not(debug_assertions))]
+		Some(Subcommand::HostPerfCheck) => {
+			let mut builder = sc_cli::LoggerBuilder::new("").with_colors(true);
+			let _ = builder.init();
+
+			host_perf_check()
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
