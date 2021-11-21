@@ -138,7 +138,7 @@ mod tests {
 			use parachain::{Event, System};
 			assert!(System::events().iter().any(|r| matches!(
 				r.event,
-				Event::System(frame_system::Event::Remarked { origin: _, remarked_hash: _ })
+				Event::System(frame_system::Event::Remarked { sender: _, hash: _ })
 			)));
 		});
 	}
@@ -166,7 +166,7 @@ mod tests {
 			use relay_chain::{Event, System};
 			assert!(System::events().iter().any(|r| matches!(
 				r.event,
-				Event::System(frame_system::Event::Remarked { origin: _, remarked_hash: _ })
+				Event::System(frame_system::Event::Remarked { sender: _, hash: _ })
 			)));
 		});
 	}
@@ -195,7 +195,7 @@ mod tests {
 			use parachain::{Event, System};
 			assert!(System::events().iter().any(|r| matches!(
 				r.event,
-				Event::System(frame_system::Event::Remarked { origin: _, remarked_hash: _ })
+				Event::System(frame_system::Event::Remarked { sender: _, hash: _ })
 			)));
 		});
 	}
