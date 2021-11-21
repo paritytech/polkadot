@@ -24,9 +24,6 @@ use polkadot_node_subsystem::*;
 pub use polkadot_node_subsystem::{messages::AllMessages, overseer, FromOverseer};
 use std::{future::Future, pin::Pin};
 
-#[cfg(test)]
-mod tests;
-
 /// Filter incoming and outgoing messages.
 pub trait MessageInterceptor<Sender>: Send + Sync + Clone + 'static
 where

@@ -27,10 +27,10 @@ variables:
   CI_IMAGE:                        "paritytech/ci-linux:production"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
+  ZOMBIENET_IMAGE:                 "docker.io/paritypr/zombienet"
   VAULT_SERVER_URL:                "https://vault.parity-mgmt-vault.parity.io"
   VAULT_AUTH_PATH:                 "gitlab-parity-io-jwt"
   VAULT_AUTH_ROLE:                 "cicd_gitlab_parity_${CI_PROJECT_NAME}"
-  SIMNET_IMAGE:                    "europe-west3-docker.pkg.dev/parity-simnet/simnet-images/simnet:v14"
   PIPELINE_SCRIPTS_TAG:            "v0.1"
 
 default:
@@ -191,6 +191,7 @@ test-build-linux-stable:
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     # we're using the bin built here, instead of having a parallel `build-linux-release`
+    # disputes feature is needed for zombie-net parachains malus test
     - time cargo build --release --verbose --bin polkadot --features "disputes"
     - sccache -s
     # pack artifacts
@@ -257,6 +258,26 @@ build-adder-collator:
     - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
     - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
     - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - cp -r scripts/* ./artifacts
+
+build-malus:
+  stage:                           test
+  <<:                              *collect-artifacts
+  <<:                              *docker-env
+  <<:                              *compiler-info
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  script:
+    - time cargo build --release --verbose -p polkadot-test-malus --features disputes
+    - sccache -s
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/release/malus ./artifacts/.
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
     - cp -r scripts/* ./artifacts
 
 #### stage:                        build
@@ -393,13 +414,13 @@ publish-polkadot-image:
     - job:                         test-build-linux-stable
       artifacts:                   true
   after_script:
-    # pass artifacts to the simnet-tests job
+    # pass artifacts to the zombienet-tests job
     # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
     - echo "PARACHAINS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/parachains.env
     - echo "PARACHAINS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/parachains.env
   artifacts:
     reports:
-      # this artifact is used in simnet-tests job
+      # this artifact is used in zombienet-tests job
       dotenv: ./artifacts/parachains.env
 
 publish-adder-collator-image:
@@ -417,13 +438,39 @@ publish-adder-collator-image:
       artifacts:                   true
   after_script:
     - buildah logout --all
-    # pass artifacts to the simnet-tests job
+    # pass artifacts to the zombienet-tests job
     - echo "COLLATOR_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/collator.env
     - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
   artifacts:
     reports:
-      # this artifact is used in simnet-tests job
+      # this artifact is used in zombienet-tests job
       dotenv: ./artifacts/collator.env
+
+publish-malus-image:
+  # service image for Simnet
+  stage:                           build
+  <<:                              *build-push-image
+  variables:
+    <<:                            *image-variables
+    # scripts/dockerfiles/malus.Dockerfile
+    DOCKERFILE:                    dockerfiles/malus.Dockerfile
+    IMAGE_NAME:                    docker.io/paritypr/malus
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  needs:
+    - job:                         build-malus
+      artifacts:                   true
+  after_script:
+    - buildah logout "$IMAGE_NAME"
+    # pass artifacts to the zombienet-tests job
+    - echo "MALUS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/malus.env
+    - echo "MALUS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/malus.env
+  artifacts:
+    reports:
+      # this artifact is used in zombienet-tests job
+      dotenv: ./artifacts/malus.env
 
 update_polkadot_weights:           &update-weights
   stage:                           build
@@ -550,38 +597,80 @@ deploy-polkasync-kusama:
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
 
-simnet-tests:
+zombienet-tests-parachains-smoke-test:
   stage:                           deploy
-  image:                           "${SIMNET_IMAGE}"
+  image:                           "${ZOMBIENET_IMAGE}"
   <<:                              *kubernetes-env
-  <<:                              *rules-test-and-rococo
-  variables:
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/master/simnet_tests"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
   needs:
     - job:                         publish-polkadot-image
+    - job:                         publish-malus-image
     - job:                         publish-adder-collator-image
-  # `parachains.env` brings here `$PARACHAINS_IMAGE_NAME` and `$PARACHAINS_IMAGE_TAG`
-  # (`$EXTRATAG` here, # i.e. `2643-0.8.29-5f689e0a-6b24dc54`).
-  # `collator.env` brings here `$COLLATOR_IMAGE_NAME` and  `$COLLATOR_IMAGE_TAG`
-  # For local tests with docker `$PARACHAINS_IMAGE_TAG` and `$COLLATOR_IMAGE_TAG`
-  # can be replaced with `master` tag.
 
-  # SIMNET_REF is a gitlab variable
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx-zombienet/zombienet_tests/parachains'
+    # FIXME: use the master after the merge of the malus pr
+    # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/zombienet_tests/parachains'
+
   before_script:
-    - echo "Simnet Tests Config"
-    - echo "${SIMNET_IMAGE}"
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
-    - echo "${COLLATOR_IMAGE_NAME} ${COLLATOR_IMAGE_TAG}"
+    - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
     - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
+    - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
+
   script:
-    - /home/nonroot/simnet/scripts/run-test-environment-manager-v2.sh
+    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
-        --tag=smoketest
-        --image="PARACHAINSIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --image="SYNTHIMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
-        --image="COLIMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}"
-        --image="SCRIPTSIMAGE=${SIMNET_IMAGE}"
+        --test="0001-parachains-smoke-test.feature"
   allow_failure:                   true
   retry: 2
   tags:
-    - polkadot-simnet
+    - zombienet-polkadot-integration-test
+
+zombienet-tests-malus-dispute-valid:
+  stage:                           deploy
+  image:                           "${ZOMBIENET_IMAGE}"
+  <<:                              *kubernetes-env
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME == "rococo-v1"
+  needs:
+    - job:                         publish-polkadot-image
+    - job:                         publish-malus-image
+    - job:                         publish-adder-collator-image
+
+  variables:
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx-zombienet/node/malus/integrationtests'
+    # FIXME: use the master after the merge of the malus pr
+    # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/node/malus/integrationtests'
+
+  before_script:
+    - echo "Zombie-net Tests Config"
+    - echo "${ZOMBIENET_IMAGE_NAME}"
+    - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
+    - echo "${MALUS_IMAGE_NAME} ${MALUS_IMAGE_TAG}"
+    - echo "${GH_DIR}"
+    - export DEBUG=zombie,zombie::network-node
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
+    - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
+    - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
+
+  script:
+    - /home/nonroot/zombie-net/scripts/run-test-env-manager.sh
+        --github-remote-dir="${GH_DIR}"
+        --test="0001-dispute-valid-block.feature"
+  allow_failure:                   true
+  retry: 2
+  tags:
+    - zombienet-polkadot-integration-test
