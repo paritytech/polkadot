@@ -23,7 +23,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_subsystem_util::{MemVisor, MemVisorMetrics, TimeoutExt};
 use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::v1::{
 	CandidateEvent, CoreIndex, GroupIndex, Header, Id as ParaId, ValidatorSignature,
@@ -466,6 +466,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	);
 
 	let clock = Box::new(clock);
+	let mv = MemVisor::new(MemVisorMetrics(None));
 	let subsystem = run(
 		context,
 		ApprovalVotingSubsystem::with_config(
@@ -477,6 +478,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 			Arc::new(keystore),
 			sync_oracle,
 			Metrics::default(),
+			mv.span("test"),
 		),
 		clock.clone(),
 		assignment_criteria,

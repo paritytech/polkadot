@@ -39,6 +39,7 @@ use polkadot_node_subsystem::{
 	jaeger, messages::AllMessages, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
+use polkadot_node_subsystem_util::{MemVisor, MemVisorMetrics, SubsystemName};
 use polkadot_primitives::v1::{BlakeTwo256, ConsensusLog, HashT};
 
 #[derive(Default)]
@@ -54,6 +55,12 @@ struct TestBackendInner {
 #[derive(Clone)]
 struct TestBackend {
 	inner: Arc<Mutex<TestBackendInner>>,
+}
+
+impl GetMemoryUsage for TestBackend {
+	fn memory_usage(&self) -> u64 {
+		0
+	}
 }
 
 impl TestBackend {
@@ -234,7 +241,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 ) {
 	let pool = TaskExecutor::new();
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
-
+	let mv = MemVisor::new(MemVisorMetrics(None));
 	let backend = TestBackend::default();
 	let clock = TestClock::new(0);
 	let subsystem = crate::run(
@@ -242,6 +249,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		backend.clone(),
 		StagnantCheckInterval::new(TEST_STAGNANT_INTERVAL),
 		Box::new(clock.clone()),
+		mv.span(SubsystemName::Default),
 	);
 
 	let test_fut = test(backend, clock, virtual_overseer);

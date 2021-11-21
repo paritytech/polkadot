@@ -19,6 +19,7 @@ use assert_matches::assert_matches;
 use futures::{future, Future};
 use polkadot_node_primitives::{BlockData, InvalidCandidate};
 use polkadot_node_subsystem_test_helpers as test_helpers;
+use polkadot_node_subsystem_util::{MemVisor, MemVisorMetrics, SubsystemName};
 use polkadot_primitives::v1::{
 	GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
 };
@@ -147,9 +148,14 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let pool = sp_core::testing::TaskExecutor::new();
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
-
-	let subsystem =
-		CandidateBackingSubsystem::new(pool.clone(), keystore, Metrics(None)).run(context);
+	let mv = MemVisor::new(MemVisorMetrics(None));
+	let subsystem = CandidateBackingSubsystem::new(
+		pool.clone(),
+		keystore,
+		Metrics(None),
+		mv.span(SubsystemName::Default),
+	)
+	.run(context);
 
 	let test_fut = test(virtual_overseer);
 

@@ -125,9 +125,9 @@ fn test_harness<T: Future<Output = ()>>(run_args: bool, test: impl FnOnce(Overse
 
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, overseer_handle) = make_subsystem_context(pool.clone());
-	let memvisor = memvisor::MemVisor::new_dummy();
+	let mv = MemVisor::new(memvisor::MemVisorMetrics(None));
 	let subsystem =
-		FakeCollatorProtocolSubsystem::new(pool, run_args, (), memvisor.span("fake-collator"))
+		FakeCollatorProtocolSubsystem::new(pool, run_args, (), mv.span("fake-collator"))
 			.run(context);
 	let test_future = test(overseer_handle);
 
@@ -199,7 +199,7 @@ fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 fn test_subsystem_impl_and_name_derivation() {
 	let pool = sp_core::testing::TaskExecutor::new();
 	let (context, _) = make_subsystem_context::<CollatorProtocolMessage, _>(pool.clone());
-	let memvisor = memvisor::MemVisor::new_dummy();
+	let memvisor = MemVisor::new(memvisor::MemVisorMetrics(None));
 
 	let SpawnedSubsystem { name, .. } =
 		FakeCollatorProtocolSubsystem::new(pool, false, (), memvisor.span("test")).start(context);

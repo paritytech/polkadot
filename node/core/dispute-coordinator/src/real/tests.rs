@@ -35,6 +35,7 @@ use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
+use polkadot_node_subsystem_util::{MemVisor, MemVisorMetrics};
 use std::{
 	sync::atomic::{AtomicU64, Ordering as AtomicOrdering},
 	time::Duration,
@@ -279,11 +280,14 @@ impl TestState {
 		F: FnOnce(TestState, VirtualOverseer) -> BoxFuture<'static, TestState>,
 	{
 		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
+		let mv = MemVisor::new(MemVisorMetrics(None));
+
 		let subsystem = DisputeCoordinatorSubsystem::new(
 			self.db.clone(),
 			self.config.clone(),
 			self.subsystem_keystore.clone(),
 			Metrics::default(),
+			mv.span("test"),
 		);
 		let backend = DbBackend::new(self.db.clone(), self.config.column_config());
 		let subsystem_task = run(subsystem, ctx, backend, Box::new(self.clock.clone()));
