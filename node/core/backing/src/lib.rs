@@ -37,10 +37,10 @@ use polkadot_node_primitives::{
 	BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem_util::{
-	self as util,
+	self as util, mem_span,
 	metrics::{self, prometheus},
 	request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, FromJobCommand, JobSender, MemSpan, Validator,
+	request_validators, FromJobCommand, GetMemoryUsage, JobSender, MemSpan, Validator,
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
@@ -519,6 +519,12 @@ async fn validate_and_make_available(
 
 struct ValidatorIndexOutOfBounds;
 
+impl GetMemoryUsage for CandidateBackingJob {
+	fn memory_usage(&self) -> u64 {
+		(self.issued_statements.malloc_size_of() + self.awaiting_validation.malloc_size_of()) as u64
+	}
+}
+
 impl CandidateBackingJob {
 	/// Run asynchronously.
 	async fn run_loop(
@@ -526,23 +532,23 @@ impl CandidateBackingJob {
 		mut sender: JobSender<impl SubsystemSender>,
 		mut rx_to: mpsc::Receiver<CandidateBackingMessage>,
 		span: PerLeafSpan,
-		mem_span: MemSpan,
+		parent_mem_span: MemSpan,
 	) -> Result<(), Error> {
 		loop {
 			futures::select! {
 				validated_command = self.background_validation.next() => {
-					let mut span1 = mem_span.child("process-validation-result");
+					mem_span! {
+						parent(parent_mem_span)
+						name("process-validation-result")
+						object(&self)
 
-					span1.start(self.mem_usage());
-
-					let _span = span.child("process-validation-result");
-					if let Some(c) = validated_command {
-						self.handle_validated_candidate_command(&span, &mut sender, c).await?;
-					} else {
-						panic!("`self` hasn't dropped and `self` holds a reference to this sender; qed");
+						let _span = span.child("process-validation-result");
+						if let Some(c) = validated_command {
+							self.handle_validated_candidate_command(&span, &mut sender, c).await?;
+						} else {
+							panic!("`self` hasn't dropped and `self` holds a reference to this sender; qed");
+						}
 					}
-
-					span1.end(self.mem_usage());
 				}
 				to_job = rx_to.next() => match to_job {
 					None => break,
@@ -550,22 +556,20 @@ impl CandidateBackingJob {
 						// we intentionally want spans created in `process_msg` to descend from the
 						// `span ` which is longer-lived than this ephemeral timing span.
 						let _timing_span = span.child("process-message");
-						let mut span2 = mem_span.child("process-message");
-						span2.start(self.mem_usage());
+						mem_span! {
+							parent(parent_mem_span)
+							name("process-message")
+							object(&self)
 
-						let res = self.process_msg(&span, &mut sender, msg).await;
-						span2.end(self.mem_usage());
-						res?;
+							let res = self.process_msg(&span, &mut sender, msg).await;
+							res?;
+						}
 					}
 				}
 			}
 		}
 
 		Ok(())
-	}
-
-	fn mem_usage(&self) -> u64 {
-		(self.issued_statements.malloc_size_of() + self.awaiting_validation.malloc_size_of()) as u64
 	}
 
 	async fn handle_validated_candidate_command(

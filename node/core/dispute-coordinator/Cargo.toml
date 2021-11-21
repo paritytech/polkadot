@@ -17,6 +17,7 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+parity-util-mem = { version = "0.10.0", default-features = false, features = ["primitive-types"] }
 
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 

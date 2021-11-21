@@ -34,9 +34,8 @@ use std::{
 };
 
 use crate::backend::{Backend, BackendWriteOp, OverlayedBackend};
-use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
-use polkadot_node_subsystem_util::{mem_span, memvisor::MemSpan};
-use std::convert::TryInto;
+use parity_util_mem::MallocSizeOf;
+use polkadot_node_subsystem_util::{mem_span, memvisor::MemSpan, GetMemoryUsage};
 
 mod backend;
 mod db_backend;
@@ -356,7 +355,7 @@ async fn run<Context, B>(
 ) where
 	Context: SubsystemContext<Message = ChainSelectionMessage>,
 	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
-	B: Backend + MallocSizeOf,
+	B: Backend + GetMemoryUsage,
 {
 	loop {
 		let res =
@@ -385,22 +384,19 @@ async fn run_until_error<Context, B>(
 	backend: &mut B,
 	stagnant_check_interval: &StagnantCheckInterval,
 	clock: &(dyn Clock + Sync),
-	root_span: MemSpan,
+	parent_mem_span: MemSpan,
 ) -> Result<(), Error>
 where
 	Context: SubsystemContext<Message = ChainSelectionMessage>,
 	Context: overseer::SubsystemContext<Message = ChainSelectionMessage>,
-	B: Backend + MallocSizeOf,
+	B: Backend + GetMemoryUsage,
 {
 	let mut stagnant_check_stream = stagnant_check_interval.timeout_stream();
-	// TODO: Macro to measure memory/send metris/log on each loop.
-	// Params: an array of objects that we want to collect mem usage info about inside span.
 	loop {
-		// span.start(backend.malloc_size_of().try_into().unwrap_or(0));
 		mem_span! {
-			root_span,
-			"key-value-db",
-			backend,
+			parent(parent_mem_span)
+			name("key-value-db")
+			object(backend)
 
 			futures::select! {
 				msg = ctx.recv().fuse() => {

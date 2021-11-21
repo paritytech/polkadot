@@ -18,16 +18,16 @@
 
 use std::sync::Arc;
 
+use futures::{channel::oneshot, prelude::*};
+use kvdb::KeyValueDB;
+use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::DisputeCoordinatorMessage,
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
+use polkadot_node_subsystem_util::MemSpan;
 use polkadot_primitives::v1::BlockNumber;
-
-use futures::{channel::oneshot, prelude::*};
-use kvdb::KeyValueDB;
-use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use sc_keystore::LocalKeystore;
 
 use crate::metrics::Metrics;
@@ -54,7 +54,13 @@ pub struct DisputeCoordinatorSubsystem {}
 
 impl DisputeCoordinatorSubsystem {
 	/// Create a new instance of the subsystem.
-	pub fn new(_: Arc<dyn KeyValueDB>, _: Config, _: Arc<LocalKeystore>, _: Metrics) -> Self {
+	pub fn new(
+		_: Arc<dyn KeyValueDB>,
+		_: Config,
+		_: Arc<LocalKeystore>,
+		_: Metrics,
+		_: MemSpan,
+	) -> Self {
 		DisputeCoordinatorSubsystem {}
 	}
 }

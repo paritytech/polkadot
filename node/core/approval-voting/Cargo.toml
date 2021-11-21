@@ -22,6 +22,7 @@ polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
+parity-util-mem = { version = "0.10.0", default-features = false, features = ["primitive-types"] }
 
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

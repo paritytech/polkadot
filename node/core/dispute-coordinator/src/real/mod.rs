@@ -34,10 +34,12 @@ use std::{
 use futures::{channel::oneshot, prelude::*};
 use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
+use parity_util_mem::{MallocSizeOf, MallocSizeOfExt, MallocSizeOfOps};
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
 	DISPUTE_WINDOW,
 };
+
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
@@ -46,9 +48,12 @@ use polkadot_node_subsystem::{
 	},
 	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
 };
-use polkadot_node_subsystem_util::rolling_session_window::{
-	RollingSessionWindow, SessionWindowUpdate,
+use polkadot_node_subsystem_util::{
+	mem_span,
+	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate},
+	GetMemoryUsage, MemSpan,
 };
+
 use polkadot_primitives::v1::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
@@ -118,6 +123,22 @@ pub struct DisputeCoordinatorSubsystem {
 	store: Arc<dyn KeyValueDB>,
 	keystore: Arc<LocalKeystore>,
 	metrics: Metrics,
+	parent_mem_span: MemSpan,
+}
+
+impl MallocSizeOf for DisputeCoordinatorSubsystem {
+	fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
+		self.store.size_of(ops)
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
+impl GetMemoryUsage for DisputeCoordinatorSubsystem {
+	fn memory_usage(&self) -> u64 {
+		self.malloc_size_of() as u64
+	}
 }
 
 impl DisputeCoordinatorSubsystem {
@@ -127,8 +148,9 @@ impl DisputeCoordinatorSubsystem {
 		config: Config,
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,
+		parent_mem_span: MemSpan,
 	) -> Self {
-		DisputeCoordinatorSubsystem { store, config, keystore, metrics }
+		DisputeCoordinatorSubsystem { store, config, keystore, metrics, parent_mem_span }
 	}
 }
 
@@ -297,7 +319,14 @@ async fn run<B, Context>(
 	B: Backend,
 {
 	loop {
-		let res = run_until_error(&mut ctx, &subsystem, &mut backend, &*clock).await;
+		mem_span! {
+			parent(subsystem.parent_mem_span)
+			name("main-loop")
+			object(&subsystem as &dyn GetMemoryUsage)
+
+			let res = run_until_error(&mut ctx, &subsystem, &mut backend, &*clock).await;
+		}
+
 		match res {
 			Err(e) => {
 				e.trace();
@@ -343,17 +372,23 @@ where
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => {
-				handle_new_activations(
-					ctx,
-					&mut overlay_db,
-					&mut state,
-					update.activated.into_iter().map(|a| a.hash),
-					clock.now(),
-					&metrics,
-				)
-				.await?;
-				if !state.recovery_state.complete() {
-					handle_startup(ctx, &mut overlay_db, &mut state).await?;
+				mem_span! {
+					parent(subsystem.parent_mem_span)
+					name("active-leaves-update")
+					object(subsystem)
+
+					handle_new_activations(
+						ctx,
+						&mut overlay_db,
+						&mut state,
+						update.activated.into_iter().map(|a| a.hash),
+						clock.now(),
+						&metrics,
+					).await?;
+
+					if !state.recovery_state.complete() {
+						handle_startup(ctx, &mut overlay_db, &mut state).await?;
+					}
 				}
 			},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_, _)) => {},

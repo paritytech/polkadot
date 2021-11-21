@@ -25,7 +25,7 @@ use futures::{
 	prelude::*,
 };
 use futures_timer::Delay;
-use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
+use parity_util_mem::MallocSizeOfExt;
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	jaeger,
@@ -36,17 +36,17 @@ use polkadot_node_subsystem::{
 	PerLeafSpan, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
-	self as util,
+	self as util, mem_span,
 	metrics::{self, prometheus},
-	request_availability_cores, request_persisted_validation_data, JobSender, JobSubsystem,
-	JobTrait, MemSpan,
+	request_availability_cores, request_persisted_validation_data, GetMemoryUsage, JobSender,
+	JobSubsystem, JobTrait, MemSpan,
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, DisputeStatement,
 	DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{collections::BTreeMap, convert::TryInto, pin::Pin, sync::Arc};
+use std::{collections::BTreeMap, pin::Pin, sync::Arc};
 use thiserror::Error;
 
 #[cfg(test)]
@@ -90,20 +90,20 @@ impl InherentAfter {
 }
 
 /// A per-relay-parent job for the provisioning subsystem.
-#[derive(MallocSizeOf)]
 pub struct ProvisioningJob {
 	relay_parent: Hash,
-	#[ignore_malloc_size_of = "nope"]
 	receiver: mpsc::Receiver<ProvisionerMessage>,
 	backed_candidates: Vec<CandidateReceipt>,
-	#[ignore_malloc_size_of = "nope"]
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
-	#[ignore_malloc_size_of = "nope"]
 	metrics: Metrics,
-	#[ignore_malloc_size_of = "nope"]
 	inherent_after: InherentAfter,
-	#[ignore_malloc_size_of = "nope"]
 	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>,
+}
+
+impl GetMemoryUsage for ProvisioningJob {
+	fn memory_usage(&self) -> u64 {
+		self.backed_candidates.malloc_size_of() as u64
+	}
 }
 
 /// Errors in the provisioner.
@@ -200,40 +200,44 @@ impl ProvisioningJob {
 		mut self,
 		sender: &mut impl SubsystemSender,
 		span: PerLeafSpan,
-		mut mem_span: MemSpan,
+		parent_mem_span: MemSpan,
 	) -> Result<(), Error> {
 		use ProvisionerMessage::{ProvisionableData, RequestInherentData};
 		loop {
-			mem_span.start(self.malloc_size_of().try_into().unwrap_or(0));
-			futures::select! {
-				msg = self.receiver.next() => match msg {
-					Some(RequestInherentData(_, return_sender)) => {
-						let _span = span.child("req-inherent-data");
-						let _timer = self.metrics.time_request_inherent_data();
+			mem_span! {
+				parent(parent_mem_span)
+				name("provisioning-job")
+				object(&self)
 
-						if self.inherent_after.is_ready() {
-							self.send_inherent_data(sender, vec![return_sender]).await;
-						} else {
-							self.awaiting_inherent.push(return_sender);
+				futures::select! {
+					msg = self.receiver.next() => match msg {
+						Some(RequestInherentData(_, return_sender)) => {
+							let _span = span.child("req-inherent-data");
+							let _timer = self.metrics.time_request_inherent_data();
+
+							if self.inherent_after.is_ready() {
+								self.send_inherent_data(sender, vec![return_sender]).await;
+							} else {
+								self.awaiting_inherent.push(return_sender);
+							}
 						}
-					}
-					Some(ProvisionableData(_, data)) => {
-						let span = span.child("provisionable-data");
-						let _timer = self.metrics.time_provisionable_data();
+						Some(ProvisionableData(_, data)) => {
+							let span = span.child("provisionable-data");
+							let _timer = self.metrics.time_provisionable_data();
 
-						self.note_provisionable_data(&span, data);
-					}
-					None => break,
-				},
-				_ = self.inherent_after.ready().fuse() => {
-					let _span = span.child("send-inherent-data");
-					let return_senders = std::mem::take(&mut self.awaiting_inherent);
-					if !return_senders.is_empty() {
-						self.send_inherent_data(sender, return_senders).await;
+							self.note_provisionable_data(&span, data);
+						}
+						None => break,
+					},
+					_ = self.inherent_after.ready().fuse() => {
+						let _span = span.child("send-inherent-data");
+						let return_senders = std::mem::take(&mut self.awaiting_inherent);
+						if !return_senders.is_empty() {
+							self.send_inherent_data(sender, return_senders).await;
+						}
 					}
 				}
 			}
-			mem_span.end(self.malloc_size_of().try_into().unwrap_or(0));
 		}
 
 		Ok(())

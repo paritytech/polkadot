@@ -38,11 +38,12 @@ use crate::{
 };
 
 use polkadot_node_primitives::BlockWeight;
+use polkadot_node_subsystem_util::GetMemoryUsage;
 use polkadot_primitives::v1::{BlockNumber, Hash};
 
 use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
-use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
+use parity_util_mem::{MallocSizeOf, MallocSizeOfExt, MallocSizeOfOps};
 use std::sync::Arc;
 
 const BLOCK_ENTRY_PREFIX: &[u8; 14] = b"CS_block_entry";
@@ -196,6 +197,12 @@ pub struct Config {
 pub struct DbBackend {
 	inner: Arc<dyn KeyValueDB>,
 	config: Config,
+}
+
+impl GetMemoryUsage for DbBackend {
+	fn memory_usage(&self) -> u64 {
+		self.malloc_size_of() as u64
+	}
 }
 
 impl DbBackend {

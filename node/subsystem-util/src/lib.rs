@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 	SubsystemSender,
 };
 pub mod memvisor;
-pub use memvisor::MemSpan;
+pub use memvisor::{GetMemoryUsage, MemSpan, MemVisor, MemVisorMetrics, SubsystemName};
 
 pub use overseer::{
 	gen::{OverseerError, Timeout},

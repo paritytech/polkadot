@@ -16,8 +16,6 @@
 
 //! Helpers for tracing memory usage across subsystems.
 
-#![forbid(unused_imports)]
-
 use metrics::Metrics;
 use std::{default::Default, sync::Arc};
 
@@ -35,9 +33,9 @@ const DEFAULT_SPAN_NAME: &'static str = DEFAULT_SUBSYSTEM_NAME;
 /// Metrics wrapper.
 #[derive(Default, Clone)]
 #[cfg_attr(test, derive(Debug))]
-pub struct MemVisorMetrics(Option<MemVisorMetricsInner>);
+pub struct MemVisorMetrics(pub Option<MemVisorMetricsInner>);
 
-/// Prometheus metrics.
+/// Prometheus memory span metrics.
 #[derive(Clone)]
 #[cfg_attr(test, derive(Debug))]
 pub struct MemVisorMetricsInner {
@@ -79,7 +77,7 @@ pub struct MemSpan {
 	name: &'static str,
 	/// The name of the subsystem.
 	subsystem_name: &'static str,
-	/// The metric value we are tracking.
+	/// Current memory usage.
 	value: u64,
 	/// Ref to `MemVisorMetrics` to enable metric reporting
 	/// from inside spans.
@@ -104,21 +102,35 @@ impl MemSpan {
 		}
 	}
 
-	/// Enable monitoring for a discrete list of suspect data structures.
-	/// The total usage should be recorded with this call
-	pub fn start(&mut self, start_value: u64) {
+	/// Start span and records the initial memory usage for object.
+	pub fn start(&mut self, object: &dyn GetMemoryUsage) {
 		if self.metrics.0.is_some() {
-			self.value = start_value;
+			self.value = object.memory_usage();
+			tracing::debug!(
+				target: "memvisor",
+				"[START] {}/{} mem usage: {}",
+				self.subsystem_name,
+				self.name,
+				self.value
+			);
 		}
 	}
 
 	/// Ends current span and update metrics.
-	pub fn end(&mut self, stop_value: u64) {
+	pub fn end(&mut self, object: &dyn GetMemoryUsage) {
 		if self.metrics.0.is_none() {
 			return
 		}
 
-		match Self::event(self.value, stop_value) {
+		tracing::debug!(
+			target: "memvisor",
+			"[END] {}/{} mem usage: {}",
+			self.subsystem_name,
+			self.name,
+			object.memory_usage()
+		);
+
+		match Self::event(self.value, object.memory_usage()) {
 			// `metrics` is guaranteed to be some, unwrap() doesn't panic.
 			Some(MemSpanEvent::TotalAllocated(size)) => self
 				.metrics
@@ -168,6 +180,14 @@ impl Into<&'static str> for SubsystemName {
 	}
 }
 
+/// Abstracts memory usage sampling.
+/// For our purpose it doesn't have to be accurate, we are interested in
+/// just capturing memory footprint changes.
+pub trait GetMemoryUsage {
+	/// Returns amount of bytes used.
+	fn memory_usage(&self) -> u64;
+}
+
 /// Helper that tracks and report memory usage metrics.
 pub struct MemVisor {
 	/// Metrics for memory usage across all spans.
@@ -190,38 +210,22 @@ impl MemVisor {
 			metrics: self.metrics.clone(),
 		}
 	}
-
-	#[cfg(test)]
-	pub fn new_dummy() -> MemVisor {
-		let metrics = Arc::new(MemVisorMetrics(None));
-		MemVisor { metrics }
-	}
 }
 
-/// Helper macro that wraps code inside a memory span that tracks a specific object.
+/// Helper macro that wraps code inside a memory span to track a specific object.
 #[macro_export]
 macro_rules! mem_span {
-	($root_span: ident, $name: expr, $object: ident, $inner: expr) => {
-		let mut inner_span = $root_span.child($name);
-		inner_span.start($object.malloc_size_of().try_into().unwrap_or(0));
-		$inner;
-		inner_span.end($object.malloc_size_of().try_into().unwrap_or(0));
+	(parent($parent: expr) name($name: expr) object($object: expr) $($inner:tt)*) => {
+		let mut child_span = $parent.child($name);
+		child_span.start($object);
+		$($inner)*
+		child_span.end($object);
 	};
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-
-	#[derive(Default, Clone)]
-	struct DummyMetrics;
-	impl metrics::Metrics for DummyMetrics {
-		fn try_register(
-			_registry: &prometheus::Registry,
-		) -> Result<Self, prometheus::PrometheusError> {
-			Ok(DummyMetrics {})
-		}
-	}
 
 	#[test]
 	fn test_mem_span_event() {

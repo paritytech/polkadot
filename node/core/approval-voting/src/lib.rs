@@ -22,6 +22,7 @@
 //! been sufficiently approved to finalize.
 
 use kvdb::KeyValueDB;
+use parity_util_mem::{MallocSizeOf, MallocSizeOfExt};
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
@@ -43,9 +44,10 @@ use polkadot_node_subsystem::{
 	SubsystemResult, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{
+	mem_span,
 	metrics::{self, prometheus},
 	rolling_session_window::RollingSessionWindow,
-	TimeoutExt,
+	GetMemoryUsage, MemSpan, TimeoutExt,
 };
 use polkadot_primitives::v1::{
 	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
@@ -134,6 +136,7 @@ pub struct ApprovalVotingSubsystem {
 	db: Arc<dyn KeyValueDB>,
 	mode: Mode,
 	metrics: Metrics,
+	parent_mem_span: MemSpan,
 }
 
 #[derive(Clone)]
@@ -324,6 +327,7 @@ impl ApprovalVotingSubsystem {
 		keystore: Arc<LocalKeystore>,
 		sync_oracle: Box<dyn SyncOracle + Send>,
 		metrics: Metrics,
+		parent_mem_span: MemSpan,
 	) -> Self {
 		ApprovalVotingSubsystem {
 			keystore,
@@ -332,6 +336,7 @@ impl ApprovalVotingSubsystem {
 			db_config: DatabaseConfig { col_data: config.col_data },
 			mode: Mode::Syncing(sync_oracle),
 			metrics,
+			parent_mem_span,
 		}
 	}
 }
@@ -363,12 +368,18 @@ struct ApprovalVoteRequest {
 	block_hash: Hash,
 }
 
-#[derive(Default)]
+#[derive(Default, MallocSizeOf)]
 struct Wakeups {
 	// Tick -> [(Relay Block, Candidate Hash)]
 	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
 	reverse_wakeups: HashMap<(Hash, CandidateHash), Tick>,
 	block_numbers: BTreeMap<BlockNumber, HashSet<Hash>>,
+}
+
+impl GetMemoryUsage for Wakeups {
+	fn memory_usage(&self) -> u64 {
+		self.malloc_size_of() as u64
+	}
 }
 
 impl Wakeups {
@@ -685,91 +696,97 @@ where
 	let mut last_finalized_height: Option<BlockNumber> = None;
 
 	loop {
-		let mut overlayed_db = OverlayedBackend::new(&backend);
-		let actions = futures::select! {
-			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
-				subsystem.metrics.on_wakeup();
-				process_wakeup(
-					&mut state,
-					&mut overlayed_db,
-					woken_block,
-					woken_candidate,
-					tick,
-					&subsystem.metrics,
-				)?
-			}
-			next_msg = ctx.recv().fuse() => {
-				let mut actions = handle_from_overseer(
-					&mut ctx,
-					&mut state,
-					&mut overlayed_db,
-					&subsystem.metrics,
-					next_msg?,
-					&mut last_finalized_height,
-					&mut wakeups,
-				).await?;
+		mem_span! {
+			parent(subsystem.parent_mem_span)
+			name("main-loop")
+			object(&wakeups as &dyn GetMemoryUsage)
 
-				if let Mode::Syncing(ref mut oracle) = subsystem.mode {
-					if !oracle.is_major_syncing() {
-						// note that we're active before processing other actions.
-						actions.insert(0, Action::BecomeActive)
-					}
+			let mut overlayed_db = OverlayedBackend::new(&backend);
+			let actions = futures::select! {
+				(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
+					subsystem.metrics.on_wakeup();
+					process_wakeup(
+						&mut state,
+						&mut overlayed_db,
+						woken_block,
+						woken_candidate,
+						tick,
+						&subsystem.metrics,
+					)?
 				}
+				next_msg = ctx.recv().fuse() => {
+					let mut actions = handle_from_overseer(
+						&mut ctx,
+						&mut state,
+						&mut overlayed_db,
+						&subsystem.metrics,
+						next_msg?,
+						&mut last_finalized_height,
+						&mut wakeups,
+					).await?;
 
-				actions
-			}
-			approval_state = currently_checking_set.next(&mut approvals_cache).fuse() => {
-				let mut actions = Vec::new();
-				let (
-					relay_block_hashes,
-					ApprovalState {
-						validator_index,
-						candidate_hash,
-						approval_outcome,
+					if let Mode::Syncing(ref mut oracle) = subsystem.mode {
+						if !oracle.is_major_syncing() {
+							// note that we're active before processing other actions.
+							actions.insert(0, Action::BecomeActive)
+						}
 					}
-				) = approval_state;
 
-				if matches!(approval_outcome, ApprovalOutcome::Approved) {
-					let mut approvals: Vec<Action> = relay_block_hashes
-						.into_iter()
-						.map(|block_hash|
-							Action::IssueApproval(
-								candidate_hash,
-								ApprovalVoteRequest {
-									validator_index,
-									block_hash,
-								},
+					actions
+				}
+				approval_state = currently_checking_set.next(&mut approvals_cache).fuse() => {
+					let mut actions = Vec::new();
+					let (
+						relay_block_hashes,
+						ApprovalState {
+							validator_index,
+							candidate_hash,
+							approval_outcome,
+						}
+					) = approval_state;
+
+					if matches!(approval_outcome, ApprovalOutcome::Approved) {
+						let mut approvals: Vec<Action> = relay_block_hashes
+							.into_iter()
+							.map(|block_hash|
+								Action::IssueApproval(
+									candidate_hash,
+									ApprovalVoteRequest {
+										validator_index,
+										block_hash,
+									},
+								)
 							)
-						)
-						.collect();
-					actions.append(&mut approvals);
+							.collect();
+						actions.append(&mut approvals);
+					}
+
+					actions
 				}
+			};
 
-				actions
+			if handle_actions(
+				&mut ctx,
+				&mut state,
+				&mut overlayed_db,
+				&subsystem.metrics,
+				&mut wakeups,
+				&mut currently_checking_set,
+				&mut approvals_cache,
+				&mut subsystem.mode,
+				actions,
+			)
+			.await?
+			{
+				break
 			}
-		};
 
-		if handle_actions(
-			&mut ctx,
-			&mut state,
-			&mut overlayed_db,
-			&subsystem.metrics,
-			&mut wakeups,
-			&mut currently_checking_set,
-			&mut approvals_cache,
-			&mut subsystem.mode,
-			actions,
-		)
-		.await?
-		{
-			break
-		}
+			if !overlayed_db.is_empty() {
+				let _timer = subsystem.metrics.time_db_transaction();
 
-		if !overlayed_db.is_empty() {
-			let _timer = subsystem.metrics.time_db_transaction();
-
-			let ops = overlayed_db.into_write_ops();
-			backend.write(ops)?;
+				let ops = overlayed_db.into_write_ops();
+				backend.write(ops)?;
+			}
 		}
 	}
 
