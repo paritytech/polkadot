@@ -5,6 +5,7 @@ license = "GPL-3.0-only"
 version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+rust-version = "1.56.1"
 readme = "README.md"
 publish = false
 

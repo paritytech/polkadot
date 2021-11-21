@@ -4,6 +4,7 @@ description = "Chain Selection Subsystem"
 version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+rust-version = "1.56.1"
 
 [dependencies]
 futures = "0.3.17"

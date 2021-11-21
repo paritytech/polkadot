@@ -4,6 +4,7 @@ version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Types and utilities for creating and working with parachains"
 edition = "2021"
+rust-version = "1.56.1"
 
 [dependencies]
 # note: special care is taken to avoid inclusion of `sp-io` externals when compiling

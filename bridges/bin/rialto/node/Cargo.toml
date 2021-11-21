@@ -4,6 +4,7 @@ description = "Substrate node compatible with Rialto runtime"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+rust-version = "1.56.1"
 build = "build.rs"
 homepage = "https://substrate.dev"
 repository = "https://github.com/paritytech/parity-bridges-common/"

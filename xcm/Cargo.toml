@@ -4,6 +4,7 @@ version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "The basic XCM datastructures."
 edition = "2021"
+rust-version = "1.56.1"
 
 [dependencies]
 impl-trait-for-tuples = "0.2.0"

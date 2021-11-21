@@ -1,6 +1,7 @@
 [package]
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
+rust-version = "1.56.1"
 name = "xcm-executor"
 description = "An abstract and configurable XCM message executor."
 version = "0.9.13"

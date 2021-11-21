@@ -4,6 +4,7 @@ version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator for the adder test parachain"
 edition = "2021"
+rust-version = "1.56.1"
 
 [[bin]]
 name = "adder-collator"

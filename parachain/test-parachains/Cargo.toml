@@ -4,6 +4,7 @@ version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Integration tests using the test-parachains"
 edition = "2021"
+rust-version = "1.56.1"
 
 [dependencies]
 tiny-keccak = "2.0.2"

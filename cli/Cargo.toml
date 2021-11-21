@@ -4,6 +4,7 @@ version = "0.9.13"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2021"
+rust-version = "1.56.1"
 
 [package.metadata.wasm-pack.profile.release]
 # `wasm-opt` has some problems on Linux, see
