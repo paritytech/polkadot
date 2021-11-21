@@ -262,6 +262,7 @@ where
 			keystore.clone(),
 			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
+			mem_visor.span("approval-voting"),
 		))
 		.gossip_support(GossipSupportSubsystem::new(
 			keystore.clone(),
@@ -272,6 +273,7 @@ where
 			dispute_coordinator_config,
 			keystore.clone(),
 			Metrics::register(registry)?,
+			mem_visor.span("dispute-coordinator"),
 		))
 		.dispute_participation(DisputeParticipationSubsystem::new())
 		.dispute_distribution(DisputeDistributionSubsystem::new(
