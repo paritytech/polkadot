@@ -422,6 +422,67 @@ impl<T: Config> Pallet<T> {
 		freed_cores
 	}
 
+	/// Execute verification of the candidate.
+	///
+	/// Assures:
+	///  * correct expecte relay parent reference
+	///  * collator signature check passes
+	///  * code hash of commitments matches current code hash
+	///  * para head in the descriptor and commitments match
+	pub(crate) fn verify_backed_candidate<T: Config>(
+		parent_hash: Hash,
+		now: <T as Config>::BlockNumber,
+		check_ctx: &CandidateCheckContext<T>,
+		backed_candidate: &BackedCandidate,
+	) -> Result<(), Error> {
+		let para_id = backed_candidate.descriptor().para_id;
+
+		// we require that the candidate is in the context of the parent block.
+		ensure!(
+			backed_candidate.descriptor().relay_parent == parent_hash,
+			Error::<T>::CandidateNotInParentContext,
+		);
+		ensure!(
+			backed_candidate.descriptor().check_collator_signature().is_ok(),
+			Error::<T>::NotCollatorSigned,
+		);
+
+		let validation_code_hash =
+			<paras::Pallet<T>>::validation_code_hash_at(para_id, now, None)
+				// A candidate for a parachain without current validation code is not scheduled.
+				.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
+		ensure!(
+			backed_candidate.descriptor().validation_code_hash == validation_code_hash,
+			Error::<T>::InvalidValidationCodeHash,
+		);
+
+		ensure!(
+			backed_candidate.descriptor().para_head ==
+				backed_candidate.candidate.commitments.head_data.hash(),
+			Error::<T>::ParaHeadMismatch,
+		);
+
+		if let Err(err) = check_ctx.check_validation_outputs(
+			para_id,
+			&backed_candidate.candidate.commitments.head_data,
+			&backed_candidate.candidate.commitments.new_validation_code,
+			backed_candidate.candidate.commitments.processed_downward_messages,
+			&backed_candidate.candidate.commitments.upward_messages,
+			T::BlockNumber::from(backed_candidate.candidate.commitments.hrmp_watermark),
+			&backed_candidate.candidate.commitments.horizontal_messages,
+		) {
+			log::debug!(
+				target: LOG_TARGET,
+				"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed: {:?}",
+				candidate_idx,
+				u32::from(para_id),
+				err,
+			);
+			Err(err.strip_into_dispatch_err::<T>())?;
+		};
+		Ok(())
+	}
+
 	/// Process candidates that have been backed. Provide the relay storage root, a set of candidates
 	/// and scheduled cores.
 	///
@@ -446,7 +507,7 @@ impl<T: Config> Pallet<T> {
 		// before of the block where we include a candidate (i.e. this code path).
 		let now = <frame_system::Pallet<T>>::block_number();
 		let relay_parent_number = now - One::one();
-		let check_cx = CandidateCheckContext::<T>::new(now, relay_parent_number);
+		let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
 		// Collect candidate receipts with backers.
 		let mut candidate_receipt_with_backing_validator_indices =
@@ -485,52 +546,14 @@ impl<T: Config> Pallet<T> {
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
 
-				// we require that the candidate is in the context of the parent block.
-				ensure!(
-					backed_candidate.descriptor().relay_parent == parent_hash,
-					Error::<T>::CandidateNotInParentContext,
-				);
-				ensure!(
-					backed_candidate.descriptor().check_collator_signature().is_ok(),
-					Error::<T>::NotCollatorSigned,
-				);
-
-				let validation_code_hash =
-					<paras::Pallet<T>>::validation_code_hash_at(para_id, now, None)
-						// A candidate for a parachain without current validation code is not scheduled.
-						.ok_or_else(|| Error::<T>::UnscheduledCandidate)?;
-				ensure!(
-					backed_candidate.descriptor().validation_code_hash == validation_code_hash,
-					Error::<T>::InvalidValidationCodeHash,
-				);
-
-				ensure!(
-					backed_candidate.descriptor().para_head ==
-						backed_candidate.candidate.commitments.head_data.hash(),
-					Error::<T>::ParaHeadMismatch,
-				);
-
-				if let Err(err) = check_cx.check_validation_outputs(
-					para_id,
-					&backed_candidate.candidate.commitments.head_data,
-					&backed_candidate.candidate.commitments.new_validation_code,
-					backed_candidate.candidate.commitments.processed_downward_messages,
-					&backed_candidate.candidate.commitments.upward_messages,
-					T::BlockNumber::from(backed_candidate.candidate.commitments.hrmp_watermark),
-					&backed_candidate.candidate.commitments.horizontal_messages,
-				) {
-					log::debug!(
-						target: LOG_TARGET,
-						"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed: {:?}",
-						candidate_idx,
-						u32::from(para_id),
-						err,
-					);
-					Err(err.strip_into_dispatch_err::<T>())?;
-				};
+				if let Err(_err) = verify_backed_candidate(parent_hash, check_ctx, &backed_candidate) {
+					continue;
+				}
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
-					check_assignment_in_order(assignment)?;
+					if let Err(_err) = check_assignment_in_order(assignment) {
+						continue;
+					}
 
 					if para_id == assignment.para_id {
 						if let Some(required_collator) = assignment.required_collator() {
@@ -682,7 +705,7 @@ impl<T: Config> Pallet<T> {
 					availability_votes,
 					relay_parent_number,
 					backers: backers.to_bitvec(),
-					backed_in_number: check_cx.now,
+					backed_in_number: check_ctx.now,
 					backing_group: group,
 				},
 			);
