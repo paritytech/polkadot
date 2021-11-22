@@ -27,13 +27,14 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem::{SubsystemContext, SubsystemSender};
 use polkadot_primitives::v1::{
-	CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore, SessionIndex,
-	SessionInfo, Signed, SigningContext, UncheckedSigned, ValidatorId, ValidatorIndex,
+	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
+	SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 
 use crate::{
-	request_availability_cores, request_session_index_for_child, request_session_info,
-	request_validator_groups,
+	request_availability_cores, request_candidate_events, request_session_index_for_child,
+	request_session_info, request_validation_code_by_hash, request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -299,4 +300,28 @@ where
 	let (_, info) =
 		recv_runtime(request_validator_groups(relay_parent, ctx.sender()).await).await?;
 	Ok(info)
+}
+
+/// Get `CandidateEvent`s for the given `relay_parent`.
+pub async fn get_candidate_events<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+) -> Result<Vec<CandidateEvent>>
+where
+	Sender: SubsystemSender,
+{
+	recv_runtime(request_candidate_events(relay_parent, sender).await).await
+}
+
+/// Fetch `ValidationCode` by hash from the runtime.
+pub async fn get_validation_code_by_hash<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+	validation_code_hash: ValidationCodeHash,
+) -> Result<Option<ValidationCode>>
+where
+	Sender: SubsystemSender,
+{
+	recv_runtime(request_validation_code_by_hash(relay_parent, validation_code_hash, sender).await)
+		.await
 }

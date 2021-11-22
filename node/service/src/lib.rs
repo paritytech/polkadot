@@ -669,7 +669,7 @@ pub fn new_full<RuntimeApi, ExecutorDispatch, OverseerGenerator>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	disable_beefy: bool,
+	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	program_path: Option<std::path::PathBuf>,
@@ -948,7 +948,11 @@ where
 					chain_selection_config,
 					dispute_coordinator_config,
 				},
-			)?;
+			)
+			.map_err(|e| {
+				tracing::error!("Failed to init overseer: {}", e);
+				e
+			})?;
 		let handle = Handle::new(overseer_handle.clone());
 
 		{
@@ -1053,7 +1057,7 @@ where
 		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
 
 	// We currently only run the BEEFY gadget on the Rococo and Wococo testnets.
-	if !disable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo()) {
+	if enable_beefy && (chain_spec.is_rococo() || chain_spec.is_wococo()) {
 		let beefy_params = beefy_gadget::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
@@ -1211,7 +1215,7 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
-	disable_beefy: bool,
+	enable_beefy: bool,
 	jaeger_agent: Option<std::net::SocketAddr>,
 	telemetry_worker_handle: Option<TelemetryWorkerHandle>,
 	overseer_gen: impl OverseerGen,
@@ -1222,7 +1226,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1237,7 +1241,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1252,7 +1256,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,
@@ -1267,7 +1271,7 @@ pub fn build_full(
 			config,
 			is_collator,
 			grandpa_pause,
-			disable_beefy,
+			enable_beefy,
 			jaeger_agent,
 			telemetry_worker_handle,
 			None,

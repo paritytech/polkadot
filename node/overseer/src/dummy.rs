@@ -89,7 +89,6 @@ pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
 		DummySubsystem,
 		DummySubsystem,
 		DummySubsystem,
-		DummySubsystem,
 	>,
 	SubsystemError,
 >
@@ -110,7 +109,6 @@ pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
 	OverseerBuilder<
 		Spawner,
 		SupportsParachains,
-		Sub,
 		Sub,
 		Sub,
 		Sub,
@@ -156,7 +154,6 @@ where
 		+ Subsystem<OverseerSubsystemContext<ApprovalVotingMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<GossipSupportMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<DisputeCoordinatorMessage>, SubsystemError>
-		+ Subsystem<OverseerSubsystemContext<DisputeParticipationMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<DisputeDistributionMessage>, SubsystemError>
 		+ Subsystem<OverseerSubsystemContext<ChainSelectionMessage>, SubsystemError>,
 {
@@ -181,7 +178,6 @@ where
 		.approval_voting(subsystem.clone())
 		.gossip_support(subsystem.clone())
 		.dispute_coordinator(subsystem.clone())
-		.dispute_participation(subsystem.clone())
 		.dispute_distribution(subsystem.clone())
 		.chain_selection(subsystem)
 		.activation_external_listeners(Default::default())

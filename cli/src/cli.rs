@@ -101,9 +101,9 @@ pub struct RunCmd {
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
 
-	/// Disable BEEFY gadget.
+	/// Enable the BEEFY gadget (only on Rococo or Wococo for now).
 	#[structopt(long)]
-	pub no_beefy: bool,
+	pub beefy: bool,
 
 	/// Add the destination address to the jaeger agent.
 	///
