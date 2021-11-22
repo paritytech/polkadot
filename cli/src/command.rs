@@ -479,7 +479,8 @@ pub fn run() -> Result<()> {
 		},
 		#[cfg(not(debug_assertions))]
 		Some(Subcommand::HostPerfCheck) => {
-			let mut builder = sc_cli::LoggerBuilder::new("").with_colors(true);
+			let mut builder = sc_cli::LoggerBuilder::new("");
+			builder.with_colors(true);
 			let _ = builder.init();
 
 			host_perf_check()
