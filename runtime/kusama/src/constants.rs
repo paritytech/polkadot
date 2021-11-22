@@ -34,7 +34,7 @@ pub mod time {
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	#[cfg(feature = "fast-runtime")]
-	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * MINUTES;
+	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 2 * MINUTES;
 	#[cfg(not(feature = "fast-runtime"))]
 	pub const EPOCH_DURATION_IN_SLOTS: BlockNumber = 1 * HOURS;
 

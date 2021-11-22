@@ -559,15 +559,15 @@ impl pallet_staking::Config for Runtime {
 }
 
 #[cfg(feature = "fast-runtime")]
-pub const LAUNCH_PERIOD: BlockNumber = 1 * MINUTES;
+pub const LAUNCH_PERIOD: BlockNumber = 2 * MINUTES;
 #[cfg(feature = "fast-runtime")]
-pub const VOTING_PERIOD: BlockNumber =  1 * MINUTES;
+pub const VOTING_PERIOD: BlockNumber =  2 * MINUTES;
 #[cfg(feature = "fast-runtime")]
-pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 1 * MINUTES;
+pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 2 * MINUTES;
 #[cfg(feature = "fast-runtime")]
-pub const ENACTMENT_PERIOD: BlockNumber = 1 * MINUTES;
+pub const ENACTMENT_PERIOD: BlockNumber = 2 * MINUTES;
 #[cfg(feature = "fast-runtime")]
-pub const COOLOFF_PERIOD: BlockNumber = 1 * MINUTES;
+pub const COOLOFF_PERIOD: BlockNumber = 2 * MINUTES;
 
 #[cfg(not(feature = "fast-runtime"))]
 pub const LAUNCH_PERIOD: BlockNumber = 7 * DAYS;
@@ -650,7 +650,7 @@ impl pallet_democracy::Config for Runtime {
 }
 
 #[cfg(feature = "fast-runtime")]
-pub const MOTION_DURATION: BlockNumber = 1 * MINUTES;
+pub const MOTION_DURATION: BlockNumber = 2 * MINUTES;
 #[cfg(not(feature = "fast-runtime"))]
 pub const MOTION_DURATION: BlockNumber = 3 * DAYS;
 
@@ -1259,9 +1259,6 @@ impl paras_registrar::Config for Runtime {
 	type WeightInfo = weights::runtime_common_paras_registrar::WeightInfo<Runtime>;
 }
 
-#[cfg(feature = "fast-runtime")]
-pub const LEASE_PERIOD: BlockNumber = 5 * MINUTES;
-#[cfg(not(feature = "fast-runtime"))]
 pub const LEASE_PERIOD: BlockNumber = 6 * WEEKS;
 
 parameter_types! {
