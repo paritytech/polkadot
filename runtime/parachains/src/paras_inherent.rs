@@ -23,7 +23,9 @@
 
 use crate::{
 	disputes::DisputesHandler,
-	inclusion, initializer,
+	inclusion,
+	inclusion::CandidateCheckContext,
+	initializer,
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump,
 };
@@ -44,13 +46,14 @@ use primitives::v1::{
 };
 use rand::{Rng, SeedableRng};
 use scale_info::TypeInfo;
-use sp_runtime::traits::Header as HeaderT;
+use sp_runtime::traits::{Header as HeaderT, One};
 use sp_std::{
 	cmp::Ordering,
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
 	prelude::*,
 	vec::Vec,
 };
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
@@ -351,6 +354,8 @@ pub mod pallet {
 				Error::<T>::InvalidParentHeader,
 			);
 
+			let now = <frame_system::Pallet<T>>::block_number();
+
 			let mut candidate_weight = backed_candidates_weight::<T>(&backed_candidates);
 			let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 			let disputes_weight = dispute_statements_weight::<T>(&disputes);
@@ -454,7 +459,6 @@ pub mod pallet {
 			);
 
 			// Inform the disputes module of all included candidates.
-			let now = <frame_system::Pallet<T>>::block_number();
 			for (_, candidate_hash) in &freed_concluded {
 				T::DisputesHandler::note_included(current_session, *candidate_hash, now);
 			}
@@ -468,8 +472,14 @@ pub mod pallet {
 			let backed_candidates = sanitize_backed_candidates::<T, _>(
 				parent_hash,
 				backed_candidates,
-				move |candidate_hash: CandidateHash| -> bool {
-					<T>::DisputesHandler::concluded_invalid(current_session, candidate_hash)
+				move |_candidate_index: usize,
+				      backed_candidate: &BackedCandidate<T::Hash>|
+				      -> bool {
+					<T>::DisputesHandler::concluded_invalid(
+						current_session,
+						backed_candidate.hash(),
+					)
+					// `fn process_candidates` does the verification checks
 				},
 				&scheduled[..],
 			);
@@ -548,7 +558,7 @@ impl<T: Config> Pallet<T> {
 
 		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
-		let (concluded_invalid_disputes, mut bitfields, scheduled) =
+		let (concluded_invalid_disputes, mut bitfields, scheduled, now) =
 			frame_support::storage::with_transaction(|| {
 				// we don't care about fresh or not disputes
 				// this writes them to storage, so let's query it via those means
@@ -627,7 +637,8 @@ impl<T: Config> Pallet<T> {
 				let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
 				<scheduler::Pallet<T>>::clear();
-				<scheduler::Pallet<T>>::schedule(freed, <frame_system::Pallet<T>>::block_number());
+				let now = <frame_system::Pallet<T>>::block_number();
+				<scheduler::Pallet<T>>::schedule(freed, now);
 
 				let scheduled = <scheduler::Pallet<T>>::scheduled();
 
@@ -638,14 +649,24 @@ impl<T: Config> Pallet<T> {
 					bitfields,
 					// updated schedule
 					scheduled,
+					// current block
+					now,
 				))
 			});
 
+		let relay_parent_number = now - One::one();
+		// we never check duplicate code
+		let checker_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 		let mut backed_candidates = sanitize_backed_candidates::<T, _>(
 			parent_hash,
 			backed_candidates,
-			move |candidate_hash: CandidateHash| -> bool {
-				concluded_invalid_disputes.contains(&candidate_hash)
+			move |candidate_idx: usize,
+			      backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
+			      -> bool {
+				concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
+					checker_ctx
+						.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)
+						.is_err()
 			},
 			&scheduled[..],
 		);
@@ -954,15 +975,21 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 ///
 /// `candidate_has_concluded_invalid_dispute` must return `true` if the candidate
 /// is disputed, false otherwise
-fn sanitize_backed_candidates<T: crate::inclusion::Config, F: Fn(CandidateHash) -> bool>(
+fn sanitize_backed_candidates<
+	T: crate::inclusion::Config,
+	F: FnMut(usize, &BackedCandidate<T::Hash>) -> bool,
+>(
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
-	candidate_has_concluded_invalid_dispute: F,
+	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
 	scheduled: &[CoreAssignment],
 ) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
-	backed_candidates.retain(|backed_candidate| {
-		!candidate_has_concluded_invalid_dispute(backed_candidate.candidate.hash())
+	let mut index = 0;
+	backed_candidates.retain(move |backed_candidate| {
+		let ret = !candidate_has_concluded_invalid_dispute_or_is_invalid(index, backed_candidate);
+		index += 1;
+		ret
 	});
 
 	// Assure the backed candidate's `ParaId`'s core is free.
