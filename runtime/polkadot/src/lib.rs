@@ -86,9 +86,8 @@ use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter,
-	FixedWeightBounds, IsChildSystemParachain, IsConcrete, LocationInverter,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	UsingComponents,
+	FixedWeightBounds, IsConcrete, LocationInverter, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -1362,6 +1361,7 @@ parameter_types! {
 	pub const Polkadot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(DotLocation::get()) });
 	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1000).into());
 }
+
 pub type TrustedTeleporters = (xcm_builder::Case<PolkadotForStatemint>,);
 
 match_type! {
@@ -1376,8 +1376,6 @@ pub type Barrier = (
 	TakeWeightCredit,
 	// If the message is one that immediately attemps to pay for execution, then allow it.
 	AllowTopLevelPaidExecutionFrom<Everything>,
-	// Messages coming from system parachains need not pay for execution.
-	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 	// Expected responses are OK.
 	AllowKnownQueryResponses<XcmPallet>,
 	// Subscriptions for version tracking are OK.
