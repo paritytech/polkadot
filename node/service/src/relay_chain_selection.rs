@@ -110,6 +110,9 @@ impl Metrics {
 
 /// A chain-selection implementation which provides safety for relay chains.
 pub struct SelectRelayChain<B: sc_client_api::Backend<PolkadotBlock>> {
+	/// Run as relay chain and query the disputes
+	/// coordinator for information on disputed candidates.
+	/// If `false`, uses the longest chain selection mechanism.
 	is_relay_chain: bool,
 	longest_chain: sc_consensus::LongestChain<B, PolkadotBlock>,
 	selection: SelectRelayChainInner<B, Handle>,
@@ -143,6 +146,8 @@ where
 				if cfg!(feature = "disputes") {
 					"dispute aware relay"
 				} else {
+					// no disputes are queried, that logic is disabled
+					// in `fn finality_target_with_longest_chain`.
 					"short-circuited relay"
 				}
 			} else {
