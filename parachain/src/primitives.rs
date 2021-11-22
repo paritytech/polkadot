@@ -41,9 +41,19 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(
-	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
+	PartialEq,
+	Eq,
+	Clone,
+	PartialOrd,
+	Ord,
+	Encode,
+	Decode,
+	RuntimeDebug,
+	derive_more::From,
+	TypeInfo,
+	Default,
 )]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl HeadData {

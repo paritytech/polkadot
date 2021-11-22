@@ -102,12 +102,22 @@ struct Xxx {
 struct DummySpawner;
 
 impl SpawnNamed for DummySpawner {
-	fn spawn_blocking(&self, name: &'static str, _future: futures::future::BoxFuture<'static, ()>) {
-		unimplemented!("spawn blocking {}", name)
+	fn spawn_blocking(
+		&self,
+		task_name: &'static str,
+		subsystem_name: Option<&'static str>,
+		_future: futures::future::BoxFuture<'static, ()>,
+	) {
+		unimplemented!("spawn blocking {} {}", task_name, subsystem_name.unwrap_or("default"))
 	}
 
-	fn spawn(&self, name: &'static str, _future: futures::future::BoxFuture<'static, ()>) {
-		unimplemented!("spawn {}", name)
+	fn spawn(
+		&self,
+		task_name: &'static str,
+		subsystem_name: Option<&'static str>,
+		_future: futures::future::BoxFuture<'static, ()>,
+	) {
+		unimplemented!("spawn {} {}", task_name, subsystem_name.unwrap_or("default"))
 	}
 }
 
