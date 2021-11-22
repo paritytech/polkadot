@@ -56,7 +56,6 @@ pub enum Subcommand {
 
 	/// Compiles a sample wasm code in order to measure the machine capabilities
 	/// of running PVF host.
-	#[cfg(not(debug_assertions))]
 	HostPerfCheck,
 
 	/// Try some command against runtime state.

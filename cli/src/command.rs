@@ -17,9 +17,24 @@
 use crate::cli::{Cli, Subcommand};
 use futures::future::TryFutureExt;
 use log::info;
+use polkadot_node_core_pvf::{sc_executor_common, sp_maybe_compressed_blob};
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
 use service::{self, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
+use std::{fs::OpenOptions, path::Path, time::Duration};
+
+#[allow(missing_docs)]
+#[derive(thiserror::Error, Debug)]
+pub enum PerfCheckError {
+	#[error("This subcommand is only available in release mode")]
+	DebugBuildNotSupported,
+
+	#[error("Failed to decompress wasm code")]
+	CodeDecompressionFailed,
+
+	#[error(transparent)]
+	Wasm(#[from] sc_executor_common::error::WasmError),
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -31,6 +46,9 @@ pub enum Error {
 
 	#[error(transparent)]
 	SubstrateService(#[from] sc_service::Error),
+
+	#[error(transparent)]
+	PerfCheck(#[from] PerfCheckError),
 
 	#[error("Other: {0}")]
 	Other(String),
@@ -216,13 +234,10 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 }
 
 /// Runs a performance check via compiling sample wasm code with a timeout.
-/// Only available in release build since the check would take too much time otherwise.
+/// Should only be run in release build since the check would take too much time otherwise.
 /// Returns `Ok` if the check has been passed previously.
-#[cfg(not(debug_assertions))]
+#[allow(dead_code)]
 fn host_perf_check() -> Result<()> {
-	use polkadot_node_core_pvf::sp_maybe_compressed_blob;
-	use std::{fs::OpenOptions, path::Path, time::Duration};
-
 	const PERF_CHECK_TIME_LIMIT: Duration = Duration::from_secs(20);
 	const CODE_SIZE_LIMIT: usize = 1024usize.pow(3);
 	const WASM_CODE: &[u8] = include_bytes!(
@@ -250,18 +265,10 @@ fn host_perf_check() -> Result<()> {
 	let start = std::time::Instant::now();
 
 	// Recreate the pipeline from the pvf prepare worker.
-	let code = sp_maybe_compressed_blob::decompress(WASM_CODE, CODE_SIZE_LIMIT).map_err(|err| {
-		Error::Other(format!("Failed to decompress test wasm code: {}", err.to_string()))
-	})?;
-	let blob = polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(|err| {
-		Error::Other(format!(
-			"Failed to create runtime blob from the decompressed code: {}",
-			err.to_string()
-		))
-	})?;
-	let _ = polkadot_node_core_pvf::prepare(blob).map_err(|err| {
-		Error::Other(format!("Failed to precompile test wasm code: {}", err.to_string()))
-	})?;
+	let code = sp_maybe_compressed_blob::decompress(WASM_CODE, CODE_SIZE_LIMIT)
+		.or(Err(PerfCheckError::CodeDecompressionFailed))?;
+	let blob = polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
+	let _ = polkadot_node_core_pvf::prepare(blob).map_err(PerfCheckError::from)?;
 
 	let elapsed = start.elapsed();
 	if elapsed <= PERF_CHECK_TIME_LIMIT {
@@ -477,13 +484,19 @@ pub fn run() -> Result<()> {
 			#[cfg(not(feature = "polkadot-native"))]
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
-		#[cfg(not(debug_assertions))]
 		Some(Subcommand::HostPerfCheck) => {
 			let mut builder = sc_cli::LoggerBuilder::new("");
 			builder.with_colors(true);
 			let _ = builder.init();
 
-			host_perf_check()
+			#[cfg(not(debug_assertions))]
+			{
+				host_perf_check()
+			}
+			#[cfg(debug_assertions)]
+			{
+				Err(PerfCheckError::DebugBuildNotSupported.into())
+			}
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
