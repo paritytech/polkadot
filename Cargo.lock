@@ -6771,6 +6771,7 @@ dependencies = [
  "pallet-treasury",
  "pallet-utility",
  "pallet-vesting",
+ "pallet-xcm",
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-runtime-common",
@@ -6803,6 +6804,9 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "trie-db",
+ "xcm",
+ "xcm-builder",
+ "xcm-executor",
 ]
 
 [[package]]
