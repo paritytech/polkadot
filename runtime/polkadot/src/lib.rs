@@ -85,10 +85,10 @@ use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, BackingToPlurality,
-	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
-	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit, UsingComponents,
+	ChildParachainAsNative, ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter,
+	FixedWeightBounds, IsChildSystemParachain, IsConcrete, LocationInverter,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
+	UsingComponents,
 };
 use xcm_executor::XcmExecutor;
 
@@ -1341,8 +1341,6 @@ type LocalOriginConverter = (
 	ChildParachainAsNative<parachains_origin::Origin, Origin>,
 	// The AccountId32 location type can be expressed natively as a `Signed` origin.
 	SignedAccountId32AsNative<PolkadotNetwork, Origin>,
-	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
-	ChildSystemParachainAsSuperuser<ParaId, Origin>,
 );
 
 parameter_types! {
