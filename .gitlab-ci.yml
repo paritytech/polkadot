@@ -612,9 +612,7 @@ zombienet-tests-parachains-smoke-test:
     - job:                         publish-adder-collator-image
 
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx-zombienet/zombienet_tests/parachains'
-    # FIXME: use the master after the merge of the malus pr
-    # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/zombienet_tests/parachains'
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/zombienet_tests/parachains'
 
   before_script:
     - echo "Zombie-net Tests Config"
@@ -651,9 +649,7 @@ zombienet-tests-malus-dispute-valid:
     - job:                         publish-adder-collator-image
 
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/bernhard-malus-fx-zombienet/node/malus/integrationtests'
-    # FIXME: use the master after the merge of the malus pr
-    # GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/node/malus/integrationtests'
+    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/master/node/malus/integrationtests'
 
   before_script:
     - echo "Zombie-net Tests Config"
