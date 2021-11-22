@@ -366,6 +366,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
+		xcm_pallet: polkadot::XcmPalletConfig { safe_xcm_version: Some(2) },
 	}
 }
 
@@ -1310,6 +1311,7 @@ pub fn polkadot_testnet_genesis(
 			config: default_parachains_host_configuration(),
 		},
 		paras: Default::default(),
+		xcm_pallet: polkadot::XcmPalletConfig { safe_xcm_version: Some(2) },
 	}
 }
 
