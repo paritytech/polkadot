@@ -138,9 +138,18 @@ where
 	pub fn new(backend: Arc<B>, overseer: Handle, is_relay_chain: bool, metrics: Metrics) -> Self {
 		tracing::debug!(
 			target: LOG_TARGET,
-			"Using {} as chain selection algorithm",
-			if is_relay_chain { "dispute aware relay" } else { "longest" }
+			"Using {} chain selection algorithm",
+			if is_relay_chain {
+				if cfg!(feature = "disputes") {
+					"dispute aware relay"
+				} else {
+					"short-circuited relay"
+				}
+			} else {
+				"longest"
+			}
 		);
+
 		SelectRelayChain {
 			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
 			selection: SelectRelayChainInner::new(backend, overseer, metrics),
