@@ -559,7 +559,7 @@ impl<T: Config> Pallet<T> {
 
 		T::DisputesHandler::filter_multi_dispute_data(&mut disputes);
 
-		let (concluded_invalid_disputes, mut bitfields, scheduled, now) =
+		let (mut backed_candidates, mut bitfields) =
 			frame_support::storage::with_transaction(|| {
 				// we don't care about fresh or not disputes
 				// this writes them to storage, so let's query it via those means
@@ -640,37 +640,43 @@ impl<T: Config> Pallet<T> {
 
 				let scheduled = <scheduler::Pallet<T>>::scheduled();
 
+				let relay_parent_number = now - One::one();
+
+				let checker_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
+				let backed_candidates = sanitize_backed_candidates::<T, _>(
+					parent_hash,
+					backed_candidates,
+					move |candidate_idx: usize,
+						backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
+						-> bool {
+							// never include a concluded-invalid candidate
+						concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
+							// assure this only includes valid candidates
+							// and only code updates that are not overly frequent or too large by themselves
+							// and hence do not pose a DoS risk. Since we already have logic for that,
+							// we do this upfront to avoid intentionally submitted code upgrades above the allowed
+							// frequency to avoid anything other code-upgrade being included.
+							// This has to happen before the call to `fn apply_weight_limits`.
+							(backed_candidate.candidate.commitments.new_validation_code.is_some() && checker_ctx
+								.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)
+								.is_err())
+					},
+					&scheduled[..],
+				);
+
 				frame_support::storage::TransactionOutcome::Rollback((
-					// concluded disputes for backed candidates in this block
-					concluded_invalid_disputes,
-					// filtered bitfields,
+					// filtered backed candidates
+					backed_candidates,
+					// filtered bitfields
 					bitfields,
-					// updated schedule
-					scheduled,
-					// current block
-					now,
 				))
 			});
 
-		let relay_parent_number = now - One::one();
-		// we never check duplicate code
-		let checker_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
-		let mut backed_candidates = sanitize_backed_candidates::<T, _>(
-			parent_hash,
-			backed_candidates,
-			move |candidate_idx: usize,
-			      backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>|
-			      -> bool {
-				concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
-					checker_ctx
-						.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)
-						.is_err()
-			},
-			&scheduled[..],
-		);
 
 		let entropy = compute_entropy::<T>(parent_hash);
 		let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
+
+		// Assure the maximum block weight is adhered.
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 		let _consumed_weight = apply_weight_limit::<T>(
 			&mut backed_candidates,
@@ -2091,7 +2097,7 @@ mod tests {
 				.unwrap();
 			}
 
-			let has_concluded_invalid = |_candidate: CandidateHash| -> bool { false };
+			let has_concluded_invalid = |_idx: usize, _backed_candidate: &BackedCandidate| -> bool { false };
 
 			let scheduled = (0_usize..2)
 				.into_iter()
@@ -2191,7 +2197,7 @@ mod tests {
 					}
 					set
 				};
-				let has_concluded_invalid = |candidate: CandidateHash| set.contains(&candidate);
+				let has_concluded_invalid = |_idx: usize, candidate: &BackedCandidate| set.contains(&candidate.hash());
 				assert_eq!(
 					sanitize_backed_candidates::<Test, _>(
 						relay_parent,
