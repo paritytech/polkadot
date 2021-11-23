@@ -574,9 +574,6 @@ impl<T: Config> Pallet<T> {
 						e
 					});
 
-				// current concluded invalid disputes, only including the current block's votes
-				// TODO why does this say "only including the current block's votes"? This can include
-				// remote disputes, right?
 				let current_concluded_invalid_disputes = disputes
 					.iter()
 					.filter(|dss| dss.session == current_session)
