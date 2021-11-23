@@ -561,7 +561,7 @@ impl pallet_staking::Config for Runtime {
 #[cfg(feature = "fast-runtime")]
 pub const LAUNCH_PERIOD: BlockNumber = 2 * MINUTES;
 #[cfg(feature = "fast-runtime")]
-pub const VOTING_PERIOD: BlockNumber =  2 * MINUTES;
+pub const VOTING_PERIOD: BlockNumber = 2 * MINUTES;
 #[cfg(feature = "fast-runtime")]
 pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 2 * MINUTES;
 #[cfg(feature = "fast-runtime")]
