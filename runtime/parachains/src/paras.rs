@@ -212,6 +212,7 @@ impl<N: Ord + Copy + PartialEq> ParaPastCodeMeta<N> {
 		self.upgrade_times.push(ReplacementTimes { expected_at, activated_at })
 	}
 
+	/// Returns `true` if the upgrade logs list is empty.
 	fn is_empty(&self) -> bool {
 		self.upgrade_times.is_empty()
 	}
