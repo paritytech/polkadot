@@ -213,6 +213,7 @@ impl ProvisioningJob {
 			self.backed_candidates.clone(),
 			return_senders,
 			sender,
+			&self.metrics,
 		)
 		.await
 		{
@@ -254,11 +255,12 @@ async fn send_inherent_data(
 	candidate_receipts: Vec<CandidateReceipt>,
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	from_job: &mut impl SubsystemSender,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let backed_candidates =
 		collect_backed_candidates(candidate_receipts, relay_parent, from_job).await?;
 
-	let disputes = collect_disputes(from_job).await?;
+	let disputes = collect_disputes(from_job, metrics).await?;
 
 	let inherent_data = ProvisionerInherentData { bitfields, backed_candidates, disputes };
 
@@ -324,6 +326,7 @@ async fn collect_backed_candidates(
 
 async fn collect_disputes(
 	sender: &mut impl SubsystemSender,
+	metrics: &metrics::Metrics,
 ) -> Result<MultiDisputeStatementSet, Error> {
 	let (tx, rx) = oneshot::channel();
 
@@ -384,6 +387,10 @@ async fn collect_disputes(
 				.invalid
 				.into_iter()
 				.map(|(s, i, sig)| (DisputeStatement::Invalid(s), i, sig));
+
+			metrics.inc_valid_statements_by(valid_statements.len());
+			metrics.inc_invalid_statements_by(invalid_statements.len());
+			metrics.inc_dispute_statement_sets_by(1);
 
 			DisputeStatementSet {
 				candidate_hash,

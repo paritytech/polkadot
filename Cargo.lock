@@ -6377,7 +6377,6 @@ dependencies = [
  "futures 0.3.17",
  "futures-timer 3.0.2",
  "polkadot-node-subsystem",
- "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-blockchain",
  "sp-inherents",

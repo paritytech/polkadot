@@ -24,8 +24,6 @@
 
 #![deny(unused_crate_dependencies, unused_results)]
 
-mod metrics;
-
 use futures::{select, FutureExt};
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::ProvisionerMessage, overseer::Handle,
@@ -35,15 +33,12 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
 use std::time;
 
-pub use metrics::Metrics;
-
 /// How long to wait for the provisioner, before giving up.
 const PROVISIONER_TIMEOUT: time::Duration = core::time::Duration::from_millis(2500);
 
 /// Provides the parachains inherent data.
 pub struct ParachainsInherentDataProvider {
 	inherent_data: ParachainsInherentData,
-	metrics: metrics::Metrics,
 }
 
 impl ParachainsInherentDataProvider {
@@ -52,7 +47,6 @@ impl ParachainsInherentDataProvider {
 		client: &C,
 		mut overseer: Handle,
 		parent: Hash,
-		metrics: metrics::Metrics,
 	) -> Result<Self, Error> {
 		let pid = async {
 			let (sender, receiver) = futures::channel::oneshot::channel();
@@ -107,7 +101,7 @@ impl ParachainsInherentDataProvider {
 			},
 		};
 
-		Ok(Self { inherent_data, metrics })
+		Ok(Self { inherent_data })
 	}
 }
 
@@ -117,13 +111,6 @@ impl sp_inherents::InherentDataProvider for ParachainsInherentDataProvider {
 		&self,
 		dst_inherent_data: &mut sp_inherents::InherentData,
 	) -> Result<(), sp_inherents::Error> {
-		let vote_count: usize =
-			self.inherent_data.disputes.iter().map(|set| set.statements.len()).sum();
-		let dispute_count = self.inherent_data.disputes.len();
-
-		self.metrics.inc_disputes_by(dispute_count);
-		self.metrics.inc_votes_by(vote_count);
-
 		dst_inherent_data
 			.put_data(polkadot_primitives::v1::PARACHAINS_INHERENT_IDENTIFIER, &self.inherent_data)
 	}
