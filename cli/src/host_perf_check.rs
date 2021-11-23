@@ -35,6 +35,68 @@ pub enum PerfCheckError {
 	TimeOut { elapsed: Duration, limit: Duration },
 }
 
+#[cfg(build_type = "release")]
+fn dummy_file_path() -> std::io::Result<std::path::PathBuf> {
+	use std::{fs, io, path::Path};
+
+	let home_dir =
+		std::env::var("HOME").map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+	let path = Path::new(&home_dir).join(".polkadot");
+
+	if let Err(err) = fs::create_dir(&path) {
+		if err.kind() != io::ErrorKind::AlreadyExists {
+			return Err(err)
+		}
+	}
+
+	Ok(path.join("perf_check_passed"))
+}
+
+#[cfg(build_type = "release")]
+fn check_dummy_file(path: &std::path::Path) -> std::io::Result<bool> {
+	use nix::unistd;
+	use std::{
+		fs,
+		io::{self, Read},
+	};
+
+	let host_name_max_len = unistd::SysconfVar::HOST_NAME_MAX as usize;
+
+	let mut host_name = vec![0u8; host_name_max_len];
+	let mut buf = host_name.clone();
+	unistd::gethostname(&mut host_name).map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+
+	let dummy_file = match fs::File::open(path) {
+		Ok(file) => file,
+		Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
+		Err(err) => return Err(err),
+	};
+	let mut reader = io::BufReader::new(dummy_file);
+
+	reader.read_exact(&mut buf)?;
+
+	Ok(host_name == buf)
+}
+
+#[cfg(build_type = "release")]
+fn save_dummy_file(path: &std::path::Path) -> std::io::Result<()> {
+	use nix::unistd;
+	use std::{
+		fs::OpenOptions,
+		io::{self, Write},
+	};
+
+	let host_name_max_len = unistd::SysconfVar::HOST_NAME_MAX as usize;
+	let mut host_name = vec![0u8; host_name_max_len];
+	unistd::gethostname(&mut host_name).map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
+
+	let mut dummy_file = OpenOptions::new().truncate(true).create(true).write(true).open(path)?;
+
+	dummy_file.write(&host_name)?;
+
+	Ok(())
+}
+
 /// Runs a performance check via compiling sample wasm code with a timeout.
 /// Should only be run in release build since the check would take too much time otherwise.
 /// Returns `Ok` immediately if the check has been passed previously.
@@ -46,29 +108,26 @@ pub fn host_perf_check() -> Result<(), PerfCheckError> {
 	#[cfg(build_type = "release")]
 	{
 		use polkadot_node_core_pvf::sp_maybe_compressed_blob;
-		use std::{fs::OpenOptions, path::Path};
 
 		const PERF_CHECK_TIME_LIMIT: Duration = Duration::from_secs(20);
 		const CODE_SIZE_LIMIT: usize = 1024usize.pow(3);
 		const WASM_CODE: &[u8] = include_bytes!(
 			"../../target/release/wbuild/kusama-runtime/kusama_runtime.compact.compressed.wasm"
 		);
-		const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
 
-		// We will try to save a dummy file to the same path as the polkadot binary
-		// to make it independent from the current directory.
-		let check_passed_path = std::env::current_exe()
-			.map(|mut path| {
-				path.pop();
-				path
-			})
-			.unwrap_or_default()
-			.join(CHECK_PASSED_FILE_NAME);
+		// We will try to save a dummy file at $HOME/.polkadot/perf_check_passed.
+		let dummy_file_path =
+			dummy_file_path()
+				.map_err(|err| {
+					log::info!("Performance check result is not going to be persisted due to an error: {:?}", err)
+				})
+				.ok();
 
-		// To avoid running the check on every launch we create a dummy dot-file on success.
-		if Path::new(&check_passed_path).exists() {
-			log::info!("Performance check skipped: already passed");
-			return Ok(())
+		if let Some(ref path) = dummy_file_path {
+			if let Ok(true) = check_dummy_file(path) {
+				log::info!("Performance check skipped: already passed");
+				return Ok(())
+			}
 		}
 
 		log::info!("Running the performance check...");
@@ -84,8 +143,8 @@ pub fn host_perf_check() -> Result<(), PerfCheckError> {
 		let elapsed = start.elapsed();
 		if elapsed <= PERF_CHECK_TIME_LIMIT {
 			log::info!("Performance check passed, elapsed: {:?}", start.elapsed());
-			// `touch` a dummy file.
-			let _ = OpenOptions::new().create(true).write(true).open(Path::new(&check_passed_path));
+			// Save a dummy file.
+			dummy_file_path.map(|path| save_dummy_file(&path));
 			Ok(())
 		} else {
 			Err(PerfCheckError::TimeOut { elapsed, limit: PERF_CHECK_TIME_LIMIT })
