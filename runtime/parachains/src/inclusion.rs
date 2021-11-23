@@ -434,7 +434,7 @@ impl<T: Config> Pallet<T> {
 		group_validators: GV,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
-		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>
+		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
 	{
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
@@ -488,7 +488,11 @@ impl<T: Config> Pallet<T> {
 				candidates.iter().enumerate()
 			{
 				if !SKIP_CHECKER_CHECKS {
-					check_ctx.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)?;
+					check_ctx.verify_backed_candidate(
+						parent_hash,
+						candidate_idx,
+						backed_candidate,
+					)?;
 				}
 
 				let para_id = backed_candidate.descriptor().para_id;
