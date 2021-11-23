@@ -51,7 +51,7 @@ use frame_support::{
 	construct_runtime, match_type, parameter_types,
 	traits::{
 		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier, Nothing,
-		PrivilegeCmp,
+		OnRuntimeUpgrade, PrivilegeCmp,
 	},
 	weights::Weight,
 	PalletId, RuntimeDebug,
@@ -1554,7 +1554,7 @@ construct_runtime! {
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 58,
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
-		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>} = 60,
+		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
@@ -1597,10 +1597,31 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	(SessionHistoricalPalletPrefixMigration,),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
+pub struct SessionHistoricalPalletPrefixMigration;
+
+impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
+		Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
+		Ok(())
+	}
+}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {

@@ -145,7 +145,7 @@ where
 	) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: None,
-			session_cache_lru_size: DISPUTE_WINDOW as usize,
+			session_cache_lru_size: DISPUTE_WINDOW.get() as usize,
 		});
 		Self {
 			runtime,
@@ -197,7 +197,7 @@ where
 		let peer = incoming.peer;
 
 		// Only accept messages from validators:
-		if self.authority_discovery.get_authority_id_by_peer_id(peer).await.is_none() {
+		if self.authority_discovery.get_authority_ids_by_peer_id(peer).await.is_none() {
 			incoming
 				.send_outgoing_response(OutgoingResponse {
 					result: Err(()),
