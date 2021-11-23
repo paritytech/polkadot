@@ -37,7 +37,7 @@ use sp_core::u32_trait::{_1, _2, _3, _5};
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
-	configuration as parachains_configuration, dmp as parachains_dmp, hrmp as parachains_hrmp,
+	configuration as parachains_configuration, disputes as parachains_disputes, dmp as parachains_dmp, hrmp as parachains_hrmp,
 	inclusion as parachains_inclusion, initializer as parachains_initializer,
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
@@ -1213,6 +1213,13 @@ impl parachains_initializer::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_initializer::WeightInfo<Runtime>;
 }
 
+impl parachains_disputes::Config for Runtime {
+	type Event = Event;
+	type RewardValidators = ();
+	type PunishValidators = ();
+	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
+}
+
 parameter_types! {
 	pub const ParaDeposit: Balance = 40 * UNITS;
 }
@@ -1554,6 +1561,7 @@ construct_runtime! {
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
+		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,
