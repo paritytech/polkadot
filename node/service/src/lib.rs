@@ -1000,6 +1000,9 @@ where
 			telemetry.as_ref().map(|x| x.handle()),
 		);
 
+		let inherent_data_provider_metrics: polkadot_node_core_parachains_inherent::Metrics = 
+			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
+		
 		let client_clone = client.clone();
 		let overseer_handle =
 			overseer_handle.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
@@ -1015,11 +1018,14 @@ where
 			create_inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
 				let overseer_handle = overseer_handle.clone();
+				let inherent_data_provider_metrics = inherent_data_provider_metrics.clone();
+
 				async move {
 					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
 						&*client_clone,
 						overseer_handle,
 						parent,
+						inherent_data_provider_metrics,
 					).await.map_err(|e| Box::new(e))?;
 
 					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
