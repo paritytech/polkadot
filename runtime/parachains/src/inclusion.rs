@@ -591,7 +591,7 @@ impl<T: Config> Pallet<T> {
 							backers,
 							assignment.group_idx,
 						));
-						continue 'a
+						continue 'next_backed_candidate
 					}
 				}
 
