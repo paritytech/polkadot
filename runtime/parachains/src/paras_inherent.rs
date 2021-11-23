@@ -257,7 +257,7 @@ pub mod pallet {
 			// in all the logic in this module this check should be removed to optimize performance.
 
 			let inherent_data =
-				match Self::enter(frame_system::RawOrigin::None.into(), inherent_data.clone()) {
+				match Self::enter_inner::<true>(inherent_data.clone()) {
 					Ok(_) => inherent_data,
 					Err(err) => {
 						log::error!(
@@ -333,6 +333,14 @@ pub mod pallet {
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 			Included::<T>::set(Some(()));
 
+			Self::enter_inner::<false>(data)
+		}
+	}
+}
+
+impl<T: Config> Pallet<T> {
+
+		pub(crate) fn enter_inner<const SKIP_CHECKER_CHECKS: bool>(data: ParachainsInherentData<T::Header>) -> DispatchResultWithPostInfo {
 			let ParachainsInherentData {
 				bitfields: mut signed_bitfields,
 				mut backed_candidates,
@@ -490,7 +498,7 @@ pub mod pallet {
 			let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
 				core_indices: occupied,
 				candidate_receipt_with_backing_validator_indices,
-			} = <inclusion::Pallet<T>>::process_candidates(
+			} = <inclusion::Pallet<T>>::process_candidates::<_, SKIP_CHECKER_CHECKS>(
 				parent_storage_root,
 				backed_candidates,
 				scheduled,
@@ -515,9 +523,9 @@ pub mod pallet {
 			Ok(Some(total_weight).into())
 		}
 	}
-}
 
 impl<T: Config> Pallet<T> {
+
 	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in [`Self::create_inherent`].
 	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
 	fn create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<T::Header>> {
@@ -651,15 +659,13 @@ impl<T: Config> Pallet<T> {
 						-> bool {
 							// never include a concluded-invalid candidate
 						concluded_invalid_disputes.contains(&backed_candidate.hash()) ||
-							// assure this only includes valid candidates
-							// and only code updates that are not overly frequent or too large by themselves
-							// and hence do not pose a DoS risk. Since we already have logic for that,
-							// we do this upfront to avoid intentionally submitted code upgrades above the allowed
-							// frequency to avoid anything other code-upgrade being included.
-							// This has to happen before the call to `fn apply_weight_limits`.
-							(backed_candidate.candidate.commitments.new_validation_code.is_some() && checker_ctx
+							// Instead of checking the candidates with code upgrades twice
+							// move the checking up here and skip it in the training wheels fallback.
+							// That way we avoid possible duplicate checks while assuring all
+							// backed candidates fine to pass on.
+							checker_ctx
 								.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)
-								.is_err())
+								.is_err()
 					},
 					&scheduled[..],
 				);
@@ -781,10 +787,10 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 /// In the common case, the block still has plenty(most) of remaining weight, which is used
 /// to place as many backed candidates as possible.
 ///
-/// The selection process is random. There is an exception for code upgrades that are prefered
+/// The selection process is random. There is an exception for code upgrades that are preferred
 /// for backed candidates, since with a increasing number of parachains their chances of
 /// inclusion become slim. The DoS vector opened to a potentially malicious collator
-/// is mitigated by checking all backed candidates beforehand in `fn create_inherent`.
+/// is mitigated by checking all backed candidates beforehand in `fn create_inherent_inner`.
 fn apply_weight_limit<T: Config + inclusion::Config>(
 	candidates: &mut Vec<BackedCandidate<<T>::Hash>>,
 	bitfields: &mut UncheckedSignedAvailabilityBitfields,

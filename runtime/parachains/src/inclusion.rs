@@ -427,12 +427,15 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
-	pub(crate) fn process_candidates(
+	pub(crate) fn process_candidates<GV, const SKIP_CHECKER_CHECKS: bool>(
 		parent_storage_root: T::Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
-		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
-	) -> Result<ProcessedCandidates<T::Hash>, DispatchError> {
+		group_validators: GV,
+	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
+	where
+		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>
+	{
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
@@ -484,7 +487,9 @@ impl<T: Config> Pallet<T> {
 			'next_backed_candidate: for (candidate_idx, backed_candidate) in
 				candidates.iter().enumerate()
 			{
-				check_ctx.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)?;
+				if !SKIP_CHECKER_CHECKS {
+					check_ctx.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)?;
+				}
 
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
@@ -1951,7 +1956,7 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![chain_b_assignment.clone()],
@@ -2006,7 +2011,7 @@ pub(crate) mod tests {
 
 				// out-of-order manifests as unscheduled.
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed_b, backed_a],
 						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
@@ -2039,7 +2044,7 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2074,7 +2079,7 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2109,7 +2114,7 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![
@@ -2151,7 +2156,7 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![thread_a_assignment.clone()],
@@ -2201,7 +2206,7 @@ pub(crate) mod tests {
 				<PendingAvailabilityCommitments<Test>>::insert(&chain_a, candidate.commitments);
 
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2244,7 +2249,7 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2295,7 +2300,7 @@ pub(crate) mod tests {
 				}
 
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2329,7 +2334,7 @@ pub(crate) mod tests {
 				));
 
 				assert_eq!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2364,7 +2369,7 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2399,7 +2404,7 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates(
+					ParaInclusion::process_candidates::<_, false>(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
@@ -2564,7 +2569,7 @@ pub(crate) mod tests {
 			let ProcessedCandidates {
 				core_indices: occupied_cores,
 				candidate_receipt_with_backing_validator_indices,
-			} = ParaInclusion::process_candidates(
+			} = ParaInclusion::process_candidates::<_, false>(
 				Default::default(),
 				backed_candidates.clone(),
 				vec![
@@ -2758,7 +2763,7 @@ pub(crate) mod tests {
 			));
 
 			let ProcessedCandidates { core_indices: occupied_cores, .. } =
-				ParaInclusion::process_candidates(
+				ParaInclusion::process_candidates::<_, false>(
 					Default::default(),
 					vec![backed_a],
 					vec![chain_a_assignment.clone()],
