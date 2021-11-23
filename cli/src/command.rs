@@ -422,7 +422,7 @@ pub fn run() -> Result<()> {
 			panic!("No runtime feature (polkadot, kusama, westend, rococo) is enabled")
 		},
 		Some(Subcommand::HostPerfCheck) => {
-			let mut builder = sc_cli::LoggerBuilder::new("");
+			let mut builder = sc_cli::LoggerBuilder::new("info");
 			builder.with_colors(true);
 			let _ = builder.init();
 
