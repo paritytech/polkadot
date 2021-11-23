@@ -330,7 +330,7 @@ impl<BlockNumber> PvfCheckVotingState<BlockNumber> {
 		clear_and_resize(&mut self.votes_reject);
 	}
 
-	/// Returns true if the validator at the given index has already casted their vote within 
+	/// Returns true if the validator at the given index has already casted their vote within
 	/// the ongoing session.
 	fn has_vote(&self, validator_index: usize) -> bool {
 		let inner = || -> Result<bool, ()> {

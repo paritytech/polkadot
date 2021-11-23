@@ -76,7 +76,7 @@ struct ImportedBlockInfo {
 }
 
 struct ImportedBlockInfoEnv<'a> {
-	session_window: &'a RollingSessionWindow,
+	session_window: &'a Option<RollingSessionWindow>,
 	assignment_criteria: &'a (dyn AssignmentCriteria + Send + Sync),
 	keystore: &'a LocalKeystore,
 }
@@ -133,7 +133,11 @@ async fn imported_block_info(
 			Err(_) => return Ok(None),
 		};
 
-		if env.session_window.earliest_session().map_or(true, |e| session_index < e) {
+		if env
+			.session_window
+			.as_ref()
+			.map_or(true, |s| session_index < s.earliest_session())
+		{
 			tracing::debug!(
 				target: LOG_TARGET,
 				"Block {} is from ancient session {}. Skipping",
@@ -180,7 +184,8 @@ async fn imported_block_info(
 		}
 	};
 
-	let session_info = match env.session_window.session_info(session_index) {
+	let session_info = match env.session_window.as_ref().and_then(|s| s.session_info(session_index))
+	{
 		Some(s) => s,
 		None => {
 			tracing::debug!(
@@ -324,7 +329,7 @@ pub(crate) async fn handle_new_head(
 		}
 	};
 
-	match state.session_window.cache_session_info_for_head(ctx, head).await {
+	match state.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
 			tracing::debug!(
 				target: LOG_TARGET,
@@ -335,7 +340,7 @@ pub(crate) async fn handle_new_head(
 
 			return Ok(Vec::new())
 		},
-		Ok(a @ SessionWindowUpdate::Advanced { .. }) => {
+		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
 			tracing::info!(
 				target: LOG_TARGET,
 				update = ?a,
@@ -431,8 +436,9 @@ pub(crate) async fn handle_new_head(
 
 		let session_info = state
 			.session_window
-			.session_info(session_index)
-			.expect("imported_block_info requires session to be available; qed");
+			.as_ref()
+			.and_then(|s| s.session_info(session_index))
+			.expect("imported_block_info requires session info to be available; qed");
 
 		let (block_tick, no_show_duration) = {
 			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
@@ -608,7 +614,7 @@ pub(crate) mod tests {
 
 	fn blank_state() -> State {
 		State {
-			session_window: RollingSessionWindow::new(APPROVAL_SESSIONS),
+			session_window: None,
 			keystore: Arc::new(LocalKeystore::in_memory()),
 			slot_duration_millis: 6_000,
 			clock: Box::new(MockClock::default()),
@@ -618,11 +624,11 @@ pub(crate) mod tests {
 
 	fn single_session_state(index: SessionIndex, info: SessionInfo) -> State {
 		State {
-			session_window: RollingSessionWindow::with_session_info(
+			session_window: Some(RollingSessionWindow::with_session_info(
 				APPROVAL_SESSIONS,
 				index,
 				vec![info],
-			),
+			)),
 			..blank_state()
 		}
 	}
@@ -740,7 +746,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &session_window,
+					session_window: &Some(session_window),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -849,7 +855,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &session_window,
+					session_window: &Some(session_window),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -942,7 +948,7 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_window = RollingSessionWindow::new(APPROVAL_SESSIONS);
+			let session_window = None;
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1037,11 +1043,11 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window = RollingSessionWindow::with_session_info(
+			let session_window = Some(RollingSessionWindow::with_session_info(
 				APPROVAL_SESSIONS,
 				session,
 				vec![session_info],
-			);
+			));
 
 			let header = header.clone();
 			Box::pin(async move {
