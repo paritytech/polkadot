@@ -117,9 +117,10 @@ impl sp_inherents::InherentDataProvider for ParachainsInherentDataProvider {
 		&self,
 		inherent_data: &mut sp_inherents::InherentData,
 	) -> Result<(), sp_inherents::Error> {
-		let vote_count: usize = self.inherent_data.disputes.iter().map(|set| set.statements.len()).sum();
+		let vote_count: usize =
+			self.inherent_data.disputes.iter().map(|set| set.statements.len()).sum();
 		let dispute_count = self.inherent_data.disputes.len();
-		
+
 		self.metrics.inc_disputes_by(dispute_count);
 		self.metrics.inc_votes_by(vote_count);
 

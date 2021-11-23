@@ -1000,9 +1000,9 @@ where
 			telemetry.as_ref().map(|x| x.handle()),
 		);
 
-		let inherent_data_provider_metrics: polkadot_node_core_parachains_inherent::Metrics = 
+		let inherent_data_provider_metrics: polkadot_node_core_parachains_inherent::Metrics =
 			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
-		
+
 		let client_clone = client.clone();
 		let overseer_handle =
 			overseer_handle.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();

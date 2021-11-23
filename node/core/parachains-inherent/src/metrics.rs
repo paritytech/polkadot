@@ -49,16 +49,16 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_create_inherent_data_votes",
 					"Number of dispute votes processed by create_inherent().",
-					)?,
-					&registry,
 				)?,
+				&registry,
+			)?,
 			disputes: prometheus::register(
 				prometheus::Counter::new(
-						"parachain_create_inherent_data_disputes",
-						"Number of disputes processed by create_inherent().",
-					)?,
-					&registry,
-				)?
+					"parachain_create_inherent_data_disputes",
+					"Number of disputes processed by create_inherent().",
+				)?,
+				&registry,
+			)?,
 		};
 		Ok(Metrics(Some(metrics)))
 	}
