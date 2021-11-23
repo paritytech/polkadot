@@ -44,7 +44,8 @@ use primitives::v1::{
 	UncheckedSignedAvailabilityBitfields, ValidatorId, ValidatorIndex,
 	PARACHAINS_INHERENT_IDENTIFIER,
 };
-use rand::{Rng, SeedableRng};
+use rand::{SeedableRng, seq::SliceRandom};
+
 use scale_info::TypeInfo;
 use sp_runtime::traits::{Header as HeaderT, One};
 use sp_std::{
@@ -735,11 +736,8 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 
 	let mut weight_acc = 0 as Weight;
 
-	while !preferred_indices.is_empty() {
-		// randomly pick an index from the preferred set
-		let pick = rng.gen_range(0..preferred_indices.len());
-		// remove the index from the available set of preferred indices
-		let preferred_idx = preferred_indices.swap_remove(pick);
+	preferred_indices.shuffle(rng);
+	for preferred_idx in preferred_indices {
 
 		// preferred indices originate from outside
 		if let Some(item) = selectables.get(preferred_idx) {
@@ -752,12 +750,8 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		}
 	}
 
-	while !indices.is_empty() {
-		// randomly pick an index
-		let pick = rng.gen_range(0..indices.len());
-		// remove the index from the available set of indices
-		let idx = indices.swap_remove(pick);
-
+	indices.shuffle(rng);
+	for idx in indices {
 		let item = &selectables[idx];
 		let updated = weight_acc + weight_fn(item);
 
