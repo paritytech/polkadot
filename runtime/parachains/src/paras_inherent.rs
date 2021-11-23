@@ -741,7 +741,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 
 		// preferred indices originate from outside
 		if let Some(item) = selectables.get(preferred_idx) {
-			let updated = weight_acc + weight_fn(item);
+			let updated = weight_acc.saturating_add(weight_fn(item));
 			if updated > weight_limit {
 				continue
 			}
@@ -753,7 +753,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	indices.shuffle(rng);
 	for idx in indices {
 		let item = &selectables[idx];
-		let updated = weight_acc + weight_fn(item);
+		let updated = weight_acc.saturating_add(weight_fn(item));
 
 		if updated > weight_limit {
 			continue
