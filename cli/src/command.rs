@@ -14,27 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::cli::{Cli, Subcommand};
+use crate::{
+	cli::{Cli, Subcommand},
+	host_perf_check::PerfCheckError,
+};
 use futures::future::TryFutureExt;
 use log::info;
-use polkadot_node_core_pvf::{sc_executor_common, sp_maybe_compressed_blob};
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
 use service::{self, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
-use std::{fs::OpenOptions, path::Path, time::Duration};
-
-#[allow(missing_docs)]
-#[derive(thiserror::Error, Debug)]
-pub enum PerfCheckError {
-	#[error("This subcommand is only available in release mode")]
-	DebugBuildNotSupported,
-
-	#[error("Failed to decompress wasm code")]
-	CodeDecompressionFailed,
-
-	#[error(transparent)]
-	Wasm(#[from] sc_executor_common::error::WasmError),
-}
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -230,57 +218,6 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 		Ok(())
 	} else {
 		Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, spec.id()))
-	}
-}
-
-/// Runs a performance check via compiling sample wasm code with a timeout.
-/// Should only be run in release build since the check would take too much time otherwise.
-/// Returns `Ok` if the check has been passed previously.
-#[allow(dead_code)]
-fn host_perf_check() -> Result<()> {
-	const PERF_CHECK_TIME_LIMIT: Duration = Duration::from_secs(20);
-	const CODE_SIZE_LIMIT: usize = 1024usize.pow(3);
-	const WASM_CODE: &[u8] = include_bytes!(
-		"../../target/release/wbuild/kusama-runtime/kusama_runtime.compact.compressed.wasm"
-	);
-	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
-
-	// We will try to save a dummy file to the same path as the polkadot binary
-	// to make it independent from the current directory.
-	let check_passed_path = std::env::current_exe()
-		.map(|mut path| {
-			path.pop();
-			path
-		})
-		.unwrap_or_default()
-		.join(CHECK_PASSED_FILE_NAME);
-
-	// To avoid running the check on every launch we create a dummy dot-file on success.
-	if Path::new(&check_passed_path).exists() {
-		info!("Performance check skipped: already passed");
-		return Ok(())
-	}
-
-	info!("Running the performance check...");
-	let start = std::time::Instant::now();
-
-	// Recreate the pipeline from the pvf prepare worker.
-	let code = sp_maybe_compressed_blob::decompress(WASM_CODE, CODE_SIZE_LIMIT)
-		.or(Err(PerfCheckError::CodeDecompressionFailed))?;
-	let blob = polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
-	let _ = polkadot_node_core_pvf::prepare(blob).map_err(PerfCheckError::from)?;
-
-	let elapsed = start.elapsed();
-	if elapsed <= PERF_CHECK_TIME_LIMIT {
-		info!("Performance check passed, elapsed: {:?}", start.elapsed());
-		// `touch` a dummy file.
-		let _ = OpenOptions::new().create(true).write(true).open(Path::new(&check_passed_path));
-		Ok(())
-	} else {
-		Err(Error::Other(format!(
-			"Performance check not passed: exceeded the {:?} time limit, elapsed: {:?}",
-			PERF_CHECK_TIME_LIMIT, elapsed
-		)))
 	}
 }
 
@@ -491,7 +428,7 @@ pub fn run() -> Result<()> {
 
 			#[cfg(not(debug_assertions))]
 			{
-				host_perf_check()
+				crate::host_perf_check::host_perf_check().map_err(Into::into)
 			}
 			#[cfg(debug_assertions)]
 			{

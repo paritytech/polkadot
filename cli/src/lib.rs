@@ -22,6 +22,8 @@
 mod cli;
 #[cfg(feature = "cli")]
 mod command;
+#[cfg(feature = "cli")]
+mod host_perf_check;
 
 #[cfg(feature = "full-node")]
 pub use service::RuntimeApiCollection;
@@ -33,6 +35,8 @@ pub use service::overseer::prepared_overseer_builder;
 
 #[cfg(feature = "cli")]
 pub use cli::*;
+#[cfg(feature = "cli")]
+pub use host_perf_check::PerfCheckError;
 
 #[cfg(feature = "cli")]
 pub use command::*;
