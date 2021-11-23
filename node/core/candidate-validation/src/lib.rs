@@ -310,8 +310,9 @@ where
 	{
 		Ok(_) => PreCheckOutcome::Valid,
 		Err(prepare_err) => match prepare_err {
-			PrepareError::Prevalidation(_) | PrepareError::Preparation(_) =>
-				PreCheckOutcome::Invalid,
+			PrepareError::Prevalidation(_) |
+			PrepareError::Preparation(_) |
+			PrepareError::Panic(_) => PreCheckOutcome::Invalid,
 			PrepareError::TimedOut | PrepareError::DidNotMakeIt => PreCheckOutcome::Failed,
 		},
 	}
