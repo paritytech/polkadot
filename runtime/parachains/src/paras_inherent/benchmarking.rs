@@ -92,9 +92,8 @@ benchmarks! {
 		// Do not use this range for Rococo because it only has 1 validator per backing group,
 		// which causes issues when trying to create slopes with the benchmarking analysis. Instead
 		// use v = 1 for running Rococo benchmarks
-		let v
-			in (BenchBuilder::<T>::fallback_min_validity_votes())
-				..(BenchBuilder::<T>::fallback_max_validators_per_core() + 1);
+		let v in (BenchBuilder::<T>::fallback_min_validity_votes())
+			..(BenchBuilder::<T>::fallback_max_validators());
 
 		// Comment in for running rococo benchmarks
 		// let v = 1;

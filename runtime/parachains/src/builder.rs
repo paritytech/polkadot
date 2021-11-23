@@ -174,7 +174,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Minimum number of validity votes in order for a backed candidate to be included.
 	#[cfg(feature = "runtime-benchmarks")]
 	pub(crate) fn fallback_min_validity_votes() -> u32 {
-		(Self::fallback_max_validators_per_core() / 2) + 1
+		(Self::fallback_max_validators() / 2) + 1
 	}
 
 	fn create_indexes(&self, seed: u32) -> (ParaId, CoreIndex, GroupIndex) {
