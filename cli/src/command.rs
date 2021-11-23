@@ -426,14 +426,7 @@ pub fn run() -> Result<()> {
 			builder.with_colors(true);
 			let _ = builder.init();
 
-			#[cfg(not(debug_assertions))]
-			{
-				crate::host_perf_check::host_perf_check().map_err(Into::into)
-			}
-			#[cfg(debug_assertions)]
-			{
-				Err(PerfCheckError::DebugBuildNotSupported.into())
-			}
+			crate::host_perf_check::host_perf_check().map_err(Into::into)
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
