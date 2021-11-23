@@ -769,14 +769,19 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 	(weight_acc, picked_indices)
 }
 
-/// Considers an upper threshold that the candidates must not exceed.
+/// Considers an upper threshold that the inherent data must not exceed.
 ///
-/// If there is sufficient space, all bitfields and candidates will be included.
+/// If there is sufficient space, all disputes, all bitfields and all candidates
+/// will be included.
 ///
-/// Otherwise tries to include all bitfields, and fills in the remaining weight with candidates.
+/// Otherwise tries to include all bitfields, and fills the remaining space with bitfields.
+/// In the common case, the block still has plenty(most) of remaining weight, which is used
+/// to place as many backed candidates as possible.
 ///
-/// If even the bitfields are too large to fit into the `max_weight` limit, bitfields are randomly
-/// picked and _no_ candidates will be included.
+/// The selection process is random. There is an exception for code upgrades that are prefered
+/// for backed candidates, since with a increasing number of parachains their chances of
+/// inclusion become slim. The DoS vector opened to a potentially malicious collator
+/// is mitigated by checking all backed candidates beforehand in `fn create_inherent`.
 fn apply_weight_limit<T: Config + inclusion::Config>(
 	candidates: &mut Vec<BackedCandidate<<T>::Hash>>,
 	bitfields: &mut UncheckedSignedAvailabilityBitfields,
@@ -869,8 +874,8 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 /// they were actually checked and filtered to allow using it in both
 /// cases, as `filtering` and `checking` stage.
 ///
-/// `CHECK_SIGS` determines if validator signatures are checked. If true, bitfields that have an
-/// invalid signature will be filtered out.
+/// `CHECK_SIGS` determines if validator signatures are checked. If `true`,
+/// bitfields that have an invalid signature will be filtered out.
 pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: bool>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bitfield: DisputedBitfield,
