@@ -6,7 +6,7 @@ description = "Statement Distribution Subsystem"
 edition = "2018"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.18"
 tracing = "0.1.29"
 polkadot-primitives = { path = "../../../primitives" }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

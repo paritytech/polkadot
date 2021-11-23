@@ -6,7 +6,7 @@ edition = "2018"
 description = "Subsystem traits and message definitions"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.18"
 futures-timer = "3.0.2"
 
 metered-channel = { path = "../metered-channel" }

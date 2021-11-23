@@ -6,14 +6,14 @@ edition = "2018"
 description = "Channels with attached Meters"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.18"
 futures-timer = "3.0.2"
 derive_more = "0.99"
 tracing = "0.1.29"
 thiserror = "1.0.30"
 
 [dev-dependencies]
-futures = { version = "0.3.17", features = ["thread-pool"] }
+futures = { version = "0.3.18", features = ["thread-pool"] }
 assert_matches = "1.5"
 env_logger = "0.9"
 log = "0.4"

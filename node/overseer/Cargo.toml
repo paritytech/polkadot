@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = "0.3.17"
+futures = "0.3.18"
 futures-timer = "3.0.2"
 parking_lot = "0.11.1"
 polkadot-node-network-protocol = { path = "../network/protocol" }
@@ -23,7 +23,7 @@ parity-util-mem = { version = ">= 0.10.1", default-features = false }
 [dev-dependencies]
 metered-channel = { path = "../metered-channel" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.17", features = ["thread-pool"] }
+futures = { version = "0.3.18", features = ["thread-pool"] }
 femme = "2.1.1"
 assert_matches = "1.4.0"
 

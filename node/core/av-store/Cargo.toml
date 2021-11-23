@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-futures = "0.3.17"
+futures = "0.3.18"
 futures-timer = "3.0.2"
 kvdb = "0.10.0"
 thiserror = "1.0.30"

@@ -15,5 +15,5 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 strum = { version = "0.23", features = ["derive"] }
 derive_more = "0.99.11"
-futures = "0.3.17"
+futures = "0.3.18"
 thiserror = "1.0.30"

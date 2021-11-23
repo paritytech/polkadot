@@ -29,7 +29,7 @@ assert_matches = "1.5"
 structopt = "0.3.25"
 async-trait = "0.1.51"
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = "0.3.16"
+futures = "0.3.18"
 futures-timer = "3.0.2"
 tracing = "0.1.26"
 
@@ -40,4 +40,4 @@ disputes = ["polkadot-cli/disputes"]
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = { version = "0.3.17", features = ["thread-pool"] }
+futures = { version = "0.3.18", features = ["thread-pool"] }

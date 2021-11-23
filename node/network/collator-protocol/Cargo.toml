@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 always-assert = "0.1.2"
 derive_more = "0.99.14"
-futures = "0.3.17"
+futures = "0.3.18"
 futures-timer = "3"
 thiserror = "1.0.30"
 tracing = "0.1.29"
