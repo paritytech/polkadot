@@ -25,7 +25,7 @@ struct MetricsInner {
 	disputes: prometheus::Counter<prometheus::U64>,
 }
 
-/// Candidate validation metrics.
+/// Inherent data processing metrics for `create_inherent()`.
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
