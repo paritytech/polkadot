@@ -22,7 +22,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, paras,
-	paras_inherent::{sanitize_bitfields, DisputedBitfield, VERIFY_SIGS},
+	paras_inherent::{sanitize_bitfields, DisputedBitfield},
 	scheduler::CoreAssignment,
 	shared, ump,
 };
@@ -58,8 +58,7 @@ pub struct AvailabilityBitfieldRecord<N> {
 
 /// Determines if all checks should be applied or if a subset was already completed
 /// in a code path that will be executed afterwards or was already executed before.
-#[derive(Encode, Decode, PartialEq, Eq, TypeInfo)]
-#[cfg_attr(test, derive(Debug))]
+#[derive(Encode, Decode, PartialEq, Eq, RuntimeDebug, TypeInfo)]
 pub(crate) enum FullCheck {
 	/// Yes, do a full check, skip nothing.
 	Yes,
@@ -417,13 +416,14 @@ impl<T: Config> Pallet<T> {
 		let session_index = shared::Pallet::<T>::session_index();
 		let parent_hash = frame_system::Pallet::<T>::parent_hash();
 
-		let checked_bitfields = sanitize_bitfields::<T, VERIFY_SIGS>(
+		let checked_bitfields = sanitize_bitfields::<T>(
 			signed_bitfields,
 			disputed_bitfield,
 			expected_bits,
 			parent_hash,
 			session_index,
 			&validators[..],
+			FullCheck::Yes,
 		);
 
 		let freed_cores = Self::update_pending_availability_and_get_freed_cores::<_, true>(

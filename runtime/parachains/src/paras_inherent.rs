@@ -59,8 +59,6 @@ use sp_std::{
 mod benchmarking;
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
-const SKIP_SIG_VERIFY: bool = false;
-pub(crate) const VERIFY_SIGS: bool = true;
 
 pub trait WeightInfo {
 	/// Variant over `v`, the count of dispute statements in a dispute statement set. This gives the
@@ -646,13 +644,14 @@ impl<T: Config> Pallet<T> {
 
 				// The following 3 calls are equiv to a call to `process_bitfields`
 				// but we can retain access to `bitfields`.
-				let bitfields = sanitize_bitfields::<T, SKIP_SIG_VERIFY>(
+				let bitfields = sanitize_bitfields::<T>(
 					bitfields,
 					disputed_bitfield,
 					expected_bits,
 					parent_hash,
 					current_session,
 					&validator_public[..],
+					FullCheck::Skip,
 				);
 
 				let freed_concluded =
@@ -896,15 +895,16 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 /// they were actually checked and filtered to allow using it in both
 /// cases, as `filtering` and `checking` stage.
 ///
-/// `CHECK_SIGS` determines if validator signatures are checked. If `true`,
+/// `full_check` determines if validator signatures are checked. If `::Yes`,
 /// bitfields that have an invalid signature will be filtered out.
-pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: bool>(
+pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config>(
 	unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
 	disputed_bitfield: DisputedBitfield,
 	expected_bits: usize,
 	parent_hash: T::Hash,
 	session_index: SessionIndex,
 	validators: &[ValidatorId],
+	full_check: FullCheck,
 ) -> UncheckedSignedAvailabilityBitfields {
 	let mut bitfields = Vec::with_capacity(unchecked_bitfields.len());
 
@@ -924,8 +924,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 		if unchecked_bitfield.unchecked_payload().0.len() != expected_bits {
 			log::trace!(
 				target: LOG_TARGET,
-				"[CHECK_SIGS: {}] bad bitfield length: {} != {:?}",
-				CHECK_SIGS,
+				"[{:?}] bad bitfield length: {} != {:?}",
+				full_check,
 				unchecked_bitfield.unchecked_payload().0.len(),
 				expected_bits,
 			);
@@ -937,8 +937,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 		{
 			log::trace!(
 				target: LOG_TARGET,
-				"[CHECK_SIGS: {}] bitfield contains disputed cores: {:?}",
-				CHECK_SIGS,
+				"[{:?}] bitfield contains disputed cores: {:?}",
+				full_check,
 				unchecked_bitfield.unchecked_payload().0.clone() & disputed_bitfield.0.clone()
 			);
 			continue
@@ -949,8 +949,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 		if !last_index.map_or(true, |last_index: ValidatorIndex| last_index < validator_index) {
 			log::trace!(
 				target: LOG_TARGET,
-				"[CHECK_SIGS: {}] bitfield validator index is not greater than last: !({:?} < {})",
-				CHECK_SIGS,
+				"[{:?}] bitfield validator index is not greater than last: !({:?} < {})",
+				full_check,
 				last_index.as_ref().map(|x| x.0),
 				validator_index.0
 			);
@@ -960,8 +960,8 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 		if unchecked_bitfield.unchecked_validator_index().0 as usize >= validators.len() {
 			log::trace!(
 				target: LOG_TARGET,
-				"[CHECK_SIGS: {}] bitfield validator index is out of bounds: {} >= {}",
-				CHECK_SIGS,
+				"[{:?}] bitfield validator index is out of bounds: {} >= {}",
+				full_check,
 				validator_index.0,
 				validators.len(),
 			);
@@ -970,7 +970,7 @@ pub(crate) fn sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: 
 
 		let validator_public = &validators[validator_index.0 as usize];
 
-		if CHECK_SIGS {
+		if let FullCheck::Yes = full_check {
 			if let Ok(signed_bitfield) =
 				unchecked_bitfield.try_into_checked(&signing_context, validator_public)
 			{
@@ -1916,24 +1916,26 @@ mod tests {
 
 			{
 				assert_eq!(
-					sanitize_bitfields::<Test, VERIFY_SIGS>(
+					sanitize_bitfields::<Test>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
-						&validator_public[..]
+						&validator_public[..],
+						FullCheck::Skip,
 					),
 					unchecked_bitfields.clone()
 				);
 				assert_eq!(
-					sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
+					sanitize_bitfields::<Test>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
-						&validator_public[..]
+						&validator_public[..],
+						FullCheck::Yes
 					),
 					unchecked_bitfields.clone()
 				);
@@ -1947,25 +1949,27 @@ mod tests {
 				disputed_bitfield.0.set(0, true);
 
 				assert_eq!(
-					sanitize_bitfields::<Test, VERIFY_SIGS>(
+					sanitize_bitfields::<Test>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
-						&validator_public[..]
+						&validator_public[..],
+						FullCheck::Yes
 					)
 					.len(),
 					1
 				);
 				assert_eq!(
-					sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
+					sanitize_bitfields::<Test>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
-						&validator_public[..]
+						&validator_public[..],
+						FullCheck::Skip
 					)
 					.len(),
 					1
@@ -1974,22 +1978,24 @@ mod tests {
 
 			// bitfield size mismatch
 			{
-				assert!(sanitize_bitfields::<Test, VERIFY_SIGS>(
+				assert!(sanitize_bitfields::<Test>(
 					unchecked_bitfields.clone(),
 					disputed_bitfield.clone(),
 					expected_bits + 1,
 					parent_hash,
 					session_index,
-					&validator_public[..]
+					&validator_public[..],
+					FullCheck::Yes
 				)
 				.is_empty());
-				assert!(sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
+				assert!(sanitize_bitfields::<Test>(
 					unchecked_bitfields.clone(),
 					disputed_bitfield.clone(),
 					expected_bits + 1,
 					parent_hash,
 					session_index,
-					&validator_public[..]
+					&validator_public[..],
+					FullCheck::Skip
 				)
 				.is_empty());
 			}
@@ -1998,24 +2004,26 @@ mod tests {
 			{
 				let shortened = validator_public.len() - 2;
 				assert_eq!(
-					&sanitize_bitfields::<Test, VERIFY_SIGS>(
+					&sanitize_bitfields::<Test>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
-						&validator_public[..shortened]
+						&validator_public[..shortened],
+						FullCheck::Yes,
 					)[..],
 					&unchecked_bitfields[..shortened]
 				);
 				assert_eq!(
-					&sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
+					&sanitize_bitfields::<Test>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
-						&validator_public[..shortened]
+						&validator_public[..shortened],
+						FullCheck::Skip,
 					)[..],
 					&unchecked_bitfields[..shortened]
 				);
@@ -2027,24 +2035,26 @@ mod tests {
 				let x = unchecked_bitfields.swap_remove(0);
 				unchecked_bitfields.push(x);
 				assert_eq!(
-					&sanitize_bitfields::<Test, VERIFY_SIGS>(
+					&sanitize_bitfields::<Test>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
-						&validator_public[..]
+						&validator_public[..],
+						FullCheck::Yes
 					)[..],
 					&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
 				);
 				assert_eq!(
-					&sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
+					&sanitize_bitfields::<Test>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
-						&validator_public[..]
+						&validator_public[..],
+						FullCheck::Skip
 					)[..],
 					&unchecked_bitfields[..(unchecked_bitfields.len() - 2)]
 				);
@@ -2062,24 +2072,26 @@ mod tests {
 					.and_then(|u| Some(u.set_signature(ValidatorSignature::default())))
 					.expect("we are accessing a valid index");
 				assert_eq!(
-					&sanitize_bitfields::<Test, VERIFY_SIGS>(
+					&sanitize_bitfields::<Test>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
-						&validator_public[..]
+						&validator_public[..],
+						FullCheck::Yes
 					)[..],
 					&unchecked_bitfields[..last_bit_idx]
 				);
 				assert_eq!(
-					&sanitize_bitfields::<Test, SKIP_SIG_VERIFY>(
+					&sanitize_bitfields::<Test>(
 						unchecked_bitfields.clone(),
 						disputed_bitfield.clone(),
 						expected_bits,
 						parent_hash,
 						session_index,
-						&validator_public[..]
+						&validator_public[..],
+						FullCheck::Skip
 					)[..],
 					&unchecked_bitfields[..]
 				);
