@@ -344,7 +344,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
-				ensure!(weight <= require_weight_at_most, XcmError::TooMuchWeightRequired);
+				ensure!(weight <= require_weight_at_most, XcmError::MaxWeightInvalid);
 				let actual_weight = match message_call.dispatch(dispatch_origin) {
 					Ok(post_info) => post_info.actual_weight,
 					Err(error_and_info) => {
