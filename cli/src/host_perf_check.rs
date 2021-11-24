@@ -18,26 +18,13 @@ use crate::error::PerfCheckError;
 use log::info;
 use nix::unistd;
 use polkadot_node_core_pvf::sp_maybe_compressed_blob;
+use sc_service::BasePath;
 use std::{
 	fs::{self, OpenOptions},
 	io::{self, Read, Write},
-	path::{Path, PathBuf},
+	path::Path,
 	time::{Duration, Instant},
 };
-
-fn check_passed_file_path() -> io::Result<PathBuf> {
-	let home_dir =
-		std::env::var("HOME").map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-	let path = Path::new(&home_dir).join(".polkadot");
-
-	if let Err(err) = fs::create_dir(&path) {
-		if err.kind() != io::ErrorKind::AlreadyExists {
-			return Err(err)
-		}
-	}
-
-	Ok(path.join("perf_check_passed"))
-}
 
 fn is_perf_check_done(path: &Path) -> io::Result<bool> {
 	let host_name_max_len = unistd::SysconfVar::HOST_NAME_MAX as usize;
@@ -70,24 +57,18 @@ fn save_check_passed_file(path: &Path) -> io::Result<()> {
 	Ok(())
 }
 
-pub fn host_perf_check() -> Result<(), PerfCheckError> {
+pub fn host_perf_check(result_cache_path: Option<BasePath>) -> Result<(), PerfCheckError> {
 	const PERF_CHECK_TIME_LIMIT: Duration = Duration::from_secs(20);
 	const CODE_SIZE_LIMIT: usize = 1024usize.pow(3);
 	const WASM_CODE: &[u8] = include_bytes!(
 		"../../target/release/wbuild/kusama-runtime/kusama_runtime.compact.compressed.wasm"
 	);
+	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
 
-	// We will try to save a special file at $HOME/.polkadot/perf_check_passed.
-	let check_passed_path = check_passed_file_path()
-		.map_err(|err| {
-			info!(
-				"Performance check result is not going to be persisted due to an error: {:?}",
-				err
-			)
-		})
-		.ok();
+	let check_passed_file_path =
+		result_cache_path.map(|path| path.path().join(CHECK_PASSED_FILE_NAME));
 
-	if let Some(ref path) = check_passed_path {
+	if let Some(ref path) = check_passed_file_path {
 		if let Ok(true) = is_perf_check_done(path) {
 			info!("Performance check skipped: already passed");
 			return Ok(())
@@ -107,7 +88,7 @@ pub fn host_perf_check() -> Result<(), PerfCheckError> {
 	if elapsed <= PERF_CHECK_TIME_LIMIT {
 		info!("Performance check passed, elapsed: {:?}", start.elapsed());
 		// Persist successful result.
-		check_passed_path.map(|path| save_check_passed_file(&path));
+		check_passed_file_path.map(|path| save_check_passed_file(&path));
 		Ok(())
 	} else {
 		Err(PerfCheckError::TimeOut { elapsed, limit: PERF_CHECK_TIME_LIMIT })
