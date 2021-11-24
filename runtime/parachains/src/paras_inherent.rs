@@ -1152,7 +1152,7 @@ mod tests {
 			dispute_sessions: Vec<u32>,
 			backed_and_concluding: BTreeMap<u32, u32>,
 			num_validators_per_core: u32,
-			includes_code_upgrade: Option<u32>,
+			code_upgrade: Option<u32>,
 		}
 
 		fn make_inherent_data(
@@ -1161,7 +1161,7 @@ mod tests {
 				dispute_sessions,
 				backed_and_concluding,
 				num_validators_per_core,
-				includes_code_upgrade,
+				code_upgrade,
 			}: TestConfig,
 		) -> Bench<Test> {
 			BenchBuilder::<Test>::new()
@@ -1171,7 +1171,10 @@ mod tests {
 				)
 				.set_max_validators_per_core(num_validators_per_core)
 				.set_dispute_statements(dispute_statements)
-				.build(backed_and_concluding, dispute_sessions.as_slice(), includes_code_upgrade)
+				.set_backed_and_concluding_cores(backed_and_concluding)
+				.set_dispute_sessions(backed_and_concluding)
+				.set_code_upgrade(code_upgrade)
+				.build()
 		}
 
 		#[test]
