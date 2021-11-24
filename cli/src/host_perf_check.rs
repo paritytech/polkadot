@@ -25,7 +25,7 @@ use std::{
 	time::{Duration, Instant},
 };
 
-fn dummy_file_path() -> io::Result<PathBuf> {
+fn check_passed_file_path() -> io::Result<PathBuf> {
 	let home_dir =
 		std::env::var("HOME").map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 	let path = Path::new(&home_dir).join(".polkadot");
@@ -39,33 +39,33 @@ fn dummy_file_path() -> io::Result<PathBuf> {
 	Ok(path.join("perf_check_passed"))
 }
 
-fn check_dummy_file(path: &Path) -> io::Result<bool> {
+fn is_perf_check_done(path: &Path) -> io::Result<bool> {
 	let host_name_max_len = unistd::SysconfVar::HOST_NAME_MAX as usize;
 
 	let mut host_name = vec![0u8; host_name_max_len];
 	let mut buf = host_name.clone();
 	unistd::gethostname(&mut host_name).map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-	let dummy_file = match fs::File::open(path) {
+	let file = match fs::File::open(path) {
 		Ok(file) => file,
 		Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
 		Err(err) => return Err(err),
 	};
-	let mut reader = io::BufReader::new(dummy_file);
+	let mut reader = io::BufReader::new(file);
 
 	reader.read_exact(&mut buf)?;
 
 	Ok(host_name == buf)
 }
 
-fn save_dummy_file(path: &Path) -> io::Result<()> {
+fn save_check_passed_file(path: &Path) -> io::Result<()> {
 	let host_name_max_len = unistd::SysconfVar::HOST_NAME_MAX as usize;
 	let mut host_name = vec![0u8; host_name_max_len];
 	unistd::gethostname(&mut host_name).map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
 
-	let mut dummy_file = OpenOptions::new().truncate(true).create(true).write(true).open(path)?;
+	let mut file = OpenOptions::new().truncate(true).create(true).write(true).open(path)?;
 
-	dummy_file.write(&host_name)?;
+	file.write(&host_name)?;
 
 	Ok(())
 }
@@ -77,8 +77,8 @@ pub fn host_perf_check() -> Result<(), PerfCheckError> {
 		"../../target/release/wbuild/kusama-runtime/kusama_runtime.compact.compressed.wasm"
 	);
 
-	// We will try to save a dummy file at $HOME/.polkadot/perf_check_passed.
-	let dummy_file_path = dummy_file_path()
+	// We will try to save a special file at $HOME/.polkadot/perf_check_passed.
+	let check_passed_path = check_passed_file_path()
 		.map_err(|err| {
 			info!(
 				"Performance check result is not going to be persisted due to an error: {:?}",
@@ -87,8 +87,8 @@ pub fn host_perf_check() -> Result<(), PerfCheckError> {
 		})
 		.ok();
 
-	if let Some(ref path) = dummy_file_path {
-		if let Ok(true) = check_dummy_file(path) {
+	if let Some(ref path) = check_passed_path {
+		if let Ok(true) = is_perf_check_done(path) {
 			info!("Performance check skipped: already passed");
 			return Ok(())
 		}
@@ -106,8 +106,8 @@ pub fn host_perf_check() -> Result<(), PerfCheckError> {
 	let elapsed = start.elapsed();
 	if elapsed <= PERF_CHECK_TIME_LIMIT {
 		info!("Performance check passed, elapsed: {:?}", start.elapsed());
-		// Save a dummy file.
-		dummy_file_path.map(|path| save_dummy_file(&path));
+		// Persist successful result.
+		check_passed_path.map(|path| save_check_passed_file(&path));
 		Ok(())
 	} else {
 		Err(PerfCheckError::TimeOut { elapsed, limit: PERF_CHECK_TIME_LIMIT })
