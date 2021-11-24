@@ -1695,7 +1695,7 @@ mod tests {
 
 		#[test]
 		// Ensure that when a block is over weight due to disputes and bitfields, we abort
-		fn limit_candidates_over_weight() {
+		fn limit_candidates_over_weight_1() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				// Create the inherent data for this block
 				let mut dispute_statements = BTreeMap::new();
@@ -1766,7 +1766,7 @@ mod tests {
 
 		#[test]
 		// Ensure that when a block is over weight due to disputes and bitfields, we abort
-		fn limit_candidates_over_weight_overweight() {
+		fn limit_candidates_over_weight_0() {
 			new_test_ext(MockGenesisConfig::default()).execute_with(|| {
 				// Create the inherent data for this block
 				let mut dispute_statements = BTreeMap::new();
