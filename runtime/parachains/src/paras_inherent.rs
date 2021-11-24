@@ -775,11 +775,10 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 /// If there is sufficient space, all disputes, all bitfields and all candidates
 /// will be included.
 ///
-/// Otherwise tries to include all bitfields, and fills the remaining space with bitfields.
-/// In the common case, the block still has plenty(most) of remaining weight, which is used
-/// to place as many backed candidates as possible.
+/// Otherwise tries to include all disputes, and then tries to fill the remaining space with bitfields and then candidates.
 ///
-/// The selection process is random. There is an exception for code upgrades that are preferred
+/// The selection process is random. For candidates, there is an exception for code upgrades as they are preferred.
+/// And for disputes, local and older disputes are preferred (see `limit_disputes`).
 /// for backed candidates, since with a increasing number of parachains their chances of
 /// inclusion become slim. All backed candidates  are checked beforehands in `fn create_inherent_inner`
 /// which guarantees sanity.

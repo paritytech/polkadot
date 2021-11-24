@@ -924,7 +924,7 @@ impl<T: Config> CandidateCheckContext<T> {
 	/// Execute verification of the candidate.
 	///
 	/// Assures:
-	///  * correct expecte relay parent reference
+	///  * correct expected relay parent reference
 	///  * collator signature check passes
 	///  * code hash of commitments matches current code hash
 	///  * para head in the descriptor and commitments match
