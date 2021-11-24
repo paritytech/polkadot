@@ -688,9 +688,9 @@ impl<T: Config> Pallet<T> {
 		// `relay_parent_number` is equal to `now`.
 		let now = <frame_system::Pallet<T>>::block_number();
 		let relay_parent_number = now;
-		let checker_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
+		let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
-		if let Err(err) = checker_ctx.check_validation_outputs(
+		if let Err(err) = check_ctx.check_validation_outputs(
 			para_id,
 			&validation_outputs.head_data,
 			&validation_outputs.new_validation_code,

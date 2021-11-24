@@ -646,7 +646,7 @@ impl<T: Config> Pallet<T> {
 
 				let relay_parent_number = now - One::one();
 
-				let checker_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
+				let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 				let backed_candidates = sanitize_backed_candidates::<T, _>(
 					parent_hash,
 					backed_candidates,
@@ -659,7 +659,7 @@ impl<T: Config> Pallet<T> {
 							// move the checking up here and skip it in the training wheels fallback.
 							// That way we avoid possible duplicate checks while assuring all
 							// backed candidates fine to pass on.
-							checker_ctx
+							check_ctx
 								.verify_backed_candidate(parent_hash, candidate_idx, backed_candidate)
 								.is_err()
 					},
