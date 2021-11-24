@@ -118,7 +118,7 @@ default:
       file:                        false
     GITHUB_SSH_PRIV_KEY:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/GITHUB_SSH_PRIV_KEY@kv
-      file:                        true
+      file:                        false
     MATRIX_ACCESS_TOKEN:
       vault:                       cicd/gitlab/$CI_PROJECT_PATH/MATRIX_ACCESS_TOKEN@kv
       file:                        false
@@ -557,9 +557,13 @@ publish-rustdoc:
     - job:                         build-rustdoc
       artifacts:                   true
   script:
+    # setup ssh
+    - eval $(ssh-agent)
+    - ssh-add - <<< ${GITHUB_SSH_PRIV_KEY}
+    - mkdir ~/.ssh && touch ~/.ssh/known_hosts
+    - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
     - rm -rf /tmp/*
     # Set git config
-    - git config core.sshCommand "ssh -i ${GITHUB_SSH_PRIV_KEY} -F /dev/null -o StrictHostKeyChecking=no"
     - git config user.email "devops-team@parity.io"
     - git config user.name "${GITHUB_USER}"
     - git config remote.origin.url "git@github.com:/paritytech/${CI_PROJECT_NAME}.git"
