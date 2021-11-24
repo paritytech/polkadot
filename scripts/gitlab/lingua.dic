@@ -85,11 +85,13 @@ fungibility
 gameable
 getter/MS
 GiB/S
+GKE
 GNUNet
 GPL/M
 GPLv3/M
 Grafana/MS
 Gurke/MS
+gurke/MS
 Handler/MS
 HMP/SM
 HRMP
@@ -135,7 +137,7 @@ lookahead/MS
 lookup/MS
 LRU
 mainnet/MS
-malus
+malus/MS
 MB/M
 Mbit
 merkle/MS
@@ -143,6 +145,7 @@ Merklized
 metadata/M
 middleware/MS
 Millau
+minimalistic
 misbehavior/SM
 misbehaviors
 misvalidate/D
@@ -258,8 +261,10 @@ teleport/RG
 teleportation/SM
 teleporter/SM
 teleporters
-teleports
+template/GSM
 testnet/MS
+tera/M
+teleports
 timeframe
 timestamp/MS
 tradeoff

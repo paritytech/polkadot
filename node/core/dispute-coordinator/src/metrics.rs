@@ -24,6 +24,8 @@ struct MetricsInner {
 	votes: prometheus::CounterVec<prometheus::U64>,
 	/// Conclusion across all disputes.
 	concluded: prometheus::CounterVec<prometheus::U64>,
+	/// Number of participations that have been queued.
+	queued_participations: prometheus::CounterVec<prometheus::U64>,
 }
 
 /// Candidate validation metrics.
@@ -61,6 +63,18 @@ impl Metrics {
 			metrics.concluded.with_label_values(&["invalid"]).inc();
 		}
 	}
+
+	pub(crate) fn on_queued_priority_participation(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.queued_participations.with_label_values(&["priority"]).inc();
+		}
+	}
+
+	pub(crate) fn on_queued_best_effort_participation(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.queued_participations.with_label_values(&["best-effort"]).inc();
+		}
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -90,6 +104,16 @@ impl metrics::Metrics for Metrics {
 						"Accumulated dispute votes, sorted by candidate is `valid` and `invalid`.",
 					),
 					&["validity"],
+				)?,
+				registry,
+			)?,
+			queued_participations: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_dispute_participations",
+						"Total number of queued participations, grouped by priority and best-effort. (Not every queueing will necessarily lead to an actual participation because of duplicates.)",
+					),
+					&["priority"],
 				)?,
 				registry,
 			)?,
