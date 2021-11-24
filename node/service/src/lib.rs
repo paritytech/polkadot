@@ -1015,6 +1015,7 @@ where
 			create_inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
 				let overseer_handle = overseer_handle.clone();
+
 				async move {
 					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
 						&*client_clone,
