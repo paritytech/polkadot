@@ -2310,12 +2310,11 @@ async fn launch_approval(
 					"Detected invalid candidate as an approval checker.",
 				);
 
-
 				match reason {
 					InvalidCandidate::ExecutionError(_) => {
 						// We don't raise disputes on execution errors that are likely
 						// spurious.
-					}
+					},
 					_ => {
 						sender
 							.send_message(
@@ -2328,7 +2327,7 @@ async fn launch_approval(
 								.into(),
 							)
 							.await;
-					}
+					},
 				}
 
 				metrics_guard.take().on_approval_invalid();
