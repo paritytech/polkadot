@@ -82,7 +82,7 @@ pub enum Error {
 	FailedToDecode,
 	/// Used by `Transact` to indicate that the given weight limit could be breached by the functor.
 	#[codec(index = 18)]
-	TooMuchWeightRequired,
+	MaxWeightInvalid,
 	/// Used by `BuyExecution` when the Holding Register does not contain payable fees.
 	#[codec(index = 19)]
 	NotHoldingFees,
