@@ -51,13 +51,14 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
   1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
   1. Return a list of `(CoreIndex, CandidateHash)` from freed cores consisting of the cores where candidates have become available.
-* `sanitize_bitfields<T: crate::inclusion::Config, const CHECK_SIGS: bool>(
+* `sanitize_bitfields<T: crate::inclusion::Config>(
     unchecked_bitfields: UncheckedSignedAvailabilityBitfields,
     disputed_bitfield: DisputedBitfield,
     expected_bits: usize,
     parent_hash: T::Hash,
     session_index: SessionIndex,
     validators: &[ValidatorId],
+    full_check: FullCheck,
   )`:
   1. check that `disputed_bitfield` has the same number of bits as the `expected_bits`, iff not return early with an empty vec.
   1. each of the below checks is for each bitfield. If a check does not pass the bitfield will be skipped.
@@ -65,7 +66,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. check that the number of bits is equal to `expected_bits`.
   1. check that the validator index is strictly increasing (and thus also unique).
   1. check that the validator bit index is not out of bounds.
-  1. check the validators signature, iff `CHECK_SIGS=true`.
+  1. check the validators signature, iff `full_check=FullCheck::Yes`.
 
 * `sanitize_backed_candidates<T: crate::inclusion::Config, F: Fn(CandidateHash) -> bool>(
     relay_parent: T::Hash,
