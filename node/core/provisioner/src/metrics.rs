@@ -22,8 +22,11 @@ struct MetricsInner {
 	inherent_data_requests: prometheus::CounterVec<prometheus::U64>,
 	request_inherent_data: prometheus::Histogram,
 	provisionable_data: prometheus::Histogram,
+
+	/// The dispute_statement.* metrics trak how many disputes/votes the runtime will have to process. It will count
+	/// all recent statements meaning every dispute from last sessions: 10 min on Rococo, 60 min on Kusama and
+	/// 4 hours on Polkadot. The metrics are updated only when the node authors block, so values vary across nodes.
 	dispute_statement_sets_requested: prometheus::Counter<prometheus::U64>,
-	// Statements are split into valid/invalid.
 	dispute_statements_requested: prometheus::CounterVec<prometheus::U64>,
 }
 
