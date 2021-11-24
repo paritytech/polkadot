@@ -1043,7 +1043,7 @@ mod tests {
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_1_1.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath))
 		);
 
 		result_tx_pvf_1_2
@@ -1051,7 +1051,7 @@ mod tests {
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_1_2.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath))
 		);
 
 		result_tx_pvf_2
@@ -1059,7 +1059,7 @@ mod tests {
 			.unwrap();
 		assert_matches!(
 			result_rx_pvf_2.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath,))
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbigiousWorkerDeath))
 		);
 	}
 

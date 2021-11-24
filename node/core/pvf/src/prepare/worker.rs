@@ -30,7 +30,7 @@ use async_std::{
 };
 use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
-use std::{sync::Arc, time::Duration};
+use std::{any::Any, panic, sync::Arc, time::Duration};
 
 const NICENESS_BACKGROUND: i32 = 10;
 const NICENESS_FOREGROUND: i32 = 0;
@@ -318,13 +318,31 @@ pub fn worker_entrypoint(socket_path: &str) {
 }
 
 fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
-	let blob = match crate::executor_intf::prevalidate(code) {
-		Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
-		Ok(b) => b,
-	};
+	panic::catch_unwind(|| {
+		let blob = match crate::executor_intf::prevalidate(code) {
+			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
+			Ok(b) => b,
+		};
 
-	match crate::executor_intf::prepare(blob) {
-		Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
-		Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
+		match crate::executor_intf::prepare(blob) {
+			Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
+			Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
+		}
+	})
+	.map_err(|panic_payload| PrepareError::Panic(stringify_panic_payload(panic_payload)))
+	.and_then(|inner_result| inner_result)
+}
+
+/// Attempt to convert an opaque panic payload to a string.
+///
+/// This is a best effort, and is not guaranteed to provide the most accurate value.
+fn stringify_panic_payload(payload: Box<dyn Any + Send + 'static>) -> String {
+	match payload.downcast::<&'static str>() {
+		Ok(msg) => msg.to_string(),
+		Err(payload) => match payload.downcast::<String>() {
+			Ok(msg) => *msg,
+			// At least we tried...
+			Err(_) => "unkown panic payload".to_string(),
+		},
 	}
 }

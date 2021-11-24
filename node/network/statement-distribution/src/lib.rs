@@ -413,8 +413,8 @@ impl PeerRelayParentKnowledge {
 struct PeerData {
 	view: View,
 	view_knowledge: HashMap<Hash, PeerRelayParentKnowledge>,
-	// Peer might be an authority.
-	maybe_authority: Option<AuthorityDiscoveryId>,
+	/// Peer might be known as authority with the given ids.
+	maybe_authority: Option<HashSet<AuthorityDiscoveryId>>,
 }
 
 impl PeerData {
@@ -1466,14 +1466,18 @@ async fn handle_network_update(
 					maybe_authority: maybe_authority.clone(),
 				},
 			);
-			if let Some(authority) = maybe_authority {
-				authorities.insert(authority, peer);
+			if let Some(authority_ids) = maybe_authority {
+				authority_ids.into_iter().for_each(|a| {
+					authorities.insert(a, peer);
+				});
 			}
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
 			tracing::trace!(target: LOG_TARGET, ?peer, "Peer disconnected");
-			if let Some(auth_id) = peers.remove(&peer).and_then(|p| p.maybe_authority) {
-				authorities.remove(&auth_id);
+			if let Some(auth_ids) = peers.remove(&peer).and_then(|p| p.maybe_authority) {
+				auth_ids.into_iter().for_each(|a| {
+					authorities.remove(&a);
+				});
 			}
 		},
 		NetworkBridgeEvent::NewGossipTopology(new_peers) => {

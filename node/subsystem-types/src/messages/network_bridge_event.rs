@@ -25,7 +25,7 @@ use polkadot_primitives::v1::AuthorityDiscoveryId;
 #[derive(Debug, Clone, PartialEq)]
 pub enum NetworkBridgeEvent<M> {
 	/// A peer has connected.
-	PeerConnected(PeerId, ObservedRole, Option<AuthorityDiscoveryId>),
+	PeerConnected(PeerId, ObservedRole, Option<HashSet<AuthorityDiscoveryId>>),
 
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),

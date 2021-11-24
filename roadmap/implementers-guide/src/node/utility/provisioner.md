@@ -28,8 +28,6 @@ The dispute inherent is similar to a misbehavior report in that it is an attesta
 
 Dispute resolution is complex and is explained in substantially more detail [here](../../runtime/disputes.md).
 
-> TODO: The provisioner is responsible for selecting remote disputes to replay. Let's figure out the details.
-
 ## Protocol
 
 Input: [`ProvisionerMessage`](../../types/overseer-protocol.md#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.md), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.md), and misbehavior reports and disputes come from the [Misbehavior Arbitration subsystem](misbehavior-arbitration.md).
@@ -42,62 +40,26 @@ Block authors request the inherent data they should use for constructing the inh
 
 When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a [`ParaInherentData`](../../types/runtime.md#parainherentdata). There are never two distinct parachain candidates included for the same parachain and that new parachain candidates cannot be backed until the previous one either gets declared available or expired. Appropriate bitfields, as outlined in the section on [bitfield selection](#bitfield-selection), and any dispute statements should be attached as well.
 
-### Bitfield Selection
+### Bitfield Collection
 
-Our goal with respect to bitfields is simple: maximize availability. However, it's not quite as simple as always including all bitfields; there are constraints which still need to be met:
+Collects all provided bitfields and forwards them to the runtimes `fn create_inherent` which does both sanity (one bitfield per validator) as well as weight limiting logic.
 
-- We cannot choose more than one bitfield per validator.
-- Each bitfield must correspond to an occupied core.
+### Backed Candidate Collection
 
-Beyond that, a semi-arbitrary selection policy is fine. In order to meet the goal of maximizing availability, a heuristic of picking the bitfield with the greatest number of 1 bits set in the event of conflict is useful.
+Selects all referenced candidates the correspond to the
+correct relay chain parent block and assures only one candidate per block is submitted.
 
-### Candidate Selection
+The full backed candidate are obtained by issuing a `CandidateBackingMessage::GetBackedCandidates` which yields a `Vec<BackedCandidate>` in response.
 
-The goal of candidate selection is to determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
-
-To determine availability:
-
-- Get the list of core states from the runtime API
-- For each core state:
-  - On `CoreState::Scheduled`, then we can make an `OccupiedCoreAssumption::Free`.
-  - On `CoreState::Occupied`, then we may be able to make an assumption:
-    - If the bitfields indicate availability and there is a scheduled `next_up_on_available`, then we can make an `OccupiedCoreAssumption::Included`.
-    - If the bitfields do not indicate availability, and there is a scheduled `next_up_on_time_out`, and `occupied_core.time_out_at == block_number_under_production`, then we can make an `OccupiedCoreAssumption::TimedOut`.
-  - If we did not make an `OccupiedCoreAssumption`, then continue on to the next core.
-  - Now compute the core's `validation_data_hash`: get the `PersistedValidationData` from the runtime, given the known `ParaId` and `OccupiedCoreAssumption`;
-  - Find an appropriate candidate for the core.
-    - There are two constraints: `backed_candidate.candidate.descriptor.para_id == scheduled_core.para_id && candidate.candidate.descriptor.validation_data_hash == computed_validation_data_hash`.
-    - In the event that more than one candidate meets the constraints, selection between the candidates is arbitrary. However, not more than one candidate can be selected per core.
-
-The end result of this process is a vector of `BackedCandidate`s, sorted in order of their core index. Furthermore, this process should select at maximum one candidate which upgrades the runtime validation code.
+The end result of this process is a vector of `BackedCandidate`s, sorted in the order of their `CandidateReceipt`s.
 
 ### Dispute Statement Selection
 
 This is the point at which the block author provides further votes to active disputes or initiates new disputes in the runtime state.
 
-The block-authoring logic of the runtime has an extra step between handling the inherent-data and producing the actual inherent call, which we assume performs the work of filtering out disputes which are not relevant to the on-chain state.
-
 To select disputes:
 
-- Issue a `DisputeCoordinatorMessage::RecentDisputes` message and wait for the response. This is a set of all disputes in recent sessions which we are aware of.
-
-### Determining Bitfield Availability
-
-An occupied core has a `CoreAvailability` bitfield. We also have a list of `SignedAvailabilityBitfield`s. We need to determine from these whether or not a core at a particular index has become available.
-
-The key insight required is that `CoreAvailability` is transverse to the `SignedAvailabilityBitfield`s: if we conceptualize the list of bitfields as many rows, each bit of which is its own column, then `CoreAvailability` for a given core index is the vertical slice of bits in the set at that index.
-
-To compute bitfield availability, then:
-
-- Start with a copy of `OccupiedCore.availability`
-- For each bitfield in the list of `SignedAvailabilityBitfield`s:
-  - Get the bitfield's `validator_index`
-  - Update the availability. Conceptually, assuming bit vectors: `availability[validator_index] |= bitfield[core_idx]`
-- Availability has a 2/3 threshold. Therefore: `3 * availability.count_ones() >= 2 * availability.len()`
-
-### Notes
-
-See also: [Scheduler Module: Availability Cores](../../runtime/scheduler.md#availability-cores).
+- Issue a `DisputeCoordinatorMessage::RecentDisputes` message and wait for the response. This is a set of all disputes in recent sessions which we are aware of. They are passed on unaltered to the `fn create_inherent` which is run off-chain.
 
 ## Functionality
 
