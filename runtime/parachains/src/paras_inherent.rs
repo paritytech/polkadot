@@ -601,6 +601,13 @@ impl<T: Config> Pallet<T> {
 						e
 					});
 
+				// Contains the disputes that are concluded in the current session only,
+				// since these are the only ones that are relevant for the occupied cores
+				// and lightens the load on `collect_disputed` significantly.
+				// Cores can't be occupied with candidates of the previous sessions, and only
+				// things with new votes can have just concluded. We only need to collect
+				// cores with disputes that conclude just now, because disputes that
+				// concluded longer ago have already had any corresponding cores cleaned up.
 				let current_concluded_invalid_disputes = disputes
 					.iter()
 					.filter(|dss| dss.session == current_session)
@@ -611,8 +618,8 @@ impl<T: Config> Pallet<T> {
 					.map(|(_session, candidate)| candidate)
 					.collect::<BTreeSet<CandidateHash>>();
 
-				// all concluded invalid disputes, that are relevant for the set of candidates
-				// the inherent provided
+				// All concluded invalid disputes, that are relevant for the set of candidates
+				// the inherent provided.
 				let concluded_invalid_disputes = backed_candidates
 					.iter()
 					.map(|backed_candidate| backed_candidate.hash())
