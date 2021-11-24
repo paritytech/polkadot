@@ -24,7 +24,7 @@
 use crate::{
 	disputes::DisputesHandler,
 	inclusion,
-	inclusion::CandidateCheckContext,
+	inclusion::{CandidateCheckContext, FullCheck},
 	initializer,
 	scheduler::{self, CoreAssignment, FreedReason},
 	shared, ump,
@@ -256,7 +256,7 @@ pub mod pallet {
 			// (`enter`) and the off-chain checks by the block author (this function). Once we are confident
 			// in all the logic in this module this check should be removed to optimize performance.
 
-			let inherent_data = match Self::enter_inner::<true>(inherent_data.clone()) {
+			let inherent_data = match Self::enter_inner(inherent_data.clone(), FullCheck::Skip) {
 				Ok(_) => inherent_data,
 				Err(err) => {
 					log::error!(
@@ -332,14 +332,15 @@ pub mod pallet {
 			ensure!(!Included::<T>::exists(), Error::<T>::TooManyInclusionInherents);
 			Included::<T>::set(Some(()));
 
-			Self::enter_inner::<false>(data)
+			Self::enter_inner(data, FullCheck::Yes)
 		}
 	}
 }
 
 impl<T: Config> Pallet<T> {
-	pub(crate) fn enter_inner<const SKIP_CHECKER_CHECKS: bool>(
+	pub(crate) fn enter_inner(
 		data: ParachainsInherentData<T::Header>,
+		full_check: FullCheck,
 	) -> DispatchResultWithPostInfo {
 		let ParachainsInherentData {
 			bitfields: mut signed_bitfields,
@@ -493,11 +494,12 @@ impl<T: Config> Pallet<T> {
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
 			core_indices: occupied,
 			candidate_receipt_with_backing_validator_indices,
-		} = <inclusion::Pallet<T>>::process_candidates::<_, SKIP_CHECKER_CHECKS>(
+		} = <inclusion::Pallet<T>>::process_candidates(
 			parent_storage_root,
 			backed_candidates,
 			scheduled,
 			<scheduler::Pallet<T>>::group_validators,
+			full_check,
 		)?;
 
 		// The number of disputes included in a block is

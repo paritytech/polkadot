@@ -56,6 +56,20 @@ pub struct AvailabilityBitfieldRecord<N> {
 	submitted_at: N,                // for accounting, as meaning of bits may change over time.
 }
 
+/// Determines if all checks should be applied or if a subset was already completed
+/// in a code path that will be executed afterwards or was already executed before.
+#[derive(Encode, Decode, PartialEq, Eq, TypeInfo)]
+#[cfg_attr(test, derive(Debug))]
+pub(crate) enum FullCheck {
+	/// Yes, do a full check, skip nothing.
+	Yes,
+	/// Skip a subset of checks that are already completed before.
+	///
+	/// Attention: Should only be used when absolutely sure that the required
+	/// checks are completed before.
+	Skip,
+}
+
 /// A backed candidate pending availability.
 #[derive(Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(test, derive(Debug, Default))]
@@ -427,11 +441,12 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
-	pub(crate) fn process_candidates<GV, const SKIP_CHECKER_CHECKS: bool>(
+	pub(crate) fn process_candidates<GV>(
 		parent_storage_root: T::Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: GV,
+		full_check: FullCheck,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
 		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
@@ -487,7 +502,7 @@ impl<T: Config> Pallet<T> {
 			'next_backed_candidate: for (candidate_idx, backed_candidate) in
 				candidates.iter().enumerate()
 			{
-				if !SKIP_CHECKER_CHECKS {
+				if let FullCheck::Yes = full_check {
 					check_ctx.verify_backed_candidate(
 						parent_hash,
 						candidate_idx,
@@ -1960,11 +1975,12 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_b_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::UnscheduledCandidate
 				);
@@ -2015,11 +2031,12 @@ pub(crate) mod tests {
 
 				// out-of-order manifests as unscheduled.
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed_b, backed_a],
 						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::UnscheduledCandidate
 				);
@@ -2048,11 +2065,12 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::InsufficientBacking
 				);
@@ -2083,11 +2101,12 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::CandidateNotInParentContext
 				);
@@ -2118,7 +2137,7 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![
@@ -2127,6 +2146,7 @@ pub(crate) mod tests {
 							thread_a_assignment.clone(),
 						],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::WrongCollator,
 				);
@@ -2160,11 +2180,12 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![thread_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::NotCollatorSigned
 				);
@@ -2210,11 +2231,12 @@ pub(crate) mod tests {
 				<PendingAvailabilityCommitments<Test>>::insert(&chain_a, candidate.commitments);
 
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::CandidateScheduledBeforeParaFree
 				);
@@ -2253,11 +2275,12 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::CandidateScheduledBeforeParaFree
 				);
@@ -2304,11 +2327,12 @@ pub(crate) mod tests {
 				}
 
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::PrematureCodeUpgrade
 				);
@@ -2338,11 +2362,12 @@ pub(crate) mod tests {
 				));
 
 				assert_eq!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Err(Error::<Test>::ValidationDataHashMismatch.into()),
 				);
@@ -2373,11 +2398,12 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::InvalidValidationCodeHash
 				);
@@ -2408,11 +2434,12 @@ pub(crate) mod tests {
 				));
 
 				assert_noop!(
-					ParaInclusion::process_candidates::<_, false>(
+					ParaInclusion::process_candidates(
 						Default::default(),
 						vec![backed],
 						vec![chain_a_assignment.clone()],
 						&group_validators,
+						FullCheck::Yes,
 					),
 					Error::<Test>::ParaHeadMismatch
 				);
@@ -2573,7 +2600,7 @@ pub(crate) mod tests {
 			let ProcessedCandidates {
 				core_indices: occupied_cores,
 				candidate_receipt_with_backing_validator_indices,
-			} = ParaInclusion::process_candidates::<_, false>(
+			} = ParaInclusion::process_candidates(
 				Default::default(),
 				backed_candidates.clone(),
 				vec![
@@ -2582,6 +2609,7 @@ pub(crate) mod tests {
 					thread_a_assignment.clone(),
 				],
 				&group_validators,
+				FullCheck::Yes,
 			)
 			.expect("candidates scheduled, in order, and backed");
 
@@ -2767,11 +2795,12 @@ pub(crate) mod tests {
 			));
 
 			let ProcessedCandidates { core_indices: occupied_cores, .. } =
-				ParaInclusion::process_candidates::<_, false>(
+				ParaInclusion::process_candidates(
 					Default::default(),
 					vec![backed_a],
 					vec![chain_a_assignment.clone()],
 					&group_validators,
+					FullCheck::Yes,
 				)
 				.expect("candidates scheduled, in order, and backed");
 
