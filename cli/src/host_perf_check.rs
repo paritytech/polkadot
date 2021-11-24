@@ -19,6 +19,7 @@ use log::info;
 use nix::unistd;
 use polkadot_node_core_pvf::sp_maybe_compressed_blob;
 use sc_service::BasePath;
+use service::kusama_runtime;
 use std::{
 	fs::{self, OpenOptions},
 	io::{self, Read, Write},
@@ -60,10 +61,8 @@ fn save_check_passed_file(path: &Path) -> io::Result<()> {
 pub fn host_perf_check(result_cache_path: Option<BasePath>) -> Result<(), PerfCheckError> {
 	const PERF_CHECK_TIME_LIMIT: Duration = Duration::from_secs(20);
 	const CODE_SIZE_LIMIT: usize = 1024usize.pow(3);
-	const WASM_CODE: &[u8] = include_bytes!(
-		"../../target/release/wbuild/kusama-runtime/kusama_runtime.compact.compressed.wasm"
-	);
 	const CHECK_PASSED_FILE_NAME: &str = ".perf_check_passed";
+	let wasm_code = kusama_runtime::WASM_BINARY.ok_or(PerfCheckError::WasmBinaryMissing)?;
 
 	let check_passed_file_path =
 		result_cache_path.map(|path| path.path().join(CHECK_PASSED_FILE_NAME));
@@ -79,7 +78,7 @@ pub fn host_perf_check(result_cache_path: Option<BasePath>) -> Result<(), PerfCh
 	let start = Instant::now();
 
 	// Recreate the pipeline from the pvf prepare worker.
-	let code = sp_maybe_compressed_blob::decompress(WASM_CODE, CODE_SIZE_LIMIT)
+	let code = sp_maybe_compressed_blob::decompress(wasm_code, CODE_SIZE_LIMIT)
 		.or(Err(PerfCheckError::CodeDecompressionFailed))?;
 	let blob = polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
 	let _ = polkadot_node_core_pvf::prepare(blob).map_err(PerfCheckError::from)?;

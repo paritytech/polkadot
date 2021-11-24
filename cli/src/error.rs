@@ -41,6 +41,9 @@ pub enum PerfCheckError {
 	#[error("This subcommand is only available in release mode")]
 	WrongBuildType,
 
+	#[error("No wasm code found for running the performance test")]
+	WasmBinaryMissing,
+
 	#[error("Failed to decompress wasm code")]
 	CodeDecompressionFailed,
 
