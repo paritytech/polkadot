@@ -950,7 +950,6 @@ impl<T: Config> CandidateCheckContext<T> {
 		backed_candidate: &BackedCandidate<<T as frame_system::Config>::Hash>,
 	) -> Result<(), Error<T>> {
 		let para_id = backed_candidate.descriptor().para_id;
-		let now = self.now;
 
 		// we require that the candidate is in the context of the parent block.
 		ensure!(
