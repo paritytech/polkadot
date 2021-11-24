@@ -202,3 +202,6 @@ try-runtime = [
 	"runtime-common/try-runtime",
 	"pallet-multisig/try-runtime",
 ]
+
+# Set timing constants (e.g. session period) to faster versions to speed up testing.
+fast-runtime = []

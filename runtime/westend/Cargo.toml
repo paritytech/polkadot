@@ -247,3 +247,6 @@ try-runtime = [
 # runtime without clashing with the runtime API exported functions
 # in WASM.
 disable-runtime-api = []
+
+# Set timing constants (e.g. session period) to faster versions to speed up testing.
+fast-runtime = []

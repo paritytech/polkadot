@@ -532,13 +532,35 @@ impl pallet_staking::Config for Runtime {
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
+#[cfg(feature = "fast-runtime")]
+pub const LAUNCH_PERIOD: BlockNumber = 2 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const VOTING_PERIOD: BlockNumber = 2 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 2 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const ENACTMENT_PERIOD: BlockNumber = 2 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const COOLOFF_PERIOD: BlockNumber = 2 * MINUTES;
+
+#[cfg(not(feature = "fast-runtime"))]
+pub const LAUNCH_PERIOD: BlockNumber = 7 * DAYS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const VOTING_PERIOD: BlockNumber = 7 * DAYS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 3 * HOURS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const ENACTMENT_PERIOD: BlockNumber = 8 * DAYS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const COOLOFF_PERIOD: BlockNumber = 7 * DAYS;
+
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
-	pub const VotingPeriod: BlockNumber = 7 * DAYS;
-	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
+	pub const LaunchPeriod: BlockNumber = LAUNCH_PERIOD;
+	pub const VotingPeriod: BlockNumber = VOTING_PERIOD;
+	pub const FastTrackVotingPeriod: BlockNumber = FAST_TRACK_VOTING_PERIOD;
 	pub const MinimumDeposit: Balance = 100 * CENTS;
-	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
-	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
+	pub const EnactmentPeriod: BlockNumber = ENACTMENT_PERIOD;
+	pub const CooloffPeriod: BlockNumber = COOLOFF_PERIOD;
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 10 * MILLICENTS;
 	pub const InstantAllowed: bool = true;
@@ -601,8 +623,13 @@ impl pallet_democracy::Config for Runtime {
 	type MaxProposals = MaxProposals;
 }
 
+#[cfg(feature = "fast-runtime")]
+pub const MOTION_DURATION: BlockNumber = 2 * MINUTES;
+#[cfg(not(feature = "fast-runtime"))]
+pub const MOTION_DURATION: BlockNumber = 3 * DAYS;
+
 parameter_types! {
-	pub const CouncilMotionDuration: BlockNumber = 3 * DAYS;
+	pub const CouncilMotionDuration: BlockNumber = MOTION_DURATION;
 	pub const CouncilMaxProposals: u32 = 100;
 	pub const CouncilMaxMembers: u32 = 100;
 }
@@ -619,6 +646,11 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type WeightInfo = weights::pallet_collective_council::WeightInfo<Runtime>;
 }
 
+#[cfg(feature = "fast-runtime")]
+pub const TERM_DURATION: BlockNumber = 2 * MINUTES;
+#[cfg(not(feature = "fast-runtime"))]
+pub const TERM_DURATION: BlockNumber = 24 * HOURS;
+
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * CENTS;
 	// 1 storage item created, key size is 32 bytes, value size is 16+16.
@@ -626,7 +658,7 @@ parameter_types! {
 	// additional data per vote is 32 bytes (account id).
 	pub const VotingBondFactor: Balance = deposit(0, 32);
 	/// Daily council elections
-	pub const TermDuration: BlockNumber = 24 * HOURS;
+	pub const TermDuration: BlockNumber = TERM_DURATION;
 	pub const DesiredMembers: u32 = 19;
 	pub const DesiredRunnersUp: u32 = 19;
 	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
@@ -654,7 +686,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 }
 
 parameter_types! {
-	pub const TechnicalMotionDuration: BlockNumber = 3 * DAYS;
+	pub const TechnicalMotionDuration: BlockNumber = MOTION_DURATION;
 	pub const TechnicalMaxProposals: u32 = 100;
 	pub const TechnicalMaxMembers: u32 = 100;
 }
@@ -1197,9 +1229,11 @@ impl paras_registrar::Config for Runtime {
 	type WeightInfo = weights::runtime_common_paras_registrar::WeightInfo<Runtime>;
 }
 
+pub const LEASE_PERIOD: BlockNumber = 6 * WEEKS;
+
 parameter_types! {
 	// 6 weeks
-	pub const LeasePeriod: BlockNumber = 6 * WEEKS;
+	pub const LeasePeriod: BlockNumber = LEASE_PERIOD;
 }
 
 impl slots::Config for Runtime {

@@ -529,13 +529,35 @@ impl pallet_identity::Config for Runtime {
 	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
 }
 
+#[cfg(feature = "fast-runtime")]
+pub const LAUNCH_PERIOD: BlockNumber = 2 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const VOTING_PERIOD: BlockNumber = 2 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 2 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const ENACTMENT_PERIOD: BlockNumber = 2 * MINUTES;
+#[cfg(feature = "fast-runtime")]
+pub const COOLOFF_PERIOD: BlockNumber = 2 * MINUTES;
+
+#[cfg(not(feature = "fast-runtime"))]
+pub const LAUNCH_PERIOD: BlockNumber = 28 * DAYS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const VOTING_PERIOD: BlockNumber = 28 * DAYS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const FAST_TRACK_VOTING_PERIOD: BlockNumber = 3 * HOURS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const ENACTMENT_PERIOD: BlockNumber = 28 * DAYS;
+#[cfg(not(feature = "fast-runtime"))]
+pub const COOLOFF_PERIOD: BlockNumber = 7 * DAYS;
+
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = 28 * DAYS;
-	pub const VotingPeriod: BlockNumber = 28 * DAYS;
-	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
+	pub const LaunchPeriod: BlockNumber = LAUNCH_PERIOD;
+	pub const VotingPeriod: BlockNumber = VOTING_PERIOD;
+	pub const FastTrackVotingPeriod: BlockNumber = FAST_TRACK_VOTING_PERIOD;
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
-	pub const EnactmentPeriod: BlockNumber = 28 * DAYS;
-	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
+	pub const EnactmentPeriod: BlockNumber = ENACTMENT_PERIOD;
+	pub const CooloffPeriod: BlockNumber = COOLOFF_PERIOD;
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 	pub const InstantAllowed: bool = true;
@@ -613,8 +635,13 @@ impl pallet_democracy::Config for Runtime {
 	type MaxProposals = MaxProposals;
 }
 
+#[cfg(feature = "fast-runtime")]
+pub const MOTION_DURATION: BlockNumber = 2 * MINUTES;
+#[cfg(not(feature = "fast-runtime"))]
+pub const MOTION_DURATION: BlockNumber = 7 * DAYS;
+
 parameter_types! {
-	pub const CouncilMotionDuration: BlockNumber = 7 * DAYS;
+	pub const CouncilMotionDuration: BlockNumber = MOTION_DURATION;
 	pub const CouncilMaxProposals: u32 = 100;
 	pub const CouncilMaxMembers: u32 = 100;
 }
@@ -630,6 +657,11 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type WeightInfo = weights::pallet_collective_council::WeightInfo<Runtime>;
 }
+
+#[cfg(feature = "fast-runtime")]
+pub const TERM_DURATION: BlockNumber = 2 * MINUTES;
+#[cfg(not(feature = "fast-runtime"))]
+pub const TERM_DURATION: BlockNumber = 7 * DAYS;
 
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
@@ -1170,15 +1202,22 @@ impl paras_registrar::Config for Runtime {
 	type WeightInfo = weights::runtime_common_paras_registrar::WeightInfo<Runtime>;
 }
 
+pub const LEASE_PERIOD: BlockNumber = 12 * WEEKS;
+
+#[cfg(feature = "fast-runtime")]
+pub const LEASE_OFFSET: BlockNumber = 0;
+#[cfg(not(feature = "fast-runtime"))]
+pub const LEASE_OFFSET: BlockNumber = 64 * DAYS;
+
 parameter_types! {
 	// 12 weeks = 3 months per lease period -> 8 lease periods ~ 2 years
-	pub const LeasePeriod: BlockNumber = 12 * WEEKS;
+	pub const LeasePeriod: BlockNumber = LEASE_PERIOD;
 	// Polkadot Genesis was on May 26, 2020.
 	// Target Parachain Onboarding Date: Dec 15, 2021.
 	// Difference is 568 days.
 	// We want a lease period to start on the target onboarding date.
 	// 568 % (12 * 7) = 64 day offset
-	pub const LeaseOffset: BlockNumber = 64 * DAYS;
+	pub const LeaseOffset: BlockNumber = LEASE_OFFSET;
 }
 
 impl slots::Config for Runtime {
