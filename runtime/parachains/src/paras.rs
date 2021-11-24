@@ -1352,6 +1352,32 @@ mod tests {
 	}
 
 	#[test]
+	fn schedule_para_init_rejects_empty_code() {
+		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+			assert_err!(
+				Paras::schedule_para_initialize(
+					1000.into(),
+					ParaGenesisArgs {
+						parachain: false,
+						genesis_head: Default::default(),
+						validation_code: ValidationCode(vec![]),
+					}
+				),
+				Error::<Test>::CannotOnboard,
+			);
+
+			assert_ok!(Paras::schedule_para_initialize(
+				1000.into(),
+				ParaGenesisArgs {
+					parachain: false,
+					genesis_head: Default::default(),
+					validation_code: ValidationCode(vec![1]),
+				}
+			));
+		});
+	}
+
+	#[test]
 	fn para_past_code_pruning_in_initialize() {
 		let code_retention_period = 10;
 		let paras = vec![
