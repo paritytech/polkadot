@@ -2310,17 +2310,26 @@ async fn launch_approval(
 					"Detected invalid candidate as an approval checker.",
 				);
 
-				sender
-					.send_message(
-						DisputeCoordinatorMessage::IssueLocalStatement(
-							session_index,
-							candidate_hash,
-							candidate.clone(),
-							false,
-						)
-						.into(),
-					)
-					.await;
+
+				match reason {
+					InvalidCandidate::ExecutionError(_) => {
+						// We don't raise disputes on execution errors that are likely
+						// spurious.
+					}
+					_ => {
+						sender
+							.send_message(
+								DisputeCoordinatorMessage::IssueLocalStatement(
+									session_index,
+									candidate_hash,
+									candidate.clone(),
+									false,
+								)
+								.into(),
+							)
+							.await;
+					}
+				}
 
 				metrics_guard.take().on_approval_invalid();
 				return ApprovalState::failed(validator_index, candidate_hash)
