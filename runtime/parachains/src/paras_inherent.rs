@@ -162,6 +162,29 @@ fn backed_candidates_weight<T: frame_system::Config + Config>(
 		.fold(0, |acc, x| acc.saturating_add(x))
 }
 
+/// A helper trait to allow calling retain while getting access
+/// to the index of the item in the `vec`.
+trait IndexedRetain<T> {
+	/// Retains only the elements specified by the predicate.
+	///
+	/// In other words, remove all elements `e` residing at
+	/// index `i` such that `f(i, &e)` returns `false`. This method
+	/// operates in place, visiting each element exactly once in the
+	/// original order, and preserves the order of the retained elements.
+	fn indexed_retain(&mut self, f: impl FnMut(usize, &T) -> bool);
+}
+
+impl<T> IndexedRetain<T> for Vec<T> {
+	fn indexed_retain(&mut self, mut f: impl FnMut(usize, &T) -> bool) {
+		let mut idx = 0_usize;
+		self.retain(move |item| {
+			let ret = f(idx, item);
+			idx += 1_usize;
+			ret
+		})
+	}
+}
+
 /// A bitfield concerning concluded disputes for candidates
 /// associated to the core index equivalent to the bit position.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
@@ -826,12 +849,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 				|c| backed_candidate_weight::<T>(c),
 				remaining_weight,
 			);
-		let mut idx = 0_usize;
-		candidates.retain(|_backed_candidate| {
-			let exists = indices.binary_search(&idx).is_ok();
-			idx += 1;
-			exists
-		});
+		candidates.indexed_retain(|idx, _backed_candidate| indices.binary_search(&idx).is_ok());
 		// pick all bitfields, and
 		// fill the remaining space with candidates
 		let total = acc_candidate_weight.saturating_add(total_bitfields_weight);
@@ -850,12 +868,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 		remaining_weight,
 	);
 
-	let mut idx = 0_usize;
-	bitfields.retain(|_bitfield| {
-		let exists = indices.binary_search(&idx).is_ok();
-		idx += 1;
-		exists
-	});
+	bitfields.indexed_retain(|idx, _bitfield| indices.binary_search(&idx).is_ok());
 
 	total
 }
@@ -986,11 +999,8 @@ fn sanitize_backed_candidates<
 	scheduled: &[CoreAssignment],
 ) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
-	let mut index = 0;
-	backed_candidates.retain(move |backed_candidate| {
-		let ret = !candidate_has_concluded_invalid_dispute_or_is_invalid(index, backed_candidate);
-		index += 1;
-		ret
+	backed_candidates.indexed_retain(move |idx, backed_candidate| {
+		!candidate_has_concluded_invalid_dispute_or_is_invalid(idx, backed_candidate)
 	});
 
 	// Assure the backed candidate's `ParaId`'s core is free.
