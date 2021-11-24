@@ -69,23 +69,23 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	block_number: T::BlockNumber,
 	/// Starting session; we expect it to get incremented on session setup.
 	session: SessionIndex,
-	/// Session we want the scenario to take place in. We roll to to this session.
+	/// Session we want the scenario to take place in. We will roll to this session.
 	target_session: u32,
 	/// Optionally set the max validators per core; otherwise uses the configuration value.
 	max_validators_per_core: Option<u32>,
 	/// Optionally set the max validators; otherwise uses the configuration value.
 	max_validators: Option<u32>,
-	/// Optionally set the number of dispute statements for each candidate,
+	/// Optionally set the number of dispute statements for each candidate.
 	dispute_statements: BTreeMap<u32, u32>,
 	/// Session index of for each dispute. Index of slice corresponds to a core,
 	/// which is offset by the number of entries for `backed_and_concluding_cores`. I.E. if
-	/// `backed_and_concluding_cores` cores has 3 entries, the first index of `dispute_sessions`
+	/// `backed_and_concluding_cores` has 3 entries, the first index of `dispute_sessions`
 	/// will correspond to core index 3. There must be one entry for each core with a dispute
 	/// statement set.
 	dispute_sessions: Vec<u32>,
-	///  Map from core/para id/group index seed to number of validity votes.
+	/// Map from core seed to number of validity votes.
 	backed_and_concluding_cores: BTreeMap<u32, u32>,
-	/// Have every candidate include a code upgrade by setting this to `Some` where the interior
+	/// Make every candidate include a code upgrade by setting this to `Some` where the interior
 	/// value is the byte length of the new code.
 	code_upgrade: Option<u32>,
 	_phantom: sp_std::marker::PhantomData<T>,
@@ -124,7 +124,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self
 	}
 
-	/// Set `self.backed_and_concluding_cores`
+	/// Set `self.backed_and_concluding_cores`.
 	pub(crate) fn set_backed_and_concluding_cores(
 		mut self,
 		backed_and_concluding_cores: BTreeMap<u32, u32>,
@@ -260,7 +260,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			candidate_hash,
 			availability_votes,
 		);
-
 		let commitments = CandidateCommitments::<u32>::default();
 		inclusion::PendingAvailability::<T>::insert(para_id, candidate_availability);
 		inclusion::PendingAvailabilityCommitments::<T>::insert(&para_id, commitments);
@@ -295,7 +294,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		}
 	}
 
-	/// Schedule a parachain for each `cores`.
+	/// Register `cores` count of parachains.
 	///
 	/// Note that this must be called at least 2 sessions before the target session as there is a
 	/// n+2 session delay for the scheduled actions to take effect.
@@ -389,10 +388,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Create a `UncheckedSigned<AvailabilityBitfield> for each validator where each core in
-	/// `concluding_cores` is signed off by every validator as fully available. Additionally set up
-	/// storage such that each `concluding_cores` is pending becoming fully available so the
-	/// generated bitfields will be to the cores successfully being freed from the candidates being
-	/// marked as available.
+	/// `concluding_cores` is fully available. Additionally set up storage such that each
+	/// `concluding_cores`is pending becoming fully available so the generated bitfields will be
+	///  to the cores successfully being freed from the candidates being marked as available.
 	fn create_availability_bitfields(
 		&self,
 		concluding_cores: &BTreeMap<u32, u32>,
@@ -603,12 +601,12 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	///
 	/// Some methods for configuring the builder:
 	///
-	/// * `set_backed_and_concluding_cores`: Set a map from core/para id/group index seed to number of
-	/// validity votes.
+	/// * `set_backed_and_concluding_cores`: Set a map from core/para id seed to number of validity
+	/// votes.
 	/// * `set_dispute_sessions`: Set the session index of for each dispute. Index of slice
 	/// corresponds to a core, which is offset by the number of entries for
 	/// `backed_and_concluding_cores`. I.E. if `backed_and_concluding_cores` cores has 3 entries,
-	/// the first index of `dispute_sessions` will correspond to core index 3. There must be one
+	/// the first index of `dispute_sessions` will correspond to core index 3. There must be an
 	/// entry for each core with a dispute statement set.
 	/// *`set_code_upgrade`: Set to `Some` to include a code upgrade for all backed candidates.
 	/// The value within `Some` will be the byte length of the code.
