@@ -562,7 +562,6 @@ publish-rustdoc:
     - ssh-add - <<< ${GITHUB_SSH_PRIV_KEY}
     - mkdir ~/.ssh && touch ~/.ssh/known_hosts
     - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-    - rm -rf /tmp/*
     # Set git config
     - git config user.email "devops-team@parity.io"
     - git config user.name "${GITHUB_USER}"
