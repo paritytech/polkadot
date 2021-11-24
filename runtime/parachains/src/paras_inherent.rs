@@ -156,6 +156,7 @@ fn backed_candidate_weight_inner<T: frame_system::Config + Config>(
 	}
 }
 
+// Calculate the worst case weight for enacting the given number of candidates.
 fn enact_candidates_weight<T: frame_system::Config + Config>(
 	candidate_count: usize,
 	config: &HostConfiguration<T::BlockNumber>,
@@ -501,7 +502,6 @@ impl<T: Config> Pallet<T> {
 			} else {
 				Vec::new()
 			};
-
 
 			// Create a bit index from the set of core indices where each index corresponds to
 			// a core index that was freed due to a dispute.
