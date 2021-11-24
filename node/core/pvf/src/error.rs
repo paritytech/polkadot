@@ -48,9 +48,9 @@ pub enum ValidationError {
 /// of the candidate [`polkadot_parachain::primitives::ValidationParams`] and the PVF.
 #[derive(Debug, Clone)]
 pub enum InvalidCandidate {
-	/// The failure is reported by the worker. The string contains the error message.
-	///
-	/// This also includes the errors reported by the preparation pipeline.
+	/// PVF preparation ended up with a deterministic error.
+	PrepareError(String),
+	/// The failure is reported by the execution worker. The string contains the error message.
 	WorkerReportedError(String),
 	/// The worker has died during validation of a candidate. That may fall in one of the following
 	/// categories, which we cannot distinguish programmatically:
@@ -78,13 +78,33 @@ pub enum InvalidCandidate {
 
 impl From<PrepareError> for ValidationError {
 	fn from(error: PrepareError) -> Self {
-		let error_str = match error {
-			PrepareError::Prevalidation(err) => format!("prevalidation: {}", err),
-			PrepareError::Preparation(err) => format!("preparation: {}", err),
-			PrepareError::Panic(err) => format!("panic: {}", err),
-			PrepareError::TimedOut => "preparation timeout".to_owned(),
-			PrepareError::DidNotMakeIt => "communication error".to_owned(),
-		};
-		ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(error_str))
+		// Here we need to classify the errors into two errors: deterministic and non-deterministic.
+		//
+		// Non-deterministic errors can happen spuriously. Typically, they occur due to resource
+		// starvation, e.g. under heavy load or memory pressure. Those errors are typically transient
+		// but may persist e.g. if the node is run by overwhelmingly underpowered machine.
+		//
+		// Deterministic errors should trigger reliably. Those errors depend on the PVF itself and
+		// the sc-executor/wasmtime logic.
+		//
+		// For now, at least until the PVF pre-checking lands, the deterministic errors will be
+		// treated as `InvalidCandidate`. Should those occur they could potentially trigger disputes.
+		//
+		// All non-deterministic errors are qualified as `InternalError`s and will not trigger
+		// disputes.
+		match error {
+			PrepareError::Prevalidation(err) => ValidationError::InvalidCandidate(
+				InvalidCandidate::PrepareError(format!("prevalidation: {}", err)),
+			),
+			PrepareError::Preparation(err) => ValidationError::InvalidCandidate(
+				InvalidCandidate::PrepareError(format!("preparation: {}", err)),
+			),
+			PrepareError::Panic(err) => ValidationError::InvalidCandidate(
+				InvalidCandidate::PrepareError(format!("panic: {}", err)),
+			),
+			PrepareError::TimedOut => ValidationError::InternalError("prepare: timeout".to_owned()),
+			PrepareError::DidNotMakeIt =>
+				ValidationError::InternalError("prepare: did not make it".to_owned()),
+		}
 	}
 }
