@@ -206,18 +206,13 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 /// Should only be run in release build since the check would take too much time otherwise.
 /// Returns `Ok` immediately if the check has been passed previously.
 fn host_perf_check() -> Result<()> {
-	#[cfg(build_type = "debug")]
+	#[cfg(not(build_type = "release"))]
 	{
-		Err(PerfCheckError::DebugBuildNotSupported.into())
+		Err(PerfCheckError::WrongBuildType.into())
 	}
 	#[cfg(build_type = "release")]
 	{
 		crate::host_perf_check::host_perf_check().map_err(Into::into)
-	}
-	#[cfg(not(any(build_type = "debug", build_type = "release")))]
-	{
-		info!("Performance check skipped: unknown build type");
-		Ok(())
 	}
 }
 

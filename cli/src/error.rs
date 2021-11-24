@@ -39,7 +39,7 @@ pub enum Error {
 #[derive(thiserror::Error, Debug)]
 pub enum PerfCheckError {
 	#[error("This subcommand is only available in release mode")]
-	DebugBuildNotSupported,
+	WrongBuildType,
 
 	#[error("Failed to decompress wasm code")]
 	CodeDecompressionFailed,
