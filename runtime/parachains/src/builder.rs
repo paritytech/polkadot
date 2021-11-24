@@ -634,8 +634,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		let bitfields =
 			builder.create_availability_bitfields(&builder.backed_and_concluding_cores, used_cores);
-		let backed_candidates =
-			builder.create_backed_candidates(&builder.backed_and_concluding_cores, builder.code_upgrade);
+		let backed_candidates = builder
+			.create_backed_candidates(&builder.backed_and_concluding_cores, builder.code_upgrade);
 
 		let disputes = builder.create_disputes_with_no_spam(
 			builder.backed_and_concluding_cores.len() as u32,
