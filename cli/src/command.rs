@@ -14,33 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{
-	cli::{Cli, Subcommand},
-	host_perf_check::PerfCheckError,
-};
+use crate::cli::{Cli, Subcommand};
 use futures::future::TryFutureExt;
 use log::info;
 use sc_cli::{Role, RuntimeVersion, SubstrateCli};
 use service::{self, IdentifyVariant};
 use sp_core::crypto::Ss58AddressFormatRegistry;
 
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-	#[error(transparent)]
-	PolkadotService(#[from] service::Error),
-
-	#[error(transparent)]
-	SubstrateCli(#[from] sc_cli::Error),
-
-	#[error(transparent)]
-	SubstrateService(#[from] sc_service::Error),
-
-	#[error(transparent)]
-	PerfCheck(#[from] PerfCheckError),
-
-	#[error("Other: {0}")]
-	Other(String),
-}
+pub use crate::error::{Error, PerfCheckError};
 
 impl std::convert::From<String> for Error {
 	fn from(s: String) -> Self {
@@ -218,6 +199,25 @@ fn ensure_dev(spec: &Box<dyn service::ChainSpec>) -> std::result::Result<(), Str
 		Ok(())
 	} else {
 		Err(format!("{}{}", DEV_ONLY_ERROR_PATTERN, spec.id()))
+	}
+}
+
+/// Runs a performance check via compiling sample wasm code with a timeout.
+/// Should only be run in release build since the check would take too much time otherwise.
+/// Returns `Ok` immediately if the check has been passed previously.
+fn host_perf_check() -> Result<()> {
+	#[cfg(build_type = "debug")]
+	{
+		Err(PerfCheckError::DebugBuildNotSupported.into())
+	}
+	#[cfg(build_type = "release")]
+	{
+		crate::host_perf_check::host_perf_check().map_err(Into::into)
+	}
+	#[cfg(not(any(build_type = "debug", build_type = "release")))]
+	{
+		info!("Performance check skipped: unknown build type");
+		Ok(())
 	}
 }
 
@@ -426,7 +426,7 @@ pub fn run() -> Result<()> {
 			builder.with_colors(true);
 			let _ = builder.init();
 
-			crate::host_perf_check::host_perf_check().map_err(Into::into)
+			host_perf_check()
 		},
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
