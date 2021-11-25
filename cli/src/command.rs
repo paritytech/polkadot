@@ -213,7 +213,8 @@ fn host_perf_check(_result_cache_path: Option<BasePath>) -> Result<()> {
 	}
 	#[cfg(build_type = "release")]
 	{
-		crate::host_perf_check::host_perf_check(_result_cache_path).map_err(Into::into)
+		crate::host_perf_check::host_perf_check(_result_cache_path)?;
+		Ok(())
 	}
 }
 
